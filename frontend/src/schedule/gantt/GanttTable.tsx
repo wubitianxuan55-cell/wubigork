@@ -47,6 +47,14 @@ interface GanttTableProps {
   onRowMenuClick: (key: string, t: SchedTask) => void
 }
 
+const PARTITION_ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+
+/** WBS `3.2` → 分区 `III`（ZPert 计划编制首列口径）。 */
+function partitionOf(wbs: string | undefined): string {
+  const root = Number((wbs ?? '').split('.')[0])
+  return Number.isInteger(root) && root > 0 ? (PARTITION_ROMAN[root - 1] ?? String(root)) : ''
+}
+
 export const GanttTable: React.FC<GanttTableProps> = ({
   leftW,
   cols,
@@ -99,6 +107,8 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                 title="点击折叠/展开该组"
               >
                 <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no" />
+                {colOn('partition') && <div style={{ width: W.partition }} className="sched-gantt-cell" />}
+                {colOn('marker') && <div style={{ width: W.marker }} className="sched-gantt-cell" />}
                 <div style={{ width: W.name }} className="sched-gantt-cell">
                   <span style={{ paddingLeft: r.level * 14, display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <strong className="sched-group-name">{open ? '▲' : '▶'}{r.label}</strong>
@@ -107,15 +117,15 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                 </div>
                 {colOn('wbs') && <div style={{ width: W.wbs }} className="sched-gantt-cell sched-dim" />}
                 {colOn('dur') && <div style={{ width: W.dur }} className="sched-gantt-cell"><span className="sched-dim">汇总</span></div>}
-                {colOn('progress') && <div style={{ width: W.progress }} className="sched-gantt-cell" />}
+                {colOn('preds') && <div style={{ width: W.preds }} className="sched-gantt-cell" />}
                 {colOn('start') && <div style={{ width: W.start }} className="sched-gantt-cell sched-dim">{cpm.ok ? fmtDate(project.startDate, r.minEs, cal) : ''}</div>}
                 {colOn('finish') && <div style={{ width: W.finish }} className="sched-gantt-cell sched-dim">{cpm.ok ? fmtDate(project.startDate, r.maxEf, cal) : ''}</div>}
+                {colOn('progress') && <div style={{ width: W.progress }} className="sched-gantt-cell" />}
                 {colOn('ls') && <div style={{ width: W.ls }} className="sched-gantt-cell" />}
                 {colOn('lf') && <div style={{ width: W.lf }} className="sched-gantt-cell" />}
                 {colOn('tf') && <div style={{ width: W.tf }} className="sched-gantt-cell" />}
                 {colOn('ff') && <div style={{ width: W.ff }} className="sched-gantt-cell" />}
                 {colOn('mode') && <div style={{ width: W.mode }} className="sched-gantt-cell" />}
-                {colOn('preds') && <div style={{ width: W.preds }} className="sched-gantt-cell" />}
                 {colOn('succ') && <div style={{ width: W.succ }} className="sched-gantt-cell" />}
                 {colOn('cost') && <div style={{ width: W.cost }} className="sched-gantt-cell sched-cost-cell" />}
                 {/* 自定义字段列（v4.138 #14）：合成组头行留空（汇总只对叶任务有意义） */}
@@ -141,6 +151,18 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                 onRowMenuClick={onRowMenuClick}
               >
                 <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
+                {colOn('partition') && (
+                  <div style={{ width: W.partition }} className="sched-gantt-cell sched-partition-cell" title={`分区 ${partitionOf(wbs[i])}`}>
+                    {partitionOf(wbs[i])}
+                  </div>
+                )}
+                {colOn('marker') && (
+                  <div style={{ width: W.marker }} className="sched-gantt-cell sched-marker-cell">
+                    {group ? <span className="sched-marker-star" title="分区汇总">★</span>
+                      : t.isMilestone ? <span className="sched-marker-mile" title="里程碑">◆</span>
+                        : null}
+                  </div>
+                )}
                 <div style={{ width: W.name }} className="sched-gantt-cell">
                   <span style={{ paddingLeft: t.level * 14, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                     {group ? (
@@ -211,20 +233,20 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                     )}
                   </div>
                 )}
-                {colOn('progress') && (
-                  <div style={{ width: W.progress }} className="sched-gantt-cell">
+                {colOn('preds') && (
+                  <div style={{ width: W.preds }} className="sched-gantt-cell">
                     {!group && (
-                      <InputNumber
-                        size="small"
-                        variant="borderless"
-                        min={0}
-                        max={100}
-                        value={t.progress}
-                        onChange={(v) => onUpdateTask(t.id, { progress: Math.max(0, Math.min(100, Math.round(Number(v) || 0))) })}
-                        style={{ padding: 0, width: '100%' }}
-                        data-testid={`sched-progress-${t.id}`}
-                        title="完成进度 0-100（条形进度覆盖与前锋线按此绘制）"
-                      />
+                      <Popover trigger="click" placement="left" content={<PredEditor task={t} />} title={`「${t.name}」前置任务`}>
+                        <Button
+                          size="small"
+                          type="text"
+                          className="sched-link-cell"
+                          data-testid={`sched-preds-${t.id}`}
+                          title={predsOf(t.id, project).map((l) => taskNameOf(project, l.from)).join('、') || '无前置，点击添加'}
+                        >
+                          {fmtLinkRefs(predsOf(t.id, project).map((l) => ({ id: l.from, type: l.type, lag: l.lag })), noOf(project))}
+                        </Button>
+                      </Popover>
                     )}
                   </div>
                 )}
@@ -248,6 +270,23 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                 {colOn('finish') && (
                   <div style={{ width: W.finish }} className="sched-gantt-cell sched-dim">
                     {(group ? span : row) ? fmtDate(project.startDate, group ? span!.ef : row!.ef, cal) : ''}
+                  </div>
+                )}
+                {colOn('progress') && (
+                  <div style={{ width: W.progress }} className="sched-gantt-cell">
+                    {!group && (
+                      <InputNumber
+                        size="small"
+                        variant="borderless"
+                        min={0}
+                        max={100}
+                        value={t.progress}
+                        onChange={(v) => onUpdateTask(t.id, { progress: Math.max(0, Math.min(100, Math.round(Number(v) || 0))) })}
+                        style={{ padding: 0, width: '100%' }}
+                        data-testid={`sched-progress-${t.id}`}
+                        title="完成进度 0-100（条形进度覆盖与前锋线按此绘制）"
+                      />
+                    )}
                   </div>
                 )}
                 {/* 六时参（刀B）：LS/LF/TF/FF——手动任务逆推不回传，诚实显示 —（不放假数据） */}
@@ -284,23 +323,6 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                       >
                         {manual ? '手动' : '自动'}
                       </Button>
-                    )}
-                  </div>
-                )}
-                {colOn('preds') && (
-                  <div style={{ width: W.preds }} className="sched-gantt-cell">
-                    {!group && (
-                      <Popover trigger="click" placement="left" content={<PredEditor task={t} />} title={`「${t.name}」前置任务`}>
-                        <Button
-                          size="small"
-                          type="text"
-                          className="sched-link-cell"
-                          data-testid={`sched-preds-${t.id}`}
-                          title={predsOf(t.id, project).map((l) => taskNameOf(project, l.from)).join('、') || '无前置，点击添加'}
-                        >
-                          {fmtLinkRefs(predsOf(t.id, project).map((l) => ({ id: l.from, type: l.type, lag: l.lag })), noOf(project))}
-                        </Button>
-                      </Popover>
                     )}
                   </div>
                 )}

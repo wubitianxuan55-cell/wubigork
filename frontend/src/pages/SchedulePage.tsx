@@ -15,20 +15,22 @@
  * 增 MPP 导入）+ 工程信息条（工程名/开工/目标竣工/日历/基线/资源 | 视图档位）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Dropdown, Input, Modal, Popconfirm, Popover, Segmented, Select, Space, Tooltip } from 'antd'
+import { Alert, Button, Dropdown, Input, Modal, Popconfirm, Popover, Select } from 'antd'
 import type { MenuProps } from 'antd'
 import {
-  AimOutlined, AppstoreOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FundOutlined, ImportOutlined, InfoCircleOutlined,
-  FieldTimeOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined,
+  AimOutlined, AppstoreOutlined, BgColorsOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, CopyOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FileTextOutlined, FontColorsOutlined, FontSizeOutlined, FormatPainterOutlined, FundOutlined, ImportOutlined,
+  FieldTimeOutlined, LineHeightOutlined, MessageOutlined, NodeCollapseOutlined, NodeExpandOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SearchOutlined, SettingOutlined, SnippetsOutlined, TableOutlined, TagOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined, UpOutlined, WarningOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
-import { computeBaselineDrift } from '../schedule/baseline'
 import { checkProject } from '../schedule/checker'
-import { checkDeadline, planFinishOf } from '../schedule/deadline'
+import { makeCustomView } from '../schedule/views'
+import { planFinishOf } from '../schedule/deadline'
 import { latestReview } from '../schedule/reviews'
+import type { GanttGroupField, GanttSort } from '../schedule/ganttGroup'
+import type { SchedView } from '../schedule/types'
 import { taskWarn, warnSummary, type WarnAlgorithm } from '../schedule/warn'
 import type { SchedLink, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
@@ -45,6 +47,7 @@ import { UsageView } from '../schedule/UsageView'
 import { computeUsage } from '../schedule/usage'
 import { BaselinesPanel } from '../schedule/BaselinesPanel'
 import { ReviewPanel } from '../schedule/ReviewPanel'
+import { ScheduleDock } from '../schedule/ScheduleDock'
 import { TemplatesPanel } from '../schedule/TemplatesPanel'
 import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
@@ -56,30 +59,37 @@ import { GanttView } from '../schedule/GanttView'
 import { DcmaView } from '../schedule/DcmaView'
 import { MonteView } from '../schedule/MonteView'
 import { EvmView } from '../schedule/EvmView'
-import { PdmView } from '../schedule/PdmView'
-import { AoaView } from '../schedule/AoaView'
 // 瘦身 P3：页面内子区块分片至此目录（正文零改动，仅迁移）
-import { CalendarEditor } from './schedule/CalendarEditor'
 import { ExportDialog } from './schedule/ExportDialog'
 import { ProjectsManagePanel } from './schedule/ProjectsManagePanel'
+import { ProjectSettingsPanel } from './schedule/ProjectSettingsPanel'
+import { ScheduleNetworkWorkspace } from './schedule/ScheduleNetworkWorkspace'
+import {
+  RibbonColumn,
+  RibbonCommand,
+  RibbonGroup,
+  type ScheduleRibbonTabKey,
+} from './schedule/ScheduleRibbon'
 import '../schedule/schedule.css'
 import '../gaea/styles.css'
 import '../gaea/redesign.css'
 import '../gaea/tailwind.css'
 
-/** 偏移量文本：+N / -N / ±0 */
-function fmtDrift(n: number): string {
-  return n > 0 ? `+${n}` : `${n}`
-}
+const SCHEDULE_RIBBON_TABS: ReadonlyArray<{ key: ScheduleRibbonTabKey; label: string }> = [
+  { key: 'file', label: '文件' },
+  { key: 'plan', label: '计划' },
+  { key: 'resource', label: '资源' },
+  { key: 'control', label: '管控' },
+  { key: 'collab', label: '协作' },
+  { key: 'view', label: '视图' },
+  { key: 'help', label: '帮助' },
+]
 
 const SchedulePage: React.FC = () => {
   const project = useScheduleStore((s) => s.project)
   const view = useScheduleStore((s) => s.view)
   const setView = useScheduleStore((s) => s.setView)
   const selectedId = useScheduleStore((s) => s.selectedId)
-  const renameProject = useScheduleStore((s) => s.renameProject)
-  const setStartDate = useScheduleStore((s) => s.setStartDate)
-  const setDeadline = useScheduleStore((s) => s.setDeadline)
   const importProject = useScheduleStore((s) => s.importProject)
   const importAsProject = useScheduleStore((s) => s.importAsProject)
   const addTask = useScheduleStore((s) => s.addTask)
@@ -87,6 +97,11 @@ const SchedulePage: React.FC = () => {
   const updateTask = useScheduleStore((s) => s.updateTask)
   const removeTask = useScheduleStore((s) => s.removeTask)
   const loadSample = useScheduleStore((s) => s.loadSample)
+  // 视图库（斑马复刻 S6.2「保存视图/视图管理」）：保存/应用/删除直连 store
+  const saveCustomView = useScheduleStore((s) => s.saveCustomView)
+  const removeCustomView = useScheduleStore((s) => s.removeCustomView)
+  const renameCustomView = useScheduleStore((s) => s.renameCustomView)
+  const requestCustomView = useScheduleStore((s) => s.requestCustomView)
   const clearAll = useScheduleStore((s) => s.clearAll)
   const past = useScheduleStore((s) => s.past)
   const future = useScheduleStore((s) => s.future)
@@ -94,7 +109,18 @@ const SchedulePage: React.FC = () => {
   const redo = useScheduleStore((s) => s.redo)
   const fileRef = useRef<HTMLInputElement>(null)
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // ── 视图库（斑马复刻 S6.2）：保存当前横道视图态 / 管理已存视图 ──
+  const customViews = project.views ?? []
+  const [saveViewOpen, setSaveViewOpen] = useState(false)
+  const [saveViewName, setSaveViewName] = useState('')
+  const [saveViewErr, setSaveViewErr] = useState<string | null>(null)
+  const [manageViewOpen, setManageViewOpen] = useState(false)
+  const [renameViewId, setRenameViewId] = useState<string | null>(null)
+  const [renameViewName, setRenameViewName] = useState('')
+  const [renameViewErr, setRenameViewErr] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [dockOpen, setDockOpen] = useState(true)
+  const [ribbonTab, setRibbonTab] = useState<ScheduleRibbonTabKey>('plan')
   /** 任务检查器（v4.136 小刀）：inspectId=正在检查的任务；右键菜单「任务检查器」/检查器内点前置名跳转 */
   const [inspectId, setInspectId] = useState<string | null>(null)
   const hydrated = useScheduleStore((s) => s.hydrated)
@@ -166,12 +192,9 @@ const SchedulePage: React.FC = () => {
   const diags = useMemo(() => checkProject(project, cpm), [project, cpm])
   // 资源使用/超载（v4.137 #12/#13）：逐工作日负载 vs 可用性（工时资源；个人日历收紧可用性）
   const usage = useMemo(() => computeUsage(project, cpm), [project, cpm])
-  const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
-  const dl = useMemo(() => checkDeadline(project, cpm), [project, cpm])
   // 资源成本（刀3）：总成本随每次 render 重算（与 CPM 同范式）；无资源/成本数据不显示（诚实呈现）
   const costs = useMemo(() => computeCosts(project, cpm), [project, cpm])
   const showCost = hasCostData(project) && costs.ok
-  const hasResources = (project.resources?.length ?? 0) > 0
 
   const selected = project.tasks.find((t) => t.id === selectedId) ?? null
   const selectedIsGroup = selected ? isGroupRow(project.tasks, project.tasks.findIndex((t) => t.id === selected!.id)) : false
@@ -192,10 +215,11 @@ const SchedulePage: React.FC = () => {
     () => (inspectTask && inspectTask.level > 0 ? taskWarn(inspectTask, cpm, latest, warnAlgo) : null),
     [inspectTask, cpm, latest, warnAlgo],
   )
-  const warnRed = useMemo(
-    () => warnSummary(project, cpm, latest, warnAlgo).red,
+  const warn = useMemo(
+    () => warnSummary(project, cpm, latest, warnAlgo),
     [project, cpm, latest, warnAlgo],
   )
+  const warnRed = warn.red
   const inspectorData = useMemo(() => {
     if (!inspectTask || inspectTask.level === 0) return null
     const slacks = depFreeSlacks(project.tasks, project.links, cpm)
@@ -363,6 +387,25 @@ const SchedulePage: React.FC = () => {
   // ── 菜单栏（v4.140）：命令按 文件/编辑/视图/任务 归属；导入/导出项与工具栏下拉共用 ──
   // v4.144 导入重组：「导入为新工程」=安全默认主入口（独立文件入索引）；
   // 三路「替换当前工程」降为显式标注项（模板/签证调整覆盖场景，可撤销）。
+
+  // ── 视图库回调：快照源=chatPrefs（GanttView 每次参数变更实时回写，实时镜像）──
+  const genViewId = () => `cv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  const commitSaveView = () => {
+    const prefs = loadChatPrefs()
+    const made = makeCustomView(saveViewName, genViewId(), {
+      hide: prefs.ganttHide,
+      groupBy: prefs.ganttGroup as GanttGroupField[],
+      sort: prefs.ganttSort as GanttSort,
+      filterKind: prefs.ganttFilterKind,
+    }, customViews)
+    if (!made.view) { setSaveViewErr(made.reason ?? '保存失败'); return }
+    const res = saveCustomView(made.view)
+    if (!res.ok) { setSaveViewErr(res.reason ?? '保存失败'); return }
+    setSaveViewOpen(false)
+    setSaveViewName('')
+    setSaveViewErr(null)
+  }
+
   const importMenuItems: MenuProps['items'] = [
     { key: 'importNew', icon: <ImportOutlined />, label: '导入为新工程…' },
     { key: 'importXml', icon: <ImportOutlined />, label: '导入 XML 替换当前工程…' },
@@ -441,19 +484,6 @@ const SchedulePage: React.FC = () => {
     })),
     onClick: ({ key }) => runMenu(key),
   }
-  const selectedLeaf = !!selected && !selectedIsGroup
-  const taskMenuCfg: MenuProps = {
-    items: [
-      { key: 'add', icon: <PlusOutlined />, label: '添加任务' },
-      { key: 'group', icon: <ClusterOutlined />, label: '添加分组' },
-      { type: 'divider' },
-      { key: 'milestone', icon: <AimOutlined />, label: selected?.isMilestone ? '取消里程碑' : '设为里程碑', disabled: !selectedLeaf },
-      { key: 'inspector', icon: <InfoCircleOutlined />, label: '任务检查器…', disabled: !selectedLeaf },
-      { type: 'divider' },
-      { key: 'del', icon: <DeleteOutlined />, label: '删除选中', danger: true, disabled: !selected },
-    ],
-    onClick: ({ key }) => runMenu(key),
-  }
   const importMenuCfg: MenuProps = { items: importMenuItems, onClick: ({ key }) => runMenu(key) }
   const exportMenuCfg: MenuProps = { items: exportMenuItems, onClick: ({ key }) => runMenu(key) }
 
@@ -472,41 +502,434 @@ const SchedulePage: React.FC = () => {
           onDoubleClick={resetChatWidth}
         />
       )}
-      <div className="sched-page" style={{ flex: 1, minWidth: 0, padding: '12px 16px' }}>
-      {/* ── 菜单栏（行1，v4.140）：参考 MS Project / ProjectLibre 菜单口径——命令按
-          文件/编辑/视图/任务 归属，右端为工程区（切换器/管理/办公预览/AI 栏），
-          命令不再与文档属性平铺混排 ── */}
-      <div className="sched-menubar" data-testid="sched-menubar">
-        <Dropdown trigger={['click']} menu={fileMenuCfg}>
-          <button type="button" className="sched-menu-item" data-testid="sched-menu-file">文件</button>
-        </Dropdown>
-        <Dropdown trigger={['click']} menu={editMenuCfg}>
-          <button type="button" className="sched-menu-item" data-testid="sched-menu-edit">编辑</button>
-        </Dropdown>
-        <Dropdown trigger={['click']} menu={viewMenuCfg}>
-          <button type="button" className="sched-menu-item" data-testid="sched-menu-view">视图</button>
-        </Dropdown>
-        <Dropdown trigger={['click']} menu={taskMenuCfg}>
-          <button type="button" className="sched-menu-item" data-testid="sched-menu-task">任务</button>
-        </Dropdown>
-        <div style={{ flex: 1 }} />
-        {/* 工程区（v4.139 #15 交互不变，位置收进菜单栏右端） */}
-        {projectList.length > 0 && (
-          <Select
-            size="small"
-            style={{ width: 190 }}
-            value={currentPath}
-            loading={projBusy}
-            disabled={projectList.length <= 1}
-            data-testid="sched-project-select"
-            options={projectList.filter((p) => !p.archived).map((p) => ({ value: p.rel, label: p.name || p.rel }))}
-            onChange={(rel: string) => {
-              setProjBusy(true)
-              // openProject=切指针+冲刷+重水合（store 动作）；旧形态无此动作时无害跳过
-              void Promise.resolve(openProject(rel)).finally(() => setProjBusy(false))
-            }}
+      <div className="sched-page" style={{ flex: 1, minWidth: 0 }}>
+      {/* ── ZPert 式命令台：菜单行 + 命令面板行 + 文档属性行 ── */}
+      <div className="sched-command-deck" data-testid="sched-command-deck">
+      <div className="sched-menubar sched-ribbon-tabbar" data-testid="sched-menubar" role="tablist" aria-label="进度计划功能区">
+        <span className="sched-app-mark" aria-hidden="true">G</span>
+        {SCHEDULE_RIBBON_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={ribbonTab === tab.key}
+            className={`sched-menu-item${ribbonTab === tab.key ? ' is-active' : ''}`}
+            onClick={() => setRibbonTab(tab.key)}
+            data-testid={`sched-ribbon-tab-${tab.key}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".xml,application/xml,text/xml"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (f) void onImportFile(f)
+        }}
+      />
+      <input
+        ref={xlsxRef}
+        type="file"
+        accept=".xlsx"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (f) void onImportXlsx(f)
+        }}
+      />
+      <input
+        ref={mppRef}
+        type="file"
+        accept=".mpp"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (f) void onImportMpp(f)
+        }}
+      />
+      <input
+        ref={newRef}
+        type="file"
+        accept=".xml,.xlsx,.xlsm,.mpp"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (f) void onImportNewFile(f)
+        }}
+      />
+
+      {/* ── 工具栏（行2）：高频命令快捷区，分组竖线分隔（ribbon 感）；
+          导入/导出收拢为下拉，MPP（v4.140）随 XML/Excel 同列 ── */}
+      {ribbonTab === 'plan' && (
+      <div className="sched-toolbar">
+        <RibbonGroup label="视图">
+          <RibbonCommand big icon={<PartitionOutlined />} label="时标网络图" disabled title="预留：后续补齐时标网络图后端" />
+          <RibbonCommand big icon={<TableOutlined />} label="横道图" active={view === 'gantt'} onClick={() => setView('gantt')} />
+          <RibbonCommand big icon={<NodeIndexOutlined />} label="逻辑网络图" disabled title="预留：后续补齐逻辑网络图后端" />
+          <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号网络图" active={view === 'pdm'} onClick={() => setView('pdm')} />
+          <RibbonColumn>
+            <Popover
+              trigger="click"
+              placement="bottomLeft"
+              open={saveViewOpen}
+              onOpenChange={(o) => { setSaveViewOpen(o); if (!o) { setSaveViewErr(null); setSaveViewName('') } }}
+              content={
+                <div style={{ width: 240, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Input
+                    size="small"
+                    placeholder="视图名称"
+                    value={saveViewName}
+                    maxLength={30}
+                    onChange={(e) => { setSaveViewName(e.target.value); setSaveViewErr(null) }}
+                    onPressEnter={commitSaveView}
+                    data-testid="sched-view-save-input"
+                  />
+                  {saveViewErr && <span style={{ color: 'var(--md-sys-color-error)', fontSize: 12 }}>{saveViewErr}</span>}
+                  <Button size="small" type="primary" data-testid="sched-view-save-confirm" onClick={commitSaveView}>保存当前视图</Button>
+                  <span className="sched-dim" style={{ fontSize: 12 }}>快照=当前列显隐、分组、排序与筛选档（斑马 ViewDB：视图=列可见性预设）</span>
+                </div>
+              }
+              title="保存视图"
+            >
+              <RibbonCommand icon={<CopyOutlined />} label="保存视图" title="把当前横道列集/分组/排序/筛选存为命名视图" />
+            </Popover>
+            <Popover
+              trigger="click"
+              placement="bottomLeft"
+              open={manageViewOpen}
+              onOpenChange={setManageViewOpen}
+              content={
+                <div style={{ width: 260, display: 'flex', flexDirection: 'column', gap: 4 }} data-testid="sched-view-manage">
+                  {customViews.length === 0 && <span className="sched-dim" style={{ fontSize: 12 }}>还没有自定义视图——先用「保存视图」把当前视图态存一条。</span>}
+                  {customViews.map((v: SchedView) => (
+                    <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {renameViewId === v.id ? (
+                        <>
+                          <Input
+                            size="small"
+                            value={renameViewName}
+                            maxLength={30}
+                            autoFocus
+                            onChange={(e) => { setRenameViewName(e.target.value); setRenameViewErr(null) }}
+                            onPressEnter={() => {
+                              const res = renameCustomView(v.id, renameViewName)
+                              if (!res.ok) { setRenameViewErr(res.reason ?? '改名失败'); return }
+                              setRenameViewId(null)
+                              setRenameViewErr(null)
+                            }}
+                          />
+                          <Button size="small" type="link" onClick={() => {
+                            const res = renameCustomView(v.id, renameViewName)
+                            if (!res.ok) { setRenameViewErr(res.reason ?? '改名失败'); return }
+                            setRenameViewId(null)
+                            setRenameViewErr(null)
+                          }}>存</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="small" type="link" style={{ padding: 0 }} onClick={() => { requestCustomView(v.id); setManageViewOpen(false) }}>
+                            {v.name}
+                          </Button>
+                          <span style={{ flex: 1 }} />
+                          <Button size="small" type="link" onClick={() => { setRenameViewId(v.id); setRenameViewName(v.name); setRenameViewErr(null) }}>改名</Button>
+                          <Button size="small" type="link" danger onClick={() => removeCustomView(v.id)}>删除</Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  {renameViewErr && <span style={{ color: 'var(--md-sys-color-error)', fontSize: 12 }}>{renameViewErr}</span>}
+                </div>
+              }
+              title="视图管理"
+            >
+              <RibbonCommand icon={<AppstoreOutlined />} label="视图管理" title="应用/改名/删除已保存的视图" />
+            </Popover>
+            <RibbonCommand icon={<ClusterOutlined />} label="分组…" disabled title="预留：分组入口迁 ribbon（分组能力已在横道工具栏 14 维全接）" />
+          </RibbonColumn>
+        </RibbonGroup>
+        <RibbonGroup label="编辑">
+          <RibbonColumn>
+            <RibbonCommand icon={<CopyOutlined />} label="复制" disabled title="预留：表格复制" />
+            <RibbonCommand icon={<SnippetsOutlined />} label="粘贴" disabled title="预留：表格粘贴" />
+            <Popconfirm title="删除选中项" onConfirm={() => selected && removeTask(selected.id)} disabled={!selected}>
+              <button type="button" className="sched-ribbon-command is-small" disabled={!selected}>
+                <DeleteOutlined /><span>删除</span>
+              </button>
+            </Popconfirm>
+          </RibbonColumn>
+          <RibbonColumn>
+            <RibbonCommand icon={<SearchOutlined />} label="查找" disabled title="预留：表格查找" />
+            <RibbonCommand icon={<FormatPainterOutlined />} label="格式刷" disabled title="预留：格式刷" />
+            <RibbonCommand icon={<TagOutlined />} label="分类" disabled title="预留：工作分类" />
+          </RibbonColumn>
+        </RibbonGroup>
+        <RibbonGroup label="格式">
+          <RibbonColumn>
+            <RibbonCommand icon={<FontColorsOutlined />} label="字体" disabled title="预留：字体设置" />
+            <RibbonCommand icon={<FontSizeOutlined />} label="字号" disabled title="预留：字号设置" />
+            <RibbonCommand icon={<FontColorsOutlined />} label="字体颜色" disabled title="预留：字体颜色" />
+          </RibbonColumn>
+          <RibbonColumn>
+            <RibbonCommand icon={<BgColorsOutlined />} label="填充" disabled title="预留：单元格填充" />
+            <RibbonCommand icon={<LineHeightOutlined />} label="线条宽度" disabled title="预留：线条宽度" />
+          </RibbonColumn>
+        </RibbonGroup>
+        <RibbonGroup label="大纲">
+          <RibbonColumn>
+            <RibbonCommand icon={<NodeCollapseOutlined />} label="折叠" disabled title="预留：折叠大纲" />
+            <RibbonCommand icon={<NodeExpandOutlined />} label="升级" disabled title="预留：升级大纲" />
+            <RibbonCommand icon={<NodeCollapseOutlined />} label="降级" disabled title="预留：降级大纲" />
+          </RibbonColumn>
+          <RibbonColumn>
+            <RibbonCommand icon={<UpOutlined />} label="上移" disabled title="预留：上移工作" />
+            <RibbonCommand icon={<DownOutlined />} label="下移" disabled title="预留：下移工作" />
+            <RibbonCommand icon={<SearchOutlined />} label="上钻" disabled title="预留：上钻大纲" />
+          </RibbonColumn>
+        </RibbonGroup>
+        <RibbonGroup label="插入">
+          <RibbonCommand big icon={<PlusOutlined />} label="工作" onClick={() => addTask(selectedId ?? undefined)} />
+          <RibbonCommand big icon={<ToolOutlined />} label="关系" disabled title="预留：插入逻辑关系" />
+          <RibbonCommand
+            big
+            icon={<AimOutlined />}
+            label={selected?.isMilestone ? '取消里程碑' : '里程碑'}
+            disabled={!selected || selectedIsGroup}
+            active={!!selected?.isMilestone}
+            onClick={() => selected && !selectedIsGroup && updateTask(selected.id, { isMilestone: !selected.isMilestone })}
           />
-        )}
+        </RibbonGroup>
+        <RibbonGroup label="高级">
+          <RibbonColumn>
+            <RibbonCommand icon={<PartitionOutlined />} label="智能布图" disabled title="预留：智能布图" />
+            <RibbonCommand icon={<FileImageOutlined />} label="按纸张" disabled title="预留：按纸张布图" />
+            <Popover trigger="click" placement="bottom" content={<ProjectSettingsPanel cpm={cpm} />} title="工程设置">
+              <button type="button" className="sched-ribbon-command is-small" data-testid="sched-project-settings-btn">
+                <SettingOutlined /><span>设置</span>
+              </button>
+            </Popover>
+          </RibbonColumn>
+          <RibbonColumn>
+            <RibbonCommand icon={<WarningOutlined />} label="预警" active={dockOpen} onClick={() => setDockOpen((open) => !open)} />
+            <RibbonCommand icon={<SafetyOutlined />} label="检查" active={dockOpen} onClick={() => setDockOpen((open) => !open)} testId="sched-dock-toggle" />
+          </RibbonColumn>
+        </RibbonGroup>
+      </div>
+      )}
+
+      {ribbonTab === 'file' && (
+        <div className="sched-toolbar">
+          <RibbonGroup label="文件">
+            <RibbonColumn>
+              <Dropdown trigger={['click']} menu={fileMenuCfg}>
+                <button type="button" className="sched-ribbon-command is-small" data-testid="sched-menu-file">
+                  <FileOutlined /><span>文件菜单</span>
+                </button>
+              </Dropdown>
+              <Dropdown trigger={['click']} menu={importMenuCfg}>
+                <button type="button" className="sched-ribbon-command is-small" data-testid="sched-import-btn" disabled={xlsxBusy || mppBusy || xmlBusy}>
+                  <ImportOutlined /><span>导入</span>
+                </button>
+              </Dropdown>
+              <Dropdown trigger={['click']} menu={exportMenuCfg}>
+                <button type="button" className="sched-ribbon-command is-small" data-testid="sched-export-menu-btn">
+                  <ExportOutlined /><span>导出</span>
+                </button>
+              </Dropdown>
+            </RibbonColumn>
+          </RibbonGroup>
+          <RibbonGroup label="工程">
+            {projectList.length > 0 && (
+              <Select
+                size="small"
+                style={{ width: 150 }}
+                value={currentPath}
+                loading={projBusy}
+                disabled={projectList.length <= 1}
+                data-testid="sched-project-select"
+                options={projectList.filter((p) => !p.archived).map((p) => ({ value: p.rel, label: p.name || p.rel }))}
+                onChange={(rel: string) => {
+                  setProjBusy(true)
+                  void Promise.resolve(openProject(rel)).finally(() => setProjBusy(false))
+                }}
+              />
+            )}
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              open={manageOpen}
+              onOpenChange={(open) => { setManageOpen(open); if (open) void Promise.resolve(refreshProjects?.()) }}
+              content={<ProjectsManagePanel />}
+              title="工程管理"
+            >
+              <button type="button" className="sched-ribbon-command is-big" data-testid="sched-projects-manage">
+                <SettingOutlined /><span>工程管理</span>
+              </button>
+            </Popover>
+            <RibbonCommand big icon={<ToolOutlined />} label="办公预览" onClick={openInOffice} />
+            <RibbonCommand big icon={<MessageOutlined />} label="AI 助手" active={!chat.collapsed} onClick={toggleChat} />
+          </RibbonGroup>
+          <RibbonGroup label="历史">
+            <RibbonColumn>
+              <Dropdown trigger={['click']} menu={editMenuCfg}>
+                <button type="button" className="sched-ribbon-command is-small" data-testid="sched-menu-edit">
+                  <UndoOutlined /><span>编辑菜单</span>
+                </button>
+              </Dropdown>
+              <RibbonCommand icon={<UndoOutlined />} label="撤销" disabled={past.length === 0} onClick={undo} testId="sched-undo" />
+              <RibbonCommand icon={<RedoOutlined />} label="重做" disabled={future.length === 0} onClick={redo} testId="sched-redo" />
+            </RibbonColumn>
+          </RibbonGroup>
+        </div>
+      )}
+
+      {ribbonTab === 'resource' && (
+        <div className="sched-toolbar">
+          <RibbonGroup label="资源">
+            <Popover trigger="click" placement="bottom" content={<ResourcePanel cpm={cpm} />} title="资源与成本">
+              <button type="button" className="sched-ribbon-command is-big" data-testid="sched-resource-btn">
+                <TeamOutlined /><span>资源工作表</span>
+              </button>
+            </Popover>
+            <RibbonCommand big icon={<TableOutlined />} label="资源使用" active={view === 'usage'} onClick={() => setView('usage')} />
+          </RibbonGroup>
+          <RibbonGroup label="成本">
+            <RibbonCommand big icon={<ExportOutlined />} label="导出 Excel" onClick={() => void exportXlsx()} />
+            <RibbonCommand big icon={<FileImageOutlined />} label="图面导出" onClick={() => setExportOpen(true)} />
+          </RibbonGroup>
+          <RibbonGroup label="工程">
+            <RibbonCommand icon={<CalendarOutlined />} label="工作日历" onClick={() => undefined} title="工作日历在下方工程信息条打开" />
+            <RibbonCommand icon={<FileTextOutlined />} label="当前计划" onClick={() => setRibbonTab('plan')} />
+          </RibbonGroup>
+        </div>
+      )}
+
+      {ribbonTab === 'control' && (
+        <div className="sched-toolbar">
+          <RibbonGroup label="检视">
+            <Popover trigger="click" placement="bottom" content={<ReviewPanel cpm={cpm} />} title="检视（多期进度快照）">
+              <button type="button" className="sched-ribbon-command is-big">
+                <FieldTimeOutlined /><span>检视时间</span>
+              </button>
+            </Popover>
+            <Popover trigger="click" placement="bottom" content={<BaselinesPanel cpm={cpm} />} title="基线对比">
+              <button type="button" className="sched-ribbon-command is-big">
+                <FundOutlined /><span>基线</span>
+              </button>
+            </Popover>
+          </RibbonGroup>
+          <RibbonGroup label="检查">
+            <RibbonCommand big icon={<SafetyOutlined />} label="计划检查" active={dockOpen} onClick={() => setDockOpen((open) => !open)} testId="sched-dock-toggle" />
+            <RibbonCommand big icon={<SafetyOutlined />} label="质量体检" active={view === 'dcma'} onClick={() => setView('dcma')} />
+          </RibbonGroup>
+          <RibbonGroup label="分析">
+            <RibbonCommand icon={<FundOutlined />} label="工期模拟" active={view === 'monte'} onClick={() => setView('monte')} />
+            <RibbonCommand icon={<RiseOutlined />} label="挣值分析" active={view === 'evm'} onClick={() => setView('evm')} />
+          </RibbonGroup>
+        </div>
+      )}
+
+      {ribbonTab === 'collab' && (
+        <div className="sched-toolbar">
+          <RibbonGroup label="协作">
+            <RibbonCommand big icon={<MessageOutlined />} label={chat.collapsed ? '展开 AI' : '收起 AI'} active={!chat.collapsed} onClick={toggleChat} />
+            <RibbonCommand big icon={<ToolOutlined />} label="办公预览" onClick={openInOffice} />
+          </RibbonGroup>
+          <RibbonGroup label="工程">
+            <RibbonCommand big icon={<SettingOutlined />} label="工程管理" onClick={() => setManageOpen(true)} />
+            <RibbonCommand big icon={<FileTextOutlined />} label="切换到计划" onClick={() => setRibbonTab('plan')} />
+          </RibbonGroup>
+        </div>
+      )}
+
+      {ribbonTab === 'view' && (
+        <div className="sched-toolbar">
+          <RibbonGroup label="视图库">
+            <Dropdown trigger={['click']} menu={viewMenuCfg}>
+              <button type="button" className="sched-ribbon-command is-big" data-testid="sched-menu-view">
+                <TableOutlined /><span>视图列表</span>
+              </button>
+            </Dropdown>
+          </RibbonGroup>
+          <RibbonGroup label="图模式">
+            <RibbonCommand big icon={<TableOutlined />} label="横道图" active={view === 'gantt'} onClick={() => setView('gantt')} />
+            <RibbonCommand big icon={<NodeIndexOutlined />} label="单代号" active={view === 'pdm'} onClick={() => setView('pdm')} />
+            <RibbonCommand big icon={<PartitionOutlined />} label="双代号" active={view === 'aoa'} onClick={() => setView('aoa')} />
+            <RibbonCommand big icon={<TeamOutlined />} label="资源使用" active={view === 'usage'} onClick={() => setView('usage')} />
+          </RibbonGroup>
+          <RibbonGroup label="分析视图">
+            <RibbonColumn>
+              <RibbonCommand icon={<SafetyOutlined />} label="质量体检" active={view === 'dcma'} onClick={() => setView('dcma')} />
+              <RibbonCommand icon={<FundOutlined />} label="工期模拟" active={view === 'monte'} onClick={() => setView('monte')} />
+              <RibbonCommand icon={<RiseOutlined />} label="挣值分析" active={view === 'evm'} onClick={() => setView('evm')} />
+            </RibbonColumn>
+          </RibbonGroup>
+          <RibbonGroup label="显示">
+            <RibbonCommand icon={<SafetyOutlined />} label="检查面板" active={dockOpen} onClick={() => setDockOpen((open) => !open)} />
+            <RibbonCommand icon={<MessageOutlined />} label="AI 助手" active={!chat.collapsed} onClick={toggleChat} />
+          </RibbonGroup>
+        </div>
+      )}
+
+      {ribbonTab === 'help' && (
+        <div className="sched-toolbar">
+          <RibbonGroup label="起步">
+            <Popover trigger="click" placement="bottom" content={<TemplatesPanel cpm={cpm} />} title="项目模板">
+              <button type="button" className="sched-ribbon-command is-big" data-testid="sched-templates-btn">
+                <AppstoreOutlined /><span>项目模板</span>
+              </button>
+            </Popover>
+            <RibbonCommand big icon={<ThunderboltOutlined />} label="示例工程" onClick={() => { loadSample(); setImportMsg(null) }} />
+          </RibbonGroup>
+          <RibbonGroup label="文件">
+            <Dropdown trigger={['click']} menu={importMenuCfg}>
+              <button type="button" className="sched-ribbon-command is-big">
+                <ImportOutlined /><span>导入指南</span>
+              </button>
+            </Dropdown>
+            <RibbonCommand big icon={<ToolOutlined />} label="办公说明" onClick={openInOffice} />
+          </RibbonGroup>
+        </div>
+      )}
+
+      </div>
+
+      <div className="sched-docbar" data-testid="sched-docbar">
+        {(projectList.length > 0 ? projectList.filter((p) => !p.archived) : [{ rel: currentPath ?? SCHEDULE_FILE_PATH, name: project.name }]).map((item) => {
+          const active = currentPath ? item.rel === currentPath : item.rel === SCHEDULE_FILE_PATH
+          return (
+            <button
+              key={item.rel}
+              type="button"
+              className={`sched-doc-tab${active ? ' is-active' : ''}`}
+              data-path={item.rel}
+              onClick={() => {
+                if (active) return
+                setProjBusy(true)
+                void Promise.resolve(openProject(item.rel)).finally(() => setProjBusy(false))
+              }}
+              aria-label={item.rel}
+            >
+              <FileTextOutlined />
+              <span>{active ? project.name : item.name}</span>
+              {active && (
+                <span
+                  className="sched-doc-tab-dot"
+                  style={{ opacity: sync === 'saved' ? 0.45 : 1 }}
+                  aria-label={sync === 'saved' ? '已保存' : '有未保存改动'}
+                />
+              )}
+            </button>
+          )
+        })}
         <Popover
           trigger="click"
           placement="bottomRight"
@@ -515,212 +938,12 @@ const SchedulePage: React.FC = () => {
           content={<ProjectsManagePanel />}
           title="工程管理"
         >
-          <Button size="small" icon={<SettingOutlined />} data-testid="sched-projects-manage" title="工程管理：新建 / 改名 / 归档 / 删除 / 载入" aria-label="工程管理" />
-        </Popover>
-        <Tooltip title="在办公板块中预览计划文件">
-          <Button size="small" icon={<ToolOutlined />} onClick={openInOffice} aria-label="在办公板块中查看计划" />
-        </Tooltip>
-        <Button
-          size="small"
-          type={chat.collapsed ? 'primary' : 'default'}
-          ghost={chat.collapsed}
-          icon={<MessageOutlined />}
-          onClick={toggleChat}
-          title={chat.collapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
-          aria-label="切换 AI 对话栏"
-        />
-      </div>
-
-      {/* ── 工具栏（行2）：高频命令快捷区，分组竖线分隔（ribbon 感）；
-          导入/导出收拢为下拉，MPP（v4.140）随 XML/Excel 同列 ── */}
-      <div className="sched-toolbar">
-        <Tooltip title="撤销（Ctrl+Z）">
-          <Button size="small" icon={<UndoOutlined />} disabled={past.length === 0} data-testid="sched-undo" onClick={() => undo()} aria-label="撤销" />
-        </Tooltip>
-        <Tooltip title="重做（Ctrl+Y / Ctrl+Shift+Z）">
-          <Button size="small" icon={<RedoOutlined />} disabled={future.length === 0} data-testid="sched-redo" onClick={() => redo()} aria-label="重做" />
-        </Tooltip>
-        <div className="sched-tool-divider" />
-        <Button size="small" icon={<PlusOutlined />} onClick={() => addTask(selectedId ?? undefined)}>添加任务</Button>
-        <Button size="small" icon={<ClusterOutlined />} onClick={addGroup}>添加分组</Button>
-        {selected && !selectedIsGroup && (
-          <Button
-            size="small"
-            icon={<AimOutlined />}
-            type={selected.isMilestone ? 'primary' : 'default'}
-            onClick={() => updateTask(selected.id, { isMilestone: !selected.isMilestone })}
-          >
-            {selected.isMilestone ? '取消里程碑' : '设为里程碑'}
-          </Button>
-        )}
-        {selected && (
-          <Popconfirm
-            title="删除选中项"
-            description={selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected!.name}」及其搭接关系`}
-            onConfirm={() => removeTask(selected!.id)}
-          >
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
-        )}
-        <div className="sched-tool-divider" />
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xml,application/xml,text/xml"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportFile(f)
-          }}
-        />
-        <input
-          ref={xlsxRef}
-          type="file"
-          accept=".xlsx"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportXlsx(f)
-          }}
-        />
-        <input
-          ref={mppRef}
-          type="file"
-          accept=".mpp"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportMpp(f)
-          }}
-        />
-        <input
-          ref={newRef}
-          type="file"
-          accept=".xml,.xlsx,.xlsm,.mpp"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportNewFile(f)
-          }}
-        />
-        <Dropdown trigger={['click']} menu={importMenuCfg}>
-          <Button size="small" icon={<ImportOutlined />} loading={xlsxBusy || mppBusy || xmlBusy} data-testid="sched-import-btn">导入 <DownOutlined /></Button>
-        </Dropdown>
-        <Dropdown trigger={['click']} menu={exportMenuCfg}>
-          <Button size="small" icon={<ExportOutlined />} data-testid="sched-export-menu-btn">导出 <DownOutlined /></Button>
-        </Dropdown>
-        <div className="sched-tool-divider" />
-        <Popover trigger="click" placement="bottom" content={<TemplatesPanel cpm={cpm} />} title="项目模板">
-          <Tooltip title="另存为模板 / 从模板新建（本机保存，最多 10 个）">
-            <Button size="small" icon={<AppstoreOutlined />} data-testid="sched-templates-btn">模板</Button>
-          </Tooltip>
-        </Popover>
-        <div className="sched-tool-divider" />
-        {/* 示例工程覆盖当前数据且不可撤销：与「清空」同款二次确认（审计 #5） */}
-        <Popconfirm
-          title="载入示例工程？"
-          description="将覆盖当前全部任务与搭接，不可撤销。"
-          okText="覆盖载入"
-          cancelText="取消"
-          onConfirm={() => { loadSample(); setImportMsg(null) }}
-        >
-          <Button size="small" icon={<ThunderboltOutlined />}>示例工程</Button>
-        </Popconfirm>
-        <Popconfirm title="清空全部任务与搭接？" onConfirm={() => { clearAll(); setImportMsg(null) }}>
-          <Button size="small" icon={<ClearOutlined />}>清空</Button>
-        </Popconfirm>
-      </div>
-
-      {/* ── 工程信息条（行3）：文档名（工程名）+ 编制锚点（开工/目标竣工）+
-          面板入口（日历/基线/资源）| 右端视图档位 ── */}
-      <div className="sched-infobar" data-testid="sched-infobar">
-        <Input
-          className="sched-name-input"
-          variant="borderless"
-          value={project.name}
-          onChange={(e) => renameProject(e.target.value)}
-          style={{ maxWidth: 240, fontSize: 15 }}
-          placeholder="工程名称"
-          aria-label="工程名称"
-        />
-        <div className="sched-tool-divider" />
-        <Space size={4}>
-          <span className="sched-dim">开工日期</span>
-          <Input
-            type="date"
-            size="small"
-            value={project.startDate}
-            onChange={(e) => e.target.value && setStartDate(e.target.value)}
-            style={{ width: 140 }}
-          />
-        </Space>
-        <Tooltip title="目标竣工日期（合同/定额工期约束）：引擎按工作日换算并裁决可行性，横道图画竣工线">
-          <Space size={4}>
-            <span className="sched-dim">目标竣工</span>
-            <Input
-              type="date"
-              size="small"
-              value={project.deadline ?? ''}
-              onChange={(e) => setDeadline(e.target.value || null)}
-              style={{ width: 140 }}
-            />
-          </Space>
-        </Tooltip>
-        <Popover trigger="click" placement="bottom" content={<CalendarEditor />} title="工作日历">
-          <Button size="small" icon={<CalendarOutlined />}>日历</Button>
-        </Popover>
-        <Popover trigger="click" placement="bottom" content={<ReviewPanel cpm={cpm} />} title="检视（多期进度快照）">
-          <Button
-            size="small"
-            icon={<FieldTimeOutlined />}
-            type={Array.isArray(project.reviews) && project.reviews.length > 0 ? 'primary' : 'default'}
-            ghost={Array.isArray(project.reviews) && project.reviews.length > 0}
-            title="打一期检视、按期对比完成量、拉直前锋线（斑马口径）"
-          >
-            检视{Array.isArray(project.reviews) && project.reviews.length > 0 ? `·${project.reviews.length}` : ''}
-          </Button>
-        </Popover>
-        <Popover trigger="click" placement="bottom" content={<BaselinesPanel cpm={cpm} />} title="基线对比">
-          <Button
-            size="small"
-            icon={<FundOutlined />}
-            type={project.baseline ? 'primary' : 'default'}
-            ghost={!!project.baseline}
-            title="保存基线快照，对比每次调整的推移与关键链变化"
-          >
-            基线{project.baseline ? `·${project.baseline.name}` : ''}
-          </Button>
-        </Popover>
-        <Popover trigger="click" placement="bottom" content={<ResourcePanel cpm={cpm} />} title="资源与成本">
-          <Button
-            size="small"
-            icon={<TeamOutlined />}
-            type={hasResources ? 'primary' : 'default'}
-            ghost={hasResources}
-            data-testid="sched-resource-btn"
-            title="资源工作表：工时/材料/成本三类资源与费率；任务行「资源」入口挂载分配"
-          >
-            资源
-          </Button>
+          <button type="button" className="sched-doc-add" data-testid="sched-projects-manage" title="工程管理：新建 / 改名 / 归档 / 删除 / 载入" aria-label="工程管理">
+            <PlusOutlined />
+          </button>
         </Popover>
         <div style={{ flex: 1 }} />
-        <Segmented
-          value={view}
-          onChange={(v) => setView(v as typeof view)}
-          options={[
-            { value: 'gantt', label: <span><TableOutlined /> 横道图</span> },
-            { value: 'pdm', label: <span><NodeIndexOutlined /> 单代号网络图</span> },
-            { value: 'aoa', label: <span><PartitionOutlined /> 双代号网络图</span> },
-            { value: 'usage', label: <span><TeamOutlined /> 资源使用</span> },
-            { value: 'dcma', label: <span><SafetyOutlined /> 质量体检</span> },
-            { value: 'monte', label: <span><FundOutlined /> 工期模拟</span> },
-            { value: 'evm', label: <span><RiseOutlined /> 挣值分析</span> },
-          ]}
-        />
+        {projBusy && <span className="sched-dim">切换工程…</span>}
       </div>
 
       {importMsg && (
@@ -737,13 +960,22 @@ const SchedulePage: React.FC = () => {
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}
 
-      {view === 'dcma' && <DcmaView project={project} cpm={cpm} />}
-      {view === 'monte' && <MonteView project={project} cpm={cpm} />}
-      {view === 'evm' && <EvmView project={project} cpm={cpm} />}
-      {view === 'gantt' && <GanttView project={project} cpm={cpm} onInspect={setInspectId} />}
-      {view === 'pdm' && <PdmView project={project} cpm={cpm} />}
-      {view === 'aoa' && <AoaView graph={aoa} tasks={project.tasks} />}
-      {view === 'usage' && <UsageView usage={usage} />}
+      <div className="sched-workspace" data-testid="sched-workspace">
+        <div className="sched-workspace-main">
+          {view === 'dcma' && <DcmaView project={project} cpm={cpm} />}
+          {view === 'monte' && <MonteView project={project} cpm={cpm} />}
+          {view === 'evm' && <EvmView project={project} cpm={cpm} />}
+          {view === 'gantt' && <GanttView project={project} cpm={cpm} onInspect={setInspectId} showToolbar={false} />}
+          {(view === 'pdm' || view === 'aoa') && <ScheduleNetworkWorkspace view={view} project={project} cpm={cpm} graph={aoa} />}
+          {view === 'usage' && <UsageView usage={usage} />}
+        </div>
+        <ScheduleDock
+          open={dockOpen}
+          warn={warn}
+          onNavigate={(id) => { setInspectId(id); select(id) }}
+          onClose={() => setDockOpen(false)}
+        />
+      </div>
 
       {/* 任务检查器（v4.136）：该任务日期由哪条搭接决定 + 前驱/后继可点击跳转；
           what-if 推演（v4.523）经 slot 挂进抽屉——计算与 delta 交互态都在
@@ -771,8 +1003,8 @@ const SchedulePage: React.FC = () => {
 
       {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
       <div className="sched-statusbar">
-        <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : view === 'usage' ? '资源使用视图' : view === 'dcma' ? '质量体检' : view === 'monte' ? '蒙特卡洛工期模拟' : view === 'evm' ? '挣值分析' : '双代号网络图'}</span></span>
-        <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天（工作日）</span>
+        <span><span className="sched-sb-strong">{project.tasks.length}</span> 行 · <span className="sched-sb-strong">{project.tasks.filter((t) => t.level === 0).length}</span> 个分组</span>
+        <span>工作 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> · 关系 <span className="sched-sb-strong">{project.links.length}</span></span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
         {warnRed > 0 && (
           <span data-testid="sched-statusbar-warn" title="红灯=突破上级下达的要求完成时间（预警超期算法可在任务检查器切换）">
@@ -784,24 +1016,7 @@ const SchedulePage: React.FC = () => {
             总成本 <span className="sched-sb-strong">¥{fmtCost(costs.total)}</span>
           </span>
         )}
-        {drift && (
-          <span title={`基线「${drift.baselineName}」保存于 ${drift.baselineSavedAt}`}>
-            基线 <span className="sched-sb-strong">{drift.baselineDuration}</span> → 当前 {drift.currentDuration} 天
-            {drift.durationDrift !== 0 && (
-              <span className={drift.durationDrift > 0 ? 'sched-sb-crit' : 'sched-sb-good'}>（{fmtDrift(drift.durationDrift)}）</span>
-            )}
-          </span>
-        )}
-        {dl && (
-          <span title="倒排校核：目标竣工按工作日换算（第 N 个工作日竣工）">
-            目标竣工 <span className="sched-sb-strong">{dl.deadline}</span>（第 {dl.targetWorkdays} 工作日）
-            {!dl.feasible && <span className="sched-sb-crit">超 {dl.overrun} 天</span>}
-            {dl.feasible && dl.overrun < 0 && <span className="sched-sb-good">富余 {-dl.overrun} 天</span>}
-            {dl.feasible && dl.overrun === 0 && <span className="sched-sb-good">压线达成</span>}
-          </span>
-        )}
-        <span>工作制：<span className="sched-sb-strong">{workweekLabel(project.calendar)}</span>{(project.calendar?.holidays.length ?? 0) > 0 && <> · 节假日 {project.calendar!.holidays.length} 天</>}</span>
-        <span>时间单位：工作日（日期轴为自然日）</span>
+        {latest && <span><span className="sched-sb-strong">{latest.date}</span> 检视</span>}
         <span style={{ marginLeft: 'auto' }} title={syncError ?? currentPath ?? SCHEDULE_FILE_PATH}>
           {!hydrated ? '读取计划…' : sync === 'dirty' ? '改动待保存…'
             : sync === 'saving' ? '保存中…'
@@ -812,13 +1027,6 @@ const SchedulePage: React.FC = () => {
       </div>
     </div>
   )
-}
-
-/** 工作制描述（周一~周五 简写） */
-function workweekLabel(cal?: { workweek: number[] }): string {
-  const names = ['日', '一', '二', '三', '四', '五', '六']
-  const wk = (cal?.workweek?.length ? [...cal.workweek] : [1, 2, 3, 4, 5]).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
-  return '周' + wk.map((d) => names[d]).join('、')
 }
 
 export default SchedulePage

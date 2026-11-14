@@ -96,6 +96,7 @@ async function openManagePanel(): Promise<HTMLElement> {
 describe('SchedulePage 页头工程切换器/管理面板（v4.139 #15）', () => {
   it('切换器：列未归档工程（归档项不出现），显示当前工程名', async () => {
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     const sel = screen.getByTestId('sched-project-select')
     expect(sel.textContent).toContain('当前计划')
     fireEvent.mouseDown(sel.querySelector('.ant-select-selector')!)
@@ -105,6 +106,7 @@ describe('SchedulePage 页头工程切换器/管理面板（v4.139 #15）', () =
 
   it('选择工程：onChange 调 openProject(rel)（切换+重水合由 store 动作负责）', async () => {
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     await pickOption(screen.getByTestId('sched-project-select'), '办公楼二期')
     await waitFor(() => expect(openProjectSpy).toHaveBeenCalledTimes(1))
     expect(openProjectSpy).toHaveBeenCalledWith(B2_REL)
@@ -113,6 +115,7 @@ describe('SchedulePage 页头工程切换器/管理面板（v4.139 #15）', () =
   it('仅一项工程：切换器收窄为纯显示（disabled，不占交互成本）', () => {
     seed({ projects: [projectsOf[0]], currentPath: DEFAULT_REL })
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     const sel = screen.getByTestId('sched-project-select')
     expect(sel.className).toContain('ant-select-disabled')
   })
@@ -120,6 +123,7 @@ describe('SchedulePage 页头工程切换器/管理面板（v4.139 #15）', () =
   it('projects 为空（旧 store 形态/未加载）：切换器整体隐藏（零感知）', () => {
     seed({ projects: [] })
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     expect(screen.queryByTestId('sched-project-select')).toBeNull()
   })
 
@@ -195,23 +199,47 @@ async function openMenu(testid: string): Promise<string[]> {
 
 
 describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条）', () => {
-  it('七个菜单项齐全：编辑（撤销/重做/删除/清空）、视图（七档勾选）、任务（选中前禁用）', async () => {
+  it('ZPert 式布局：命令台/文档条/工作区/右舷检查齐备且可开关', () => {
     render(<SchedulePage />)
+    expect(screen.getByTestId('sched-command-deck')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '计划' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByTestId('sched-docbar').textContent).toContain('当前计划')
+    expect(screen.getByTestId('sched-workspace')).toBeTruthy()
+    expect(screen.getByTestId('sched-dock')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('sched-project-settings-btn'))
+    expect(screen.getByTestId('sched-project-settings').textContent).toContain('工程名称')
+    expect(screen.getByTestId('sched-project-settings').textContent).toContain('开工日期')
+    fireEvent.click(screen.getByTestId('sched-project-settings-btn'))
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-resource'))
+    expect(screen.getByText('资源工作表')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-plan'))
+    fireEvent.click(screen.getByTestId('sched-dock-toggle'))
+    expect(screen.queryByTestId('sched-dock')).toBeNull()
+    fireEvent.click(screen.getByTestId('sched-dock-toggle'))
+    expect(screen.getByTestId('sched-dock')).toBeTruthy()
+  })
+
+  it('功能区页签命令齐全：文件/视图菜单可切换，计划页保留 ZPert 六面板与占位按钮', async () => {
+    render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     const edit = await openMenu('sched-menu-edit')
     expect(edit.some((t) => t.startsWith('撤销'))).toBe(true)
     expect(edit.some((t) => t.startsWith('重做'))).toBe(true)
     expect(edit).toContain('删除选中(dis)')
     expect(edit).toContain('清空全部任务与搭接')
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-view'))
     const view = await openMenu('sched-menu-view')
     expect(view).toEqual(['横道图', '单代号网络图', '双代号网络图', '资源使用', '质量体检', '工期模拟', '挣值分析'])
-    const task = await openMenu('sched-menu-task')
-    expect(task.some((t) => t.startsWith('添加任务'))).toBe(true)
-    expect(task).toContain('设为里程碑(dis)')
-    expect(task).toContain('任务检查器…(dis)')
-    expect(task).toContain('删除选中(dis)')
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-plan'))
+    const planRibbon = document.querySelector('.sched-toolbar')!
+    for (const label of ['视图', '编辑', '格式', '大纲', '插入', '高级', '时标网络图', '横道图', '逻辑网络图', '单代号网络图', '复制', '字体', '折叠', '工作', '关系', '里程碑', '智能布图', '按纸张', '预警', '检查']) {
+      expect(planRibbon.textContent).toContain(label)
+    }
+    const placeholder = Array.from(planRibbon.querySelectorAll('button')).find((b) => b.textContent === '时标网络图')
+    expect((placeholder as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('导入/导出下拉：新工程主入口+三路替换当前显式标注；导出含图面；选中任务后「任务」菜单解锁', async () => {
+  it('导入/导出下拉：新工程主入口+三路替换当前显式标注；导出含图面', async () => {
     seed({
       project: {
         name: '当前计划', startDate: '2026-09-07',
@@ -221,14 +249,11 @@ describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条�
       selectedId: 'A',
     })
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     const imp = await openMenu('sched-import-btn')
     expect(imp).toEqual(['导入为新工程…', '导入 XML 替换当前工程…', '导入 Excel 替换当前工程…', '导入 MPP 替换当前工程…'])
     const exp = await openMenu('sched-export-menu-btn')
     expect(exp).toEqual(['导出 MS Project XML', '导出 Excel', '导出图面（PNG / PDF / 打印）…'])
-    const task = await openMenu('sched-menu-task')
-    expect(task).toContain('设为里程碑')
-    expect(task).toContain('任务检查器…')
-    expect(task.some((t) => t.startsWith('删除选中') && !t.endsWith('(dis)'))).toBe(true)
   })
 })
 
@@ -246,6 +271,7 @@ describe('SchedulePage 导出预览（v4.141：所见即所得）', () => {
       selectedId: null,
     })
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     await act(async () => { fireEvent.click(screen.getByTestId('sched-menu-file')) })
     const item = await waitFor(() => {
       const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'))
@@ -272,6 +298,7 @@ describe('SchedulePage 导入为新工程（v4.144）', () => {
       importAsProject: importAsProjectSpy as unknown as ReturnType<typeof useScheduleStore.getState>['importAsProject'],
     })
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     await act(async () => { fireEvent.click(screen.getByTestId('sched-import-btn')) })
     const item = await waitFor(() => {
       const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'))
@@ -303,6 +330,7 @@ describe('SchedulePage 导入为新工程（v4.144）', () => {
       importAsProject: importAsProjectSpy as unknown as ReturnType<typeof useScheduleStore.getState>['importAsProject'],
     })
     render(<SchedulePage />)
+    fireEvent.click(screen.getByTestId('sched-ribbon-tab-file'))
     await act(async () => { fireEvent.click(screen.getByTestId('sched-import-btn')) })
     const item = await waitFor(() => {
       const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'))

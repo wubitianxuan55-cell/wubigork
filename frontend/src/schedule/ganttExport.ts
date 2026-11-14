@@ -65,11 +65,11 @@ const DAY_W = 14 // 图面固定刻度（发布物可读口径，不随工作台
  */
 const EXP_COL_OVERRIDE: Partial<Record<string, { label?: string; w: number }>> = {
   no: { label: '序号', w: 44 },
-  name: { w: 200 },
+  name: { label: '任务名称', w: 200 },
   dur: { label: '工期(天)', w: 64 },
-  start: { w: 84 },
-  finish: { w: 84 },
-  preds: { w: 80 },
+  start: { label: '开始', w: 84 },
+  finish: { label: '完成', w: 84 },
+  preds: { label: '前置', w: 80 },
 }
 export const EXP_COLS: { key: string; label: string; w: number }[] = colsByKeys(GANTT_REPORT_KEYS).map((c) => ({
   key: c.key,

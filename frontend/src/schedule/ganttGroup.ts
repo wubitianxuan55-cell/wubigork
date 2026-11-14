@@ -12,7 +12,7 @@
  * 组头统计只计可见叶、空分支不产出组头；不分组模式传 visibleIdx 时，
  * 无可见直接子叶的原分组行同样不保留（与筛选「无可见子孙的分组行不保留」同口径）。
  */
-import type { CpmResult, SchedTask, TaskCpm } from './types'
+import type { CpmResult, SchedProject, SchedTask, TaskCpm } from './types'
 
 export type GanttSortField = 'none' | 'name' | 'duration' | 'start' | 'progress' | 'tf'
 
@@ -22,8 +22,47 @@ export interface GanttSort {
   dir: 'asc' | 'desc'
 }
 
-/** 分组字段：关键性（CPM）/ 排程模式 / 里程碑 */
-export type GanttGroupField = 'critical' | 'mode' | 'milestone'
+/**
+ * 斑马工作视图的 14 个分组维度（W1）。
+ *
+ * `owner` / `site` / `custom` 分别落到既有自定义字段 text2 / text1 / text3，
+ * 不新增数据字段；组头显示项目自定义列名。资源、前置数、后置数从项目关系派生。
+ */
+export type GanttGroupField =
+  | 'duration'
+  | 'tf'
+  | 'owner'
+  | 'milestone'
+  | 'critical'
+  | 'category'
+  | 'name'
+  | 'site'
+  | 'status'
+  | 'resource'
+  | 'predsCount'
+  | 'succsCount'
+  | 'custom'
+  | 'mode'
+
+export const MAX_GANTT_GROUP_DEPTH = 3
+
+/** 工具栏/测试共用唯一选项表；顺序对齐斑马命令注册表。 */
+export const GANTT_GROUP_OPTIONS: ReadonlyArray<{ value: GanttGroupField; label: string }> = [
+  { value: 'duration', label: '工期' },
+  { value: 'tf', label: '总时差' },
+  { value: 'owner', label: '负责人' },
+  { value: 'milestone', label: '里程碑' },
+  { value: 'critical', label: '关键工作' },
+  { value: 'category', label: '工作分类' },
+  { value: 'name', label: '工作名称' },
+  { value: 'site', label: '工作部位' },
+  { value: 'status', label: '执行状态' },
+  { value: 'resource', label: '资源名称' },
+  { value: 'predsCount', label: '前置工作数' },
+  { value: 'succsCount', label: '后置工作数' },
+  { value: 'custom', label: '自定义' },
+  { value: 'mode', label: '排程模式' },
+] as const
 
 export interface GanttGroupOptions {
   /** 缺省=原顺序（field 'none' 同义） */
@@ -34,6 +73,8 @@ export interface GanttGroupOptions {
   collapsed?: Set<string>
   /** 筛选后的可见叶原索引子集（只含叶，不含分组行）；缺省=全部叶 */
   visibleIdx?: number[]
+  /** 资源/关系/自定义列名的派生上下文；不传时对应维度按“未分配/0 个/未填写”降级 */
+  project?: SchedProject
 }
 
 /** 输出行：task=原数组第 idx 个任务（level=组深+原 level）；group=合成组头 */
@@ -54,7 +95,22 @@ export type GanttRow =
     }
 
 /** 分组字段中文名（组头 label 前缀） */
-const GROUP_FIELD_ZH: Record<GanttGroupField, string> = { critical: '关键', mode: '模式', milestone: '里程碑' }
+const GROUP_FIELD_ZH: Record<GanttGroupField, string> = {
+  duration: '工期',
+  tf: '总时差',
+  owner: '负责人',
+  milestone: '里程碑',
+  critical: '关键',
+  category: '工作分类',
+  name: '工作名称',
+  site: '工作部位',
+  status: '执行状态',
+  resource: '资源名称',
+  predsCount: '前置数',
+  succsCount: '后置数',
+  custom: '自定义',
+  mode: '模式',
+}
 
 /** WBS 编码：分组 n、叶 n.k（与 mspdi 导出同构；横道表格行号旁展示 + 检查器取码共用） */
 export function wbsOf(tasks: SchedTask[]): string[] {
@@ -72,11 +128,96 @@ function cpmRowOf(cpm: CpmResult, id: string): TaskCpm | undefined {
   return cpm.ok ? cpm.rows[id] : undefined
 }
 
-/** 分组值：critical 取 CPM 关键（缺行=false）；mode 缺省 auto；milestone 取 isMilestone */
-function groupValueOf(field: GanttGroupField, t: SchedTask, cpm: CpmResult): string {
-  if (field === 'critical') return cpmRowOf(cpm, t.id)?.critical ? '是' : '否'
-  if (field === 'mode') return t.mode === 'manual' ? '手动' : '自动'
-  return t.isMilestone ? '是' : '否'
+interface GroupContext {
+  parentName: string[]
+  resources: Map<string, string[]>
+  predsCount: Map<string, number>
+  succsCount: Map<string, number>
+  customLabels: Record<string, string> | undefined
+}
+
+function makeGroupContext(tasks: SchedTask[], project?: SchedProject): GroupContext {
+  const parentName: string[] = []
+  let parent = '未分类'
+  for (const t of tasks) {
+    if (t.level === 0) parent = t.name || '未分类'
+    parentName.push(parent)
+  }
+
+  const resourceName = new Map((project?.resources ?? []).map((r) => [r.id, r.name]))
+  const resources = new Map<string, string[]>()
+  for (const a of project?.assignments ?? []) {
+    const name = resourceName.get(a.resourceId)
+    if (!name) continue
+    const list = resources.get(a.taskId)
+    if (list) list.push(name)
+    else resources.set(a.taskId, [name])
+  }
+
+  const predsCount = new Map<string, number>()
+  const succsCount = new Map<string, number>()
+  for (const l of project?.links ?? []) {
+    predsCount.set(l.to, (predsCount.get(l.to) ?? 0) + 1)
+    succsCount.set(l.from, (succsCount.get(l.from) ?? 0) + 1)
+  }
+
+  return { parentName, resources, predsCount, succsCount, customLabels: project?.customLabels }
+}
+
+function customText(t: SchedTask, key: 'text1' | 'text2' | 'text3'): string {
+  const value = t.custom?.[key]
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : '未填写'
+}
+
+/** 覆盖名与斑马语义同名时不重复显示（避免“负责人（负责人）”）。 */
+function titleOf(field: GanttGroupField, ctx: GroupContext): string {
+  const fallback = GROUP_FIELD_ZH[field]
+  const customKey = field === 'site' ? 'text1' : field === 'owner' ? 'text2' : field === 'custom' ? 'text3' : null
+  if (!customKey) return fallback
+  const override = ctx.customLabels?.[customKey]?.trim()
+  if (!override || override === fallback) return fallback
+  return `${fallback}（${override}）`
+}
+
+/** 分组值：全部维度只返回可读文本；不对 CPM 失败/缺字段造假。 */
+function groupValueOf(
+  field: GanttGroupField,
+  t: SchedTask,
+  index: number,
+  cpm: CpmResult,
+  ctx: GroupContext,
+): string {
+  const row = cpmRowOf(cpm, t.id)
+  switch (field) {
+    case 'critical':
+      return row?.critical ? '是' : '否'
+    case 'mode':
+      return t.mode === 'manual' ? '手动' : '自动'
+    case 'milestone':
+      return t.isMilestone ? '是' : '否'
+    case 'duration':
+      return `${t.duration} ${t.durationUnit === 'cd' ? '日历天' : '工日'}`
+    case 'tf':
+      return row ? `${row.tf} 天` : '—'
+    case 'owner':
+      return customText(t, 'text2')
+    case 'site':
+      return customText(t, 'text1')
+    case 'custom':
+      return customText(t, 'text3')
+    case 'category':
+      return ctx.parentName[index] ?? '未分类'
+    case 'name':
+      return t.name || '未命名'
+    case 'status':
+      return t.progress >= 100 ? '已完成' : t.progress > 0 ? '进行中' : '未开始'
+    case 'resource':
+      return ctx.resources.get(t.id)?.join('、') || '未分配'
+    case 'predsCount':
+      return `${ctx.predsCount.get(t.id) ?? 0} 个`
+    case 'succsCount':
+      return `${ctx.succsCount.get(t.id) ?? 0} 个`
+  }
 }
 
 /** 可见叶的 min(es)/max(ef)：缺 CPM 行的叶不计入，全缺则 0（ok=false 时恒 0） */
@@ -141,6 +282,7 @@ function emitGroups(
   out: GanttRow[],
   tasks: SchedTask[],
   cpm: CpmResult,
+  ctx: GroupContext,
   leaves: number[],
   fields: GanttGroupField[],
   depth: number,
@@ -151,7 +293,7 @@ function emitGroups(
   const branchOf = new Map<string, number[]>()
   const order: string[] = []
   for (const i of leaves) {
-    const v = groupValueOf(field, tasks[i], cpm)
+    const v = groupValueOf(field, tasks[i], i, cpm, ctx)
     const arr = branchOf.get(v)
     if (arr) arr.push(i)
     else {
@@ -167,7 +309,7 @@ function emitGroups(
     out.push({
       kind: 'group',
       key,
-      label: `${GROUP_FIELD_ZH[field]}: ${v}`,
+      label: `${titleOf(field, ctx)}: ${v}`,
       level: depth,
       count: idxs.length,
       minEs: stats.minEs,
@@ -175,7 +317,7 @@ function emitGroups(
     })
     if (collapsed?.has(key)) continue
     const rest = fields.slice(1)
-    if (rest.length > 0) emitGroups(out, tasks, cpm, idxs, rest, depth + 1, key, collapsed)
+    if (rest.length > 0) emitGroups(out, tasks, cpm, ctx, idxs, rest, depth + 1, key, collapsed)
     else for (const i of idxs) out.push({ kind: 'task', idx: i, level: depth + tasks[i].level })
   }
 }
@@ -253,7 +395,7 @@ export function buildGanttRows(tasks: SchedTask[], cpm: CpmResult, opts?: GanttG
   const visSet = opts?.visibleIdx ? new Set(opts.visibleIdx) : null
   const isVisible = (i: number): boolean => !visSet || visSet.has(i)
   const cmp = opts?.sort ? comparerOf(tasks, cpm, opts.sort) : null
-  const groupBy = opts?.groupBy ?? []
+  const groupBy = (opts?.groupBy ?? []).slice(0, MAX_GANTT_GROUP_DEPTH)
   if (groupBy.length > 0) {
     // 可见叶（原顺序）全局排一次序——组内顺序=全局排序的稳定分片
     const leaves: number[] = []
@@ -262,7 +404,7 @@ export function buildGanttRows(tasks: SchedTask[], cpm: CpmResult, opts?: GanttG
     }
     if (cmp) leaves.sort(cmp)
     const out: GanttRow[] = []
-    emitGroups(out, tasks, cpm, leaves, groupBy, 0, '', collapsed)
+    emitGroups(out, tasks, cpm, makeGroupContext(tasks, opts?.project), leaves, groupBy, 0, '', collapsed)
     return out
   }
   return identityRows(tasks, cpm, cmp, isVisible, visSet !== null, collapsed)

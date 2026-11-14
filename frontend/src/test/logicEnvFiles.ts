@@ -120,6 +120,7 @@ export const LOGIC_ENV_TEST_FILES: string[] = [
   'src/schedule/store.purity.test.ts',
   'src/schedule/templates.test.ts',
   'src/schedule/usage.test.ts',
+  'src/schedule/viewPresets.test.ts',
   'src/stores/appStore.contrast.test.ts',
   'src/stores/outlineStore.test.ts',
   'src/utils/characterStatus.test.ts',

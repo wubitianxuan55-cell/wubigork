@@ -4,6 +4,9 @@
  * 「瘦身 P3 结构版1：巨文件拆分」：渲染块迁入 schedule/gantt/ 子模块，本文件只留
  * 状态/派生计算/交互 handler 与组合层——导出面与行为零变化（classNames/testids 不变）。
  *
+ * W1 起顶部带斑马 ViewDB 的 9 个内置视图；视图切换一次应用列集/表格宽/
+ * 分组/排序/筛选，手动改任一显示参数即标为“自定义”。
+ *
  * 子模块：
  *  - gantt/ganttUtil.ts      共享常量（ROW_H/W/缩放档位…）+ 纯函数（前置/后续/行号/
  *                            竣工偏移/分组成本/前锋点位/fmtDate），同 aoaRuler.ts 范式；
@@ -32,8 +35,17 @@ import { hasCostData } from './costUi'
 import { GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
 import { GANTT_FILTER_DEFAULT, filterGanttRows, type GanttFilter } from './ganttFilter'
 import { buildGanttRows, wbsOf, type GanttGroupField, type GanttSort } from './ganttGroup'
+import { applyCustomViewSnapshot } from './views'
+
 import { drivingChain, linkKey } from './pathDriver'
 import { loadChatPrefs, saveChatPrefs } from './chatPrefs'
+import {
+  CUSTOM_GANTT_VIEW_ID,
+  builtinViewOf,
+  hideForBuiltinView,
+  widthForBuiltinView,
+  widthForHide,
+} from './viewPresets'
 import { beginWindowDrag } from './gantt/useDragGesture'
 import {
   ROW_H,
@@ -52,7 +64,13 @@ import { GanttTimeline } from './gantt/GanttTimeline'
 import { GanttBars } from './gantt/GanttBars'
 import { GanttOverlay } from './gantt/GanttOverlay'
 
-export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInspect?: (taskId: string) => void }> = ({ project, cpm, onInspect }) => {
+export const GanttView: React.FC<{
+  project: SchedProject
+  cpm: CpmResult
+  onInspect?: (taskId: string) => void
+  /** ZPert 复刻工作区隐藏附加工具条；独立测试/工具面仍默认显示。 */
+  showToolbar?: boolean
+}> = ({ project, cpm, onInspect, showToolbar = true }) => {
   const selectedId = useScheduleStore((s) => s.selectedId)
   const select = useScheduleStore((s) => s.select)
   const updateTask = useScheduleStore((s) => s.updateTask)
@@ -124,11 +142,17 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
    */
   const latestRev = useMemo(() => latestReview(project), [project])
   const [showFront, setShowFront] = useState(() => latestRev !== null)
-  /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */
-  const [filter, setFilter] = useState<GanttFilter>(GANTT_FILTER_DEFAULT)
+  /** W1：本机视图偏好只读一次，后续视图切换/手动覆盖均走同一状态源。 */
+  const [initialPrefs] = useState(() => loadChatPrefs())
+  const [viewId, setViewId] = useState(initialPrefs.ganttViewId)
+  /** 行筛选（W1）：全部/关键/手动/里程碑 + 名称文本；仅作用于横道。 */
+  const [filter, setFilter] = useState<GanttFilter>(() => ({
+    ...GANTT_FILTER_DEFAULT,
+    kind: initialPrefs.ganttFilterKind,
+  }))
   /** 排序/分组（v4.136 小刀，持久化 chatPrefs）；折叠组头 key 集为会话态 */
-  const [sort, setSort] = useState<GanttSort>(() => loadChatPrefs().ganttSort as GanttSort)
-  const [groupBy, setGroupBy] = useState<GanttGroupField[]>(() => loadChatPrefs().ganttGroup as GanttGroupField[])
+  const [sort, setSort] = useState<GanttSort>(initialPrefs.ganttSort as GanttSort)
+  const [groupBy, setGroupBy] = useState<GanttGroupField[]>(initialPrefs.ganttGroup as GanttGroupField[])
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(() => new Set())
   /** 路径分析（v4.136 小刀）：沿选中任务的驱动边高亮前驱/后继链 */
   const [pathMode, setPathMode] = useState<'off' | 'pred' | 'succ'>('off')
@@ -141,8 +165,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const [drag, setDrag] = useState<GanttDragState | null>(null)
 
   // ── 刀C 双栏：表格窗格宽度/列显隐（持久化 chatPrefs）────────────
-  const [tableW, setTableW] = useState<number>(() => loadChatPrefs().ganttTableW)
-  const [hide, setHide] = useState<string[]>(() => loadChatPrefs().ganttHide)
+  const [tableW, setTableW] = useState<number>(initialPrefs.ganttTableW)
+  const [hide, setHide] = useState<string[]>(initialPrefs.ganttHide)
   /** 自定义列改名态（v4.138 #14）：renameKey=改名中的列（null=无）；Esc 取消标记走 ref（先于 blur） */
   const [renameKey, setRenameKey] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
@@ -153,6 +177,91 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const leftW = useMemo(() => visibleLeftW(hide), [hide])
   const effW = Math.min(tableW, leftW)
   const colOn = (key: string) => !hide.includes(key)
+
+  /** W1：视图切换=列集/宽度/分组/排序/筛选一次应用；空格筛选文本随视图清空。
+   *  S6.2 视图库：内置预设之外，project.views 的自定义视图同路径应用
+   *  （viewbackend-re §6：视图=列可见性预设+开关，同一引擎切列集，不建第二套执行器）。 */
+  const applyView = (id: string) => {
+    const preset = builtinViewOf(id)
+    if (!preset) {
+      const custom = (project.views ?? []).find((v) => v.id === id)
+      if (!custom) return
+      const snap = applyCustomViewSnapshot(custom)
+      const nextWidth = widthForHide(snap.hide)
+      const nextFilter: GanttFilter = { kind: snap.filterKind, text: '' }
+      setViewId(custom.id)
+      setHide(snap.hide)
+      setTableW(nextWidth)
+      setGroupBy([...snap.groupBy])
+      setSort({ ...snap.sort })
+      setFilter(nextFilter)
+      setCollapsedKeys(new Set())
+      // 自定义视图 id 不入 chatPrefs（parseViewId 会把未知 id 折回缺省）——
+      // 持久化参数本身并标记为自定义，重载后参数还原、标签显示「自定义」。
+      saveChatPrefs({
+        ganttViewId: CUSTOM_GANTT_VIEW_ID,
+        ganttHide: snap.hide,
+        ganttTableW: nextWidth,
+        ganttGroup: [...snap.groupBy],
+        ganttSort: { ...snap.sort },
+        ganttFilterKind: snap.filterKind,
+      })
+      return
+    }
+    const nextHide = hideForBuiltinView(preset)
+    const nextWidth = widthForBuiltinView(preset)
+    const nextGroup = [...preset.groupBy]
+    const nextSort = { ...preset.sort }
+    const nextFilter: GanttFilter = { kind: preset.filterKind, text: '' }
+    setViewId(preset.id)
+    setHide(nextHide)
+    setTableW(nextWidth)
+    setGroupBy(nextGroup)
+    setSort(nextSort)
+    setFilter(nextFilter)
+    setCollapsedKeys(new Set())
+    saveChatPrefs({
+      ganttViewId: preset.id,
+      ganttHide: nextHide,
+      ganttTableW: nextWidth,
+      ganttGroup: nextGroup,
+      ganttSort: nextSort,
+      ganttFilterKind: preset.filterKind,
+    })
+  }
+
+  /** 任一显示参数被手动覆盖后，当前状态不再冒称仍等于内置视图。 */
+  const markCustomView = () => setViewId(CUSTOM_GANTT_VIEW_ID)
+
+  /** S6.2 视图库：ribbon「视图管理」应用请求（store 信号）→ 应用对应自定义视图。
+   *  customViewRequest 初值 null，仅 seq 变化时应用；读 store 内最新 project.views
+   *  免闭包陈旧。 */
+  const customViewRequest = useScheduleStore((s) => s.customViewRequest)
+  const applyRequestSeq = useRef(0)
+  React.useEffect(() => {
+    if (!customViewRequest || customViewRequest.seq === applyRequestSeq.current) return
+    applyRequestSeq.current = customViewRequest.seq
+    const custom = useScheduleStore.getState().project.views?.find((v) => v.id === customViewRequest.id)
+    if (custom) applyView(custom.id)
+  }, [customViewRequest]) // eslint-disable-line react-hooks/exhaustive-deps -- applyView 每渲染重建，按 seq 信号触发
+
+  const changeFilterKind = (kind: GanttFilter['kind']) => {
+    setFilter((current) => ({ ...current, kind }))
+    markCustomView()
+    saveChatPrefs({ ganttViewId: CUSTOM_GANTT_VIEW_ID, ganttFilterKind: kind })
+  }
+
+  const changeSort = (next: GanttSort) => {
+    setSort(next)
+    markCustomView()
+    saveChatPrefs({ ganttViewId: CUSTOM_GANTT_VIEW_ID, ganttSort: next })
+  }
+
+  const changeGroup = (next: GanttGroupField[]) => {
+    setGroupBy(next)
+    markCustomView()
+    saveChatPrefs({ ganttViewId: CUSTOM_GANTT_VIEW_ID, ganttGroup: next })
+  }
 
   /** 分隔条拖动：右移加宽表格、左移收纳（最小=行号+名称）；拖完持久化 */
   const beginSplit = (e: React.MouseEvent) => {
@@ -182,7 +291,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const toggleCol = (key: string, on: boolean) => {
     const next = on ? hide.filter((k) => k !== key) : [...hide, key]
     setHide(next)
-    saveChatPrefs({ ganttHide: next })
+    markCustomView()
+    saveChatPrefs({ ganttViewId: CUSTOM_GANTT_VIEW_ID, ganttHide: next })
   }
   /** 提交自定义列改名（v4.138 #14）：回车/失焦提交 setCustomLabel、Esc 置取消标记不落库；
    *  空串由 store 口径恢复缺省名；提交后关闭行内 Input */
@@ -209,8 +319,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
       groupBy,
       collapsed: collapsedKeys.size > 0 ? collapsedKeys : undefined,
       visibleIdx,
+      project,
     }),
-    [project.tasks, cpm, sort, groupBy, collapsedKeys, visibleIdx],
+    [project, cpm, sort, groupBy, collapsedKeys, visibleIdx],
   )
   /** 渲染行序 ↔ 任务 id：条形/依赖线 y 坐标按渲染行序算 */
   const visPos = useMemo(() => {
@@ -262,6 +373,21 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const chartW = days * dayW
   const totalH = rows.length * ROW_H
 
+  /** ZPert 复刻页默认把整份计划压入画布宽度，下方时标自然切到“周”。 */
+  React.useEffect(() => {
+    if (showToolbar) return
+    const raf = requestAnimationFrame(() => {
+      const pane = canvasPaneRef.current
+      const avail = pane?.clientWidth ?? 0
+      if (!pane || avail <= 0) return
+      const w = Math.min(DAY_W_MAX, Math.max(DAY_W_MIN, Math.floor(((avail - 2) / days) * 10) / 10))
+      dayWRef.current = w
+      setDayW(w)
+      pane.scrollLeft = 0
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [showToolbar, days])
+
   /** 自然日列（斑马口径：每天一列，非工作日底纹） */
   const colDates = useMemo(
     () => Array.from({ length: days }, (_, i) => {
@@ -287,6 +413,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const useWeekTier = dayW < WEEK_TIER_BELOW
   const weekRuns = useMemo(() => {
     const runs: { startIdx: number; count: number; label: string; title: string }[] = []
+    const labeledWeeks = new Set<number>()
     colDates.forEach((c, i) => {
       const last = runs[runs.length - 1]
       if (last && c.d.getUTCDay() !== 1) {
@@ -299,7 +426,10 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
       const start = colDates[r.startIdx].d
       const end = colDates[Math.min(r.startIdx + r.count - 1, colDates.length - 1)].d
       const w = r.count * dayW
-      r.label = w >= 44 ? `${start.getUTCMonth() + 1}/${start.getUTCDate()}` : w >= 18 ? `${start.getUTCDate()}` : ''
+      const weekNo = Math.floor(r.startIdx / 7) + 1
+      const shouldLabel = (weekNo === 1 || weekNo % 4 === 1) && !labeledWeeks.has(weekNo) && w >= 12
+      r.label = shouldLabel ? `W${weekNo}` : ''
+      if (shouldLabel) labeledWeeks.add(weekNo)
       r.title = `第 ${Math.floor(r.startIdx / 7) + 1} 周（${start.getUTCMonth() + 1}/${start.getUTCDate()} ~ ${end.getUTCMonth() + 1}/${end.getUTCDate()}）`
     }
     return runs
@@ -429,9 +559,11 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   }
 
   return (
-    <div className="sched-gantt" data-testid="sched-gantt">
-      <GanttToolbar
+    <div className={`sched-gantt${showToolbar ? '' : ' sched-zpert-mode'}`} data-testid="sched-gantt">
+      {showToolbar && <GanttToolbar
         project={project}
+        viewId={viewId}
+        onViewChange={applyView}
         showFront={showFront}
         onToggleFront={() => setShowFront((v) => !v)}
         showBase={showBase}
@@ -440,10 +572,11 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
         setCheckDate={setCheckDate}
         filter={filter}
         setFilter={setFilter}
+        onFilterKindChange={changeFilterKind}
         sort={sort}
-        setSort={setSort}
+        onSortChange={changeSort}
         groupBy={groupBy}
-        setGroupBy={setGroupBy}
+        onGroupChange={changeGroup}
         setCollapsedKeys={setCollapsedKeys}
         pathMode={pathMode}
         setPathMode={setPathMode}
@@ -457,7 +590,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
         renameCancel={renameCancel}
         onZoom={zoomStep}
         onFit={fitToWindow}
-      />
+      />}
       <div className="sched-gantt-frame">
         {/* 表格窗格（左）：宽度=分隔条拖动（chatPrefs 持久化），列显隐收纳 */}
         <div className="sched-gantt-tablepane" data-testid="sched-gantt-table" style={{ width: effW }}>

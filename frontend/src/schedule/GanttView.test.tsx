@@ -5,7 +5,8 @@
  * 断言 store 落库结果（拖移 auto→转 manual 锁定、缩放→改工期、
  * 未移动=无操作、Esc=取消）；刀C：分隔条拖动收纳表格/双击复位/列显隐
  * （行号名称固定，其余单列可藏）持久化 chatPrefs；v4.138 #14：自定义列
- * 开启/改名/叶行编辑（清空=删槽键）/分组行留空。
+ * 开启/改名/叶行编辑（清空=删槽键）/分组行留空；W1：9 视图预设与默认
+ * 计划编制 7 列/真实列宽。
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -14,10 +15,12 @@ import { computeCpm } from './cpm'
 import { useScheduleStore } from './store'
 import { CHAT_PREFS_KEY } from './chatPrefs'
 import { GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
+import { BUILTIN_GANTT_VIEWS, DEFAULT_GANTT_VIEW_ID, widthForBuiltinView } from './viewPresets'
 import type { CpmResult, SchedProject } from './types'
 
-/** 缺省隐藏列宽合计：进度 56 + 文本×3（90）+ 数值×2（64）= 454（自定义列 v4.138 #14 缺省收起） */
-const DEF_HIDE_W = 56 + 90 * 3 + 64 * 2
+const PLAN_VIEW = BUILTIN_GANTT_VIEWS.find((view) => view.id === DEFAULT_GANTT_VIEW_ID)!
+/** W1 缺省=计划编制，表格宽=7 个真实列宽之和；不再把全列宽塞进双栏。 */
+const DEF_HIDE_W = GANTT_LEFT_W_FULL - widthForBuiltinView(PLAN_VIEW)
 
 /** A(3)→B(2)→C(4) 串联，周一开工：es A=0/B=3/C=5，总工期 9 */
 function chainProject(): SchedProject {
@@ -130,14 +133,29 @@ describe('GanttView 工作台双栏（刀C）', () => {
     useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
   })
 
-  it('缺省：进度列+自定义列默认隐藏，窗格宽=可见列总宽（全宽 1358-454=904），列菜单可开', () => {
+  it('缺省计划编制：只露 7 个工作列，窗格宽=可见列总宽，列菜单可开', () => {
     const p = chainProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
-    // 20 列全宽 1358，进度列+5 自定义列缺省隐藏 → 可见总宽 904
     expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W}px`)
-    expect(tablePane().textContent).toContain('最迟开始')
+    expect(tablePane().textContent).toContain('分区')
+    expect(tablePane().textContent).toContain('标记')
+    expect(tablePane().textContent).not.toContain('最迟开始')
     expect(tablePane().textContent).not.toContain('进度')
     expect(tablePane().textContent).not.toContain('文本1')
+  })
+
+  it('切换「进度管控」一次应用列集、分组、排序、筛选并落本机偏好', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.mouseDown(screen.getByTestId('sched-gantt-view').querySelector('.ant-select-selector')!)
+    fireEvent.click(screen.getByText('进度管控', { exact: true }))
+    expect(tablePane().textContent).toContain('进度')
+    expect(tablePane().textContent).toContain('执行状态: 未开始')
+    const prefs = JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!)
+    expect(prefs.ganttViewId).toBe('control')
+    expect(prefs.ganttGroup).toEqual(['status'])
+    expect(prefs.ganttFilterKind).toBe('all')
+    expect(prefs.ganttSort).toEqual({ field: 'start', dir: 'asc' })
   })
 
   it('分隔条拖动：左移收纳表格并持久化；拖到最窄剩行号+名称', () => {
@@ -145,10 +163,10 @@ describe('GanttView 工作台双栏（刀C）', () => {
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     const split = screen.getByTestId('sched-gantt-split')
     fireEvent.mouseDown(split, { clientX: 900 })
-    fireEvent.mouseMove(window, { clientX: 900 - 500 })
+    fireEvent.mouseMove(window, { clientX: 900 - 300 })
     fireEvent.mouseUp(window)
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 500}px`)
-    expect(JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!).ganttTableW).toBe(GANTT_LEFT_W_FULL - 500)
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W - 300}px`)
+    expect(JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!).ganttTableW).toBe(GANTT_LEFT_W_FULL - DEF_HIDE_W - 300)
     // 再拖 9999：钳到最小宽（行号+名称），画布让位
     fireEvent.mouseDown(split, { clientX: 0 })
     fireEvent.mouseMove(window, { clientX: -9999 })
@@ -161,28 +179,30 @@ describe('GanttView 工作台双栏（刀C）', () => {
     const { unmount } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     const split = screen.getByTestId('sched-gantt-split')
     fireEvent.mouseDown(split, { clientX: 900 })
-    fireEvent.mouseMove(window, { clientX: 900 - 500 })
+    fireEvent.mouseMove(window, { clientX: 900 - 300 })
     fireEvent.mouseUp(window)
     unmount()
     // 重挂载：读 localStorage 恢复收纳宽度（偏好持久化）
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 500}px`)
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W - 300}px`)
     fireEvent.dblClick(screen.getByTestId('sched-gantt-split'))
     // 复位=钳到可见列总宽（进度列+自定义列仍缺省隐藏）
     expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W}px`)
   })
 
-  it('列显隐：取消勾选「最迟开始」后表头消失并持久化；固定列不提供勾选', () => {
+  it('列显隐：取消勾选「工期」后表头消失并持久化；固定列不提供勾选', () => {
     const p = chainProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     fireEvent.click(screen.getByTestId('sched-gantt-cols-btn'))
     const menu = screen.getByTestId('sched-gantt-colmenu')
-    expect(menu.textContent).not.toContain('任务名称') // 行号/名称固定不进菜单
-    const lsLabel = Array.from(menu.querySelectorAll('label')).find((l) => l.textContent?.includes('最迟开始'))!
-    fireEvent.click(lsLabel.querySelector('input')!)
-    expect(tablePane().textContent).not.toContain('最迟开始')
-    expect(tablePane().textContent).toContain('最迟完成')
-    expect(JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!).ganttHide).toContain('ls')
+    expect(menu.textContent).not.toContain('工作名称') // 行号/名称固定不进菜单
+    const durLabel = Array.from(menu.querySelectorAll('label')).find((l) => l.textContent?.includes('工期'))!
+    fireEvent.click(durLabel.querySelector('input')!)
+    expect(tablePane().textContent).not.toContain('工期')
+    expect(tablePane().textContent).toContain('开始')
+    const prefs = JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!)
+    expect(prefs.ganttHide).toContain('dur')
+    expect(prefs.ganttViewId).toBe('custom')
   })
 
   it('隐藏全部可藏列：表格窗格钳到行号+名称最小宽', () => {
@@ -195,7 +215,7 @@ describe('GanttView 工作台双栏（刀C）', () => {
       if (input && (input as HTMLInputElement).checked) fireEvent.click(input)
     }
     expect(tablePane().style.width).toBe(`${GANTT_TABLE_W_MIN}px`)
-    expect(tablePane().textContent).toContain('任务名称')
+    expect(tablePane().textContent).toContain('工作名称')
   })
 })
 
@@ -379,6 +399,7 @@ describe('GanttView 自定义字段列（v4.138 #14）', () => {
     useScheduleStore.setState({ project: p })
     render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
     expect(tablePane().textContent).not.toContain('文本1')
+    enableCol('成本')
     enableCol('文本1')
     expect(tablePane().textContent).toContain('文本1')
     // 列序：末位=文本1、次末位=成本（自定义列排成本列之后）
@@ -508,7 +529,7 @@ describe('GanttView 缩放与周刻度（v4.141：窗口内全览）', () => {
     const weeks = document.querySelectorAll('.sched-ts-week')
     expect(weeks.length).toBeGreaterThanOrEqual(3) // 2026-09-07(周一) 起 21 天=3 个自然周
     expect(document.querySelectorAll('.sched-ts-month').length).toBeGreaterThanOrEqual(1)
-    expect(weeks[0].textContent).toBe('9/7') // 首周段标注起始日
+    expect(weeks[0].textContent).toBe('W1') // 复刻页首周段标注 W1
     expect(document.querySelectorAll('.sched-day-col').length).toBe(0)
   })
 

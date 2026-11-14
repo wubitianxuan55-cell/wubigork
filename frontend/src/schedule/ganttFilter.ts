@@ -1,7 +1,7 @@
 /**
  * ganttFilter.ts — 横道任务行筛选（纯函数，v4.135.0 刀C 余项）
  *
- * 三种筛选模（全部/只看关键/只看手动）+ 名称文本包含（不区分大小写）。
+ * 四种筛选模（全部/只看关键/只看手动/只看里程碑）+ 名称文本包含（不区分大小写）。
  * 返回可见行的**原索引**序列（表格/条形/依赖线共用同一可见集，行号列仍按
  * 全表序号显示）。分组行保留规则：至少一个可见子孙才保留——分组行自身
  * 不是关键/手动，不能按叶条件误杀。网络图视图不参与筛选（逻辑图语义）。
@@ -9,7 +9,9 @@
 import type { CpmResult, SchedTask } from './types'
 import { descendantIds } from './store'
 
-export type GanttFilterKind = 'all' | 'critical' | 'manual'
+export type GanttFilterKind = 'all' | 'critical' | 'manual' | 'milestone'
+/** 筛选档全集（views.ts/chatPrefs 共用单源；chatPrefs 本地副本待其刀收编） */
+export const FILTER_KINDS: GanttFilterKind[] = ['all', 'critical', 'manual', 'milestone']
 
 export interface GanttFilter {
   kind: GanttFilterKind
@@ -22,6 +24,7 @@ export const GANTT_FILTER_DEFAULT: GanttFilter = { kind: 'all', text: '' }
 function leafVisible(t: SchedTask, f: GanttFilter, cpm: CpmResult): boolean {
   if (f.kind === 'critical') return cpm.rows[t.id]?.critical === true
   if (f.kind === 'manual') return t.mode === 'manual'
+  if (f.kind === 'milestone') return t.isMilestone === true
   return true
 }
 

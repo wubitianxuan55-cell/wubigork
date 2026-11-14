@@ -12,6 +12,7 @@ import { GanttView } from './GanttView'
 import { ResourcePanel, TaskResourceEditor } from './ResourcePanel'
 import { hasCostData } from './costUi'
 import { computeCpm } from './cpm'
+import { CHAT_PREFS_KEY } from './chatPrefs'
 import { useScheduleStore } from './store'
 import type { SchedAssignment, SchedCalendar, SchedProject, SchedResource, SchedTask } from './types'
 import SchedulePage from '../pages/SchedulePage'
@@ -74,9 +75,19 @@ async function pickOption(row: HTMLElement, label: string) {
   fireEvent.click(opt.closest('.ant-select-item-option')!)
 }
 
+/** W1 计划编制默认收起成本列；成本专项用例显式开启，避免依赖旧默认隐藏集。 */
+function enableCostCol() {
+  fireEvent.click(screen.getByTestId('sched-gantt-cols-btn'))
+  const label = Array.from(screen.getByTestId('sched-gantt-colmenu').querySelectorAll('label'))
+    .find((node) => node.textContent?.includes('成本'))
+  if (!label) throw new Error('列菜单无「成本」')
+  fireEvent.click(label.querySelector('input')!)
+}
+
 describe('ResourcePanel 资源弹层（刀3）', () => {
   beforeEach(() => {
     localStorage.removeItem('gaea.schedule.v1')
+    localStorage.removeItem(CHAT_PREFS_KEY)
     useScheduleStore.setState({
       project: costedProject(),
       selectedId: null,
@@ -264,6 +275,7 @@ describe('store 资源 action 容错（刀3）', () => {
 describe('GanttView 成本列（刀3）', () => {
   beforeEach(() => {
     localStorage.removeItem('gaea.schedule.v1')
+    localStorage.removeItem(CHAT_PREFS_KEY)
     useScheduleStore.setState({
       project: costedProject(),
       selectedId: null,
@@ -277,6 +289,7 @@ describe('GanttView 成本列（刀3）', () => {
   it('叶任务=明细合计（含固定成本）；分组行=子孙叶求和', () => {
     const p = costedProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    enableCostCol()
     expect(screen.getByTestId('sched-cost-A').textContent).toBe('950') // 800+固定 50
     expect(screen.getByTestId('sched-cost-B').textContent).toBe('850') // 550+300
     expect(screen.getByTestId('sched-cost-G1').textContent).toBe('1800') // 950+850
@@ -285,6 +298,7 @@ describe('GanttView 成本列（刀3）', () => {
   it('无任何资源/成本数据：列值留空（诚实呈现，不留 ¥0 假象）', () => {
     const p = plainProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    enableCostCol()
     expect(screen.getByTestId('sched-cost-A').textContent).toBe('')
     expect(screen.getByTestId('sched-cost-G1').textContent).toBe('')
   })
@@ -293,6 +307,7 @@ describe('GanttView 成本列（刀3）', () => {
     const p = costedProject()
     p.links.push({ from: 'A', to: 'B', type: 'FS', lag: 0 }, { from: 'B', to: 'A', type: 'FS', lag: 0 })
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    enableCostCol()
     expect(screen.getByTestId('sched-cost-A').textContent).toBe('')
     expect(screen.getByTestId('sched-cost-G1').textContent).toBe('')
   })

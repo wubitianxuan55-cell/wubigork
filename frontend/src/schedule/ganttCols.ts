@@ -17,21 +17,25 @@ export interface GanttCol {
 }
 
 export const GANTT_COLS: GanttCol[] = [
-  { key: 'no', label: '', w: 34 },
-  { key: 'name', label: '任务名称', w: 160 },
-  { key: 'wbs', label: 'WBS', w: 44 },
-  { key: 'dur', label: '工期', w: 84 },
-  { key: 'progress', label: '进度', w: 56 },
-  { key: 'start', label: '开始', w: 66 },
-  { key: 'finish', label: '完成', w: 66 },
-  { key: 'ls', label: '最迟开始', w: 66 },
-  { key: 'lf', label: '最迟完成', w: 66 },
-  { key: 'tf', label: '总时差', w: 44 },
-  { key: 'ff', label: '自由时差', w: 58 },
-  { key: 'mode', label: '模式', w: 48 },
-  { key: 'preds', label: '前置', w: 68 },
-  { key: 'succ', label: '后续', w: 68 },
-  { key: 'cost', label: '成本', w: 68 },
+  // 列宽对齐斑马进度 2026「计划编制」视图的真实口径（ViewDB.gdb 解密所得）：
+  // 索引列 40、工作名称 200、工期 100、前置 90、计划开始/完成 110
+  { key: 'no', label: '#', w: 40 },
+  { key: 'partition', label: '分区', w: 40 },
+  { key: 'marker', label: '标记', w: 40 },
+  { key: 'name', label: '工作名称', w: 200 },
+  { key: 'wbs', label: 'WBS', w: 80 },
+  { key: 'dur', label: '工期(工日)', w: 100 },
+  { key: 'preds', label: '前置工作', w: 90 },
+  { key: 'start', label: '计划开始', w: 110 },
+  { key: 'finish', label: '计划完成', w: 110 },
+  { key: 'progress', label: '进度', w: 120 },
+  { key: 'ls', label: '最迟开始', w: 110 },
+  { key: 'lf', label: '最迟完成', w: 110 },
+  { key: 'tf', label: '总时差', w: 90 },
+  { key: 'ff', label: '自由时差', w: 90 },
+  { key: 'mode', label: '模式', w: 80 },
+  { key: 'succ', label: '后续', w: 100 },
+  { key: 'cost', label: '成本', w: 100 },
   // 自定义字段列（v4.138 #14）：排成本列之后，=注册表序；label 仅为缺省名，
   // 显示名统一走 customLabelOf（项目 customLabels 覆盖优先），宽 text 90 / number 64
   ...CUSTOM_FIELDS.map((f) => ({ key: f.key, label: f.label, w: f.type === 'number' ? 64 : 90 })),
@@ -55,10 +59,18 @@ export const GANTT_TABLE_W_MIN: number = GANTT_COLS.filter((c) => GANTT_FIXED_KE
 /** 上报 6 列键序（刀D1 导出图面预设；对标 MS Project 上报件：标识号/任务名称/工期/开始/完成/前置） */
 export const GANTT_REPORT_KEYS: string[] = ['no', 'name', 'dur', 'start', 'finish', 'preds']
 
-/** 按键集取列定义（保持 GANTT_COLS 既有顺序） */
+/** 按键集取列定义：输出顺序跟随入参（上报/导出预设不随工作台列序漂移）。 */
 export function colsByKeys(keys: string[]): GanttCol[] {
-  const on = new Set(keys)
-  return GANTT_COLS.filter((c) => on.has(c.key))
+  const byKey = new Map(GANTT_COLS.map((col) => [col.key, col]))
+  const seen = new Set<string>()
+  const out: GanttCol[] = []
+  for (const key of keys) {
+    const col = byKey.get(key)
+    if (!col || seen.has(key)) continue
+    seen.add(key)
+    out.push(col)
+  }
+  return out
 }
 
 /**

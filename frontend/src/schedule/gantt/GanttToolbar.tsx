@@ -1,9 +1,9 @@
 /**
  * schedule/gantt/GanttToolbar.tsx — 横道图工具栏（自 GanttView.tsx 拆分，行为零变化）
  *
- * 前锋线/基线开关、检查日期、行筛选（全部/关键/手动 + 文本）、排序、多级分组、
- * 路径分析、列显隐菜单（自定义列改名行内）与缩放/全览按钮。
- * 排序/分组切换的 chatPrefs 持久化随逻辑一并迁入（同文件内 setState+save 顺序不变）。
+ * W1 视图预设、前锋线/基线、四档筛选、排序、14 维多级分组、路径分析、
+ * 列显隐菜单与缩放/全览。视图/分组/排序的持久化由 GanttView 单点提交，
+ * 本组件保持受控展示，防止同一命令两处落盘。
  */
 import React from 'react'
 import { Button, Checkbox, DatePicker, Input, Popover, Segmented, Select } from 'antd'
@@ -13,11 +13,19 @@ import type { SchedProject } from '../types'
 import { customLabelOf, type CustomFieldKey } from '../customFields'
 import { GANTT_COLS, GANTT_CUSTOM_KEYS, GANTT_FIXED_KEYS } from '../ganttCols'
 import type { GanttFilter, GanttFilterKind } from '../ganttFilter'
-import type { GanttGroupField, GanttSort, GanttSortField } from '../ganttGroup'
-import { saveChatPrefs } from '../chatPrefs'
+import {
+  GANTT_GROUP_OPTIONS,
+  MAX_GANTT_GROUP_DEPTH,
+  type GanttGroupField,
+  type GanttSort,
+  type GanttSortField,
+} from '../ganttGroup'
+import { BUILTIN_GANTT_VIEWS, CUSTOM_GANTT_VIEW_ID } from '../viewPresets'
 
 interface GanttToolbarProps {
   project: SchedProject
+  viewId: string
+  onViewChange: (id: string) => void
   showFront: boolean
   onToggleFront: () => void
   showBase: boolean
@@ -26,10 +34,11 @@ interface GanttToolbarProps {
   setCheckDate: (iso: string) => void
   filter: GanttFilter
   setFilter: React.Dispatch<React.SetStateAction<GanttFilter>>
+  onFilterKindChange: (kind: GanttFilterKind) => void
   sort: GanttSort
-  setSort: React.Dispatch<React.SetStateAction<GanttSort>>
+  onSortChange: (sort: GanttSort) => void
   groupBy: GanttGroupField[]
-  setGroupBy: React.Dispatch<React.SetStateAction<GanttGroupField[]>>
+  onGroupChange: (groupBy: GanttGroupField[]) => void
   setCollapsedKeys: React.Dispatch<React.SetStateAction<Set<string>>>
   pathMode: 'off' | 'pred' | 'succ'
   setPathMode: React.Dispatch<React.SetStateAction<'off' | 'pred' | 'succ'>>
@@ -47,6 +56,8 @@ interface GanttToolbarProps {
 
 export const GanttToolbar: React.FC<GanttToolbarProps> = ({
   project,
+  viewId,
+  onViewChange,
   showFront,
   onToggleFront,
   showBase,
@@ -55,10 +66,11 @@ export const GanttToolbar: React.FC<GanttToolbarProps> = ({
   setCheckDate,
   filter,
   setFilter,
+  onFilterKindChange,
   sort,
-  setSort,
+  onSortChange,
   groupBy,
-  setGroupBy,
+  onGroupChange,
   setCollapsedKeys,
   pathMode,
   setPathMode,
@@ -75,6 +87,20 @@ export const GanttToolbar: React.FC<GanttToolbarProps> = ({
 }) => {
   return (
     <div className="sched-gantt-toolbar">
+      <Select
+        size="small"
+        value={viewId}
+        style={{ width: 118 }}
+        options={[
+          ...BUILTIN_GANTT_VIEWS.map((view) => ({ value: view.id, label: view.name })),
+          ...(project.views ?? []).map((v) => ({ value: v.id, label: v.name })),
+          { value: CUSTOM_GANTT_VIEW_ID, label: '自定义', disabled: true },
+        ]}
+        onChange={onViewChange}
+        title="切换工作视图：同时应用列集、分组、排序与筛选（斑马 ViewDB 口径）"
+        aria-label="切换进度视图"
+        data-testid="sched-gantt-view"
+      />
       <Button
         size="small"
         type={showFront ? 'primary' : 'default'}
@@ -106,11 +132,12 @@ export const GanttToolbar: React.FC<GanttToolbarProps> = ({
       <Segmented
         size="small"
         value={filter.kind}
-        onChange={(v) => setFilter((f) => ({ ...f, kind: v as GanttFilterKind }))}
+        onChange={(v) => onFilterKindChange(v as GanttFilterKind)}
         options={[
           { value: 'all', label: '全部' },
           { value: 'critical', label: '关键' },
           { value: 'manual', label: '手动' },
+          { value: 'milestone', label: '里程碑' },
         ]}
         data-testid="sched-gantt-filter"
       />
@@ -139,8 +166,7 @@ export const GanttToolbar: React.FC<GanttToolbarProps> = ({
         ]}
         onChange={(v) => {
           const next: GanttSort = { field: v as GanttSortField, dir: sort.dir }
-          setSort(next)
-          saveChatPrefs({ ganttSort: next })
+          onSortChange(next)
         }}
         data-testid="sched-gantt-sort"
       />
@@ -150,31 +176,25 @@ export const GanttToolbar: React.FC<GanttToolbarProps> = ({
           data-testid="sched-gantt-sortdir"
           onClick={() => {
             const next: GanttSort = { field: sort.field, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
-            setSort(next)
-            saveChatPrefs({ ganttSort: next })
+            onSortChange(next)
           }}
           title="切换升/降序"
         >
           {sort.dir === 'asc' ? '升序' : '降序'}
         </Button>
       )}
-      {/* 多级分组（v4.136 小刀）：至多两级合成组头行；启用后 WBS 分组行由分组接管 */}
+      {/* 多级分组（W1）：斑马 14 维，至多三级；启用后 WBS 分组行由分组接管。 */}
       <Select
         size="small"
         mode="multiple"
         placeholder="分组"
         value={groupBy}
-        style={{ minWidth: 100, maxWidth: 170 }}
-        options={[
-          { value: 'critical', label: '关键' },
-          { value: 'mode', label: '模式' },
-          { value: 'milestone', label: '里程碑' },
-        ]}
+        style={{ minWidth: 100, maxWidth: 190 }}
+        options={[...GANTT_GROUP_OPTIONS]}
         onChange={(v) => {
-          const next = v.slice(-2) as GanttGroupField[]
-          setGroupBy(next)
+          const next = v.slice(-MAX_GANTT_GROUP_DEPTH) as GanttGroupField[]
+          onGroupChange(next)
           setCollapsedKeys(new Set())
-          saveChatPrefs({ ganttGroup: next })
         }}
         data-testid="sched-gantt-group"
       />

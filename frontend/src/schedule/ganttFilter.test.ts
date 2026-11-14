@@ -1,7 +1,7 @@
 /**
  * ganttFilter.test.ts — 横道行筛选纯函数（刀C 余项）
  *
- * 用例口径：关键（TF=0 且非手动）/手动/文本三模；分组行=有可见子孙才保留；
+ * 用例口径：关键（TF=0 且非手动）/手动/里程碑/文本四模；分组行=有可见子孙才保留；
  * 文本不区分大小写；空文本=该模全量。
  */
 import { describe, expect, it } from 'vitest'
@@ -42,6 +42,16 @@ describe('filterGanttRows', () => {
   it('只看手动：手动叶可见、其分组保留', () => {
     const rows = filterGanttRows(tasks, { kind: 'manual', text: '' }, cpm)
     expect(rows).toEqual([idx('G1'), idx('B')])
+  })
+
+  it('只看里程碑：里程碑列表视图只保留里程碑叶与有可见子孙的分组', () => {
+    const withMile = tasks.map((task) =>
+      task.id === 'D' ? { ...task, isMilestone: true } : task,
+    )
+    expect(filterGanttRows(withMile, { kind: 'milestone', text: '' }, cpm)).toEqual([
+      idx('G3'),
+      idx('D'),
+    ])
   })
 
   it('文本筛选：命中叶+命中分组（分组命中即保留）；大小写不敏感', () => {

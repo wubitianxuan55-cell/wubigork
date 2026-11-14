@@ -55,16 +55,10 @@ describe('buildGanttExportSvg 结构', () => {
     expect(cols.every((c) => GANTT_COLS.includes(c))).toBe(true)
   })
 
-  it('FE7-08 单源：EXP_COLS 键序=GANTT_REPORT_KEYS（colsByKeys 派生），发布物覆盖表只改文案/列宽', () => {
+  it('FE7-08 单源：EXP_COLS 键序=GANTT_REPORT_KEYS（colsByKeys 派生），上报件保留独立文案/列宽', () => {
     // 键序唯一源断言：派生列序与 GANTT_REPORT_KEYS 逐位一致（反向证据用例的靶心）
     expect(EXP_COLS.map((c) => c.key)).toEqual(GANTT_REPORT_KEYS)
-    // 未覆盖字段的 label 回落 GANTT_COLS 原定义（与工作台列定义同源）
-    const workbench = new Map(GANTT_COLS.map((c) => [c.key, c]))
-    for (const c of EXP_COLS) {
-      const ov = c.label === '序号' || c.label === '工期(天)' // 显式覆盖的两处
-      if (!ov) expect(c.label, c.key).toBe(workbench.get(c.key)?.label)
-    }
-    // 发布物覆盖表：上报件可读口径（与拆分前字面量逐字段一致）
+    // 工作台已对齐 ZPert 工作名称/计划日期，上报件保持历史可读口径。
     expect(EXP_COLS.map((c) => c.label)).toEqual(['序号', '任务名称', '工期(天)', '开始', '完成', '前置'])
     expect(EXP_COLS.map((c) => c.w)).toEqual([44, 200, 64, 84, 84, 80])
   })

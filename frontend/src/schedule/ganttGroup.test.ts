@@ -7,8 +7,8 @@
  * 空组裁剪；cpm.ok=false 不抛错、统计按 0。
  */
 import { describe, expect, it } from 'vitest'
-import { buildGanttRows } from './ganttGroup'
-import type { CpmResult, SchedTask, TaskCpm } from './types'
+import { buildGanttRows, type GanttGroupField } from './ganttGroup'
+import type { CpmResult, SchedProject, SchedTask, TaskCpm } from './types'
 
 function t(id: string, name: string, duration: number, level = 1, extra: Partial<SchedTask> = {}): SchedTask {
   return { id, name, duration, level, progress: 0, ...extra }
@@ -216,5 +216,92 @@ describe('buildGanttRows', () => {
     expect(
       flat.every((r) => r.kind !== 'group' || (r.minEs === 0 && r.maxEf === 0 && r.count > 0)),
     ).toBe(true)
+  })
+})
+
+describe('斑马 14 维分组（W1）', () => {
+  const project: SchedProject = {
+    name: '高级分组',
+    startDate: '2026-09-07',
+    tasks: [
+      t('G1', '主体结构', 0, 0),
+      t('A', '土方开挖', 10, 1, {
+        progress: 0,
+        custom: { text1: '一区', text2: '张工', text3: '土建' },
+      }),
+      t('B', '垫层', 2, 1, {
+        progress: 45,
+        custom: { text1: '二区', text2: '李工', text3: '土建' },
+      }),
+      t('G2', '安装工程', 0, 0),
+      t('C', '管道安装', 6, 1, { progress: 100, isMilestone: false }),
+      t('D', '竣工节点', 0, 1, { progress: 0, isMilestone: true }),
+    ],
+    links: [
+      { from: 'A', to: 'B', type: 'FS', lag: 0 },
+      { from: 'B', to: 'C', type: 'FS', lag: 0 },
+    ],
+    resources: [
+      { id: 'r1', name: '测量组', type: 'work' },
+      { id: 'r2', name: '安装班', type: 'work' },
+    ],
+    assignments: [
+      { taskId: 'A', resourceId: 'r1' },
+      { taskId: 'C', resourceId: 'r2' },
+    ],
+    customLabels: { text1: '工作部位', text2: '负责人', text3: '专业' },
+  }
+  const advancedCpm = {
+    ok: true,
+    duration: 18,
+    rows: {
+      A: row(0, 10, 0, true),
+      B: row(10, 12, 0, true),
+      C: row(12, 18, 0, true),
+      D: row(18, 18, 0, true),
+    },
+  } satisfies CpmResult
+
+  function labels(field: GanttGroupField): string[] {
+    return buildGanttRows(project.tasks, advancedCpm, { groupBy: [field], project })
+      .filter((r): r is Extract<(ReturnType<typeof buildGanttRows>[number]), { kind: 'group' }> => r.kind === 'group')
+      .map((r) => r.label)
+  }
+
+  it('工期/总时差按值成组', () => {
+    expect(labels('duration')).toEqual(['工期: 10 工日', '工期: 2 工日', '工期: 6 工日', '工期: 0 工日'])
+    expect(labels('tf')).toEqual(['总时差: 0 天'])
+  })
+
+  it('负责人/工作部位/自定义列组头使用项目覆盖名，空值归“未填写”', () => {
+    expect(labels('owner')).toContain('负责人: 张工')
+    expect(labels('site')).toContain('工作部位: 一区')
+    expect(labels('custom')).toContain('自定义（专业）: 土建')
+    expect(labels('owner')).toContain('负责人: 未填写')
+  })
+
+  it('工作分类取最近上级分组；执行状态按 progress 三态', () => {
+    expect(labels('category')).toEqual(['工作分类: 主体结构', '工作分类: 安装工程'])
+    expect(labels('status')).toEqual(['执行状态: 未开始', '执行状态: 进行中', '执行状态: 已完成'])
+  })
+
+  it('资源名称/前置数/后置数由项目关系派生，零值仍形成分支', () => {
+    expect(labels('resource')).toEqual(['资源名称: 测量组', '资源名称: 未分配', '资源名称: 安装班'])
+    expect(labels('predsCount')).toEqual(['前置数: 0 个', '前置数: 1 个'])
+    expect(labels('succsCount')).toEqual(['后置数: 1 个', '后置数: 0 个'])
+  })
+
+  it('工作名称/关键/里程碑/模式四个既有语义仍可组合成多级分组', () => {
+    expect(labels('name')).toEqual(['工作名称: 土方开挖', '工作名称: 垫层', '工作名称: 管道安装', '工作名称: 竣工节点'])
+    const rows = buildGanttRows(project.tasks, advancedCpm, {
+      groupBy: ['milestone', 'mode'],
+      project,
+    })
+    expect(rows.filter((r) => r.kind === 'group').map((r) => r.label)).toEqual([
+      '里程碑: 否',
+      '模式: 自动',
+      '里程碑: 是',
+      '模式: 自动',
+    ])
   })
 })

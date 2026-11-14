@@ -12,7 +12,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask } from './types'
+import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask, SchedView } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
@@ -193,6 +193,14 @@ interface ScheduleState {
   addReview: (at: number, date: string) => { ok: boolean; reason?: string }
   removeReview: (at: number) => void
   straightenReview: (at: number) => { ok: boolean; changed: number; reason?: string }
+  /** 视图库（斑马复刻 S6.2「保存视图/视图管理」，views.ts 校验）：
+   *  保存/改名/删除走项目历史（可撤销）；requestCustomView 是 UI 信号
+   *  （ribbon 触发 GanttView 应用快照，非项目状态、不入历史）。 */
+  saveCustomView: (view: SchedView) => { ok: boolean; reason?: string }
+  renameCustomView: (id: string, name: string) => { ok: boolean; reason?: string }
+  removeCustomView: (id: string) => void
+  customViewRequest: { id: string; seq: number } | null
+  requestCustomView: (id: string) => void
 
   loadSample: () => void
   clearAll: () => void
@@ -548,6 +556,49 @@ export const useScheduleStore = create<ScheduleState>()(
         const next = [...(project.reviews ?? []), makeReview(project, at, date)].sort((a, b) => a.at - b.at)
         set((s) => ({ project: { ...s.project, reviews: next } }))
         return { ok: true }
+      },
+
+      saveCustomView: (view) => {
+        const { project } = useScheduleStore.getState()
+        const views = project.views ?? []
+        if (views.some((v) => v.name === view.name)) {
+          return { ok: false, reason: '存在同名视图，请重新保存' }
+        }
+        if (views.some((v) => v.id === view.id)) {
+          return { ok: false, reason: '视图 id 冲突，请重试' }
+        }
+        pushHistory('view')
+        set((s) => ({ project: { ...s.project, views: [...(s.project.views ?? []), view] } }))
+        return { ok: true }
+      },
+
+      renameCustomView: (id, name) => {
+        const { project } = useScheduleStore.getState()
+        const views = project.views ?? []
+        const target = views.find((v) => v.id === id)
+        if (!target) return { ok: false, reason: '视图不存在' }
+        const trimmed = name.trim()
+        if (!trimmed) return { ok: false, reason: '视图名不能为空' }
+        if (views.some((v) => v.id !== id && v.name === trimmed)) {
+          return { ok: false, reason: '存在同名视图，请重新保存' }
+        }
+        pushHistory('view')
+        set((s) => ({
+          project: { ...s.project, views: (s.project.views ?? []).map((v) => (v.id === id ? { ...v, name: trimmed } : v)) },
+        }))
+        return { ok: true }
+      },
+
+      removeCustomView: (id) => {
+        const { project } = useScheduleStore.getState()
+        if (!(project.views ?? []).some((v) => v.id === id)) return
+        pushHistory('view')
+        set((s) => ({ project: { ...s.project, views: (s.project.views ?? []).filter((v) => v.id !== id) } }))
+      },
+
+      customViewRequest: null,
+      requestCustomView: (id) => {
+        set((s) => ({ customViewRequest: { id, seq: (s.customViewRequest?.seq ?? 0) + 1 } }))
       },
 
       removeReview: (at) => {

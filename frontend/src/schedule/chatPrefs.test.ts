@@ -3,7 +3,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import { CHAT_PREFS_KEY, clampChatWidth, loadChatPrefs, saveChatPrefs } from './chatPrefs'
-import { GANTT_CUSTOM_KEYS, GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
+import { GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
+import {
+  BUILTIN_GANTT_VIEWS,
+  CUSTOM_GANTT_VIEW_ID,
+  DEFAULT_GANTT_VIEW_ID,
+  hideForBuiltinView,
+  widthForBuiltinView,
+} from './viewPresets'
 
 function fakeStorage(initial: Record<string, string> = {}): Storage & { dump: () => Record<string, string> } {
   const bag = { ...initial }
@@ -18,9 +25,19 @@ function fakeStorage(initial: Record<string, string> = {}): Storage & { dump: ()
   } as Storage & { dump: () => Record<string, string> }
 }
 
-/** 缺省隐藏=进度列 + 全部自定义字段列（v4.138 #14，收起让位画布；列菜单可开） */
-const DEFAULT_HIDE = ['progress', ...GANTT_CUSTOM_KEYS]
-const DEFAULTS = { collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: DEFAULT_HIDE, ganttSort: { field: 'none', dir: 'asc' }, ganttGroup: [] }
+const PLAN = BUILTIN_GANTT_VIEWS.find((v) => v.id === DEFAULT_GANTT_VIEW_ID)!
+/** W1 缺省=计划编制：只露身份/分区/工期/前置/计划日期，表格宽=可见列宽。 */
+const DEFAULT_HIDE = hideForBuiltinView(PLAN)
+const DEFAULTS = {
+  collapsed: true,
+  width: 420,
+  ganttTableW: widthForBuiltinView(PLAN),
+  ganttHide: DEFAULT_HIDE,
+  ganttSort: { field: 'none', dir: 'asc' },
+  ganttGroup: [],
+  ganttViewId: DEFAULT_GANTT_VIEW_ID,
+  ganttFilterKind: 'all',
+}
 
 describe('clampChatWidth', () => {
   it('钳位 320~680，非有限值回落 420', () => {
@@ -45,18 +62,21 @@ describe('loadChatPrefs', () => {
     expect(loadChatPrefs(s).ganttTableW).toBe(GANTT_LEFT_W_FULL)
     expect(loadChatPrefs(s).ganttHide).toEqual(['ls', 'lf'])
     const s2 = fakeStorage({ [CHAT_PREFS_KEY]: '{"ganttTableW":"fat"}' })
-    expect(loadChatPrefs(s2).ganttTableW).toBe(GANTT_LEFT_W_FULL)
+    expect(loadChatPrefs(s2).ganttTableW).toBe(DEFAULTS.ganttTableW)
     const s3 = fakeStorage({ [CHAT_PREFS_KEY]: JSON.stringify({ ganttTableW: 5 }) })
     expect(loadChatPrefs(s3).ganttTableW).toBe(GANTT_TABLE_W_MIN)
   })
-  it('v4.138 #14：缺省隐藏集含进度列与全部 5 个自定义字段列；存量 ganttHide（无自定义键）原样保留不迁移', () => {
-    expect(DEFAULT_HIDE).toEqual(['progress', 'text1', 'text2', 'text3', 'num1', 'num2'])
-    // 存量数据已存 ganttHide 数组时逐项容错原样保留（自定义列对老用户不强制弹出）
+  it('W1：新建偏好=计划编制；存量 ganttHide（无 viewId）进入自定义视图并原样保留', () => {
+    expect(DEFAULT_HIDE).toContain('progress')
+    expect(DEFAULT_HIDE).toContain('mode')
+    // 存量数据已存 ganttHide 数组时逐项容错保留，不把用户强行迁到新预设
     const s = fakeStorage({ [CHAT_PREFS_KEY]: JSON.stringify({ ganttHide: ['progress'] }) })
     expect(loadChatPrefs(s).ganttHide).toEqual(['progress'])
-    // 存量数据无 ganttHide 字段 → 回落新缺省（自定义列收起）
+    expect(loadChatPrefs(s).ganttViewId).toBe(CUSTOM_GANTT_VIEW_ID)
+    // 存量数据无 ganttHide 字段 → 回落计划编制
     const s2 = fakeStorage({ [CHAT_PREFS_KEY]: '{"width":420}' })
     expect(loadChatPrefs(s2).ganttHide).toEqual(DEFAULT_HIDE)
+    expect(loadChatPrefs(s2).ganttViewId).toBe(DEFAULT_GANTT_VIEW_ID)
   })
 })
 
@@ -82,5 +102,21 @@ describe('saveChatPrefs', () => {
     saveChatPrefs({ ganttTableW: 300 }, s)
     expect(loadChatPrefs(s).ganttHide).toEqual(['ls', 'lf', 'cost'])
     expect(loadChatPrefs(s).ganttTableW).toBe(300)
+  })
+  it('W1：当前视图/筛选档往返；手动改设置保存 custom 不被回写为内置', () => {
+    const s = fakeStorage()
+    saveChatPrefs({
+      ganttViewId: 'control',
+      ganttFilterKind: 'critical',
+      ganttGroup: ['status', 'owner'],
+    }, s)
+    expect(loadChatPrefs(s)).toMatchObject({
+      ganttViewId: 'control',
+      ganttFilterKind: 'critical',
+      ganttGroup: ['status', 'owner'],
+    })
+    saveChatPrefs({ ganttViewId: CUSTOM_GANTT_VIEW_ID, ganttHide: ['progress', 'cost'] }, s)
+    expect(loadChatPrefs(s).ganttViewId).toBe(CUSTOM_GANTT_VIEW_ID)
+    expect(loadChatPrefs(s).ganttHide).toEqual(['progress', 'cost'])
   })
 })
