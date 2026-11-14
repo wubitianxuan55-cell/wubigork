@@ -178,10 +178,10 @@ type WarnCounts struct {
 
 // WarnRow 红灯工作明细行。
 type WarnRow struct {
-	TaskID      string `json:"taskId"`
-	Name        string `json:"name"`
+	TaskID string `json:"taskId"`
+	Name   string `json:"name"`
 	// Overdue 超期工作日（计划完成日 − 要求完成日，正=突破）。
-	Overdue int    `json:"overdue"`
+	Overdue int `json:"overdue"`
 	// Band 滞后五档文本（与前端 warn.ts warnBand 同表：(0,15]/(15,30]/(30,60]/(60,100]/100+）。
 	Band        string `json:"band"`
 	IsMilestone bool   `json:"isMilestone,omitempty"`
@@ -251,14 +251,22 @@ func execReviewPercent(r *Review, t Task) int {
 	if r != nil {
 		if a, ok := r.Actuals[t.ID]; ok && a.Percent != nil {
 			v := *a.Percent
-			if v < 0 { v = 0 }
-			if v > 100 { v = 100 }
+			if v < 0 {
+				v = 0
+			}
+			if v > 100 {
+				v = 100
+			}
 			return v
 		}
 	}
 	v := t.Progress
-	if v < 0 { v = 0 }
-	if v > 100 { v = 100 }
+	if v < 0 {
+		v = 0
+	}
+	if v > 100 {
+		v = 100
+	}
 	return v
 }
 
@@ -282,13 +290,19 @@ func execProjectPercent(p Project, r *Review) int {
 			continue
 		}
 		d := t.Duration
-		if d < 0 { d = 0 }
-		if d == 0 { continue }
+		if d < 0 {
+			d = 0
+		}
+		if d == 0 {
+			continue
+		}
 		weight += d
 		done += d * execReviewPercent(r, *t)
 	}
 	if weight == 0 {
-		if milestones == 0 { return 0 }
+		if milestones == 0 {
+			return 0
+		}
 		return int(float64(milestoneDone) / float64(milestones) * 100)
 	}
 	return int(float64(done)/float64(weight) + 0.5)
@@ -351,13 +365,21 @@ func (p Project) ExecutionNarrative(cpm CpmResult) *ExecutionNarrative {
 				continue
 			}
 			d := t.Duration
-			if d < 0 { d = 0 }
-			if d == 0 { continue }
+			if d < 0 {
+				d = 0
+			}
+			if d == 0 {
+				continue
+			}
 			total += d
 			if row, ok := cpm.Rows[t.ID]; ok {
 				elapsed := latest.At - row.ES + 1
-				if elapsed < 0 { elapsed = 0 }
-				if elapsed > d { elapsed = d }
+				if elapsed < 0 {
+					elapsed = 0
+				}
+				if elapsed > d {
+					elapsed = d
+				}
 				planned += elapsed
 			}
 			actual += float64(d) * float64(execReviewPercent(&latest, *t)) / 100

@@ -153,10 +153,10 @@ func execNarrativeProject() *Project {
 	return &Project{
 		Name: "执行治理", StartDate: "2026-01-05",
 		Tasks: []Task{
-			{ID: "A", Name: "挖土", Duration: 3, Level: 1, AskFinish: intPtr(0)},  // 完成日 2，要求 0 → 红灯 2
-			{ID: "B", Name: "吊装", Duration: 2, Level: 1, AskFinish: intPtr(9)},  // 完成日 4，要求 9 → 绿灯 -5
-			{ID: "C", Name: "运输", Duration: 1, Level: 1},                         // 未设置 → unassigned
-			{ID: "G", Name: "分组", Level: 0, AskFinish: intPtr(0)},               // 分组行不参与
+			{ID: "A", Name: "挖土", Duration: 3, Level: 1, AskFinish: intPtr(0)}, // 完成日 2，要求 0 → 红灯 2
+			{ID: "B", Name: "吊装", Duration: 2, Level: 1, AskFinish: intPtr(9)}, // 完成日 4，要求 9 → 绿灯 -5
+			{ID: "C", Name: "运输", Duration: 1, Level: 1},                       // 未设置 → unassigned
+			{ID: "G", Name: "分组", Level: 0, AskFinish: intPtr(0)},              // 分组行不参与
 		},
 		Links: []Link{lnk("A", "B", FS, 0)},
 	}
