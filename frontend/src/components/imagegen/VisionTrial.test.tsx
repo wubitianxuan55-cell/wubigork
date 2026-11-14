@@ -57,6 +57,9 @@ describe('VisionTrial 识图「读/懂」画室试用', () => {
   it('选图 → SavePastedImage 落盘 → 展示预览与落盘路径', async () => {
     const { container } = renderTrial()
     await pickImage(container)
+    expect(screen.getByTestId('vision-stage')).toBeTruthy()
+    expect(screen.getByRole('toolbar', { name: '图片查看工具' })).toBeTruthy()
+    expect(screen.getByTestId('vision-stage-viewport')).toBeTruthy()
   })
 
   it('识别内容：缺省提示词走 GaeaRecognizeImage（识图-懂），结果区诚实呈现文本与原语标注', async () => {

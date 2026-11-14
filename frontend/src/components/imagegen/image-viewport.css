@@ -1,0 +1,266 @@
+/* Image inspection stage: ruler-backed pan/zoom canvas for the vision trial. */
+.ig-stage {
+  --ig-stage-line: color-mix(in srgb, var(--color-text) 10%, transparent);
+  --ig-stage-fill: color-mix(in srgb, var(--color-surface-container-high) 76%, transparent);
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: min(58vh, 560px);
+  min-height: 340px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 24% 12%, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent 34%),
+    color-mix(in srgb, var(--color-surface-container) 92%, transparent);
+}
+
+.ig-stage.is-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-container);
+}
+
+.ig-stage.is-fullscreen::backdrop {
+  background: color-mix(in srgb, var(--color-text) 72%, #000);
+}
+
+.ig-stage-toolbar {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 7px;
+  border-bottom: 1px solid var(--ig-stage-line);
+  background: color-mix(in srgb, var(--color-surface-container-high) 86%, transparent);
+}
+
+.ig-stage-zoom,
+.ig-stage-size {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ig-stage-zoom {
+  min-width: 42px;
+  text-align: center;
+}
+
+.ig-stage-size {
+  margin-right: 3px;
+  white-space: nowrap;
+}
+
+.ig-stage-sep {
+  width: 1px;
+  height: 16px;
+  margin-inline: 3px;
+  background: var(--ig-stage-line);
+}
+
+.ig-stage-grow {
+  flex: 1;
+}
+
+.ig-stage-body {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-rows: 20px minmax(0, 1fr);
+}
+
+.ig-stage-corner {
+  grid-column: 1;
+  grid-row: 1;
+  border-right: 1px solid var(--ig-stage-line);
+  border-bottom: 1px solid var(--ig-stage-line);
+  background: var(--ig-stage-fill);
+}
+
+.ig-stage-ruler {
+  position: relative;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--color-text-secondary) 72%, transparent);
+  background: var(--ig-stage-fill);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  pointer-events: none;
+}
+
+.ig-stage-ruler-h {
+  grid-column: 2;
+  grid-row: 1;
+  border-bottom: 1px solid var(--ig-stage-line);
+}
+
+.ig-stage-ruler-v {
+  grid-column: 1;
+  grid-row: 2;
+  border-right: 1px solid var(--ig-stage-line);
+}
+
+.ig-stage-tick {
+  position: absolute;
+}
+
+.ig-stage-ruler-h .ig-stage-tick {
+  top: 0;
+  bottom: 0;
+}
+
+.ig-stage-ruler-v .ig-stage-tick {
+  right: 0;
+  left: 0;
+}
+
+.ig-stage-tick i {
+  position: absolute;
+  display: block;
+  background: color-mix(in srgb, var(--color-text) 22%, transparent);
+}
+
+.ig-stage-ruler-h .ig-stage-tick i {
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 4px;
+}
+
+.ig-stage-ruler-v .ig-stage-tick i {
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 1px;
+}
+
+.ig-stage-tick em {
+  position: absolute;
+  font-style: normal;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ig-stage-ruler-h .ig-stage-tick em {
+  top: 3px;
+  left: 3px;
+}
+
+.ig-stage-ruler-v .ig-stage-tick em {
+  top: 2px;
+  left: 3px;
+  writing-mode: vertical-rl;
+}
+
+.ig-stage-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  grid-column: 2;
+  grid-row: 2;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background:
+    linear-gradient(45deg, color-mix(in srgb, var(--color-text) 3%, transparent) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--color-text) 3%, transparent) 75%) 0 0 / 16px 16px;
+}
+
+.ig-stage-viewport.is-panning {
+  cursor: grabbing;
+}
+
+.ig-stage-viewport > img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  max-width: none;
+  max-height: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.ig-stage-empty {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ig-stage-status {
+  display: grid;
+  min-height: 27px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 4px 9px;
+  border-top: 1px solid var(--ig-stage-line);
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-surface-container-high) 72%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ig-stage-status-right {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ig-vision-loaded {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ig-vision-path {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 3px;
+  font-size: 11px;
+}
+
+.ig-vision-path-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .ig-stage {
+    height: 320px;
+    min-height: 300px;
+  }
+
+  .ig-stage-status {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ig-stage-status-right {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ig-stage-viewport {
+    scroll-behavior: auto;
+  }
+}

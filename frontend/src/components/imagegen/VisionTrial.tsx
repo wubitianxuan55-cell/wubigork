@@ -23,6 +23,7 @@ import {
 } from '../../api/image'
 import { useT } from '../../gaea/lib/i18n'
 import { inShellEnv, pickImageAsDataUrl } from '../../gaea/lib/pickFile'
+import { ImageInspectStage } from './ImageInspectStage'
 
 type VisionAction = 'understand' | 'read'
 
@@ -269,22 +270,21 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </span>
         </button>
 
-        {/* 已载图片预览 + 路径（诚实展示落盘路径） */}
+        {/* 已载图片检视 + 路径（诚实展示落盘路径） */}
         {path && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexShrink: 0 }}>
+          <div className="ig-vision-loaded" style={{ flexShrink: 0 }}>
             {preview ? (
-              <img src={preview} alt={path}
-                style={{ maxWidth: 240, maxHeight: 180, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border-subtle)' }} />
+              <ImageInspectStage src={preview} alt={path} />
             ) : (
               <div style={{ width: 120, height: 90, borderRadius: 8, border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <FileImageOutlined style={{ fontSize: 20, color: C('color-text-secondary'), opacity: 0.6 }} />
               </div>
             )}
-            <div style={{ minWidth: 0, fontSize: 11, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div className="ig-vision-path">
               <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                 {t('imagehubT1.visionPathLabel')}
               </Typography.Text>
-              <Typography.Text style={{ fontSize: 11, wordBreak: 'break-all' }}>{path}</Typography.Text>
+              <Typography.Text className="ig-vision-path-value" style={{ fontSize: 11 }}>{path}</Typography.Text>
             </div>
           </div>
         )}
