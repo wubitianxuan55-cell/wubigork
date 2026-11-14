@@ -167,3 +167,19 @@
   11/14 02:08:17）=工作树产物，smoke /api/health 200（PID 40776 已回收），
   工作树已回收；progress.md 本刀段落以**行级补丁**单独提交（0bf1c7e7 首版
   hunk 过滤吞了相邻 DSH 段头两行→回退重做，行级配方更稳）。
+
+## 9. 打包：gaea-office-cadtab-20261114-c85a9815（预览包）
+
+- **包标识** `gaea-office-cadtab-20261114-c85a9815`；性质=功能提交预览（版本
+  三源不抬号）。构建来源=干净工作树 `.worktrees/cadtab-head` @ `c85a9815`
+  （本专项六刀全量），产物=装机位同源 exe `E65681B6…`（02:08:17 构建），
+  `INSTALL OK` + smoke `/api/health` 200（PID 40776 已回收）+
+  `GaeaCadOpen`×3 二进制命中。
+- **包内容**：`PACKAGE-INFO.md` + `SHA256SUMS-c85a9815.txt` 入库
+  （提交 `4db1c355`）；exe+三 DLL、`gaea-c85a9815-source.tar.gz`（git archive
+  42.6MB）、`gaea-c85a9815-preview.zip`（32.2MB）、
+  `gaea-uncommitted-20261114.tar.gz`（DSH 在途 51 文件安全快照，打包时刻）
+  留盘不入库（.gitignore 补 uncommitted tarball 规则）。
+- **已知边界**（写入 PACKAGE-INFO）：DSH context/fleet 批在途 51 文件不属
+  本专项未入包；真机 dwg 实弹挂用户；CAD 可选卡默认关。
+- 包记录提交：`4db1c355`（docs+gitignore，代码与打包源 c85a9815 零漂移）。
