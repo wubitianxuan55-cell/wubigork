@@ -502,12 +502,22 @@
   },
   {
    "from": "internal/app",
+   "to": "internal/office/comhelper",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
    "to": "internal/office/crosslink",
    "layer": "shell"
   },
   {
    "from": "internal/app",
    "to": "internal/office/docxedit",
+   "layer": "shell"
+  },
+  {
+   "from": "internal/app",
+   "to": "internal/office/omml",
    "layer": "shell"
   },
   {
@@ -1193,6 +1203,11 @@
   {
    "from": "internal/gaea/boot",
    "to": "internal/netclient",
+   "layer": "kernel-rt"
+  },
+  {
+   "from": "internal/gaea/boot",
+   "to": "internal/office/comhelper",
    "layer": "kernel-rt"
   },
   {
@@ -2041,6 +2056,11 @@
    "layer": "office"
   },
   {
+   "from": "internal/office/comhelper",
+   "to": "internal/gaea/proc",
+   "layer": "office"
+  },
+  {
    "from": "internal/office/docxedit",
    "to": "internal/office/ooxml",
    "layer": "office"
@@ -2372,11 +2392,11 @@
   }
  ],
  "meta": {
-  "edges": 474,
+  "edges": 478,
   "generated": "2026-11-10",
-  "packages": 164,
-  "srcLoc": 264830,
-  "testLoc": 210821
+  "packages": 167,
+  "srcLoc": 274000,
+  "testLoc": 215250
  },
  "nodes": [
   {
@@ -2400,13 +2420,13 @@
   {
    "id": "internal/app",
    "layer": "shell",
-   "srcLoc": 75660,
-   "testLoc": 68882
+   "srcLoc": 78616,
+   "testLoc": 70580
   },
   {
    "id": "internal/app/board",
    "layer": "shell",
-   "srcLoc": 421,
+   "srcLoc": 422,
    "testLoc": 171
   },
   {
@@ -2508,8 +2528,8 @@
   {
    "id": "internal/gaea/agent",
    "layer": "kernel-rt",
-   "srcLoc": 13224,
-   "testLoc": 12452
+   "srcLoc": 13222,
+   "testLoc": 12475
   },
   {
    "id": "internal/gaea/agent/budget",
@@ -2532,7 +2552,7 @@
   {
    "id": "internal/gaea/agent/session",
    "layer": "kernel-rt",
-   "srcLoc": 2684,
+   "srcLoc": 2685,
    "testLoc": 3290
   },
   {
@@ -2586,14 +2606,14 @@
   {
    "id": "internal/gaea/boot",
    "layer": "kernel-rt",
-   "srcLoc": 1443,
-   "testLoc": 1620
+   "srcLoc": 1509,
+   "testLoc": 1686
   },
   {
    "id": "internal/gaea/browser",
    "layer": "kernel-lib",
-   "srcLoc": 2060,
-   "testLoc": 1437
+   "srcLoc": 2255,
+   "testLoc": 1520
   },
   {
    "id": "internal/gaea/cache",
@@ -2616,8 +2636,8 @@
   {
    "id": "internal/gaea/config",
    "layer": "kernel-lib",
-   "srcLoc": 2931,
-   "testLoc": 2622
+   "srcLoc": 2991,
+   "testLoc": 2660
   },
   {
    "id": "internal/gaea/context",
@@ -2628,8 +2648,8 @@
   {
    "id": "internal/gaea/contextview",
    "layer": "kernel-rt",
-   "srcLoc": 2782,
-   "testLoc": 1795
+   "srcLoc": 3129,
+   "testLoc": 2002
   },
   {
    "id": "internal/gaea/control",
@@ -2688,13 +2708,13 @@
   {
    "id": "internal/gaea/event",
    "layer": "kernel-rt",
-   "srcLoc": 448,
+   "srcLoc": 449,
    "testLoc": 253
   },
   {
    "id": "internal/gaea/evidence",
    "layer": "kernel-rt",
-   "srcLoc": 1099,
+   "srcLoc": 1107,
    "testLoc": 1036
   },
   {
@@ -2832,7 +2852,7 @@
   {
    "id": "internal/gaea/provider",
    "layer": "kernel-lib",
-   "srcLoc": 867,
+   "srcLoc": 870,
    "testLoc": 1248
   },
   {
@@ -2880,7 +2900,7 @@
   {
    "id": "internal/gaea/skill",
    "layer": "kernel-lib",
-   "srcLoc": 1707,
+   "srcLoc": 1716,
    "testLoc": 1587
   },
   {
@@ -2916,20 +2936,20 @@
   {
    "id": "internal/gaea/tool",
    "layer": "kernel-rt",
-   "srcLoc": 1627,
-   "testLoc": 1493
+   "srcLoc": 1664,
+   "testLoc": 1509
   },
   {
    "id": "internal/gaea/tool/builtin",
    "layer": "kernel-rt",
-   "srcLoc": 11955,
-   "testLoc": 8146
+   "srcLoc": 12289,
+   "testLoc": 8466
   },
   {
    "id": "internal/gaea/trajectory",
    "layer": "kernel-lib",
    "srcLoc": 1545,
-   "testLoc": 1218
+   "testLoc": 1231
   },
   {
    "id": "internal/gaea/vision",
@@ -2940,7 +2960,7 @@
   {
    "id": "internal/gaea/workbench",
    "layer": "kernel-lib",
-   "srcLoc": 1655,
+   "srcLoc": 1668,
    "testLoc": 327
   },
   {
@@ -3000,7 +3020,7 @@
   {
    "id": "internal/modelengine",
    "layer": "engine",
-   "srcLoc": 3796,
+   "srcLoc": 3809,
    "testLoc": 4650
   },
   {
@@ -3076,6 +3096,12 @@
    "testLoc": 39
   },
   {
+   "id": "internal/office/comhelper",
+   "layer": "office",
+   "srcLoc": 1054,
+   "testLoc": 183
+  },
+  {
    "id": "internal/office/crosslink",
    "layer": "office",
    "srcLoc": 285,
@@ -3086,6 +3112,12 @@
    "layer": "office",
    "srcLoc": 625,
    "testLoc": 417
+  },
+  {
+   "id": "internal/office/omml",
+   "layer": "office",
+   "srcLoc": 1182,
+   "testLoc": 304
   },
   {
    "id": "internal/office/ooxml",
@@ -3120,8 +3152,8 @@
   {
    "id": "internal/office/xlsxedit",
    "layer": "office",
-   "srcLoc": 821,
-   "testLoc": 503
+   "srcLoc": 2641,
+   "testLoc": 1508
   },
   {
    "id": "internal/office/xlsxpreview",
@@ -3180,8 +3212,8 @@
   {
    "id": "internal/schedule",
    "layer": "domain",
-   "srcLoc": 4461,
-   "testLoc": 4977
+   "srcLoc": 5188,
+   "testLoc": 5450
   },
   {
    "id": "internal/screen",
@@ -3361,6 +3393,12 @@
    "id": "scripts/voice_v2/ws_probe",
    "layer": "devtools",
    "srcLoc": 1402,
+   "testLoc": 0
+  },
+  {
+   "id": "tools/wpsdock",
+   "layer": "domain",
+   "srcLoc": 345,
    "testLoc": 0
   }
  ]
