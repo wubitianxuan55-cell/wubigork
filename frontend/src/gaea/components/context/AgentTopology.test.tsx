@@ -62,22 +62,34 @@ const RUNS: SubagentRunView[] = [
 ];
 
 describe("AgentTopology 编队卡片拓扑", () => {
-  it("主 Agent 与子 Agent 渲染为卡片节点，不渲染径向 SVG 图", () => {
+  it("主 Agent 与子 Agent 渲染为 SVG 曲线谱系中的卡片节点", () => {
     const { container } = renderT(<AgentTopology network={NETWORK} runs={RUNS} />);
     expect(screen.getByTestId("agent-topology")).toBeTruthy();
     expect(container.querySelectorAll(".agent-topology-card")).toHaveLength(3);
-    expect(container.querySelector(".agent-topology-branch.is-root > .agent-topology-card")).toBeTruthy();
+    expect(container.querySelector(".agent-topology-canvas")).toBeTruthy();
+    expect(container.querySelector("svg.agent-topology-links")).toBeTruthy();
     expect(container.querySelector('[data-agent="sa_1"]')?.getAttribute("data-status")).toBe("running");
-    expect(container.querySelector('[data-testid="agent-radial-svg"]')).toBeNull();
   });
 
-  it("子 Agent 卡片可键盘聚焦并打开对应上下文", () => {
+  it("子 Agent 主命中区可选中，独立按钮可打开对应上下文", () => {
     const onViewContext = vi.fn();
+    const onSelectAgent = vi.fn();
     const { container } = renderT(
-      <AgentTopology network={NETWORK} runs={RUNS} onViewContext={onViewContext} />,
+      <AgentTopology
+        network={NETWORK}
+        runs={RUNS}
+        onSelectAgent={onSelectAgent}
+        onViewContext={onViewContext}
+      />,
     );
-    fireEvent.click(container.querySelector('[data-agent="sa_1"]') as HTMLElement);
+    const card = container.querySelector('[data-agent="sa_1"]') as HTMLElement;
+    const select = card.querySelector(".agent-topology-hit") as HTMLButtonElement;
+    const open = card.querySelector(".agent-topology-open") as HTMLButtonElement;
+    expect(select.tagName).toBe("BUTTON");
+    expect(open.tagName).toBe("BUTTON");
+    fireEvent.click(select);
+    expect(onSelectAgent).toHaveBeenCalledWith("sa_1");
+    fireEvent.click(open);
     expect(onViewContext).toHaveBeenCalledWith("sa_1");
-    expect((container.querySelector('[data-agent="sa_1"]') as HTMLElement).tagName).toBe("BUTTON");
   });
 });
