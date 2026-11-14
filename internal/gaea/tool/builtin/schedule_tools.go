@@ -62,7 +62,7 @@ type scheduleGet struct{ workDir string }
 func (scheduleGet) Name() string { return "schedule_get" }
 
 func (scheduleGet) Description() string {
-	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）；任务带 durationUnit=cd 表示日历天（自然日定时，duration 为自然日数，等效工作日跨度=该任务 cpm 行 ef−es）；任务行含 askFinish 要求完成（工作日序号，0=开工日，缺省=未下达）。有检视或任一任务设置了要求完成时附带执行期治理叙事（execution：reviewCount 检视期数、latest 最新一期加权完成量/计划应完成/偏差、warn 红绿灯与未设置计数、redRows 红灯明细超期天数与五档——plan-ask 口径）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
+	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）；任务带 durationUnit=cd 表示日历天（自然日定时，duration 为自然日数，等效工作日跨度=该任务 cpm 行 ef−es）；任务行含 askFinish 要求完成（工作日序号，0=开工日，缺省=未下达）。有检视或任一任务设置了要求完成时附带执行期治理叙事（execution：reviewCount 检视期数、latest 最新一期加权完成量/计划应完成/偏差、warn 红绿灯与未设置计数、redRows 红灯明细超期天数与五档——plan-ask 口径）。已保存自定义视图时附带 views 清单（id/name/隐藏列/分组——视图=列可见性预设）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
 }
 
 func (scheduleGet) Schema() json.RawMessage {
@@ -147,6 +147,22 @@ func (s scheduleGet) Execute(ctx context.Context, args json.RawMessage) (string,
 	// 执行期治理叙事（斑马复刻 S2/S5：检视+预警，plan-ask 口径；无信号 nil 不出键）
 	if exec := proj.ExecutionNarrative(cpm); exec != nil {
 		out["execution"] = exec
+	}
+	// 视图库清单（斑马复刻 S6.2「保存视图/视图管理」：视图=列可见性预设+开关，
+	// viewbackend-re §6——agent 只读清单，不展开列集明细；UI 消费面在横道视图态）
+	if len(proj.Views) > 0 {
+		type viewRow struct {
+			ID      string   `json:"id"`
+			Name    string   `json:"name"`
+			Kind    string   `json:"kind"`
+			Hide    []string `json:"hide,omitempty"`
+			GroupBy []string `json:"groupBy,omitempty"`
+		}
+		rows := make([]viewRow, 0, len(proj.Views))
+		for _, v := range proj.Views {
+			rows = append(rows, viewRow{ID: v.ID, Name: v.Name, Kind: string(v.Kind), Hide: v.Hide, GroupBy: v.GroupBy})
+		}
+		out["views"] = rows
 	}
 	return mustJSON(out)
 }

@@ -574,3 +574,41 @@ func TestScheduleGetExecutionAndAskFinish(t *testing.T) {
 		t.Fatalf("无信号不应出 execution 段: %s", out2)
 	}
 }
+
+// schedule_get 视图库清单（斑马复刻 S6.2：视图=列可见性预设，viewbackend-re §6）。
+func TestScheduleGetCarriesViews(t *testing.T) {
+	dir := t.TempDir()
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01",
+		"tasks":[{"id":"a","name":"挖土","level":1,"duration":2,"progress":0}],
+		"views":[{"id":"cv-1","name":"管控视图","kind":"gantt","hide":["ls","lf"],"groupBy":["status"],"sort":{"field":"start","dir":"asc"},"filter":"all"}]}}`)
+	out, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("get 输出非 JSON: %v", err)
+	}
+	views, ok := m["views"].([]any)
+	if !ok || len(views) != 1 {
+		t.Fatalf("缺 views 清单: %s", out)
+	}
+	v := views[0].(map[string]any)
+	if v["id"] != "cv-1" || v["name"] != "管控视图" || v["kind"] != "gantt" {
+		t.Fatalf("views 行不齐: %v", v)
+	}
+	// 无视图 → 不出键
+	schedApply(t, dir, `{"project":{"name":"Q","startDate":"2026-09-01",
+		"tasks":[{"id":"x","name":"平整","level":1,"duration":2,"progress":0}]}}`)
+	out2, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("get2: %v", err)
+	}
+	var m2 map[string]any
+	if err := json.Unmarshal([]byte(out2), &m2); err != nil {
+		t.Fatalf("get2 输出非 JSON: %v", err)
+	}
+	if _, exists := m2["views"]; exists {
+		t.Fatalf("无视图不应出 views 键: %s", out2)
+	}
+}
