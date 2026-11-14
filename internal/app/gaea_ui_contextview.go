@@ -7,9 +7,11 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"mime"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +21,7 @@ import (
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
@@ -39,6 +42,15 @@ type cachedEntries struct {
 var (
 	entriesCacheMu sync.Mutex
 	entriesCache   = map[string]cachedEntries{}
+)
+
+var (
+	surfaceCacheMu sync.Mutex
+	surfaceCache   = map[string]contextview.SurfaceSnapshot{}
+	dnaCacheMu     sync.Mutex
+	dnaCache       = map[string][]contextview.DnaSample{}
+	commandPageMu  sync.Mutex
+	commandPageMap = map[string]contextview.CommandPage{}
 )
 
 // readEntriesForCached 是 session.ReadEntriesFor 的缓存形态。key=日志文件与
@@ -125,7 +137,154 @@ func (a *App) GaeaContextNodeDetail(seq int64, sessionPath ...string) (contextvi
 		return contextview.NodeDetail{}, fmt.Errorf("未找到 seq=%d 的可展开节点", seq)
 	}
 	resolveNodeImages(&d, gaeaCwd())
+	resolveNodeAttachments(&d, gaeaCwd())
 	return d, nil
+}
+
+// GaeaContextSurface 返回历史 request_header 时点的模型可见 surface。日志前缀
+// 重折叠保证历史步骤不会被当前 live 节点冒充；entries cache key + seq 命中
+// 前端趋势悬停/钉住预览，最多保留 32 份，文件变化后旧键自然失效。
+func (a *App) GaeaContextSurface(seq int64, sessionPath ...string) (contextview.SurfaceSnapshot, error) {
+	if seq <= 0 {
+		return contextview.SurfaceSnapshot{}, fmt.Errorf("请求 seq 无效")
+	}
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
+		return contextview.SurfaceSnapshot{}, fmt.Errorf("会话未就绪")
+	}
+	version, err := entriesCacheKey(path)
+	if err != nil {
+		return contextview.SurfaceSnapshot{}, err
+	}
+	cacheKey := path + "\x00" + strconv.FormatInt(seq, 10) + "\x00" + version
+	surfaceCacheMu.Lock()
+	if hit, ok := surfaceCache[cacheKey]; ok {
+		surfaceCacheMu.Unlock()
+		return hit, nil
+	}
+	surfaceCacheMu.Unlock()
+
+	entries, err := readEntriesForCached(path)
+	if err != nil {
+		return contextview.SurfaceSnapshot{}, err
+	}
+	snapshot, ok := contextview.SurfaceAt(entries, seq, int64(gaeaContextWindow()))
+	if !ok {
+		return contextview.SurfaceSnapshot{}, fmt.Errorf("未找到 seq=%d 的历史请求 surface", seq)
+	}
+	surfaceCacheMu.Lock()
+	if len(surfaceCache) >= 32 {
+		surfaceCache = map[string]contextview.SurfaceSnapshot{}
+	}
+	surfaceCache[cacheKey] = snapshot
+	surfaceCacheMu.Unlock()
+	return snapshot, nil
+}
+
+// GaeaContextDna 批量返回多个历史 request_header 的趋势 DNA 带。单次日志
+// 遍历折叠，最多 128 个 seq；前端只请求横向可见窗口及前一步，避免逐请求
+// 重扫整份日志。缓存键含日志 size+mtime，日志变化后自然失效。
+func (a *App) GaeaContextDna(seqs []int64, sessionPath ...string) ([]contextview.DnaSample, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
+		return nil, fmt.Errorf("会话未就绪")
+	}
+	unique := make([]int64, 0, len(seqs))
+	seen := map[int64]struct{}{}
+	for _, seq := range seqs {
+		if seq <= 0 {
+			continue
+		}
+		if _, ok := seen[seq]; ok {
+			continue
+		}
+		seen[seq] = struct{}{}
+		unique = append(unique, seq)
+		if len(unique) >= 128 {
+			break
+		}
+	}
+	if len(unique) == 0 {
+		return []contextview.DnaSample{}, nil
+	}
+	cacheSeqs := append([]int64(nil), unique...)
+	sort.Slice(cacheSeqs, func(i, j int) bool { return cacheSeqs[i] < cacheSeqs[j] })
+	version, err := entriesCacheKey(path)
+	if err != nil {
+		return nil, err
+	}
+	var keyBuilder strings.Builder
+	keyBuilder.WriteString(path)
+	keyBuilder.WriteByte(0)
+	keyBuilder.WriteString(version)
+	for _, seq := range cacheSeqs {
+		keyBuilder.WriteByte(0)
+		keyBuilder.WriteString(strconv.FormatInt(seq, 10))
+	}
+	cacheKey := keyBuilder.String()
+	dnaCacheMu.Lock()
+	if hit, ok := dnaCache[cacheKey]; ok {
+		dnaCacheMu.Unlock()
+		bySeq := make(map[int64]contextview.DnaSample, len(hit))
+		for _, sample := range hit {
+			bySeq[sample.Seq] = sample
+		}
+		out := make([]contextview.DnaSample, 0, len(unique))
+		for _, seq := range unique {
+			sample, ok := bySeq[seq]
+			if !ok {
+				sample = contextview.DnaSample{Seq: seq, Bands: []contextview.DnaBand{}}
+			}
+			out = append(out, sample)
+		}
+		return out, nil
+	}
+	dnaCacheMu.Unlock()
+
+	entries, err := readEntriesForCached(path)
+	if err != nil {
+		return nil, err
+	}
+	samples := contextview.DnaAt(entries, unique, int64(gaeaContextWindow()))
+	dnaCacheMu.Lock()
+	if len(dnaCache) >= 32 {
+		dnaCache = map[string][]contextview.DnaSample{}
+	}
+	dnaCache[cacheKey] = append([]contextview.DnaSample(nil), samples...)
+	dnaCacheMu.Unlock()
+	return samples, nil
+}
+
+// GaeaContextCommands 分页读取 400 条常规窗口之外的更早命令历史。
+// beforeSeq 为排他游标；limit 缺省/非法由 contextview 层收口到 200。
+func (a *App) GaeaContextCommands(beforeSeq int64, limit int, sessionPath ...string) (contextview.CommandPage, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
+		return contextview.CommandPage{}, fmt.Errorf("会话未就绪")
+	}
+	version, err := entriesCacheKey(path)
+	if err != nil {
+		return contextview.CommandPage{}, err
+	}
+	cacheKey := path + "\x00" + version + "\x00" + strconv.FormatInt(beforeSeq, 10) + "\x00" + strconv.Itoa(limit)
+	commandPageMu.Lock()
+	if hit, ok := commandPageMap[cacheKey]; ok {
+		commandPageMu.Unlock()
+		return hit, nil
+	}
+	commandPageMu.Unlock()
+	entries, err := readEntriesForCached(path)
+	if err != nil {
+		return contextview.CommandPage{}, err
+	}
+	page := contextview.CommandPageAt(entries, beforeSeq, limit)
+	commandPageMu.Lock()
+	if len(commandPageMap) >= 32 {
+		commandPageMap = map[string]contextview.CommandPage{}
+	}
+	commandPageMap[cacheKey] = page
+	commandPageMu.Unlock()
+	return page, nil
 }
 
 // resolveNodeImages 把详情里的图片引用解析为缩略卡数据（2.5b 后半）：相对
@@ -164,6 +323,64 @@ func resolveNodeImages(d *contextview.NodeDetail, cwd string) {
 		images = append(images, img)
 	}
 	d.Images = images
+}
+
+// resolveNodeAttachments 只解析持久化上传/附件目录中的非图片文件。路径必须
+// 落在当前工作区内；越界/缺失如实 Exists=false，不读取文件正文，也不伪造
+// MIME/大小。文件名来自存储路径（上传时已经过安全化）。
+func resolveNodeAttachments(d *contextview.NodeDetail, cwd string) {
+	if len(d.AttachmentRefs) == 0 {
+		return
+	}
+	out := make([]contextview.NodeAttachment, 0, len(d.AttachmentRefs))
+	for _, ref := range d.AttachmentRefs {
+		path := ref
+		if !filepath.IsAbs(path) && cwd != "" {
+			path = filepath.Join(cwd, filepath.FromSlash(path))
+		}
+		abs, err := filepath.Abs(path)
+		if err == nil {
+			path = abs
+		}
+		item := contextview.NodeAttachment{
+			Ref: ref, Path: path, Name: filepath.Base(path),
+			MimeType: attachmentMIME(path),
+		}
+		if err == nil && cwd != "" && wspath.Within(cwd, path) {
+			if stat, statErr := os.Stat(path); statErr == nil && stat.Mode().IsRegular() {
+				item.Exists = true
+				item.Size = stat.Size()
+			}
+		}
+		out = append(out, item)
+	}
+	d.Attachments = out
+}
+
+func attachmentMIME(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if typ := mime.TypeByExtension(ext); typ != "" {
+		return typ
+	}
+	switch ext {
+	case ".xlsx":
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case ".docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case ".pptx":
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case ".pdf":
+		return "application/pdf"
+	case ".txt":
+		return "text/plain"
+	case ".csv":
+		return "text/csv"
+	case ".md":
+		return "text/markdown"
+	case ".json":
+		return "application/json"
+	}
+	return "application/octet-stream"
 }
 
 // resolveGaeaSessionPath 归一会话路径：显式传入（UI 正在查看的会话）优先，

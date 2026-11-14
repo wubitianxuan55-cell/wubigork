@@ -256,6 +256,7 @@ func headerToolsFromSchemas(schemas []provider.ToolSchema) []event.ToolSchemaInf
 		out = append(out, event.ToolSchemaInfo{
 			Name:   s.Name,
 			Schema: string(schemaJSON),
+			Source: s.Source,
 		})
 	}
 	return out

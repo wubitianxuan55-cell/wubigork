@@ -138,7 +138,7 @@ export interface ContextNodeImage {
 // GaeaContextNodeDetail 按 seq 回读当前会话日志）。
 export interface ContextNodeDetailView {
   seq: number;
-  kind: "tool_result" | "user_message" | "assistant_message";
+  kind: "tool_result" | "user_message" | "assistant_message" | "header";
   ts?: number;
   tool?: string;
   args?: string;
@@ -146,10 +146,29 @@ export interface ContextNodeDetailView {
   err?: string;
   truncated?: boolean; // 日志写入端即已截断
   text?: string;
+  tools?: ContextNodeToolDetail[];
   lines?: number;
   clamped?: boolean; // 详情超返回上限被截断
   imageRefs?: string[]; // 详情文本/参数里提取的图片引用（纯函数层）
   images?: ContextNodeImage[]; // 解析结果（App 层 I/O；与 imageRefs 对应）
+  attachmentRefs?: string[];
+  attachments?: ContextNodeAttachment[];
+}
+
+export interface ContextNodeToolDetail {
+  name: string;
+  schema?: string;
+  tokens?: number;
+  source?: string;
+}
+
+export interface ContextNodeAttachment {
+  ref: string;
+  path: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  exists?: boolean;
 }
 
 // ContextCostRate 是成本费率快照（2.5e 成本 hover；每 1M tokens，供应商口径）。
@@ -199,6 +218,12 @@ export interface ContextCommandStats {
   bg?: number;
 }
 
+export interface ContextCommandPage {
+  commands: ContextCommandRecord[];
+  atStart: boolean;
+  total: number;
+}
+
 export interface ContextTimeline {
   ok: boolean;
   window: number;
@@ -216,6 +241,34 @@ export interface ContextTimeline {
   timing?: ContextTiming;
   rate?: ContextCostRate; // 最近一次用量上报的单价快照（成本 hover 用）
   compact?: ContextCompactTiers; // 压缩水位块（窗口未知时缺席）
+}
+
+// ContextSurfaceSnapshot 是历史 request_header 时点的模型可见 surface。
+// Go 从日志前缀确定性重折叠，不允许前端用当前节点或 seq 大小猜历史内容。
+export interface ContextSurfaceSnapshot {
+  ok: boolean;
+  seq: number;
+  nodes: ContextSurfaceNode[];
+  archive: ContextSurfaceNode[];
+  nodesDropped?: number;
+  nodesFloor?: number;
+}
+
+// ContextDnaBand 是趋势 DNA 中按模型读取顺序排列的一段。system 聚合为
+// 单段；request_header 的每个工具 schema 各自成段；其余来源节点保留
+// nodeSeq 与工具/技能原始标签。
+export interface ContextDnaBand {
+  key: string;
+  cat: ContextSurfaceNode["cat"];
+  tokens: number;
+  nodeSeq?: number;
+  label?: string;
+}
+
+export interface ContextDnaSample {
+  ok: boolean;
+  seq: number;
+  bands: ContextDnaBand[];
 }
 
 // 耗时统计条目：单个工具名的调用次数与执行时长合计（timing.tools 排行项）。

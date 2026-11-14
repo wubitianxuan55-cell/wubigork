@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../lib/i18n";
@@ -20,6 +20,7 @@ const renderT = (ui: ReactElement) => {
 
 const contextViewMock = vi.fn();
 const contextNodeDetailMock = vi.fn();
+const contextSurfaceMock = vi.fn();
 const subscribeAgentNetworkMock = vi.fn((cb: (n: unknown) => void) => {
   cb({
     ok: true,
@@ -41,6 +42,7 @@ vi.mock("../lib/bridge", () => ({
   app: {
     ContextView: contextViewMock,
     ContextNodeDetail: contextNodeDetailMock,
+    ContextSurface: contextSurfaceMock,
     // Wave3 家族费用行接进 Context tab 时的欠账（mock 漏补 → 全文件红灯，
     // 与「红灯被 tail 截断掩盖」坑同族；本刀13 顺手根修）。
     FamilyEvents: familyEventsMock,
@@ -107,6 +109,13 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
       args: '{"path":"internal/gaea/config/config.go"}',
       output: "```go\npackage main\nfunc Load() error {\n\treturn loadFromDisk()\n}\n```\n",
       lines: 5,
+    });
+    contextSurfaceMock.mockReset();
+    contextSurfaceMock.mockResolvedValue({
+      ok: true,
+      seq: 8,
+      nodes: [{ seq: 401, cat: "user", tokens: 50, text: "历史 request surface 标记" }],
+      archive: [],
     });
     subscribeAgentNetworkMock.mockClear();
     reloadAgentNetworkMock.mockClear();
@@ -186,8 +195,21 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("当前上下文")).toBeTruthy();
     // v4.68：水位只在当前上下文宽卡显示一处
-    expect(screen.getAllByText(/241\.8k \/ 1\.0M · 24%/).length).toBe(1);
+    expect((await screen.findAllByText(/241\.8k \/ 1\.0M · 24%/)).length).toBe(1);
     // 缓存/费用信息已分别由 TokenCard / StatsCard 承载（dsh 同构）
+  });
+
+  it("第七分类 skill 计入上下文总量、百分比与汇总条", async () => {
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      current: { ...TIMELINE.current, skill: 5000 },
+    });
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("当前上下文")).toBeTruthy();
+    expect(screen.getByTestId("comp-chip-skill").textContent).toContain("≈5k");
+    expect(screen.getAllByText("24.7%").length).toBeGreaterThan(0);
+    expect(screen.getByText(/246\.8k \/ 1\.0M · 25%/)).toBeTruthy();
   });
 
   it("接近上限时水位警示（≥90%）", async () => {
@@ -283,6 +305,24 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(screen.getByText(/占窗口 4%/)).toBeTruthy();
   });
 
+  it("趋势钉住步骤后浏览器切换到历史 request surface；Live 可返回当前面", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByTestId("trend-bar-8");
+    fireEvent.click(screen.getByTestId("trend-bar-8"));
+    await waitFor(() =>
+      expect((screen.getByTestId("ctx-browser-source-step") as HTMLSelectElement).value).toBe("8"),
+    );
+    await waitFor(() => expect(contextSurfaceMock).toHaveBeenCalledWith(8, ""));
+    const browser = screen.getByTestId("ctx-browser");
+    fireEvent.click(within(browser).getByRole("button", { name: /用户消息/ }));
+    expect(await screen.findByText("历史 request surface 标记")).toBeTruthy();
+    expect(screen.getByTestId("ctx-browser-preview").textContent).toContain("已钉住请求");
+
+    fireEvent.click(screen.getByTestId("ctx-browser-source-live"));
+    expect((screen.getByTestId("ctx-browser-source-step") as HTMLSelectElement).value).toBe("");
+  });
+
   it("v4.79 对比上一步：请求详情逐类 signed delta 徽标 + 跨压缩近似标注", async () => {
     const withDelta: ContextTimeline = {
       ...TIMELINE,
@@ -349,14 +389,85 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
     expect(screen.getByText(/-535\.5k/)).toBeTruthy();
     expect(screen.getByRole("button", { name: /注入\s*1/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /压缩\s*1/ })).toBeTruthy();
+    const eventsCard = screen.getByTestId("ctx-events");
+    expect(within(eventsCard).getByTestId("ctx-kind-filter-compact").textContent).toContain("1");
     // 全亮态点「压缩」→ 只留压缩（注入事件被筛掉）
-    fireEvent.click(screen.getByRole("button", { name: /压缩/ }));
+    fireEvent.click(within(eventsCard).getByTestId("ctx-kind-filter-compact"));
     expect(screen.queryByText(/指令注入 · \.gaea/)).toBeNull();
     expect(screen.getByText(/-535\.5k/)).toBeTruthy();
     // 单选态再点「压缩」→ 恢复全选（注入事件回来）
-    fireEvent.click(screen.getByRole("button", { name: /压缩/ }));
+    fireEvent.click(within(eventsCard).getByTestId("ctx-kind-filter-compact"));
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
+  });
+
+  it("事件行下钻：压缩/剪枝定位边界步骤，节点事件直接打开浏览器节点", async () => {
+    const timeline: ContextTimeline = {
+      ...TIMELINE,
+      requests: [
+        TIMELINE.requests[0],
+        {
+          ...TIMELINE.requests[0],
+          seq: 40,
+          ts: 1750000040,
+          turn: 2,
+          step: 1,
+        },
+        {
+          ...TIMELINE.requests[0],
+          seq: 60,
+          ts: 1750000060,
+          turn: 2,
+          step: 2,
+        },
+      ],
+      events: [
+        { kind: "compact", seq: 35, delta: -1000, source: "ratio", turn: 2, step: 1, ts: 1750000035 },
+        { kind: "inject", seq: 70, delta: 100, source: "event drill node", turn: 2, step: 2, ts: 1750000070 },
+      ],
+      nodes: [
+        ...TIMELINE.nodes,
+        { seq: 70, cat: "inject", tokens: 100, text: "事件行直达的注入节点" },
+      ],
+    };
+    contextViewMock.mockResolvedValue(timeline);
+    contextSurfaceMock.mockImplementation(async (seq: number) => ({
+      ok: true,
+      seq,
+      nodes: [{ seq: 401, cat: "user", tokens: 50, text: `历史 surface ${seq}` }],
+      archive: [],
+    }));
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+
+    fireEvent.click(await screen.findByTestId("ctx-event-row-compact-35"));
+    await waitFor(() => {
+      expect((screen.getByTestId("ctx-browser-source-step") as HTMLSelectElement).value).toBe("40");
+    });
+    expect(screen.getByTestId("trend-bar-40").getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByTestId("ctx-browser-source-live"));
+    fireEvent.click(screen.getByTestId("ctx-event-row-inject-70"));
+    expect(await screen.findByText("事件行直达的注入节点")).toBeTruthy();
+  });
+
+  it("统计卡下钻：User 展开浏览器用户分类，Write 直接切文件活动筛选", async () => {
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      nodes: [
+        ...TIMELINE.nodes,
+        { seq: 3, cat: "user", tokens: 42, text: "用户下钻标记" },
+      ],
+    });
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    const stats = await screen.findByTestId("stats-kpi-grid");
+    fireEvent.click(within(stats).getByRole("button", { name: /User\s*1/ }));
+    expect(await screen.findByText("用户下钻标记")).toBeTruthy();
+
+    fireEvent.click(within(stats).getByRole("button", { name: /Write\s*1/ }));
+    await waitFor(() => {
+      expect(screen.getByTestId("ctx-file-chip-write").getAttribute("aria-pressed")).toBe("true");
+    });
   });
 
   it("事件流截断诚实化：>30 条默认列最近 30 条+总数提示，「显示全部」展开最早事件", async () => {
@@ -376,7 +487,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("注入 32")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /注入\s*32/ })).toBeTruthy(); // chips 全量计数
+    expect(screen.getByTestId("ctx-kind-filter-inject").textContent).toContain("32"); // chips 全量计数
     const trunc = screen.getByTestId("events-truncated");
     expect(trunc.textContent).toContain("仅显示最近 30 条（共 33）");
     // 最早的 3 条不在默认窗口（新事件在上：注入 01/02/03 被截）
@@ -704,9 +815,9 @@ describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算",
     fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
     const detailBtns = await screen.findAllByTestId("ctx-node-detail-btn");
     fireEvent.click(detailBtns[0]);
-    const images = await screen.findByTestId("ctx-node-images");
-    expect(images).toBeTruthy();
-    const cards = images.querySelectorAll("[data-testid='ctx-img-card']");
+    const attachments = await screen.findByTestId("ctx-node-attachments");
+    expect(attachments).toBeTruthy();
+    const cards = attachments.querySelectorAll("[data-testid='ctx-img-card']");
     expect(cards.length).toBe(2);
     // 官方例：1000×1000 → 1296 tok（标准档）
     expect(screen.getByText("≈1296 tok · 标准档")).toBeTruthy();
@@ -728,7 +839,7 @@ describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算",
     fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
     const detailBtns = await screen.findAllByTestId("ctx-node-detail-btn");
     fireEvent.click(detailBtns[0]);
-    expect(await screen.findByTestId("ctx-node-images")).toBeTruthy();
+    expect(await screen.findByTestId("ctx-node-attachments")).toBeTruthy();
     expect(screen.getByText("尺寸未知")).toBeTruthy();
     expect(screen.queryByText(/tok · 标准档/)).toBeNull();
   });

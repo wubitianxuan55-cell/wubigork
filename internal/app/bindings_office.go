@@ -50,8 +50,11 @@ func (b *OfficeB) GaeaChangeFactType(name string, typ string) (string, error) { 
 func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckUpdate() }
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
+func (b *OfficeB) GaeaContextCommands(beforeSeq int64, limit int, sessionPath string) (contextview.CommandPage, error) { return b.a.GaeaContextCommands(beforeSeq, limit, sessionPath) }
+func (b *OfficeB) GaeaContextDna(seqs []int64, sessionPath string) ([]contextview.DnaSample, error) { return b.a.GaeaContextDna(seqs, sessionPath) }
 func (b *OfficeB) GaeaContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) { return b.a.GaeaContextInsights(rangeKey, includeArchived) }
 func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath) }
+func (b *OfficeB) GaeaContextSurface(seq int64, sessionPath string) (contextview.SurfaceSnapshot, error) { return b.a.GaeaContextSurface(seq, sessionPath) }
 func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCreateWorkspaceFile(parent string, name string) (workbench.MutationResult, error) { return b.a.GaeaCreateWorkspaceFile(parent, name) }

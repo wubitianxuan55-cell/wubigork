@@ -3,7 +3,7 @@
 // 卡侧锚点：focus {tick} → rAF scrollIntoView({block:"nearest"}) 定位 + accent
 // 外圈强调 3s 自动解除——与 v4.82 brief→浏览器（ContextBrowserTree focus）同款
 // 机制与令牌；只定位不触发 onPick（趋势卡默认最新请求的选中语义不变）。
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../../lib/i18n";
@@ -51,6 +51,7 @@ const useFakeClock = () =>
 
 beforeEach(() => {
   scrollMock.mockClear();
+  localStorage.removeItem("gaea.context.prefs");
 });
 
 describe("ContextTrendChart focus 锚点（Token 卡→趋势 定位+强调）", () => {
@@ -135,6 +136,128 @@ describe("ContextTrendChart 总览带（刀4）", () => {
     const band = getByTestId("trend-overview-band");
     expect(band).toBeTruthy();
     // 两根请求 → 两个 <g> 分段（等宽 100/2）
-    expect(band.querySelectorAll("g").length).toBe(2);
+    expect(band.querySelectorAll("g[data-overview-step]").length).toBe(2);
+    expect(band.querySelectorAll('[data-testid="trend-overview-quartile"]').length).toBe(3);
+  });
+
+  it("悬停柱回调请求，离开清空；总览分类点击回传步与分类", () => {
+    const onHover = vi.fn();
+    const onPickCategory = vi.fn();
+    const { getByTestId, rerender } = renderT(
+      <ContextTrendChart
+        requests={[REQ(1), REQ(2)]}
+        events={EVENTS}
+        onPick={vi.fn()}
+        onHover={onHover}
+        onPickCategory={onPickCategory}
+      />,
+    );
+    fireEvent.mouseEnter(getByTestId("trend-bar-1"));
+    expect(onHover).toHaveBeenLastCalledWith(expect.objectContaining({ seq: 1 }));
+    fireEvent.mouseLeave(getByTestId("trend-bar-1"));
+    expect(onHover).toHaveBeenLastCalledWith(null);
+
+    rerender(
+      <LocaleProvider>
+        <ContextTrendChart
+          requests={[REQ(1), REQ(2)]}
+          events={EVENTS}
+          onPick={vi.fn()}
+          onPickCategory={onPickCategory}
+        />
+      </LocaleProvider>,
+    );
+    fireEvent.click(getByTestId("trend-overview"));
+    const systemBand = getByTestId("trend-overview-band").querySelector('[data-overview-cat="system"]');
+    if (!systemBand) throw new Error("overview system band missing");
+    fireEvent.click(systemBand);
+    expect(onPickCategory).toHaveBeenCalledWith("system", expect.objectContaining({ seq: 1 }));
+  });
+
+  it("达到自动总览阈值时切换总览带，手动关闭后本会话保持关闭", () => {
+    const many = Array.from({ length: 100 }, (_, i) => REQ(i + 1));
+    const { getByTestId, queryByTestId, rerender } = renderT(
+      <ContextTrendChart requests={many} events={EVENTS} onPick={vi.fn()} sessionKey="/s/a" />,
+    );
+    expect(getByTestId("trend-overview-band")).toBeTruthy();
+    fireEvent.click(getByTestId("trend-overview"));
+    expect(queryByTestId("trend-overview-band")).toBeNull();
+    rerender(
+      <LocaleProvider>
+        <ContextTrendChart requests={[...many, REQ(101)]} events={EVENTS} onPick={vi.fn()} sessionKey="/s/a" />
+      </LocaleProvider>,
+    );
+    expect(queryByTestId("trend-overview-band")).toBeNull();
+  });
+
+  it("总览支持方向键、Home/End 与 Enter 键盘下钻", () => {
+    const onPick = vi.fn();
+    const { getByTestId } = renderT(
+      <ContextTrendChart requests={[REQ(1), REQ(2)]} events={EVENTS} onPick={onPick} />,
+    );
+    fireEvent.click(getByTestId("trend-overview"));
+    const band = getByTestId("trend-overview-band");
+    fireEvent.keyDown(band, { key: "Home" });
+    fireEvent.keyDown(band, { key: "Enter" });
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ seq: 1 }));
+    fireEvent.keyDown(band, { key: "End" });
+    fireEvent.keyDown(band, { key: " " });
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ seq: 2 }));
+  });
+});
+
+describe("ContextTrendChart 增量与自适应（上游补齐）", () => {
+  it("增量模式按分类堆叠净增/净减，带零轴与键盘选择", () => {
+    const first = { ...REQ(1), category: { ...REQ(1).category, system: 100 } };
+    const second = {
+      ...REQ(2),
+      category: { ...REQ(2).category, system: 150, tools: 50 },
+    };
+    const onPick = vi.fn();
+    const { getByTestId } = renderT(
+      <ContextTrendChart requests={[first, second]} events={EVENTS} onPick={onPick} />,
+    );
+    fireEvent.click(getByTestId("trend-mode-delta"));
+    expect(getByTestId("trend-delta-baseline")).toBeTruthy();
+    expect(getByTestId("trend-adaptive").getAttribute("aria-pressed")).toBe("true");
+    const secondBar = getByTestId("trend-bar-2");
+    expect(secondBar.querySelectorAll("rect")).toHaveLength(2);
+    fireEvent.keyDown(secondBar, { key: "Enter" });
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ seq: 2 }));
+  });
+
+  it("总览激活时自适应禁用", () => {
+    const { getByTestId } = renderT(el(null));
+    fireEvent.click(getByTestId("trend-overview"));
+    const adaptive = getByTestId("trend-adaptive") as HTMLButtonElement;
+    expect(adaptive.disabled).toBe(true);
+    expect(adaptive.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("DNA 模式批量读取可见步骤并按模型读取序绘制；总览激活时退出 DNA", async () => {
+    const fetchDna = vi.fn(async (seqs: number[]) => seqs.map((seq) => ({
+      ok: true,
+      seq,
+      bands: [
+        { key: "sys", cat: "system" as const, tokens: 100, nodeSeq: 1 },
+        { key: "n2", cat: "user" as const, tokens: 50, nodeSeq: 2 },
+        { key: "n3", cat: "tool" as const, tokens: 20 + seq, nodeSeq: 3, label: "read_file" },
+      ],
+    })));
+    const { getByTestId } = renderT(
+      <ContextTrendChart
+        requests={[REQ(1), REQ(2)]}
+        events={EVENTS}
+        onPick={vi.fn()}
+        fetchDna={fetchDna}
+      />,
+    );
+    fireEvent.click(getByTestId("trend-dna"));
+    await waitFor(() => expect(fetchDna).toHaveBeenCalledWith([1, 2]));
+    await waitFor(() => expect(getByTestId("trend-bar-2").getAttribute("data-dna")).toBe("true"));
+    expect(getByTestId("trend-bar-2").querySelectorAll("[data-dna-key]")).toHaveLength(3);
+    fireEvent.click(getByTestId("trend-overview"));
+    expect(getByTestId("trend-dna").getAttribute("aria-pressed")).toBe("false");
+    expect(getByTestId("trend-overview-band")).toBeTruthy();
   });
 });

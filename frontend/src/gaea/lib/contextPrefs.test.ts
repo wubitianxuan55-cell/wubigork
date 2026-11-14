@@ -21,7 +21,13 @@ describe("contextPrefs 上下文页偏好", () => {
     saveContextPref("trendGranularity", "turn");
     expect(loadContextPrefs()).toEqual({ ...CONTEXT_PREFS_DEFAULTS, trendGranularity: "turn" });
     saveContextPref("fileSort", "path");
-    expect(loadContextPrefs()).toEqual({ ...CONTEXT_PREFS_DEFAULTS, trendGranularity: "turn", fileSort: "path" });
+    saveContextPref("browserSort", "name");
+    expect(loadContextPrefs()).toEqual({
+      ...CONTEXT_PREFS_DEFAULTS,
+      trendGranularity: "turn",
+      fileSort: "path",
+      browserSort: "name",
+    });
   });
 
   it("损坏 JSON 整包回落默认（不抛错）", () => {
@@ -48,4 +54,13 @@ it("trendDuration 布尔偏好读写（刀15 耗时曲线持久化）", () => {
   // 非布尔损坏值回落默认 false
   localStorage.setItem("gaea.context.prefs", JSON.stringify({ trendDuration: "yes" }));
   expect(loadContextPrefs().trendDuration).toBe(false);
+});
+
+it("trendOverviewAuto 字符串偏好读写与非法值回落", () => {
+  localStorage.removeItem("gaea.context.prefs");
+  expect(loadContextPrefs().trendOverviewAuto).toBe("100");
+  saveContextPref("trendOverviewAuto", "300");
+  expect(loadContextPrefs().trendOverviewAuto).toBe("300");
+  localStorage.setItem("gaea.context.prefs", JSON.stringify({ trendOverviewAuto: "50" }));
+  expect(loadContextPrefs().trendOverviewAuto).toBe("100");
 });

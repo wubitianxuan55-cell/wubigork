@@ -5,8 +5,11 @@ import type {
   BalanceInfo,
   CapabilitiesView,
   CommandInfo,
+  ContextCommandPage,
+  ContextDnaSample,
   ContextInfo,
   ContextNodeDetailView,
+  ContextSurfaceSnapshot,
   ContextTimeline,
   ContextInsightsView,
   FamilyEventStreamView,
@@ -132,6 +135,10 @@ export interface CoreBindings {
   // 单元素数组可选（Go 变参 → JS 数组，与 Trajectory 同形态）：[path]=按该
   // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
   ContextView(sessionPath: string): Promise<ContextTimeline>;
+  // 批量历史请求读取序 DNA（最多 128 个 seq；日志单次折叠）。
+  ContextDna(seqs: number[], sessionPath: string): Promise<ContextDnaSample[]>;
+  // 命令历史向前分页（400 条常规窗口之外）。
+  ContextCommands(beforeSeq: number, limit: number, sessionPath: string): Promise<ContextCommandPage>;
   // ContextInsights 返回跨会话洞察快照（v4.542 刀2，对标 dsh-context
   // Context Insights）：KPI/逐日用量/三统计/会话卡。rangeKey:
   // today|7d|30d|all（未知按 30d 兜底）。
@@ -343,6 +350,9 @@ export interface CoreBindings {
   // tool_result 配对 dispatch 取参数，user/assistant 取全文）。sessionPath
   // 语义同 ContextView。
   ContextNodeDetail(seq: number, sessionPath: string): Promise<ContextNodeDetailView>;
+  // 历史步骤 surface：Go 按 request_header seq 重放日志前缀，悬停/钉住趋势
+  // 时浏览器切换到该请求实际组装的节点，不把 live surface 冒充历史。
+  ContextSurface(seq: number, sessionPath: string): Promise<ContextSurfaceSnapshot>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
   GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
   // 2b Git 面板最小集（D3：单仓库 status/diff/stage/unstage/discard/commit/log，无 push）。

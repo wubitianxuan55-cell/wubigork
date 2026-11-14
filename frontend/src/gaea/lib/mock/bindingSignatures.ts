@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 748 名（原生变参 8 名已收窄标注）。
+// 共 751 名（原生变参 11 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -126,8 +126,11 @@ export const bindingSignatures = {
   GaeaCheckUpdate: { argc: 0, variadic: false, params: "" },
   GaeaCommands: { argc: 0, variadic: false, params: "" },
   GaeaContext: { argc: 0, variadic: false, params: "" },
+  GaeaContextCommands: { argc: 3, variadic: true, params: "beforeSeq int64, limit int, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  GaeaContextDna: { argc: 2, variadic: true, params: "seqs []int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaContextInsights: { argc: 2, variadic: false, params: "rangeKey string, includeArchived bool" },
   GaeaContextNodeDetail: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  GaeaContextSurface: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaContextView: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaConvertToPdf: { argc: 1, variadic: false, params: "rel string" },
   GaeaCostAuditScan: { argc: 1, variadic: false, params: "projectID int64" },
@@ -769,5 +772,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 748。
-export const bindingSignatureCount = 748;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 751。
+export const bindingSignatureCount = 751;

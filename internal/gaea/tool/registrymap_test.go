@@ -49,6 +49,22 @@ func TestRegistryMapRowsWellFormed(t *testing.T) {
 	}
 }
 
+func TestSourceOfUsesRegistryMapAndMCPNamespace(t *testing.T) {
+	cases := map[string]string{
+		"read_file":                 "builtin-workspace",
+		"task":                      "build-internal",
+		"office_generate":           "extra-app",
+		"mcp__github__search_code":  "mcp:github",
+		"mcp__context7__query-docs": "mcp:context7",
+		"legacy_unknown_tool":       "",
+	}
+	for name, want := range cases {
+		if got := SourceOf(name); got != want {
+			t.Errorf("SourceOf(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
 // TestRegistryMapDocCoversMap 导出文档覆盖本表全部工具名（文档防漂移；P0 交付物
 // docs/gaea-tool-registry-map-2026-11.md 与数据同源）。
 func TestRegistryMapDocCoversMap(t *testing.T) {

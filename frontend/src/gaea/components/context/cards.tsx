@@ -151,7 +151,7 @@ export function Donut({
 }
 
 // ─── 1. StatsCard 上下文统计（v4.71：8 个独立小卡，不再合成 1 张大卡） ──
-export function StatsCard({ stats, nodes, files, commands, family, timings, onToolPick, onIOClick }: {
+export function StatsCard({ stats, nodes, files, commands, family, timings, onToolPick, onToolMore, onIOClick, onCommandPick, onEventsClick }: {
   stats: ContextStats;
   // 1:1 上游 Context Stats 复合卡数据面：nodes（工具 chips/user 数聚合）、
   // files（Input/Output 聚合）、commands（程序 chips）、family（编队费用行
@@ -164,7 +164,10 @@ export function StatsCard({ stats, nodes, files, commands, family, timings, onTo
   // 1:1 上游 chips 点击联动：工具 chip→浏览器该工具过滤；IO chip→文件活动
   // 对应动作过滤（上游同款交互：点 chip 即过滤到该面）。
   onToolPick?: (tool: string) => void;
-  onIOClick?: (action: "read" | "write" | "search") => void;
+  onToolMore?: () => void;
+  onIOClick?: (action: "user" | "read" | "write" | "search" | "image") => void;
+  onCommandPick?: (program: string) => void;
+  onEventsClick?: (kind: "inject" | "compact" | "prune") => void;
 }) {
   const t = useT();
   // 4 tiles（1:1：Turns/Steps/Skill Loads/模型回复次数）
@@ -176,9 +179,9 @@ export function StatsCard({ stats, nodes, files, commands, family, timings, onTo
   ];
   // Context Events 计数（stats 全量口径）
   const evLine = [
-    { label: t("contextview.evInject"), n: stats.injects, cls: "text-(color:--color-success)" },
-    { label: t("contextview.evCompact"), n: stats.compacts, cls: "text-err" },
-    { label: t("contextview.evPrune"), n: stats.prunes, cls: "text-warning" },
+    { kind: "inject" as const, label: t("contextview.evInject"), n: stats.injects, cls: "text-(color:--color-success)" },
+    { kind: "compact" as const, label: t("contextview.evCompact"), n: stats.compacts, cls: "text-err" },
+    { kind: "prune" as const, label: t("contextview.evPrune"), n: stats.prunes, cls: "text-warning" },
   ];
   // Input / Output chips（用户消息/读/写/图——文件活动聚合+图片计数）
   let reads = 0, writes = 0;
@@ -186,13 +189,19 @@ export function StatsCard({ stats, nodes, files, commands, family, timings, onTo
     if (f.action === "read") reads++;
     else if (f.action === "write") writes++;
   }
+  const searches = files.filter((f) =>
+    /grep|glob|search|find|ls|list/i.test(f.tool ?? "") && f.action !== "dir",
+  ).length;
   let userCount = 0;
   for (const n of nodes) if (n.cat === "user") userCount++;
   const ioChips = [
-    { label: "User", n: userCount, color: "var(--accent)", onClick: undefined },
+    { label: "User", n: userCount, color: "var(--accent)", onClick: onIOClick ? () => onIOClick("user") : undefined },
     { label: "Read", n: reads, color: "var(--info)", onClick: onIOClick ? () => onIOClick("read") : undefined },
     { label: "Write", n: writes, color: "var(--ok)", onClick: onIOClick ? () => onIOClick("write") : undefined },
-    { label: "Image", n: stats.images, color: "var(--warn)", onClick: undefined },
+    ...(searches > 0
+      ? [{ label: "Search", n: searches, color: "var(--md-sys-color-tertiary)", onClick: onIOClick ? () => onIOClick("search") : undefined }]
+      : []),
+    { label: "Image", n: stats.images, color: "var(--warn)", onClick: onIOClick ? () => onIOClick("image") : undefined },
   ];
   // 工具调用 chips（结果节点聚合 top5）
   const toolTally = new Map<string, number>();
@@ -238,25 +247,50 @@ export function StatsCard({ stats, nodes, files, commands, family, timings, onTo
           <div className="ctx-core-events" data-testid="stat-events">
             <span className="text-[10px] font-medium text-fg-faint">{t("contextview.eventsTitle")}</span>
             <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10.5px] tabular-nums">
-              {evLine.map((e) => (
-                <span key={e.label} className={e.n > 0 ? e.cls : "text-fg-faint"}>
-                  {e.label} <b>{e.n}</b>
-                </span>
-              ))}
+              {evLine.map((e) => {
+                return onEventsClick && e.n > 0 ? (
+                  <button
+                    key={e.label}
+                    type="button"
+                    className={`cursor-pointer border-0 bg-transparent p-0 hover:underline ${e.cls}`}
+                    onClick={() => onEventsClick(e.kind)}
+                  >
+                    {e.label} <b>{e.n}</b>
+                  </button>
+                ) : (
+                  <span key={e.label} className={e.n > 0 ? e.cls : "text-fg-faint"}>
+                    {e.label} <b>{e.n}</b>
+                  </span>
+                );
+              })}
             </span>
           </div>
         </div>
-        <StatChipRow className="ctx-stat-row-io" label={t("contextview.ioRow")} total={userCount + reads + writes}>
+        <StatChipRow className="ctx-stat-row-io" label={t("contextview.ioRow")} total={userCount + reads + writes + searches + stats.images}>
           {ioChips.map((c) => chip(c.label, c.n, c.onClick, c.color))}
         </StatChipRow>
         <StatChipRow className="ctx-stat-row-tools" label={t("contextview.statToolCallsRow")} total={stats.toolCalls}>
           {toolChips.slice(0, 5).map(([name, n], i) =>
             chip(name, n, onToolPick ? () => onToolPick(name) : undefined, chipColors[i % chipColors.length]),
           )}
-          {toolMore > 0 && <span className="text-[10px] text-fg-faint">+{toolMore} {t("contextview.moreChips")}</span>}
+          {toolMore > 0 && (
+            onToolMore ? (
+              <button
+                type="button"
+                className="cursor-pointer border-0 bg-transparent p-0 text-[10px] text-accent hover:underline"
+                onClick={onToolMore}
+              >
+                +{toolMore} {t("contextview.moreChips")}
+              </button>
+            ) : (
+              <span className="text-[10px] text-fg-faint">+{toolMore} {t("contextview.moreChips")}</span>
+            )
+          )}
         </StatChipRow>
         <StatChipRow className="ctx-stat-row-commands" label={t("contextview.cmdRow")} total={commands.length}>
-          {progChips.slice(0, 5).map(([name, n], i) => chip(name, n, undefined, chipColors[i % chipColors.length]))}
+          {progChips.slice(0, 5).map(([name, n], i) =>
+            chip(name, n, onCommandPick ? () => onCommandPick(name) : undefined, chipColors[i % chipColors.length]),
+          )}
           {progMore > 0 && <span className="text-[10px] text-fg-faint">+{progMore} {t("contextview.moreChips")}</span>}
         </StatChipRow>
         {family && (family.rootTokens > 0 || family.subTokens > 0) && (
@@ -307,6 +341,8 @@ function commandProgramOf(cmd: string): string {
 // FileActivityLite 是 StatsCard 复合卡的文件聚合输入（避免整卡依赖 FileActivity 类型）。
 export interface FileActivityLite {
   action: string;
+  tool?: string;
+  path?: string;
 }
 
 // ─── 2. TokenCard Token 统计（环形缓存命中 + 三分解行） ───────────

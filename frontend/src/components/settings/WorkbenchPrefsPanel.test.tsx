@@ -37,7 +37,7 @@ describe('WorkbenchPrefsPanel 办公工作台偏好卡', () => {
   it('渲染卡片标题与四项偏好（含一句话说明）', () => {
     render(wrap(<WorkbenchPrefsPanel />))
     expect(screen.getByText('办公工作台偏好')).toBeTruthy()
-    for (const label of ['新子代理自动展开', '新任务自动切任务视图', '浏览器自动弹出', '产物自动弹出']) {
+    for (const label of ['新子代理自动展开', '新任务自动切编队视图', '浏览器自动弹出', '产物自动弹出']) {
       expect(screen.getByText(label)).toBeTruthy()
     }
     // 说明文案诚实标注生效时机（分工面板为下挂载同步，其余即时生效）
@@ -49,7 +49,7 @@ describe('WorkbenchPrefsPanel 办公工作台偏好卡', () => {
   it('未设置时开关状态 = 既有默认值（子代理/任务关，浏览器开、产物关）', () => {
     render(wrap(<WorkbenchPrefsPanel />))
     expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('false')
-    expect(switchOf('新任务自动切任务视图').getAttribute('aria-checked')).toBe('false')
+    expect(switchOf('新任务自动切编队视图').getAttribute('aria-checked')).toBe('false')
     expect(switchOf('浏览器自动弹出').getAttribute('aria-checked')).toBe('true')
     expect(switchOf('产物自动弹出').getAttribute('aria-checked')).toBe('false')
   })
@@ -59,7 +59,7 @@ describe('WorkbenchPrefsPanel 办公工作台偏好卡', () => {
     // 子代理/任务默认关 → 开
     fireEvent.click(switchOf('新子代理自动展开'))
     expect(window.localStorage.getItem(KEYS.subagent)).toBe('1')
-    fireEvent.click(switchOf('新任务自动切任务视图'))
+    fireEvent.click(switchOf('新任务自动切编队视图'))
     expect(window.localStorage.getItem(KEYS.tasks)).toBe('1')
     // 浏览器默认开 → 关
     fireEvent.click(switchOf('浏览器自动弹出'))
@@ -75,7 +75,7 @@ describe('WorkbenchPrefsPanel 办公工作台偏好卡', () => {
     window.localStorage.setItem(KEYS.deliverable, 'not-a-bool')
     render(wrap(<WorkbenchPrefsPanel />))
     expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('false')
-    expect(switchOf('新任务自动切任务视图').getAttribute('aria-checked')).toBe('false')
+    expect(switchOf('新任务自动切编队视图').getAttribute('aria-checked')).toBe('false')
     expect(switchOf('浏览器自动弹出').getAttribute('aria-checked')).toBe('true')
     expect(switchOf('产物自动弹出').getAttribute('aria-checked')).toBe('false')
   })

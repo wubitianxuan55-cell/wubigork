@@ -7,7 +7,7 @@ import { gaeaSettings } from '../../api/settings'
 import type { SettingsView } from '../../gaea/lib/types'
 import {
   loadContextPrefs, saveContextPref,
-  type CtxTrendGranularity, type CtxTrendMode, type CtxBrowserSort, type CtxFileSort,
+  type CtxTrendGranularity, type CtxTrendMode, type CtxOverviewAuto, type CtxBrowserSort, type CtxFileSort,
 } from '../../gaea/lib/contextPrefs'
 
 /**
@@ -52,6 +52,7 @@ const ContextPrefsPanel: React.FC = () => {
   const t = useT()
   const [granularity, setGranularity] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity)
   const [mode, setMode] = useState<CtxTrendMode>(() => loadContextPrefs().trendMode)
+  const [overviewAuto, setOverviewAuto] = useState<CtxOverviewAuto>(() => loadContextPrefs().trendOverviewAuto)
   const [browserSort, setBrowserSort] = useState<CtxBrowserSort>(() => loadContextPrefs().browserSort)
   const [fileSort, setFileSort] = useState<CtxFileSort>(() => loadContextPrefs().fileSort)
 
@@ -82,6 +83,18 @@ const ContextPrefsPanel: React.FC = () => {
           ]}
           onChange={(v) => { setMode(v); saveContextPref('trendMode', v) }}
         />
+        <ChoiceRow<CtxOverviewAuto>
+          label={t('settings.context.overviewAuto')}
+          desc={t('settings.context.overviewAutoDesc')}
+          value={overviewAuto}
+          options={[
+            { value: '100', label: t('settings.context.overviewAutoSteps', { n: 100 }) },
+            { value: '200', label: t('settings.context.overviewAutoSteps', { n: 200 }) },
+            { value: '300', label: t('settings.context.overviewAutoSteps', { n: 300 }) },
+            { value: 'off', label: t('settings.context.overviewAutoOff') },
+          ]}
+          onChange={(v) => { setOverviewAuto(v); saveContextPref('trendOverviewAuto', v) }}
+        />
         <ChoiceRow<CtxBrowserSort>
           label={t('settings.context.browserSort')}
           desc={t('settings.context.browserSortDesc')}
@@ -89,6 +102,7 @@ const ContextPrefsPanel: React.FC = () => {
           options={[
             { value: 'time', label: t('contextview.sortTime') },
             { value: 'size', label: t('contextview.sortSize') },
+            { value: 'name', label: t('contextview.sortName') },
           ]}
           onChange={(v) => { setBrowserSort(v); saveContextPref('browserSort', v) }}
         />
@@ -98,8 +112,10 @@ const ContextPrefsPanel: React.FC = () => {
           value={fileSort}
           options={[
             { value: 'count', label: t('contextview.filesSortCalls') },
+            { value: 'lines', label: t('contextview.filesSortLines') },
             { value: 'recent', label: t('contextview.filesSortLatest') },
             { value: 'path', label: t('contextview.filesSortPath') },
+            { value: 'name', label: t('contextview.filesSortName') },
           ]}
           onChange={(v) => { setFileSort(v); saveContextPref('fileSort', v) }}
         />

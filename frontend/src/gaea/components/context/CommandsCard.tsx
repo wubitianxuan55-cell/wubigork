@@ -2,10 +2,17 @@
 // 推导的命令生命周期时间线。状态筛选/搜索收窄列表；程序分布 chip 点击回填
 // 搜索框（dsh 同款交互）；诚实子集——exit 只认 bash JSON 信封、killed=回合
 // 中断、ms 为秒级时间戳近似。
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useT } from "../../lib/i18n";
+import { app } from "../../lib/bridge";
 import { fmtDuration } from "./cards";
-import type { ContextCommandRecord, ContextCommandStats } from "../../lib/types/context";
+import type {
+  ContextCommandPage,
+  ContextCommandRecord,
+  ContextCommandStats,
+  ContextNodeDetailView,
+} from "../../lib/types/context";
+import { NodeDetailPanel } from "./inspector";
 import type { Translator } from "../../lib/i18n";
 
 type CmdStatus = ContextCommandRecord["status"];
@@ -36,33 +43,91 @@ function durationOf(record: ContextCommandRecord): number {
   return record.end != null && record.end > record.start ? (record.end - record.start) * 1000 : 0;
 }
 
-export function CommandsCard({ commands, stats }: {
+type CommandDetailState = { state: "loading" } | { state: "ok"; detail: ContextNodeDetailView } | { state: "error" };
+
+export function CommandsCard({
+  commands,
+  stats,
+  sessionPath,
+  fetchNodeDetail,
+  focusProgram,
+  fetchOlderCommands,
+}: {
   commands: ContextCommandRecord[];
   stats?: ContextCommandStats;
+  sessionPath?: string;
+  fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
+  focusProgram?: { program: string; tick: number } | null;
+  fetchOlderCommands?: (beforeSeq: number, limit: number) => Promise<ContextCommandPage>;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
+  const [programQuery, setProgramQuery] = useState("");
   const [filter, setFilter] = useState<CmdFilter>("all");
   const [sort, setSort] = useState<CmdSort>("latest");
   const [pickedProgram, setPickedProgram] = useState<string | null>(null);
+  const [openSeq, setOpenSeq] = useState<number | null>(null);
+  const [details, setDetails] = useState<Map<number, CommandDetailState>>(() => new Map());
+  const [olderCommands, setOlderCommands] = useState<ContextCommandRecord[]>([]);
+  const [loadOlderState, setLoadOlderState] = useState<"idle" | "loading" | "error">("idle");
+  const [atStart, setAtStart] = useState(false);
+  const [serverTotal, setServerTotal] = useState(0);
+
+  useEffect(() => {
+    setOlderCommands([]);
+    setLoadOlderState("idle");
+    setAtStart(false);
+    setServerTotal(0);
+  }, [sessionPath]);
+
+  useEffect(() => {
+    if (focusProgram == null) return;
+    setPickedProgram(focusProgram.program);
+    setQuery(focusProgram.program);
+    setFilter("all");
+  }, [focusProgram]);
+
+  const toggleDetail = (record: ContextCommandRecord) => {
+    setOpenSeq((current) => (current === record.seq ? null : record.seq));
+    const seq = record.resultSeq;
+    if (seq == null || details.has(seq)) return;
+    setDetails((current) => new Map(current).set(seq, { state: "loading" }));
+    const read = fetchNodeDetail
+      ? fetchNodeDetail(seq)
+      : app.ContextNodeDetail(seq, sessionPath ?? "");
+    read
+      .then((detail) => setDetails((current) => new Map(current).set(seq, { state: "ok", detail })))
+      .catch(() => setDetails((current) => new Map(current).set(seq, { state: "error" })));
+  };
+
+  const allCommands = useMemo(() => {
+    const bySeq = new Map<number, ContextCommandRecord>();
+    for (const command of olderCommands) bySeq.set(command.seq, command);
+    for (const command of commands) bySeq.set(command.seq, command);
+    return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  }, [commands, olderCommands]);
 
   const programs = useMemo(() => {
     const m = new Map<string, number>();
-    for (const c of commands) {
+    for (const c of allCommands) {
       const p = commandProgram(c.cmd ?? "");
       m.set(p, (m.get(p) ?? 0) + 1);
     }
-    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8);
-  }, [commands]);
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [allCommands]);
+  const shownPrograms = useMemo(() => {
+    const q = programQuery.trim().toLowerCase();
+    return programs.filter(([name]) => q === "" || name.toLowerCase().includes(q));
+  }, [programs, programQuery]);
 
   const searched = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return commands.filter((c) => {
+    return allCommands.filter((c) => {
       if (pickedProgram && commandProgram(c.cmd ?? "") !== pickedProgram) return false;
       if (q && !(c.cmd ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [commands, query, pickedProgram]);
+  }, [allCommands, query, pickedProgram]);
   const counts = useMemo(() => ({
     all: searched.length,
     failed: searched.filter((c) => c.status === "failed").length,
@@ -83,28 +148,59 @@ export function CommandsCard({ commands, stats }: {
     ));
   }, [filter, searched, sort]);
   const tally = useMemo(() => ({
-    runs: stats?.runs ?? commands.length,
-    failed: stats?.failed ?? commands.filter((c) => c.status === "failed").length,
-    ms: stats?.ms ?? commands.reduce((sum, c) => sum + durationOf(c), 0),
-    bg: stats?.bg ?? commands.filter((c) => c.background === true).length,
-  }), [commands, stats]);
+    runs: stats?.runs ?? allCommands.length,
+    failed: stats?.failed ?? allCommands.filter((c) => c.status === "failed").length,
+    ms: stats?.ms ?? allCommands.reduce((sum, c) => sum + durationOf(c), 0),
+    bg: stats?.bg ?? allCommands.filter((c) => c.background === true).length,
+  }), [allCommands, stats]);
   const slowest = useMemo(
-    () => commands.reduce<ContextCommandRecord | null>(
+    () => allCommands.reduce<ContextCommandRecord | null>(
       (best, c) => (best === null || durationOf(c) > durationOf(best) ? c : best),
       null,
     ),
-    [commands],
+    [allCommands],
   );
   const repeated = useMemo(() => {
     const byCommand = new Map<string, number>();
-    for (const command of commands) {
+    for (const command of allCommands) {
       const text = (command.cmd ?? "").trim();
       if (text) byCommand.set(text, (byCommand.get(text) ?? 0) + 1);
     }
     return [...byCommand.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
-  }, [commands]);
+  }, [allCommands]);
 
-  if (commands.length === 0) return null;
+  const totalKnown = Math.max(serverTotal, stats?.runs ?? 0, allCommands.length);
+  const hasOlder = !atStart && totalKnown > allCommands.length;
+  const loadOlder = async () => {
+    if (loadOlderState === "loading" || !hasOlder) return;
+    const cursor = allCommands[0]?.seq;
+    if (cursor == null) return;
+    setLoadOlderState("loading");
+    try {
+      const page = fetchOlderCommands
+        ? await fetchOlderCommands(cursor, 200)
+        : await app.ContextCommands(cursor, 200, sessionPath ?? "");
+      const incoming = page.commands ?? [];
+      if (!page.atStart && !incoming.some((command) => command.seq < cursor)) {
+        setServerTotal(page.total);
+        setLoadOlderState("error");
+        return;
+      }
+      setOlderCommands((current) => {
+        const bySeq = new Map<number, ContextCommandRecord>();
+        for (const command of current) bySeq.set(command.seq, command);
+        for (const command of incoming) bySeq.set(command.seq, command);
+        return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+      });
+      setAtStart(page.atStart);
+      setServerTotal(page.total);
+      setLoadOlderState("idle");
+    } catch {
+      setLoadOlderState("error");
+    }
+  };
+
+  if (allCommands.length === 0 && (stats?.runs ?? 0) === 0) return null;
 
   return (
     <section className="ctx-card p-3 ctx-cmd-card" data-testid="ctx-commands">
@@ -151,7 +247,16 @@ export function CommandsCard({ commands, stats }: {
               <h3 className="ctx-cmd-rail-title">{t("contextview.cmdAttention")}</h3>
               <div className="ctx-cmd-attention">
                 {slowest && durationOf(slowest) > 0 && (
-                  <button type="button" onClick={() => { setFilter("slow"); setSort("slowest"); }} title={slowest.cmd}>
+                  <button
+                    type="button"
+                    aria-pressed={filter === "slow" && sort === "slowest"}
+                    onClick={() => {
+                      const active = filter === "slow" && sort === "slowest";
+                      setFilter(active ? "all" : "slow");
+                      setSort(active ? "latest" : "slowest");
+                    }}
+                    title={slowest.cmd}
+                  >
                     <i data-tone="slow" />
                     <span>{t("contextview.cmdSlowest")}</span>
                     <em>{slowest.cmd || "—"}</em>
@@ -159,7 +264,15 @@ export function CommandsCard({ commands, stats }: {
                   </button>
                 )}
                 {repeated && repeated[1] > 1 && (
-                  <button type="button" onClick={() => setQuery(repeated[0])} title={repeated[0]}>
+                  <button
+                    type="button"
+                    aria-pressed={query === repeated[0]}
+                    onClick={() => {
+                      setPickedProgram(null);
+                      setQuery((current) => current === repeated[0] ? "" : repeated[0]);
+                    }}
+                    title={repeated[0]}
+                  >
                     <i data-tone="repeat" />
                     <span>{t("contextview.cmdRepeats")}</span>
                     <em>{repeated[0]}</em>
@@ -173,8 +286,18 @@ export function CommandsCard({ commands, stats }: {
             <h3 className="ctx-cmd-rail-title">
               <span>{t("contextview.cmdProgramsN", { n: programs.length })}</span>
             </h3>
+            {programs.length > 6 && (
+              <input
+                value={programQuery}
+                onChange={(event) => setProgramQuery(event.target.value)}
+                placeholder={t("contextview.cmdProgramSearch")}
+                aria-label={t("contextview.cmdProgramSearch")}
+                data-testid="ctx-cmd-program-search"
+                className="ctx-cmd-program-search"
+              />
+            )}
             <div className="ctx-cmd-programs-list">
-              {programs.map(([name, n], index) => (
+              {shownPrograms.map(([name, n], index) => (
                 <button
                   key={name}
                   type="button"
@@ -192,6 +315,9 @@ export function CommandsCard({ commands, stats }: {
                   <b>×{n}</b>
                 </button>
               ))}
+              {shownPrograms.length === 0 && (
+                <span className="ctx-cmd-program-empty">{t("contextview.cmdProgramNone")}</span>
+              )}
             </div>
           </section>
         </aside>
@@ -206,7 +332,8 @@ export function CommandsCard({ commands, stats }: {
               placeholder={t("contextview.cmdSearch")}
               aria-label={t("contextview.cmdSearch")}
               data-testid="ctx-cmd-search"
-              className="ctx-cmd-search"
+              data-program={pickedProgram ?? undefined}
+              className={`ctx-cmd-search${pickedProgram ? " ctx-cmd-search-active" : ""}`}
             />
             <div className="ctx-cmd-sort" role="group">
               {(["latest", "slowest"] as const).map((key) => (
@@ -223,10 +350,38 @@ export function CommandsCard({ commands, stats }: {
           </div>
           <ul className="ctx-cmd-list" data-testid="ctx-commands-list">
             {filtered.map((c, index) => (
-              <CommandRow key={c.seq} c={c} t={t} striped={index % 2 === 1} />
+              <CommandRow
+                key={c.seq}
+                c={c}
+                t={t}
+                striped={index % 2 === 1}
+                open={openSeq === c.seq}
+                onToggle={() => toggleDetail(c)}
+                detail={c.resultSeq != null ? details.get(c.resultSeq) : undefined}
+              />
             ))}
             {filtered.length === 0 && (
               <li className="ctx-cmd-empty">{t("contextview.cmdNone")}</li>
+            )}
+            {(hasOlder || loadOlderState === "error" || (atStart && allCommands.length > commands.length)) && (
+              <li className="ctx-cmd-loadmore" data-testid="ctx-cmd-loadmore">
+                {hasOlder ? (
+                  <button
+                    type="button"
+                    data-testid="ctx-cmd-load-older"
+                    disabled={loadOlderState === "loading"}
+                    onClick={() => { void loadOlder(); }}
+                  >
+                    {loadOlderState === "loading"
+                      ? t("contextview.cmdLoadOlderLoading")
+                      : loadOlderState === "error"
+                        ? t("contextview.cmdLoadOlderRetry")
+                        : t("contextview.cmdLoadOlder", { n: allCommands.length, total: totalKnown })}
+                  </button>
+                ) : (
+                  <span>{t("contextview.cmdLoadedAll", { n: allCommands.length })}</span>
+                )}
+              </li>
             )}
           </ul>
         </div>
@@ -235,38 +390,69 @@ export function CommandsCard({ commands, stats }: {
   );
 }
 
-function CommandRow({ c, t, striped }: { c: ContextCommandRecord; t: Translator; striped: boolean }) {
+function CommandRow({ c, t, striped, open, onToggle, detail }: {
+  c: ContextCommandRecord;
+  t: Translator;
+  striped: boolean;
+  open: boolean;
+  onToggle: () => void;
+  detail?: CommandDetailState;
+}) {
   const dur = durationOf(c);
   return (
-    <li className={`ctx-cmd-row${striped ? " ctx-cmd-row-alt" : ""}`}>
-      <span className="ctx-cmd-row-state" data-status={c.status} aria-hidden>{c.status === "completed" ? "✓" : c.status === "failed" ? "✕" : "!"}</span>
-      <span
-        className="ctx-cmd-dot"
-        style={{ background: STATUS_COLOR[c.status] }}
-        title={c.status}
-        data-testid={`ctx-cmd-dot-${c.status}`}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="ctx-cmd-row-main">
-          <span className="ctx-cmd-stamp">{t("contextview.cmdTurnStep", { turn: c.turn, step: c.step })}</span>
-          {c.background && (
-            <span className="ctx-cmd-badge" title="run_in_background">bg</span>
-          )}
-          {c.exit != null && c.exit !== 0 && (
-            <span className="ctx-cmd-exit" title={t("contextview.cmdExitNote")}>exit {c.exit}</span>
-          )}
-          {c.truncated && <span className="text-warning">{t("contextview.detailClamped")}</span>}
-          <span className="ctx-cmd-duration">
-            {dur > 0 ? fmtDuration(dur, t) : (c.status === "killed" ? "—" : "")}
+    <li
+      className={`ctx-cmd-row${striped ? " ctx-cmd-row-alt" : ""}${open ? " ctx-cmd-row-open" : ""}`}
+      data-testid={`ctx-cmd-row-${c.seq}`}
+    >
+      <button
+        type="button"
+        className="ctx-cmd-row-button"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span className="ctx-cmd-row-state" data-status={c.status} aria-hidden>{c.status === "completed" ? "✓" : c.status === "failed" ? "✕" : "!"}</span>
+        <span
+          className="ctx-cmd-dot"
+          style={{ background: STATUS_COLOR[c.status] }}
+          title={c.status}
+          data-testid={`ctx-cmd-dot-${c.status}`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="ctx-cmd-row-main">
+            <span className="ctx-cmd-stamp">{t("contextview.cmdTurnStep", { turn: c.turn, step: c.step })}</span>
+            {c.background && (
+              <span className="ctx-cmd-badge" title="run_in_background">bg</span>
+            )}
+            {c.exit != null && c.exit !== 0 && (
+              <span className="ctx-cmd-exit" title={t("contextview.cmdExitNote")}>exit {c.exit}</span>
+            )}
+            {c.truncated && <span className="text-warning">{t("contextview.detailClamped")}</span>}
+            <span className="ctx-cmd-duration">
+              {dur > 0 ? fmtDuration(dur, t) : (c.status === "killed" ? "—" : "")}
+            </span>
           </span>
+          <span className="ctx-cmd-command" title={c.cmd}>
+            {c.cmd || "—"}
+          </span>
+          {c.err && (
+            <span className="ctx-cmd-error">✗ error</span>
+          )}
+        </span>
+        {c.resultSeq != null && <span className="ctx-cmd-chev" aria-hidden>{open ? "▾" : "▸"}</span>}
+      </button>
+      {open && (
+        <div className="ctx-cmd-detail" data-testid="ctx-cmd-detail">
+          {c.resultSeq == null ? (
+            <div className="px-2 py-1 text-[9.5px] text-fg-faint">{t("contextview.cmdNoResult")}</div>
+          ) : detail?.state === "loading" || detail == null ? (
+            <div className="px-2 py-1 text-[9.5px] text-fg-faint">{t("contextview.detailLoading")}</div>
+          ) : detail.state === "error" ? (
+            <div className="px-2 py-1 text-[9.5px] text-err">{t("contextview.detailFail")}</div>
+          ) : (
+            <NodeDetailPanel d={detail.detail} />
+          )}
         </div>
-        <div className="ctx-cmd-command" title={c.cmd}>
-          {c.cmd || "—"}
-        </div>
-        {c.err && (
-          <div className="ctx-cmd-error">✗ error</div>
-        )}
-      </div>
+      )}
     </li>
   );
 }

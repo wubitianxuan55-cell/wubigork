@@ -400,6 +400,7 @@ func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
 				Name:        s.t.Name(),
 				Description: desc,
 				Parameters:  provider.CanonicalizeSchema(schema),
+				Source:      SourceOf(s.name),
 			})
 		} else {
 			// Standard schema — use pre-canonicalized cache from Add().
@@ -407,6 +408,7 @@ func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
 				Name:        s.t.Name(),
 				Description: desc,
 				Parameters:  s.canon,
+				Source:      SourceOf(s.name),
 			})
 		}
 	}

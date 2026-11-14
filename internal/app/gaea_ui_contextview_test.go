@@ -9,6 +9,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 
@@ -183,12 +184,35 @@ func TestGaeaContextViewAndNodeDetailExplicitSessionPath(t *testing.T) {
 	entries := []session.LogEntry{
 		{Kind: "turn_started", Payload: mustRaw(t, map[string]string{})},
 		{Kind: session.KindUserMessage, Payload: mustRaw(t, map[string]string{"content": "历史会话的提问"})},
+		{Kind: session.KindRequestHeader, Payload: mustRaw(t, map[string]any{
+			"system": "历史系统提示词",
+			"tools":  []map[string]string{{"name": "read_file", "schema": `{"type":"object"}`}},
+		})},
 		{Kind: session.KindAssistantMessage, Payload: mustRaw(t, map[string]any{"id": "a1", "text": "历史会话的答复"})},
+		{Kind: session.KindRequestHeader, Payload: mustRaw(t, map[string]any{
+			"system": "历史系统提示词",
+			"tools":  []map[string]string{{"name": "read_file", "schema": `{"type":"object"}`}},
+		})},
+		{Kind: "tool_dispatch", Payload: mustRaw(t, map[string]any{
+			"id": "b1", "name": "bash", "args": `{"command":"echo one"}`,
+		})},
+		{Kind: session.KindToolResult, Payload: mustRaw(t, map[string]any{
+			"id": "b1", "name": "bash", "output": "one",
+		})},
+		{Kind: "tool_dispatch", Payload: mustRaw(t, map[string]any{
+			"id": "b2", "name": "bash", "args": `{"command":"echo two"}`,
+		})},
+		{Kind: session.KindToolResult, Payload: mustRaw(t, map[string]any{
+			"id": "b2", "name": "bash", "output": "two",
+		})},
 	}
+	seqs := make([]int64, 0, len(entries))
 	for i, e := range entries {
-		if _, err := w.AppendRaw(e.Kind, e.Payload); err != nil {
+		seq, err := w.AppendRaw(e.Kind, e.Payload)
+		if err != nil {
 			t.Fatalf("append entry %d: %v", i, err)
 		}
+		seqs = append(seqs, seq)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -207,7 +231,102 @@ func TestGaeaContextViewAndNodeDetailExplicitSessionPath(t *testing.T) {
 	if _, err := a.GaeaContextNodeDetail(99999, p); err == nil {
 		t.Fatal("显式路径上不存在的 seq 应报错（证明读的是该会话而非内核）")
 	}
+	first, err := a.GaeaContextSurface(seqs[2], p)
+	if err != nil || !first.Ok || len(first.Nodes) == 0 {
+		t.Fatalf("历史 surface: ok=%v nodes=%d err=%v", first.Ok, len(first.Nodes), err)
+	}
+	firstHasAssistant := false
+	for _, node := range first.Nodes {
+		firstHasAssistant = firstHasAssistant || node.Cat == "assistant"
+	}
+	if firstHasAssistant {
+		t.Fatal("首个 request_header 不得看到其后生成的 assistant 答复")
+	}
+	second, err := a.GaeaContextSurface(seqs[4], p)
+	if err != nil || !second.Ok {
+		t.Fatalf("第二个历史 surface: %+v err=%v", second, err)
+	}
+	secondHasAssistant := false
+	for _, node := range second.Nodes {
+		secondHasAssistant = secondHasAssistant || node.Cat == "assistant"
+	}
+	if !secondHasAssistant {
+		t.Fatal("第二个 request_header 应看到上一请求生成的 assistant 答复")
+	}
+	dna, err := a.GaeaContextDna([]int64{seqs[2], seqs[4]}, p)
+	if err != nil || len(dna) != 2 || !dna[0].Ok || !dna[1].Ok {
+		t.Fatalf("批量 DNA: %+v err=%v", dna, err)
+	}
+	firstDnaHasAssistant := false
+	for _, band := range dna[0].Bands {
+		firstDnaHasAssistant = firstDnaHasAssistant || band.Cat == "assistant"
+	}
+	if firstDnaHasAssistant {
+		t.Fatal("首个 DNA 样本不得看到其后的 assistant 答复")
+	}
+	secondDnaHasAssistant := false
+	for _, band := range dna[1].Bands {
+		secondDnaHasAssistant = secondDnaHasAssistant || band.Cat == "assistant"
+	}
+	if !secondDnaHasAssistant {
+		t.Fatal("第二个 DNA 样本应包含上一请求的 assistant 答复")
+	}
+	page, err := a.GaeaContextCommands(0, 1, p)
+	if err != nil || page.Total != 2 || page.AtStart || len(page.Commands) != 1 {
+		t.Fatalf("commands page: %+v err=%v", page, err)
+	}
+	older, err := a.GaeaContextCommands(page.Commands[0].Seq, 1, p)
+	if err != nil || !older.AtStart || len(older.Commands) != 1 || older.Commands[0].Seq >= page.Commands[0].Seq {
+		t.Fatalf("older commands page: %+v err=%v", older, err)
+	}
+	if _, err := a.GaeaContextSurface(99999, p); err == nil {
+		t.Fatal("不存在 seq 的历史 surface 应报错，不得回退 live")
+	}
+	if _, err := a.GaeaContextSurface(seqs[2]); err == nil {
+		t.Fatal("内核 nil 时历史 surface 缺省应报会话未就绪")
+	}
+	if _, err := a.GaeaContextDna([]int64{seqs[2]}); err == nil {
+		t.Fatal("内核 nil 时批量 DNA 缺省应报会话未就绪")
+	}
+	if _, err := a.GaeaContextCommands(0, 10); err == nil {
+		t.Fatal("内核 nil 时命令分页缺省应报会话未就绪")
+	}
 	if tl2, err := a.GaeaContextView(""); err != nil || tl2.Stats.Turns != 0 {
 		t.Fatalf("空串参数应回落缺省（内核 nil → 空）: turns=%d err=%v", tl2.Stats.Turns, err)
+	}
+}
+
+func TestResolveNodeAttachmentsConfinesAndStatsFiles(t *testing.T) {
+	ws := t.TempDir()
+	uploadDir := filepath.Join(ws, ".gaea", "uploads")
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	inside := filepath.Join(uploadDir, "report-a.xlsx")
+	if err := os.WriteFile(inside, []byte("xlsx"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "secret.pdf")
+	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
+		t.Fatalf("WriteFile outside: %v", err)
+	}
+	d := contextview.NodeDetail{
+		AttachmentRefs: []string{
+			".gaea/uploads/report-a.xlsx",
+			outside,
+		},
+	}
+	resolveNodeAttachments(&d, ws)
+	if len(d.Attachments) != 2 {
+		t.Fatalf("attachments = %+v", d.Attachments)
+	}
+	if !d.Attachments[0].Exists || d.Attachments[0].Size != 4 || d.Attachments[0].Name != "report-a.xlsx" {
+		t.Fatalf("inside attachment = %+v", d.Attachments[0])
+	}
+	if d.Attachments[0].MimeType == "" {
+		t.Fatal("inside attachment MIME should be resolved")
+	}
+	if d.Attachments[1].Exists || d.Attachments[1].Size != 0 {
+		t.Fatalf("outside attachment must stay inaccessible: %+v", d.Attachments[1])
 	}
 }

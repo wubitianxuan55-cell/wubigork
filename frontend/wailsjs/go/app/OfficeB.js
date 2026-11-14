@@ -122,12 +122,24 @@ export function GaeaContext() {
   return window['go']['app']['OfficeB']['GaeaContext']();
 }
 
+export function GaeaContextCommands(arg1, arg2, arg3) {
+  return window['go']['app']['OfficeB']['GaeaContextCommands'](arg1, arg2, arg3);
+}
+
+export function GaeaContextDna(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaContextDna'](arg1, arg2);
+}
+
 export function GaeaContextInsights(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaContextInsights'](arg1, arg2);
 }
 
 export function GaeaContextNodeDetail(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaContextNodeDetail'](arg1, arg2);
+}
+
+export function GaeaContextSurface(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaContextSurface'](arg1, arg2);
 }
 
 export function GaeaContextView(arg1) {

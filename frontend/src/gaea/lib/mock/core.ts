@@ -26,7 +26,7 @@ type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
-  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights" | "FamilyEvents"
+  | "ContextUsage" | "ContextView" | "ContextDna" | "ContextCommands" | "ContextNodeDetail" | "ContextSurface" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights" | "FamilyEvents"
   | "GaeaBrowserObserve" | "GaeaSubagentContextView"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
@@ -125,6 +125,35 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async ContextNodeDetail(seq: number, _sessionPath?: string) {
       // mock：按 seq 返回样例详情（真实实现 = 按 seq 回读当前会话日志）。
       // 与上方 ContextView 场景的节点对齐：seq 4 = tool 节点（read_file）。
+      if (seq === 1 || seq === 2) {
+        return {
+          seq,
+          kind: "header" as const,
+          ts: 1750000001,
+          text: "你是 gaea 办公助手。按用户目标拆解任务；工具结果必须核验后再作答。",
+          tools: [
+            {
+              name: "read_file",
+              schema: '{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}',
+              tokens: 92,
+              source: "builtin-workspace",
+            },
+            {
+              name: "bash",
+              schema: '{"type":"object","properties":{"cmd":{"type":"string"},"timeout":{"type":"number"}}}',
+              tokens: 108,
+              source: "builtin-workspace",
+            },
+            {
+              name: "write_file",
+              schema: '{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}}}',
+              tokens: 116,
+              source: "builtin-workspace",
+            },
+          ],
+          lines: 1,
+        };
+      }
       if (seq === 4) {
         return {
           seq,
@@ -182,6 +211,24 @@ export function buildCore(s: MakeMockState): CoreMethods {
           ts: 1750000005,
           text: "帮我梳理 config 装载链路（mock 样例正文：完整用户消息）",
           lines: 1,
+          attachmentRefs: [".gaea/uploads/report-a.xlsx", ".gaea/uploads/spec.pdf"],
+          attachments: [
+            {
+              ref: ".gaea/uploads/report-a.xlsx",
+              path: "C:/demo/.gaea/uploads/report-a.xlsx",
+              name: "report-a.xlsx",
+              mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              size: 245760,
+              exists: true,
+            },
+            {
+              ref: ".gaea/uploads/spec.pdf",
+              path: "C:/demo/.gaea/uploads/spec.pdf",
+              name: "spec.pdf",
+              mimeType: "application/pdf",
+              exists: false,
+            },
+          ],
         };
       }
       if (seq === 6) {
@@ -206,7 +253,97 @@ export function buildCore(s: MakeMockState): CoreMethods {
           lines: 3,
         };
       }
+      if (seq === 10) {
+        return {
+          seq,
+          kind: "tool_result" as const,
+          ts: 1750000010,
+          tool: "bash",
+          args: '{"cmd":"go build ./..."}',
+          output: "build ok\nmock: compiled internal/gaea/...",
+          lines: 2,
+        };
+      }
+      if (seq === 15) {
+        return {
+          seq,
+          kind: "tool_result" as const,
+          ts: 1750000015,
+          tool: "bash",
+          args: '{"cmd":"npm run dev","run_in_background":true}',
+          output: "VITE v6.4.3 ready in 835 ms\nLocal: http://127.0.0.1:5173/",
+          lines: 2,
+        };
+      }
+      if (seq === 19) {
+        return {
+          seq,
+          kind: "tool_result" as const,
+          ts: 1750000019,
+          tool: "bash",
+          args: '{"cmd":"go vet ./internal/gaea/contextview/"}',
+          output: "mock: exit status 1",
+          err: "mock: exit status 1",
+          lines: 1,
+        };
+      }
       throw new Error("mock: 未找到 seq=" + seq + " 的可展开节点");
+    },
+    async ContextSurface(seq: number, _sessionPath?: string) {
+      if (seq !== 8) throw new Error("mock: 未找到 seq=" + seq + " 的历史 surface");
+      return {
+        ok: true,
+        seq,
+        nodes: [
+          { seq: 1, cat: "system" as const, tokens: 2100, text: "你是 gaea 办公助手…" },
+          { seq: 2, cat: "tools" as const, tokens: 10400, text: "read_file · bash · write_file" },
+          { seq: 3, cat: "inject" as const, tokens: 21000, text: "Referenced context: …" },
+          { seq: 4, cat: "tool" as const, tokens: 8000, text: "package main …", tool: "read_file" },
+          { seq: 5, cat: "user" as const, tokens: 20, text: "帮我梳理 config 装载链路（历史步骤 mock）" },
+          { seq: 6, cat: "assistant" as const, tokens: 1200, text: "好的，config 装载从 Load() 入口…" },
+        ],
+        archive: [],
+      };
+    },
+    async ContextDna(seqs: number[], _sessionPath?: string) {
+      return seqs.map((seq) => ({
+        ok: seq === 8,
+        seq,
+        bands: seq === 8
+          ? [
+              { key: "sys", cat: "system" as const, tokens: 2100, nodeSeq: 1 },
+              { key: "tool:read_file", cat: "tools" as const, tokens: 5200, nodeSeq: 2, label: "read_file" },
+              { key: "tool:bash", cat: "tools" as const, tokens: 3300, nodeSeq: 2, label: "bash" },
+              { key: "tool:write_file", cat: "tools" as const, tokens: 1900, nodeSeq: 2, label: "write_file" },
+              { key: "n3", cat: "inject" as const, tokens: 21000, nodeSeq: 3 },
+              { key: "n4", cat: "tool" as const, tokens: 8000, nodeSeq: 4, label: "read_file" },
+              { key: "n5", cat: "user" as const, tokens: 20, nodeSeq: 5 },
+              { key: "n6", cat: "assistant" as const, tokens: 1200, nodeSeq: 6 },
+            ]
+          : [],
+      }));
+    },
+    async ContextCommands(beforeSeq: number, limit: number, _sessionPath?: string) {
+      return {
+        commands: beforeSeq <= 9 && limit > 0
+          ? [{
+              seq: 4,
+              resultSeq: 5,
+              time: 1750000004,
+              tool: "bash",
+              cmd: "npm run lint",
+              turn: 1,
+              step: 1,
+              start: 1750000004,
+              end: 1750000006,
+              status: "completed" as const,
+              exit: 0,
+              derived: true,
+            }]
+          : [],
+        atStart: true,
+        total: 4,
+      };
     },
     async GaeaBrowserObserve() {
       // 浏览器观察窗单帧（v4.28 A2；批 45 NOT_MOCKED 续刀三）：浏览器未运行是

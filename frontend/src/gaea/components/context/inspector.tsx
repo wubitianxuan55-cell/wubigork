@@ -6,7 +6,7 @@
 //   末尾「归档 N」折叠组（行带「已压缩」徽标）。默认全部收起。
 // - FileActivityTree：过滤 chips（全部/读取/写入/搜索/图片）+ 路径过滤 + 汇总行
 //   + 排序三胶囊（按次数/按最新/按路径）+ 按文件聚合树行（点击打开预览）。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 // 六分类语义色与键名单源在 context/cats.ts（i18n 收口批起 CAT_COLORS 定义也在此）。
 import { CAT_COLORS } from "./cats";
 import { MemoMarkdown } from "../MemoMarkdown";
@@ -20,7 +20,15 @@ import { loadContextPrefs, saveContextPref, type CtxBrowserSort, type CtxFileSor
 import { usePreviewStore } from "../../lib/store";
 import { CONTEXT_CATS, CONTEXT_CAT_BROWSE } from "./cats";
 import type { DictKey } from "../../locales/en";
-import type { ContextNodeDetailView, ContextNodeImage, ContextSurfaceNode, FileActivity } from "../../lib/types";
+import type {
+  ContextNodeDetailView,
+  ContextNodeAttachment,
+  ContextNodeImage,
+  ContextRequestDelta,
+  ContextRequestRecord,
+  ContextSurfaceNode,
+  FileActivity,
+} from "../../lib/types";
 import { getCachedAttachmentDataURL } from '../../../components/characterlib/usePortraitUrl';
 
 // 分类折叠组定义：单一事实源 context/cats.ts（FE1-02，此前本地重声明漂移风险）。
@@ -35,6 +43,66 @@ const ARCHIVE_KEY = "archive"; // 折叠态 key（与分类 key 不冲突的哨�
 type NodeDetailState = { s: "loading" } | { s: "ok"; d: ContextNodeDetailView } | { s: "error" };
 
 const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = CONTEXT_CAT_BROWSE;
+
+type BrowserMapItem = {
+  key: ContextSurfaceNode["cat"];
+  tokens: number;
+};
+
+type BrowserMapRect = BrowserMapItem & {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+// treemapRects 是浏览器 Map 视图的无依赖二维矩形切分：每层按 token 总量在
+// 长边二分，递归到单分类。纯函数保证同一快照布局稳定。
+function treemapRects(items: BrowserMapItem[]): BrowserMapRect[] {
+  const sorted = [...items].filter((item) => item.tokens > 0).sort((a, b) => b.tokens - a.tokens);
+  const out: BrowserMapRect[] = [];
+  const split = (group: BrowserMapItem[], x: number, y: number, width: number, height: number): void => {
+    if (group.length === 0) return;
+    if (group.length === 1) {
+      out.push({ ...group[0], x, y, width, height });
+      return;
+    }
+    const total = group.reduce((sum, item) => sum + item.tokens, 0);
+    let leftTokens = 0;
+    let splitAt = 1;
+    for (let i = 0; i < group.length - 1; i++) {
+      leftTokens += group[i].tokens;
+      splitAt = i + 1;
+      if (leftTokens >= total / 2) break;
+    }
+    const left = group.slice(0, splitAt);
+    const right = group.slice(splitAt);
+    const ratio = Math.max(0.08, Math.min(0.92, leftTokens / Math.max(total, 1)));
+    if (width >= height) {
+      split(left, x, y, width * ratio, height);
+      split(right, x + width * ratio, y, width * (1 - ratio), height);
+    } else {
+      split(left, x, y, width, height * ratio);
+      split(right, x, y + height * ratio, width, height * (1 - ratio));
+    }
+  };
+  split(sorted, 0, 0, 100, 64);
+  return out;
+}
+
+export type BrowserCatFocus = {
+  cat: ContextSurfaceNode["cat"] | typeof ARCHIVE_KEY;
+  tick: number;
+  query?: string;
+};
+
+function nodeMatchesQuery(node: ContextSurfaceNode, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (q === "") return true;
+  return [node.text, node.tool, node.name].some((value) =>
+    (value ?? "").toLowerCase().includes(q),
+  );
+}
 
 // v4.81 节点详情懒加载 hook（浏览器与文件活动共用）：按 seq 懒加载 +
 // 缓存（Map 状态机 loading/ok/error）+ 开合集合。
@@ -70,7 +138,7 @@ function useNodeDetails(sessionPath?: string, fetchDetail?: (seq: number) => Pro
 // v4.80 深读：tool 行加「来源」chip（工具名）与 error 语义点；tool/user/assistant
 // 行可懒加载「完整调用」详情（GaeaContextNodeDetail 按 seq 回读当前会话日志），
 // 详情面板带 OK/error 状态、行数、截断提示与 原文/渲染 切换（默认原文）。
-const DETAILABLE = new Set<ContextSurfaceNode["cat"]>(["tool", "skill", "user", "assistant"]);
+const DETAILABLE = new Set<ContextSurfaceNode["cat"]>(["system", "tools", "tool", "skill", "user", "assistant"]);
 
 // v4.81 节点/文件操作共用的完整调用详情面板（原文/渲染切换在面板内部自持；
 // 默认原文防任意工具输出噪声；渲染走 MemoMarkdown）。
@@ -100,6 +168,7 @@ function NodeImageCard({ img }: { img: ContextNodeImage }) {
   return (
     <div
       data-testid="ctx-img-card"
+      data-attachment-kind="image"
       className={`flex w-56 shrink-0 gap-1.5 rounded-md border border-border-soft p-1 ${img.exists ? "" : "opacity-55"}`}
     >
       <button
@@ -143,10 +212,73 @@ function NodeImageCard({ img }: { img: ContextNodeImage }) {
   );
 }
 
-function NodeDetailPanel({ d }: { d: ContextNodeDetailView }) {
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function NodeAttachmentCard({ attachment }: { attachment: ContextNodeAttachment }) {
+  const t = useT();
+  const openPreview = usePreviewStore((state) => state.openFilePreview);
+  const ext = attachment.name.split(".").pop()?.toUpperCase() || t("contextview.attachOther");
+  return (
+    <button
+      type="button"
+      data-testid="ctx-file-attachment-card"
+      data-attachment-kind="file"
+      disabled={!attachment.exists}
+      title={attachment.path}
+      className={`ctx-file-attachment${attachment.exists ? "" : " is-missing"}`}
+      onClick={() => {
+        if (attachment.exists) openPreview(attachment.path);
+      }}
+    >
+      <span className="ctx-file-attachment-icon" aria-hidden>
+        <FileTypeIcon name={attachment.name} size={17} />
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate text-[10px] font-medium text-fg">{attachment.name}</span>
+        <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[8.5px] text-fg-faint">
+          <b className="font-semibold text-fg-dim">{ext}</b>
+          {attachment.exists
+            ? attachment.size != null && <span>{formatAttachmentSize(attachment.size)}</span>
+            : <span className="text-warning">{t("contextview.attachmentMissing")}</span>}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export function NodeDetailPanel({ d, headerFocus }: {
+  d: ContextNodeDetailView;
+  headerFocus?: ContextSurfaceNode["cat"];
+}) {
   const t = useT();
   const [rendered, setRendered] = useState(false);
   const body = d.kind === "tool_result" ? d.output ?? "" : d.text ?? "";
+  const orderedAttachments = (() => {
+    const positionOf = (ref: string, name?: string, path?: string) => {
+      const candidates = [ref, name, path]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => body.indexOf(value))
+        .filter((index) => index >= 0);
+      return candidates.length > 0 ? Math.min(...candidates) : Number.MAX_SAFE_INTEGER;
+    };
+    const images = (d.images ?? []).map((img, order) => ({
+      kind: "image" as const,
+      order,
+      position: positionOf(img.ref, undefined, img.path),
+      img,
+    }));
+    const files = (d.attachments ?? []).map((attachment, order) => ({
+      kind: "file" as const,
+      order,
+      position: positionOf(attachment.ref, attachment.name, attachment.path),
+      attachment,
+    }));
+    return [...images, ...files].sort((a, b) => a.position - b.position || a.order - b.order);
+  })();
   return (
     <div data-testid="ctx-node-detail" className="mt-1 rounded-md border border-border-soft bg-bg-soft p-1.5">
       <div className="flex flex-wrap items-center gap-1.5 text-[9.5px] text-fg-faint">
@@ -178,20 +310,49 @@ function NodeDetailPanel({ d }: { d: ContextNodeDetailView }) {
       {d.kind === "tool_result" && d.args && (
         <div className="mt-1 break-all font-mono text-[9.5px] text-fg-faint" title={d.args}>→ {d.args}</div>
       )}
-      {/* 2.5b 后半：图片引用缩略卡（缩略图 + 尺寸→缩放尺寸 + 官方口径 token） */}
-      {d.images && d.images.length > 0 && (
-        <div data-testid="ctx-node-images" className="mt-1">
-          <div className="text-[9px] text-fg-faint">{t("contextview.imgSection")}</div>
-          <div className="mt-0.5 flex flex-wrap gap-1.5">
-            {d.images.map((img) => (
-              <NodeImageCard key={`${img.ref}|${img.path}`} img={img} />
+      {d.kind === "header" && headerFocus !== "system" && (d.tools?.length ?? 0) > 0 && (
+        <div className="mt-1" data-testid="ctx-header-tools">
+          <div className="text-[9px] text-fg-faint">{t("contextview.headerToolSchemas", { n: d.tools!.length })}</div>
+          <div className="mt-0.5 space-y-1">
+            {d.tools!.map((tool) => (
+              <details key={tool.name} className="rounded border border-border-soft bg-bg px-1.5 py-1">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 font-mono text-[9.5px] text-fg-dim">
+                  <span className="font-medium text-fg">{tool.name}</span>
+                  {tool.source && (
+                    <span className="ctx-tool-source" title={t("contextview.headerToolSourceTip")}>
+                      {tool.source}
+                    </span>
+                  )}
+                  {tool.tokens != null && <span className="ml-auto text-fg-faint">≈{fmtTokens(tool.tokens)}</span>}
+                </summary>
+                {tool.schema ? (
+                  <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-all font-mono text-[9px] text-fg-faint">{tool.schema}</pre>
+                ) : (
+                  <div className="mt-1 text-[9px] text-fg-faint">{t("contextview.headerNoSchema")}</div>
+                )}
+              </details>
             ))}
           </div>
         </div>
       )}
-      <div className="mt-1 max-h-[26rem] overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] text-fg-dim">
-        {rendered ? <MemoMarkdown text={body} streaming={false} /> : body || t("contextview.noPreview")}
-      </div>
+      {/* 上游附件语义：image/file block 按消息中的出现顺序混排为同一组卡片。 */}
+      {orderedAttachments.length > 0 && (
+        <div data-testid="ctx-node-attachments" className="mt-1">
+          <div className="text-[9px] text-fg-faint">{t("contextview.attachmentsSection", { n: orderedAttachments.length })}</div>
+          <div className="mt-0.5 flex flex-wrap gap-1.5">
+            {orderedAttachments.map((entry) => (
+              entry.kind === "image"
+                ? <NodeImageCard key={`${entry.img.ref}|${entry.img.path}`} img={entry.img} />
+                : <NodeAttachmentCard key={`${entry.attachment.ref}|${entry.attachment.path}`} attachment={entry.attachment} />
+            ))}
+          </div>
+        </div>
+      )}
+      {(d.kind !== "header" || headerFocus !== "tools") && (
+        <div className="mt-1 max-h-[26rem] overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] text-fg-dim">
+          {rendered ? <MemoMarkdown text={body} streaming={false} /> : body || t("contextview.noPreview")}
+        </div>
+      )}
     </div>
   );
 }
@@ -276,7 +437,7 @@ function NodeRow({
         {detailOpen && detailState?.s === "error" && (
           <div className="mt-1 text-[10px]" style={{ color: "var(--md-sys-color-destructive)" }}>{t("contextview.detailFail")}</div>
         )}
-        {detailOpen && d && <NodeDetailPanel d={d} />}
+        {detailOpen && d && <NodeDetailPanel d={d} headerFocus={node.cat} />}
       </div>
     </div>
   );
@@ -292,21 +453,47 @@ export function ContextBrowserTree({
   nodes,
   archive,
   focus,
+  catFocus,
   sessionPath,
   fetchNodeDetail,
   toolFilter,
+  requests,
+  previewRequest,
+  previewing,
+  surfaceMode,
+  onSurfaceModeChange,
+  pinnedSeq,
+  onPickRequest,
+  surfaceState,
+  surfaceDropped,
+  delta,
 }: {
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
   focus?: { seq: number; tick: number } | null;
+  catFocus?: BrowserCatFocus | null;
   sessionPath?: string;
   /** 节点详情自定义源（v4.412 原罪复用）；缺省 GaeaContextNodeDetail 按会话日志。 */
   fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
   /** 1:1 上游 chips 联动：工具名过滤（来自 Context Stats 工具 chip 点击）。 */
   toolFilter?: string | null;
+  /** 请求边界：DNA 行按 node.seq/request.seq 的确定关系标注引入步骤。 */
+  requests?: ContextRequestRecord[];
+  /** 当前浏览器 source 请求（悬停优先，否则为钉住步骤）。 */
+  previewRequest?: ContextRequestRecord | null;
+  previewing?: boolean;
+  surfaceMode?: "live" | "step";
+  onSurfaceModeChange?: (mode: "live" | "step") => void;
+  pinnedSeq?: number | null;
+  onPickRequest?: (seq: number | null) => void;
+  surfaceState?: "live" | "loading" | "ready" | "error" | "unavailable";
+  surfaceDropped?: number;
+  /** 当前钉住请求相对上一步的逐类差分，用于组行 badge。 */
+  delta?: ContextRequestDelta;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
+  const [groupQueries, setGroupQueries] = useState<Record<string, string>>({});
   // 默认折叠态：六分类与归档全部收起（dsh 同款）。
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openText, setOpenText] = useState<Set<number>>(() => new Set());
@@ -318,6 +505,7 @@ export function ContextBrowserTree({
   const listRef = useRef<HTMLDivElement | null>(null);
   const [focusedSeq, setFocusedSeq] = useState<number | null>(null);
   const handledFocus = useRef(0);
+  const handledCatFocus = useRef(0);
 
   const pickSort = (k: CtxBrowserSort) => {
     setSort(k);
@@ -327,31 +515,48 @@ export function ContextBrowserTree({
   // （seq 序）平铺编号，系统提示词/工具定义作两行分组收尾（dsh 同款语义）；
   // 「引入步骤」日志无逐节点记录，诚实不造列。助手 kind 筛选（思考/工具/
   // 正文）用刀1 三拆子计数推导，一次回复可命中多种。
-  const [view, setView] = useState<"tree" | "dna">("tree");
+  const [view, setView] = useState<"tree" | "dna" | "map">("tree");
   const [assistantKind, setAssistantKind] = useState<"thinking" | "tools" | "answer" | null>(null);
-  const dnaNodes = useMemo(
-    () => nodes.filter((n) => n.cat !== "system" && n.cat !== "tools").sort((a, b) => a.seq - b.seq),
+  const dnaEntries = useMemo(
+    () => nodes
+      .filter((n) => n.cat !== "system" && n.cat !== "tools")
+      .sort((a, b) => a.seq - b.seq)
+      .map((node, index) => ({ node, pos: index + 1 })),
     [nodes],
   );
+  const dnaEntriesShown = useMemo(() => {
+    return dnaEntries
+      .filter(({ node }) => nodeMatchesQuery(node, query))
+      .filter(({ node }) => nodeMatchesQuery(node, groupQueries[node.cat] ?? ""))
+      .filter(({ node }) => !toolFilter || node.tool === toolFilter)
+      .slice()
+      .reverse();
+  }, [dnaEntries, query, groupQueries, toolFilter]);
+  const stampForNode = (node: ContextSurfaceNode): string | null => {
+    if (!requests?.length) return null;
+    let hit: ContextRequestRecord | null = null;
+    for (const request of requests) {
+      if (request.seq <= node.seq) hit = request;
+      else break;
+    }
+    return hit ? t("contextview.browserStepAt", { turn: hit.turn, step: hit.step }) : null;
+  };
   const lastSystem = useMemo(() => nodes.filter((n) => n.cat === "system").at(-1), [nodes]);
   const lastTools = useMemo(() => nodes.filter((n) => n.cat === "tools").at(-1), [nodes]);
+  const stepOptions = useMemo(() => {
+    const options = (requests ?? []).slice(-200).reverse();
+    if (pinnedSeq != null && !options.some((request) => request.seq === pinnedSeq)) {
+      const pinned = requests?.find((request) => request.seq === pinnedSeq);
+      if (pinned) options.unshift(pinned);
+    }
+    return options;
+  }, [pinnedSeq, requests]);
   const kindMatch = (n: ContextSurfaceNode): boolean => {
     if (assistantKind === null) return true;
     if (assistantKind === "thinking") return (n.reasoning ?? 0) > 0;
     if (assistantKind === "tools") return (n.callTokens ?? 0) > 0;
     return (n.answerTokens ?? 0) > 0;
   };
-  const kindCounts = useMemo(() => {
-    const c = { thinking: 0, tools: 0, answer: 0 };
-    for (const n of nodes) {
-      if (n.cat !== "assistant") continue;
-      if ((n.reasoning ?? 0) > 0) c.thinking++;
-      if ((n.callTokens ?? 0) > 0) c.tools++;
-      if ((n.answerTokens ?? 0) > 0) c.answer++;
-    }
-    return c;
-  }, [nodes]);
-
   useEffect(() => {
     if (!focus || focus.tick === handledFocus.current) return;
     handledFocus.current = focus.tick;
@@ -363,6 +568,8 @@ export function ContextBrowserTree({
     const groupKey = inArchive ? ARCHIVE_KEY : node.cat;
     setExpanded((cur) => new Set(cur).add(groupKey));
     setShowAll((cur) => new Set(cur).add(groupKey)); // 目标可能在分页后半段
+    setQuery("");
+    setGroupQueries((cur) => ({ ...cur, [groupKey]: "" }));
     setFocusedSeq(focus.seq);
     requestAnimationFrame(() => {
       listRef.current?.querySelector(`[data-node-seq="${focus.seq}"]`)?.scrollIntoView({ block: "nearest" });
@@ -371,9 +578,35 @@ export function ContextBrowserTree({
     return () => window.clearTimeout(timer);
   }, [focus, nodes, archive]);
 
-  const q = query.trim().toLowerCase();
+  useEffect(() => {
+    if (!catFocus || catFocus.tick === handledCatFocus.current) return;
+    handledCatFocus.current = catFocus.tick;
+    setView("tree");
+    setExpanded((cur) => new Set(cur).add(catFocus.cat));
+    setShowAll((cur) => new Set(cur).add(catFocus.cat));
+    setQuery("");
+    setGroupQueries((cur) => ({ ...cur, [catFocus.cat]: catFocus.query ?? "" }));
+    requestAnimationFrame(() => {
+      listRef.current
+        ?.querySelector(`[data-browser-group="${catFocus.cat}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }, [catFocus]);
+
   const sorter = useMemo(
-    () => (sort === "size" ? (a: ContextSurfaceNode, b: ContextSurfaceNode) => b.tokens - a.tokens || a.seq - b.seq : (a: ContextSurfaceNode, b: ContextSurfaceNode) => a.seq - b.seq),
+    () => {
+      if (sort === "size") {
+        return (a: ContextSurfaceNode, b: ContextSurfaceNode) => b.tokens - a.tokens || a.seq - b.seq;
+      }
+      if (sort === "name") {
+        return (a: ContextSurfaceNode, b: ContextSurfaceNode) => {
+          const an = a.name ?? a.tool ?? a.text ?? "";
+          const bn = b.name ?? b.tool ?? b.text ?? "";
+          return an.localeCompare(bn) || a.seq - b.seq;
+        };
+      }
+      return (a: ContextSurfaceNode, b: ContextSurfaceNode) => a.seq - b.seq;
+    },
     [sort],
   );
 
@@ -383,20 +616,41 @@ export function ContextBrowserTree({
     () =>
       GROUPS.map((g) => {
         const all = nodes.filter((n) => n.cat === g.key);
-        let hit = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        let hit = all.filter((n) => nodeMatchesQuery(n, query));
+        hit = hit.filter((n) => nodeMatchesQuery(n, groupQueries[g.key] ?? ""));
         if (toolFilter) hit = hit.filter((n) => n.tool === toolFilter);
         const filtered = [...hit].sort(sorter); // v4.80 分类内排序（时间序/大小序）
         const tokens = all.reduce((s, n) => s + n.tokens, 0);
-        return { ...g, all: all.length, count: filtered.length, tokens, nodes: filtered };
+        const deltaCat = delta?.byCat?.find((entry) => entry.cat === g.key);
+        return { ...g, all: all.length, count: filtered.length, tokens, nodes: filtered, deltaCat };
       }),
-    [nodes, q, sorter],
+    [nodes, query, groupQueries, toolFilter, sorter, delta],
   );
   const archiveShown = useMemo(() => {
-    const hit = q === "" ? archive : archive.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+    let hit = archive.filter((n) => nodeMatchesQuery(n, query));
+    hit = hit.filter((n) => nodeMatchesQuery(n, groupQueries[ARCHIVE_KEY] ?? ""));
     return [...hit].sort(sorter);
-  }, [archive, q, sorter]);
+  }, [archive, query, groupQueries, sorter]);
   const archiveTokens = useMemo(() => archive.reduce((s, n) => s + n.tokens, 0), [archive]);
   const totalTokens = useMemo(() => nodes.reduce((s, n) => s + n.tokens, 0), [nodes]);
+  const kindCounts = useMemo(() => {
+    const c = { thinking: 0, tools: 0, answer: 0 };
+    const assistantNodes = groups.find((group) => group.key === "assistant")?.nodes ?? [];
+    for (const n of assistantNodes) {
+      if ((n.reasoning ?? 0) > 0) c.thinking++;
+      if ((n.callTokens ?? 0) > 0) c.tools++;
+      if ((n.answerTokens ?? 0) > 0) c.answer++;
+    }
+    return c;
+  }, [groups]);
+  const mapRects = useMemo(
+    () => treemapRects(
+      groups
+        .filter((group) => group.tokens > 0)
+        .map((group) => ({ key: group.key, tokens: group.tokens })),
+    ),
+    [groups],
+  );
 
   const toggleGroup = (key: string) => {
     setExpanded((cur) => {
@@ -421,8 +675,19 @@ export function ContextBrowserTree({
       return next;
     });
   };
+  const openCategory = (key: ContextSurfaceNode["cat"]) => {
+    setView("tree");
+    setExpanded((cur) => new Set(cur).add(key));
+    setShowAll((cur) => new Set(cur).add(key));
+    requestAnimationFrame(() => {
+      listRef.current
+        ?.querySelector(`[data-browser-group="${key}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  };
 
-  const isEmpty = nodes.length === 0 && archive.length === 0;
+  const surfaceBlocked = surfaceState === "loading" || surfaceState === "error" || surfaceState === "unavailable";
+  const isEmpty = !surfaceBlocked && nodes.length === 0 && archive.length === 0;
 
   return (
     <div className="ctx-card p-3" data-testid="ctx-browser">
@@ -435,8 +700,56 @@ export function ContextBrowserTree({
         </div>
         <div className="shrink-0 text-[9px] tabular-nums text-fg-faint">
           {t("contextview.tabActive", { n: nodes.length })} · ≈{fmtTokens(totalTokens)}
+          {(surfaceDropped ?? 0) > 0 && ` · −${surfaceDropped}`}
         </div>
       </div>
+      <div className="ctx-browser-source mt-1" data-testid="ctx-browser-source">
+        <button
+          type="button"
+          aria-pressed={(surfaceMode ?? "live") === "live"}
+          className="ctx-browser-source-live"
+          data-testid="ctx-browser-source-live"
+          onClick={() => onSurfaceModeChange?.("live")}
+        >
+          {t("contextview.surfaceLive")}
+        </button>
+        <select
+          aria-label={t("contextview.surfaceStepPick")}
+          data-testid="ctx-browser-source-step"
+          value={(surfaceMode === "step" && pinnedSeq != null) ? String(pinnedSeq) : ""}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (!value) {
+              onPickRequest?.(null);
+              return;
+            }
+            onSurfaceModeChange?.("step");
+            onPickRequest?.(Number(value));
+          }}
+        >
+          <option value="">{t("contextview.surfaceStepPick")}</option>
+          {stepOptions.map((request) => (
+            <option key={request.seq} value={request.seq}>
+              {t("contextview.surfaceStepOption", { turn: request.turn, step: request.step })}
+            </option>
+          ))}
+        </select>
+      </div>
+      {previewRequest && (
+        <div
+          className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-accent/8 px-1.5 py-1 text-[9.5px] text-fg-faint"
+          data-testid="ctx-browser-preview"
+          data-preview-seq={previewRequest.seq}
+        >
+          <b className="font-mono text-fg-dim">
+            {t("contextview.browserPreview", { turn: previewRequest.turn, step: previewRequest.step })}
+          </b>
+          <span>{previewing ? t("contextview.browserPreviewLive") : t("contextview.browserPinnedSurface")}</span>
+          <span className="ml-auto font-mono tabular-nums">
+            ≈{fmtTokens(Object.values(previewRequest.category).reduce((sum, value) => sum + value, 0))}
+          </span>
+        </div>
+      )}
       <input
         type="text"
         value={query}
@@ -447,7 +760,11 @@ export function ContextBrowserTree({
       />
       {/* v4.80 分类内排序（dsh size/name 同款；只影响展开后的行序，不改组行聚合） */}
       <div className="mt-1 flex items-center gap-1 text-[9.5px]">
-        {([["time", "contextview.sortTime"], ["size", "contextview.sortSize"]] as const).map(([k, key]) => (
+        {([
+          ["time", "contextview.sortTime"],
+          ["size", "contextview.sortSize"],
+          ["name", "contextview.sortName"],
+        ] as const).map(([k, key]) => (
           <button
             key={k}
             aria-pressed={sort === k}
@@ -456,27 +773,90 @@ export function ContextBrowserTree({
           >{t(key)}</button>
         ))}
               <span className="ml-auto" />
-        {(["tree", "dna"] as const).map((v) => (
+        {(["tree", "dna", "map"] as const).map((v) => (
           <button
             key={v}
             aria-pressed={view === v}
             data-testid={`ctx-browser-view-${v}`}
             className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${view === v ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
             onClick={() => setView(v)}
-          >{v === "tree" ? t("contextview.viewTree") : t("contextview.viewDna")}</button>
+          >{v === "tree" ? t("contextview.viewTree") : v === "dna" ? t("contextview.viewDna") : t("contextview.viewMap")}</button>
         ))}
       </div>
-      {isEmpty ? (
+      {surfaceState === "loading" ? (
+        <div className="py-2 text-[10px] text-fg-faint" data-testid="ctx-browser-surface-loading">
+          {t("contextview.surfaceLoading")}
+        </div>
+      ) : surfaceState === "error" ? (
+        <div className="py-2 text-[10px] text-err" data-testid="ctx-browser-surface-error">
+          {t("contextview.surfaceError")}
+        </div>
+      ) : surfaceState === "unavailable" ? (
+        <div className="py-2 text-[10px] text-warning" data-testid="ctx-browser-surface-unavailable">
+          {t("contextview.surfaceUnavailable")}
+        </div>
+      ) : isEmpty ? (
         <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noNodes")}</div>
+      ) : view === "map" ? (
+        <div ref={listRef} className="mt-1.5" data-testid="ctx-browser-map">
+          <div className="ctx-browser-map-hint">{t("contextview.mapHint")}</div>
+          <div className="ctx-browser-map-shell" role="group" aria-label={t("contextview.viewMap")}>
+            {mapRects.map((rect) => {
+              const group = groups.find((item) => item.key === rect.key);
+              if (!group) return null;
+              const share = totalTokens > 0 ? Math.round((rect.tokens / totalTokens) * 1000) / 10 : 0;
+              const label = t("contextview.mapItemLabel", {
+                cat: t(group.labelKey),
+                items: group.all,
+                tokens: fmtTokens(rect.tokens),
+                pct: share,
+              });
+              const compact = rect.width < 20 || rect.height < 22;
+              return (
+                <button
+                  key={rect.key}
+                  type="button"
+                  data-map-cat={rect.key}
+                  data-testid={`ctx-browser-map-item-${rect.key}`}
+                  data-compact={compact ? "true" : undefined}
+                  aria-label={label}
+                  title={label}
+                  className="ctx-browser-map-item"
+                  style={{
+                    left: `${rect.x}%`,
+                    top: `${rect.y}%`,
+                    width: `calc(${rect.width}% - 2px)`,
+                    height: `calc(${rect.height}% - 2px)`,
+                    "--map-color": CAT_COLORS[rect.key],
+                  } as CSSProperties}
+                  onClick={() => openCategory(rect.key)}
+                >
+                  <span className="ctx-browser-map-name">
+                    <i aria-hidden />
+                    <span>{t(group.labelKey)}</span>
+                  </span>
+                  <span className="ctx-browser-map-value">≈{fmtTokens(rect.tokens)} · {share}%</span>
+                  <span className="ctx-browser-map-count">{t("contextview.itemsCount", { n: group.all })}</span>
+                </button>
+              );
+            })}
+            {mapRects.length === 0 && (
+              <div className="ctx-browser-map-empty">{t("contextview.noNodes")}</div>
+            )}
+          </div>
+        </div>
       ) : view === "dna" ? (
         /* v4.542 刀4 DNA 平铺（dsh 同名能力诚实子集）：当前活跃 surface 按
            模型读取顺序编号平铺；系统提示词/工具定义作分组行收尾；行交互
            （展开预览/懒加载详情）与树视图共用 NodeRow。 */
         <div ref={listRef} className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5" data-testid="ctx-browser-dna">
-          {dnaNodes.map((n, i) => (
-            <div key={n.seq} className="flex items-start gap-1">
-              <span className="w-9 shrink-0 pt-1.5 text-right font-mono text-[9px] text-fg-faint" title={t("contextview.dnaPosTip")}>#{i + 1}</span>
+          {dnaEntriesShown.map(({ node: n, pos }) => (
+            <div key={n.seq} className="flex items-start gap-1" data-testid={`ctx-browser-dna-row-${n.seq}`}>
+              <span className="w-9 shrink-0 pt-1.5 text-right font-mono text-[9px] text-fg-faint" title={t("contextview.dnaPosTip")}>#{pos}</span>
               <div className="min-w-0 flex-1">
+                {stampForNode(n) && (
+                  <div className="px-2 pt-1 font-mono text-[8.5px] text-fg-faint">{stampForNode(n)}</div>
+                )}
                 <NodeRow
                   node={n}
                   open={openText.has(n.seq)}
@@ -490,7 +870,7 @@ export function ContextBrowserTree({
             </div>
           ))}
           {[lastSystem, lastTools].map((n, i) =>
-            n ? (
+            n && nodeMatchesQuery(n, query) && nodeMatchesQuery(n, groupQueries[n.cat] ?? "") ? (
               <div key={`tail-${n.seq}`} className="ctx-row flex items-center gap-1.5 border-t border-border-soft/60 px-2 py-1.5 text-[10px]">
                 <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[n.cat] }} aria-hidden />
                 <span className="font-medium text-fg-dim">{t(i === 0 ? "contextview.dnaTailSystem" : "contextview.dnaTailTools")}</span>
@@ -499,6 +879,10 @@ export function ContextBrowserTree({
               </div>
             ) : null,
           )}
+          {dnaEntriesShown.length === 0 &&
+            ![lastSystem, lastTools].some((n) => n && nodeMatchesQuery(n, query) && nodeMatchesQuery(n, groupQueries[n.cat] ?? "")) && (
+              <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>
+            )}
         </div>
       ) : (
         <div ref={listRef} className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5">
@@ -512,6 +896,7 @@ export function ContextBrowserTree({
                 <button
                   type="button"
                   aria-expanded={isOpen}
+                  data-browser-group={g.key}
                   onClick={() => toggleGroup(g.key)}
                   className="ctx-row flex w-full cursor-pointer items-center gap-1.5 border-0 px-1.5 py-1.5 text-left text-[10.5px]"
                 >
@@ -523,12 +908,31 @@ export function ContextBrowserTree({
                   >
                       {t("contextview.itemsCount", { n: g.count })}
                       </span>
+                      {g.deltaCat && (g.deltaCat.items !== 0 || g.deltaCat.tokens !== 0) && (
+                        <span className="ctx-browser-delta" data-sign={g.deltaCat.tokens >= 0 ? "up" : "down"}>
+                          {(g.deltaCat.items ?? 0) !== 0 && `${(g.deltaCat.items ?? 0) > 0 ? "+" : "−"}${Math.abs(g.deltaCat.items ?? 0)}`}
+                          {(g.deltaCat.items ?? 0) !== 0 && g.deltaCat.tokens !== 0 && " · "}
+                          {g.deltaCat.tokens !== 0 && `${g.deltaCat.tokens > 0 ? "+" : "−"}${fmtTokens(Math.abs(g.deltaCat.tokens))}`}
+                        </span>
+                      )}
                       <span className="ml-auto shrink-0 font-mono text-[9.5px] tabular-nums text-fg-faint">
                         ≈{fmtTokens(g.tokens)} ({share}%)
                       </span>
                 </button>
                 {isOpen && (
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
+                    <input
+                      type="text"
+                      value={groupQueries[g.key] ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setGroupQueries((cur) => ({ ...cur, [g.key]: value }));
+                      }}
+                      placeholder={t("contextview.browserCategorySearch", { cat: t(g.labelKey) })}
+                      aria-label={t("contextview.browserCategorySearch", { cat: t(g.labelKey) })}
+                      data-testid={`ctx-browser-search-${g.key}`}
+                      className="h-5 rounded border border-border-soft bg-bg-soft px-1.5 text-[9.5px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
+                    />
                     {g.key === "assistant" && (
                       /* v4.542 刀4：助手 kind 筛选 chips（dsh Thinking/Tools/Answer
                          同款；次数=该类行数；一次回复可含多种，再点清除） */
@@ -602,6 +1006,18 @@ export function ContextBrowserTree({
                 </button>
                 {isOpen && (
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
+                    <input
+                      type="text"
+                      value={groupQueries[ARCHIVE_KEY] ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setGroupQueries((cur) => ({ ...cur, [ARCHIVE_KEY]: value }));
+                      }}
+                      placeholder={t("contextview.browserCategorySearch", { cat: t("contextview.tabArchive", { n: archive.length }) })}
+                      aria-label={t("contextview.browserCategorySearch", { cat: t("contextview.tabArchive", { n: archive.length }) })}
+                      data-testid={`ctx-browser-search-${ARCHIVE_KEY}`}
+                      className="h-5 rounded border border-border-soft bg-bg-soft px-1.5 text-[9.5px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
+                    />
                     {archiveShown.length === 0 && <div className="py-1 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
                     {listed.map((n) => (
                       <NodeRow
@@ -637,8 +1053,9 @@ export function ContextBrowserTree({
 }
 
 // ─── 文件活动（按文件聚合树 + chips 过滤 + 三排序） ──────────────
-type FileChip = "all" | "read" | "write" | "search" | "image";
-type FileSort = "count" | "recent" | "path";
+export type FileChip = "all" | "read" | "write" | "search" | "image";
+export type FileChipFocus = { chip: Exclude<FileChip, "all">; tick: number };
+type FileSort = CtxFileSort;
 
 // dsh 的「搜索/图片」在本仓 FileActivity.action（read/write/move/dir）中无对应值：
 // 按工具名/扩展名启发式推断。chips 是过滤器而非互斥分类——搜索/图片与读/写
@@ -700,18 +1117,34 @@ function aggregate(files: FileActivity[]): FileAgg[] {
 
 const SORT_PILLS: { key: FileSort; labelKey: DictKey }[] = [
   { key: "count", labelKey: "contextview.filesSortCalls" },
+  { key: "lines", labelKey: "contextview.filesSortLines" },
   { key: "recent", labelKey: "contextview.filesSortLatest" },
   { key: "path", labelKey: "contextview.filesSortPath" },
+  { key: "name", labelKey: "contextview.filesSortName" },
 ];
 
 // 排序稳定性：并列时依次以最新时间/路径决胜，保证任意输入下顺序确定。
 const SORT_CMP: Record<FileSort, (a: FileAgg, b: FileAgg) => number> = {
   count: (a, b) => b.total - a.total || b.latest - a.latest || a.path.localeCompare(b.path),
+  lines: (a, b) => (b.added + b.removed) - (a.added + a.removed) || b.latest - a.latest || a.path.localeCompare(b.path),
   recent: (a, b) => b.latest - a.latest || a.path.localeCompare(b.path),
   path: (a, b) => a.path.localeCompare(b.path),
+  name: (a, b) => {
+    const an = a.path.split(/[\\/]/).pop() ?? a.path;
+    const bn = b.path.split(/[\\/]/).pop() ?? b.path;
+    return an.localeCompare(bn) || a.path.localeCompare(b.path);
+  },
 };
 
-export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDetail }: { files: FileActivity[]; onOpenFile?: (path: string) => void; sessionPath?: string; fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView> }) {
+export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDetail, chipFocus, onLocateOp, step }: {
+  files: FileActivity[];
+  onOpenFile?: (path: string) => void;
+  sessionPath?: string;
+  fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
+  chipFocus?: FileChipFocus | null;
+  onLocateOp?: (seq: number) => void;
+  step?: ContextRequestRecord | null;
+}) {
   const t = useT();
   // 预览打开二选一：默认内部走 usePreviewStore（与现有 FileActivityCard 同款链路），
   // onOpenFile 作为可选注入覆盖（契约签名保持兼容：传或不传均可）。
@@ -732,21 +1165,34 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
     saveContextPref("fileSort", k);
   };
 
+  useEffect(() => {
+    if (!chipFocus) return;
+    setChip(chipFocus.chip);
+    setQuery("");
+  }, [chipFocus]);
+
+  const scopedFiles = useMemo(() => {
+    if (!step) return files;
+    return files.filter((file) =>
+      file.turn < step.turn || (file.turn === step.turn && file.step <= step.step),
+    );
+  }, [files, step]);
+
   const q = query.trim().toLowerCase();
 
   const counts = useMemo(() => {
-    const c: Record<FileChip, number> = { all: files.length, read: 0, write: 0, search: 0, image: 0 };
-    for (const f of files) {
+    const c: Record<FileChip, number> = { all: scopedFiles.length, read: 0, write: 0, search: 0, image: 0 };
+    for (const f of scopedFiles) {
       if (chipMatch(f, "read")) c.read += 1;
       if (chipMatch(f, "write")) c.write += 1;
       if (chipMatch(f, "search")) c.search += 1;
       if (chipMatch(f, "image")) c.image += 1;
     }
     return c;
-  }, [files]);
+  }, [scopedFiles]);
 
   const { rows, opIndex } = useMemo(() => {
-    const filtered = files.filter((f) => chipMatch(f, chip) && (q === "" || f.path.toLowerCase().includes(q)));
+    const filtered = scopedFiles.filter((f) => chipMatch(f, chip) && (q === "" || f.path.toLowerCase().includes(q)));
     const ops = new Map<string, FileActivity[]>();
     for (const f of filtered) {
       const list = ops.get(f.path);
@@ -754,7 +1200,7 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
       else ops.set(f.path, [f]);
     }
     return { rows: aggregate(filtered).sort(SORT_CMP[sort]), opIndex: ops };
-  }, [files, chip, q, sort]);
+  }, [scopedFiles, chip, q, sort]);
   const shownTotals = useMemo(() => ({
     added: rows.reduce((sum, row) => sum + Math.max(0, row.added), 0),
     removed: rows.reduce((sum, row) => sum + Math.max(0, row.removed), 0),
@@ -785,6 +1231,11 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
             <FolderTree size={12} />
           </span>
           <span className="text-[12.5px] font-semibold text-fg">{t("contextview.filesTitle")}</span>
+          {step && (
+            <span className="ctx-file-scope" data-testid="ctx-files-step-scope">
+              {t("contextview.filesAtStep", { turn: step.turn, step: step.step })}
+            </span>
+          )}
           <span className="ctx-file-meta">
             {t("contextview.filesCount", { n: rows.length })}
             {shownTotals.added > 0 && <b className="ctx-file-added">+{fmtTokens(shownTotals.added)}</b>}
@@ -798,6 +1249,7 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
             type="button"
             aria-pressed={chip === c.key}
             data-tone={c.key}
+            data-testid={`ctx-file-chip-${c.key}`}
             className="ctx-file-chip"
             onClick={() => setChip(c.key)}
           >
@@ -831,8 +1283,8 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
         </span>
       </div>
       <div className="ctx-files-list mt-1 flex max-h-64 flex-col gap-1 overflow-y-auto pr-0.5">
-        {files.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noFiles")}</div>}
-        {files.length > 0 && rows.length === 0 && (
+        {scopedFiles.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noFiles")}</div>}
+        {scopedFiles.length > 0 && rows.length === 0 && (
           <div className="py-2 text-[10px] text-fg-faint">{t("contextview.filesNoMatch")}</div>
         )}
         {rows.map((a) => {
@@ -913,6 +1365,7 @@ export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDeta
                     detailState={details.get(op.seq)}
                     detailOpen={openDetails.has(op.seq)}
                     onToggleDetail={() => toggleDetail(op.seq)}
+                    onLocate={onLocateOp}
                   />
                 ))}
             </div>
@@ -930,11 +1383,13 @@ function FileOpRow({
   detailState,
   detailOpen,
   onToggleDetail,
+  onLocate,
 }: {
   op: FileActivity;
   detailState?: NodeDetailState;
   detailOpen: boolean;
   onToggleDetail: () => void;
+  onLocate?: (seq: number) => void;
 }) {
   const t = useT();
   const d = detailState?.s === "ok" ? detailState.d : null;
@@ -956,6 +1411,16 @@ function FileOpRow({
         )}
         {(op.hits ?? 0) > 0 && <span className="font-mono tabular-nums">≈{op.hits} {t("contextview.filesHits")}</span>}
         <span className="font-mono tabular-nums">{new Date(op.ts * 1000).toLocaleTimeString()}</span>
+        {onLocate && (
+          <button
+            type="button"
+            data-testid="file-op-locate-btn"
+            className="cursor-pointer border-0 bg-transparent text-accent hover:underline"
+            onClick={() => onLocate(op.seq)}
+          >
+            {t("contextview.locateInBrowser")}
+          </button>
+        )}
         <button
           type="button"
           data-testid="file-op-detail-btn"

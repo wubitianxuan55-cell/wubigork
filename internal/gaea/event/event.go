@@ -388,6 +388,7 @@ type RequestHeaderInfo struct {
 type ToolSchemaInfo struct {
 	Name   string `json:"name"`
 	Schema string `json:"schema,omitempty"`
+	Source string `json:"source,omitempty"`
 }
 
 // Sink consumes a turn's events. The agent calls Emit serially from its run

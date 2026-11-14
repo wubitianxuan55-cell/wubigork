@@ -137,6 +137,7 @@ type requestHeaderLogPayload struct {
 type requestToolLogPayload struct {
 	Name   string `json:"name"`
 	Schema string `json:"schema,omitempty"`
+	Source string `json:"source,omitempty"`
 }
 
 // toolCallLogPayload 是 tool_call / tool_dispatch 事件中的一次工具调用。
@@ -586,7 +587,7 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 	case event.RequestHeader:
 		tools := make([]requestToolLogPayload, 0, len(e.Header.Tools))
 		for _, t := range e.Header.Tools {
-			tools = append(tools, requestToolLogPayload{Name: t.Name, Schema: t.Schema})
+			tools = append(tools, requestToolLogPayload{Name: t.Name, Schema: t.Schema, Source: t.Source})
 		}
 		payload = requestHeaderLogPayload{
 			System:   e.Header.System,

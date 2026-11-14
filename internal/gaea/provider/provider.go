@@ -55,6 +55,9 @@ type ToolSchema struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
+	// Source 是 Gaea 工具注册面的权威来源（builtin-workspace / build-internal /
+	// extra-app / mcp:<server>）。仅用于上下文审计，不发送给模型。
+	Source string `json:"-"`
 }
 
 // Request is a single completion request.

@@ -162,7 +162,7 @@ type SurfaceNode struct {
 // GaeaContextNodeDetail 回读当前会话日志，不随列表整包下发）。
 type NodeDetail struct {
 	Seq  int64  `json:"seq"`
-	Kind string `json:"kind"` // tool_result | user_message | assistant_message
+	Kind string `json:"kind"` // tool_result | user_message | assistant_message | header
 	Ts   int64  `json:"ts,omitempty"`
 
 	// tool_result 专有：工具名 + 从配对 tool_dispatch 回读的参数 + 完整输出。
@@ -175,6 +175,9 @@ type NodeDetail struct {
 
 	// user_message / assistant_message 专有：完整正文。
 	Text string `json:"text,omitempty"`
+	// header 专有：request_header 中模型实际收到的工具 schema。system/tools
+	// 两个 SurfaceNode 共用 request_header Seq，因此同一次读取返回两份内容。
+	Tools []NodeToolDetail `json:"tools,omitempty"`
 
 	// ImageRefs 是详情文本/参数里确定性提取的图片文件引用（2.5b 后半；
 	// 纯函数提取，上限 4、去重保序）。空=无图片引用。
@@ -183,9 +186,33 @@ type NodeDetail struct {
 	// 解码 + 官方 patch 口径 token 估算；纯函数层不填）。与 ImageRefs 一一
 	// 对应；文件缺失 Exists=false、解码失败尺寸留零（诚实缺失，不猜）。
 	Images []NodeImage `json:"images,omitempty"`
+	// AttachmentRefs 是非图片持久化附件引用（仅 .gaea/uploads|attachments 下的
+	// 文件）。App 层补名称/MIME/大小；正文里的普通路径提及不算附件。
+	AttachmentRefs []string         `json:"attachmentRefs,omitempty"`
+	Attachments    []NodeAttachment `json:"attachments,omitempty"`
 
 	Lines   int  `json:"lines,omitempty"`   // 正文行数（Output/Text）
 	Clamped bool `json:"clamped,omitempty"` // 详情超返回上限被截断（诚实标注）
+}
+
+// NodeAttachment 是一条非图片附件卡数据。Name 取存储文件名（上传时已安全化），
+// Size 来自当前磁盘状态；文件缺失时 Exists=false，不伪造大小。
+type NodeAttachment struct {
+	Ref      string `json:"ref"`
+	Path     string `json:"path"`
+	Name     string `json:"name"`
+	MimeType string `json:"mimeType,omitempty"`
+	Size     int64  `json:"size,omitempty"`
+	Exists   bool   `json:"exists,omitempty"`
+}
+
+// NodeToolDetail 是 request_header 中的一条工具定义。Tokens 为同一固定密度
+// 口径的展示估算，不是供应商逐工具计费值。
+type NodeToolDetail struct {
+	Name   string `json:"name"`
+	Schema string `json:"schema,omitempty"`
+	Tokens int64  `json:"tokens,omitempty"`
+	Source string `json:"source,omitempty"`
 }
 
 // NodeImage 是一张图片引用的缩略卡数据（尺寸/token 只在文件存在且可解码
@@ -319,6 +346,14 @@ type CommandStats struct {
 	Bg     int   `json:"bg,omitempty"`
 }
 
+// CommandPage 是命令执行历史的向前分页（按 Seq 升序返回，前端与最新窗口
+// 合并）。AtStart 表示已到日志起点；Total 是整个会话的命令总数。
+type CommandPage struct {
+	Commands []CommandRecord `json:"commands"`
+	AtStart  bool            `json:"atStart"`
+	Total    int             `json:"total"`
+}
+
 // CompactTiers 是三层压缩水位（窗口占比 0~1）——内核 [agent]
 // compaction_soft_ratio/compaction_ratio/compaction_force_ratio 解析后的生效值
 // （0/非法整组回落内置缺省 0.5/0.8/0.9）：Soft=一次性增长提醒水位、Ratio=
@@ -359,6 +394,35 @@ type ContextTimeline struct {
 	Rate *CostRate `json:"rate,omitempty"`
 	// Compact 是压缩水位块（窗口未知/内核未初始化时 nil；见 CompactTiers）。
 	Compact *CompactTiers `json:"compact,omitempty"`
+}
+
+// SurfaceSnapshot 是历史请求时点模型实际可见的 surface（浏览器按需求值）。
+// Seq 对应该次 request_header；Nodes/Archive 由日志前缀确定性重折叠，不把
+// 当前 live surface 冒充成历史步骤内容。
+type SurfaceSnapshot struct {
+	Ok           bool          `json:"ok"`
+	Seq          int64         `json:"seq"`
+	Nodes        []SurfaceNode `json:"nodes"`
+	Archive      []SurfaceNode `json:"archive"`
+	NodesDropped int           `json:"nodesDropped,omitempty"`
+	NodesFloor   int64         `json:"nodesFloor,omitempty"`
+}
+
+// DnaBand 是趋势 DNA 模式中的一段模型读取序内容。system 聚合为一段；
+// request_header 中每个工具 schema 各自成段；其余 surface 节点逐段保留。
+type DnaBand struct {
+	Key     string `json:"key"`
+	Cat     string `json:"cat"`
+	Tokens  int64  `json:"tokens"`
+	NodeSeq int64  `json:"nodeSeq,omitempty"`
+	Label   string `json:"label,omitempty"`
+}
+
+// DnaSample 是单个历史请求时点的趋势 DNA 带。
+type DnaSample struct {
+	Ok    bool      `json:"ok"`
+	Seq   int64     `json:"seq"`
+	Bands []DnaBand `json:"bands"`
 }
 
 // CostRate 是当前生效的模型单价快照（每 1M tokens）。

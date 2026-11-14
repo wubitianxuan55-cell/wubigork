@@ -1,5 +1,7 @@
 package tool
 
+import "strings"
+
 // RegistryMap — P0 工具面地图（2026-11-09 众神殿 pan_1794234593182 裁决 action-1）。
 //
 // 唯一注册表（boot.Build 单一 tool.Registry）全部 reg.Add 行的契约清单：
@@ -146,6 +148,23 @@ var RegistryMap = map[string]RegistryEntry{
 
 	// ── plugin-mcp：动态行（备注）──
 	"mcp__<server>__<tool>": {"plugin-mcp", "随插件", "随工具", "随工具", "动态热插（plugins.go/controller_mcp.go reg.Add 同账）；名单凭证边界不枚举，P0 按非凭证方式标注"},
+}
+
+// SourceOf 返回工具在 Gaea 注册面中的权威来源。MCP 工具按
+// mcp__<server>__<tool> 命名空间解析出具体 server；其余工具读取 RegistryMap
+// 的装配入口。未知/旧工具返回空串，由调用方诚实省略来源 chip，不猜插件。
+func SourceOf(name string) string {
+	if strings.HasPrefix(name, MCPNamePrefix) {
+		rest := strings.TrimPrefix(name, MCPNamePrefix)
+		if server, _, ok := strings.Cut(rest, "__"); ok && server != "" {
+			return "mcp:" + server
+		}
+		return "mcp"
+	}
+	if entry, ok := RegistryMap[name]; ok {
+		return entry.Source
+	}
+	return ""
 }
 
 // RegistryMapNotePromptBypass `/mcp__` prompt 旁路备注（不进注册表，非工具面）。

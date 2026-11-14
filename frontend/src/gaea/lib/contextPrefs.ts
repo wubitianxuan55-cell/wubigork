@@ -10,8 +10,9 @@
 
 export type CtxTrendGranularity = "step" | "turn";
 export type CtxTrendMode = "total" | "delta";
-export type CtxBrowserSort = "time" | "size";
-export type CtxFileSort = "count" | "recent" | "path";
+export type CtxOverviewAuto = "off" | "100" | "200" | "300";
+export type CtxBrowserSort = "time" | "size" | "name";
+export type CtxFileSort = "count" | "lines" | "recent" | "path" | "name";
 export type CtxInsightsRange = "today" | "7d" | "30d" | "all";
 
 export interface ContextPrefs {
@@ -25,6 +26,9 @@ export interface ContextPrefs {
   // 趋势卡耗时曲线开关（v4.542 刀15；上游 settings.durationCurve 同款——
   // Wave4 落开关时是视图局部态，本刀补持久化）。
   trendDuration: boolean;
+  // 趋势步骤达到阈值时自动切到总览带（上游 overviewAutoSteps 同款）。
+  // 手动关闭后本会话不再自动弹开。
+  trendOverviewAuto: CtxOverviewAuto;
 }
 
 const STORAGE_KEY = "gaea.context.prefs";
@@ -36,15 +40,17 @@ export const CONTEXT_PREFS_DEFAULTS: ContextPrefs = {
   fileSort: "count",
   insightsRange: "30d",
   trendDuration: false,
+  trendOverviewAuto: "100",
 };
 
 const VALID: { [K in keyof ContextPrefs]: readonly ContextPrefs[K][] } = {
   trendGranularity: ["step", "turn"],
   trendMode: ["total", "delta"],
-  browserSort: ["time", "size"],
-  fileSort: ["count", "recent", "path"],
+  browserSort: ["time", "size", "name"],
+  fileSort: ["count", "lines", "recent", "path", "name"],
   insightsRange: ["today", "7d", "30d", "all"],
   trendDuration: [true, false],
+  trendOverviewAuto: ["off", "100", "200", "300"],
 };
 
 /** 读取上下文页偏好；未设置/无 window 时返回全默认，损坏值逐字段回落。 */

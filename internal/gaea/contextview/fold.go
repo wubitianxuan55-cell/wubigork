@@ -1294,6 +1294,7 @@ type requestHeaderPayload struct {
 	Tools  []struct {
 		Name   string `json:"name"`
 		Schema string `json:"schema,omitempty"`
+		Source string `json:"source,omitempty"`
 	} `json:"tools,omitempty"`
 	Window int `json:"window,omitempty"`
 	// Provider 是供应商实例名（v4.542 刀1 追加列，旧日志零值=无戳不折叠

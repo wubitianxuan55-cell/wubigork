@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../../lib/i18n";
 import type { ContextSurfaceNode, FileActivity } from "../../lib/types";
-import { ContextBrowserTree, FileActivityTree } from "./inspector";
+import { ContextBrowserTree, FileActivityTree, NodeDetailPanel } from "./inspector";
 
 // 组件链会经由 ContextView（CAT_COLORS）触达 bridge；jsdom 无 Wails 全局，按
 // ContextView.test.tsx 惯例 mock 掉 seam（store 的 usePreviewStore 保持真实实现）。
@@ -135,6 +135,90 @@ describe("ContextBrowserTree 上下文浏览器（分类折叠组）", () => {
   });
 });
 
+describe("NodeDetailPanel header 全文", () => {
+  it("工具分类展开 request_header 的真实 schema 与估算 token；不混入 system 正文", () => {
+    renderT(
+      <NodeDetailPanel
+        headerFocus="tools"
+        d={{
+          seq: 2,
+          kind: "header",
+          text: "系统提示词正文",
+          tools: [
+            { name: "read_file", schema: '{"type":"object"}', tokens: 12, source: "builtin-workspace" },
+            { name: "bash" },
+          ],
+          lines: 1,
+        }}
+      />,
+    );
+    expect(screen.getByText("工具 schema · 2")).toBeTruthy();
+    expect(screen.getAllByText("read_file").length).toBeGreaterThan(0);
+    expect(screen.getByText('{"type":"object"}')).toBeTruthy();
+    expect(screen.getByText("builtin-workspace")).toBeTruthy();
+    expect(screen.getByText("该请求头只记录了工具名，没有 schema。")).toBeTruthy();
+    expect(screen.queryByText("系统提示词正文")).toBeNull();
+  });
+
+  it("用户消息渲染非图片附件卡：类型/大小/缺失态与预览入口", () => {
+    renderT(
+      <NodeDetailPanel
+        d={{
+          seq: 5,
+          kind: "user_message",
+          text: "看附件",
+          lines: 1,
+          attachments: [
+            {
+              ref: ".gaea/uploads/report-a.xlsx",
+              path: "C:/demo/.gaea/uploads/report-a.xlsx",
+              name: "report-a.xlsx",
+              mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              size: 2048,
+              exists: true,
+            },
+            {
+              ref: ".gaea/uploads/spec.pdf",
+              path: "C:/demo/.gaea/uploads/spec.pdf",
+              name: "spec.pdf",
+              exists: false,
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("ctx-node-attachments").textContent).toContain("附件 · 2");
+    expect(screen.getByText("report-a.xlsx")).toBeTruthy();
+    expect(screen.getByText("2.0 KB")).toBeTruthy();
+    expect(screen.getAllByText("文件不存在").length).toBeGreaterThan(0);
+    const cards = screen.getAllByTestId("ctx-file-attachment-card");
+    expect((cards[0] as HTMLButtonElement).disabled).toBe(false);
+    expect((cards[1] as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("图片与非图片附件按正文出现顺序混排为同一组卡片", () => {
+    const { container } = renderT(
+      <NodeDetailPanel
+        d={{
+          seq: 6,
+          kind: "user_message",
+          text: "先看 .gaea/uploads/spec.pdf，再看 C:/pics/a.png",
+          lines: 1,
+          images: [{ ref: "C:/pics/a.png", path: "C:/pics/a.png", exists: false }],
+          attachments: [{
+            ref: ".gaea/uploads/spec.pdf",
+            path: "C:/demo/.gaea/uploads/spec.pdf",
+            name: "spec.pdf",
+            exists: false,
+          }],
+        }}
+      />,
+    );
+    const cards = Array.from(container.querySelectorAll("[data-attachment-kind]"));
+    expect(cards.map((card) => card.getAttribute("data-attachment-kind"))).toEqual(["file", "image"]);
+  });
+});
+
 describe("FileActivityTree 文件活动（按文件聚合树）", () => {
   it("渲染聚合树行：路径 + 读写次数徽标 + 最新时间；纯目录行不可点", () => {
     const { container } = renderT(<FileActivityTree files={FILES} />);
@@ -172,6 +256,17 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
     expect(order()).toEqual(["docs/b.md", "src/a.ts", "assets", "src/c.ts"]);
     fireEvent.click(screen.getByText("按路径"));
     expect(order()).toEqual(["assets", "docs/b.md", "src/a.ts", "src/c.ts"]);
+  });
+
+  it("排序扩展：按行数（缺省时按最新决胜）与按名称", () => {
+    localStorage.removeItem("gaea.context.prefs");
+    const { container } = renderT(<FileActivityTree files={FILES} />);
+    const order = () =>
+      Array.from(container.querySelectorAll("button[data-file]")).map((b) => b.getAttribute("data-file"));
+    fireEvent.click(screen.getByText("按行数"));
+    expect(order()).toEqual(["docs/b.md", "src/a.ts", "assets", "src/c.ts"]);
+    fireEvent.click(screen.getByText("按名称"));
+    expect(order()).toEqual(["src/a.ts", "assets", "docs/b.md", "src/c.ts"]);
   });
 
   it("路径过滤输入框 + 汇总行「N 个文件」；无匹配时空态", () => {
@@ -226,6 +321,34 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
     // 详情内容来自注入源
     await vi.waitFor(() => expect(screen.getByText("自定义源详情 5")).toBeTruthy());
     expect(container.textContent).not.toContain("回读失败");
+  });
+
+  it("操作日志可定位到上下文浏览器对应节点", () => {
+    localStorage.removeItem("gaea.context.prefs");
+    const onLocateOp = vi.fn();
+    renderT(<FileActivityTree files={FILES} onLocateOp={onLocateOp} />);
+    fireEvent.click(screen.getAllByTestId("file-ops-toggle")[0]);
+    fireEvent.click(screen.getAllByTestId("file-op-locate-btn")[0]);
+    expect(onLocateOp).toHaveBeenCalledWith(5);
+  });
+
+  it("钉住历史步骤后文件活动只显示截至该步的操作", () => {
+    const { container } = renderT(
+      <FileActivityTree
+        files={FILES}
+        step={{
+          seq: 8,
+          ts: 1750000008,
+          turn: 1,
+          step: 1,
+          category: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 0, tool: 0 },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("ctx-files-step-scope").textContent).toContain("T1·S1");
+    expect(container.querySelector('button[data-file="src/a.ts"]')).toBeTruthy();
+    expect(container.querySelector('button[data-file="docs/b.md"]')).toBeNull();
+    expect(container.querySelector('button[data-file="src/c.ts"]')).toBeNull();
   });
 
   it("空态：无文件活动时复用现有文案键", () => {

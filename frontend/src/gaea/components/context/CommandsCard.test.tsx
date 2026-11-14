@@ -62,6 +62,55 @@ describe("CommandsCard 命令执行卡", () => {
     expect(list.getByText("npm run dev")).toBeTruthy();
     expect(list.queryByText("go build ./...")).toBeNull();
   });
+
+  it("命令行可展开配对工具结果；同一结果只回读一次", async () => {
+    const fetchNodeDetail = vi.fn(async (seq: number) => ({
+      seq,
+      kind: "tool_result" as const,
+      tool: "bash",
+      output: `result for ${seq}`,
+      lines: 1,
+    }));
+    renderT(
+      <CommandsCard
+        commands={CMDS}
+        sessionPath="/sessions/demo.jsonl"
+        fetchNodeDetail={fetchNodeDetail}
+      />,
+    );
+    const rowButton = () => within(screen.getByTestId("ctx-cmd-row-9")).getByRole("button", { name: /go build/ });
+    fireEvent.click(rowButton());
+    await vi.waitFor(() => expect(screen.getByText("result for 10")).toBeTruthy());
+    expect(fetchNodeDetail).toHaveBeenCalledWith(10);
+    fireEvent.click(rowButton());
+    fireEvent.click(rowButton());
+    expect(fetchNodeDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("可向前分页加载 400 条窗口之外的更早命令并合并统计视图", async () => {
+    const fetchOlderCommands = vi.fn(async () => ({
+      commands: [
+        { seq: 1, resultSeq: 2, time: 1750000001, tool: "bash", cmd: "npm install", turn: 1, step: 1, start: 1750000001, end: 1750000002, status: "completed" as const, derived: true },
+        { seq: 3, resultSeq: 4, time: 1750000003, tool: "bash", cmd: "npm run build", turn: 1, step: 1, start: 1750000003, end: 1750000005, status: "completed" as const, derived: true },
+      ],
+      atStart: true,
+      total: 6,
+    }));
+    renderT(
+      <CommandsCard
+        commands={CMDS}
+        stats={{ runs: 6, failed: 1, ms: 9000, bg: 1 }}
+        fetchOlderCommands={fetchOlderCommands}
+      />,
+    );
+    const load = screen.getByTestId("ctx-cmd-load-older");
+    expect(load.textContent).toContain("4/6");
+    fireEvent.click(load);
+    await vi.waitFor(() => expect(screen.getByTestId("ctx-cmd-row-1")).toBeTruthy());
+    expect(fetchOlderCommands).toHaveBeenCalledWith(9, 200);
+    expect(screen.getByTestId("ctx-cmd-row-3").textContent).toContain("npm run build");
+    expect(screen.getByTestId("ctx-cmd-loadmore").textContent).toContain("已加载全部历史命令");
+  });
 });
 
 // ─── inspector：DNA 视图 + kind 筛选 + skill 行 ───
@@ -87,6 +136,24 @@ function Browser(props: Partial<Parameters<typeof ContextBrowserTree>[0]>) {
 }
 
 describe("ContextBrowserTree 刀4 增强", () => {
+  it("Map 视图按 token 面积展示分类，点击分类切回树并展开明细", () => {
+    renderT(<Browser />);
+    fireEvent.click(screen.getByTestId("ctx-browser-view-map"));
+
+    const map = screen.getByTestId("ctx-browser-map");
+    expect(map.textContent).toContain("面积 = 模型可见 tokens 占比");
+    expect(map.querySelectorAll("[data-map-cat]")).toHaveLength(6);
+    expect(screen.queryByTestId("ctx-browser-map-item-inject")).toBeNull();
+    const skill = screen.getByTestId("ctx-browser-map-item-skill");
+    expect(skill.tagName).toBe("BUTTON");
+    expect(skill.getAttribute("aria-label")).toContain("技能内容");
+    expect(skill.getAttribute("aria-label")).toContain("1项");
+
+    fireEvent.click(skill);
+    expect(screen.queryByTestId("ctx-browser-map")).toBeNull();
+    expect(screen.getByText("skill body")).toBeTruthy();
+  });
+
   it("DNA 视图：顺序编号平铺 + 系统提示词/工具定义收尾两行", () => {
     renderT(<Browser />);
     fireEvent.click(screen.getByTestId("ctx-browser-view-dna"));
@@ -99,6 +166,25 @@ describe("ContextBrowserTree 刀4 增强", () => {
     // 收尾两行
     expect(screen.getByText("系统提示词（最新头）")).toBeTruthy();
     expect(screen.getByText("工具定义（最新头）")).toBeTruthy();
+  });
+
+  it("DNA 搜索生效、最新节点在上、按请求边界标注引入步骤", () => {
+    renderT(
+      <Browser
+        requests={[
+          { seq: 2, ts: 1, turn: 1, step: 1, category: { system: 0, tools: 0, user: 1, skill: 0, inject: 0, assistant: 0, tool: 0 } },
+          { seq: 5, ts: 2, turn: 1, step: 2, category: { system: 0, tools: 0, user: 0, skill: 0, inject: 0, assistant: 1, tool: 0 } },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("ctx-browser-view-dna"));
+    const before = screen.getByTestId("ctx-browser-dna").querySelectorAll("[data-testid^='ctx-browser-dna-row-']");
+    expect(before[0].getAttribute("data-testid")).toBe("ctx-browser-dna-row-7");
+    expect(screen.getByTestId("ctx-browser-dna-row-6").textContent).toContain("T1·S2");
+
+    fireEvent.change(screen.getByPlaceholderText("过滤节点文本…"), { target: { value: "package main" } });
+    expect(screen.getByTestId("ctx-browser-dna-row-6")).toBeTruthy();
+    expect(screen.queryByTestId("ctx-browser-dna-row-3")).toBeNull();
   });
 
   it("助手 kind 筛选：思考 chip 只留带 reasoning 的行；正文/工具计数正确", () => {
@@ -124,5 +210,42 @@ describe("ContextBrowserTree 刀4 增强", () => {
     expect(screen.getByText("run_skill")).toBeTruthy();
     // DETAILABLE 含 skill：行上有详情按钮
     expect(screen.getAllByTestId("ctx-node-detail-btn").length).toBeGreaterThan(0);
+  });
+
+  it("分类内搜索 + 趋势预览元数据 + 逐类 delta badge", () => {
+    renderT(
+      <Browser
+        previewRequest={{
+          seq: 99,
+          ts: 1750000099,
+          turn: 2,
+          step: 3,
+          category: { system: 2100, tools: 10400, user: 120, skill: 0, inject: 0, assistant: 1300, tool: 2200 },
+        }}
+        delta={{ items: 1, tokens: 120, byCat: [{ cat: "user", items: 1, tokens: 120 }] }}
+      />,
+    );
+    const preview = screen.getByTestId("ctx-browser-preview");
+    expect(preview.textContent).toContain("T2");
+    expect(preview.textContent).toContain("S3");
+    expect(screen.getByText("用户消息").closest("button")?.textContent).toContain("+1 · +120");
+
+    fireEvent.click(screen.getByText("用户消息"));
+    const groupSearch = screen.getByTestId("ctx-browser-search-user");
+    fireEvent.change(groupSearch, { target: { value: "代码" } });
+    expect(screen.getByText(/帮我看看这段代码/)).toBeTruthy();
+    fireEvent.change(groupSearch, { target: { value: "不存在" } });
+    expect(screen.queryByText(/帮我看看这段代码/)).toBeNull();
+    expect(screen.getByText("没有该分类的上下文节点")).toBeTruthy();
+  });
+
+  it("catFocus 直接切树视图、展开目标分类并应用分类查询", () => {
+    renderT(
+      <Browser
+        catFocus={{ cat: "assistant", tick: 1, query: "thinking" }}
+      />,
+    );
+    expect(screen.getByText("thinking about it")).toBeTruthy();
+    expect(screen.queryByText("run tool")).toBeNull();
   });
 });

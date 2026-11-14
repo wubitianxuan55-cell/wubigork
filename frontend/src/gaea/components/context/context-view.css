@@ -357,6 +357,13 @@
   background: color-mix(in srgb, var(--fg) 7%, transparent);
 }
 
+.ctx-event-row:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
 .ctx-event-sign {
   width: 14px;
   flex: none;
@@ -854,6 +861,10 @@
   background: color-mix(in srgb, var(--fg) 8%, transparent);
 }
 
+.ctx-cmd-attention > button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
 .ctx-cmd-attention i {
   width: 7px;
   height: 7px;
@@ -897,6 +908,29 @@
   flex-direction: column;
   gap: 1px;
   overflow-y: auto;
+}
+
+.ctx-cmd-program-search {
+  width: 100%;
+  height: 22px;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 5px;
+  outline: none;
+  color: var(--fg);
+  background: var(--bg-soft);
+  font-size: 9.5px;
+}
+
+.ctx-cmd-program-search:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.ctx-cmd-program-empty {
+  padding: 5px 6px;
+  color: var(--fg-faint);
+  font-size: 9.5px;
 }
 
 .ctx-cmd-program {
@@ -996,6 +1030,11 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.ctx-cmd-search-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-soft));
+}
+
 .ctx-cmd-list {
   min-height: 120px;
   max-height: 420px;
@@ -1022,6 +1061,42 @@
 
 .ctx-cmd-row:hover {
   background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.ctx-cmd-row-button {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.ctx-cmd-row-button:disabled {
+  cursor: default;
+}
+
+.ctx-cmd-row-button:not(:disabled) {
+  cursor: pointer;
+}
+
+.ctx-cmd-row-open {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.ctx-cmd-chev {
+  flex: none;
+  padding-top: 1px;
+  color: var(--fg-faint);
+  font-size: 9px;
+}
+
+.ctx-cmd-detail {
+  margin: 3px 0 2px 18px;
 }
 
 .ctx-cmd-row-state {
@@ -1098,11 +1173,267 @@
   font-size: 9.5px;
 }
 
+.ctx-browser-delta {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 11%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-browser-delta[data-sign="down"] {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 10%, transparent);
+}
+
+.ctx-browser-source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ctx-browser-map-hint {
+  margin-bottom: 5px;
+  color: var(--fg-faint);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.ctx-browser-map-shell {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--fg) 8%, transparent);
+  border-radius: 7px;
+  background: var(--bg-soft);
+}
+
+.ctx-browser-map-item {
+  position: absolute;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--map-color) 38%, var(--color-border));
+  border-radius: 5px;
+  outline: none;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--map-color) 15%, var(--bg-soft));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.ctx-browser-map-item:hover {
+  border-color: color-mix(in srgb, var(--map-color) 72%, var(--color-border));
+  background: color-mix(in srgb, var(--map-color) 24%, var(--bg-soft));
+}
+
+.ctx-browser-map-item:focus-visible {
+  border-color: var(--map-color);
+  box-shadow:
+    0 0 0 2px var(--bg-soft),
+    0 0 0 4px color-mix(in srgb, var(--map-color) 52%, transparent);
+}
+
+.ctx-browser-map-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.ctx-browser-map-name i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--map-color);
+}
+
+.ctx-browser-map-name span,
+.ctx-browser-map-value,
+.ctx-browser-map-count {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-browser-map-value {
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-browser-map-count {
+  color: var(--fg-faint);
+  font-size: 8.5px;
+}
+
+.ctx-browser-map-item[data-compact="true"] {
+  justify-content: center;
+  gap: 1px;
+  padding: 4px;
+}
+
+.ctx-browser-map-item[data-compact="true"] .ctx-browser-map-count {
+  display: none;
+}
+
+.ctx-browser-map-item[data-compact="true"] .ctx-browser-map-name {
+  font-size: 8.5px;
+}
+
+.ctx-browser-map-item[data-compact="true"] .ctx-browser-map-value {
+  font-size: 8px;
+}
+
+.ctx-browser-map-empty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--fg-faint);
+  font-size: 10px;
+}
+
+.ctx-browser-source-live {
+  flex: none;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-dim);
+  background: var(--bg-soft);
+  font: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.ctx-browser-source-live[aria-pressed="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.ctx-browser-source select {
+  min-width: 0;
+  flex: 1;
+  height: 23px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 5px;
+  outline: none;
+  color: var(--fg-dim);
+  background: var(--bg-soft);
+  font-size: 9.5px;
+}
+
+.ctx-browser-source select:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ctx-tool-source {
+  max-width: 45%;
+  overflow: hidden;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 8.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-file-attachment {
+  display: flex;
+  width: min(15rem, 100%);
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 7px;
+  color: var(--fg);
+  background: var(--bg-soft);
+  cursor: pointer;
+}
+
+.ctx-file-attachment:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft));
+}
+
+.ctx-file-attachment:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.ctx-file-attachment-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+.ctx-file-scope {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+
 .ctx-cmd-empty {
   padding: 18px 8px;
   color: var(--fg-faint);
   font-size: 10.5px;
   text-align: center;
+}
+
+.ctx-cmd-loadmore {
+  display: flex;
+  justify-content: center;
+  padding: 7px 4px 3px;
+  color: var(--fg-faint);
+  font-size: 9.5px;
+}
+
+.ctx-cmd-loadmore button {
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 6px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ctx-cmd-loadmore button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.ctx-cmd-loadmore button:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 @media (min-width: 800px) {
@@ -1163,7 +1494,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ctx-tile,
-  .ctx-row {
+  .ctx-row,
+  .ctx-browser-map-item {
     transition: none;
   }
 }

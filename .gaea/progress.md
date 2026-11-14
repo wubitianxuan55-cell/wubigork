@@ -26,6 +26,57 @@
   +SHA256SUMS 入库 4db1c355，exe/三 DLL/源码包/preview zip/uncommitted 快照
   留盘）；包产物=装机位同源 exe E65681B6…（c85a9815 干净树构建），冒烟 200。
 
+## dsh-context 0.84.1 上下文交互续刀 · 2026-11-14
+
+按 `bowenliang123/dsh-context` 官方 `v0.84.1` / `d81325ec` 源码继续对齐：
+- 趋势总览补四分位标尺与分类点击；柱/色块悬停回传请求预览；Step brief
+  补 `New in` 行。
+- 浏览器七分类独立搜索、时间/大小/名称排序、逐类 delta；DNA 搜索、最新在
+  上、确定性“引入步骤”；system/tools 节点从 request_header 展开真实系统
+  提示词与逐工具 schema。
+- Context Stats 下钻接通 User 浏览器分类、文件活动四类筛选、事件 kind 与
+  命令 program；命令行可展开配对工具结果；文件操作可定位浏览器节点。
+- 验证：最终相关 UI+mock 契约 81 例绿；Go `contextview` 与 `internal/app`
+  全包绿（app 182.976s）；全量 `tsc -b` 绿；Vite 生产 build 39.86s；
+  暗/亮 mock 实机走查。
+- 续刀（同日）：浏览器「地图」从占位选项补成真实 token 面积 treemap，
+  小格自动降密度但保留完整 aria/title；鼠标/键盘激活后切回树视图、展开
+  并定位分类。修复第七分类 `skill` 已进入构成/图例却未计入上下文总量和
+  百分比的问题；补齐三语 `viewMap/mapHint/mapItemLabel`。
+- 原列余项已落地：历史步骤 surface 走 Go 日志前缀确定性重折叠；自定义源
+  缺接口时诚实禁用；工具来源 chip 只在 header 投影提供时显示；非图片附件
+  card 已进入节点详情链。
+- 验证：相关 UI 4 文件 75 例绿；全量 `tsc -b` 绿；改动面 ESLint 0
+  （含既有 fast-refresh warning 清理）；Vite 生产 build 33.21s 绿；
+  mock 暗/亮双主题走查并实测地图按钮键盘 Enter 下钻。
+- 上游续刀二：趋势增量改为按七分类堆叠正负变化并显示零轴；补「自适应」
+  纵轴（按当前横向可见步骤缩放）、达到 100/200/300 步自动总览、手动关闭
+  本会话粘性、初始定位最新步骤、钉住步骤横向居中、总览方向键/Home/End/
+  Enter 下钻。事件行可点：压缩定位其后首个请求，其余事件优先直达对应
+  浏览器节点；上下文页按会话保存纵向滚动位置。附件详情从“图片段 + 文件段”
+  合并为按正文出现顺序混排的附件卡。
+- 设置中心补趋势自动总览阈值，并补齐浏览器名称序、文件行数/名称序入口。
+- 验证：相关 UI 5 文件 88 例绿；全量 `tsc -b` 绿；改动面 ESLint 0；
+  Vite 生产 build 33.86s 绿；mock 暗/亮双主题走查，实测增量分类堆叠、
+  自适应联动与事件行按钮态。
+- 上游收官批三：新增 `GaeaContextDna` 批量历史读取序接口（单次日志折返、
+  最多 128 个请求、32 份版本化缓存）；system 单段、request_header 逐工具
+  schema 成段、其余 surface 节点按读取序成段。前端 DNA 仅请求横向可见窗口
+  及前一步，90ms 防抖并在滚动时增量缓存；支持全局/增量 DNA、分类联动与
+  首步基线说明。
+- 新增 `GaeaContextCommands` 命令历史分页接口（按 Seq 排他游标、默认 200、
+  硬上限 1000、32 份版本化页缓存）；命令卡在常规 400 条窗口之外显示“加载
+  更早”，合并后程序分布、慢命令和重复命令分析同步覆盖旧页。绑定面 749→751。
+- 验证：相关前端 7 文件 105 例绿；Go `contextview` + `internal/app` 定向绿；
+  全量 `tsc -b`、改动面 ESLint 0；Vite 生产 build 32.85s；mock 亮暗主题
+  实测 DNA 节点分段。完整 Wails 构建 1m22.507s（bindings 未跳过），
+  `gaea.exe` 63,727,104 B / SHA256 `E12BDCF4…8E6`，正式路径冒烟
+  `/api/health` 200（PID 53944 已回收）。
+- 绑定守卫：`bindingNames.ts` 与 Go 一致 751 名；legacy guard 仍提示两个
+  既有死项 `EngineUpdateStatus` / `StrataModelStart`（本轮未处理，非新增）。
+- 当前剩余：历史 surface/DNA/附件/来源在真实长会话上的全链走查；自定义
+  ContextView 数据源若要 DNA，需显式提供 `fetchDna`。本轮不装机。
+
 ## DSH Context / Fleet UX 对齐 · 2026-11-13（代码候选）
 
 按用户要求不再从截图猜测，回源 `bowenliang123/dsh-context v0.84.1`

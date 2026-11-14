@@ -59,12 +59,37 @@ func TestNodeDetailForErrorAndMessages(t *testing.T) {
 	if !ok || a.Kind != "assistant_message" || a.Lines != 1 {
 		t.Fatalf("assistant 详情错误: %+v", a)
 	}
-	// request_header 聚合节点不可展开；未知 seq 同样 false
-	if _, ok := NodeDetailFor(entries, 1); ok {
-		t.Fatal("header 节点不应可展开")
+	// request_header 聚合节点可展开 system 全文；未知 seq 返回 false
+	h, ok := NodeDetailFor(entries, 1)
+	if !ok || h.Kind != "header" || h.Text != "sys" {
+		t.Fatalf("header 详情错误: %+v", h)
 	}
 	if _, ok := NodeDetailFor(entries, 99); ok {
 		t.Fatal("未知 seq 不应可展开")
+	}
+}
+
+// TestNodeDetailForHeaderTools：system 与每个工具原始 schema 同次返回；
+// token 是固定密度展示估算，缺失 schema 仍保留工具名。
+func TestNodeDetailForHeaderTools(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "request_header", map[string]any{
+			"system": "系统提示词全文",
+			"tools": []map[string]any{
+				{"name": "read_file", "schema": `{"type":"object","properties":{"path":{"type":"string"}}}`, "source": "builtin-workspace"},
+				{"name": "bash"},
+			},
+		}),
+	}
+	d, ok := NodeDetailFor(entries, 1)
+	if !ok || d.Kind != "header" || d.Text != "系统提示词全文" {
+		t.Fatalf("header 详情错误: %+v", d)
+	}
+	if len(d.Tools) != 2 || d.Tools[0].Name != "read_file" || d.Tools[0].Schema == "" || d.Tools[0].Tokens <= 0 || d.Tools[0].Source != "builtin-workspace" {
+		t.Fatalf("工具 schema 详情错误: %+v", d.Tools)
+	}
+	if d.Tools[1].Name != "bash" || d.Tools[1].Schema != "" {
+		t.Fatalf("缺 schema 工具应诚实保留名称: %+v", d.Tools[1])
 	}
 }
 
@@ -110,5 +135,17 @@ func TestNodeDetailForImageRefs(t *testing.T) {
 	u, _ := NodeDetailFor(entries, 4)
 	if len(u.ImageRefs) != 1 || u.ImageRefs[0] != `C:/pics/a.png` {
 		t.Fatalf("user 图片引用提取错误: %v", u.ImageRefs)
+	}
+}
+
+func TestExtractStoredFileRefsOnlyPersistedNonImages(t *testing.T) {
+	text := `查看 @.gaea/uploads/report-a.xlsx 和
+<file path=".gaea/uploads/note.pdf">正文</file>
+图片 @.gaea/attachments/pic.png 继续走图片卡；
+普通工作区 docs/readme.md 不是附件。`
+	refs := ExtractStoredFileRefs(text)
+	want := []string{".gaea/uploads/report-a.xlsx", ".gaea/uploads/note.pdf"}
+	if len(refs) != len(want) || refs[0] != want[0] || refs[1] != want[1] {
+		t.Fatalf("stored file refs = %v, want %v", refs, want)
 	}
 }
