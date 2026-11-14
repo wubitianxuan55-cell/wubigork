@@ -62,7 +62,7 @@ type scheduleGet struct{ workDir string }
 func (scheduleGet) Name() string { return "schedule_get" }
 
 func (scheduleGet) Description() string {
-	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）；任务带 durationUnit=cd 表示日历天（自然日定时，duration 为自然日数，等效工作日跨度=该任务 cpm 行 ef−es）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
+	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）；任务带 durationUnit=cd 表示日历天（自然日定时，duration 为自然日数，等效工作日跨度=该任务 cpm 行 ef−es）；任务行含 askFinish 要求完成（工作日序号，0=开工日，缺省=未下达）。有检视或任一任务设置了要求完成时附带执行期治理叙事（execution：reviewCount 检视期数、latest 最新一期加权完成量/计划应完成/偏差、warn 红绿灯与未设置计数、redRows 红灯明细超期天数与五档——plan-ask 口径）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
 }
 
 func (scheduleGet) Schema() json.RawMessage {
@@ -144,6 +144,10 @@ func (s scheduleGet) Execute(ctx context.Context, args json.RawMessage) (string,
 	if proj.Deadline != "" {
 		out["deadline"] = proj.Deadline
 	}
+	// 执行期治理叙事（斑马复刻 S2/S5：检视+预警，plan-ask 口径；无信号 nil 不出键）
+	if exec := proj.ExecutionNarrative(cpm); exec != nil {
+		out["execution"] = exec
+	}
 	return mustJSON(out)
 }
 
@@ -159,13 +163,15 @@ type taskView struct {
 	ManualStart int    `json:"manualStart,omitempty"`
 	// DurationUnit 工期单位（v4.151 双工期刀2：缺省 wd=工作日；cd=日历天）。
 	DurationUnit string `json:"durationUnit,omitempty"`
-	ES           int    `json:"es"`
-	EF           int    `json:"ef"`
-	LS           int    `json:"ls"`
-	LF           int    `json:"lf"`
-	TF           int    `json:"tf"`
-	FF           int    `json:"ff"`
-	Critical     bool   `json:"critical"`
+	// AskFinish 要求完成（斑马复刻 S5：工作日序号，0=开工日；nil=未下达）。
+	AskFinish *int `json:"askFinish,omitempty"`
+	ES        int  `json:"es"`
+	EF        int  `json:"ef"`
+	LS        int  `json:"ls"`
+	LF        int  `json:"lf"`
+	TF        int  `json:"tf"`
+	FF        int  `json:"ff"`
+	Critical  bool `json:"critical"`
 }
 
 func taskTable(p schedule.Project, cpm schedule.CpmResult) []taskView {
@@ -181,6 +187,7 @@ func taskTable(p schedule.Project, cpm schedule.CpmResult) []taskView {
 			Progress: t.Progress, IsMilestone: t.IsMilestone, Mode: mode,
 			ManualStart:  t.ManualStart,
 			DurationUnit: string(t.DurationUnit),
+			AskFinish:    t.AskFinish,
 			ES:           row.ES, EF: row.EF, LS: row.LS, LF: row.LF, TF: row.TF, FF: row.FF,
 			Critical: row.Critical,
 		})

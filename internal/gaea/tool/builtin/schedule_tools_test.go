@@ -524,3 +524,53 @@ func TestScheduleAnalyzeExecutionNarrative(t *testing.T) {
 		t.Fatalf("无信号不应出 execution 段: %s", ana2)
 	}
 }
+
+// schedule_get 执行期治理段 + 任务行 askFinish（斑马复刻 S2/S5 读面收口）。
+func TestScheduleGetExecutionAndAskFinish(t *testing.T) {
+	dir := t.TempDir()
+	// A(3)→B(2) FS；A askFinish=0（红灯：完成日 2，超期 2）；B 未设置。
+	// 检视一期 at=3：A 100%、B 50% → 加权 80%。
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01",
+		"tasks":[{"id":"a","name":"挖土","level":1,"duration":3,"progress":0,"askFinish":0},
+		         {"id":"b","name":"吊装","level":1,"duration":2,"progress":0}],
+		"links":[{"from":"a","to":"b","type":"FS","lag":0}],
+		"reviews":[{"at":3,"date":"2026-09-04","actuals":{"a":{"percent":100},"b":{"percent":50}}}]}}`)
+	out, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("get 输出非 JSON: %v", err)
+	}
+	exec, ok := m["execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("缺 execution 段: %s", out)
+	}
+	if exec["reviewCount"].(float64) != 1 {
+		t.Fatalf("reviewCount = %v", exec["reviewCount"])
+	}
+	tasks := m["tasks"].([]any)
+	ta := tasks[0].(map[string]any)
+	if af, exists := ta["askFinish"]; !exists || af.(float64) != 0 {
+		t.Fatalf("任务行 askFinish=0 应在（*int 契约，不静默丢）: %v", ta)
+	}
+	tb := tasks[1].(map[string]any)
+	if _, exists := tb["askFinish"]; exists {
+		t.Fatalf("未设置任务行不应出 askFinish 键（omitempty）: %v", tb)
+	}
+	// 无信号计划 → 无 execution 键（不造假零值）
+	schedApply(t, dir, `{"project":{"name":"Q","startDate":"2026-09-01",
+		"tasks":[{"id":"x","name":"平整","level":1,"duration":2,"progress":0}]}}`)
+	out2, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("get2: %v", err)
+	}
+	var m2 map[string]any
+	if err := json.Unmarshal([]byte(out2), &m2); err != nil {
+		t.Fatalf("get2 输出非 JSON: %v", err)
+	}
+	if _, exists := m2["execution"]; exists {
+		t.Fatalf("无信号不应出 execution 段: %s", out2)
+	}
+}
