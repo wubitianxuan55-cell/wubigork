@@ -1,3 +1,11 @@
+## 代码图谱重生成（2026-11-15 凌晨）· 主代理直做（d9b2cdf8）
+
+- `go run scripts/code_atlas_doc.go` 双面重导（markdown+codeAtlas.json）：**164→167 包**
+  （office 域 xlsxedit/omml/comhelper 独立成包=dsh-office 蒸馏批、modelengine 升独立包）、
+  源码 264,830→**274,000 行**、测试 210,821→**215,250 行**、内部边 474→**478**。
+- 分层不变量再生成复算全过（内核不 import 壳层 0 违例/scripts 零被引/壳层入边只来自入口）；
+  前端 CodeAtlasPanel 7/7 绿。§7/§8 手写导读段未动。
+
 ## lint 存量清欠 25 条 · 2026-11-14 · 主代理直做
 
 - **范围**：11-13 灵犀/dsh 批已提交遗留（非在途，mtime+git 归属定性）。提交 `f7e7acfd`：
