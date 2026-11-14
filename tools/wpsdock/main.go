@@ -3,17 +3,19 @@
 // wpsdock —— 本机 WPS 文档窗口「面板化」探针（独立工具，不参与 gaea 构建）
 //
 // 用途：验证「把 WPS 文档窗口放进 gaea 右侧面板」的两种实现是否可行。
-//   list     只读：枚举 WPS 文档窗口（类名 + 标题 + 样式）
-//   dock     停靠：把窗口按屏幕矩形摆放，可选去掉标题栏（安全，不改正属性）
-//   embed    嵌入：SetParent 到宿主窗口（实验性，风险见 -h）
-//   restore  还原：从 %TEMP%\wpsdock-state.json 恢复样式并置回顶层
+//
+//	list     只读：枚举 WPS 文档窗口（类名 + 标题 + 样式）
+//	dock     停靠：把窗口按屏幕矩形摆放，可选去掉标题栏（安全，不改正属性）
+//	embed    嵌入：SetParent 到宿主窗口（实验性，风险见 -h）
+//	restore  还原：从 %TEMP%\wpsdock-state.json 恢复样式并置回顶层
 //
 // 用法示例：
-//   go run ./tools/wpsdock list
-//   go run ./tools/wpsdock dock -hwnd 9179416 -rect 1200,120,700,900 -borderless
-//   go run ./tools/wpsdock dock -title 施工成本 -rect 1200,120,700,900 -borderless
-//   go run ./tools/wpsdock embed -title 施工成本 -parent 1234567
-//   go run ./tools/wpsdock restore -title 施工成本
+//
+//	go run ./tools/wpsdock list
+//	go run ./tools/wpsdock dock -hwnd 9179416 -rect 1200,120,700,900 -borderless
+//	go run ./tools/wpsdock dock -title 施工成本 -rect 1200,120,700,900 -borderless
+//	go run ./tools/wpsdock embed -title 施工成本 -parent 1234567
+//	go run ./tools/wpsdock restore -title 施工成本
 package main
 
 import (
@@ -42,7 +44,6 @@ var (
 	pSetWindowLongPtrW        = user32.NewProc("SetWindowLongPtrW")
 	pSetParent                = user32.NewProc("SetParent")
 	pSetWindowPos             = user32.NewProc("SetWindowPos")
-	pShowWindow               = user32.NewProc("ShowWindow")
 	pIsWindow                 = user32.NewProc("IsWindow")
 	pGetDpiForWindow          = user32.NewProc("GetDpiForWindow")
 	pGetWindowRect            = user32.NewProc("GetWindowRect")
@@ -88,23 +89,12 @@ type saved struct {
 	Embed bool    `json:"embed"`
 }
 
-func utf16PtrToString(p *uint16) string {
-	if p == nil {
-		return ""
-	}
-	var b []uint16
-	for ptr := unsafe.Pointer(p); *(*uint16)(ptr) != 0; ptr = unsafe.Add(ptr, 2) {
-		b = append(b, *(*uint16)(ptr))
-	}
-	return syscall.UTF16ToString(b)
-}
-
 func procName(pid uint32) string {
 	h, _, _ := pOpenProcess.Call(processQueryLimited, 0, uintptr(pid))
 	if h == 0 {
 		return "?"
 	}
-	defer pCloseHandle.Call(h)
+	defer func() { _, _, _ = pCloseHandle.Call(h) }()
 	buf := make([]uint16, 1024)
 	n := uint32(len(buf))
 	r, _, _ := pQueryFullProcessImageName.Call(h, 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&n)))
@@ -137,19 +127,19 @@ func enumWPS() []winInfo {
 	var out []winInfo
 	cb := syscall.NewCallback(func(hwnd uintptr, lparam uintptr) uintptr {
 		var pid uint32
-		pGetWindowThreadProcessID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+		_, _, _ = pGetWindowThreadProcessID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
 		pn := procName(pid)
 		if !isWPSProc(pn) {
 			return 1
 		}
 		clsBuf := make([]uint16, 256)
-		pGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&clsBuf[0])), 256)
+		_, _, _ = pGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&clsBuf[0])), 256)
 		cls := syscall.UTF16ToString(clsBuf)
 		ln, _, _ := pGetWindowTextLengthW.Call(hwnd)
 		var title string
 		if ln > 0 {
 			tb := make([]uint16, ln+1)
-			pGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&tb[0])), ln+1)
+			_, _, _ = pGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&tb[0])), ln+1)
 			title = syscall.UTF16ToString(tb)
 		}
 		st, _, _ := pGetWindowLongPtrW.Call(hwnd, gwlStyle)
@@ -162,7 +152,7 @@ func enumWPS() []winInfo {
 		})
 		return 1
 	})
-	pEnumWindows.Call(cb, 0)
+	_, _, _ = pEnumWindows.Call(cb, 0)
 	return out
 }
 
@@ -270,7 +260,7 @@ func main() {
 				continue
 			}
 			var r struct{ L, T, R, B int32 }
-			pGetWindowRect.Call(w.HWND, uintptr(unsafe.Pointer(&r)))
+			_, _, _ = pGetWindowRect.Call(w.HWND, uintptr(unsafe.Pointer(&r)))
 			dpi, _, _ := pGetDpiForWindow.Call(w.HWND)
 			fmt.Printf("\n[文档窗口] hwnd=%d rect=(%d,%d)-(%d,%d) 尺寸=%dx%d dpi=%d\n",
 				w.HWND, r.L, r.T, r.R, r.B, r.R-r.L, r.B-r.T, dpi)
@@ -292,9 +282,9 @@ func main() {
 		if *borderless {
 			st, _, _ := pGetWindowLongPtrW.Call(target, gwlStyle)
 			style := uint32(st) &^ (wsCaption | wsThickFrame | wsSysMenu | wsMinimizeBox | wsMaximizeBox)
-			pSetWindowLongPtrW.Call(target, gwlStyle, uintptr(style))
+			_, _, _ = pSetWindowLongPtrW.Call(target, gwlStyle, uintptr(style))
 		}
-		pSetWindowPos.Call(target, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(hh),
+		_, _, _ = pSetWindowPos.Call(target, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(hh),
 			swpNoZOrder|swpNoActivate|swpFrameChanged|swpShowWindow)
 		fmt.Printf("✓ 已停靠 hwnd=%d → %d,%d %dx%d（borderless=%v）；还原：go run ./tools/wpsdock restore -hwnd %d\n", target, x, y, w, hh, *borderless, target)
 
@@ -311,11 +301,11 @@ func main() {
 		remember(target, true)
 		st, _, _ := pGetWindowLongPtrW.Call(target, gwlStyle)
 		style := (uint32(st) &^ (wsPopup | wsCaption | wsThickFrame)) | wsChild
-		pSetWindowLongPtrW.Call(target, gwlStyle, uintptr(style))
-		pSetParent.Call(target, uintptr(*parent))
+		_, _, _ = pSetWindowLongPtrW.Call(target, gwlStyle, uintptr(style))
+		_, _, _ = pSetParent.Call(target, uintptr(*parent))
 		if *rect != "" {
 			if x, y, w, hh, err := parseRect(*rect); err == nil {
-				pSetWindowPos.Call(target, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(hh),
+				_, _, _ = pSetWindowPos.Call(target, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(hh),
 					swpNoZOrder|swpNoActivate|swpFrameChanged|swpShowWindow)
 			}
 		}
@@ -328,10 +318,10 @@ func main() {
 			for _, s := range list {
 				if s.HWND == target {
 					if s.Embed {
-						pSetParent.Call(target, 0)
+						_, _, _ = pSetParent.Call(target, 0)
 					}
-					pSetWindowLongPtrW.Call(target, gwlStyle, uintptr(s.Style))
-					pSetWindowPos.Call(target, 0, 0, 0, 0, 0, 0x0002|0x0001|swpFrameChanged|0x0040) // SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW
+					_, _, _ = pSetWindowLongPtrW.Call(target, gwlStyle, uintptr(s.Style))
+					_, _, _ = pSetWindowPos.Call(target, 0, 0, 0, 0, 0, 0x0002|0x0001|swpFrameChanged|0x0040) // SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW
 					fmt.Printf("✓ 已还原 hwnd=%d\n", target)
 					return
 				}
@@ -341,9 +331,9 @@ func main() {
 		}
 		for _, s := range list {
 			if s.Embed {
-				pSetParent.Call(s.HWND, 0)
+				_, _, _ = pSetParent.Call(s.HWND, 0)
 			}
-			pSetWindowLongPtrW.Call(s.HWND, gwlStyle, uintptr(s.Style))
+			_, _, _ = pSetWindowLongPtrW.Call(s.HWND, gwlStyle, uintptr(s.Style))
 		}
 		saveState(nil)
 		fmt.Printf("✓ 已还原 %d 个窗口\n", len(list))
@@ -352,5 +342,3 @@ func main() {
 		fmt.Println("用法：wpsdock [list|dock|embed|restore] -h 查看参数")
 	}
 }
-
-func argsToString(a []string) string { return strings.Join(a, " ") }

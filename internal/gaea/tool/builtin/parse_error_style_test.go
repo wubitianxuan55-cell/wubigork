@@ -18,16 +18,40 @@ func TestParseErrorsCarryToolName(t *testing.T) {
 		tool string
 		run  func() error
 	}{
-		{"read_file", func() error { _, err := (readFile{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"write_file", func() error { _, err := (writeFile{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"edit_file", func() error { _, err := (editFile{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"multi_edit", func() error { _, err := (multiEdit{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"edit_lines", func() error { _, err := (editLines{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"replace", func() error { _, err := (replaceTool{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"grep", func() error { _, err := (grepTool{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
+		{"read_file", func() error {
+			_, err := (readFile{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
+		{"write_file", func() error {
+			_, err := (writeFile{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
+		{"edit_file", func() error {
+			_, err := (editFile{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
+		{"multi_edit", func() error {
+			_, err := (multiEdit{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
+		{"edit_lines", func() error {
+			_, err := (editLines{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
+		{"replace", func() error {
+			_, err := (replaceTool{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
+		{"grep", func() error {
+			_, err := (grepTool{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
 		{"ls", func() error { _, err := (listDir{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
 		{"bash", func() error { _, err := (bash{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
-		{"read_skill", func() error { _, err := (readSkill{}).Execute(context.Background(), json.RawMessage(`{bad`)); return err }},
+		{"read_skill", func() error {
+			_, err := (readSkill{}).Execute(context.Background(), json.RawMessage(`{bad`))
+			return err
+		}},
 	}
 	for _, tc := range cases {
 		err := tc.run()

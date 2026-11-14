@@ -11,6 +11,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,9 +157,11 @@ func dreamPendingAppend(userDir string, add []dreamPendingItem) (int, int, error
 		// 「最旧的 N 条被移出、无法弹窗查看」的数据丢失（2026-11-13）。
 		overflow := make([]dreamPendingItem, over)
 		copy(overflow, items[:over])
+		// 归档失败不拦入队主链（队列语义优先），Warn 留痕不再静默——
+		// dropped 语义=挤出数（进归档即仍可查看，notice 文案已如实说明；
+		// 此前的错误分支赋值被紧随其后的无条件赋值覆盖，ineffassign 死代码）。
 		if err := dreamPendingOverflowAppend(userDir, overflow); err != nil {
-			// 归档失败不拦入队主链（队列语义优先；归档丢失=回到旧行为）。
-			dropped = over
+			slog.Warn("dream 溢出归档写入失败（本轮溢出条目未入档）", "error", err, "count", over)
 		}
 		items = items[over:]
 		dropped = over

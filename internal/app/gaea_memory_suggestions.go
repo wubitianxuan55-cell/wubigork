@@ -47,13 +47,13 @@ type MemorySuggestionsView struct {
 	Skills   []SkillSuggestionView  `json:"skills"`
 	// Merges 是蒸馏合并候选（做梦 2.0 第一刀）：确定性重复记忆，用户批准后
 	// 归档较旧条。可选项——旧前端/旧 mock 不读此字段不受影响。
-	Merges      []MergeSuggestionView `json:"merges,omitempty"`
+	Merges []MergeSuggestionView `json:"merges,omitempty"`
 	// Overflow 是队列满时被挤出的历史建议（溢出归档，只读+可接受走旧路径；
 	// 2026-11-13 实弹反馈：此前被挤出即丢，「无法弹窗查看」）。
 	Overflow    []MemorySuggestionView `json:"overflow,omitempty"`
 	GeneratedAt string                 `json:"generatedAt"`
-	Available   bool                  `json:"available"`
-	Source      string                `json:"source"`
+	Available   bool                   `json:"available"`
+	Source      string                 `json:"source"`
 }
 
 // GaeaMemorySuggestions 返回记忆面板建议：memories 来自自动做梦待确认队列

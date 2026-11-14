@@ -52,7 +52,7 @@ func officeWritePathsFromArgs(args json.RawMessage, keys ...string) ([]string, e
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &fields); err != nil {
-		return nil, fmt.Errorf("参数解析失败: %w", err)
+			return nil, fmt.Errorf("参数解析失败: %w", err)
 		}
 	}
 	for _, k := range keys {
@@ -162,7 +162,7 @@ func (t officeBatchTool) WritePaths(args json.RawMessage) ([]string, error) {
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &in); err != nil {
-		return nil, fmt.Errorf("参数解析失败: %w", err)
+			return nil, fmt.Errorf("参数解析失败: %w", err)
 		}
 	}
 	if strings.TrimSpace(in.OutDir) == "" {

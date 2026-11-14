@@ -84,7 +84,7 @@ func TestFormatAuditReportLimitShowsRemainder(t *testing.T) {
 	var findings []xlsxedit.AuditFinding
 	for i := 0; i < 8; i++ {
 		findings = append(findings, xlsxedit.AuditFinding{
-			Sheet: "Sheet1", Cell: cellNameN(i+1), Kind: "missing_cache", Formula: "=A1",
+			Sheet: "Sheet1", Cell: cellNameN(i + 1), Kind: "missing_cache", Formula: "=A1",
 		})
 	}
 	out := formatAuditReport(xlsxedit.AuditReport{Sheets: 1, TotalFormulas: 8, Findings: findings}, 3)
@@ -114,7 +114,7 @@ func TestXlsxAuditExecuteOnFixture(t *testing.T) {
 	_ = f.Close()
 
 	audit := xlsxAuditTool{a: &App{}}
-	out, err := audit.Execute(context.Background(), json.RawMessage(`{"path":` + jsonStr(p) + `}`))
+	out, err := audit.Execute(context.Background(), json.RawMessage(`{"path":`+jsonStr(p)+`}`))
 	if err != nil {
 		t.Fatalf("audit 失败：%v", err)
 	}
