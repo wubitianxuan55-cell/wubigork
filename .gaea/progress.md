@@ -1,3 +1,43 @@
+## gaea 打包 · gaea-schedule-zpert8-20261114-1052adec（进度板块斑马复刻+DSH 批代收编） · 2026-11-14
+
+- **包**：`releases/gaea-schedule-zpert8-20261114-1052adec/`（PACKAGE-INFO+SHA256SUMS 入库；
+  payload exe/三 DLL+preview.zip+source.tar.gz 磁盘留存不入库，P2-3 口径）。
+- **基线**：`1052adec`（检出完整性修复提交）——`83820741` 的 SchedulePage 已 import
+  commandRegistry/ScheduleCommandPalette，但四文件树面未跟踪，干净工作树构建即炸
+  TS2307（「磁盘能构建≠提交能检出」老坑再现）→ 批代入库修复后以该提交打包。
+- **范围**：aa60faa8（v2 包）后 15 笔——DSH 批代系（18fb5dcb/2eb8d9fd，ancestry
+  is-ancestor 已验证）+ 进度板块线 14 笔（板块分离一级/S1~S5/视图库/一次点亮 20/22/
+  格式组+工作分类）。codex 在途（命令面板续刀/.gaea/schedule.css）不进包（干净树纪律）。
+- **流程**：独立干净工作树 `.tmp/pkg-zpert8`（junction 复用主树 node_modules，同 lock）
+  → `npm run build` 39.25s → `wails build -s -ldflags "-s -w" -trimpath` 1m0.2s
+  （bindings 未跳过）→ payload 复制到 `releases/…/payload/` 正式路径 → `smoke.ps1`
+  `/api/health` 200（PID 48808 回收）→ 工作树回收（junction 先 rmdir 再 remove，
+  主树 node_modules 完好）。
+- **SHA256**：exe `08b513d4859fe8b6…`；zip `8ff627600ecfe923…`；tar `2fa938c52b3e43c4…`
+  （全表见包内 SHA256SUMS-1052adec.txt）。版本源 4.543.0 不抬号，以提交号标识。
+
+## gaea 进度板块 · ZPert W2 命令注册表 + 快捷键助手 · 2026-11-14
+
+承接 `进度计划/gaea-schedule-zpert8-uiux-port-plan-20261114.md` 的 W2，把命令
+从功能区散落动作收成可检索、可测试、可复用的单一派发层。
+- **注册表**：新增 `commandRegistry.ts`，41 条命令统一稳定 ID/分组/说明/关键词/
+  快捷键/禁用原因；handler 仍由 `SchedulePage` 运行期注入，符合斑马“命令元数据
+  与业务处理分离、没有总函数表”的真实结构。
+- **单入口**：功能区、文件/编辑/视图菜单、命令面板、键盘快捷键全部经 `runCommand`；
+  同一命令的可用状态和失败文案只维护一份，禁用项不静默消失。
+- **命令面板**：顶部“命令 Ctrl K”常驻入口；`Ctrl+K / Ctrl+/ / F1` 打开；
+  支持中英文搜索、分组、快捷键提示、↑/↓、Enter、Esc/遮罩关闭与焦点管理。
+- **快捷键**：接通 `Ctrl+N/F/P/Z/Y/Shift+Z/C/V`、`Delete`、`Alt+↑/↓`、
+  `Shift+Alt+←/→`；输入框/文本域/可编辑区聚焦时不抢编辑键。
+- **验证**：schedule + 页面回归 **63 文件 / 786 例全绿**；新增注册表 4 例、
+  命令面板 4 例、页面命令链 1 例；`tsc -b`、定向 ESLint 0、Vite 生产构建通过
+  （6385 modules / 23.99s）。`?mock=1` 亮暗双态与 1100×800、880×800 走查：
+  命令面板无横向溢出，搜索“单代号”经 Enter 正确切换视图。
+- **边界**：本轮不构建 Wails exe、不装机；W4 双标尺/图上开关、W5 列级筛选与
+  统一就地编辑、W6 按纸张布图/图签仍按原计划后续。
+- **提交状态**：并发提交 `64a2f632` 已带入 `SchedulePage` 的派发接线；新建
+  `commandRegistry`/`ScheduleCommandPalette`、CSS/测试与本条记忆尚未整体提交。
+
 ## gaea 进度板块 · ZPert UX/UI 布局移植首刀（W1 + 功能区/右舷） · 2026-11-14
 
 按 `进度计划/gaea-schedule-zpert8-uiux-port-plan-20261114.md` 实施，直接以
