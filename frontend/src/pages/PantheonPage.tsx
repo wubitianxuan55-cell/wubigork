@@ -1261,7 +1261,7 @@ const PantheonPage: React.FC = () => {
             ? `composer-${composerSeed?.key || 'new'}`
             : 'welcome'}
         ref={canvasRef}
-        className="pantheon-canvas"
+        className={`pantheon-canvas${showComposer && !active ? ' is-composing' : ''}`}
       >
         <div className="pantheon-view-layer" hidden={showEvaluation}>
           {active ? (

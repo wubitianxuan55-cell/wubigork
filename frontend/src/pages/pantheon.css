@@ -8450,6 +8450,343 @@
   }
 }
 
+/* 2026-11-14 · 立题工作台铺满窗口
+   底稿与配置共享同一行高度；设置区按“材料 / 方法 / 节奏”三张卡组织。
+   页面本身不滚动，只有展开后的补充字段与配置索引在各自卡片内滚动。 */
+.pantheon-canvas.is-composing {
+  overflow: hidden;
+}
+
+body:has(.pantheon-canvas.is-composing) {
+  overflow: hidden;
+}
+
+.pantheon-canvas.is-composing .pantheon-view-layer,
+.pantheon-canvas.is-composing .pantheon-compose-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.pantheon-canvas.is-composing .pantheon-compose-stage {
+  justify-content: stretch;
+  gap: 0;
+  padding: clamp(16px, 2.4vh, 26px) clamp(20px, 3.2vw, 54px) clamp(16px, 2.2vh, 24px);
+  overflow: hidden;
+}
+
+.pantheon-canvas.is-composing .pantheon-compose-stage > .pantheon-protocol {
+  display: none;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer--studio {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-head {
+  flex: 0 0 auto;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-studio {
+  min-height: 0;
+  margin-top: clamp(13px, 2vh, 20px);
+  flex: 1;
+  align-items: stretch;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-main,
+.pantheon-canvas.is-composing .pantheon-composer-config {
+  height: 100%;
+  min-height: 0;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-config {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-config > section {
+  padding: 9px 14px;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-config > section:last-child {
+  padding-bottom: 7px;
+}
+
+.pantheon-canvas.is-composing .pantheon-config-rail-head {
+  padding: 14px 15px 12px;
+}
+
+.pantheon-canvas.is-composing .pantheon-speaking-order li {
+  min-height: 31px;
+  padding-block: 4px;
+}
+
+.pantheon-canvas.is-composing .pantheon-speaking-order {
+  flex: 1;
+  min-height: 0;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer--studio .pantheon-topic-sheet {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer--studio .pantheon-topic-input.ant-input {
+  min-height: 132px;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer--studio .pantheon-chatbar {
+  position: static;
+  display: flex;
+  min-height: 0;
+  margin-top: 8px;
+  padding: 8px;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  border: 0;
+  background: color-mix(in srgb, var(--pantheon-surface) 34%, transparent);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.pantheon-canvas.is-composing .pantheon-toolbar-options {
+  display: grid;
+  min-height: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pantheon-setting-card {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  padding: 9px 10px;
+  overflow: hidden;
+  flex-direction: column;
+  gap: 7px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--pantheon-accent) 4%, transparent),
+      transparent 62%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 48%, transparent);
+}
+
+.pantheon-setting-card--pace {
+  grid-column: 1 / -1;
+}
+
+.pantheon-setting-card-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pantheon-setting-card-head > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--pantheon-accent);
+}
+
+.pantheon-setting-card-head strong {
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-setting-card-head small {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  letter-spacing: .05em;
+}
+
+.pantheon-setting-card-controls {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pantheon-setting-card--evidence .pantheon-setting-card-controls {
+  margin-top: auto;
+}
+
+.pantheon-setting-card-controls > .ant-btn {
+  height: 28px;
+  padding-inline: 8px;
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.pantheon-setting-card-controls--selects {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+}
+
+.pantheon-setting-control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pantheon-setting-control > span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 7.5px;
+  font-weight: 650;
+  letter-spacing: .04em;
+}
+
+.pantheon-canvas.is-composing .pantheon-setting-control .pantheon-chatbar-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.pantheon-canvas.is-composing .pantheon-setting-control .pantheon-chatbar-select .ant-select-selector {
+  height: 28px;
+  border-radius: 7px;
+}
+
+.pantheon-setting-card-controls--pace {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.25fr) minmax(110px, .58fr) minmax(140px, .7fr);
+  align-items: end;
+}
+
+.pantheon-setting-card-controls--pace .pantheon-round-control {
+  width: 100%;
+  gap: 5px;
+}
+
+.pantheon-setting-card-controls--pace .pantheon-round-mode button {
+  height: 27px;
+}
+
+.pantheon-setting-card-controls--pace .pantheon-round-gate {
+  height: 28px;
+  white-space: nowrap;
+}
+
+.pantheon-setting-card-controls--pace .pantheon-round-budget {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pantheon-canvas.is-composing .pantheon-toolbar-launch {
+  min-height: 52px;
+  padding: 8px 10px;
+  margin-top: auto;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--pantheon-accent) 18%, var(--pantheon-line));
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--pantheon-accent) 7%, transparent),
+      transparent 64%),
+    color-mix(in srgb, var(--pantheon-surface-raised) 52%, transparent);
+}
+
+.pantheon-canvas.is-composing .pantheon-toolbar-launch .pantheon-start.ant-btn {
+  height: 38px;
+}
+
+.pantheon-canvas.is-composing .pantheon-composer-extra:not(:empty) {
+  max-height: min(190px, 34%);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+@container pantheon-canvas (min-width: 980px) {
+  .pantheon-canvas.is-composing .pantheon-composer-studio {
+    grid-template-columns: minmax(0, 1.62fr) minmax(308px, .76fr);
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-config {
+    grid-row: 1;
+  }
+}
+
+@container pantheon-canvas (max-width: 979px) {
+  .pantheon-canvas.is-composing .pantheon-compose-stage {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer--studio {
+    height: auto;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-studio {
+    flex: none;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-main,
+  .pantheon-canvas.is-composing .pantheon-composer-config {
+    height: auto;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer--studio .pantheon-topic-sheet {
+    height: auto;
+  }
+}
+
+@media (max-width: 1240px) {
+  .pantheon-canvas.is-composing {
+    overflow-y: auto;
+  }
+
+  body:has(.pantheon-canvas.is-composing) {
+    overflow: auto;
+  }
+}
+
+@container pantheon-canvas (max-width: 640px) {
+  .pantheon-canvas.is-composing .pantheon-toolbar-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pantheon-setting-card--pace {
+    grid-column: auto;
+  }
+
+  .pantheon-setting-card-controls--selects,
+  .pantheon-setting-card-controls--pace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* O-E 等待面板：整场停在 waiting_input 时，这里是唯一的出口。 */
 .pantheon-waiting {
   display: flex;

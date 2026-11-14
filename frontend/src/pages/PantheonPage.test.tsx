@@ -229,13 +229,17 @@ describe('PantheonPage', () => {
   })
 
   it('空态可发起讨论，并展示四个本机席位', async () => {
-    render(<PantheonPage />)
+    const { container } = render(<PantheonPage />)
     expect(await screen.findByRole('heading', { name: /在讨论中彼此补强/ })).toBeTruthy()
     expect(document.querySelectorAll('.pantheon-seat-card [data-avatar-agent] img').length).toBe(4)
     expect(screen.getByTestId('pantheon-agent-mini-dsh').textContent).toContain('DSH')
     expect(screen.getByTestId('pantheon-agent-mini-dsh').textContent).toContain('就绪')
     fireEvent.click(screen.getByTestId('pantheon-welcome-start'))
     expect(await screen.findByTestId('pantheon-composer')).toBeTruthy()
+    expect(container.querySelector('.pantheon-canvas')?.classList.contains('is-composing')).toBe(true)
+    expect(screen.getByTestId('pantheon-setting-card-evidence')).toBeTruthy()
+    expect(screen.getByTestId('pantheon-setting-card-method')).toBeTruthy()
+    expect(screen.getByTestId('pantheon-setting-card-pace')).toBeTruthy()
     expect(await screen.findByTestId('pantheon-agent-grok')).toBeTruthy()
     expect(screen.getByTestId('pantheon-agent-grok').textContent).toContain('联网 · 识图')
     expect(
@@ -1702,7 +1706,12 @@ describe('PantheonPage', () => {
 
     fireEvent.click(await screen.findByTestId('pantheon-welcome-start'))
     fireEvent.click(await screen.findByTestId('pantheon-pick-workspace'))
-    expect(await screen.findByTestId('pantheon-workspace-council-workspace')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.getElementById('pantheon-workspace-title')?.textContent)
+        .toContain('council-workspace')
+    })
+    const scope = screen.getByRole('group', { name: '工作空间' })
+    expect(within(scope).queryByTestId('pantheon-workspace-council-workspace')).toBeNull()
     fireEvent.change(screen.getByTestId('pantheon-topic'), { target: { value: '限定项目范围的议题' } })
 
     const start = screen.getByTestId('pantheon-start')
@@ -1711,6 +1720,32 @@ describe('PantheonPage', () => {
 
     await waitFor(() => expect(mocks.start).toHaveBeenCalledTimes(1))
     expect(mocks.start.mock.calls[0][0].workspace).toBe('C:\\AI\\council-workspace')
+  })
+
+  it('讨论范围只展示众神殿历史中的最近四个工作空间', async () => {
+    mocks.workspaces.mockResolvedValue(
+      Array.from({ length: 6 }, (_, index) => ({
+        path: `C:\\AI\\council-history-${index}`,
+        name: `council-history-${index}`,
+        current: index === 0,
+        recent: true,
+      })),
+    )
+    render(<PantheonPage />)
+
+    fireEvent.click(await screen.findByTestId('pantheon-welcome-start'))
+    const scope = await screen.findByRole('group', { name: '工作空间' })
+    await waitFor(() => expect(within(scope).getAllByRole('button')).toHaveLength(4))
+    expect(within(scope).getByTestId('pantheon-workspace-council-history-3')).toBeTruthy()
+    expect(within(scope).queryByTestId('pantheon-workspace-council-history-4')).toBeNull()
+  })
+
+  it('没有众神殿历史工作空间时提示手动选择文件夹', async () => {
+    mocks.workspaces.mockResolvedValue([])
+    render(<PantheonPage />)
+
+    fireEvent.click(await screen.findByTestId('pantheon-welcome-start'))
+    expect(await screen.findByText('暂无众神殿历史工作空间，请选择文件夹')).toBeTruthy()
   })
 
   it('Grok 缺席时主持回落到首个可用席位', async () => {

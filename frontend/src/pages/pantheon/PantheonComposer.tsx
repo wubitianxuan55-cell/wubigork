@@ -7,6 +7,7 @@ import {
   DownOutlined,
   FolderOpenOutlined,
   FolderOutlined,
+  FieldTimeOutlined,
   PaperClipOutlined,
   PictureOutlined,
   ReloadOutlined,
@@ -128,6 +129,7 @@ export const PantheonComposer: React.FC<Props> = ({
     seed?.title || seed?.context || seed?.successCriteria,
   ))
   const [workspaces, setWorkspaces] = useState<PantheonWorkspace[]>([])
+  const [workspacesLoading, setWorkspacesLoading] = useState(true)
   const [workspace, setWorkspace] = useState(seed?.workspace || '')
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [workspaceError, setWorkspaceError] = useState('')
@@ -159,26 +161,23 @@ export const PantheonComposer: React.FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false
+    setWorkspacesLoading(true)
     void pantheonApi.PantheonWorkspaces()
       .then((list) => {
         if (cancelled) return
-        const seeded = seed?.workspace && !list.some((item) => item.path === seed.workspace)
-          ? [{
-              path: seed.workspace,
-              name: workspaceName(seed.workspace),
-              current: false,
-              recent: true,
-            }, ...list]
-          : list
-        setWorkspaces(seeded)
+        const recent = list.slice(0, 4)
+        setWorkspaces(recent)
         setWorkspace((current) =>
-          current || seeded.find((item) => item.current)?.path || seeded[0]?.path || '',
+          current || recent.find((item) => item.current)?.path || recent[0]?.path || '',
         )
       })
       .catch((err) => {
         if (!cancelled) {
           setWorkspaceError(err instanceof Error ? err.message : String(err))
         }
+      })
+      .finally(() => {
+        if (!cancelled) setWorkspacesLoading(false)
       })
     return () => { cancelled = true }
   }, [seed?.workspace])
@@ -190,13 +189,6 @@ export const PantheonComposer: React.FC<Props> = ({
       const path = await pantheonApi.PantheonPickWorkspace()
       if (!path) return
       setWorkspace(path)
-      setWorkspaces((current) => {
-        if (current.some((item) => item.path === path)) return current
-        return [
-          ...current,
-          { path, name: workspaceName(path), current: false, recent: true },
-        ]
-      })
     } catch (err) {
       setWorkspaceError(`选择工作空间失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -507,168 +499,233 @@ export const PantheonComposer: React.FC<Props> = ({
             </div>
             <div className="pantheon-chatbar">
               <div className="pantheon-toolbar-options">
-                <Button
-                  size="small"
-                  type={showEvidence ? 'primary' : 'text'}
-                  ghost={showEvidence}
-                  icon={<PaperClipOutlined />}
-                  data-testid="pantheon-toggle-evidence"
-                  aria-expanded={showEvidence}
-                  onClick={() => setShowEvidence((value) => !value)}
-                  disabled={busy}
+                <section
+                  className="pantheon-setting-card pantheon-setting-card--evidence"
+                  data-testid="pantheon-setting-card-evidence"
+                  aria-labelledby="pantheon-setting-evidence-title"
                 >
-                  材料
-                </Button>
-                <Button
-                  size="small"
-                  type={attachments.length > 0 ? 'primary' : 'text'}
-                  ghost={attachments.length > 0}
-                  icon={<PictureOutlined />}
-                  loading={attachmentBusy}
-                  data-testid="pantheon-pick-images"
-                  onClick={() => void pickImages()}
-                  disabled={busy}
-                >
-                  图片{attachments.length > 0 ? ` ${attachments.length}` : ''}
-                </Button>
-                <Tooltip title="圆桌会诊：共享讨论后综合。定向质询：围绕台账逐条质疑与回应。红队评审：重点寻找反例，结论后全席独立确认。">
-                  <Select
-                    size="small"
-                    data-testid="pantheon-preset"
-                    value={preset}
-                    options={[
-                      { label: '圆桌会诊', value: 'roundtable' },
-                      { label: '定向质询', value: 'targeted_challenge' },
-                      { label: '红队评审', value: 'red_team' },
-                    ]}
-                    onChange={(value) => {
-                      setPreset(value)
-                      if (value !== 'roundtable') {
-                        setProtocol('independent')
-                        setRounds((current) => Math.max(2, current))
-                      }
-                    }}
-                    disabled={busy}
-                    className="pantheon-chatbar-select"
-                    aria-label="议事形态"
-                  />
-                </Tooltip>
-                <Tooltip title="独立开场：第 1 轮各自独立作答；圆桌接力：同轮发言按顺序互相可见；互盲驳论：全部轮次并行且同轮互盲，只对往轮立场逐席回应。">
-                  <Select
-                    size="small"
-                    data-testid="pantheon-protocol"
-                    value={protocol}
-                    options={[
-                      { label: '独立开场', value: 'independent' },
-                      { label: '圆桌接力', value: 'council' },
-                      { label: '互盲驳论', value: 'blind_rebuttal' },
-                    ]}
-                    onChange={(value) => setProtocol(value)}
-                    disabled={busy || targetedChallenge}
-                    className="pantheon-chatbar-select"
-                    aria-label="议事路径"
-                  />
-                </Tooltip>
-                <Select
-                  size="small"
-                  data-testid="pantheon-chairman"
-                  value={chairman || undefined}
-                  placeholder="汇总人"
-                  options={available
-                    .filter((agent) => selected.includes(agent.id))
-                    .map((agent) => ({ label: `${agent.name} 负责汇总`, value: agent.id }))}
-                  onChange={setChairman}
-                  disabled={busy || selected.length === 0}
-                  className="pantheon-chatbar-select"
-                  suffixIcon={<CommentOutlined />}
-                  aria-label="汇总人"
-                />
-                <div className="pantheon-round-control" aria-label="讨论轮次设置">
-                  <div className="pantheon-round-mode" role="group" aria-label="讨论轮次模式">
-                    <button
-                      type="button"
-                      aria-pressed={!untilConsensus}
-                      data-testid="pantheon-round-manual"
-                      onClick={() => setUntilConsensus(false)}
-                      disabled={busy}
-                    >
-                      手动
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={untilConsensus}
-                      data-testid="pantheon-round-auto"
-                      onClick={() => setUntilConsensus(true)}
-                      disabled={busy}
-                    >
-                      不限
-                    </button>
-                  </div>
-                  {untilConsensus ? (
-                    <Tooltip title={`全员意见一致即结束；无共识时最多讨论 ${CONSENSUS_SAFE_LIMIT} 轮，可随时终止`}>
-                      <span className="pantheon-round-auto-label" data-testid="pantheon-round-auto-label">
-                        至共识 · ≤{CONSENSUS_SAFE_LIMIT} 轮
-                      </span>
-                    </Tooltip>
-                  ) : (
-                    <>
-                      <InputNumber
-                        size="small"
-                        min={targetedChallenge ? 2 : 1}
-                        max={MANUAL_ROUNDS_MAX}
-                        precision={0}
-                        value={rounds}
-                        onChange={(value) => setRounds(
-                          Math.max(1, Math.min(MANUAL_ROUNDS_MAX, Number(value) || 2)),
-                        )}
-                        disabled={busy}
-                        aria-label="手动讨论轮次"
-                        data-testid="pantheon-rounds"
-                        className="pantheon-round-input"
-                      />
-                      <span className="pantheon-round-unit">轮</span>
-                    </>
-                  )}
-                </div>
-                <Tooltip title="每轮结束先停下，等你放行或放弃再进下一轮">
-                  <button
-                    type="button"
-                    aria-pressed={gateEachRound && !untilConsensus}
-                    data-testid="pantheon-gate-each-round"
-                    className={`pantheon-round-gate${gateEachRound && !untilConsensus ? ' is-on' : ''}`}
-                    onClick={() => setGateEachRound((value) => !value)}
-                    disabled={busy || untilConsensus}
-                  >
-                    每轮确认
-                  </button>
-                </Tooltip>
-                <Tooltip title="整场议事墙钟预算：≥80% 往轮全文退回梯度；≥90% 本轮收口进汇总。0 = 不限">
-                  <span className="pantheon-round-budget">
-                    <InputNumber
+                  <header className="pantheon-setting-card-head">
+                    <span>
+                      <PaperClipOutlined aria-hidden />
+                      <strong id="pantheon-setting-evidence-title">材料与补充</strong>
+                    </span>
+                    <small>共享证据</small>
+                  </header>
+                  <div className="pantheon-setting-card-controls">
+                    <Button
                       size="small"
-                      min={0}
-                      max={480}
-                      precision={0}
-                      value={timeBudget}
-                      onChange={(value) => setTimeBudget(Math.max(0, Math.min(480, Number(value) || 0)))}
+                      type={showEvidence ? 'primary' : 'text'}
+                      ghost={showEvidence}
+                      icon={<PaperClipOutlined />}
+                      data-testid="pantheon-toggle-evidence"
+                      aria-expanded={showEvidence}
+                      onClick={() => setShowEvidence((value) => !value)}
                       disabled={busy}
-                      aria-label="整场议事预算分钟"
-                      data-testid="pantheon-time-budget"
-                      className="pantheon-round-input"
-                    />
-                    <span className="pantheon-round-unit">分钟</span>
-                  </span>
-                </Tooltip>
-                <Button
-                  size="small"
-                  type="text"
-                  data-testid="pantheon-toggle-advanced"
-                  aria-expanded={showAdvanced}
-                  onClick={() => setShowAdvanced((value) => !value)}
-                  disabled={busy}
+                    >
+                      材料
+                    </Button>
+                    <Button
+                      size="small"
+                      type={attachments.length > 0 ? 'primary' : 'text'}
+                      ghost={attachments.length > 0}
+                      icon={<PictureOutlined />}
+                      loading={attachmentBusy}
+                      data-testid="pantheon-pick-images"
+                      onClick={() => void pickImages()}
+                      disabled={busy}
+                    >
+                      图片{attachments.length > 0 ? ` ${attachments.length}` : ''}
+                    </Button>
+                    <Button
+                      size="small"
+                      type="text"
+                      data-testid="pantheon-toggle-advanced"
+                      aria-expanded={showAdvanced}
+                      onClick={() => setShowAdvanced((value) => !value)}
+                      disabled={busy}
+                    >
+                      背景与标准 <DownOutlined className={showAdvanced ? 'is-open' : ''} />
+                    </Button>
+                  </div>
+                </section>
+
+                <section
+                  className="pantheon-setting-card pantheon-setting-card--method"
+                  data-testid="pantheon-setting-card-method"
+                  aria-labelledby="pantheon-setting-method-title"
                 >
-                  背景与标准 <DownOutlined className={showAdvanced ? 'is-open' : ''} />
-                </Button>
+                  <header className="pantheon-setting-card-head">
+                    <span>
+                      <CommentOutlined aria-hidden />
+                      <strong id="pantheon-setting-method-title">议事方法</strong>
+                    </span>
+                    <small>策略与汇总</small>
+                  </header>
+                  <div className="pantheon-setting-card-controls pantheon-setting-card-controls--selects">
+                    <div className="pantheon-setting-control">
+                      <span>形态</span>
+                      <Tooltip title="圆桌会诊：共享讨论后综合。定向质询：围绕台账逐条质疑与回应。红队评审：重点寻找反例，结论后全席独立确认。">
+                        <Select
+                          size="small"
+                          data-testid="pantheon-preset"
+                          value={preset}
+                          options={[
+                            { label: '圆桌会诊', value: 'roundtable' },
+                            { label: '定向质询', value: 'targeted_challenge' },
+                            { label: '红队评审', value: 'red_team' },
+                          ]}
+                          onChange={(value) => {
+                            setPreset(value)
+                            if (value !== 'roundtable') {
+                              setProtocol('independent')
+                              setRounds((current) => Math.max(2, current))
+                            }
+                          }}
+                          disabled={busy}
+                          className="pantheon-chatbar-select"
+                          aria-label="议事形态"
+                        />
+                      </Tooltip>
+                    </div>
+                    <div className="pantheon-setting-control">
+                      <span>路径</span>
+                      <Tooltip title="独立开场：第 1 轮各自独立作答；圆桌接力：同轮发言按顺序互相可见；互盲驳论：全部轮次并行且同轮互盲，只对往轮立场逐席回应。">
+                        <Select
+                          size="small"
+                          data-testid="pantheon-protocol"
+                          value={protocol}
+                          options={[
+                            { label: '独立开场', value: 'independent' },
+                            { label: '圆桌接力', value: 'council' },
+                            { label: '互盲驳论', value: 'blind_rebuttal' },
+                          ]}
+                          onChange={(value) => setProtocol(value)}
+                          disabled={busy || targetedChallenge}
+                          className="pantheon-chatbar-select"
+                          aria-label="议事路径"
+                        />
+                      </Tooltip>
+                    </div>
+                    <div className="pantheon-setting-control">
+                      <span>汇总</span>
+                      <Select
+                        size="small"
+                        data-testid="pantheon-chairman"
+                        value={chairman || undefined}
+                        placeholder="汇总人"
+                        options={available
+                          .filter((agent) => selected.includes(agent.id))
+                          .map((agent) => ({ label: `${agent.name} 负责汇总`, value: agent.id }))}
+                        onChange={setChairman}
+                        disabled={busy || selected.length === 0}
+                        className="pantheon-chatbar-select"
+                        suffixIcon={<CommentOutlined />}
+                        aria-label="汇总人"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section
+                  className="pantheon-setting-card pantheon-setting-card--pace"
+                  data-testid="pantheon-setting-card-pace"
+                  aria-labelledby="pantheon-setting-pace-title"
+                >
+                  <header className="pantheon-setting-card-head">
+                    <span>
+                      <FieldTimeOutlined aria-hidden />
+                      <strong id="pantheon-setting-pace-title">轮次与节奏</strong>
+                    </span>
+                    <small>推进方式</small>
+                  </header>
+                  <div className="pantheon-setting-card-controls pantheon-setting-card-controls--pace">
+                    <div className="pantheon-setting-control pantheon-setting-control--round">
+                      <span>轮次</span>
+                      <div className="pantheon-round-control" aria-label="讨论轮次设置">
+                        <div className="pantheon-round-mode" role="group" aria-label="讨论轮次模式">
+                          <button
+                            type="button"
+                            aria-pressed={!untilConsensus}
+                            data-testid="pantheon-round-manual"
+                            onClick={() => setUntilConsensus(false)}
+                            disabled={busy}
+                          >
+                            手动
+                          </button>
+                          <button
+                            type="button"
+                            aria-pressed={untilConsensus}
+                            data-testid="pantheon-round-auto"
+                            onClick={() => setUntilConsensus(true)}
+                            disabled={busy}
+                          >
+                            不限
+                          </button>
+                        </div>
+                        {untilConsensus ? (
+                          <Tooltip title={`全员意见一致即结束；无共识时最多讨论 ${CONSENSUS_SAFE_LIMIT} 轮，可随时终止`}>
+                            <span className="pantheon-round-auto-label" data-testid="pantheon-round-auto-label">
+                              至共识 · ≤{CONSENSUS_SAFE_LIMIT} 轮
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <>
+                            <InputNumber
+                              size="small"
+                              min={targetedChallenge ? 2 : 1}
+                              max={MANUAL_ROUNDS_MAX}
+                              precision={0}
+                              value={rounds}
+                              onChange={(value) => setRounds(
+                                Math.max(1, Math.min(MANUAL_ROUNDS_MAX, Number(value) || 2)),
+                              )}
+                              disabled={busy}
+                              aria-label="手动讨论轮次"
+                              data-testid="pantheon-rounds"
+                              className="pantheon-round-input"
+                            />
+                            <span className="pantheon-round-unit">轮</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="pantheon-setting-control">
+                      <span>每轮</span>
+                      <Tooltip title="每轮结束先停下，等你放行或放弃再进下一轮">
+                        <button
+                          type="button"
+                          aria-pressed={gateEachRound && !untilConsensus}
+                          data-testid="pantheon-gate-each-round"
+                          className={`pantheon-round-gate${gateEachRound && !untilConsensus ? ' is-on' : ''}`}
+                          onClick={() => setGateEachRound((value) => !value)}
+                          disabled={busy || untilConsensus}
+                        >
+                          每轮确认
+                        </button>
+                      </Tooltip>
+                    </div>
+                    <div className="pantheon-setting-control">
+                      <span>预算</span>
+                      <Tooltip title="整场议事墙钟预算：≥80% 往轮全文退回梯度；≥90% 本轮收口进汇总。0 = 不限">
+                        <span className="pantheon-round-budget">
+                          <InputNumber
+                            size="small"
+                            min={0}
+                            max={480}
+                            precision={0}
+                            value={timeBudget}
+                            onChange={(value) => setTimeBudget(Math.max(0, Math.min(480, Number(value) || 0)))}
+                            disabled={busy}
+                            aria-label="整场议事预算分钟"
+                            data-testid="pantheon-time-budget"
+                            className="pantheon-round-input"
+                          />
+                          <span className="pantheon-round-unit">分钟</span>
+                        </span>
+                      </Tooltip>
+                    </div>
+                  </div>
+                </section>
               </div>
               <div className="pantheon-toolbar-launch">
                 <span
@@ -739,7 +796,10 @@ export const PantheonComposer: React.FC<Props> = ({
           </Button>
         </div>
         <div className="pantheon-workspace-options" role="group" aria-label="工作空间">
-          {workspaces.length === 0 && <span className="pantheon-muted">正在读取工作空间…</span>}
+          {workspacesLoading && <span className="pantheon-muted">正在读取工作空间…</span>}
+          {!workspacesLoading && workspaces.length === 0 && (
+            <span className="pantheon-muted">暂无众神殿历史工作空间，请选择文件夹</span>
+          )}
           {workspaces.map((item, index) => {
             const active = workspace === item.path
             return (
@@ -756,7 +816,7 @@ export const PantheonComposer: React.FC<Props> = ({
                 <FolderOutlined aria-hidden />
                 <span>
                   <strong>{item.name}</strong>
-                  <small>{item.current ? '当前工作空间' : item.recent ? '最近使用' : '工作空间'}</small>
+                  <small>{item.current ? '当前工作空间' : item.recent ? '众神殿最近使用' : '工作空间'}</small>
                 </span>
               </button>
             )

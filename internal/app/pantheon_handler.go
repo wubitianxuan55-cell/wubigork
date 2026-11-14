@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -100,25 +101,53 @@ func (s *pantheonState) PantheonAgents() ([]pantheon.AgentStatus, error) {
 }
 
 func (s *pantheonState) PantheonWorkspaces() []pantheon.WorkspaceOption {
-	current := filepath.Clean(gaeaCwd())
+	manager, err := s.managerRef()
+	if err != nil {
+		return []pantheon.WorkspaceOption{}
+	}
+	sessions, err := manager.List()
+	if err != nil {
+		return []pantheon.WorkspaceOption{}
+	}
+	return pantheonRecentWorkspaces(sessions, gaeaCwd(), 4)
+}
+
+// pantheonRecentWorkspaces keeps the discussion scope tied to workspaces that
+// have actually hosted a council. A later council in the same directory moves
+// it forward; current Gaea workspaces that never hosted one do not appear.
+func pantheonRecentWorkspaces(
+	sessions []pantheon.SessionSummary,
+	current string,
+	limit int,
+) []pantheon.WorkspaceOption {
+	if limit <= 0 {
+		return []pantheon.WorkspaceOption{}
+	}
+	ordered := append([]pantheon.SessionSummary(nil), sessions...)
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].UpdatedAt == ordered[j].UpdatedAt {
+			return ordered[i].ID > ordered[j].ID
+		}
+		return ordered[i].UpdatedAt > ordered[j].UpdatedAt
+	})
+
+	current = filepath.Clean(strings.TrimSpace(current))
+	currentKey := pantheonWorkspaceKey(current)
 	seen := map[string]bool{}
-	options := make([]pantheon.WorkspaceOption, 0, 12)
-	add := func(path string, isCurrent, recent bool) {
-		path = strings.TrimSpace(path)
+	options := make([]pantheon.WorkspaceOption, 0, limit)
+	for _, session := range ordered {
+		path := strings.TrimSpace(session.Workspace)
 		if path == "" {
-			return
+			continue
 		}
 		path = filepath.Clean(path)
-		key := path
-		if filepath.Separator == '\\' {
-			key = strings.ToLower(key)
-		}
+		key := pantheonWorkspaceKey(path)
 		if seen[key] {
-			return
+			continue
 		}
 		info, err := os.Stat(path)
 		if err != nil || !info.IsDir() {
-			return
+			continue
 		}
 		seen[key] = true
 		name := filepath.Base(path)
@@ -126,14 +155,20 @@ func (s *pantheonState) PantheonWorkspaces() []pantheon.WorkspaceOption {
 			name = path
 		}
 		options = append(options, pantheon.WorkspaceOption{
-			Path: path, Name: name, Current: isCurrent, Recent: recent,
+			Path: path, Name: name, Current: key == currentKey, Recent: true,
 		})
-	}
-	add(current, true, false)
-	for _, path := range gaeaConfig.LoadRecentWorkspaces() {
-		add(path, false, true)
+		if len(options) == limit {
+			break
+		}
 	}
 	return options
+}
+
+func pantheonWorkspaceKey(path string) string {
+	if filepath.Separator == '\\' {
+		return strings.ToLower(path)
+	}
+	return path
 }
 
 // PantheonPickWorkspace opens a directory chooser without switching Gaea's
