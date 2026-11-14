@@ -22,6 +22,9 @@
   构建（exe sha256 3C0CDF4D…，build 11/14 00:57:28），smoke /api/health 200
   （PID 已回收）；坑=gaea_install.ps1 SourceDir 默认主树，工作树装机须显式
   -SourceDir。详见 docs/gaea-day-log-2026-11-14.md。
+- 打包：`gaea-office-cadtab-20261114-c85a9815` 预览包（六刀全量；PACKAGE-INFO
+  +SHA256SUMS 入库 4db1c355，exe/三 DLL/源码包/preview zip/uncommitted 快照
+  留盘）；包产物=装机位同源 exe E65681B6…（c85a9815 干净树构建），冒烟 200。
 
 ## DSH Context / Fleet UX 对齐 · 2026-11-13（代码候选）
 
