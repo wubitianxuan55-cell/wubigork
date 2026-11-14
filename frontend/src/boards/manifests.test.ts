@@ -51,51 +51,51 @@ const BACKEND_FIXTURE = [
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序：聊天 → … → 造价数据库 → 众神殿 → 记忆中枢 → … → 运行监测（共 11 项）', () => {
+  it('菜单顺序：聊天 → … → 造价数据库 → 众神殿 → 记忆中枢 → … → 进度计划 → 运行监测（共 12 项）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
     ])
   })
 
   it('菜单文案与现状一致（含众神殿）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['MessageOutlined', 'ReadOutlined', 'PictureOutlined',
       'ToolOutlined', 'AccountBookOutlined', 'CrownOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
-      'MonitorOutlined']
+      'ScheduleOutlined', 'MonitorOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
     }
   })
 
-  it('settings 不进菜单（inMenu=false）；weixin v4.4 起进菜单（inMenu=true）；瘦身刀1 schedule 不进菜单（inMenu=false，办公『进度计划』入口承接）', () => {
+  it('settings 不进菜单（inMenu=false）；weixin v4.4 起进菜单（inMenu=true）；2026-11-14 拍板 schedule 恢复一级板块（inMenu=true）', () => {
     expect(menuBoards.map((b) => b.id)).not.toContain('settings')
     expect(menuBoards.map((b) => b.id)).toContain('weixin')
-    expect(menuBoards.map((b) => b.id)).not.toContain('schedule')
+    expect(menuBoards.map((b) => b.id)).toContain('schedule')
   })
 })
 
 describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，不再按空间分域）', () => {
   it('全量序 = 全部 inMenu 板块（menuOrder 派生；首页已删除）', () => {
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
     ])
     expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
-  it('主 rail 剔除 independent（编程走 foot 单列）、settings（inMenu=false 右上入口）、schedule（并入办公文档面）', () => {
+  it('主 rail 剔除 independent（编程走 foot 单列）、settings（inMenu=false 右上入口）；schedule 2026-11-14 拍板起回主 rail', () => {
     const menus = getActiveMenuBoards()
     expect(menus.filter((b) => boardSpace(b) === 'independent')).toHaveLength(0)
     const ids = menus.map((b) => b.id)
     expect(ids).not.toContain('settings')
-    expect(ids).not.toContain('schedule')
+    expect(ids).toContain('schedule')
   })
 
   it('编程恢复到独立窗口分面，不重复占用主 rail', () => {
@@ -109,9 +109,9 @@ describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () 
   // 白名单与 inMenu 解耦——注册即可导航，inMenu 只控菜单。
   // settings 在 canonicalBoards 中 inMenu=false 但有隐式入口（右上角按钮），解耦后
   // 也进白名单 = 允许 NAVIGATE 直达（v4.164 前科根治，藏板块不再静默丢导航）。
-  // 瘦身刀1（v4.168.0）：schedule 同 settings 语义——inMenu=false 只藏出顶栏菜单，
-  // 白名单仍含 schedule（注册即可导航），办公文件面『进度计划』入口承接导航能力。
-  it('注册即可导航：全部业务板块（仍含 inMenu=false 的 settings 与 schedule；首页已删除）', () => {
+  // 瘦身刀1（v4.168.0）曾把 schedule 藏出菜单；2026-11-14 拍板起 schedule 恢复一级
+  // 板块（inMenu=true），白名单语义不变（注册即可导航）。
+  it('注册即可导航：全部业务板块（仍含 inMenu=false 的 settings；首页已删除）', () => {
     expect(navigateWhitelist).toEqual([
       'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
     ])

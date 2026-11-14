@@ -169,10 +169,11 @@ var builtinManifests = []Manifest{
 		ID: "schedule", Label: "进度计划", Icon: "ScheduleOutlined",
 		Page: "SchedulePage", Lazy: true, // v4.110.0：工程进度计划（横道图/单代号/双代号三视图，前端自治）
 		KeepAlive: Bool(true), Layout: "padded",
-		// 瘦身刀1（v4.168.0）：并入办公文档面——InMenu:false 藏出顶栏菜单/启动器，
-		// 办公文件面（.gsched 摘要卡）+命令面板「进度计划」项承接（与前端 manifests
-		// 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂）。
-		MenuOrder: 12, InMenu: Bool(false),
+		// 2026-11-14 用户拍板：进度板块从办公板块分离为一级板块（撤 v4.168.0 瘦身刀1 的
+		// InMenu:false 合并语义）。办公侧承接入口保留：文件面 .gsched 摘要卡、命令面板项、
+		// 右栏一级 Tab（ScheduleTool）。与前端 manifests.ts 同步翻，防 normalizeManifests
+		// 后端字段优先导致真机/浏览器分裂。
+		MenuOrder: 12, InMenu: Bool(true),
 		Space:        SpaceWork, // 工位·进度计划
 		FeatureModel: "schedule",
 	},

@@ -72,7 +72,7 @@ const COST_NAV: BoardNavChild[] = [
 ]
 
 /**
- * 内置 canonical 板块清单（14 条业务板块，含 inMenu=false 的 settings/schedule）。
+ * 内置 canonical 板块清单（14 条业务板块，含 inMenu=false 的 settings）。
  * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
  * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail。
  * sin 板块已退役（2026-10-27 拍板导航级合并）：原罪收编为小说板块第六页签，
@@ -145,9 +145,11 @@ export const canonicalBoards: BoardManifest[] = [
   {
     id: 'schedule', label: '进度计划', icon: 'ScheduleOutlined', page: 'SchedulePage',
     lazy: true, keepAlive: true, layout: 'padded',
-    // 瘦身刀1（v4.168.0）：schedule 并入办公文档面——inMenu:false 藏出顶栏菜单，
-    // 办公『进度计划』入口承接（白名单刀0 已解耦，注册即可导航不丢能力）
-    menuOrder: 12, inMenu: false, space: 'work',
+    // 2026-11-14 用户拍板：进度板块从办公板块分离为一级板块（撤 v4.168.0 瘦身刀1 的
+    // inMenu:false 合并语义）。办公侧承接入口保留：文件面 .gsched 摘要卡、命令面板项、
+    // 右栏一级 Tab（ScheduleTool）。与 Go builtins.go 同步翻，防 normalizeManifests
+    // 后端字段优先导致真机/浏览器分裂。
+    menuOrder: 12, inMenu: true, space: 'work',
     featureModel: 'schedule',
   },
   {
