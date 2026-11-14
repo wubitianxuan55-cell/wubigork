@@ -1,3 +1,293 @@
+## 多执行体工作树收口 · 2026-11-14
+
+用户确认其他 agent 已停止，要求主代理接管全部未提交改动并梳理工作空间。收口按
+功能边界拆成可审查提交，不把办公、编队、众神殿、识图和进度计划混成单笔：
+
+- `e221c170` 办公输出：交付停靠条同源、上下文状态去重、消息操作浮层、
+  阶段“思考中”去重与灵犀成果卡；定向 55 例。
+- `14573e88` 三语文案：补编队 MissionPulse 与识图画布文案，退役已删除的
+  消息复制/单条沉淀技能文案。
+- `6f0f9fb1` 编队：Hero + SVG Agent 网络 + 跨 Agent 时间线/任务 + 事件检查，
+  **20/20 例**。
+- `fd21988d` 众神殿：恢复四席拓扑并补上下文账本、相对输入环、逐轮轨迹，
+  **76/76 例**。
+- `8bd9b059` + `d1d20dd9` 识图：完成遗留 `ImageInspectStage`，接入选图页，
+  补像素标尺、锚点缩放、平移、全屏、纯函数与视图测试，**15/15 例**。
+- `b1cd78a2` 进度计划：ZPert8 W4–W7 时标/图面/就地编辑/列筛/右键/纸面导出/
+  斑马密度/树拖动及 4 份逆向资料，一体验证 **85 文件 / 1202 例**。
+- `03686b79` 编队测试：把遗留的径向卡片断言改为 MissionPulse SVG 谱系；
+  卡片主命中区选中、独立按钮打开上下文，聚焦组 **22/22 例**。
+- 更早的 `6925ad86` 输入卡/正文文件链接、`7949b8db` 预览包记录和
+  `86040063` release 计数已单独入库。
+
+工作树清理：删除误生成的 `({i` 空文件；把 PowerShell 误落盘的非 UTF-8
+`$null` 移到 `.tmp/workspace-cleanup/powershell-null-artifact.txt` 保留取证；
+`.gitignore` 增加 `$null` 与 `releases/*/payload/`，预览包二进制继续只留盘。
+收口期间又落盘一份未跟踪的 `docs/gaea-obscura-egolite-browser-distill-research-2026-11.md`
+（22:10，纯可研未动刀），已补 `docs/README.md` 索引并纳入同一清理提交。
+全窗口案：Vite 生产构建 **48.48s** 通过；全量 ESLint **0 error / 57 warning**。
+全量前端测试首跑 **542 文件 / 5020 例、1149.56s**：540 文件/5017 例通过；
+2 条失败是旧径向拓扑断言，已由 `03686b79` 更新并通过（编队聚焦组 22/22）；
+另 1 条 `DatabaseLibrary` 加载时序失败单跑 6/6、与拓扑复跑合批 8/8 通过，
+归类为全量并行时序抖动，不掩盖。最终工作树只保留本记忆/忽略规则提交，未 push。
+
+## 办公输出 · 阶段行图标与重复“思考中”收敛 · 2026-11-14
+
+- **阶段行横排**：`office-phase-line` 统一承载 phase 图标与文字，CSS 改为
+  `inline-flex + gap:6px`，覆盖 Tailwind preflight 将 SVG 设为块级后造成的
+  “图标独占一行”。
+- **思考去重**：模型调用前的 `phase="思考中"` 仅在尚未产生 reasoning 时保留；
+  同一过程段后续已有思考正文/思考卡时，该 phase 从过程卡正文与最近三项尾巴中
+  一并过滤，避免思考卡上方重复出现“思考中”。首包前仍有状态反馈。
+- **门禁**：ProcessCard + Transcript 四文件 **52 例**全绿；改动面 ESLint 0；
+  `npm run build`（tsc + Vite）**34.60s** 通过。浏览器静态几何实测图标中心线
+  与文字一致、图标位于文字左侧；临时预览文件已清理。
+- **边界**：未构建 Wails、未装机。
+
+## gaea 进度板块 · 实页走查（Vite dev + 无头 Edge · 2026-11-14）
+
+- **方式**：`npm run dev --port 5180` + 无头 Edge（CDP 9333，1600×1000）+ `?mock=1`，
+  点左侧轨道「进度计划」进页，亮/暗各拍一张。
+- **实测计算值**（CDP 读 computedStyle）：表格行高 **30px**、单元格字号 **14px**、
+  功能区命令圆角 **4px**、命令台 `backdrop-filter: none` —— 密度层确实生效。
+- **走查发现并修掉两个真问题**（都是像素级才看得见的）：
+  1. **周标尺相邻重复 W1**：`buildWeekRuns` 用 `floor(i/7)+1` 算周序，首周若不是周一
+     起始，会把首段与下一个周一段都算成 W1；改为按「第几个周段」递增。
+  2. **窄窗 W 标签叠字**：段宽 ~18px 时逐周标 W1..W20 会互相压字；改为段宽 <24px
+     退回「每 4 周标一次」（≥24px 仍逐周）。
+  两条都补了用例（29 例全绿）。
+- **截图**：`temp/gaea-schedule-zebra-light.png` / `temp/gaea-schedule-zebra-dark.png`。
+- **边界**：走查用 dev server + mock，未构建 Wails、未装机。
+
+## gaea 众神殿 · 四席圆桌上下文状态与逐轮轨迹 · 2026-11-14
+
+用户确认众神殿固定四席（Grok / Codex / ZCode / DeepSeek Harness），要求在既有议事厅
+内补“众神的上下文状态和轨迹”，不重做页面、不删除原有四视图。
+
+- **拓扑回退**：首版圆桌布局经用户实看后否决，已恢复原版“共享枢纽在上、四席卡片在下、
+  径向虚线连接”结构；共享主线程与席位节点原有跳转、跳过、重试、实时状态和用时全部保留。
+- **连线修复**：新增上下文块后席位卡变高，旧路径端点和容器高度不匹配；宽屏高度增至
+  430px 并提高线色/线宽。1320px 以下不再隐藏 SVG，改为生成两列树状 compact path；
+  521px 以下沿用原纵向连接缩略。
+- **上下文状态**：新增 `pages/pantheon/seatInsights.ts`。每席聚合
+  `PantheonSeatUsage` 的输入/缓存/输出 Token、步数和引擎会话；头像外环与卡内条仅表示
+  四席之间的**相对输入投入**。引擎未上报时显示“上下文未上报”，不拿缺省冒充 0%。
+- **关系展示边界**：拓扑图不再额外绘制关系弦线；目标贡献/分歧关系继续在席位轨迹中
+  以“指向谁、被挑战命题、回应结论”展示，避免和原拓扑连线叠加造成误读。
+- **轨迹页签**：席位独立窗口新增上下文账本和“轨迹”。轨迹按时间合并观点与工具调用，
+  展示主张/质疑/回应等动作、轮次、时间、目标席位、被挑战命题和回应结论；原“观点”
+  与“工具调用”页签保持原样。
+- **四视图保留**：拓扑图、共享窗口、Agent 窗口、分歧台账的结构与操作未删；本次仅增强
+  拓扑图和席位独立窗口。另修正设计探索阶段误加第五席的问题，落地面严格以四席为准。
+- **门禁**：`PantheonPage` + `PantheonRecord.streaming` + `seatInsights` **3 文件 / 76 例**
+  全绿；`tsc -b` 0；改动面 ESLint 0；`npm run build`（tsc + Vite）**23.55s** 绿。
+  恢复后的原版拓扑与席位抽屉在真实 mock 会话亮暗实页走查通过；未提交、未构建 Wails、未装机。
+
+## gaea 进度板块 · 树形拖动（第七刀，主代理直接执行）· 2026-11-14
+
+- **纯计划器**：`moveRow.ts`（before/after/inside 三落点、分区带子树搬家、「之后」按目标子树
+  末尾算）；拒绝：原地/自己子树/分区塞分区/工作塞工作/跨级/inside 非分区，均给原因不落库。
+- **接线**：行容器 `draggable` + 三区判定（上 25% 前 / 中段成为子工作 / 下 25% 后），
+  落点提示 `sched-drop-*`；drop → `store.moveRow`（一次历史）。画布窗格不传属性，手势不变。
+- **门禁**：schedule + 页面回归 **85 文件 / 1200 例** 全绿（+11：纯函数 9 + 集成 2）；
+  改动面 ESLint 0。`tsc --noEmit` 与 `npm run build` 当前被**他人未提交的在途文件**
+  `pages/pantheon/PantheonRecord.tsx` 阻断（TS6133/TS2739 且行号在漂移，属另一执行体
+  正在编辑），与本刀零交集；Vite 构建另行单跑核验。
+- **边界**：未提交、未构建 Wails、未装机。
+
+## gaea 进度板块 · 右键真动作补批（第六刀，主代理直接执行）· 2026-11-14
+
+按新纪律（2026-11-14 用户撤销强制并发）由主代理连续完成，未派子代理。
+
+- **解组**：`store.ungroupTask` —— 删分组行、子工作并入上一个分组；首分区「无处归属」/
+  空分组都拒绝并给原因（与降级同一归属口径）；`pushHistory` 一次可撤销。
+- **格式刷**：功能区按钮（有选中才可用）或右键项取当前行外观 → 下一次点击表格行应用
+  并自动收起；激活期根节点 `.sched-brush-mode` 让表体 `cursor: copy`。
+  行点击包装为「刷子激活则应用、否则选中」，画布手势零改动。
+- **文字颜色**：右键项改为色板子菜单（红/橙/绿/蓝/紫/默认 6 项），落 `SchedTaskStyle.color`；
+  「默认」删色键（`withoutStyleKey`），不写空壳 style。菜单渲染层支持 antd 子菜单。
+- **列宽自适应**：列头右键 → 表格窗格回落到可见列合计并写 `chatPrefs.ganttTableW`。
+- **仍诚实禁用**：插入列 / 列设置（列集由视图预设与列菜单定义）、显示/取消分区
+  （网络图分区语义未建模）、图面样式（功能区已有面板，不重复挂浮层）。
+- **门禁**：schedule + 页面回归 **84 文件 / 1189 例** 全绿（+6 例：解组 4、格式刷/自适应 2、
+  菜单契约改写 1）；`tsc --noEmit` 0；改动面 ESLint 0；`npm run build` 见下条。
+  既有「格式刷禁用」用例改为用「删除」取证（格式刷已接真动作）。
+- **边界**：未提交、未构建 Wails、未装机。
+
+## gaea 编队标签页 · dsh-context 0.84.1 MissionPulse 对齐 · 2026-11-14
+
+用户补充确认两张截图均为**目标参照**，要求对齐完善编队标签页。执行方式同时改为
+主代理按需决定、不再强制并发子代理；一次协作任务子代理空转/API 报错后由主代理直接接管。
+
+- **页面骨架**：`Fleet.tsx` 收口为 Hero + 左 Agent 网络 + 右跨 Agent 协作/协作任务 +
+  底部事件检查；删除旧的重复成员卡面板，保留原三投影数据源（AgentNetwork /
+  SubagentRuns / FamilyEvents），不伪造上游 team task、blocked-by 等缺失字段。
+- **Agent 网络**：新增 `agentTopologyLayout.ts`，按叶槽计算任意深度树布局；卡片改为
+  SVG 贝塞尔谱系、真实节点色、角色/模型/Token/费用/耗时/工具/消息、选中路径高亮与
+  “打开会话”。摘要 Agent 数改读网络实节点，修掉网络 4 个而 Hero 只显示 3 个的偏差。
+- **跨 Agent 协作**：新增 `FleetTimeline.tsx`；固定左侧泳道标签，右侧等距列网格、
+  dispatch/report 竖向连接与事件节点；搜索、初始/最新定位、选中同步、空态、键盘焦点、
+  reduced-motion。泳道只由真实 runs + main 生成，去掉 `family.refs` 中无运行记录的幽灵道。
+- **协作任务**：新增 `FleetTasks.tsx`；按 Agent 分组，状态 chips 带真实计数，支持搜索、
+  行展开 answer/失败原因与打开上下文；组头可选中 Agent，筛选在 Hero/网络/时间线/事件
+  间共享。行数据只用现有 `SubagentRunView` 与 `FamilyAgentRowView`。
+- **事件检查**：新增 `FleetEvents.tsx`；类型 chips + 数量、搜索、Agent 筛选 pill、左侧
+  事件卡流、右侧常驻检查器；默认展示首条，补齐时间、序号、参与者、发送方/接收方、
+  完整正文、关闭与回报会话入口。事件 key 统一 `${agent}-${kind}-${seq}`，与时间线节点联动。
+- **视觉口径**：1618×894 亮/暗、1100 与 880 亮色 mock 实页走查；宽屏两列、窄屏顺序
+  堆叠，无横向页面溢出；时间线自身长列表保留横向滚动。参照图为信息架构和密度基线，
+  颜色继续服从 gaea 主题 token。
+- **门禁**：`Fleet*` + layout 5 文件 **20/20 例**、`tsc -b` 0、改动面 ESLint 0、
+  `npm run build`（tsc + Vite）**44.15s** 绿；未提交、未构建 Wails、未装机。
+- **纪律变更**：`.gaea/AGENTS.md` 的原「默认并发子代理」改为「按需使用」；子代理
+  报错/空转/只确认未落产物时，主代理直接接手，不再为并行形式重试。
+
+## gaea 进度板块 · 纯照斑马外观密度 + 交互语义（2026-11-14 第五刀，三线并发）· 2026-11-14
+
+用户先要求「下一代前端对齐、UI 建立交互」，随后二次拍板「**纯照斑马外观密度**」——
+撤销 v3 星枢的玻璃/高光线/光晕，形状语言严格照 ZPert8。
+
+- **密度令牌层**：新增 `sched-zebra.css`（20 个令牌：行高 30 / 表格字 14 / 浮层字 12 /
+  控件圆角 4 / 面板 6 / `--sched-elev-1: none` / 动效 100ms / hairline / grid-line /
+  head-bg / head-ink …），六区密度收紧（功能区、命令台、文档条、工作区、右舷、状态栏）；
+  表格/画布方角；hex 只作 `var(--token, #hex)` 兜底，选择器零裸色值。由
+  `SchedulePage.tsx` 在 `display-preset`/`schedule`/`hit` 之后引入。
+- **交互态**：六个钩子（功能区命令、菜单项、表格行、表头格、状态栏、右键浮层）统一
+  hover 4% 灰膜 / 选中 12% 主色 / 按下 16% / disabled 45% + not-allowed /
+  `:focus-visible` 2px 主色环 + `outline-offset:-2px`（栅格内负偏移不撑行高）；
+  `prefers-reduced-motion` 与 `.ui-reduced-motion` 双入口归零。单代号节点选中从外扩
+  光晕改成 2px 实描边环；状态栏不再锁死 24px 高（只留 min-height，防大字号裁字）。
+- **键盘与 aria**：页签 roving tab + ←/→/Home/End + Enter/Space；命令按钮补
+  `aria-pressed`/`aria-disabled`/`tabIndex=-1`；9 个受控浮层 Esc 收起并回焦触发者；
+  表格行 roving（↑/↓ 选中并跟随焦点、Enter 检查器、F2 就地编辑，行内控件不抢键）；
+  表头筛选按钮 `aria-haspopup/aria-expanded`；命令面板 `combobox` + `aria-activedescendant`；
+  状态栏 `role=status` + `aria-live=polite`（只播变化格）；右键菜单 Esc 回焦命中行。
+- **两处静默失效被修**：①`schedule.css` 里 27 处 `--sched-radius-*`/`--sched-motion*`
+  此前**没有任何定义**（v3 层撤销后悬空），圆角与动效一直静默失效，本轮补齐；
+  ②`uiAlignment.test.ts` 与 `schedule.css` 注释指向已删除的 `sched-v3.css`，已订正为
+  `sched-zebra.css`（全仓零残留）；div 型钩子的 `:disabled` 永不命中，补了
+  `[aria-disabled="true"]` 变体。
+- **口径决策**：表格 14 / 浮层 12 是斑马自身两档（re:359 与 re:362），双击开编辑的字号
+  跳变属预期；双标尺 40px 是刻意偏离（保证表格首行与画布首行同基线），已钉成断言。
+- **门禁**：schedule + 页面回归 **84 文件 / 1183 例** 全绿（+3 文件 / +109 例，含新增
+  密度守卫 85 条与键盘/aria 23 例）；`tsc --noEmit` 0；改动面 ESLint 0；
+  `npm run build`（tsc -b + Vite）**42.60s 通过**；前端全量 **532/535 文件、
+  4982/4985 例**——3 例失败全在**本刀未碰**的 context 编队
+  （`AgentTopology` 2 + `Fleet` 1，工作树里已有的 dsh-context 在途改动），
+  与进度板块零交集。
+- **边界**：未提交、未构建 Wails、未装机；六屏人工走查（亮/暗 × 1440/1100/880）待用户观感。
+
+## gaea 进度板块 · ZPert W6 输出与外观（按纸张布图/显示预设/收尾）（三线并发）· 2026-11-14
+
+W4/W5 收口后按计划档进 W6，仍是三线并发 + 主代理接线。
+
+- **按纸张布图**：`pageLayout.ts`（A4/A3/A2 × 横竖、mm→px@dpi、页边距、等比适配
+  `minScale=0.5`、分页网格 row-major、页框/页号/图幅标记、`MAX_PAGES=400` 截断）+
+  `paperExport.ts`（上报图作嵌套 `<svg>` 按页切片 + `clipPath` + 可配装订缝；
+  `gap:0` = 打印口径；页数/缩放/截断回填给 UI）。A4 竖 794×1123、10mm 边距内容盒
+  718×1047。
+- **打印真分页**：`printSvg` 增可选 `{pageSize, margin, svgWidthMm}`——打印纸堆时
+  `@page{size:A4 landscape;margin:0}` + `svg{width:297mm}`，每页落一张纸；既有调用
+  不传参=原 8mm 口径零变化。PNG/PDF 仍整图编码，纸堆 >20 页时按钮提前禁用并给原因
+  （浏览器画布 ~32767px 上限，实测 A4 竖约 28 页到顶）。
+- **显示预设**：`displayPreset.ts` 三档 + `display-preset.css` 只覆盖六个 `--sched-*`
+  领域色（不碰 `--md-sys-color-*`，亮暗基座都能叠）；每档分「屏上深底/纸面白底」，
+  对比度按 WCAG 实测（护眼 4.91–9.08:1、黑白 5.24–16.21:1，关键/正常按文字级 4.5:1
+  收口）；进度页「显示 → 配色」切换并落 `chatPrefs.ganttDisplayPreset`（旧偏好零迁移）；
+  导出前 `applyExportPalette` 把六个导出色换成该预设纸面档，屏上与 PNG/PDF 同色相。
+- **收尾两项**：PDM 节点半径参数化（`nodeRadius` 当尺度系数 k=radius/16，盒/列距/行距/
+  连线端点同源缩放，缺省渲染 innerHTML 逐字不变，k=4 下限仍无负间距）；状态栏挂
+  `data-hit="status-bar"` 并走同一命中/右键入口（类名/文案/结构零改动）。
+- **一处诚实留白**：图签/图例沿用既有构建器（v4.132~v4.137 已落，本轮不重画）；
+  前锋线/竣工线不在预设六变量契约内，黑白档仍是彩色线；导出 PDF 仍是图片型单页
+  （逐页编码合并属另一刀）。
+- **门禁**：schedule + 页面回归 **81 文件 / 1074 例** 全绿；`tsc --noEmit` 0；
+  改动面 ESLint 0；`npm run build`（tsc -b + Vite）**40.42s 通过**；前端全量
+  **531/532 文件、4866/4867 例**——唯一失败仍是未改动的
+  `memoryhub/DatabaseLibrary.test.tsx`（DOM 停「读取中…」），隔离复跑时红时绿，
+  与上一轮同一条 flaky，判既有（非本刀引入）。
+- **边界**：未提交、未构建 Wails、未装机。
+
+## gaea 进度板块 · ZPert W4/W5 余项收口（命中区/右键/列筛持久化/图面参数）（三线并发）· 2026-11-14
+
+第二刀之后的余项收口，仍是三线并发 + 主代理契约与集成。
+
+- **命中区优先级**：`hitRegion.ts`（列头→画布→单元格→状态栏→分隔条→行头，
+  `pickHitRegion` 取最高、`hitRegionChain` 自限深度上溯 `data-hit`）；GanttView 收成
+  单一 `onContextMenuCapture`，对象分支先选中再出菜单（§16.2 口径）。关键取舍：
+  行容器声明 `row-header` 兜底、单元格声明 `cell` 覆盖它——否则优先级会把行号格
+  裁成单元格；该约束在模块注释、组件注释、用例三处各记一遍。
+- **统一右键菜单**：`hitMenu.ts` 12 项结构操作固定序 + 画布/列头/分隔条/状态栏区域
+  菜单；可用性复用 `commandRegistry.scheduleCommandDisabledReason`；无后端能力的项
+  （解组/格式刷/文字颜色/插列/列设置/列宽自适应/分区/图面样式）如实禁用并写原因。
+  既有两条右键用例零改动通过（行级专有项追加在 12 项之后）。
+- **图面参数补齐**：`networkLayout.ts` 成为 `namePos / hideUnimportantLink /
+  stagger / layerHeight1-2 / density` 唯一解析与变换入口。AOA：名称排布三态、隐藏
+  非关键非虚关系线（图例真实计数）、错层（仅自动布局）、层高上下限、密度系数
+  （列距/行距同源，时标与波形长度不破）；PDM：名称排布 + 隐藏非重要搭接。
+  三条「缺省零回归」锚点（节点坐标数组逐字相等 / PDM 渲染逐字一致）。图面样式
+  面板补密度/层高/错层/隐藏非重要线四控件，消灭「能写不生效」的假开关。
+- **列筛持久化**：`colFilterPrefs.ts`（归一/稳定签名/原型链键防护）+ `chatPrefs.
+  ganttColFilters`（键名与版本不变，旧偏好零迁移）；GanttView 初值只读一次、
+  变更按签名去抖单点落盘、首帧不写盘；视图切换不动列筛。诚实收窄：只持久化
+  `COL_FILTER_KIND` 登记列，自定义字段列条件会话内生效、重启丢失。
+- **常量单源**：`ganttUtil` 的 `WEEK_TIER_BELOW / WEEKDAY_LABELS` 改由 `timescale.ts`
+  re-export，消除第二份真源。
+- **一个测试工程发现**：列筛持久化用例与 GanttView 主测试文件同场跑时顺序敏感
+  （挂载前 localStorage 就位 + 几十个共享存储用例），隔离跑则稳定通过。处置=
+  把两条端到端用例抽成独立文件 `ganttColFilters.persist.test.tsx`（不是放宽断言，
+  而是把环境前置条件显式化），主文件保持 47 例。
+- **门禁**：schedule + 页面回归 **76 文件 / 991 例** 全绿（+5 文件 / +90 例）；
+  `tsc --noEmit` 0；改动面 ESLint 0；`npm run build`（tsc -b + Vite）**42.71s 通过**；
+  前端全量 **526/527 文件、4782/4784 例**——唯一失败是**未改动**的
+  `memoryhub/DatabaseLibrary.test.tsx` 两条时序断言（DOM 停在「读取中…」），
+  隔离复跑 2 次 6/6 全绿，判既有 flaky（上一轮全量同文件全绿）。
+- **余项**：PDM 节点半径（会破 NODE_W/H 分层）；状态栏 `data-hit`（在 SchedulePage
+  外壳，随外壳刀）；异常标记/进度滞后列过滤器（需先有列）。
+- **边界**：未提交、未构建 Wails、未装机。
+
+## gaea 进度板块 · ZPert W4 图面密度 + W5 交互首版（三线并发）· 2026-11-14
+
+承接 `进度计划/gaea-schedule-zpert8-uiux-port-plan-20261114.md` 的 W4/W5 与
+`gaea-schedule-zpert8-master-index-20261114.md` 的逆向结论，三线并发子代理 + 主代理收口。
+
+- **W4 双标尺**：新增 `timescale.ts`（669 行纯模块，逐条对齐 timescale-re §2/§3/§4/§8：
+  六档 fov、单位间隔集与钳位、自动联动 0.04..0.4 且 ×0.5 收尾、像素唯一出口
+  `pos[i]=Σ step×scale×2.4`）；`GanttTimeline` 重写为「工程标尺（年-月跨列段 +
+  日/周刻度线）+ 进度标尺（周/星期）」两行常驻；`GANTT_RULER_H` 成为画布表头、
+  表格表头、`--sched-ruler-h`、覆盖层顶部唯一来源（新增守卫断言四处同值）；
+  窄窗 `dayW<8` 降级只画月段/周号；今日/竣工竖线跨两行；刻度线疏密读
+  `networkStyle.tickLines`。
+- **W4 四开关**：`networkDisplay.ts` 为「节点时间/工期/六参数/起止时间 + 几何」唯一
+  解析入口；缺省即旧观感（前两开、后两关），AoaView 用「全缺省 vs 不落
+  networkStyle → innerHTML 逐字相等」钉死零回归；PDM 同步消费六格 ES/EF、工期/
+  搭接标签、框下六参数与起止。
+- **W4 几何贯通**：dotStyle/arrowStyle/headHeight/lineWidth 已消费；`aoaLayout.edgeSegs /
+  assignChannels / summarySegs` 增 `radius` 入参（缺省 AOA_R，既有 32 例断言零改），
+  视图与 `networkExport` 同传 `resolveNetworkGeometry().nodeRadius`——改半径不再
+  箭线插进节点/端点悬空。
+- **W4 五图模式**：时标逻辑图（保留时间轴与关键红、压掉工期装饰）、横道网络图
+  （关系线加重 `sched-link-net` + 折线中点 `FS+2` 标签）接线；其余三模式沿用。
+- **W5 就地编辑**：`inplaceEdit.ts` 四类值语义（严格合法日、区间开闭与顺序、数值
+  step 对齐夹取、文本 trim/maxLen、空=清空与显式 `emptyAs:'zero'`）；
+  `InplaceEditField` 按逆向 §15.2 六步（padding 0/继承字体/左对齐垂直居中/全选/
+  Enter 提交/Esc 取消/blur 提交）；GanttTable 双击 名称·工期·进度·开始·完成·自定义
+  字段走同一弹层，旧单击直编路径保留（零回归）。
+- **W5 列级筛选**：`GanttFilter` 增可选 `colFilters`（文本/数值/日期区间/枚举/空值），
+  三参调用逐字不变；表头每列「▼」（伪元素出图标，不污染表头文案断言）；GanttView
+  接第 4 参 ctx，日期列筛不再 fail-open；功能区「编辑 → 列筛选」+ 清除信号。
+- **门禁**：schedule + 页面回归 **71 文件 / 901 例全绿**（新增 55 例：timescale 22、
+  networkDisplay 9、inplaceEdit 25…按文件计）；`tsc --noEmit` 0；改动面 ESLint 0；
+  `npm run build`（tsc -b + Vite 生产构建）**41.21s 通过**；**前端全量 522 文件 /
+  4694 例 / 742s 全绿**（交付前唯一一次全量）。
+- **卫生**：把 in-flight 遗留的 CRLF（schedule.css / AGENTS.md / SchedulePage.test.tsx）
+  统一回 LF（diff 由 3698 行噪音收敛为真实 289/40/7 行）；仓库根游离文件
+  （`$null`、根目录双份旧测试）移入 `.tmp/hygiene-20261114/`。
+- **未做**：命中区顺序与「按命中类型追加右键菜单」同刀（gaea 各区独立 DOM，
+  天然分层）；PDM 节点半径（会破 NODE_W/H 分层）；列筛持久化（斑马
+  `column_filters` 是二次编码 JSON 表达式，未建模）；异常标记/进度滞后两类过滤器。
+- **边界**：未提交、未构建 Wails、未装机。
+
 ## gaea 打包 · gaea-schedule-zpert8-20261114-1052adec（进度板块斑马复刻+DSH 批代收编） · 2026-11-14
 
 - **包**：`releases/gaea-schedule-zpert8-20261114-1052adec/`（PACKAGE-INFO+SHA256SUMS 入库；
@@ -446,12 +736,14 @@ en「GAEA is with you」）。定向 App 导出/首页依赖 15 例绿、ESLint 
 投影，使输入框与上方画布同底悬浮。定向 50 例绿；mock 实机走查确认停靠条、
 右侧面板与悬浮输入框风格一致；前端构建 Vite 25.81s。
 
-桌面构建（同日）：按构建指南前置 UCRT64 GCC、`CGO_ENABLED=1`、系统
-TMP/TEMP，前端生产构建后执行完整绑定 `wails build -s -ldflags "-s -w" -trimpath`
-成功（1m23.122s）。`build/bin/gaea.exe` 63,639,552 B / SHA256
-`52D605F24DF78EA06B16FEA3035EB2F3FBCB5C92B2573D4310C199073EF6B965`，
-三枚语音 DLL 同目录；正式路径冒烟 `/api/health` 200，PID 19132 已回收。
-未装机、未抬起版本。
+找回与装机（2026-11-14）：上述 batch3 输出卡、输入卡上下文、悬浮输入框、
+交付停靠条、右侧产物面板，以及后续消息操作浮层/阶段“思考中”去重，已按
+`18fb5dcb` + 当前工作树版本完整找回；期间误撤的工作树改动未提交，已全部
+恢复。相关 8 文件 108 例绿，前端生产构建 Vite 24.18s；按 UCRT64 GCC /
+`CGO_ENABLED=1` / 系统 TMP 完整 Wails 构建 53.84s。最终 exe 64,020,992 B /
+SHA256 `793F2FEB9FE33BFC64F387A682E954C65183AFD9B9328D62CF0AE88F978C4985`，
+正式路径冒烟 `/api/health` 200（PID 53600 已回收），`gaea_install.ps1`
+输出 INSTALL OK；已安装版与 build/bin 同哈希，未抬版本。
 
 跨端复核、功能提交与预览包（2026-11-14）：实机确认桌面旧布局仍保存
 `composerHeight:104`，会把新输入卡的 112px 输入区+43px 工具栏裁掉。输入卡

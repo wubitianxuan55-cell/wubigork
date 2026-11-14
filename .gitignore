@@ -92,10 +92,12 @@ z_image_turbo-Q5_K_M(1).gguf
 releases/*.exe
 releases/*/*.exe
 releases/*/*.dll
+releases/*/payload/
 releases/*-preview.zip
 releases/*/*-preview.zip
 releases/archive/*.exe
 nul
+$null
 .tmp/
 # 分支工作树仓内安家（用户红线：代码不落工作空间外；.tmp 会被 DSH 清扫吞树，故用 .worktrees）
 .worktrees/
