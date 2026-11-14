@@ -27,7 +27,7 @@
 }
 
 .ig-stage.is-fullscreen::backdrop {
-  background: color-mix(in srgb, var(--color-text) 72%, #000);
+  background: color-mix(in srgb, var(--color-text) 72%, black);
 }
 
 .ig-stage-toolbar {
