@@ -618,7 +618,7 @@ export const zhTW: Record<DictKey, string> = {
   "shell.tele.overloadMem": "⚠ 記憶體占用過高",
   "shell.tele.overloadMemDesc": "記憶體使用率 {mem}%，建議釋放不用的模型",
   "shell.tele.overloadModels": "⚠ 已啟動模型過多",
-  "shell.tele.overloadModelsDesc": "已啟用 {count} 個引擎，建議停用不用的模型（各功能視窗 ⚡ 一鍵啟停）",
+  "shell.tele.overloadModelsDesc": "已啟用 {count} 個引擎（上限 {limit} 個），建議停用不用的模型（各功能視窗 ⚡ 一鍵啟停）",
   "shell.launcher.statModel": "活躍模型",
   "shell.launcher.statEngines": "已啟用引擎",
   "shell.launcher.statEnginesSub": "{local} 本機 · {cloud} 雲端",

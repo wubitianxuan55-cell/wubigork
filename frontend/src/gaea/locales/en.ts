@@ -613,7 +613,7 @@ export const en = {
   "shell.tele.overloadMem": "⚠ High memory usage",
   "shell.tele.overloadMemDesc": "Memory usage is {mem}% — consider releasing unused models",
   "shell.tele.overloadModels": "⚠ Too many models running",
-  "shell.tele.overloadModelsDesc": "{count} engines enabled — consider disabling unused ones (⚡ toggle in each window)",
+  "shell.tele.overloadModelsDesc": "{count} engines enabled (limit {limit}) — consider disabling unused ones (⚡ toggle in each window)",
   "shell.launcher.statModel": "Active model",
   "shell.launcher.statEngines": "Enabled engines",
   "shell.launcher.statEnginesSub": "{local} local · {cloud} cloud",

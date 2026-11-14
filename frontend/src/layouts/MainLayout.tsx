@@ -27,6 +27,11 @@ import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { notifyBoardActive } from '../lib/boardActive'
 import { useT, type Translator } from '../gaea/lib/i18n'
+import {
+  LOCAL_ENGINE_WARN_LIMIT,
+  countLocalEngines,
+  exceedsLocalEngineLimit,
+} from './telemetryOverload'
 
 const { Content } = Layout
 
@@ -121,6 +126,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
   // 历史缓冲：CPU/内存/GPU 各保留最近 20 点（60s @ 3s 轮询）
   const [history, setHistory] = useState<{ cpu: number[]; mem: number[]; gpu: number[] }>({ cpu: [], mem: [], gpu: [] })
   const lastWarn = useRef<Record<string, number>>({})
+  const modelOverloadWarned = useRef(false)
   const reducedMotion = useRef(false)
   // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时轮询空转零成本
   const visible = usePollingGate()
@@ -141,18 +147,31 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
       const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
       const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
       const gpuPct = ms?.gpuUsage || vramPct
-      const localEngCount = (m?.engines || []).filter((e: MonitorEngine) => e.isLocal).length + (m?.comfyRunning ? 1 : 0)
+      const localEngCount = countLocalEngines(m?.engines || [], m?.comfyRunning)
       const warns: { key: string; title: string; desc: string }[] = []
       if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: t('shell.tele.overloadCpu'), desc: t('shell.tele.overloadCpuDesc', { cpu: ms?.cpu ?? 0 }) })
       if (gpuPct > 85) warns.push({ key: 'gpu', title: t('shell.tele.overloadGpu'), desc: t('shell.tele.overloadGpuDesc', { gpu: gpuPct }) })
       if (memPct > 90) warns.push({ key: 'mem', title: t('shell.tele.overloadMem'), desc: t('shell.tele.overloadMemDesc', { mem: memPct }) })
-      if (localEngCount > 3) warns.push({ key: 'models', title: t('shell.tele.overloadModels'), desc: t('shell.tele.overloadModelsDesc', { count: localEngCount }) })
       warns.forEach((w) => {
         if (now - (lastWarn.current[w.key] || 0) > 60_000) {
           lastWarn.current[w.key] = now
           notification.warning({ message: w.title, description: w.desc, placement: 'topRight', duration: 6 })
         }
       })
+      // The engine-count warning is intentionally once per app run. Six engines
+      // are allowed; only the seventh triggers this advisory, and no timer retries it.
+      if (exceedsLocalEngineLimit(localEngCount) && !modelOverloadWarned.current) {
+        modelOverloadWarned.current = true
+        notification.warning({
+          message: t('shell.tele.overloadModels'),
+          description: t('shell.tele.overloadModelsDesc', {
+            count: localEngCount,
+            limit: LOCAL_ENGINE_WARN_LIMIT,
+          }),
+          placement: 'topRight',
+          duration: 6,
+        })
+      }
     }
     const load = async () => {
       if (!visible) return
