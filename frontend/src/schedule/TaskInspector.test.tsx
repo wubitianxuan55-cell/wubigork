@@ -193,3 +193,25 @@ describe('TaskInspector what-if slot（v4.523）', () => {
     expect(ui().getByTestId('sched-inspector-summary')).toBeTruthy()
   })
 })
+
+describe('TaskInspector 检查发现（斑马复刻 S1）', () => {
+  it('传入 diagnostics 时渲染严重级标签与"下一步"建议', () => {
+    render(<TaskInspector {...baseProps({
+      diagnostics: [
+        { code: 'no-predecessor', severity: 'warn', message: '任务「主体施工」没有前置搭接', hint: '可用 ops auto_chain 补缺省串联' },
+        { code: 'milestone-duration', severity: 'error', message: '里程碑工期应为 0' },
+      ],
+    })} />)
+    const box = ui().getByTestId('sched-inspector-diags')
+    expect(box.textContent).toContain('没有前置搭接')
+    expect(box.textContent).toContain('下一步：可用 ops auto_chain 补缺省串联')
+    expect(ui().getByTestId('sched-diag-no-predecessor').textContent).toContain('可疑')
+    expect(ui().getByTestId('sched-diag-milestone-duration').textContent).toContain('阻断')
+    expect(ui().getByTestId('sched-diag-milestone-duration').textContent).not.toContain('下一步')
+  })
+
+  it('无 diagnostics / 空数组时不渲染该段（干净任务保持抽屉简洁）', () => {
+    render(<TaskInspector {...baseProps()} />)
+    expect(document.body.querySelector('[data-testid="sched-inspector-diags"]')).toBeNull()
+  })
+})

@@ -648,3 +648,31 @@ describe('GanttView Ctrl+滚轮缩放（v4.159）', () => {
   })
 })
 
+
+// ── 斑马复刻 S2 接线：前锋线默认跟随最新一期检视 ──────────────
+describe('前锋线跟随最新检视', () => {
+  const withReview = (): SchedProject => {
+    const p = chainProject()
+    // 第 2 工作日（2026-09-09）：A 完成 100%，B 完成 50%
+    return {
+      ...p,
+      tasks: p.tasks.map((t) => (t.id === 'A' ? { ...t, progress: 100 } : t.id === 'B' ? { ...t, progress: 50 } : t)),
+      reviews: [{ at: 2, date: '2026-09-09', actuals: { A: { percent: 100, finish: 2 }, B: { percent: 50 } } }],
+    }
+  }
+
+  it('有检视：默认打开前锋线并停在那一期（sched-front-check / sched-front-line 出现）', () => {
+    const p = withReview()
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} onInspect={() => {}} />)
+    expect(container.querySelector('.sched-front-check')).not.toBeNull()
+    expect(container.querySelector('.sched-front-line')).not.toBeNull()
+  })
+
+  it('无检视：默认不画前锋线（保持旧观感，用户手动开）', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p, selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+    const { container } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} onInspect={() => {}} />)
+    expect(container.querySelector('.sched-front-check')).toBeNull()
+  })
+})

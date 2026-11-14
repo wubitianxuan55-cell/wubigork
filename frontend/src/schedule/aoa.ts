@@ -16,7 +16,7 @@
  * 事件时间沿箭线网络正逆推（虚工作工期=0 或时距），关键线路 = 时差为 0 的箭线
  * （虚工作也可能是关键线路的一段，红色虚线显示）。
  */
-import type { SchedLink, SchedTask } from './types'
+import type { SchedAoaArrow, SchedAoaDot, SchedAoaGraph, SchedLink, SchedTask } from './types'
 import { layerByTime } from './layout'
 
 export interface AoaNode {
@@ -40,6 +40,17 @@ export interface AoaNode {
    * （end: < start: 保证合并事件代表=先构造者）。推导规则单测钉死（aoaLayout.test.ts）。
    */
   anchor: string
+  /**
+   * 持久事件 id（斑马复刻 N1）：仅当 `opts.persisted` 中存在同 `anchor` 的点时给出。
+   * 缺省=纯派生事件（无持久身份，编号随拓扑重排）。
+   */
+  dotId?: string
+  /**
+   * 层/行号（斑马复刻 N1：`pert_prop.dots[].layer`）：来自持久图元，缺省=沿用
+   * `band` + 重心行序的自动排布。v1 只承载（渲染暂时仍用 band/rowOf），
+   * 留给后续"手动分层/智能位错"刀消费。
+   */
+  layer?: number
 }
 
 export interface AoaEdge {
@@ -59,6 +70,11 @@ export interface AoaEdge {
   critical: boolean
   /** 箭线标注：实工作=工期，虚工作=时距（0 不标），汇总=界点时间差 */
   label: string
+  /**
+   * 持久箭线 id（斑马复刻 N1）：仅当 `opts.persisted` 命中该两端事件时给出，
+   * 供后续"按 id 选箭/改箭"用；缺省=派生箭线（无持久身份）。
+   */
+  arrowId?: string
 }
 
 export interface AoaGraph {
@@ -68,6 +84,11 @@ export interface AoaGraph {
   edges: AoaEdge[]
   /** taskId → 实工作箭线 id */
   taskEdge: Record<string, string>
+  /**
+   * 编号来源（斑马复刻 N1）：`persisted`=本次编号取自 `Project.aoa`（跨拓扑稳定），
+   * `derived`/缺省=按拓扑序现算（旧口径）。界面可据此提示"编号来自持久图元"。
+   */
+  numSource?: 'derived' | 'persisted'
 }
 
 /**
@@ -87,7 +108,11 @@ function effDur(t: SchedTask): number {
   return t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
 }
 
-export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFinish?: number | null }): AoaGraph {
+export function buildAoa(
+  tasks: SchedTask[],
+  links: SchedLink[],
+  opts?: { planFinish?: number | null; persisted?: SchedAoaGraph },
+): AoaGraph {
   // 分组行（level 0，汇总口径）不是工作，不进双代号网络图（JGJ/T 121：网络图
   // 只画实际工作）。分组行入图会变成挂在 START/END 上的零工期假箭线，与二级
   // 实际工作网络割裂成「两张图」（v4.142 修正，用户实测反馈）。
@@ -422,18 +447,132 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     nodeMembers.get(startOf.get(t.id)!)!.push(`start:${t.id}`)
     nodeMembers.get(endOf.get(t.id)!)!.push(`end:${t.id}`)
   }
+  const anchors = new Map<string, string>()
+  for (const id of nodeIds) {
+    anchors.set(id, id === START ? 'S' : id === END ? 'T' : (nodeMembers.get(id)!.sort()[0] ?? id))
+  }
+
+  // ── 持久图元覆盖（斑马复刻 N1）──────────────────────────────
+  // 契约：`Project.aoa.dots[].id` **就是**锚点键（S / T / start:<taskId> / end:<taskId>）。
+  // 命中者用其 num/layer（编号跨拓扑变更稳定 = 斑马 dots 口径）；未命中者按原顺序
+  // 补号并跳过已占用编号，保证编号唯一（编号唯一是"箭线 i<j"显示的前提）。
+  // 未提供 persisted 或一个都没命中 → 完全沿用派生口径（旧行为逐字节不变）。
+  const persisted = opts?.persisted
+  const dotByAnchor = new Map<string, SchedAoaDot>()
+  if (persisted) {
+    for (const d of persisted.dots) dotByAnchor.set(d.id, d)
+  }
+  const dotIdOf = new Map<string, string>()
+  const layerOf = new Map<string, number>()
+  let numOf = num
+  let numSource: 'derived' | 'persisted' = 'derived'
+  if (dotByAnchor.size > 0) {
+    const matched = new Map<string, number>()
+    const used = new Set<number>()
+    for (const id of nodeIds) {
+      const d = dotByAnchor.get(anchors.get(id)!)
+      if (!d) continue
+      matched.set(id, d.num)
+      used.add(d.num)
+      dotIdOf.set(id, d.id)
+      if (typeof d.layer === 'number') layerOf.set(id, d.layer)
+    }
+    if (matched.size > 0) {
+      const final = new Map<string, number>()
+      let next = 1
+      for (const id of nodeIds) {
+        const m = matched.get(id)
+        if (m !== undefined) {
+          final.set(id, m)
+          continue
+        }
+        while (used.has(next)) next++
+        final.set(id, next)
+        used.add(next)
+      }
+      numOf = final
+      numSource = 'persisted'
+    }
+  }
+
   const nodes: AoaNode[] = nodeIds.map((id) => {
-    return {
+    const node: AoaNode = {
       id,
-      num: num.get(id)!,
+      num: numOf.get(id)!,
       es: nodeEs.get(id)!,
       ls: nodeLs.get(id)!,
       x: AOA_MARGIN + nodeEs.get(id)! * AOA_COL_W,
       y: AOA_MARGIN + rowH / 2 + (rowOf.get(id) ?? 0) * rowH,
       band: nodeBand.get(id) ?? 0,
-      anchor: id === START ? 'S' : id === END ? 'T' : (nodeMembers.get(id)!.sort()[0] ?? id),
+      anchor: anchors.get(id)!,
     }
+    const dotId = dotIdOf.get(id)
+    if (dotId !== undefined) node.dotId = dotId
+    const layer = layerOf.get(id)
+    if (layer !== undefined) node.layer = layer
+    return node
   })
+  // 持久编号生效时按编号排序（数组序与编号一致：渲染顺序、导出顺序、i<j 断言三者同源）；
+  // 派生口径下保持原拓扑顺序（旧行为，逐字节不变）。
+  if (numSource === 'persisted') nodes.sort((a, b) => a.num - b.num)
 
-  return { ok: true, nodes, edges, taskEdge }
+  // 持久箭线 id 标注：两端事件都有 dotId 时按 (from→to) 反查
+  if (dotIdOf.size > 0 && persisted) {
+    const byEnds = new Map<string, string>()
+    for (const a of persisted.arrows) byEnds.set(`${a.from}\u0000${a.to}`, a.id)
+    for (const e of edges) {
+      const f = dotIdOf.get(e.from)
+      const t = dotIdOf.get(e.to)
+      if (!f || !t) continue
+      const hit = byEnds.get(`${f}\u0000${t}`)
+      if (hit) e.arrowId = hit
+    }
+  }
+
+  return { ok: true, nodes, edges, taskEdge, numSource }
+}
+
+/**
+ * 把一次派生的 `AoaGraph` 固化成可落盘的持久图元（斑马复刻 N1 的**生产侧**）。
+ *
+ * 触发时机（见 AoaView.commitPin）：用户第一次手动布点。理由：手动 pins 的 key 是
+ * `anchor`，而编号 `num` 随拓扑重排——一旦有人动过布局，就需要"编号稳定"这件事，
+ * 否则同一张图下次打开编号变了、pin 的视觉归属也变了。凭空给所有工程固化会产生
+ * 无意义的历史包袱，所以只在**确实需要**时固化。
+ *
+ * 契约（与 buildAoa 的匹配口径同一份）：
+ * - `dot.id` = 锚点键（S / T / start:<taskId> / end:<taskId>）；
+ * - `dot.num` = 当前编号；`dot.layer` = 当前 band（首版用横幅序号，后续分层刀再细化）；
+ * - `arrow.id` 用两端锚点拼（跨拓扑稳定，不用内部自增 id）；
+ * - `beginDotId` = S。
+ */
+export function aoaGraphFromBuild(graph: AoaGraph, prev?: SchedAoaGraph): SchedAoaGraph {
+  const anchorOf = new Map<string, string>()
+  for (const n of graph.nodes) anchorOf.set(n.id, n.anchor)
+  const dots: SchedAoaDot[] = graph.nodes.map((n) => {
+    const dot: SchedAoaDot = { id: n.anchor, num: n.num }
+    // layer：优先沿用已有持久层号（用户/后续分层刀设定），否则用 band 作为初值
+    const old = prev?.dots.find((d) => d.id === n.anchor)
+    const layer = n.layer ?? old?.layer ?? n.band
+    if (typeof layer === 'number') dot.layer = layer
+    if (n.anchor === 'S') dot.isBegin = true
+    if (n.anchor === 'T') dot.isEnd = true
+    return dot
+  })
+  const arrows: SchedAoaArrow[] = []
+  const seen = new Set<string>()
+  for (const e of graph.edges) {
+    const from = anchorOf.get(e.from)
+    const to = anchorOf.get(e.to)
+    if (!from || !to) continue
+    const id = e.arrowId ?? `${from}>${to}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    const arrow: SchedAoaArrow = { id, from, to, kind: e.kind }
+    if (e.taskId) arrow.taskId = e.taskId
+    arrows.push(arrow)
+  }
+  const out: SchedAoaGraph = { dots, arrows }
+  if (anchorOf.has(graph.nodes.find((n) => n.anchor === 'S')?.id ?? '')) out.beginDotId = 'S'
+  return out
 }

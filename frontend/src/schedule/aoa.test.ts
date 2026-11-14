@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAoa, AOA_COL_W, AOA_MARGIN, AOA_ROW_H } from './aoa'
+import { aoaGraphFromBuild, buildAoa, AOA_COL_W, AOA_MARGIN, AOA_ROW_H } from './aoa'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -311,3 +311,123 @@ describe('buildAoa 逆推锚点（v4.133 修正：total 取自正推后）', () 
     expect(Math.min(...g.nodes.map((n) => n.ls))).toBeGreaterThanOrEqual(0)
   })
 })
+
+// ── 斑马复刻 N1：持久点-箭图元覆盖编号/层/身份 ──────────────────
+// 契约：Project.aoa.dots[].id **就是**锚点键（S / T / start:<taskId> / end:<taskId>）。
+// 命中者用其 num/layer；未命中者补号并跳过占用，编号必须唯一。
+describe('buildAoa · 持久图元（斑马 dots 口径）', () => {
+  const chain = () => buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')])
+
+  it('未提供 persisted → numSource=derived，且不带 dotId/layer（旧行为零变化）', () => {
+    const g = chain()
+    expect(g.numSource).toBe('derived')
+    expect(g.nodes.every((n) => n.dotId === undefined && n.layer === undefined)).toBe(true)
+  })
+
+  it('全命中 → 编号/层/身份取自持久图元，数组按编号排序', () => {
+    const base = chain()
+    // 反着给编号：验证"编号以持久为准"而不是派生
+    const persisted = {
+      dots: base.nodes.map((n, i) => ({ id: n.anchor, num: base.nodes.length - i, layer: i })),
+      arrows: [],
+    }
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')], { persisted })
+    expect(g.numSource).toBe('persisted')
+    expect(g.nodes.map((n) => n.num)).toEqual([...base.nodes.map((_, i) => base.nodes.length - i)].sort((p, q) => p - q))
+    // 排序后数组首元素编号最小
+    expect(g.nodes[0].num).toBe(1)
+    // dotId 与 anchor 同值（契约），layer 逐点生效
+    for (const n of g.nodes) {
+      expect(n.dotId).toBe(n.anchor)
+      expect(typeof n.layer).toBe('number')
+    }
+    // 时间与几何不受编号覆盖影响（x 仍由 ES 决定）
+    const byAnchor = new Map(g.nodes.map((n) => [n.anchor, n]))
+    expect(byAnchor.get('S')!.x).toBe(AOA_MARGIN)
+  })
+
+  it('部分命中 → 未命中者补号并跳过已占用编号（编号唯一）', () => {
+    const base = chain()
+    // 只把起点钉成编号 3，其余让算法补
+    const persisted = { dots: [{ id: 'S', num: 3 }], arrows: [] }
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')], { persisted })
+    expect(g.numSource).toBe('persisted')
+    const nums = g.nodes.map((n) => n.num).sort((p, q) => p - q)
+    expect(new Set(nums).size).toBe(nums.length)          // 互不重复
+    const s = g.nodes.find((n) => n.anchor === 'S')!
+    expect(s.num).toBe(3)
+    expect(s.dotId).toBe('S')
+    expect(base.nodes).toHaveLength(g.nodes.length)        // 节点集合不变
+  })
+
+  it('一个都没命中 → 退回派生编号（脏文件不应扰动现有编号）', () => {
+    const persisted = { dots: [{ id: 'end:ghost', num: 9 }], arrows: [] }
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')], { persisted })
+    expect(g.numSource).toBe('derived')
+    expect(g.nodes.every((n) => n.dotId === undefined)).toBe(true)
+  })
+
+  it('箭线 id 标注：两端事件都有持久身份时按 from→to 命中', () => {
+    const base = chain()
+    const persisted = {
+      dots: base.nodes.map((n) => ({ id: n.anchor, num: n.num })),
+      arrows: base.edges.map((e, i) => ({
+        id: `x${i}`,
+        from: base.nodes.find((n) => n.id === e.from)!.anchor,
+        to: base.nodes.find((n) => n.id === e.to)!.anchor,
+        kind: e.kind,
+      })),
+    }
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')], { persisted })
+    expect(g.edges.filter((e) => e.arrowId).length).toBe(g.edges.length)
+  })
+})
+
+// ── 斑马复刻 N1 生产侧：aoaGraphFromBuild 固化 ──────────────────
+describe('aoaGraphFromBuild：派生图 → 持久图元（首次手动布点时固化）', () => {
+  const mk = () => buildAoa([t('A', 3), t('B', 2), t('C', 4)], [l('A', 'B'), l('B', 'C')])
+
+  it('固化后回灌：编号不变、numSource=persisted、身份齐全', () => {
+    const g = mk()
+    const persisted = aoaGraphFromBuild(g)
+    expect(persisted.dots.length).toBe(g.nodes.length)
+    expect(persisted.arrows.length).toBe(g.edges.length)
+    expect(persisted.beginDotId).toBe('S')
+    expect(persisted.dots.find((d) => d.id === 'S')!.isBegin).toBe(true)
+    expect(persisted.dots.find((d) => d.id === 'T')!.isEnd).toBe(true)
+
+    const again = buildAoa([t('A', 3), t('B', 2), t('C', 4)], [l('A', 'B'), l('B', 'C')], { persisted })
+    expect(again.numSource).toBe('persisted')
+    const map = (x: typeof g) => new Map(x.nodes.map((n) => [n.anchor, n.num]))
+    expect(map(again)).toEqual(map(g))
+  })
+
+  it('固化后插入新任务：老事件编号不变，新事件补号', () => {
+    const g1 = mk()
+    const persisted = aoaGraphFromBuild(g1)
+    const oldNums = new Map(g1.nodes.map((n) => [n.anchor, n.num]))
+    // 尾巴上加一条 C→D
+    const g2 = buildAoa([t('A', 3), t('B', 2), t('C', 4), t('D', 1)], [l('A', 'B'), l('B', 'C'), l('C', 'D')], { persisted })
+    expect(g2.numSource).toBe('persisted')
+    for (const [anchor, num] of oldNums) {
+      const n = g2.nodes.find((x) => x.anchor === anchor)
+      if (n) expect(n.num).toBe(num) // 老锚点编号稳定（斑马 dots 口径）
+    }
+    const nums = g2.nodes.map((n) => n.num)
+    expect(new Set(nums).size).toBe(nums.length) // 新老混排仍唯一
+  })
+
+  it('复用已有持久层号（prev.layer 优先于当前 band）', () => {
+    const g = mk()
+    const prev = { dots: [{ id: 'S', num: 1, layer: 7 }], arrows: [] }
+    const out = aoaGraphFromBuild(g, prev)
+    expect(out.dots.find((d) => d.id === 'S')!.layer).toBe(7)
+  })
+
+  it('箭线 id 用两端锚点拼（跨拓扑稳定，不用内部自增 id）', () => {
+    const out = aoaGraphFromBuild(mk())
+    expect(out.arrows.every((a) => a.id.includes('>'))).toBe(true)
+    expect(new Set(out.arrows.map((a) => a.id)).size).toBe(out.arrows.length)
+  })
+})
+

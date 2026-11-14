@@ -1,3 +1,215 @@
+## gaea 进度板块 · 斑马复刻第 4 步（S2 检视 + 拉直） · 2026-11-14
+
+把第 1 步的 `Project.reviews` 承载位变成可用模型 + 面板（图上画线体留下一步）。
+- **新建 `reviews.ts`**（256 行纯函数，三条口径写进文件头）：① 历史不可覆盖（同期只一条、
+  不能插入早于已冻结期的新期）；② 拉直写回 + 冻结 + **只升不降**；③ 完成量**按有效工期加权**
+  （里程碑/分组行不进分母）。API：`makeReview`（进度快照，100% 顺带填 finish=at）、
+  `reviewPercent/taskStatus`（三态）、`projectPercent`、`compareReviews`（只列变化行）、
+  `straighten`、`reviewProgress`（当期计划应完成 vs 实际，按 CPM elapsed 算）、
+  `reviewWorkday/reviewDate/defaultReviewDate`、`canAddReview`（重复/上限 30/早于已冻结）、
+  `frontlineWorkday`（给下一步画前锋线用）。
+- **新建 `ReviewPanel.tsx`**（211 行，结构照 BaselinesPanel：只收 cpm，动作全走 store）：
+  打一期检视（日期缺省今天，早于开工日取开工日）+ 期列表（完成量/冻结标签/拉直·删除）+
+  当期两列（计划%·实际%·偏差）+ 期际对比表 + 前锋线位置提示。
+- **store 三动作**：`addReview`/`removeReview`/`straightenReview`，均 `pushHistory`（可撤销），
+  拒绝原因原样回给面板（不静默）。接入 `SchedulePage` 信息条「基线」左边的「检视」按钮；
+  ScheduleTool 不加（与基线一致）。
+- **横道图前锋线已接线**（同轮补记）：查码发现前锋线本来就有（`GanttOverlay` 三类样式 +
+  工具栏开关/日期框 + `frontierWd()` 折点算法），缺的只是数据源——一直由视图态 `checkDate`
+  默认"今天"驱动。本轮把 `showFront`/`checkDate` 初值改为**有最新检视就默认开线并停在那一期**
+  （`reviewDate` 反算 ISO），无检视回落今天；用户仍可工具栏覆盖。新增 GanttView 2 例。
+  至此"打点 → 图上站到那天 → 偏差由 reviewProgress 给出 → 拉直写回并冻结"闭环；AOA 线体待做。
+- **验证**：`reviews.test.ts` 14 例（含"加权≠算术平均"、拉直只升不降、冻结幂等、三道闸）、
+  `ReviewPanel.test.tsx` 6 例、GanttView +2 例；回归 **53 文件 / 712 例全绿**（35.8s）；
+  `tsc -b` / eslint 0 错；Go `internal/schedule` + `internal/app(Schedule|Bindings)` ok。
+- **边界**：图上尚无前锋线线体（`frontlineWorkday` 已备好）；`actuals` 只能由进度快照生成，
+  逐任务手填实际时间缺编辑 UI（数据结构与 `taskStatus` 已支持）；`reviewProgress` 的计划量
+  按"已跨过工期"近似（斑马同为均匀摊）。
+
+## gaea 进度板块 · 斑马复刻第 3 步（S1 检查器） · 2026-11-14
+
+把斑马「检查」做成**逐条可定位诊断**（与 DCMA 分工：DCMA 算比率，checker 给定位）。
+- **新建 `checker.ts`**（纯函数 `checkProject(project, cpm?)`）：18 条规则，每条带
+  `code/severity/message/hint/taskId?/linkIndex?`。分三档：
+  error（循环、悬空、自环、非法类型、分组行挂关系/分配、里程碑带工期、工期越界 = Go Validate 的提前告知）、
+  warn（传递冗余关系、负时距、孤立、无前置、无收口、空分组、零搭接）、
+  info（无里程碑、未定价分配、高浮时>20、近关键≤2）。**关键工作刻意不逐条报**（交 DCMA/横道）。
+  附 `sortDiagnostics`（error→warn→info，同级按任务表序）与 `diagSummary`。
+- **刻意不做 Go check.go**：Go 已有 `Validate`（fail-closed）+ `schedule_analyze` 的字符串 checks，
+  再加一份结构化 check.go 会成第三套口径且无消费者。要上移应改 `analysis.go` 把 findings 结构化。
+- **接入**：`TaskInspector` 加可选 `diagnostics` prop（抽屉「检查发现（N）」段：阻断/可疑/提示标签 +
+  下一步建议，空数组不渲染）；`SchedulePage`/`ScheduleTool` 各算一次并按 `inspectId` 过滤传入，
+  项目级只带 `cycle` 进抽屉。
+- **验证**：checker 19 例 + TaskInspector 新增 2 例；回归 **51 文件 / 690 例全绿**（41.0s）；
+  `tsc -b` / `eslint src/schedule` 0 错；Go `internal/schedule` 与 `internal/app(Schedule|Bindings)` ok。
+- 下一步：S2 检视 + 前锋线（消费第 1 步的 `reviews` 承载位）。
+
+## gaea 进度板块 · 斑马复刻第 2 步（N1 点-箭持久化） · 2026-11-14
+
+把 `Project.aoa` 接进双代号渲染链，解决"拓扑一变编号与手动布点漂移"这个结构性差异。
+- **契约**：`SchedAoaDot.id` **就是锚点键**（`S`/`T`/`start:<taskId>`/`end:<taskId>`）——
+  与既有 `anchor`（pin 匹配键）天然同一套身份，不需要第二套映射。
+- **消费侧**（`buildAoa` 加 `persisted` 选项）：命中持久点的节点用其 `num`/`layer` 并带 `dotId`；
+  未命中者按原顺序**补号跳过占用**（编号唯一，i<j 显示的前提）；一个都没命中→退回派生；
+  持久编号生效时 `nodes` 按 num 升序（数组序=编号序=i<j 断言同源），派生口径旧行为**逐字节不变**；
+  新增 `AoaGraph.numSource`（derived|persisted）与 `AoaEdge.arrowId`（两端有 dotId 时反查）。
+  时间/几何完全不受编号覆盖影响。
+- **生产侧**：新增 `aoaGraphFromBuild(graph, prev?)`，**只在用户第一次手动布点时**固化
+  （`AoaView.commitPin`，`graph.ok && nodes>0`）——凭空固化只会制造历史包袱；
+  `dot.layer` 初值取 band 且优先沿用已有持久层号（给分层刀留位）；`arrow.id` 用 `${from}>${to}`
+  （跨拓扑稳定），`beginDotId='S'`，S/T 打 isBegin/isEnd。store 加 `setAoa` 动作（入历史）。
+- **pins 降级**：新增 `pinsToPersist`（与 `prunePins` 只差一条：**与自动位一致的键不落盘**），
+  `commitPin` 改用它 —— `AOA_PINS_MAX=5000` 从"整图坐标快照上限"变成"真手动布点数上限"；
+  重置按钮抽 `resetPins`（语义不变）。
+- **验证**：`tsc -b` 0 错、`eslint src/schedule` 0 错；定向 79 例（aoa 32/layout 31/AoaView 16）；
+  回归 **50 文件 / 669 例全绿**；Go `internal/schedule` 与 `internal/app -run 'Schedule|Bindings'` ok。
+  新增 13 例覆盖：持久编号覆盖与排序、部分命中补号唯一、全不命中退回、arrowId 标注、
+  固化回灌、固化后插任务老编号不变、prev.layer 优先、pinsToPersist 三处境。
+- **边界**：`layer` 暂只承载不消费；固化后不自动清理已删任务的点/箭（斑马也留，上限由
+  Go `validateBlocks` 20000/60000 兜底）；`numSource` 尚未上界面提示。
+
+## gaea 进度板块 · 斑马复刻第 1 步落地（四块承载位） · 2026-11-14
+
+按判定书 §6 第 1 步开工并收口：四个"斑马复刻承载位"（检视 / 点-箭 / 图面参数 / 视图）
+做到**能存能读不丢**，不接 UI、CPM 不消费、不改任何既有语义。
+- **前端**：`types.ts` +165 行（`SchedReview(Actual)/SchedAoaDot/SchedAoaArrow/SchedAoaGraph/
+  SchedNetworkStyle/SchedRenderMode/SchedView(Sort)`，`SchedProject` 加四个**全可选**字段）；
+  新建 `blocks.ts`（320 行，四个 normalize 纯函数 + 上限常量，风格对齐 `normalizeAoaLayout`）；
+  `store.ts` 的 `normalizeProject` 末尾接四行归一（`...p` 本来就透传，这里补形状归一）。
+- **后端**：`types.go` +136 行同构结构体（四块 `omitempty`，布尔用 `*bool` 保三态）；
+  新建 `blocks.go`（300 行 `validateBlocks` + 子校验：枚举白名单/区间/唯一性/引用完整性/规模上限）；
+  `project.go` 的 `Validate` 末尾接 fail-closed 闸。
+- **契约五条**：① 四块全缺省时 `.gsched.json` 一个键都不多写（专项用例断言，旧文件零迁移）；
+  ② 前端"容错丢条、保证能打开" / Go"非法即拒保存并给可读原因"，两侧样例集互为镜像；
+  ③ 布尔三态（`*bool`）；④ `Review.at` 与 `CpmResult` 同为工作日序号，`date` 仅展示；
+  ⑤ 箭线 `lag` 沿用斑马 ±9999 闸门。
+- **验证**：`go test ./internal/schedule/` ok；`go test ./internal/app/ -run 'Schedule|BindingsCompleteness'` ok
+  （需 `CGO_ENABLED=1 CC=C:\msys64\ucrt64\bin\gcc.exe` 且 PATH 带 `C:\AI\gaea-app` 的三枚 DLL）；
+  `vitest run src/schedule` **49 文件 / 639 例全绿**（60.6s，新增 blocks 20 例）；`tsc -b` 0 错；eslint 0 错。
+- 下一步：N1 —— `buildAoa` 加"有 `Project.aoa` 就用它、没有则派生"的分支，pins 降为手动差量。
+
+## gaea 进度板块 · 复刻斑马前存量评估（舍/改判定书） · 2026-11-14
+
+用户拍板"复刻斑马进度"，第一步先判 gaea 存量代码舍弃还是修改。产出
+`进度计划/gaea-schedule-zpert8-replication-assess-20261114.md`（判定书，8 章）。
+- **结论：不要重写。** 存量 ≈15.1K 行源 + 13.2K 行测试（前端 55 源/10039 行 + 46 测试/7566 行；
+  Go 14 源/4178 + 17 测试/4690；app 绑定 890 行/11 方法），约 537 vitest 用例 + 137 Go 测试函数。
+  且**双代号引擎口径已与斑马同源**（`aoa.ts` 头注释：唯一起终点、链式免虚箭、FS/SS/FF/SF 补虚箭、
+  虚箭去重、事件正逆推、关键线路含虚箭；`AoaView` 已有波形线=自由时差、过桥法、JGJ/T 121 正交）。
+- **判定分布**：保留 ~40 文件、修改 ~12、改造 3（`aoa.ts`/`AoaView.tsx`/`ganttCols.ts`）、
+  新增 6 组（检查器/检视+前锋线/预警/视图快照/图面参数/期间计划）、**整块舍弃 0 个文件**。
+- **耦合实测**：`types.ts` 被 79 处引用（只能增量加可选字段）、`cpm.ts` 30、`store.ts` 21（唯一高风险点，
+  只加动作不改语义）、`calendar` 15、`aoa` 9、`aoaLayout` 6。schedule 之外还有 `pages/SchedulePage*`
+  与 `pages/schedule/*` 5 个消费方。
+- **四个硬冲突**（决定"怎么改"不是"要不要改"）：① 点身份＝派生 anchor vs 斑马持久 dots；
+  ② 显示模式 1 vs 5（且每模式一块几何基准）；③ 列/分组是静态常量（`GANTT_COLS` / 3 分组维度）；
+  ④ CPM 前后端**手写镜像**必须双向同步。
+- **真正舍弃只有 3 处策略级**：`aoa.ts` 的"每次重建事件 id + 字典序 anchor"默认口径、
+  `aoaLayout.ts` 的 `AOA_PINS_MAX=5000` 全量坐标落盘、`ganttCols.ts` 静态列定义作唯一真源。
+- **迁移顺序**（8 步）：types 增量透传 → N1 点-箭持久化 → S1 检查器 → S2 检视+前锋线 → 预警 →
+  视图/列注册表（唯一结构改造，风险最高）→ 5 模式矩阵 → MPP 导出/期间计划。
+
+## 斑马进度 ZPert8 · Ghidra 收口二：布图拟合器与点结构 · 2026-11-14
+
+Ghidra 第二轮（工程已存，秒级查询），报告扩到 §16（955 行 / 73.6KB）：
+- **布图不是"分层器"而是"拟合器"**：`0x140507510`(5552B)+`0x14051cf50`(1179B) 按目标纵横比
+  `param_3` 迭代修正列宽/行高，实测容差常量 **0.003 / 0.03**（`DAT_140bf7198`/`DAT_140bf71a0`），
+  另有 0.1 下界、1.0 基准、0.5 步长。**没有任何拓扑分层循环**。
+- **Dot 结构定死**（`0x1401f4b40` 148B 构造器，0x60 字节）：`+0x00 id`、`+0x04 序号`、
+  `+0x08..0x18` 向量A（首侧箭头 begin/end/cap）、`+0x20..0x30` 向量B（次侧）、
+  `+0x38/0x40/0x48` 三个侵入式链表头（共享哨兵 `DAT_141125778`）、`+0x54 = -1`（候选层号）、`+0x58 = 0`。
+- **两处更正**：① `Dot[+0x04]` = **点在 dots 数组的下标**（`FUN_1401f5540` 插入/删除后统一重排
+  `dots[i]->[+4]=i`）→ `canConnect` 的排序键是**数组先后**，不是层号；② `canConnect` 尾段对每个箭头
+  调的是 `0x1401cb3d0`+`0x1401ccb20`(2309B)+`0x1401cb8c0`（**不是** rebind），rebind 只在 `mergeCheck` 内。
+- **"分层在哪"收窄**：时标模式下 x 由 `plan_start/stop` 直接映射，`layer` 是 Work 上的持久字段；
+  `Dot[+0x54]=-1` 是候选缓存槽。下一步钩子：找写 `[+0x54]` 的代码（capstone 扫 `mov dword [reg+0x54], reg`
+  已试 imm 形式仅 2 处且无关，需改扫寄存器形式或从"智能调图"命令反查）。
+- 未解收敛为 6 条（§16.5），均有地址/方法可续。
+
+## 斑马进度 ZPert8 · Ghidra 收口：关系合法性伪代码实证 · 2026-11-14
+
+按用户拍板装 Ghidra 收口（Temurin JDK 21.0.13+9 + Ghidra 12.1.4 PUBLIC，均在 `C:\Tools`，
+项目 `C:\Tools\ghidra-proj\ZPertProj` 已保存可秒查；全量分析 1046s）。报告新增 §15（现 15 章）。
+- **自研工具**：`re-zpert/ghidra/DumpDecomp.java`（地址列表 → 反编译 C + callers/callees），
+  产物 `re-zpert/evidence/decomp{1,2,3}.c`。
+- **关系合法性收口**（关键）：`canConnect(0x14050ca90)` **不接类型参数**——只判"同点/端点缺失/
+  按实体 `[+4]`（层/序号）排序/两端邻居表冲突"；类型判定在 `decideLinkType(0x14036c640)`：
+  按"A 首/A 次/B 首/B 次四侧是否已有非 FS 箭头"的位掩码（8/4/2/1）决定 FS/SS/FF/SF，
+  **FF/SF 的"不合法"= 该点首侧已有"已落地"箭头**（不是搭接组合非法）。六个埋点文案长度
+  (6/6/9/10/9/10) 与反编译里的 len 参数逐一吻合，埋点号实为 **81001–81006**（D1 误写 18001）。
+- **建关系三段式**：入口 `0x1404e7cf0`（slot 2/4 登记端点 → canConnect → op∈{10,12} → splice
+  `0x14050cc40`；失败统一错误码 0x40 + 不回写图数据）。
+- **双代号自建点**：`newDot(0x140274ba0)` 给节点分配 **递增编号 `[0]` + 数组序号 `[1]`**；
+  `mergeDot(0x1402729a0)` 合并重复点；`splice` 在端点为 0 时**自动补点** → 用户不需要手摆节点。
+- **布图实证**：`0x14051c5e0` 每模式两块几何基准（`mode==6` 用 `0x1b40/0x1b28`，否则 `0x19a8/0x1990`）；
+  提交前校验页/格数 **一条路径 [60,1000]、另一条 [1,200]**；失败**先回滚尺寸再弹 67 字文案**。
+- 仍未解：`neighborsCompatible(0x140274360)` 两项 146 字节小工具的精确判据、`layer` 由谁分配
+  （在 `0x140507510`/`0x14051cf50` 内）、`SceneConflictChecker`、虚箭"必须建"的时机。
+
+## 斑马进度 ZPert8 · 网络图逆向续刀：`.zp` schema + pert_json 结构 · 2026-11-14
+D1 之后按"继续"再推一程，把两件事从"推测"变成"实证"（报告已扩到 15 章 / 535 行）：
+- **`.zp` 的 protobuf 只有 18 个消息**（信封 / 授权 / 协作），从嵌入的 `FileDescriptorProto`
+  （文件偏移 `0x89a7f0`）解出**完整字段号与类型**：`ZPertFile{type=1,args=2,pert_json=3,images=4,attachments=5}`、
+  `ZPertFileArgs{brotli_original_size=1,aes_iv=2,co_edit_version=3,timestamp=4,lock_num=5}`。
+  新工具 `re-zpert/tools/protodesc.py`，产物 `re-zpert/evidence/zpbdata_schema.{txt,json}`。
+- **协作协议也在里面**：`Request{seq,type,project_uid,diff,token}` / `Response{…,file,diffs,member(s)}` /
+  `Diff{pert_diff,images,deletes[],insert_at[],version}` → **版本号 + 位置索 op 序列**，不是 CRDT。
+- **授权模型带功能闸**：`RestrictedFunctions{…,max_works_count,show_watermark,watermark_pattern,
+  view/pert/resource/real_info_read_only,columns,functions}` —— 免费版限工作数就靠 `max_works_count`。
+- **计划本体是 JSON**（不是 protobuf）：按"键池 + 代码引用顺序 = 发射顺序"还原出三段序列化：
+  文档主体（`info_base`/`pert_prop`/`pert_links`/`pen_set`/`color_set`）、颜色与项目信息（`project_info`/
+  `pert_script`/`jobtype_setting`/`gantt_style`）、图面（`network` 那 60+ 键）；视图项 =
+  `{kind,code,forign_name,color_set,p_colorset,pert_mode,is_show_grid_editor}`。
+  键池全表 116 键已落附录 C。
+- 修正：D1 §3.1 原说"键序来自 protobuf"→ 实为 **rapidjson 写侧键字面量顺序**；结论方向不变（结构可镜像）。
+- **关系合法性判定已挖到代码级**（报告 §13）：`0x1404e7cf0` 创建入口 → `canConnect 0x14050ca90`
+  （同点/端点缺失/按实体 `[+4]` 整数排序/两端邻居表逐项处理）→ 核心判定 `sub_140274360`；
+  同族还有返回错误码 `0x98/0x99/0x9b` 的判定入口。要写成 gaea 规则仍需伪代码，但函数边界已给。
+- 对 gaea 的最终口径：网络图 = **`pert_prop`（拓扑）+ `network`（图面参数）+ `views_list[].pert_mode`（视图→模式）
+  + 每工作 `layer`（层号）** 四件套；把 `aoaLayout.pins` 换成"层号 + 参数 + 现算"即与斑马同构。
+
+## 斑马进度 ZPert8 · 网络图子系统逆向（D1 深挖） · 2026-11-14
+
+在 D0 全产品蒸馏之后，按用户要求以**网络图**为重心把斑马进度整个过完，
+产出 `进度计划/gaea-schedule-zpert8-network-re-20261114.md`。
+- 方法升级（无 Ghidra）：`.pdata` 精确函数边界（**22,402 个函数**）+ capstone 定点反汇编 +
+  RIP 引用自动注解字符串 + 字符串簇聚反推子系统。工具落盘 `re-zpert/tools/{pdata,disasm,vtable}.py`。
+  vtable 探测为负结果：`Layouter/SceneLayouter/Scene` 有 RTTI TypeDescriptor 但**无 COL/vtable 落盘**，
+  后续只能按字符串簇读汇编或装 Ghidra。
+- 子系统地图：网络图 UI 逻辑集中在 VA `0x1404f8000–0x140541500`（≈330KB），已按字符串簇标出 7 组函数起点。
+- **五个硬结论**：① 双代号是独立持久化结构（`pert_prop{dots,begin_dot_id,job_type,
+  compute_start_time,compute_stop_time,group_id}` + `pert_links` + `dots_size`），不是渲染派生；
+  ② 显示模式是 `char[5][16]` 具名枚举（时标逻辑图/时标网络图/逻辑网络图/单代号网络图/横道图）+
+  运行时 `pert_mode`（实测 `[view+0x11d8]`，`mode==6` 另有几何块分支）+ 废弃模式迁移；
+  ③ 图面是 60+ 键状态块（`is_stagger/is_hide_unimportant_link/dot_style/arrow_style/head_height/
+  cr_x..crl_y/layer_height1-2/virtualjobcolor…`）→ **有虚工作概念**；
+  ④ 布图是"排版—压图幅"四维约束流水线（节点×字号×紧凑度×纸张），失败给三条建议；
+  ⑤ 关系合法性按 6 结果埋点（18001–18006）：FS/SS 无条件，**FF/SF 走"合法/不合法"判定**。
+- **D0 修正**：`.zp` 容器真身 = `zpbdata.ZPertFileArgs{pert_json, brotli_original_size, aes_iv, …}`
+  → 正文 JSON 经 **brotli 压缩 + AES（iv 单独存）**；D0 §3.6 已加注。
+- gaea 落地：N1 点-箭模型落库（学斑马"存层+参数现算"，把 `aoaLayout.pins` 降级为人工覆盖）→
+  N2 图面状态块 → N3 布图流水线（分层/时标/虚箭/冲突消解/压实）→ N4 关系合法性 → N5 下钻上钻。
+
+## 斑马进度 ZPert8 逆向蒸馏（进度板块对标） · 2026-11-14
+
+对 `C:\Program Files\ZebraTech\ZPert8`（斑马进度计划 7.0.706.0）做静态逆向蒸馏，
+产出 `进度计划/gaea-schedule-zpert8-distill-20261114.md`（D0 收口）。
+- 结构判定：Qt6.7.3-Glodon + QCefView 壳，**业务 UI 是本地 C++ Qt 网格**（RTTI：
+  `ZBaseGridWidget<T>`/`ZQtPertWindow`/`ZGanttState`），CEF 只挂 AI/帮助/登录/云；
+  内核对象 `Pert/Work/Link/Calendar/Progress`+`ConflictChecker`+`zpbdata::ZPertFile`(protobuf)。
+- 判决：`.zp/.gzp/.gdb` = protobuf 信封 + 高熵加密体（实测头部 + zlib/bz2/lzma 全不通），
+  **不追该格式**；互操作走 MPP / MSPDI XML / Excel（三条它自己也在用）。
+- 拿到三张可直接落地的清单：① 70 列工作字段中英对照（含三套时间/两套时差/关键性四视角）；
+  ② 检查器规则集 C1–C15（工作级体检文案即规则，可直译 diagnostic）；③ 进度管控层
+  （检视时间四条时序规则 + 前锋线/拉直/冻结 + 预警状态机两算法五档 + 里程碑治理）。
+- 差距矩阵结论：gaea 的计划编制/基线/DCMA/挣值/蒙特卡洛**已深于斑马**，但
+  **执行期治理（检视/前锋线/预警/里程碑）与视图体系（10 内置视图 + 14 分组维度）整层为空**。
+- 刀单：S1 检查器 → S2 检视时间+前锋线 → S3 排网方式(ASAP/ALAP)+要求时间约束 →
+  S4 MPP 导出 → S5 视图/分组 → S6 资源均衡 → S7 期间计划/定额（按客户触发）。
+- 证据落盘 `re-zpert/evidence/`（RTTI 1166 条 / 蛇形键 2371 条 / 清洗中文串 3657 行 / 分组 8 类）。
+- 未做：Ghidra 反编译（`GHIDRA_INSTALL_DIR` 未配置）、动态跑测（无授权、`%APPDATA%\ZPert8` 为空）、
+  CEF JS 桥（下一步在 `QCefView.dll` 侧挖）。
+
 ## CAD/进度计划回归右栏一级 Tab · 2026-11-14
 
 按用户拍板把办公板块的 CAD 识图与进度计划从 ToolSheet 临时面板改到右侧面板
@@ -25,10 +237,6 @@
 - 打包：`gaea-office-cadtab-20261114-c85a9815` 预览包（六刀全量；PACKAGE-INFO
   +SHA256SUMS 入库 4db1c355，exe/三 DLL/源码包/preview zip/uncommitted 快照
   留盘）；包产物=装机位同源 exe E65681B6…（c85a9815 干净树构建），冒烟 200。
-- 包 v2 + DSH 批代提交（用户拍板「dsh的一起提交」）：dsh-context 0.84.1
-  上下文交互续刀 51 文件入库 2eb8d9fd（WorkbenchPrefsPanel 文案 4 例红顺手
-  修齐）；包 v2 全件替换为 2eb8d9fd 构建 exe BFD7CAA2…（冒烟 200），包更新
-  提交 dd7bc61a；v1 时代的未提交快照 tar 作废删除（DSH 批已入库，无未提交残留）。
 
 ## dsh-context 0.84.1 上下文交互续刀 · 2026-11-14
 
@@ -3331,3 +3539,4 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - **v4.99 ~ v4.90** 三线并行收口：图像域契约、GenUI 蒸馏（回答即 UI）、Verifier 逐页缩略、子代理网络会话/恢复入口、CodeMirror 高亮、Mermaid strict、diff 渲染升级
 - **v4.89 ~ v4.82** 上下文页与工具链：成本费率 hover、/context 弹层、Git 面板最小集、文件三态折叠、HTML 沙箱预览、工具结果缩略卡、上下文趋势跳转
 - **v4.81 ~ v4.60** 早期面板期：上下文/文件/任务线（活动行级增量、任务页、记忆界面、子代理会话/并行/流式/追问闭环、办公板块交付验收 A2、better-sidebar pane 化）
+

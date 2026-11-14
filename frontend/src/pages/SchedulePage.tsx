@@ -19,13 +19,14 @@ import { Alert, Button, Dropdown, Input, Modal, Popconfirm, Popover, Segmented, 
 import type { MenuProps } from 'antd'
 import {
   AimOutlined, AppstoreOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FundOutlined, ImportOutlined, InfoCircleOutlined,
-  MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined,
+  FieldTimeOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
+import { checkProject } from '../schedule/checker'
 import { checkDeadline, planFinishOf } from '../schedule/deadline'
 import type { SchedLink, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
@@ -41,6 +42,7 @@ import { ResourcePanel } from '../schedule/ResourcePanel'
 import { UsageView } from '../schedule/UsageView'
 import { computeUsage } from '../schedule/usage'
 import { BaselinesPanel } from '../schedule/BaselinesPanel'
+import { ReviewPanel } from '../schedule/ReviewPanel'
 import { TemplatesPanel } from '../schedule/TemplatesPanel'
 import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
@@ -157,7 +159,9 @@ const SchedulePage: React.FC = () => {
   }, [undo, redo])
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate }), [project])
-  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
+  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project), persisted: project.aoa }), [project])
+  // 计划检查（斑马复刻 S1）：项目级只把「循环依赖」带进任务抽屉（其余项目级提示属于整份计划）
+  const diags = useMemo(() => checkProject(project, cpm), [project, cpm])
   // 资源使用/超载（v4.137 #12/#13）：逐工作日负载 vs 可用性（工时资源；个人日历收紧可用性）
   const usage = useMemo(() => computeUsage(project, cpm), [project, cpm])
   const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
@@ -173,6 +177,11 @@ const SchedulePage: React.FC = () => {
   // 任务检查器数据（v4.136）：逐依赖自由时差 + 驱动标记（ProjectLibre E8 口径）。
   // 只查叶任务（分组行无排程语义）；驱动边=ff===0 且后继 auto——即「绑定了本任务日期」的那条搭接。
   const inspectTask = inspectId ? project.tasks.find((t) => t.id === inspectId) ?? null : null
+  /** 选中任务的检查发现（含项目级的循环依赖——它会让整张图排不出日期） */
+  const inspectDiags = useMemo(
+    () => (inspectId ? diags.filter((d) => d.taskId === inspectId || (!d.taskId && d.code === 'cycle')) : []),
+    [diags, inspectId],
+  )
   const inspectorData = useMemo(() => {
     if (!inspectTask || inspectTask.level === 0) return null
     const slacks = depFreeSlacks(project.tasks, project.links, cpm)
@@ -650,6 +659,17 @@ const SchedulePage: React.FC = () => {
         <Popover trigger="click" placement="bottom" content={<CalendarEditor />} title="工作日历">
           <Button size="small" icon={<CalendarOutlined />}>日历</Button>
         </Popover>
+        <Popover trigger="click" placement="bottom" content={<ReviewPanel cpm={cpm} />} title="检视（多期进度快照）">
+          <Button
+            size="small"
+            icon={<FieldTimeOutlined />}
+            type={Array.isArray(project.reviews) && project.reviews.length > 0 ? 'primary' : 'default'}
+            ghost={Array.isArray(project.reviews) && project.reviews.length > 0}
+            title="打一期检视、按期对比完成量、拉直前锋线（斑马口径）"
+          >
+            检视{Array.isArray(project.reviews) && project.reviews.length > 0 ? `·${project.reviews.length}` : ''}
+          </Button>
+        </Popover>
         <Popover trigger="click" placement="bottom" content={<BaselinesPanel cpm={cpm} />} title="基线对比">
           <Button
             size="small"
@@ -726,6 +746,7 @@ const SchedulePage: React.FC = () => {
         whatIf={inspectTask && inspectTask.level > 0 ? (
           <WhatIfPanel project={project} taskId={inspectTask.id} />
         ) : undefined}
+        diagnostics={inspectDiags}
         onClose={() => setInspectId(null)}
         onNavigate={(id) => { setInspectId(id); select(id) }}
       />
@@ -778,3 +799,5 @@ function workweekLabel(cal?: { workweek: number[] }): string {
 }
 
 export default SchedulePage
+
+

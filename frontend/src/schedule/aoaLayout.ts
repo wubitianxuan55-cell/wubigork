@@ -69,6 +69,31 @@ export function prunePins(pins: Record<string, AoaPin>, graph: AoaGraph): Record
   return out
 }
 
+/**
+ * 落盘前的 pins 归一（斑马复刻 N1：把 pins 从"坐标快照"降级为**手动差量**）。
+ *
+ * 斑马根本不存节点坐标（只存层号+图面参数，布图现算——见逆向报告 §16.4），
+ * 而 gaea 的 pins 若把"与自动位相同"的键也写进文件，等价于每次拖拽都把整图
+ * 坐标快照落盘，拓扑一变就全成失配垃圾（`AOA_PINS_MAX=5000` 顶格）。
+ *
+ * 规则：① 失配键（拓扑已变）剪掉；② 与当前自动位一致的键剪掉（无信息量）；
+ * ③ 仍按 AOA_PINS_MAX 截断（插入序保留，确定性）。
+ * 与 `prunePins` 的差别只有第 ② 条——`prunePins` 是"按锚点集合剪"，本函数是
+ * "按手动差量剪"；调用点（AoaView 拖拽提交）用后者。
+ */
+export function pinsToPersist(pins: Record<string, AoaPin>, graph: AoaGraph): Record<string, AoaPin> {
+  const auto = new Map(graph.nodes.map((n) => [n.anchor, n] as const))
+  const out: Record<string, AoaPin> = {}
+  for (const [key, pin] of Object.entries(pins)) {
+    const n = auto.get(key)
+    if (!n) continue
+    if (pin.x === n.x && pin.y === n.y) continue
+    if (Object.keys(out).length >= AOA_PINS_MAX) break
+    out[key] = pin
+  }
+  return out
+}
+
 // ── 刀H 图例语言（G1/G2/G4）──────────────────────────────────
 
 /** 正交线段（水平：y1=y2；竖直：x1=x2） */

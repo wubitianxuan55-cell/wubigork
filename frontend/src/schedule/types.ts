@@ -101,6 +101,160 @@ export interface AoaLayout {
   pins: Record<string, AoaPin>
 }
 
+/**
+ * 检视（多期进度快照）——复刻斑马「检视时间」（references: 斑马进度逆向报告 §5.1）。
+ *
+ * 语义：计划是连续推演的，执行是离散打点的。每次检视 = 一个数据日期 + 该期的
+ * 实际回填。**多期并列**是本模型的关键：历史检视不可被覆盖，否则"前锋线对比"
+ * 与"计划变动分析"都无从谈起。
+ *
+ * 本字段是**承载 + 透传**：CPM 不消费、视图暂不消费（v1 只保证能存能读）。
+ * 时间一律用「工作日序号（相对开工日）」，与 CpmResult 同口径；`date` 只作展示
+ * 与人工校核，两者必须一致（由 blocks.ts 的 normalizeReviews 兜容错，Go 侧
+ * Validate fail-closed 兜落盘）。
+ */
+export interface SchedReviewActual {
+  /** 实际开始（工作日序号；缺省=未回填） */
+  start?: number
+  /** 实际完成（工作日序号；缺省=未回填） */
+  finish?: number
+  /** 该期完成百分比 0-100（缺省=沿用任务 progress） */
+  percent?: number
+}
+
+export interface SchedReview {
+  /** 检视时间（工作日序号，相对开工日） */
+  at: number
+  /** 对应 ISO 日期（YYYY-MM-DD，展示与人工校核） */
+  date: string
+  /** 冻结：拉直前锋线后为 true，禁止回改已完成/进行中（斑马 frozen_status 口径） */
+  frozen?: boolean
+  /** 逐任务实际数据（键=叶任务 id；任务被删后仍保留，便于历史对比） */
+  actuals: Record<string, SchedReviewActual>
+  /** 备注（缺省空） */
+  note?: string
+}
+
+/**
+ * 双代号「点-箭」持久模型（复刻斑马 pert_prop{dots,begin_dot_id} + pert_links，见逆向报告 §3.1/§15.5）。
+ *
+ * 与 `aoa.ts` 的派生 `AoaGraph` 的区别：那是**每次渲染重算的视图结果**，这里的
+ * `dots` 是**落盘的图元身份**。斑马的节点带递增 id 与序号、建关系时会自动补点/
+ * 合并重复点；gaea 目前只靠 `anchor`（成员键）临时稳定，拓扑一改编号与 pins 漂移。
+ *
+ * 缺省（undefined）= 沿用现有派生口径，旧文件零迁移；一旦存在则视为权威图元表。
+ */
+export interface SchedAoaDot {
+  /** 点身份（持久稳定，建议 "d1"/"d2" 或 "end:t1"|"start:t1" 业务键） */
+  id: string
+  /** 节点编号（1 起，拓扑序，保证箭线 i<j） */
+  num: number
+  /** 层/行号（布图参数化用，缺省=自动） */
+  layer?: number
+  /** 起点事件（唯一始） */
+  isBegin?: boolean
+  /** 终点事件（唯一终） */
+  isEnd?: boolean
+}
+
+export interface SchedAoaArrow {
+  id: string
+  /** 尾事件 id（须存在于 dots） */
+  from: string
+  /** 头事件 id（须存在于 dots） */
+  to: string
+  /** task=实工作箭线；dummy=虚工作（虚线）；summary=分组汇总箭线 */
+  kind: 'task' | 'dummy' | 'summary'
+  /** kind=task/summary 时对应的任务 id */
+  taskId?: string
+  /** 该箭线承载的时距（工作日，缺省 0） */
+  lag?: number
+}
+
+export interface SchedAoaGraph {
+  dots: SchedAoaDot[]
+  arrows: SchedAoaArrow[]
+  /** 起点事件 id（缺省=按 isBegin 推断） */
+  beginDotId?: string
+}
+
+/**
+ * 图面参数（复刻斑马 `network` 状态块的 gaea 子集，见逆向报告 §4.1–§4.2）。
+ *
+ * 斑马把 60+ 个图面键与计划一起落盘（`pert_mode / is_stagger / dot_style /
+ * arrow_style / name_pos / head_height / layer_height1-2 / layout_density …`）。
+ * 这里只取支撑"5 种显示模式 + 布图压实"的最小集；缺省=全部走现有渲染口径。
+ */
+export type SchedRenderMode =
+  | 'timescaled' // 时标网络图（x=ES，现行 AOA 口径）
+  | 'timescaledLogic' // 时标逻辑图（有时间轴、不画进度装饰）
+  | 'logic' // 逻辑网络图（按拓扑紧凑排布，不按时间）
+  | 'pdm' // 单代号网络图
+  | 'ganttNetwork' // 横道网络图（横道叠关系）
+
+export interface SchedNetworkStyle {
+  /** 显示模式（缺省 timescaled） */
+  mode?: SchedRenderMode
+  /** 节点形状（斑马 dot_style） */
+  dotStyle?: 'circle' | 'rect'
+  /** 箭头样式（斑马 arrow_style） */
+  arrowStyle?: 'solid' | 'hollow'
+  /** 名称排布（斑马 name_pos：自动/横向/纵向） */
+  namePos?: 'auto' | 'horizontal' | 'vertical'
+  /** 节点半径（px，缺省沿用 AOA_R） */
+  nodeRadius?: number
+  /** 箭头头部高度（px） */
+  headHeight?: number
+  /** 两层高度（斑马 layer_height1/2，px） */
+  layerHeight1?: number
+  layerHeight2?: number
+  /** 错层排布（斑马 is_stagger：相邻事件纵向错开减少交叉） */
+  stagger?: boolean
+  /** 隐藏非重要关系线（斑马 is_hide_unimportant_link） */
+  hideUnimportantLink?: boolean
+  /** 时标单位（斑马 年-月 / 月-天 / 日-时） */
+  tickUnit?: 'yearMonth' | 'monthDay' | 'dayHour'
+  /** 刻度线疏密（斑马 不画/画小/画大刻度线） */
+  tickLines?: 'none' | 'small' | 'large'
+  /** 布图紧凑度（斑马 layout_density） */
+  density?: 'compact' | 'normal' | 'loose'
+  /** 纵横比上限（斑马 aspect_ratio，布图压实用） */
+  aspectMax?: number
+  /** 页数上限（斑马按纸张布图的页数窗，默认 200） */
+  maxPages?: number
+}
+
+/**
+ * 视图快照（复刻斑马 views_list，见逆向报告 §6.1）。
+ *
+ * 斑马的「视图」不是页面，而是**列集 + 分组 + 筛选 + 排序 + 显示模式的命名快照**
+ * （内置 10 个 + 自定义 + 云视图）。gaea 现在只有 `ScheduleView` 七个页面的切换，
+ * 没有"视图"这一等对象；本结构是它的承载位（v1 只存不用）。
+ */
+export interface SchedViewSort {
+  field: string
+  dir: 'asc' | 'desc'
+}
+
+export interface SchedView {
+  id: string
+  name: string
+  /** 页面级类型（沿用 store 的 ScheduleView 枚举） */
+  kind: 'gantt' | 'pdm' | 'aoa' | 'usage' | 'dcma' | 'monte' | 'evm'
+  /** 可见列键集（缺省=全部；键=GanttCol.key） */
+  cols?: string[]
+  /** 隐藏列键集（兼容现有 hide 语义） */
+  hide?: string[]
+  /** 多级分组字段（键=ganttGroup.ts 的分组维度） */
+  groupBy?: string[]
+  /** 筛选表达式（缺省=不过滤；语法由 ganttFilter 后续定义） */
+  filter?: string
+  /** 排序 */
+  sort?: SchedViewSort
+  /** 网络图显示模式（kind=aoa/pdm 时有效） */
+  renderMode?: SchedRenderMode
+}
+
 export interface SchedProject {
   name: string
   /** 开工日期（YYYY-MM-DD，工作日历推算锚点） */
@@ -123,6 +277,17 @@ export interface SchedProject {
   assignments?: SchedAssignment[]
   /** 双代号手动布局 pins（v4.123 AOA 刀1：缺省=自动布局） */
   aoaLayout?: AoaLayout
+  /**
+   * 检视序列（多期进度快照；缺省=旧文件零迁移）。
+   * 见 SchedReview 注释：v1 只承载与透传，CPM 与视图暂不消费。
+   */
+  reviews?: SchedReview[]
+  /** 双代号点-箭持久图元（缺省=沿用 aoa.ts 派生口径） */
+  aoa?: SchedAoaGraph
+  /** 图面参数（缺省=沿用现有渲染口径） */
+  networkStyle?: SchedNetworkStyle
+  /** 视图快照列表（缺省=无自定义视图） */
+  views?: SchedView[]
 }
 
 /** 基线行快照：单任务保存基线时的排程结果（叶任务专属，分组行不入基线） */

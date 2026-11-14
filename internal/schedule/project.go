@@ -190,6 +190,11 @@ func Validate(p *Project) error {
 			}
 		}
 	}
+	// 斑马复刻四块承载位（blocks.go）：检视 / 点-箭 / 图面参数 / 视图。
+	// v1 只做结构校验与透传（CPM 不消费），缺省区块直接跳过——旧文件零迁移。
+	if err := validateBlocks(p); err != nil {
+		return err
+	}
 	return nil
 }
 

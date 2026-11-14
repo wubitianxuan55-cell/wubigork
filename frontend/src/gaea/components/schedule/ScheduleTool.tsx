@@ -15,6 +15,7 @@ import { emitFrontendEvent, FRONTEND_EVENTS } from "../../../events";
 import { useScheduleStore, initScheduleSync } from "../../../schedule/store";
 import { computeCpm } from "../../../schedule/cpm";
 import { buildAoa } from "../../../schedule/aoa";
+import { checkProject } from "../../../schedule/checker";
 import { checkDeadline, planFinishOf } from "../../../schedule/deadline";
 import { computeBaselineDrift } from "../../../schedule/baseline";
 import { depFreeSlacks, drivingLinkKeys, linkKey } from "../../../schedule/pathDriver";
@@ -61,7 +62,7 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
   useEffect(() => { void initScheduleSync() }, []);
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate }), [project]);
-  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project]);
+  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project), persisted: project.aoa }), [project]);
   const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm]);
   const dl = useMemo(() => checkDeadline(project, cpm), [project, cpm]);
 
@@ -73,6 +74,12 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
 
   // 任务检查器数据（与 SchedulePage 同口径：逐依赖自由时差 + 驱动标记）
   const inspectTask = inspectId ? project.tasks.find((t) => t.id === inspectId) ?? null : null;
+  /** 计划检查（斑马复刻 S1）：选中任务的逐条诊断，含项目级循环依赖 */
+  const diags = useMemo(() => checkProject(project, cpm), [project, cpm]);
+  const inspectDiags = useMemo(
+    () => (inspectId ? diags.filter((d) => d.taskId === inspectId || (!d.taskId && d.code === "cycle")) : []),
+    [diags, inspectId],
+  );
   const inspectorData = useMemo(() => {
     if (!inspectTask || inspectTask.level === 0) return null;
     const slacks = depFreeSlacks(project.tasks, project.links, cpm);
@@ -177,6 +184,7 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
         whatIf={inspectTask && inspectTask.level > 0 ? (
           <WhatIfPanel project={project} taskId={inspectTask.id} />
         ) : undefined}
+        diagnostics={inspectDiags}
         onClose={() => setInspectId(null)}
         onNavigate={(id) => { setInspectId(id); select(id) }}
       />
@@ -213,3 +221,4 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
     </div>
   );
 }
+

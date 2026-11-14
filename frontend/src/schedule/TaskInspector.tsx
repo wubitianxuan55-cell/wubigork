@@ -13,6 +13,7 @@ import { Button, Drawer, Table, Tag, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import { FlagOutlined, InfoCircleOutlined, LockOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { isoOf, wdToDate } from './calendar'
+import type { Diagnostic } from './checker'
 import type { SchedCalendar, SchedLink, SchedTask, TaskCpm } from './types'
 
 /** 依赖行（前驱/后继通用）：搭接关系与对侧任务信息由父级按视角算好 */
@@ -40,6 +41,11 @@ export interface TaskInspectorProps {
   /** what-if 推演面板（v4.523）：外部节点按位渲染在后继表之后——计算与交互
    *  态都在 WhatIfPanel，本组件保持「零排程计算」契约不破。 */
   whatIf?: React.ReactNode
+  /**
+   * 本任务的检查器发现（斑马复刻 S1：checker.ts 逐条诊断，父级过滤后传入）。
+   * 空/缺省=不渲染该段（干净任务保持抽屉简洁）。
+   */
+  diagnostics?: Diagnostic[]
   onClose: () => void
   onNavigate: (taskId: string) => void
 }
@@ -98,10 +104,12 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
   startDate,
   calendar,
   whatIf,
+  diagnostics,
   onClose,
   onNavigate,
 }) => {
   const driving = useMemo(() => predecessors.filter((p) => p.driving), [predecessors])
+  const diags = diagnostics ?? []
 
   const sectionHead = (text: string) => (
     <div style={{ margin: '14px 0 6px', fontWeight: 600, fontSize: 13 }}>{text}</div>
@@ -245,6 +253,34 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
                 />
               )}
             </div>
+
+            {/* 检查发现（斑马复刻 S1）：逐条带严重级与下一步建议，干净任务不渲染 */}
+            {diags.length > 0 && (
+              <>
+                {sectionHead(`检查发现（${diags.length}）`)}
+                <div data-testid="sched-inspector-diags" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {diags.map((d, i) => (
+                    <div
+                      key={`${d.code}-${d.linkIndex ?? i}`}
+                      data-testid={`sched-diag-${d.code}`}
+                      style={{ padding: '6px 8px', border: '1px solid rgba(5,5,5,0.1)', borderRadius: 6 }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Tag color={d.severity === 'error' ? 'red' : d.severity === 'warn' ? 'orange' : 'blue'}>
+                          {d.severity === 'error' ? '阻断' : d.severity === 'warn' ? '可疑' : '提示'}
+                        </Tag>
+                        <span style={{ fontSize: 13 }}>{d.message}</span>
+                      </div>
+                      {d.hint && (
+                        <div className="sched-dim" style={{ fontSize: 12, marginTop: 2 }}>
+                          下一步：{d.hint}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* what-if 推演（v4.523 外部 slot：渲染在后继表之后） */}
             {whatIf}

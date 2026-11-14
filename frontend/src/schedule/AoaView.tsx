@@ -22,8 +22,8 @@
  */
 import React, { useRef, useState, useMemo } from 'react'
 import type { AoaGraph } from './aoa'
-import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPathSplit, snapPt, summarySegs } from './aoaLayout'
+import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H, aoaGraphFromBuild } from './aoa'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, pinsToPersist, segsToPathSplit, snapPt, summarySegs } from './aoaLayout'
 import { buildAoaRuler } from './aoaRuler'
 import { beginWindowDrag } from './gantt/useDragGesture'
 import { useAutoFitZoom, useFitView } from './gantt/useFitView'
@@ -46,6 +46,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const selectedId = useScheduleStore((s) => s.selectedId)
   const aoaLayout = useScheduleStore((s) => s.project.aoaLayout)
   const setAoaPins = useScheduleStore((s) => s.setAoaPins)
+  /** 持久点-箭图元（斑马复刻 N1）：缺失时首次手动布点会固化一份 */
+  const persistedAoa = useScheduleStore((s) => s.project.aoa)
+  const setAoa = useScheduleStore((s) => s.setAoa)
   const startDate = useScheduleStore((s) => s.project.startDate)
   const calendar = useScheduleStore((s) => s.project.calendar)
   const pins = aoaLayout?.pins ?? {} // 派生放渲染体：selector 必须返回稳定引用（getSnapshot 缓存纪律）
@@ -157,11 +160,24 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     : buildAoaRuler(Math.max(0, ...graph.nodes.map((n) => n.es)), AOA_COL_W, AOA_MARGIN, startDate, calendar)
   const rulerTop = ruler ? RULER_TOP_H : 0
 
-  /** 拖拽提交：吸附落点写 pin + 剪枝失配键；自动模式拖拽=转手动（不骗人先例） */
+  /**
+   * 拖拽提交：吸附落点写 pin + **按手动差量剪枝**（斑马复刻 N1）。
+   * 用 pinsToPersist 而非 prunePins：与自动位一致的键不落盘（斑马不存坐标，
+   * 我们也只存"真被搬动过"的差量），自动模式拖拽=转手动（不骗人先例）。
+   *
+   * 首次手动布点时顺手固化持久图元（N1 生产侧）：编号一旦固化，后续拓扑变更
+   * 不会重排编号，pins 的 anchor 与视觉归属才稳定（斑马 dots 口径）。
+   */
   const commitPin = (anchor: string, pin: AoaPin) => {
     const next = { ...pins, [anchor]: pin }
-    setAoaPins(prunePins(next, graph))
+    setAoaPins(pinsToPersist(next, graph))
+    if (!persistedAoa && graph.ok && graph.nodes.length > 0) setAoa(aoaGraphFromBuild(graph))
     if (!manual) setMode('manual')
+  }
+  /** 恢复自动布局：清空所有手动差量 */
+  const resetPins = () => {
+    setAoaPins({})
+    setMode('auto')
   }
 
   const beginDrag = (e: React.MouseEvent, nodeId: string) => {
@@ -226,7 +242,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
             type="button"
             className="sched-aoa-mode-btn"
             data-testid="sched-aoa-reset"
-            onClick={() => { setAoaPins({}); setMode('auto') }}
+            onClick={resetPins}
             title="清除全部手动布点，回到自动布局"
           >
             重置布局

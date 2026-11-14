@@ -166,6 +166,142 @@ type Project struct {
 	// CustomLabels 自定义字段列名覆盖（v4.138 #14：key=text1..num2，空串/缺省
 	// 回落注册表缺省 label；xlsx 导出列头与导入识别同口径）。
 	CustomLabels map[string]string `json:"customLabels,omitempty"`
+	// Reviews 检视序列（斑马复刻 S2 承载位：多期进度快照，缺省=旧文件零迁移）。
+	// v1 只承载与透传：CPM 不消费、视图不消费，落盘前过 validateBlocks 的
+	// fail-closed 闸；期间对比等语义在前端 reviews.ts 落地后才有消费者。
+	Reviews []Review `json:"reviews,omitempty"`
+	// Aoa 双代号点-箭持久图元（斑马复刻 N1 承载位：缺省=沿用前端 aoa.ts 派生口径）。
+	// 一旦存在即视为权威图元表；Go 侧不生成也不改写，只做结构校验。
+	Aoa *AoaGraph `json:"aoa,omitempty"`
+	// NetworkStyle 图面参数（斑马复刻 N2 承载位：5 种显示模式 + 布图压实）。
+	NetworkStyle *NetworkStyle `json:"networkStyle,omitempty"`
+	// Views 视图快照列表（斑马复刻 S5 承载位：列+分组+筛选+排序+显示模式）。
+	Views []View `json:"views,omitempty"`
+}
+
+// ReviewActual 单任务在某次检视上的实际数据（全字段可缺省=该期未回填）。
+type ReviewActual struct {
+	// Start 实际开始（工作日序号，相对开工日）。
+	Start *int `json:"start,omitempty"`
+	// Finish 实际完成（工作日序号，相对开工日）。
+	Finish *int `json:"finish,omitempty"`
+	// Percent 该期完成百分比 0-100（缺省=沿用任务 progress）。
+	Percent *int `json:"percent,omitempty"`
+}
+
+// Review 一次检视（斑马「检视时间」，见逆向报告 §5.1）。
+//
+// 时间口径与 CpmResult 一致：At 为工作日序号；Date 只作展示与人工校核，
+// 两者的一致性由前端 normalizeReviews 兜容错，落盘由 Validate 兜 fail-closed。
+type Review struct {
+	// At 检视时间（工作日序号，>=0，同一计划内唯一）。
+	At int `json:"at"`
+	// Date 对应 ISO 日期（YYYY-MM-DD）。
+	Date string `json:"date"`
+	// Frozen 冻结标记：拉直前锋线后为 true，禁止回改已完成/进行中。
+	Frozen bool `json:"frozen,omitempty"`
+	// Actuals 逐任务实际数据（键=叶任务 id；任务被删后仍保留，便于历史对比）。
+	Actuals map[string]ReviewActual `json:"actuals"`
+	// Note 备注。
+	Note string `json:"note,omitempty"`
+}
+
+// AoaDot 双代号事件（点）持久图元。
+type AoaDot struct {
+	// ID 点身份（持久稳定，跨拓扑变更不变）。
+	ID string `json:"id"`
+	// Num 节点编号（1 起，拓扑序，保证箭线 i<j）。
+	Num int `json:"num"`
+	// Layer 层/行号（布图参数化用，缺省=自动）。
+	Layer *int `json:"layer,omitempty"`
+	// IsBegin 起点事件（唯一始）。
+	IsBegin bool `json:"isBegin,omitempty"`
+	// IsEnd 终点事件（唯一终）。
+	IsEnd bool `json:"isEnd,omitempty"`
+}
+
+// AoaArrow 双代号箭线（实工作 / 虚工作 / 分组汇总）。
+type AoaArrow struct {
+	ID string `json:"id"`
+	// From 尾事件 id（须存在于 Dots）。
+	From string `json:"from"`
+	// To 头事件 id（须存在于 Dots）。
+	To string `json:"to"`
+	// Kind task=实工作 / dummy=虚工作 / summary=分组汇总箭线。
+	Kind string `json:"kind"`
+	// TaskID kind=task/summary 时对应的任务 id。
+	TaskID string `json:"taskId,omitempty"`
+	// Lag 该箭线承载的时距（工作日，缺省 0；闸门 ±9999）。
+	Lag int `json:"lag,omitempty"`
+}
+
+// AoaGraph 双代号点-箭持久图（对应前端 SchedAoaGraph）。
+type AoaGraph struct {
+	Dots   []AoaDot   `json:"dots"`
+	Arrows []AoaArrow `json:"arrows"`
+	// BeginDotID 起点事件 id（缺省=按 IsBegin 推断）。
+	BeginDotID string `json:"beginDotId,omitempty"`
+}
+
+// NetworkStyle 图面参数（斑马 network 状态块的 gaea 子集，见逆向报告 §4.1–§4.2）。
+//
+// 布尔用指针保留三态（false 与"未设置"语义不同：前者显式关闭错层/隐藏线）。
+type NetworkStyle struct {
+	// Mode timescaled / timescaledLogic / logic / pdm / ganttNetwork。
+	Mode string `json:"mode,omitempty"`
+	// DotStyle circle / rect。
+	DotStyle string `json:"dotStyle,omitempty"`
+	// ArrowStyle solid / hollow。
+	ArrowStyle string `json:"arrowStyle,omitempty"`
+	// NamePos auto / horizontal / vertical。
+	NamePos string `json:"namePos,omitempty"`
+	// NodeRadius 节点半径（px，4..200）。
+	NodeRadius *int `json:"nodeRadius,omitempty"`
+	// HeadHeight 箭头头部高度（px，2..60）。
+	HeadHeight *int `json:"headHeight,omitempty"`
+	// LayerHeight1/2 两层高度（px，20..2000）。
+	LayerHeight1 *int `json:"layerHeight1,omitempty"`
+	LayerHeight2 *int `json:"layerHeight2,omitempty"`
+	// Stagger 错层排布（斑马 is_stagger）。
+	Stagger *bool `json:"stagger,omitempty"`
+	// HideUnimportantLink 隐藏非重要关系线。
+	HideUnimportantLink *bool `json:"hideUnimportantLink,omitempty"`
+	// TickUnit yearMonth / monthDay / dayHour。
+	TickUnit string `json:"tickUnit,omitempty"`
+	// TickLines none / small / large。
+	TickLines string `json:"tickLines,omitempty"`
+	// Density compact / normal / loose。
+	Density string `json:"density,omitempty"`
+	// AspectMax 纵横比上限（0.1..20）。
+	AspectMax *float64 `json:"aspectMax,omitempty"`
+	// MaxPages 页数上限（1..1000）。
+	MaxPages *int `json:"maxPages,omitempty"`
+}
+
+// ViewSort 视图排序。
+type ViewSort struct {
+	Field string `json:"field"`
+	Dir   string `json:"dir"`
+}
+
+// View 视图快照（斑马 views_list，见逆向报告 §6.1）。
+type View struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Kind gantt / pdm / aoa / usage / dcma / monte / evm。
+	Kind string `json:"kind"`
+	// Cols 可见列键集（缺省=全部）。
+	Cols []string `json:"cols,omitempty"`
+	// Hide 隐藏列键集。
+	Hide []string `json:"hide,omitempty"`
+	// GroupBy 多级分组字段。
+	GroupBy []string `json:"groupBy,omitempty"`
+	// Filter 筛选表达式（缺省=不过滤）。
+	Filter string `json:"filter,omitempty"`
+	// Sort 排序。
+	Sort *ViewSort `json:"sort,omitempty"`
+	// RenderMode 网络图显示模式（kind=aoa/pdm 时有效）。
+	RenderMode string `json:"renderMode,omitempty"`
 }
 
 // AoaPt 双代号手动布点（整数像素）。

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildAoa, type AoaEdge, type AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, assignChannels, edgeSegs, findBridgeArcs, normalizeAoaLayout, prunePins, segsToPath, snapPt, summarySegs } from './aoaLayout'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, normalizeAoaLayout, pinsToPersist, prunePins, segsToPath, snapPt, summarySegs } from './aoaLayout'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -306,3 +306,36 @@ describe('summarySegs 一级汇总线（v4.160 横幅顶通长线）', () => {
     expect(g.segs).toEqual([{ x1: 150, y1: 100 + 16, x2: 150, y2: 300 - 16 }])
   })
 })
+
+
+// ── 斑马复刻 N1：pins 落盘降级为「手动差量」 ───────────────────
+// prunePins 按锚点集合剪（拓扑变更后失配键）；pinsToPersist 再多剪一条：
+// 与当前自动位一致的键（无信息量的"坐标快照"残留）不落盘。
+describe('pinsToPersist：只保留真被搬动过的差量', () => {
+  const g = buildAoa(
+    [{ id: 'A', name: 'A', duration: 3, level: 1, progress: 0 }],
+    [],
+  )
+  const s = g.nodes.find((n) => n.anchor === 'S')!
+
+  it('失配键剪掉；与自动位一致的键剪掉；真实差量保留', () => {
+    const pins = { S: { x: s.x + 110, y: s.y + 112 }, 'end:ghost': { x: 1, y: 1 } }
+    const out = pinsToPersist(pins, g)
+    expect(Object.keys(out)).toEqual(['S'])
+    expect(out.S).toEqual({ x: s.x + 110, y: s.y + 112 })
+  })
+
+  it('同一批里既有"等于自动位"又有真差量：只留后者', () => {
+    const out = pinsToPersist({ S: { x: s.x, y: s.y } }, g)
+    expect(out).toEqual({})
+  })
+
+  it('拖回自动位等于没拖（不落盘）', () => {
+    expect(pinsToPersist({ S: { x: s.x, y: s.y } }, g)).toEqual({})
+  })
+
+  it('全空输入返回空对象', () => {
+    expect(pinsToPersist({}, g)).toEqual({})
+  })
+})
+

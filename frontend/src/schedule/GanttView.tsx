@@ -25,6 +25,7 @@ import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import { dropToWd, resizeToDuration, resizeToNaturalDuration, workdayOffsets } from './drag'
 import { computeCosts } from './cost'
 import { isCd } from './cpm'
+import { latestReview, reviewDate } from './reviews'
 import { ganttLinkPath } from './ganttLinks'
 import { useScheduleStore } from './store'
 import { hasCostData } from './costUi'
@@ -116,7 +117,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
       pane.removeEventListener('wheel', onWheel)
     }
   }, [])
-  const [showFront, setShowFront] = useState(false)
+  /**
+   * 前锋线默认跟随**最新一期检视**（斑马复刻 S2 接线）：有检视就默认打开并停在
+   * 那一期的工作日；没有检视才回到"今天"。两者都是**初值**——用户仍可用工具栏
+   * 的开关与日期框覆盖（视图态不入文件）。
+   */
+  const latestRev = useMemo(() => latestReview(project), [project])
+  const [showFront, setShowFront] = useState(() => latestRev !== null)
   /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */
   const [filter, setFilter] = useState<GanttFilter>(GANTT_FILTER_DEFAULT)
   /** 排序/分组（v4.136 小刀，持久化 chatPrefs）；折叠组头 key 集为会话态 */
@@ -127,7 +134,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const [pathMode, setPathMode] = useState<'off' | 'pred' | 'succ'>('off')
   /** 基线条显示（有基线才出现开关；默认开，v4.116 刀7） */
   const [showBase, setShowBase] = useState(true)
-  const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10))
+  const [checkDate, setCheckDate] = useState<string>(() =>
+    latestRev ? reviewDate(project, latestRev.at) : new Date().toISOString().slice(0, 10),
+  )
   /** 拖拽态（刀9）：move=拖移（auto 转手动锁定）、resize=右缘改工期 */
   const [drag, setDrag] = useState<GanttDragState | null>(null)
 

@@ -12,7 +12,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AoaPin, LinkType, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask } from './types'
+import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
@@ -31,6 +31,8 @@ import type { ScheduleProjectSummary } from './api'
 import { recordRecentObject } from '../gaea/lib/recentObjects'
 import { snapshotBaseline, upsertBaseline } from './baseline'
 import { normalizeAoaLayout } from './aoaLayout'
+import { normalizeAoaGraph, normalizeNetworkStyle, normalizeReviews, normalizeViews } from './blocks'
+import { canAddReview, makeReview, straighten } from './reviews'
 import { SCHEDULE_DEFAULT_REL } from './paths'
 
 /**
@@ -110,6 +112,12 @@ export function normalizeProject(p: SchedProject): SchedProject {
     resources,
     assignments,
     aoaLayout: normalizeAoaLayout(p.aoaLayout), // v4.123 AOA 刀1：结构归一+缺省
+    // 斑马复刻四块承载位（blocks.ts）：v1 只做结构归一与透传，CPM/视图不消费。
+    // 缺省一律 undefined（旧文件零迁移，语义=沿用现有口径）。
+    reviews: normalizeReviews(p.reviews),
+    aoa: normalizeAoaGraph(p.aoa),
+    networkStyle: normalizeNetworkStyle(p.networkStyle),
+    views: normalizeViews(p.views),
   }
 }
 
@@ -166,6 +174,21 @@ interface ScheduleState {
   setTaskAssignments: (taskId: string, list: SchedAssignment[]) => void
   /** 双代号手动布局：整体替换 pins（拖拽提交/重置；v4.123 AOA 刀1） */
   setAoaPins: (pins: Record<string, AoaPin>) => void
+
+  /**
+   * 双代号持久图元整体替换（斑马复刻 N1 生产侧）：首次手动布点时固化编号/层，
+   * 使 `num` 与 pin 的 key（anchor）跨拓扑变更稳定。传 `undefined` = 退回纯派生。
+   */
+  setAoa: (g: SchedAoaGraph | undefined) => void
+
+  /**
+   * 检视（斑马复刻 S2）：新增一期（把当前进度打成快照）/ 删除一期 / 拉直一期。
+   * 拉直会**写回任务 progress 并冻结该期**（`reviews.ts:straighten`），失败原因原样返回。
+   */
+  addReview: (at: number, date: string) => { ok: boolean; reason?: string }
+  removeReview: (at: number) => void
+  straightenReview: (at: number) => { ok: boolean; changed: number; reason?: string }
+
   loadSample: () => void
   clearAll: () => void
   /** 多级撤消/重做（刀C 余项）：编制动作快照式历史，上限 50，不入持久化 */
@@ -507,6 +530,38 @@ export const useScheduleStore = create<ScheduleState>()(
 
       setAoaPins: (pins) => { pushHistory('aoaPins'); set((s) => ({ project: { ...s.project, aoaLayout: { pins } } })) },
 
+      setAoa: (g) => {
+        pushHistory('aoa')
+        set((s) => ({ project: { ...s.project, aoa: g } }))
+      },
+
+      addReview: (at, date) => {
+        const { project } = useScheduleStore.getState()
+        const gate = canAddReview(project, at)
+        if (!gate.ok) return { ok: false, reason: gate.reason }
+        pushHistory('review')
+        const next = [...(project.reviews ?? []), makeReview(project, at, date)].sort((a, b) => a.at - b.at)
+        set((s) => ({ project: { ...s.project, reviews: next } }))
+        return { ok: true }
+      },
+
+      removeReview: (at) => {
+        const { project } = useScheduleStore.getState()
+        if (!(project.reviews ?? []).some((r) => r.at === at)) return
+        pushHistory('review')
+        set((s) => ({ project: { ...s.project, reviews: (s.project.reviews ?? []).filter((r) => r.at !== at) } }))
+      },
+
+      straightenReview: (at) => {
+        const { project } = useScheduleStore.getState()
+        const r = straighten(project, at)
+        if (r.frozen) return { ok: false, changed: 0, reason: '该期已冻结（拉直过），不能重复拉直' }
+        if (r.changed === 0) return { ok: true, changed: 0 }
+        pushHistory('review')
+        set({ project: r.project })
+        return { ok: true, changed: r.changed }
+      },
+
       loadSample: () => { pushHistory(); set({ project: makeSampleProject(), selectedId: null }) },
       clearAll: () => { pushHistory(); set({ project: makeEmptyProject(), selectedId: null }) },
 
@@ -777,3 +832,6 @@ async function refreshProjectsCache(): Promise<void> {
     useScheduleStore.setState({ projects: r.projects })
   } catch { /* 静默 */ }
 }
+
+
+
