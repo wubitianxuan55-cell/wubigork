@@ -28,6 +28,12 @@ import { MarkdownContent, mdStyles } from '../../components/MarkdownContent'
 import { AGENT_ACCENTS, agentCapabilityLabel, presetLabel, protocolLabel } from './visuals'
 import { PantheonAgentAvatar } from './PantheonAgentAvatar'
 import { chairAssignmentReceipts, receiptStatusLabel, type PantheonChairReceipt } from './chairReceipts'
+import {
+  buildSeatTrajectory,
+  summarizeSeatContext,
+  type SeatContextSummary,
+  type SeatTrajectoryItem,
+} from './seatInsights'
 import type {
   PantheonChairAssignment,
   PantheonChairDecision,
@@ -439,6 +445,21 @@ function formatClock(ms?: number): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function compactTokenCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
+  return String(value)
+}
+
+function contextLoadPercent(
+  summary: SeatContextSummary,
+  all: readonly SeatContextSummary[],
+): number {
+  const max = all.reduce((value, item) => Math.max(value, item.inputTokens), 0)
+  if (!summary.hasReportedUsage || max <= 0) return 0
+  return Math.round((summary.inputTokens * 100) / max)
 }
 
 // 等待面板（O-E）：整场停在 waiting_input 时，唯一的出路是把这里处理干净。
@@ -1260,18 +1281,109 @@ const ToolTraceList: React.FC<{ traces: ToolTraceView[] }> = ({ traces }) => {
   )
 }
 
+const SeatContextLedger: React.FC<{
+  context: SeatContextSummary
+  load: number
+}> = ({ context, load }) => (
+  <section
+    className="pantheon-seat-context-ledger"
+    aria-label="席位上下文账本"
+    data-testid="pantheon-agent-context"
+  >
+    <header>
+      <span>上下文账本</span>
+      <b title={context.engineSessionId || undefined}>
+        {context.hasReportedUsage
+          ? context.engineSessionId
+            ? `引擎 ${shortProtocolID(context.engineSessionId)}`
+            : '引擎已上报'
+          : '引擎未上报'}
+      </b>
+    </header>
+    <div className="pantheon-seat-context-grid">
+      <span><small>输入 Tokens</small><strong>{context.hasReportedUsage ? compactTokenCount(context.inputTokens) : '—'}</strong></span>
+      <span><small>缓存读取</small><strong>{context.cacheRate === null ? '—' : `${context.cacheRate}%`}</strong></span>
+      <span><small>输出 Tokens</small><strong>{context.hasReportedUsage ? compactTokenCount(context.outputTokens) : '—'}</strong></span>
+      <span><small>执行步数</small><strong>{context.hasReportedUsage ? context.steps : '—'}</strong></span>
+    </div>
+    <div className="pantheon-seat-context-load" aria-label={`相对席位输入投入 ${load}%`}>
+      <span><i style={{ width: `${load}%` }} /></span>
+      <small>{context.hasReportedUsage ? `相对席位输入投入 ${load}%` : '本席未上报 usage，不伪造占用率'}</small>
+    </div>
+  </section>
+)
+
+const SeatTrajectoryView: React.FC<{ items: SeatTrajectoryItem[] }> = ({ items }) => {
+  if (items.length === 0) {
+    return (
+      <div className="pantheon-agent-detail-empty">
+        <NodeIndexOutlined />
+        <strong>还没有可还原的席位轨迹</strong>
+        <span>观点或工具事件出现后，会按时间顺序汇总到这里。</span>
+      </div>
+    )
+  }
+  return (
+    <ol
+      className="pantheon-seat-trajectory"
+      aria-label="席位逐轮轨迹"
+      data-testid="pantheon-agent-trajectory"
+    >
+      {items.map((item) => {
+        const act = item.kind === 'statement' && item.act
+          ? DISCUSSION_ACT_META[item.act]
+          : undefined
+        return (
+          <li
+            key={item.id}
+            className={`pantheon-seat-trajectory-item is-${item.kind}${item.kind === 'statement' && item.act ? ` is-${item.act}` : ''}`}
+            data-testid={`pantheon-trajectory-${item.id}`}
+          >
+            <span className="pantheon-seat-trajectory-mark" aria-hidden>
+              {item.kind === 'tool' ? <ToolOutlined /> : <CommentOutlined />}
+            </span>
+            <div className="pantheon-seat-trajectory-copy">
+              <header>
+                <strong>
+                  {item.kind === 'tool'
+                    ? '工具调用'
+                    : act?.label || (item.round ? `第 ${item.round} 轮` : '席位陈词')}
+                </strong>
+                <small>
+                  {item.kind === 'statement' && item.round ? `第 ${item.round} 轮 · ` : ''}
+                  {item.kind === 'tool' ? item.status : PHASE_LABEL[item.phase] || item.phase}
+                  {item.at > 0 ? ` · ${formatClock(item.at)}` : ''}
+                </small>
+              </header>
+              <p>{previewText(item.text)}</p>
+              {item.kind === 'statement' && item.relation ? (
+                <span className="pantheon-seat-trajectory-relation">{item.relation}</span>
+              ) : null}
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
 const AgentDetailPanel: React.FC<{
   participant?: PantheonParticipant
   agentId: string
   agentName: string
   outputs: DiscussionOutput[]
   traces: ToolTraceView[]
+  context: SeatContextSummary
+  contextLoad: number
+  participants: PantheonParticipant[]
+  allOutputs: DiscussionOutput[]
+  issues: PantheonIssue[]
   facilitator: boolean
   phase: string
   startedAt?: number
   now: number
-  tab: 'output' | 'trace'
-  onTab: (tab: 'output' | 'trace') => void
+  tab: 'output' | 'trace' | 'trajectory'
+  onTab: (tab: 'output' | 'trace' | 'trajectory') => void
   onClose: () => void
   panelRef: React.RefObject<HTMLElement>
 }> = ({
@@ -1280,6 +1392,11 @@ const AgentDetailPanel: React.FC<{
   agentName,
   outputs,
   traces,
+  context,
+  contextLoad,
+  participants,
+  allOutputs,
+  issues,
   facilitator,
   phase,
   startedAt,
@@ -1291,6 +1408,14 @@ const AgentDetailPanel: React.FC<{
 }) => {
   const liveOutput = outputs.some((output) => output.streaming)
   const running = participant?.status === 'running' || liveOutput
+  const participantNameById = useMemo(
+    () => new Map(participants.map((item) => [item.agentId, item.name])),
+    [participants],
+  )
+  const trajectory = useMemo(
+    () => buildSeatTrajectory(outputs, traces, participantNameById, issues, allOutputs),
+    [allOutputs, issues, outputs, participantNameById, traces],
+  )
   // 每轮输出折叠（2026-11-03 用户反馈「不要全部摊开」）：默认只展开最新一轮，
   // 流式中的恒展开；用户手动开合记录在 map，重渲染不弹回。
   const [openOutputs, setOpenOutputs] = useState<Record<string, boolean>>({})
@@ -1346,6 +1471,8 @@ const AgentDetailPanel: React.FC<{
         <span><strong>{PHASE_LABEL[phase] || phase}</strong> 当前阶段</span>
       </div>
 
+      <SeatContextLedger context={context} load={contextLoad} />
+
       <div className="pantheon-agent-detail-tabs" role="group" aria-label={`${agentName} 详情分类`}>
         <button
           type="button"
@@ -1365,12 +1492,21 @@ const AgentDetailPanel: React.FC<{
           工具调用
           <span>{traces.length}</span>
         </button>
+        <button
+          type="button"
+          aria-pressed={tab === 'trajectory'}
+          data-testid="pantheon-agent-tab-trajectory"
+          onClick={() => onTab('trajectory')}
+        >
+          轨迹
+          <span>{trajectory.length}</span>
+        </button>
       </div>
 
       <div
         className="pantheon-agent-detail-body"
         role="region"
-        aria-label={`${agentName} ${tab === 'output' ? '观点' : '工具调用'}`}
+        aria-label={`${agentName} ${tab === 'output' ? '观点' : tab === 'trace' ? '工具调用' : '轨迹'}`}
         aria-live={running && tab === 'output' ? 'polite' : undefined}
       >
         {tab === 'output' ? (
@@ -1473,8 +1609,10 @@ const AgentDetailPanel: React.FC<{
               <span>推理过程、工具请求与结果只在这里展示。</span>
             </div>
           )
-        ) : (
+        ) : tab === 'trace' ? (
           <ToolTraceList traces={traces} />
+        ) : (
+          <SeatTrajectoryView items={trajectory} />
         )}
       </div>
 
@@ -1625,7 +1763,7 @@ export const PantheonRecord: React.FC<Props> = ({
   const [noteDraft, setNoteDraft] = useState('')
   const [noteSending, setNoteSending] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState('')
-  const [detailTab, setDetailTab] = useState<'output' | 'trace'>('output')
+  const [detailTab, setDetailTab] = useState<'output' | 'trace' | 'trajectory'>('output')
   const [metaOpen, setMetaOpen] = useState(false)
   const [conclusionPreviewOpen, setConclusionPreviewOpen] = useState(false)
   const [recordView, setRecordView] = useState<RecordView>(() =>
@@ -1821,6 +1959,18 @@ export const PantheonRecord: React.FC<Props> = ({
     }
     return byAgent
   }, [toolTraces])
+
+  const contextByAgent = useMemo(() => {
+    const contexts = new Map<string, SeatContextSummary>()
+    for (const participant of participants) {
+      contexts.set(
+        participant.agentId,
+        summarizeSeatContext(outputsByAgent.get(participant.agentId) ?? []),
+      )
+    }
+    return contexts
+  }, [outputsByAgent, participants])
+  const contextValues = useMemo(() => [...contextByAgent.values()], [contextByAgent])
 
   const activeSpeakers = useMemo(() => {
     const activeIds = new Set(
@@ -2239,6 +2389,11 @@ export const PantheonRecord: React.FC<Props> = ({
   )
   const selectedName = selectedParticipant?.name || selectedAgentId
   const selectedStartedAt = selectedParticipant ? agentStartedAt(selectedParticipant) : 0
+  const selectedContext = contextByAgent.get(selectedAgentId) ?? summarizeSeatContext([])
+  const selectedContextLoad = contextLoadPercent(
+    selectedContext,
+    contextValues,
+  )
 
   return (
     <div
@@ -2734,7 +2889,7 @@ export const PantheonRecord: React.FC<Props> = ({
                     : `总用时 ${formatElapsed((session.updatedAt || session.createdAt) - session.createdAt)}`}
                 </span>
               )}
-              <span className="pantheon-team-map-hint">点击节点查看独立输出</span>
+              <span className="pantheon-team-map-hint">点击节点查看上下文与逐轮轨迹</span>
             </div>
           </header>
 
@@ -2746,17 +2901,28 @@ export const PantheonRecord: React.FC<Props> = ({
               <svg viewBox="0 0 100 100" preserveAspectRatio="none">
                 {participants.map((participant, index) => {
                   const x = ((index + 0.5) / Math.max(participants.length, 1)) * 100
+                  const compactX = index % 2 === 0 ? 25 : 75
+                  const compactY = index < 2 ? 58 : 85
+                  const active = activeSpeakers.some(
+                    (speaker) => speaker.agentId === participant.agentId,
+                  )
                   return (
-                    <path
-                      key={participant.agentId}
-                      d={`M 50 30 C 50 48, ${x} 50, ${x} 72`}
-                      style={{
-                        color: AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
-                      }}
-                      className={activeSpeakers.some((speaker) => speaker.agentId === participant.agentId)
-                        ? 'is-active'
-                        : ''}
-                    />
+                    <React.Fragment key={participant.agentId}>
+                      <path
+                        d={`M 50 30 C 50 43, ${x} 45, ${x} 62`}
+                        style={{
+                          color: AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
+                        }}
+                        className={`pantheon-topology-path is-wide${active ? ' is-active' : ''}`}
+                      />
+                      <path
+                        d={`M 50 30 C 50 40, ${compactX} 42, ${compactX} ${compactY}`}
+                        style={{
+                          color: AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
+                        }}
+                        className={`pantheon-topology-path is-compact${active ? ' is-active' : ''}`}
+                      />
+                    </React.Fragment>
                   )
                 })}
               </svg>
@@ -2846,6 +3012,9 @@ export const PantheonRecord: React.FC<Props> = ({
                   ? session.issues?.find((issue) => issue.id === latestOutput.targetIssueId)
                   : undefined
                 const latestTargetName = latestTarget?.agentName || latestIssue?.agentName
+                const seatContext = contextByAgent.get(participant.agentId)
+                  ?? summarizeSeatContext([])
+                const seatLoad = contextLoadPercent(seatContext, contextValues)
                 const latestAt = Math.max(
                   latestOutput?.at || 0,
                   latestTrace?.at || 0,
@@ -2868,6 +3037,7 @@ export const PantheonRecord: React.FC<Props> = ({
                     data-agent-id={participant.agentId}
                     style={{
                       '--agent-accent': AGENT_ACCENTS[participant.agentId] || 'var(--pantheon-accent)',
+                      '--context-load': `${seatLoad}%`,
                     } as React.CSSProperties}
                   >
                   <button
@@ -2890,6 +3060,9 @@ export const PantheonRecord: React.FC<Props> = ({
                         : '',
                       `${outputs.length} 条观点`,
                       `${traces.length} 次工具调用`,
+                      seatContext.hasReportedUsage
+                        ? `上下文输入 ${compactTokenCount(seatContext.inputTokens)} tokens，缓存读取 ${seatContext.cacheRate ?? '未知'}%，${seatContext.steps} 步`
+                        : '本席上下文用量未上报',
                       participant.version ? `版本 ${participant.version}` : '',
                       '点击查看独立输出',
                     ].filter(Boolean).join('，')}
@@ -2907,11 +3080,13 @@ export const PantheonRecord: React.FC<Props> = ({
                       </span>
                     )}
                     <span className="pantheon-topology-order">{String(index + 1).padStart(2, '0')}</span>
-                    <PantheonAgentAvatar
-                      agentId={participant.agentId}
-                      className="pantheon-topology-avatar"
-                      status={active ? 'running' : avatarStatus(participant.status)}
-                    />
+                    <span className="pantheon-topology-avatar-ring" aria-hidden>
+                      <PantheonAgentAvatar
+                        agentId={participant.agentId}
+                        className="pantheon-topology-avatar"
+                        status={active ? 'running' : avatarStatus(participant.status)}
+                      />
+                    </span>
                     <span className="pantheon-topology-copy">
                       <strong>{participant.name}</strong>
                       <small>
@@ -2940,6 +3115,21 @@ export const PantheonRecord: React.FC<Props> = ({
                         )}
                       </span>
                       <span>{preview}</span>
+                    </span>
+                    <span className="pantheon-topology-context" data-testid={`pantheon-topology-context-${participant.agentId}`}>
+                      <span className="pantheon-topology-context-load" aria-hidden>
+                        <i style={{ width: `${seatLoad}%` }} />
+                      </span>
+                      {seatContext.hasReportedUsage ? (
+                        <>
+                          <span><b>{compactTokenCount(seatContext.inputTokens)}</b> in</span>
+                          <span><b>{seatContext.cacheRate === null ? '—' : `${seatContext.cacheRate}%`}</b> 缓存</span>
+                          <span><b>{seatContext.steps}</b> 步</span>
+                          <span className="pantheon-topology-context-output"><b>{compactTokenCount(seatContext.outputTokens)}</b> out</span>
+                        </>
+                      ) : (
+                        <span className="pantheon-topology-context-empty">上下文未上报</span>
+                      )}
                     </span>
                     <span className="pantheon-topology-metrics">
                       <span>观点 {outputs.length}</span>
@@ -3320,6 +3510,11 @@ export const PantheonRecord: React.FC<Props> = ({
           agentName={selectedName}
           outputs={outputsByAgent.get(selectedAgentId) ?? []}
           traces={tracesByAgent.get(selectedAgentId) ?? []}
+          context={selectedContext}
+          contextLoad={selectedContextLoad}
+          participants={participants}
+          allOutputs={displayOutputs}
+          issues={session.issues ?? []}
           facilitator={session.request.chairmanAgentId === selectedAgentId}
           phase={session.phase}
           startedAt={selectedStartedAt}

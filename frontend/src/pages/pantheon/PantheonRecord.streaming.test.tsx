@@ -1001,3 +1001,129 @@ describe('PantheonRecord meta labels', () => {
     expect(screen.getByTestId('pantheon-meta').textContent).not.toContain('时间预算')
   })
 })
+
+describe('PantheonRecord seat context and trajectory', () => {
+  const contextContributions: PantheonContribution[] = [
+    {
+      id: 'ctx_codex_1',
+      phase: 'opening',
+      round: 1,
+      agentId: 'codex',
+      agentName: 'Codex',
+      content: '复用信息架构，不复制父子树。',
+      discussionAct: 'claim',
+      createdAt: now - 2000,
+      usage: {
+        engineSessionId: 'codex-session-context',
+        steps: 8,
+        inputTokens: 80_000,
+        cacheReadTokens: 20_000,
+        outputTokens: 4_000,
+      },
+    },
+    {
+      id: 'ctx_grok_2',
+      phase: 'challenge',
+      round: 2,
+      agentId: 'grok',
+      agentName: 'Grok',
+      content: '父子关系会破坏圆桌平权语义。',
+      discussionAct: 'challenge',
+      targetContributionId: 'ctx_codex_1',
+      createdAt: now - 1000,
+      durationMs: 4200,
+      usage: {
+        engineSessionId: 'grok-session-context',
+        steps: 5,
+        inputTokens: 40_000,
+        cacheReadTokens: 20_000,
+        outputTokens: 2_000,
+      },
+    },
+  ]
+
+  it('拓扑席位直接显示已上报上下文', () => {
+    renderRecord({
+      contributions: contextContributions,
+      sessionOverrides: { phase: 'challenge', currentRound: 2 },
+    })
+
+    const codexContext = screen.getByTestId('pantheon-topology-context-codex')
+    expect(codexContext.textContent).toContain('80.0k')
+    expect(codexContext.textContent).toContain('20%')
+    expect(codexContext.textContent).toContain('8 步')
+
+  })
+
+  it('独立窗口展示上下文账本，并把观点、目标关系和工具按时间汇总到轨迹', () => {
+    renderRecord({
+      contributions: contextContributions,
+      sessionOverrides: {
+        phase: 'challenge',
+        currentRound: 2,
+        events: [
+          {
+            seq: 1,
+            sessionId: 'pan_stream',
+            phase: 'challenge',
+            round: 2,
+            agentId: 'grok',
+            kind: 'tool_started',
+            toolId: 'tool_ctx_1',
+            toolName: 'read_file',
+            toolInput: 'frontend/src/pages/pantheon/PantheonRecord.tsx',
+            toolStatus: 'started',
+            at: now - 1500,
+          },
+          {
+            seq: 2,
+            sessionId: 'pan_stream',
+            phase: 'challenge',
+            round: 2,
+            agentId: 'grok',
+            kind: 'tool_result',
+            toolId: 'tool_ctx_1',
+            toolName: 'read_file',
+            toolStatus: 'completed',
+            toolOutput: '已读取',
+            at: now - 1400,
+          },
+        ],
+      },
+    })
+
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const detail = screen.getByTestId('pantheon-agent-detail')
+    const context = within(detail).getByTestId('pantheon-agent-context')
+    expect(context.textContent).toContain('输入 Tokens')
+    expect(context.textContent).toContain('40.0k')
+    expect(context.textContent).toContain('33%')
+    expect(context.textContent).toContain('5')
+
+    fireEvent.click(screen.getByTestId('pantheon-agent-tab-trajectory'))
+    const trajectory = screen.getByTestId('pantheon-agent-trajectory')
+    expect(trajectory.textContent).toContain('质疑')
+    expect(trajectory.textContent).toContain('指向 Codex')
+    expect(trajectory.textContent).toContain('read_file')
+  })
+
+  it('没有 usage 时上下文账本保持空白语义，不显示伪造的 0%', () => {
+    renderRecord({
+      contributions: [{
+        id: 'ctx_none',
+        phase: 'opening',
+        round: 1,
+        agentId: 'grok',
+        agentName: 'Grok',
+        content: '本席未上报引擎用量。',
+        createdAt: now,
+      } as PantheonContribution],
+    })
+    expect(screen.getByTestId('pantheon-topology-context-grok').textContent).toContain('上下文未上报')
+
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const context = screen.getByTestId('pantheon-agent-context')
+    expect(context.textContent).toContain('引擎未上报')
+    expect(context.textContent).not.toContain('0%')
+  })
+})

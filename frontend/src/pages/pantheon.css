@@ -11914,3 +11914,306 @@
   align-items: center;
   gap: 4px;
 }
+
+/* 四席圆桌：拓扑节点保留原有交互，席位卡片直接携带上下文状态。 */
+.pantheon-topology-context {
+  display: flex;
+  min-width: 0;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 7px;
+  padding: 6px 7px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 18%, var(--pantheon-line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pantheon-surface) 68%, transparent);
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-topology-context > span:not(.pantheon-topology-context-load) {
+  white-space: nowrap;
+}
+
+.pantheon-topology-context b {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-weight: 650;
+}
+
+.pantheon-topology-context-load {
+  position: relative;
+  width: 5px;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+}
+
+.pantheon-topology-context-load i {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+  background: var(--agent-accent, var(--pantheon-accent));
+}
+
+.pantheon-topology-context-output {
+  margin-left: auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+}
+
+.pantheon-topology-context-empty {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-sans, inherit);
+  font-style: normal;
+}
+
+.pantheon-topology-avatar-ring {
+  --context-load: 0%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  grid-row: 1;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--agent-accent, var(--pantheon-accent)) var(--context-load),
+    color-mix(in srgb, var(--pantheon-line) 72%, transparent) 0
+  );
+}
+
+.pantheon-topology-avatar-ring .pantheon-topology-avatar {
+  width: 38px;
+  height: 38px;
+  grid-row: auto;
+  border-radius: 50%;
+}
+
+.pantheon-seat-context-ledger {
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 22%, var(--pantheon-line));
+  border-radius: 12px;
+  background:
+    linear-gradient(130deg, color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 6%, transparent), transparent 60%),
+    color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+}
+
+.pantheon-seat-context-ledger > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.pantheon-seat-context-ledger > header b {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--agent-accent, var(--pantheon-accent));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-seat-context-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.pantheon-seat-context-grid > span {
+  display: flex;
+  min-width: 0;
+  padding: 6px 7px;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pantheon-surface-raised) 52%, transparent);
+}
+
+.pantheon-seat-context-grid small {
+  overflow: hidden;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-seat-context-grid strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-seat-context-load {
+  display: flex;
+  margin-top: 8px;
+  align-items: center;
+  gap: 8px;
+}
+
+.pantheon-seat-context-load > span {
+  width: 90px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 11%, transparent);
+}
+
+.pantheon-seat-context-load > span i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--agent-accent, var(--pantheon-accent));
+}
+
+.pantheon-seat-context-load small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-seat-trajectory {
+  position: relative;
+  display: flex;
+  margin: 8px 0 0;
+  padding: 0;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+}
+
+.pantheon-seat-trajectory::before {
+  position: absolute;
+  top: 15px;
+  bottom: 15px;
+  left: 12px;
+  width: 1px;
+  background: color-mix(in srgb, var(--pantheon-accent) 24%, var(--pantheon-line));
+  content: "";
+}
+
+.pantheon-seat-trajectory-item {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  padding: 11px 0;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-seat-trajectory-item:first-child {
+  border-top: 0;
+}
+
+.pantheon-seat-trajectory-mark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 35%, var(--pantheon-line));
+  border-radius: 50%;
+  color: var(--agent-accent, var(--pantheon-accent));
+  background: var(--pantheon-surface-raised);
+  font-size: 10px;
+}
+
+.pantheon-seat-trajectory-item.is-tool .pantheon-seat-trajectory-mark {
+  color: var(--md-sys-color-info, var(--color-info));
+}
+
+.pantheon-seat-trajectory-copy {
+  min-width: 0;
+}
+
+.pantheon-seat-trajectory-copy > header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.pantheon-seat-trajectory-copy > header strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pantheon-seat-trajectory-copy > header small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-seat-trajectory-copy p {
+  margin: 4px 0 0;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.pantheon-seat-trajectory-relation {
+  display: block;
+  margin-top: 4px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 72%, var(--md-sys-color-text, var(--color-text)));
+  font-size: 8.5px;
+}
+
+/* 拓扑连线：宽屏用横向扇出，1320 以下改用两列树状连线。 */
+.pantheon-topology-svg path {
+  stroke: color-mix(in srgb, currentColor 58%, var(--pantheon-line));
+  stroke-width: 1.2;
+  opacity: .82;
+}
+
+.pantheon-topology-path.is-compact {
+  display: none;
+}
+
+@media (min-width: 1321px) {
+  .pantheon-topology {
+    min-height: 430px;
+  }
+}
+
+@media (min-width: 521px) and (max-width: 1320px) {
+  .pantheon-topology-svg {
+    display: block;
+  }
+
+  .pantheon-topology-path.is-wide {
+    display: none;
+  }
+
+  .pantheon-topology-path.is-compact {
+    display: block;
+  }
+}
+
+@media (max-width: 760px) {
+  .pantheon-seat-context-ledger {
+    margin-inline: 16px;
+  }
+
+  .pantheon-seat-context-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
