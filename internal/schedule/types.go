@@ -47,6 +47,18 @@ const (
 )
 
 // Task 任务/分组行（Level 缩进表达 WBS 层级，扁平数组按顺序渲染）。
+// TaskStyle 单元格/横道外观（斑马 draw 参数子集；全字段可缺省，坏值 Validate 拒绝）。
+type TaskStyle struct {
+	// Color 文字颜色（#RRGGBB）。
+	Color string `json:"color,omitempty"`
+	// Fill 横道条填充色（#RRGGBB）。
+	Fill string `json:"fill,omitempty"`
+	// Font 字体族名（≤40 字符）。
+	Font string `json:"font,omitempty"`
+	// Size 字号 px（8-72）。
+	Size int `json:"size,omitempty"`
+}
+
 type Task struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -68,6 +80,12 @@ type Task struct {
 	// 仅限叶任务非里程碑、数值上限 3650，见 Validate；v4.155 起 FS/SS/FF/SF
 	// 搭接全类型放开）。
 	DurationUnit DurationUnit `json:"durationUnit,omitempty"`
+	// Category 工作分类（斑马复刻批5：group 字段独立化；分组维度 category 优先取它，
+	// 缺省回落 WBS 父名。trim 上限 60，见 Validate；镜像前端 store.ts 归一）。
+	Category string `json:"category,omitempty"`
+	// Style 单元格/横道外观（斑马复刻批5：文字颜色/横道填充/字体族/字号；
+	// 颜色=6 位 hex、字号 8-72、字体 ≤40，见 Validate——镜像前端 store.ts validStyle）。
+	Style *TaskStyle `json:"style,omitempty"`
 	// AskFinish 要求完成时间（斑马复刻 S5 预警：ask_stop_time 口径=上级下达的
 	// 要求完成；工作日序号，0=开工日。缺省=未下达，预警「无级别」。负值 Validate
 	// fail-closed，镜像前端 store.ts 归一）。**必须用 *int**：0 是合法值（要求

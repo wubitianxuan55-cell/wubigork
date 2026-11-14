@@ -12,7 +12,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask, SchedView } from './types'
+import type { AoaPin, LinkType, SchedAoaGraph, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask, SchedTaskStyle, SchedView } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
@@ -67,6 +67,22 @@ function validNum(v: unknown): boolean {
  * （undefined=引擎按缺省口径处理）。负数/NaN/Inf 的「拒绝」方式=丢弃字段，
  * 与 normalizeProject 坏形字段逐条丢弃同口径，不抛错打断编辑流。
  */
+const HEX_RE = /^#[0-9a-fA-F]{6}$/
+
+/** 外观形状归一（斑马复刻批5）：逐项校验，坏值丢弃，全空=undefined */
+function validStyle(v: unknown): SchedTaskStyle | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const raw = v as Partial<SchedTaskStyle>
+  const out: SchedTaskStyle = {}
+  if (typeof raw.color === 'string' && HEX_RE.test(raw.color)) out.color = raw.color
+  if (typeof raw.fill === 'string' && HEX_RE.test(raw.fill)) out.fill = raw.fill
+  if (typeof raw.font === 'string' && raw.font.trim() !== '' && raw.font.length <= 40) out.font = raw.font.trim()
+  if (typeof raw.size === 'number' && Number.isFinite(raw.size) && raw.size >= 8 && raw.size <= 72) {
+    out.size = Math.round(raw.size)
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 function numOrUndefined(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined
 }
@@ -111,6 +127,12 @@ export function normalizeProject(p: SchedProject): SchedProject {
       askFinish:
         typeof t.askFinish === 'number' && Number.isInteger(t.askFinish) && t.askFinish >= 0
           ? t.askFinish : undefined,
+      // 工作分类容错（斑马复刻批5）：trim/上限 60，空丢弃
+      category:
+        typeof t.category === 'string' && t.category.trim() !== '' && t.category.trim().length <= 60
+          ? t.category.trim() : undefined,
+      // 外观容错（斑马复刻批5）：hex/字号/字体逐项校验，全空=undefined（旧文件零迁移）
+      style: validStyle(t.style),
     })),
     links: p.links ?? [],
     deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? p.deadline : null,
@@ -448,10 +470,24 @@ export const useScheduleStore = create<ScheduleState>()(
 
       updateTask: (id, patch) => {
         pushHistory('updateTask', id)
+        // style/category 走同源归一（斑马复刻批5）：直改通道与载入通道同一口径，
+        // 坏值不进内存态（渲染拿到即合法）。
+        const guarded: Partial<SchedTask> = {
+          ...patch,
+          ...(patch.style !== undefined ? { style: validStyle(patch.style) } : {}),
+          ...(patch.category !== undefined
+            ? {
+                category:
+                  typeof patch.category === 'string' && patch.category.trim() !== '' && patch.category.trim().length <= 60
+                    ? patch.category.trim()
+                    : undefined,
+              }
+            : {}),
+        }
         set((s) => ({
           project: {
             ...s.project,
-            tasks: s.project.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+            tasks: s.project.tasks.map((t) => (t.id === id ? { ...t, ...guarded } : t)),
           },
         }))
       },

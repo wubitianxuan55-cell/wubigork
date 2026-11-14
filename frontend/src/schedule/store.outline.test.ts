@@ -101,3 +101,23 @@ describe('store 表格粘贴 + 命令信号 + 网络模式（一次点亮批4）
     expect(useScheduleStore.getState().project.networkStyle?.mode).toBe('logic')
   })
 })
+
+// ── 外观/分类归一（斑马复刻批5：格式组数据面）──
+// 测试夹具色值=数据断言非 UI 主题色 // hex-exempt
+describe('store 外观/分类归一（批5）', () => {
+  it('validStyle：hex 逐项校验、字号钳位、全空丢弃；分类 trim/上限', () => {
+    resetProject(baseTasks)
+    const s = useScheduleStore.getState()
+    s.updateTask('A', { style: { color: '#237804', fill: 'red', font: '  宋体  ', size: 300 } as never }) // hex-exempt
+    const t = useScheduleStore.getState().project.tasks.find((x) => x.id === 'A')!
+    expect(t.style).toEqual({ color: '#237804', font: '宋体' }) // fill 非 hex 丢、size 越界丢、font trim // hex-exempt
+    // updateTask.style=整对象替换（patch 契约）；UI 合并在 popover 层（patchStyle）
+    s.updateTask('A', { style: { color: '#237804', fill: '#d4380d', size: 300.6 } as never }) // hex-exempt
+    const t2 = useScheduleStore.getState().project.tasks.find((x) => x.id === 'A')!
+    expect(t2.style).toEqual({ color: '#237804', fill: '#d4380d' }) // hex-exempt // 300.6 越界丢弃
+    s.updateTask('A', { category: '  主体结构  ' })
+    expect(useScheduleStore.getState().project.tasks.find((x) => x.id === 'A')?.category).toBe('主体结构')
+    s.updateTask('A', { category: 'x'.repeat(61) })
+    expect(useScheduleStore.getState().project.tasks.find((x) => x.id === 'A')?.category).toBeUndefined()
+  })
+})

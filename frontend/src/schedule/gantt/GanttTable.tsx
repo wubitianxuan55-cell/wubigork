@@ -179,8 +179,13 @@ export const GanttTable: React.FC<GanttTableProps> = ({
                         size="small"
                         variant="borderless"
                         value={t.name}
+                        style={{
+                          color: t.style?.color,
+                          fontFamily: t.style?.font,
+                          fontSize: t.style?.size ? `${t.style.size}px` : undefined,
+                          padding: 0,
+                        }}
                         onChange={(e) => onUpdateTask(t.id, { name: e.target.value })}
-                        style={{ padding: 0 }}
                       />
                     )}
                     {t.isMilestone && <span className="sched-milestone-tag">里程碑</span>}

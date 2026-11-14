@@ -144,6 +144,8 @@ export const GanttBars: React.FC<GanttBarsProps> = ({
                     style={{
                       left: dayNo(movePreview ?? row.es) * dayW,
                       width: barWidthPx,
+                      background: t.style?.fill,
+                      color: t.style?.color,
                     }}
                     title={
                       cdRow

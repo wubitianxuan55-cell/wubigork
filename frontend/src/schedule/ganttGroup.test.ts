@@ -304,4 +304,17 @@ describe('斑马 14 维分组（W1）', () => {
       '模式: 自动',
     ])
   })
+
+  // 工作分类独立字段（斑马复刻批5）：category 优先、未设置回落 WBS 父名（旧口径兼容）
+  it('category 独立字段：任务带 category 优先于分区名；未设置者回落', () => {
+    const withCat: typeof project = {
+      ...project,
+      tasks: project.tasks.map((t) => (t.id === 'A' ? { ...t, category: ' 主体结构 ' } : t)),
+    }
+    const got = buildGanttRows(withCat.tasks, advancedCpm, { groupBy: ['category'], project: withCat })
+      .filter((r): r is Extract<(ReturnType<typeof buildGanttRows>[number]), { kind: 'group' }> => r.kind === 'group')
+      .map((r) => r.label)
+    expect(got).toContain('工作分类: 主体结构')
+    expect(got.some((l) => l.includes('安装工程'))).toBe(true)
+  })
 })

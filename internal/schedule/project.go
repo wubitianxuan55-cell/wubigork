@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"path/filepath"
@@ -72,6 +73,9 @@ func Save(path string, p Project) error {
 // 类型合法、工期非负、进度 0-100、日期口径合法。空任务表合法（空计划）。
 // 资源成本刀1（v4.122）：资源 id 唯一/类型合法/数值非负、分配引用存在且
 // (taskId,resourceId) 唯一、分组行禁止挂分配、固定成本非负。
+// taskStyleHexRe 颜色形态：#RRGGBB（斑马取色器产物形态）。
+var taskStyleHexRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
 func Validate(p *Project) error {
 	seen := make(map[string]bool, len(p.Tasks))
 	leaf := make(map[string]bool, len(p.Tasks))
@@ -110,6 +114,28 @@ func Validate(p *Project) error {
 		// nil=未设置放行，0=开工日完成是合法值（*int 契约，见 types.go 注）。
 		if t.AskFinish != nil && *t.AskFinish < 0 {
 			return fmt.Errorf("任务 %s 要求完成时间非法（须为非负工作日序号）：%d", t.ID, *t.AskFinish)
+		}
+		// Category 工作分类（斑马复刻批5）：trim 上限 60。
+		if len([]rune(t.Category)) > 60 {
+			return fmt.Errorf("任务 %s 工作分类过长（≤60 字符）", t.ID)
+		}
+		// Style 外观（斑马复刻批5）：颜色 6 位 hex、字号 8-72、字体 ≤40——fail-closed。
+		if t.Style != nil {
+			st := t.Style
+			for _, kv := range []struct {
+				name string
+				v    string
+			}{{"文字颜色", st.Color}, {"横道填充", st.Fill}} {
+				if kv.v != "" && !taskStyleHexRe.MatchString(kv.v) {
+					return fmt.Errorf("任务 %s %s非法（须为 #RRGGBB）：%s", t.ID, kv.name, kv.v)
+				}
+			}
+			if len([]rune(st.Font)) > 40 {
+				return fmt.Errorf("任务 %s 字体名过长（≤40 字符）", t.ID)
+			}
+			if st.Size != 0 && (st.Size < 8 || st.Size > 72) {
+				return fmt.Errorf("任务 %s 字号非法（8-72 px）：%d", t.ID, st.Size)
+			}
 		}
 	}
 	for _, l := range p.Links {

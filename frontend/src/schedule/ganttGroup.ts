@@ -206,7 +206,9 @@ function groupValueOf(
     case 'custom':
       return customText(t, 'text3')
     case 'category':
-      return ctx.parentName[index] ?? '未分类'
+      // 斑马「工作分类」独立字段优先（复刻批5）；未设置回落 WBS 父名（旧口径兼容）
+      return (typeof t.category === 'string' && t.category.trim() !== '' ? t.category.trim() : null)
+        ?? ctx.parentName[index] ?? '未分类'
     case 'name':
       return t.name || '未命名'
     case 'status':

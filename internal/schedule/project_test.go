@@ -496,3 +496,40 @@ func TestValidateDurationUnit(t *testing.T) {
 		t.Fatalf("往返后应仍合法：%v", err)
 	}
 }
+
+// 外观/分类（斑马复刻批5）：hex/字号 fail-closed + 分类上限 + *TaskStyle 往返保真。
+func TestValidateStyleAndCategory(t *testing.T) {
+	p := sampleProject()
+	p.Tasks[0].Style = &TaskStyle{Color: "red"}
+	if err := Validate(&p); err == nil || !strings.Contains(err.Error(), "文字颜色") {
+		t.Fatalf("颜色非 hex 应拒绝：%v", err)
+	}
+	p.Tasks[0].Style = &TaskStyle{Color: "#237804", Fill: "#d4380d", Font: "宋体", Size: 14}
+	if err := Validate(&p); err != nil {
+		t.Fatalf("合法外观应放行：%v", err)
+	}
+	p.Tasks[0].Style = &TaskStyle{Size: 300}
+	if err := Validate(&p); err == nil || !strings.Contains(err.Error(), "字号") {
+		t.Fatalf("字号越界应拒绝：%v", err)
+	}
+	p.Tasks[0].Style = &TaskStyle{Color: "#237804", Size: 14}
+	p.Tasks[0].Category = strings.Repeat("类", 61)
+	if err := Validate(&p); err == nil || !strings.Contains(err.Error(), "工作分类") {
+		t.Fatalf("分类超长应拒绝：%v", err)
+	}
+	p.Tasks[0].Category = "主体"
+	raw, err := json.Marshal(&p)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var back Project
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if back.Tasks[0].Style == nil || back.Tasks[0].Style.Color != "#237804" || back.Tasks[0].Style.Size != 14 {
+		t.Fatalf("style 往返丢失: %+v", back.Tasks[0].Style)
+	}
+	if back.Tasks[0].Category != "主体" {
+		t.Fatalf("category 往返丢失: %q", back.Tasks[0].Category)
+	}
+}

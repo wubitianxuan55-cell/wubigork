@@ -38,7 +38,7 @@ import {
   type RuntimeScheduleCommand,
 } from '../schedule/commandRegistry'
 import type { GanttGroupField, GanttSort } from '../schedule/ganttGroup'
-import type { SchedView } from '../schedule/types'
+import type { SchedTaskStyle, SchedView } from '../schedule/types'
 import { taskWarn, warnSummary, type WarnAlgorithm } from '../schedule/warn'
 import type { SchedLink, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
@@ -573,6 +573,44 @@ const SchedulePage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+
+  // ── 格式组（斑马复刻批5）：外观四项作用于选中任务；色板=工程常用色 ──
+  // 工程色板=用户可选内容数据（斑马取色器同源），非 UI 主题色 // hex-exempt
+  const STYLE_COLORS = ['#237804', '#d4380d', '#0958d9', '#722ed1', '#c41d7f', '#d46b08', '#614700', '#002c8c'] // hex-exempt
+  const STYLE_FONTS = ['默认', '微软雅黑', '宋体', '黑体', '楷体', '等线']
+  const STYLE_SIZES = [12, 13, 14, 16, 18, 20]
+  const patchStyle = (patch: Partial<SchedTaskStyle>) => {
+    if (!selected) return
+    const next = { ...selected.style, ...patch }
+    if (!next.color) delete next.color
+    if (!next.fill) delete next.fill
+    if (!next.font) delete next.font
+    if (!next.size) delete next.size
+    updateTask(selected.id, { style: Object.keys(next).length > 0 ? next : undefined })
+  }
+  const swatchRow = (key: 'color' | 'fill') => (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {[undefined, ...STYLE_COLORS].map((c) => (
+        <button
+          key={c ?? 'none'}
+          type="button"
+          aria-label={c ?? '清除'}
+          onClick={() => patchStyle({ [key]: c } as Partial<SchedTaskStyle>)}
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: '1px solid rgba(5,5,5,0.2)',
+            background: c ?? 'transparent',
+            backgroundImage: c ? undefined : 'linear-gradient(45deg, transparent 45%, #f5222d 45%, #f5222d 55%, transparent 55%)', // hex-exempt（清除态删除线）
+            cursor: 'pointer',
+          }}
+          data-testid={`sched-style-${key}-${c ?? 'none'}`}
+        />
+      ))}
+    </div>
+  )
+
   const importMenuItems: MenuProps['items'] = [
     { key: 'importNew', icon: <ImportOutlined />, label: '导入为新工程…' },
     { key: 'importXml', icon: <ImportOutlined />, label: '导入 XML 替换当前工程…' },
@@ -886,19 +924,62 @@ const SchedulePage: React.FC = () => {
               } title="查找">
               <RibbonCommand icon={<SearchOutlined />} label="查找" title={commandTitle('edit.find')} onClick={() => runCommand('edit.find')} />
             </Popover>
-            <RibbonCommand icon={<FormatPainterOutlined />} label="格式刷" disabled title="预留：格式刷" />
-            <RibbonCommand icon={<TagOutlined />} label="分类" disabled title="预留：工作分类" />
+            <RibbonCommand icon={<FormatPainterOutlined />} label="格式刷" disabled
+              title="预留：刷式交互需画布命中态配合（外观数据已就位，随交互批接线）" />
+            <Popover trigger="click" placement="bottomLeft" title="工作分类"
+              content={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 200 }}>
+                  <Input size="small" placeholder="工作分类（如：主体/机电/装饰）" defaultValue={selected?.category ?? ''}
+                    key={selected?.id ?? 'none'}
+                    onPressEnter={(e) => {
+                      const v = (e.target as HTMLInputElement).value.trim()
+                      if (selected) updateTask(selected.id, { category: v || undefined })
+                    }}
+                    data-testid="sched-category-input"
+                  />
+                  <span className="sched-dim" style={{ fontSize: 12 }}>回车提交；「按工作分类分组」优先取此字段，未设置回落分区名</span>
+                </div>
+              }>
+              <RibbonCommand icon={<TagOutlined />} label="分类" disabled={!selected} title="设置选中工作的工作分类（分组维度可用）" />
+            </Popover>
           </RibbonColumn>
         </RibbonGroup>
         <RibbonGroup label="格式">
           <RibbonColumn>
-            <RibbonCommand icon={<FontColorsOutlined />} label="字体" disabled title="预留：字体设置" />
-            <RibbonCommand icon={<FontSizeOutlined />} label="字号" disabled title="预留：字号设置" />
-            <RibbonCommand icon={<FontColorsOutlined />} label="字体颜色" disabled title="预留：字体颜色" />
+            <Popover trigger="click" placement="bottomLeft" title="字体"
+              content={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 140 }}>
+                  {STYLE_FONTS.map((f) => (
+                    <Button key={f} size="small" type="link" style={{ padding: 0, justifyContent: 'flex-start' }}
+                      onClick={() => patchStyle({ font: f === '默认' ? undefined : f })}>{f}</Button>
+                  ))}
+                </div>
+              }>
+              <RibbonCommand icon={<FontColorsOutlined />} label="字体" disabled={!selected} title="设置选中工作名称字体族" />
+            </Popover>
+            <Popover trigger="click" placement="bottomLeft" title="字号"
+              content={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 100 }}>
+                  {STYLE_SIZES.map((n) => (
+                    <Button key={n} size="small" type="link" style={{ padding: 0, justifyContent: 'flex-start' }}
+                      onClick={() => patchStyle({ size: n })}>{n} px</Button>
+                  ))}
+                </div>
+              }>
+              <RibbonCommand icon={<FontSizeOutlined />} label="字号" disabled={!selected} title="设置选中工作名称字号（8-72px）" />
+            </Popover>
+            <Popover trigger="click" placement="bottomLeft" title="字体颜色"
+              content={<div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span className="sched-dim" style={{ fontSize: 12 }}>作用于选中工作名称</span>{swatchRow('color')}</div>}>
+              <RibbonCommand icon={<FontColorsOutlined />} label="字体颜色" disabled={!selected} title="设置选中工作文字颜色" />
+            </Popover>
           </RibbonColumn>
           <RibbonColumn>
-            <RibbonCommand icon={<BgColorsOutlined />} label="填充" disabled title="预留：单元格填充" />
-            <RibbonCommand icon={<LineHeightOutlined />} label="线条宽度" disabled title="预留：线条宽度" />
+            <Popover trigger="click" placement="bottomLeft" title="横道填充"
+              content={<div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span className="sched-dim" style={{ fontSize: 12 }}>作用于选中工作横道条</span>{swatchRow('fill')}</div>}>
+              <RibbonCommand icon={<BgColorsOutlined />} label="填充" disabled={!selected} title="设置选中工作横道条填充色" />
+            </Popover>
+            <RibbonCommand icon={<LineHeightOutlined />} label="线条宽度" disabled
+              title="预留：图面线条宽度属画布参数（networkStyle 承载位已备，随图面参数刀接线）" />
           </RibbonColumn>
         </RibbonGroup>
         <RibbonGroup label="大纲">

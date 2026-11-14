@@ -47,8 +47,24 @@ export interface SchedTask {
   durationUnit?: DurationUnit
   /** 要求完成时间（斑马复刻 S5 预警：ask_stop_time 口径=上级下达的要求完成；工作日序号，0=开工日。缺省=未下达，预警「无级别」） */
   askFinish?: number
+  /** 工作分类（斑马复刻批5：group 字段独立化；分组维度 category 优先取它，缺省回落 WBS 父名） */
+  category?: string
+  /** 单元格/横道外观（斑马复刻批5：文字颜色/填充/字体/字号；hex fail-closed，见 Go Validate） */
+  style?: SchedTaskStyle
   /** 自定义字段值（v4.138 #14：槽位见 customFields.ts 注册表，text|number；只存有值槽，旧文件零迁移） */
   custom?: Partial<Record<string, string | number>>
+}
+
+/** 单元格/横道外观（斑马 draw 参数子集：文字颜色/横道填充/字体族/字号；颜色=6 位 hex） */
+export interface SchedTaskStyle {
+  /** 文字颜色（#RRGGBB） */
+  color?: string
+  /** 横道条填充色（#RRGGBB） */
+  fill?: string
+  /** 字体族名（≤40 字符） */
+  font?: string
+  /** 字号 px（8-72） */
+  size?: number
 }
 
 /** 工作日历（对齐 Project 基准日历）：workweek 为 JS getDay 口径 0=周日..6=周六 */
