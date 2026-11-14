@@ -130,3 +130,6 @@ frontend/.vitest-reports/
 re-lingxi/out/prompts/raw-region.txt
 re-lingxi/out/prompts/region-utf8.txt
 re-lingxi/out/prompts/part-*.txt
+
+# wpsdock 编译产物（tools/wpsdock 仓根 go build 验证产物，不入库）
+wpsdock.exe

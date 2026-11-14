@@ -1,3 +1,85 @@
+## lint 存量清欠 25 条 · 2026-11-14 · 主代理直做
+
+- **范围**：11-13 灵犀/dsh 批已提交遗留（非在途，mtime+git 归属定性）。提交 `f7e7acfd`：
+  `tools/wpsdock/main.go` errcheck×16（winapi `Call` 三值裸语句显式 `_, _, _ =`；
+  `defer pCloseHandle.Call` 改闭包内忽略）+unused×3（pShowWindow/utf16PtrToString/
+  argsToString 删除）+gofmt（1.19 doc comment 缩进+LF 归一）；app 三文件 gofmt 纯格式
+  （office_tools 顺带修真缩进错位）；`parse_error_style_test.go` gofmt。
+- **ineffassign 一条是真逻辑残留**：`gaea_dream_pending.go` 溢出归档错误分支的
+  `dropped = over` 被紧随其后的无条件赋值覆盖——两处钉死测试（FIFOCap dropped==1、
+  notice 归档文案）证明作者最终语义=无条件挤出数，删死分支保留无条件行；归档失败
+  改 `slog.Warn` 留痕不再静默。11-13 归档改造只改了一半测试的死代码，本批补齐语义一致性。
+- **坑**：①仓库工作树 CRLF/CR 混行尾——python 单行 `str.replace('\n')` 全 miss，
+  须按行处理保 CRLF 或先归一 LF 再 gofmt；②winapi `Call` 返回三值，`_ =` 编译不过
+  须 `_, _, _ =`；③app 测试须 ucrt64+build/bin DLL 双 PATH。
+- **验证**：全仓 `golangci-lint` **0 issues**；app（Dream/Office/Xlsx 面）+
+  builtin TestParse 绿；wpsdock `go vet`+`go build` OK。快闸 lint 段自此不再被存量挡。
+
+## 40c2c677 遥测收口测试回归修复 · 2026-11-14 · 主代理直做（2c61eef8）
+
+- 清欠后重跑快闸，test-related Go 段红：`TestRouteIntent_Status` 确定性失败
+  （状态摘要报「当前没有启用的模型引擎」）——**40c2c677（只显示已连接引擎）改
+  `GetModelMonitor` 时没对齐消费方测试**：chat_service 测试装配只有 Enabled 无
+  Connected stub，`execStatus` 过滤后引擎清单为空。
+- 修=`modelengine` 加显式零请求测试缝 `SetEngineConnectedForTest`（仿
+  browser.SetForTest 先例；SaveEngine 是部分更新不吞 Status；试过
+  `TestConnection` 真拨 mock——**会污染共享 mock 的调用计数与多轮 SSE 编排**
+  （chat_persona_guard calls=3 want 2、chat_stream_search 编排错位），已撤）。
+- 验证：RouteIntent/Chat/FeatureModel 面绿、modelengine 全包绿、lint 0。
+- 快闸终态：build/vet/**lint 0**/漂移/卫生守卫/前端 related（42 例）全过；
+  Go 段余两红 `TestVoiceApplySettings_PersonaPresets`（写真实
+  `~/.gaea_config.json.tmp` Access is denied）+`TestSemanticSearchTool_EndToEnd`
+  （readonly database）=**负载期假红**（同机对方执行体+用户壳并发互撞，
+  与本批零交集），定向三连复跑全绿定性（在册 flaky 先例同族：
+  websearch 负载期假红/app 首跑负载期）。
+
+## 浏览器蒸馏两刀（browser_run_js + web_fetch readability）· 2026-11-14 · 主代理直做
+
+- **P1 `browser_run_js` 一次执行范式**（Obscura×ego(lite) 调研 P1 刀，`fd33b06b`）：
+  第 12 个 browser_* 工具——agent 写一段 JS 单次往返完成多步「看→点→填→等」，
+  页面注入 `$read/$snapshot/$click/$fill/$wait/$waitFor/$log` 帮手；
+  `$snapshot` 复用 data-gaea-ref 标记与 `__gaeaEpoch` 代数（Go 侧登记 epoch），
+  run_js 拿到的 ref 可直接喂 browser_click/type（ref 生态打通）；页内导航不提供
+  帮手（跳转销毁执行上下文，文档引导 browser_navigate）。value 超长 Go 侧 rune
+  安全截断降级文本预览（不输出半截非法 JSON）。既有 11 工具原样保留，纯增量。
+- **P2 `web_fetch` readability 正文主提取**（LP.getMarkdown 思路蒸馏，零新依赖）：
+  `webfetch_readability.go`——简化版 Mozilla Readability（长 `<p>` 双亲计分
+  parent 全额/grandparent 半额 + class/id 关键词修正 + article/main 加成），
+  命中容器连同 `<title>` 重序列化后复用 htmlToText 单一渲染路径；判据不足
+  （<3 段/<200 字/无净增益 ≥95% 页文本——噪声元素通常无 `<p>`，页文本必须全
+  口径计）回退整页旧行为；mode=auto 默认（web_search 直抓 fetchSearchPage 同享）/
+  full 显式整页。摘除清单保守（不摘 header/footer，防丢文章标题）。
+- **纪律面对账**：compact 双表/spaceTags/registrymap 契约行/registry map 文档重导
+  （`go run scripts/registry_map_doc.go >`——生成器只打印不落盘，须重定向）四表同批；
+  TestSpaceTagsCoversAllBuiltins/TestRegistryMapDocCoversMap/CompactDrift 三守卫绿。
+- **验证**：browser/tool/builtin 定向 + boot census + app ExtraTools 守卫 +
+  agent/spaces 回归全绿；改动面 lint **0**（快闸 lint 段被 11-13 灵犀/dsh 批存量
+  欠账挡住 25 条——tools/wpsdock/parse_error_style_test 等已提交遗留，非本刀产物
+  不越界修）；前端 build 28.87s 绿（对方 pantheon 在途未阻断）；Wails 构建
+  1m5.12s；冒烟 200；装机 `C:\AI\gaea-app` INSTALL OK（exe 63EF672FEFCF…，
+  PID 58784 > 构建时刻 22:59:31）。**冒烟新坑**：运行中装机壳与新冒烟实例共用
+  WebView2 profile → controller 8007139f 即退 ExitCode=1（非构建问题），杀壳
+  后即通——双实例互斥形态记档。
+- 余池：obscura.exe sidecar（可选第二引擎，FindEdge 泛化 seam）/共享登录态
+  Spaces（信任门）挂拍板；事实源=docs/gaea-obscura-egolite-browser-distill-research-2026-11.md。
+
+## 众神殿工作空间历史与立题工作台 · 2026-11-14
+
+- **讨论范围来源收敛**：发起讨论不再读取应用级最近工作空间，而是从众神殿会话摘要中按
+  `UpdatedAt` 倒序取曾真实发起过议事的目录。大小写不敏感去重（Windows），不存在目录跳过，
+  同一目录由最近一次议事重新提前，最多返回 4 项。手动选择目录与续议种子只作为本次选中范围，
+  不再回灌历史按钮。
+- **立题页铺满窗口**：发起态给画布加 `is-composing`，页面级滚动关闭；宽屏下议题底稿与议事配置
+  共用同一网格行，默认窗口实测两栏同为 **588px**，1440×920 实测同为 **563px**，底边对齐且
+  默认内容无需下滑。窄屏回落为自然高度纵向堆叠。
+- **设置卡片化**：底稿下方拆为“材料与补充 / 议事方法 / 轮次与节奏”三张卡，启动区独立为
+  底部动作条；原有材料、图片、形态、路径、汇总人、轮次、每轮确认与预算字段及 testid 均保留。
+  配置栏压缩段间距与发言行高后，默认发言顺序完整显示。
+- **验证**：`PantheonPage` **42/42 例**；Go `TestPantheonRecentWorkspaces` 与
+  `internal/app -run Pantheon` 定向通过；`tsc -b` 0；改动面 ESLint **0 error**
+  （保留既有 `PantheonPage.tsx:585` exhaustive-deps warning）；Vite 生产构建 **37.76s** 通过；
+  1912 宽默认窗口与 1440×920 暗色、亮色实页走查通过。未构建 Wails、未装机。
+
 ## 启动模型过载提示阈值 · 2026-11-14
 
 - 用户反馈启动时 4 个本地引擎就弹「已启动模型过多」。旧逻辑写死 `> 3`，
