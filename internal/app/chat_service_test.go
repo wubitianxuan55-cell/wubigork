@@ -71,6 +71,10 @@ func newChatServiceTestAppWithHandler(t *testing.T, handler http.Handler) *App {
 	}); err != nil {
 		t.Fatalf("SaveEngine: %v", err)
 	}
+	// 40c2c677 起 GetModelMonitor 只返回 Enabled && Status.Connected 的引擎
+	// （遥测「已启动」口径）；SaveEngine 是部分更新不写 Status，真拨
+	// TestConnection 又会污染共享 mock 的调用计数与多轮编排——零请求 stub。
+	c.engineMgr.SetEngineConnectedForTest("herdsman")
 	if err := c.SetFeatureModel("chat", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatalf("SetFeatureModel: %v", err)
 	}

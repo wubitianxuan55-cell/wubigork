@@ -134,6 +134,19 @@ func (m *Manager) GetEngine(id string) (*EngineConfig, bool) {
 	return &cfg, true
 }
 
+// SetEngineConnectedForTest 测试注入点：把引擎最近连接状态置为已连接（仿
+// browser.SetForTest 的显式测试缝）。生产状态只经 TestConnection/健康探测链
+// 写入——真拨会污染共享 mock 的调用计数与多轮 SSE 编排；40c2c677 起
+// GetModelMonitor 只消费 Enabled && Connected 的引擎，测试装配「引擎在册且
+// 已连接」前提需要零请求 stub。仅测试使用。
+func (m *Manager) SetEngineConnectedForTest(engineID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e, ok := m.engines[engineID]; ok {
+		e.Status = EngineStatus{ID: engineID, Connected: true}
+	}
+}
+
 // SaveEngine 保存引擎配置
 func (m *Manager) SaveEngine(cfg EngineConfig) error {
 	m.mu.Lock()
