@@ -511,3 +511,20 @@ buildAoa(tasks, links, { planFinish, persisted?: SchedAoaGraph })
 
 > 至此"打一期检视 → 图上自动站到那一天 → 末端偏差由 `reviewProgress` 给出 → 拉直写回并冻结"
 > 这条链闭合。AOA 视图的线体仍未画（下一刀）。
+
+---
+
+## 14 MPP 二进制导出判定（2026-11-14 后端复核，暂不立项）
+
+判定书原列「S4 MPP 导出（0.5–1 刀）」。后端复核后**不按原估立项**：
+
+1. **写 ≠ 读的反向**：现有 `mpp.go` 是只读蒸馏（MPXJ 口径字段子集 + mscfb 只读流）。
+   写 MPP 需要：CFB 写入器（stdlib 无，mscfb 只读）+ Props/TBkndTask/Rsc/Assn/Cons/Cal
+   六流完整 VarMeta/Var2Data/FixedMeta/FixedData 生成 + 真 Project 打开验证样本——
+   MPXJ 本尊都只读不写 MPP（ProjectLibre 导出走 XML），读取子集表反向凑不出可被
+   Project 接受的文件。
+2. **斑马自证**：其对外交换文案是「导出XML格式，该格式可以在Project中转换打开」
+   （MSPDI 主通道）；`导出 MPP 失败` 字串疑为失败路径兜底，非主通道。
+3. **判定**：互操作闭环由 xlsx（2026-11-14 已贯通 ask_finish 上报列，commit 110f8553）
+   + MSPDI XML（已有，前端 mspdi.ts）+ MPP 只读导入承担。若未来确需真二进制导出，
+   单独立项（估 3+ 刀：CFB 写入器 → 六流生成 → 真机 Project 打开验证），不并入复刻主线。
