@@ -39,7 +39,7 @@ const (
 func (webFetch) Name() string { return "web_fetch" }
 
 func (webFetch) Description() string {
-	return "Fetch a URL over HTTPS/HTTP and return its text content. HTML pages are reduced to readable text (scripts, styles, tags stripped, whitespace collapsed); JSON / plain text / markdown bodies come back verbatim. Use retries=N for transient network errors (default 2, exponential backoff 1s→2s→4s)."
+	return "Fetch a URL over HTTPS/HTTP and return its text content. HTML pages are reduced to readable text: mode=auto (default) runs readability main-content extraction (nav/footer/ads dropped, title kept; falls back to full page when no confident main container); mode=full returns the whole page flattened (scripts/styles/tags stripped, whitespace collapsed). JSON / plain text / markdown bodies come back verbatim. Use retries=N for transient network errors (default 2, exponential backoff 1s→2s→4s)."
 }
 
 func (webFetch) Schema() json.RawMessage {
@@ -47,6 +47,7 @@ func (webFetch) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "url":{"type":"string","description":"Absolute URL beginning with http:// or https://"},
+  "mode":{"type":"string","enum":["auto","full"],"description":"HTML extraction: auto (default) = readability main content, falls back to full page; full = whole page text"},
   "retries":{"type":"integer","description":"Max retries on transient network errors (default 2). Exponential backoff: 1s, 2s, 4s...","minimum":0,"maximum":5}
 },
 "required":["url"]
@@ -254,7 +255,9 @@ func isTransientError(err error) bool {
 
 // doFetch performs a single HTTP fetch and returns the cleaned result.
 // Extracted so the retry loop can call it without duplicating logic.
-func doFetch(ctx context.Context, rawURL string, client *http.Client) (string, error) {
+// mode 见 webfetch_readability.go：auto（readability 主提取，判据不足回退整页）
+// / full（整页）；web_search 直抓路径传 auto。
+func doFetch(ctx context.Context, rawURL string, client *http.Client, mode string) (string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return "", fmt.Errorf("url must be an absolute http(s) address")
@@ -288,7 +291,7 @@ func doFetch(ctx context.Context, rawURL string, client *http.Client) (string, e
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
 	out := string(body)
 	if strings.Contains(ct, "text/html") || looksLikeHTML(out) {
-		out = htmlToText(out)
+		out = htmlToReadableText(out, mode)
 	}
 	out = strings.TrimSpace(out)
 	if out == "" {
@@ -301,6 +304,7 @@ func doFetch(ctx context.Context, rawURL string, client *http.Client) (string, e
 func (wf webFetch) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		URL     string `json:"url"`
+		Mode    string `json:"mode"`
 		Retries *int   `json:"retries,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
@@ -308,6 +312,11 @@ func (wf webFetch) Execute(ctx context.Context, args json.RawMessage) (string, e
 	}
 	if p.URL == "" {
 		return "", fmt.Errorf("url is required")
+	}
+	switch p.Mode {
+	case "", readabilityModeAuto, readabilityModeFull:
+	default:
+		return "", fmt.Errorf("mode 仅支持 auto（readability 主提取，默认）/ full（整页），得到 %q", p.Mode)
 	}
 
 	maxRetries := webFetchDefaultRetries
@@ -326,7 +335,7 @@ func (wf webFetch) Execute(ctx context.Context, args json.RawMessage) (string, e
 			case <-time.After(backoff):
 			}
 		}
-		result, err := doFetch(ctx, p.URL, ssrfGuardedClient(webFetchTimeout, wf.proxyURLFor))
+		result, err := doFetch(ctx, p.URL, ssrfGuardedClient(webFetchTimeout, wf.proxyURLFor), p.Mode)
 		if err == nil {
 			return result, nil
 		}

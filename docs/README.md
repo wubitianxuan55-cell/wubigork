@@ -96,7 +96,7 @@
 
 | 文档 | 状态 |
 |---|---|
-| gaea-obscura-egolite-browser-distill-research-2026-11.md | 🆕 **Obscura × ego(lite) 浏览器蒸馏可研（2026-11-14，未动刀）**：Obscura 全开源但 Web Platform 长尾/实测性能有折损，定位可选补充引擎；ego(lite) 本体闭源，仅蒸馏 in-page JS 单次执行与共享登录态两个范式；建议池=`browser_run_js`/goquery 正文提取/可选 sidecar/登录态信任门 |
+| gaea-obscura-egolite-browser-distill-research-2026-11.md | ✅ **Obscura × ego(lite) 浏览器蒸馏可研（2026-11-14，P1+P2 已动刀）**：Obscura 全开源但 Web Platform 长尾/实测性能有折损，定位可选补充引擎；ego(lite) 本体闭源，仅蒸馏范式。已落=`browser_run_js` 一次执行（$ 帮手注入+ref 生态打通，第 12 个 browser_* 工具）+`web_fetch` readability 正文主提取（mode=auto 判据不足回退整页，web_search 直抓同享）；余池=obscura sidecar/登录态信任门 |
 | gaea-voice-port-distill-20261107.md | ✅ **语音 Go 移植蒸馏审计（上游 speech-to-speech v1.1.0 ↔ Go realtime 包）**：逐文件对源+移植漏抄形态清单（跨态清理守卫高发）+探针须 1x 实时节奏+cgo 测试族 CGO_ENABLED=0 静默全跳坑 |
 | gaea-voice-upstream-audit-20261107.md | ✅ **语音实时管线全量对源审计（2026-11-07）**：REA 纪律义务清单锚上游 file:line 原文，协议门 turn/bargein/cancel 与真引擎多轮探针取证 |
 | gaea-voice-upstream-audit-20261104.md | ✅ **语音管线复刻审计台账（2026-11-04）**：义务须锚上游原文纪律的首份台账，移植面义务分册 |

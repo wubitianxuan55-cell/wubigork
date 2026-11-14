@@ -205,6 +205,11 @@ func fakeEvalValue(expr string) any {
 	switch {
 	case strings.Contains(expr, "__gaeaMeta"):
 		return map[string]any{"ok": true, "title": "测试页", "url": "http://fake.local/page"}
+	case strings.Contains(expr, "__gaeaRunJs") && strings.Contains(expr, "RUNJS_FAIL"):
+		return map[string]any{"ok": false, "error": "未找到元素：#runjs-fail"}
+	case strings.Contains(expr, "__gaeaRunJs"):
+		return map[string]any{"ok": true, "title": "测试页", "url": "http://fake.local/page", "epoch": 1,
+			"value": map[string]any{"done": true, "n": 2}, "logs": []string{"log1", "log2"}}
 	case strings.Contains(expr, "__gaeaObserve"):
 		// 观察帧元信息：宽 2560 触发 clip.scale=0.5 缩放（screenshot_test 断言）。
 		return map[string]any{"ok": true, "title": "观察页", "url": "http://fake.local/page", "w": 2560, "h": 1200}
@@ -411,6 +416,84 @@ func TestScroll(t *testing.T) {
 	}
 	if _, err := m.Scroll(context.Background(), "left", 100, ""); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Scroll(left) err = %v, want ErrInvalidInput", err)
+	}
+}
+
+// ── RunJS（browser_run_js 一次执行范式） ────────────────────────────────
+
+// TestRunJS 成功路径：value/logs/title/url 透传；epoch 登记（$snapshot 生态：
+// run_js 后 ref 直接喂 Click，guardEpoch 通过）。
+func TestRunJS(t *testing.T) {
+	m, _ := newFakeManager(t)
+	res, err := m.RunJS(context.Background(), "return $read('#x');", 0)
+	if err != nil {
+		t.Fatalf("RunJS: %v", err)
+	}
+	if res.Title != "测试页" || res.URL != "http://fake.local/page" {
+		t.Fatalf("res = %+v", res)
+	}
+	var val map[string]any
+	if err := json.Unmarshal(res.Value.(json.RawMessage), &val); err != nil {
+		t.Fatalf("value 非法 JSON: %v（%s）", err, res.Value)
+	}
+	if val["done"] != true || val["n"] != float64(2) {
+		t.Fatalf("value = %v", val)
+	}
+	if len(res.Logs) != 2 || res.Logs[0] != "log1" {
+		t.Fatalf("logs = %v", res.Logs)
+	}
+	if m.epoch != 1 {
+		t.Fatalf("epoch = %d, want 1（RunJS 应登记 refs 代数）", m.epoch)
+	}
+	// ref 生态打通：run_js 后 Click(ref) 的 guardEpoch 应通过。
+	if _, err := m.Click(context.Background(), 1, "", ""); err != nil {
+		t.Fatalf("RunJS 后 Click(ref): %v", err)
+	}
+}
+
+// TestRunJSPageError 页面侧 {ok:false} → 语义化错误上抛（未找到元素哨兵）。
+func TestRunJSPageError(t *testing.T) {
+	m, _ := newFakeManager(t)
+	if _, err := m.RunJS(context.Background(), "/*RUNJS_FAIL*/throw new Error('x');", 0); !errors.Is(err, ErrElementNotFound) {
+		t.Fatalf("RunJS err = %v, want ErrElementNotFound", err)
+	}
+}
+
+// TestRunJSValidation 空 code 在任何浏览器动作之前被拒。
+func TestRunJSValidation(t *testing.T) {
+	m, _ := newFakeManager(t)
+	if _, err := m.RunJS(context.Background(), "  ", 0); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("RunJS(空 code) err = %v, want ErrInvalidInput", err)
+	}
+}
+
+// TestRunJSValueTruncated 超长 value 降级文本预览：rune 安全、truncated 标记。
+func TestRunJSValueTruncated(t *testing.T) {
+	// 10 个 3 字节汉字 = 30 字节 > maxChars 10 → 预览 10 rune（30 字节），不产生半截 UTF-8。
+	big := json.RawMessage(`"` + strings.Repeat("汉", 10) + `"`)
+	out, truncated := truncateRunJSValue(big, 10)
+	if !truncated {
+		t.Fatal("超长应置 truncated")
+	}
+	s, ok := out.(string)
+	if !ok {
+		t.Fatalf("超长应降级 string, got %T", out)
+	}
+	if len([]rune(s)) != 10 {
+		t.Fatalf("预览 rune 数 = %d, want 10", len([]rune(s)))
+	}
+	// 未超长：原样透传 RawMessage。
+	small := json.RawMessage(`{"a":1}`)
+	out, truncated = truncateRunJSValue(small, 100)
+	if truncated {
+		t.Fatal("未超长不应 truncated")
+	}
+	if _, ok := out.(json.RawMessage); !ok {
+		t.Fatalf("未超长应透传 RawMessage, got %T", out)
+	}
+	// 空 value。
+	if out, truncated = truncateRunJSValue(nil, 10); out != nil || truncated {
+		t.Fatalf("空 value 应 (nil,false), got (%v,%v)", out, truncated)
 	}
 }
 

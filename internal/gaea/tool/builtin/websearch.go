@@ -184,7 +184,7 @@ func filterSearchResults(results []SearchResult, limit int) []SearchResult {
 // allow/deny 策略与 HTML→文本抽取（同包 doFetch），并注入当前日期钉定，让模型按
 // “今天的检索”而非训练截止日作答。
 func fetchSearchPage(ctx context.Context, rawURL string) (string, error) {
-	text, err := doFetch(ctx, rawURL, searchHTTPClient())
+	text, err := doFetch(ctx, rawURL, searchHTTPClient(), readabilityModeAuto)
 	if err != nil {
 		return "", err
 	}

@@ -16,6 +16,7 @@
 | `browser_new_tab` | builtin-domain | work | interactive | none | 新 tab 快照（自声明 work） |
 | `browser_press` | builtin-domain | work | interactive | none | 按键后快照反映变化（自声明 work） |
 | `browser_read` | builtin-domain | work | read | none | 读取内容与页面一致（自声明 work） |
+| `browser_run_js` | builtin-domain | work | interactive | none | 一次执行范式：JS 返回值/log 透传，$snapshot 的 ref 与 browser_click/type 生态一致（自声明 work） |
 | `browser_scroll` | builtin-domain | work | interactive | none | 滚动后快照反映变化（自声明 work） |
 | `browser_snapshot` | builtin-domain | work | read | none | 快照与 DOM 一致（自声明 work） |
 | `browser_switch_tab` | builtin-domain | work | interactive | none | 激活 tab 切换（自声明 work） |
@@ -64,11 +65,11 @@
 | `office_generate` | extra-app | work | produce | office-journal | 声明路径与实际落点逐字节一致；证据卡落账；通道 A=OOXML 容器头引用级（P1a+P2） |
 | `office_help` | extra-app | work | meta | none | dsh-office COM 档：office_edit 操作清单按需再取（波1 条件装配） |
 | `office_macro` | extra-app | work | write | none | 受控宏逃生舱（P0-2 A 档）：宏白名单展开成既有 office_edit ops，不给任意脚本；list 列宏、run 执行 |
-| `office_selection` | extra-app | work | read | none | 选区上下文（P0-3）：读用户此刻选中的文字/区域与前后文，供划词即改 |
 | `office_open` | extra-app | work | write | none | dsh-office COM 档：打开/新建实时文档；WritePaths=模板复制或新建落点；路径解析单点收口工作区边界（波1 条件装配） |
 | `office_read` | extra-app | work | read | none | dsh-office COM 档：打开中文档现状读取（含用户未保存修改；Word 脚注/Excel 列概况）（波1 条件装配） |
 | `office_render` | extra-app | work | read | none | dsh-office COM 档：排版 PNG 路径交付给 vision（doc_render 同款管线）；overview 拼图（波1 条件装配） |
 | `office_save` | extra-app | work | write | office-journal | dsh-office COM 档落盘：证据卡（COM 编辑无基线快照=诚实缺省）；WritePaths=path 或当前文档；Word 保存前 fill_gaps 补空（波1 条件装配） |
+| `office_selection` | extra-app | work | read | none | 选区上下文（P0-3）：读用户此刻选中的文字/区域与前后文，供划词即改 |
 | `office_status` | extra-app | work | read | none | dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配） |
 | `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
 | `promote_session_facts` | build-internal | shared | write | none | PersistWrite：事实晋升可查 |
@@ -97,13 +98,13 @@
 | `translate_text` | extra-app | work | read | none | 译文可回读 |
 | `vision` | builtin-workspace | work | read | none | 描述对应图片内容 |
 | `wait` | builtin-domain | work | read | none | 等待结果与 job 终态一致 |
-| `web_fetch` | builtin-workspace | work | read | none | 抓取内容与源一致（注明 URL+时间） |
+| `web_fetch` | builtin-workspace | work | read | none | 抓取内容与源一致（mode=auto 正文主提取判据不足回退整页/full 整页；注明 URL+时间） |
 | `web_search` | builtin-domain | work | read | none | 结果注明来源 URL+检索时间 |
 | `write_file` | builtin-workspace | work | write | agent-write | 落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏） |
 | `xlsx_apply` | extra-app | work | write | office-journal | 公式重算零错误+引用级声明比对（P1a 升 agent 工具） |
+| `xlsx_audit` | extra-app | work | read | none | 错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门） |
 | `xlsx_profile` | extra-app | work | read | none | 列概况与库一致；只读不改文件（波2 扩面） |
 | `xlsx_recalc` | extra-app | work | write | none | LibreOffice 重算写回缓存值（公式不动，派生数据刷新不落证据卡）；WritePaths=path（灵犀 P1-2） |
-| `xlsx_audit` | extra-app | work | read | none | 错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门） |
 
 ## P3 四类验收谓词（非文档工具）
 

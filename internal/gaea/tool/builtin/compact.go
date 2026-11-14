@@ -19,7 +19,7 @@ var compactDesc = map[string]string{
 	"bash_output":        "读取后台任务增量输出",
 	"kill_shell":         "终止后台任务",
 	"wait":               "阻塞等待后台任务结束",
-	"web_fetch":          "抓取URL纯文本(去标签,SSRF安全,支持重试)",
+	"web_fetch":          "抓取URL文本(mode=auto正文主提取nav/footer降噪,full整页;SSRF安全,重试退避)",
 	"web_search":         "搜索公开网页，返回结构化JSON(title/url/snippet/source)，支持引用追踪；传url直接抓取该页整页文本",
 	"todo_write":         "更新任务清单(全量替换,最多一个进行中)",
 	"complete_step":      "完成计划步骤(须可验证证据,禁止纯manual)",
@@ -48,6 +48,7 @@ var compactDesc = map[string]string{
 	"browser_new_tab":    "新建标签页并切换为当前页(url必填,原页refs失效)",
 	"browser_switch_tab": "切换当前标签页(tab_id必填,切换后refs失效需重新snapshot)",
 	"browser_close":      "关闭受控浏览器(缺省关页+杀Edge+清临时profile;tab_id只关指定标签)",
+	"browser_run_js":     "一次执行范式:单次往返执行JS多步操作(帮手$read/$snapshot/$click/$fill/$wait/$waitFor/$log;$snapshot的ref可直接给browser_click/type;勿在代码内跳转)",
 	"sidebar_open":       "把工作区内文件/目录推到右面板打开(纯UI动作,不读内容不落盘;kind缺省按path推断)",
 	"schedule_get":       "读计划文件(CPM任务表es/ef/ls/lf/tf/关键+搭接+日历+总工期+成本汇总;任务行含askFinish要求完成;含执行期治理execution:检视期数/最新完成量偏差/预警红灯数与档位)",
 	"schedule_apply":     "写进度计划(project整计划或ops增量,二选一;ops含任务/搭接/基线与资源upsert_resource/patch_resource/remove_resource/set_assignments/patch_task.fixedCost与durationUnit工期口径;引擎校验+CPM环检测fail-closed,回执带新总工期(工作日)与总成本;project通道须经用户diff确认卡批准才落盘且逐条确认不记忆,被拒=未写入,禁原样重发;ops在ask级别也弹确认卡)",
@@ -84,7 +85,7 @@ var compactSchema = map[string]json.RawMessage{
 	"wait": json.RawMessage(
 		`{"type":"object","properties":{"job_ids":{"type":"array","items":{"type":"string"}},"timeout_seconds":{"type":"integer"}}}`),
 	"web_fetch": json.RawMessage(
-		`{"type":"object","properties":{"url":{"type":"string"},"retries":{"type":"integer"}},"required":["url"]}`),
+		`{"type":"object","properties":{"url":{"type":"string"},"mode":{"type":"string","enum":["auto","full"]},"retries":{"type":"integer"}},"required":["url"]}`),
 	"web_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"url":{"type":"string"},"topK":{"type":"integer"}}}`),
 	"todo_write": json.RawMessage(
@@ -141,6 +142,8 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"tab_id":{"type":"string"}},"required":["tab_id"]}`),
 	"browser_close": json.RawMessage(
 		`{"type":"object","properties":{"tab_id":{"type":"string"}}}`),
+	"browser_run_js": json.RawMessage(
+		`{"type":"object","properties":{"code":{"type":"string"},"max_chars":{"type":"integer"}},"required":["code"]}`),
 	"sidebar_open": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"kind":{"type":"string","enum":["file","directory"]}},"required":["path"]}`),
 	"schedule_get": json.RawMessage(

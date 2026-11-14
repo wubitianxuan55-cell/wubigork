@@ -98,6 +98,7 @@ var spaceTags = map[string]string{
 	"browser_new_tab":    spaces.SpaceWork,
 	"browser_press":      spaces.SpaceWork,
 	"browser_read":       spaces.SpaceWork,
+	"browser_run_js":     spaces.SpaceWork,
 	"browser_scroll":     spaces.SpaceWork,
 	"browser_snapshot":   spaces.SpaceWork,
 	"browser_switch_tab": spaces.SpaceWork,

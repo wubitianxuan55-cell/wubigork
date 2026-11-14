@@ -29,6 +29,7 @@ func TestBrowserToolsMeta(t *testing.T) {
 		{browserNewTab{}, "browser_new_tab", false},
 		{browserSwitchTab{}, "browser_switch_tab", false},
 		{browserClose{}, "browser_close", false},
+		{browserRunJS{}, "browser_run_js", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -106,6 +107,12 @@ func TestBrowserToolsValidationEnvelopes(t *testing.T) {
 		}},
 		{"scroll 非法方向", func() (string, error) {
 			return browserScroll{}.Execute(ctx, json.RawMessage(`{"direction":"left"}`))
+		}},
+		{"run_js 缺 code", func() (string, error) {
+			return browserRunJS{}.Execute(ctx, json.RawMessage(`{}`))
+		}},
+		{"run_js 空 code", func() (string, error) {
+			return browserRunJS{}.Execute(ctx, json.RawMessage(`{"code":"   "}`))
 		}},
 	}
 	for _, c := range cases {
@@ -192,6 +199,9 @@ func TestBrowserTabToolsDeadEndpoint(t *testing.T) {
 		}},
 		{"close(tab_id)", func() (string, error) {
 			return browserClose{}.Execute(ctx, json.RawMessage(`{"tab_id":"page-1"}`))
+		}},
+		{"run_js", func() (string, error) {
+			return browserRunJS{}.Execute(ctx, json.RawMessage(`{"code":"return 1;"}`))
 		}},
 	}
 	for _, c := range cases {

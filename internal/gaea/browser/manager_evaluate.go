@@ -209,3 +209,115 @@ if(container){
 window.scrollBy(0,delta);
 return {ok:true,top:String(window.scrollY)};
 }catch(e){return {ok:false,error:String(e&&e.message||e)};}})()`
+
+// jsRunJs 一次执行范式（browser_run_js）：注入 $ 帮手后在 async IIFE 里内联
+// 执行用户代码（%s 槽），单次往返完成多步「看→点→填→等」操作。$snapshot 复用
+// jsSnapshot 的 data-gaea-ref 标记与 __gaeaEpoch 代数（登记 window.__gaeaRefs），
+// 返回值携带 epoch 回 Go 登记——run_js 里拿到的 ref 可直接喂 browser_click/
+// browser_type，与既有 ref 生态打通。$fill 复用 jsType 的原生 setter+事件写法
+// （React 受控组件兼容）。导航类操作不提供帮手：页内 location 跳转会销毁执行
+// 上下文丢返回值，工具层文档引导用 browser_navigate。__gaeaRunJs 为 fake CDP
+// 的匹配 token。
+const jsRunJs = `(function(){try{
+var __gaeaRunJs=1;
+function $read(sel){
+ if(sel){var el=document.querySelector(sel);if(!el)throw new Error("未找到元素："+sel);return String(el.innerText||"");}
+ return String(document.body?document.body.innerText:"");
+}
+function $snapshot(max){
+ var MAXREF=(typeof max==="number"&&max>0)?Math.floor(max):200;
+ function cssPath(el){
+  if(el.id)return '#'+el.id;
+  var parts=[],cur=el,depth=0;
+  while(cur&&cur.nodeType===1&&depth<4){
+   depth++;
+   if(cur.id){parts.unshift('#'+cur.id);break;}
+   var seg=(cur.tagName||'').toLowerCase();
+   var p=cur.parentNode;
+   if(p&&p.children){
+    var same=0,idx=0;
+    for(var i=0;i<p.children.length;i++){
+     if(p.children[i].tagName===cur.tagName){same++;if(p.children[i]===cur)idx=same;}
+    }
+    if(same>1&&idx>0)seg+=':nth-of-type('+idx+')';
+   }
+   parts.unshift(seg);
+   cur=cur.parentNode;
+  }
+  return parts.join(' > ');
+ }
+ var nodes=document.querySelectorAll('a,button,input,textarea,select,[onclick],[role=button]');
+ var items=[];
+ for(var i=0;i<nodes.length&&items.length<MAXREF;i++){
+  var el=nodes[i];
+  if(el.disabled)continue;
+  var r=el.getBoundingClientRect();
+  if(r.width===0&&r.height===0)continue;
+  var ref=items.length+1;
+  el.setAttribute('data-gaea-ref',String(ref));
+  var tag=(el.tagName||'').toLowerCase();
+  var text=(tag==='input'||tag==='textarea')?(el.value||el.placeholder||''):(el.innerText||el.getAttribute('aria-label')||'');
+  text=String(text).replace(/\s+/g,' ').trim().slice(0,80);
+  items.push({ref:ref,tag:tag,text:text,path:cssPath(el)});
+ }
+ window.__gaeaRefs=items;
+ window.__gaeaEpoch=(window.__gaeaEpoch||0)+1;
+ return items;
+}
+function $target(t){return (typeof t==="number")?('[data-gaea-ref="'+t+'"]'):String(t);}
+function $click(t){
+ var el=document.querySelector($target(t));
+ if(!el)throw new Error("未找到元素："+t);
+ el.scrollIntoView({block:'center'});
+ el.click();
+ return String((el.innerText||el.value||'')).trim().slice(0,120);
+}
+function $fill(t,txt,submit){
+ var el=document.querySelector($target(t));
+ if(!el)throw new Error("未找到元素："+t);
+ el.scrollIntoView({block:'center'});
+ el.focus();
+ var tag=(el.tagName||'').toLowerCase();
+ if(tag==='input'||tag==='textarea'){
+  var proto=tag==='input'?window.HTMLInputElement.prototype:window.HTMLTextAreaElement.prototype;
+  var desc=Object.getOwnPropertyDescriptor(proto,'value');
+  if(desc&&desc.set){desc.set.call(el,txt);}else{el.value=txt;}
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+  el.dispatchEvent(new Event('change',{bubbles:true}));
+ }else if(el.isContentEditable){
+  el.textContent=txt;
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+ }else{
+  el.value=txt;
+  el.dispatchEvent(new Event('change',{bubbles:true}));
+ }
+ if(submit){
+  var f=el.form||el.closest('form');
+  if(f){if(f.requestSubmit){f.requestSubmit();}else{f.submit();}}
+  else{el.click();}
+ }
+ return String(txt).slice(0,120);
+}
+function $wait(ms){return new Promise(function(res){setTimeout(res,Math.max(0,Math.min(30000,Number(ms)||0)));});}
+function $waitFor(sel,timeoutMs){
+ var dl=Date.now()+Math.max(0,Math.min(30000,Number(timeoutMs)||5000));
+ return new Promise(function(res,rej){
+  (function poll(){
+   var el=document.querySelector(sel);
+   if(el){res(el);}
+   else if(Date.now()>dl){rej(new Error("等待元素超时："+sel));}
+   else{setTimeout(poll,120);}
+  })();
+ });
+}
+var LOGS=[];
+function $log(x){if(LOGS.length<50){LOGS.push(String(x).slice(0,300));}}
+var __p=(async function(){
+%s
+})();
+return Promise.resolve(__p).then(function(v){
+ return {ok:true,value:(v===undefined?null:v),logs:LOGS,title:document.title||"",url:location.href,epoch:(window.__gaeaEpoch||0)};
+}).catch(function(e){
+ return {ok:false,error:String(e&&e.message||e),logs:LOGS};
+});
+}catch(e){return {ok:false,error:String(e&&e.message||e)};}})()`
