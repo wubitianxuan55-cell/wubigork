@@ -280,7 +280,7 @@ func TestExportXlsxCustomColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantHeader := []string{"序号", "WBS", "任务名称", "工期(天)", "开始", "完成", "前置", "施工部位", "数值1"}
+	wantHeader := []string{"序号", "WBS", "任务名称", "工期(天)", "开始", "完成", "前置", "要求完成", "施工部位", "数值1"}
 	if len(rows[0]) != len(wantHeader) {
 		t.Fatalf("表头 %v，希望 %v", rows[0], wantHeader)
 	}
@@ -295,16 +295,16 @@ func TestExportXlsxCustomColumns(t *testing.T) {
 		}
 		return ""
 	}
-	if got := cellAt(2, 7); got != "A 区地下室" { // 0 基：任务 a 行、H 列
+	if got := cellAt(2, 8); got != "A 区地下室" { // 0 基：任务 a 行、I 列（8=新增「要求完成」标准列）
 		t.Errorf("「场地三通一平」施工部位=%q，希望「A 区地下室」", got)
 	}
-	if got := cellAt(2, 8); got != "3.5" {
+	if got := cellAt(2, 9); got != "3.5" {
 		t.Errorf("「场地三通一平」数值1=%q，希望 3.5", got)
 	}
-	if got := cellAt(3, 8); got != "8" {
+	if got := cellAt(3, 9); got != "8" {
 		t.Errorf("「施工许可办理」数值1=%q，希望 8", got)
 	}
-	if got := cellAt(1, 7); got != "" {
+	if got := cellAt(1, 8); got != "" {
 		t.Errorf("分组行自定义列应留空，得 %q", got)
 	}
 }
@@ -436,5 +436,96 @@ func TestTryParseUTCConvention(t *testing.T) {
 	got2, _ := tryParse("2026-01-05")
 	if got2.Compare(got) != 0 {
 		t.Fatalf("改 Local 不应影响解析结果: %v vs %v", got2, got)
+	}
+}
+
+// 要求完成列（斑马复刻 S5 上报件）：导出 ISO 计划日期、导入回工作日序号；
+// 0=开工日是合法已设置值（*int 契约），未设置留空，早于开工/不可解析导入丢弃。
+func TestXlsxAskFinishRoundTrip(t *testing.T) {
+	p := xlsxSampleProject()
+	ask := func(v int) *int { return &v }
+	p.Tasks[0].AskFinish = ask(2) // 分组行也承载（Validate 放行）
+	p.Tasks[1].AskFinish = ask(0) // 0=开工日，合法已设置（*int 契约）
+	p.Tasks[2].AskFinish = nil    // 未设置 → 留空
+	data, err := ExportXlsx(p)
+	if err != nil {
+		t.Fatalf("导出失败：%v", err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := f.GetRows(f.GetSheetList()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	cellAt := func(r, c int) string {
+		if r < len(rows) && c < len(rows[r]) {
+			return rows[r][c]
+		}
+		return ""
+	}
+	if rows[0][7] != "要求完成" {
+		t.Fatalf("第 8 列应=要求完成，得 %q", rows[0][7])
+	}
+	if cellAt(1, 7) == "" || cellAt(2, 7) == "" || cellAt(3, 7) != "" {
+		t.Fatalf("已设置行应写日期、未设置留空: %v", []string{cellAt(1, 7), cellAt(2, 7), cellAt(3, 7)})
+	}
+	back, err := ImportXlsx(data)
+	if err != nil {
+		t.Fatalf("导入失败：%v", err)
+	}
+	if back.Tasks[0].AskFinish == nil || *back.Tasks[0].AskFinish != 2 {
+		t.Fatalf("分组行 askFinish=2 往返丢失: %v", back.Tasks[0].AskFinish)
+	}
+	if back.Tasks[1].AskFinish == nil || *back.Tasks[1].AskFinish != 0 {
+		t.Fatalf("askFinish=0 往返丢失（*int 契约）: %v", back.Tasks[1].AskFinish)
+	}
+	if back.Tasks[2].AskFinish != nil {
+		t.Fatalf("未设置应保持 nil: %v", back.Tasks[2].AskFinish)
+	}
+}
+
+func TestImportXlsxAskFinishAliasesAndTolerance(t *testing.T) {
+	// 别名「要求完成时间/要求完成」识别；早于开工日（2026-08-31 < 2026-09-01）
+	// 与非法日期文本丢弃不报错（整体容错风格）。
+	build := func(header []any, cells [][]any) []byte {
+		f := excelize.NewFile()
+		for r, row := range append([][]any{header}, cells...) {
+			for c, v := range row {
+				cell, _ := excelize.CoordinatesToCellName(c+1, r+1)
+				if err := f.SetCellValue("Sheet1", cell, v); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		buf, err := f.WriteToBuffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return buf.Bytes()
+	}
+	// 开始列锚定开工日=2026-09-01（无开始列时开工日回落今天，要求完成无从换算）
+	p, err := ImportXlsx(build([]any{"任务名称", "工期(天)", "开始", "要求完成时间"}, [][]any{
+		{"挖土", 2, "2026/9/1", "2026-09-03"}, {"吊装", 3, "2026/9/2", "2026-08-31"}}))
+	if err != nil {
+		t.Fatalf("导入失败：%v", err)
+	}
+	if len(p.Tasks) != 2 {
+		t.Fatalf("应 2 行任务: %d", len(p.Tasks))
+	}
+	if p.Tasks[0].AskFinish == nil || *p.Tasks[0].AskFinish != 2 {
+		t.Fatalf("2026-09-03 应=第 2 工作日: %v", p.Tasks[0].AskFinish)
+	}
+	if p.Tasks[1].AskFinish != nil {
+		t.Fatalf("早于开工日应丢弃: %v", p.Tasks[1].AskFinish)
+	}
+	p2, err := ImportXlsx(build([]any{"任务名称", "工期(天)", "开始", "要求完成"}, [][]any{{"挖土", 2, "2026/9/1", "尽快"}}))
+	if err != nil {
+		t.Fatalf("导入2失败：%v", err)
+	}
+	if p2.Tasks[0].AskFinish != nil {
+		t.Fatalf("非法文本应丢弃: %v", p2.Tasks[0].AskFinish)
 	}
 }

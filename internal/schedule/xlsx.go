@@ -5,6 +5,7 @@ package schedule
 // 上报口径（对标 MS Project 横道导出表）：序号/WBS/任务名称/工期(天)/开始/完成/前置。
 // 导出：CPM fail-closed（坏计划不出表），日期按工作日历换算，分组行跨子孙
 // 取开始/完成跨度，前置列 Project 式「2FS+3」引用；v4.138 #14 起 7 标准列后
+// （2026-11-14 S5 上报件：8 标准列含「要求完成」）
 // 按注册表序追加「有值」自定义字段槽列（列头=项目 customLabels 覆盖否则缺省
 // 中文名，分组行该列留空）。
 // 导入：表头行在前 10 行内按别名识别（任务名称/工作名称…、工期/持续时间…、
@@ -50,7 +51,7 @@ func ExportXlsx(p Project) ([]byte, error) {
 		return nil, err
 	}
 	usedKeys := customUsedKeys(p.Tasks)
-	header := []string{"序号", "WBS", "任务名称", "工期(天)", "开始", "完成", "前置"}
+	header := []string{"序号", "WBS", "任务名称", "工期(天)", "开始", "完成", "前置", "要求完成"}
 	for _, key := range usedKeys {
 		header = append(header, customLabelOf(key, p.CustomLabels))
 	}
@@ -100,17 +101,22 @@ func ExportXlsx(p Project) ([]byte, error) {
 			set(5, fmtDate(WdToDate(p.StartDate, es, p.Calendar)))
 			set(6, fmtDate(WdToDate(p.StartDate, ef, p.Calendar)))
 		}
-		// 自定义槽列（8=标准 7 列之后）：叶任务有值才写，分组行留空
+		// 要求完成（斑马复刻 S5：ask_stop_time 上报件）：任一行已设置即写计划口径
+		// 日期（fmtDate，与开始/完成同格式）；未设置留空（0=开工日是合法已设置值）。
+		if t.AskFinish != nil && *t.AskFinish >= 0 {
+			set(8, fmtDate(WdToDate(p.StartDate, *t.AskFinish, p.Calendar)))
+		}
+		// 自定义槽列（9=标准 8 列之后）：叶任务有值才写，分组行留空
 		//（customUsedKeys 口径即只看叶任务，分组行必然取不到值）。
 		for j, key := range usedKeys {
 			if v, ok := customValueOf(t, key); ok {
-				set(8+j, v)
+				set(9+j, v)
 			}
 		}
 	}
-	widths := map[string]float64{"A": 8, "B": 10, "C": 40, "D": 10, "E": 13, "F": 13, "G": 18}
+	widths := map[string]float64{"A": 8, "B": 10, "C": 40, "D": 10, "E": 13, "F": 13, "G": 18, "H": 13}
 	for idx := range usedKeys {
-		col, _ := excelize.ColumnNumberToName(8 + idx)
+		col, _ := excelize.ColumnNumberToName(9 + idx)
 		widths[col] = 14
 	}
 	for col, w := range widths {
@@ -301,17 +307,19 @@ const (
 	colStart
 	colFinish
 	colPreds
+	colAskFinish
 )
 
 // xlsxAliases 语义类别 → 表头别名集（单元格归一后精确匹配）。
 var xlsxAliases = map[xlsxColKind][]string{
-	colSeq:    {"序号", "标识号", "id"},
-	colWBS:    {"wbs", "wbs编码", "大纲", "编码"},
-	colName:   {"任务名称", "工作名称", "工作内容", "工作项目", "名称"},
-	colDur:    {"工期", "持续时间", "工期天数"},
-	colStart:  {"开始", "开始时间", "开始日期", "开工", "开工日期", "计划开始", "计划开工"},
-	colFinish: {"完成", "完成时间", "完成日期", "竣工", "竣工日期", "计划完成", "计划竣工"},
-	colPreds:  {"前置", "前置任务", "前置工作", "紧前", "紧前工作", "逻辑关系"},
+	colSeq:       {"序号", "标识号", "id"},
+	colWBS:       {"wbs", "wbs编码", "大纲", "编码"},
+	colName:      {"任务名称", "工作名称", "工作内容", "工作项目", "名称"},
+	colDur:       {"工期", "持续时间", "工期天数"},
+	colStart:     {"开始", "开始时间", "开始日期", "开工", "开工日期", "计划开始", "计划开工"},
+	colFinish:    {"完成", "完成时间", "完成日期", "竣工", "竣工日期", "计划完成", "计划竣工"},
+	colPreds:     {"前置", "前置任务", "前置工作", "紧前", "紧前工作", "逻辑关系"},
+	colAskFinish: {"要求完成", "要求完成时间", "要求完工", "要求日期"},
 }
 
 // xlsxNorm 表头单元格归一：去空白/括号/冒号/「天」字、转小写（工期(天)→工期）。
@@ -477,6 +485,7 @@ func ImportXlsx(data []byte, customLabels ...map[string]string) (project Project
 		dur    string
 		start  string
 		preds  string
+		ask    string
 		hasSeq bool
 		// custom 自定义槽原始文本（列头→槽 key 命中列；空单元格不入）。
 		custom map[string]string
@@ -496,7 +505,7 @@ func ImportXlsx(data []byte, customLabels ...map[string]string) (project Project
 		if name == "" {
 			continue
 		}
-		r := rawRow{name: name, wbs: cell(row, colWBS), dur: cell(row, colDur), start: cell(row, colStart), preds: cell(row, colPreds), seq: len(raws) + 1}
+		r := rawRow{name: name, wbs: cell(row, colWBS), dur: cell(row, colDur), start: cell(row, colStart), preds: cell(row, colPreds), ask: cell(row, colAskFinish), seq: len(raws) + 1}
 		for key, c := range customCols {
 			if c >= len(row) {
 				continue
@@ -584,12 +593,21 @@ func ImportXlsx(data []byte, customLabels ...map[string]string) (project Project
 			}
 			custom[d.key] = s
 		}
+		// 要求完成（斑马复刻 S5 上报件回读）：日期 → 工作日序号（早于开工/不可解析
+		// 丢弃不报错——与整体容错风格一致；0=开工日是合法已设置值）。
+		var askFinish *int
+		if td, ok := parseXlsxDate(r.ask); ok {
+			if wd, ok2 := DateToWd(p.StartDate, td.Format("2006-01-02"), p.Calendar); ok2 && wd >= 0 {
+				askFinish = &wd
+			}
+		}
 		p.Tasks = append(p.Tasks, Task{
 			ID:          id,
 			Name:        r.name,
 			Duration:    dur,
 			Level:       map[bool]int{true: 0, false: 1}[isGroup[i]],
 			IsMilestone: !isGroup[i] && dur == 0,
+			AskFinish:   askFinish,
 			Custom:      custom,
 		})
 	}
