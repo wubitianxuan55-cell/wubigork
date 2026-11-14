@@ -162,6 +162,12 @@ func TestSetFeatureModel_RebindReenables(t *testing.T) {
 func TestGetModelMonitor(t *testing.T) {
 	c := newTestCore(t)
 	a := &App{core: c}
+	if err := c.engineMgr.SetDefaultModel("herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("set herdsman model: %v", err)
+	}
+	c.engineMgr.SetStatus("herdsman", modelengine.EngineStatus{ID: "herdsman", Connected: true})
+	c.engineMgr.SetStatus("xai", modelengine.EngineStatus{ID: "xai", Connected: true})
+	c.engineMgr.SetStatus("llama", modelengine.EngineStatus{ID: "llama", Connected: false})
 
 	got := a.GetModelMonitor()
 	engines, ok := got["engines"].([]map[string]interface{})
@@ -175,11 +181,17 @@ func TestGetModelMonitor(t *testing.T) {
 			if e["isLocal"] != true {
 				t.Errorf("herdsman isLocal = %v, want true（本地模型）", e["isLocal"])
 			}
+			if e["connected"] != true {
+				t.Errorf("herdsman connected = %v, want true", e["connected"])
+			}
 		}
 		if e["engine"] == "xai" {
 			if e["isLocal"] != false {
 				t.Errorf("xai isLocal = %v, want false（云端 API 不占本机资源）", e["isLocal"])
 			}
+		}
+		if e["engine"] == "llama" {
+			t.Error("未连接的 llama 不应进入模型监控")
 		}
 	}
 	if !found {
@@ -191,6 +203,23 @@ func TestGetModelMonitor(t *testing.T) {
 	}
 	if got["comfyRunning"] != false {
 		t.Errorf("comfyRunning = %v, want false（测试环境未启动 ComfyUI）", got["comfyRunning"])
+	}
+}
+
+func TestMonitorModelForDropsStaleDefaultModel(t *testing.T) {
+	e := modelengine.EngineConfig{
+		DefaultModel: "Qwen3.6-removed",
+		Models: []modelengine.ModelInfo{
+			{ID: "Qwen3.6-removed", Status: "error"},
+			{ID: "bge-m3", Status: "running"},
+		},
+	}
+	if got := monitorModelFor(e); got != "" {
+		t.Fatalf("stale default model = %q, want empty", got)
+	}
+	e.DefaultModel = "bge-m3"
+	if got := monitorModelFor(e); got != "bge-m3" {
+		t.Fatalf("running model = %q, want bge-m3", got)
 	}
 }
 

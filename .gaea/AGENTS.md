@@ -19,7 +19,9 @@
 > ahead 数以 `.gaea/progress.md` 顶部收口段为准。
 
 - **启动模型过载提示（2026-11-14）**：本地引擎上限由 3 收紧提示改为 6，
-  第 7 个才提示；模型数量告警每次应用运行最多一次。安装版 4 引擎启动实测无弹窗。
+  第 7 个才提示；模型数量告警每次应用运行最多一次。底部遥测改为只显示已连接
+  本地引擎，且默认模型非 running 时不显示陈旧模型名；安装版最终仅显示
+  `herdsman` + `breeze-tts-2`，无 Qwen35/Llama/WHIRL 假运行项。
 
 - **识图工作台 · 可缩放图像检视（2026-11-14）**：把遗留的
   `ImageInspectStage` 半成品正式接入 `VisionTrial`。图像区支持以光标为锚点的
@@ -112,7 +114,7 @@
 > 阈值校准（2026-11-06 实弹复核）：众神殿席位工具预算纪律——实际 `seatToolBudget=120`（138 次调用复核显示 16 会误杀多数正常核验；日常 ≤8 次仍由提示词纪律约束，卡死由 120s 无进展、5 分钟开局静默与 8 分钟总上限收口）。原校准条随 2026-10-30~11-06 条目迁 `docs/archive/agents-version-history-2026-09.md`。
 
 > 速览只留最近 3 版（2026-09-15 整段分流；2026-10-21 十八迁分流；2026-11-13 v4.455~v4.529 时代与 2026-10-30~11-06 未发布/提交状态条整段迁 `docs/archive/agents-version-history-2026-09.md`，水位 60449→约 44KB）；更早版本全部见该档（v4.49 及更早、v4.50–v4.145 仅 CHANGELOG/releases 有记录）。
-- **当前活跃线（2026-11-13）**：better-sidebar 复刻专项 F1~G2 全清+真机双实证+仓面卫生批（check-docs 全绿/knip/AGENTS 分流）+全仓验证扫（golangci 58→0/eslint 12→0 含 mock 路径转义真 bug/vitest 4361 绿）+**日常装机 INSTALL OK**（exe `8cd4660a`，C:\AI\gaea-app=main @ `a51d55bd` 同批构建）——main 当前收口至 ahead origin 31 笔**未 push**；工作树源码/包记录均已分组提交，W1 三选项（A/B/C）与发版折段待拍板。统一事实源=`docs/gaea-better-sidebar-go-iteration-2026-11.md`（§12 有新会话提示词）。
+- **当前活跃线（2026-11-13）**：better-sidebar 复刻专项 F1~G2 全清+真机双实证+仓面卫生批（check-docs 全绿/knip/AGENTS 分流）+全仓验证扫（golangci 58→0/eslint 12→0 含 mock 路径转义真 bug/vitest 4361 绿）+**日常装机 INSTALL OK**（exe `8cd4660a`，C:\AI\gaea-app=main @ `a51d55bd` 同批构建）——main 当前收口至 ahead origin 32 笔**未 push**；工作树源码/包记录均已分组提交，W1 三选项（A/B/C）与发版折段待拍板。统一事实源=`docs/gaea-better-sidebar-go-iteration-2026-11.md`（§12 有新会话提示词）。
 - **最新发布：v4.543.0（2026-11-12）「办公附件超大文件改造」**——daaa0065：>25MB 不再失败，对话框按路径引用+拖拽分块上传四绑定（8MiB 切片流式/1GiB 上限/TTL 清扫）；装机 PID 40716。详见 `docs/gaea-day-log-2026-11-12.md` §10。
 - **最新发布：v4.542.0（2026-11-12）「上下文界面升级换代（dsh-context 0.83.x 全量复刻）」**——Wave1-4 六刀+收官批刀 11-15+合并收口 d20dec1d+真机两连崩根修 ecef54cd；装机走查过。详见 `docs/gaea-day-log-2026-11-12.md`。
 - **最新发布：v4.539.0（2026-11-11）「WHIRL 推理引擎全链收官」**——cee22ac8：接入 8126→实弹三连修→引擎实升（llama b12110 +49%=80.1、Strata 42.7 带内）→35B 单副本收口；v4.536~538 为 WHIRL 接入/实弹修/引擎升同线。

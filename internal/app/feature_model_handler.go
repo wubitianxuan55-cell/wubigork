@@ -182,21 +182,22 @@ func (c *core) GetFeatureModel(feature string) map[string]string {
 	return map[string]string{"engine": engine, "model": model}
 }
 
-// GetModelMonitor 模型监控：返回已启用引擎的模型列表 + 系统资源。
+// GetModelMonitor 模型监控：返回已连接引擎的模型列表 + 系统资源。
 // isLocal 标记本地模型（herdsman 等占本机资源，预警统计用；云端 xai/deepseek 不算）；
 // comfyRunning 标记 ComfyUI 是否运行中（本地大模型加载，预警需计入）。
 func (a *App) GetModelMonitor() map[string]interface{} {
 	engines := []map[string]interface{}{}
 	if a.engineMgr != nil {
 		for _, e := range a.engineMgr.GetEngines() {
-			if !e.Enabled {
+			if !e.Enabled || !e.Status.Connected {
 				continue
 			}
 			engines = append(engines, map[string]interface{}{
-				"engine":  e.ID,
-				"name":    e.Name,
-				"model":   e.DefaultModel,
-				"isLocal": isLocalEngine(e.ID),
+				"engine":    e.ID,
+				"name":      e.Name,
+				"model":     monitorModelFor(e),
+				"isLocal":   isLocalEngine(e.ID),
+				"connected": true,
 			})
 		}
 	}
@@ -211,6 +212,29 @@ func (a *App) GetModelMonitor() map[string]interface{} {
 		"stats":        stats,
 		"comfyRunning": comfyRunning,
 	}
+}
+
+// monitorModelFor only surfaces the configured default model when the engine's
+// model inventory confirms it is running (or does not carry a run status).
+// This prevents removed/failed models from lingering in the bottom telemetry
+// rail solely because default_model remained in the engine config.
+func monitorModelFor(e modelengine.EngineConfig) string {
+	if e.DefaultModel == "" {
+		return ""
+	}
+	if len(e.Models) == 0 {
+		return e.DefaultModel
+	}
+	for _, m := range e.Models {
+		if m.ID != e.DefaultModel {
+			continue
+		}
+		if m.Status == "" || m.Status == "running" {
+			return e.DefaultModel
+		}
+		return ""
+	}
+	return ""
 }
 
 // isLocalEngine 判断引擎是否为本地模型（占本机资源，预警统计用）。

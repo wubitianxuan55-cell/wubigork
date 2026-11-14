@@ -31,6 +31,7 @@ import {
   LOCAL_ENGINE_WARN_LIMIT,
   countLocalEngines,
   exceedsLocalEngineLimit,
+  runningLocalEngineLabels,
 } from './telemetryOverload'
 
 const { Content } = Layout
@@ -82,6 +83,7 @@ interface MonitorEngine {
   name: string
   model: string
   isLocal?: boolean
+  connected?: boolean
 }
 interface ModelMonitor {
   engines?: MonitorEngine[]
@@ -203,10 +205,8 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
   // 后端未采样哨兵（-1）统一按「未就绪」显示 --
   const cpuOk = ms && ms.cpu != null && ms.cpu >= 0 ? ms.cpu : null
   const gpuOk = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
-  // 只展示本地已启用引擎（云端引擎走 API，不占本机资源）
-  const engLabel = (monitor?.engines || [])
-    .filter((e: MonitorEngine) => e.isLocal)
-    .map((e) => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)
+  // 只展示实际已连接的本地引擎；云端与仅启用但未连通的引擎不占本机资源。
+  const engLabel = runningLocalEngineLabels(monitor?.engines || [])
   // 项目写作进度
   const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, stats.plannedChapters || 0) : 0
   const writtenChapters = stats?.chapterCount || 0

@@ -7,10 +7,15 @@
   运行最多一次，CPU/GPU/内存告警仍保留原阈值与 60s 节流。
 - 三语提示补「上限 {limit} 个」；新增 2 例边界/计数测试（4/6 不报、7 报，
   ComfyUI 计数、云端不计）。
-- 门禁：定向测试 2/2、ESLint 0；前端生产构建 Vite 25.73s；Wails 1m05.6s；
-  正式路径冒烟 `/api/health` 200；`INSTALL OK`。安装版实测底部 4 个引擎启动后
-  无模型过多弹窗。exe SHA256
-  `10F3872FB2F9AFFEAFB12EA5F196B1A720047550619A6A51D3592B0DE7256CA5`。
+- 后续复核发现底部仍把“已启用”误显示为“已启动”：Herdsman 默认
+  `Qwen3.6-35B...` 实际状态 `error`，Llama/WHIRL 均未连接。`GetModelMonitor`
+  改为只返回 `Enabled && Status.Connected` 的引擎，并仅在默认模型状态为空/
+  `running` 时展示模型名；前端只渲染已连接本地引擎。最终底部从 4 个陈旧项
+  收敛为 `herdsman` + `breeze·breeze-tts-2`，不再出现 Qwen35、Llama、WHIRL。
+- 门禁：Go 监控/陈旧模型 2 例、前端阈值/标签 2 例、ESLint 0；前端生产构建
+  Vite 31.60s；Wails 1m07.1s；正式路径冒烟 `/api/health` 200；`INSTALL OK`。
+  安装版实测底部仅两个已连接本地引擎且启动无模型过多弹窗。exe SHA256
+  `3E57E1F63AAA33727158AA254657A4DA5D4049E8DDE2F0C608DD0A8FF7EE4251`。
 
 ## 多执行体工作树收口 · 2026-11-14
 
