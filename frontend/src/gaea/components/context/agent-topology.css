@@ -8,10 +8,9 @@
 .agent-topology-head {
   display: grid;
   min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 7px;
+  gap: 6px 8px;
 }
 
 .agent-topology-title {
@@ -20,7 +19,7 @@
   gap: 6px;
   color: var(--fg);
   font-size: 12px;
-  font-weight: 620;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -38,70 +37,223 @@
 }
 
 .agent-topology-meta {
-  color: var(--fg-faint);
-  font-family: var(--font-mono, var(--mono));
+  display: inline-flex;
+  min-height: 19px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg) 2.5%, transparent);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.agent-topology-scroll {
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
-  padding: 18px 10px 10px;
+.agent-topology-meta-running[data-running="true"] {
+  border-color: color-mix(in srgb, var(--fleet-cyan) 38%, var(--border-soft));
+  color: var(--fleet-cyan);
+  background: color-mix(in srgb, var(--fleet-cyan) 7%, transparent);
 }
 
-.agent-topology-branch {
+.agent-topology-legend {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
-  flex-direction: column;
+  gap: 5px 14px;
+  margin-top: 7px;
+  padding: 6px 0 7px;
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
+  color: var(--fg-dim);
+  font-size: 9px;
+}
+
+.agent-topology-legend > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.agent-topology-legend i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 2px;
+}
+
+.agent-topology-legend .is-lead {
+  background: var(--fleet-violet);
+}
+
+.agent-topology-legend .is-sub {
+  background: hsl(146 48% 50%);
+}
+
+.agent-topology-legend .is-running {
+  width: 14px;
+  height: 0;
+  border-top: 2px dashed var(--fleet-cyan);
+  border-radius: 0;
+}
+
+.agent-topology-legend-selected {
+  max-width: 240px;
+  padding-left: 7px;
+  border-left: 1px solid var(--border-soft);
+  overflow: hidden;
+  color: var(--fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-stage {
+  min-height: 0;
+  flex: 1;
+  margin: 0 -5px;
+  padding: 0 5px;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.agent-topology-canvas {
+  position: relative;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.agent-topology-links {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.agent-topology-link {
+  fill: none;
+  stroke-width: 1.5px;
+  stroke-opacity: 0.56;
+  transition: stroke-opacity 160ms ease, stroke-width 160ms ease;
+}
+
+.agent-topology-link.is-running {
+  stroke-opacity: 0.9;
+}
+
+.agent-topology-flow {
+  fill: none;
+  stroke-width: 2px;
+  stroke-dasharray: 2 7;
+  stroke-linecap: round;
+  opacity: 0.86;
+  animation: agent-topology-flow 1.2s linear infinite;
+}
+
+.agent-topology-joint {
+  opacity: 0.8;
+  transition: opacity 160ms ease;
+}
+
+.agent-topology-canvas.is-focused .agent-topology-link,
+.agent-topology-canvas.is-focused .agent-topology-flow,
+.agent-topology-canvas.is-focused .agent-topology-joint {
+  opacity: 0.08;
+}
+
+.agent-topology-canvas.is-focused .agent-topology-links g.is-lit .agent-topology-link {
+  stroke-width: 2px;
+  stroke-opacity: 1;
+}
+
+.agent-topology-canvas.is-focused .agent-topology-links g.is-lit .agent-topology-flow,
+.agent-topology-canvas.is-focused .agent-topology-links g.is-lit .agent-topology-joint {
+  opacity: 1;
 }
 
 .agent-topology-card {
-  position: relative;
+  --agent-hue: var(--fleet-violet);
+  position: absolute;
   display: flex;
-  width: 184px;
   min-width: 0;
-  flex: none;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   padding: 7px 9px;
   overflow: hidden;
-  border: 1px solid var(--border-soft);
+  border: 1px solid color-mix(in srgb, var(--agent-hue) 42%, var(--border-soft));
   border-radius: 9px;
+  outline: none;
   color: var(--fg);
   background:
-    linear-gradient(118deg, color-mix(in srgb, var(--fleet-cyan, var(--info)) 5%, transparent), transparent 58%),
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--agent-hue) 8%, transparent), transparent 46%),
     var(--bg-elev, var(--md-sys-color-surface-container));
   font: inherit;
   text-align: left;
-  box-shadow: none;
-}
-
-.agent-topology-branch.is-root > .agent-topology-card {
-  width: 216px;
-  border-color: color-mix(in srgb, var(--fleet-cyan, var(--info)) 46%, var(--border-soft));
-}
-
-.agent-topology-card.is-interactive {
   cursor: pointer;
-  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+  animation: agent-topology-in 260ms ease-out both;
+  animation-delay: calc(var(--agent-index, 0) * 35ms);
 }
 
-.agent-topology-card.is-interactive:hover {
-  border-color: color-mix(in srgb, var(--fleet-violet, var(--info)) 50%, var(--border-soft));
-  box-shadow: 0 3px 12px color-mix(in srgb, var(--fg) 8%, transparent);
-  transform: translateY(-1px);
+.agent-topology-card.is-root {
+  border-color: color-mix(in srgb, var(--fleet-violet) 56%, var(--border-soft));
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--fleet-violet) 12%, transparent), transparent 48%),
+    var(--bg-elev, var(--md-sys-color-surface-container));
 }
 
-.agent-topology-card[data-status="running"] {
-  border-color: color-mix(in srgb, var(--fleet-cyan, var(--info)) 55%, var(--border-soft));
+.agent-topology-card:hover,
+.agent-topology-card:focus-visible,
+.agent-topology-card.is-hover {
+  border-color: color-mix(in srgb, var(--agent-hue) 75%, var(--border-soft));
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--fg) 9%, transparent);
+  transform: translateY(-2px);
 }
 
-.agent-topology-card[data-status="error"] {
-  border-color: color-mix(in srgb, var(--err) 55%, var(--border-soft));
+.agent-topology-card:focus-visible {
+  outline: 2px solid var(--fleet-cyan);
+  outline-offset: 2px;
+}
+
+.agent-topology-card.is-selected {
+  border-color: var(--agent-hue);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--agent-hue) 35%, transparent),
+    0 4px 14px color-mix(in srgb, var(--agent-hue) 13%, transparent);
+}
+
+.agent-topology-card.is-muted {
+  opacity: 0.42;
+}
+
+.agent-topology-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.agent-topology-hit:focus-visible {
+  outline: 2px solid var(--fleet-cyan);
+  outline-offset: 2px;
+}
+
+.agent-topology-card:focus-within {
+  border-color: color-mix(in srgb, var(--agent-hue) 75%, var(--border-soft));
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--fg) 9%, transparent);
+  transform: translateY(-2px);
 }
 
 .agent-topology-card-top {
@@ -111,28 +263,40 @@
   gap: 5px;
 }
 
-.agent-topology-role {
-  padding: 0 5px;
-  border-radius: 4px;
-  color: var(--fleet-cyan, var(--info));
-  background: color-mix(in srgb, var(--fleet-cyan, var(--info)) 10%, transparent);
-  font-size: 8.5px;
-  font-weight: 650;
+.agent-topology-avatar {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--agent-hue) 45%, var(--border-soft));
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--agent-hue) 72%, var(--fg));
+  background: color-mix(in srgb, var(--agent-hue) 8%, var(--bg-elev, var(--md-sys-color-surface-container)));
+  font-size: 8px;
+  font-weight: 750;
 }
 
-.agent-topology-branch:not(.is-root) .agent-topology-role {
-  color: var(--fg-dim);
-  background: color-mix(in srgb, var(--fg) 6%, transparent);
+.agent-topology-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 10.5px;
+  font-weight: 680;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-topology-status {
   display: inline-flex;
-  min-width: 0;
+  flex: none;
   align-items: center;
-  gap: 4px;
-  margin-left: auto;
+  gap: 3px;
   color: var(--fg-faint);
-  font-size: 8.5px;
+  font-size: 8px;
   white-space: nowrap;
 }
 
@@ -144,12 +308,122 @@
 }
 
 .agent-topology-status[data-status="running"] i {
-  background: var(--fleet-cyan, var(--info));
+  background: var(--fleet-cyan);
   animation: agent-topology-pulse 1.6s ease-in-out infinite;
 }
 
 .agent-topology-status[data-status="error"] i {
   background: var(--err);
+}
+
+.agent-topology-role {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 8.5px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-metrics {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--fg-dim);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-topology-metrics b {
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-meter {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+.agent-topology-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--agent-hue);
+}
+
+.agent-topology-card-foot {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: auto;
+  color: var(--fg-faint);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-topology-card-foot > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-card-foot > b {
+  flex: none;
+  color: color-mix(in srgb, var(--agent-hue) 75%, var(--fg));
+  font-size: 9px;
+}
+
+.agent-topology-open {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--bg-elev, var(--md-sys-color-surface-container)) 86%, transparent);
+  cursor: pointer;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.agent-topology-card:hover .agent-topology-open,
+.agent-topology-card:focus-within .agent-topology-open,
+.agent-topology-card.is-selected .agent-topology-open {
+  opacity: 1;
+}
+
+.agent-topology-open:hover {
+  color: var(--agent-hue);
+  background: color-mix(in srgb, var(--agent-hue) 8%, var(--bg-elev, var(--md-sys-color-surface-container)));
+}
+
+.agent-topology-card-foot > span {
+  padding-right: 14px;
+}
+
+@keyframes agent-topology-flow {
+  to {
+    stroke-dashoffset: -18;
+  }
 }
 
 @keyframes agent-topology-pulse {
@@ -158,130 +432,45 @@
   }
 }
 
-.agent-topology-name {
-  overflow: hidden;
-  color: var(--fg);
-  font-size: 10.5px;
-  font-weight: 620;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-topology-metrics {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 2px 7px;
-  color: var(--fg-faint);
-  font-family: var(--font-mono, var(--mono));
-  font-size: 8.5px;
-  line-height: 1.35;
-}
-
-.agent-topology-metrics span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-topology-meter {
-  position: relative;
-  display: flex;
-  height: 9px;
-  align-items: center;
-  overflow: hidden;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--fg) 6%, transparent);
-}
-
-.agent-topology-meter > i {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--fleet-cyan, var(--info)), var(--fleet-violet, var(--info)));
-}
-
-.agent-topology-meter > b {
-  position: absolute;
-  right: 3px;
-  color: var(--fg-dim);
-  font-size: 7px;
-  font-weight: 600;
-}
-
-.agent-topology-descend {
-  position: relative;
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 17px;
-}
-
-.agent-topology-stem {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 1px;
-  height: 17px;
-  background: color-mix(in srgb, var(--fg) 20%, transparent);
-}
-
-.agent-topology-children {
-  position: relative;
-  display: flex;
-  width: max-content;
-  max-width: 100%;
-  justify-content: center;
-  gap: 24px;
-  padding-top: 17px;
-}
-
-.agent-topology-children::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 92px;
-  left: 92px;
-  height: 1px;
-  background: color-mix(in srgb, var(--fg) 20%, transparent);
-}
-
-.agent-topology-child {
-  position: relative;
-  display: flex;
-  justify-content: center;
-}
-
-.agent-topology-child::before {
-  content: "";
-  position: absolute;
-  top: -17px;
-  left: 50%;
-  width: 1px;
-  height: 17px;
-  background: color-mix(in srgb, var(--fg) 20%, transparent);
-}
-
-.agent-topology-card:focus-visible {
-  outline: 2px solid var(--fleet-cyan, var(--info));
-  outline-offset: 2px;
+@keyframes agent-topology-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
 }
 
 @media (max-width: 760px) {
   .agent-topology-head {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
   }
 
   .agent-topology-sub {
     display: none;
   }
+
+  .agent-topology-meta:last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .agent-topology-head {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .agent-topology-meta {
+    font-size: 8.5px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .agent-topology-status i,
-  .agent-topology-card {
+  .agent-topology-card,
+  .agent-topology-flow,
+  .agent-topology-link,
+  .agent-topology-joint,
+  .agent-topology-open {
     animation: none;
     transition: none;
   }
