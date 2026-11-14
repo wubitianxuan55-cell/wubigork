@@ -1,3 +1,22 @@
+## gaea 进度板块 · 斑马复刻 S1~S4 收编 + 板块分离一级 · 2026-11-14
+
+两笔提交（feda9c04 + 2a564426），承接上一执行体在树面的 S1~S4 遗留并落地用户拍板的板块分离。
+- **收编 feda9c04**：上一执行体已完成未提交的四步（承载位 blocks 双端 / N1 点-箭持久化 /
+  S1 检查器 18 条 / S2 检视+拉直+ReviewPanel+横道前锋线跟随）照原样提交，三档 zpert8 报告
+  （D0 蒸馏/网络逆向/复刻判定书）入 `进度计划/`；`frontend/dbg.test.ts` 调试草稿删除；
+  `re-zpert/`（2.5MB 逆向证据，含反编译 .c）**刻意不入库**（不搬上游派生物，报告自带引用）。
+- **板块分离 2a564426**（2026-11-14 用户拍板「进度板块从办公板块分离为一级板块」）：
+  schedule `inMenu false→true` **双端同步翻**（Go `board/builtins.go` + 前端 `boards/manifests.ts`，
+  撤 v4.168.0 瘦身刀1 并入语义），menuOrder 12 不变（落位微信助手与运行监测之间）；
+  **办公侧承接入口全保留**（文件面 .gsched 摘要卡/命令面板项/右栏一级 Tab ScheduleTool）；
+  白名单语义不变（注册即可导航）。测试同步：manifests.test.ts 菜单序 11→12 项、
+  CommandRail.test.tsx rail 全量序、board_manifest_test.go InMenu 断言翻转。
+- **验证**：boards+layouts 定向 51 例绿；schedule 全回归 **56 文件/735 例绿**；`tsc -b`/eslint 0；
+  Go `internal/schedule`+`internal/app`+`internal/app/board` 全 ok；构建装机 INSTALL OK
+  （exe 34B8C0B8DBF7…，构建 11:54:06）+ 冒烟 `/api/health` 200。
+- **坑**：smoke.ps1 路径参数反斜杠被 bash 吞（`C:AIgaea-appgaea.exe`）——Git Bash 内联 PS
+  传参一律用正斜杠（已知坑第 6 次变体）。
+
 ## gaea 进度板块 · 斑马复刻第 4 步（S2 检视 + 拉直） · 2026-11-14
 
 把第 1 步的 `Project.reviews` 承载位变成可用模型 + 面板（图上画线体留下一步）。
