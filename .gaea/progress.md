@@ -1,3 +1,26 @@
+## gaea 进度板块 · 斑马复刻第 5 步（S5 预警状态机） · 2026-11-14
+
+判定书 §6 第 5 步落地（8bd52a64，装机 C3106D4A2710… 冒烟 200）。
+- **数据位**：`Task.askFinish` 双端承载（斑马 `ask_stop_time` 口径=上级下达的要求完成，
+  工作日序号 0=开工日）：前端全可选+store 归一（非整数/负数丢弃）；Go `Task.AskFinish`
+  omitempty + `Validate` fail-closed（负值拒绝）。旧文件零迁移。
+- **`warn.ts` 引擎**（口径全来自斑马 RE §5.3）：红绿灯（红灯=突破要求完成，**压线 overdue=0 也算绿**）；
+  两算法可切 `plan-ask`（计划-要求）/`predict-ask`（预测-要求，预测=均匀速率外推——回填 finish 优先、
+  进行中按「已完成量/已跨工作日」速率摊剩余、未开始按计划，与 reviews 当期量同族近似）；
+  滞后五档 (0,15]/(15,30]/(30,60]/(60,100]/100+；分组行不参与；`warnSummary` 计数+滞后到提前排序。
+- **关键口径坑（红灯用例首跑逮出）**：CPM 的 `ef` 是独占边界（`es+d`），「计划完成日」必须取
+  **最后工作日口径**（d>0 → ef−1；里程碑/零工期 → ef）——直接拿 ef 比要求完成，差一天全是假红灯。
+- **接入**：TaskInspector 要求完成 DatePicker 编辑（dateToWd 唯一口径；清除→undefined）+预警段
+  （红绿灯 Tag+档位+算法 Segmented 切换，无要求时间不渲染段）；SchedulePage/ScheduleTool 同口径接线；
+  状态栏新增「预警红灯 N 项」（红灯才显）；gschedSummary 增 `reviewCount`+`warn{red,green,unassigned}`
+  （agent 面，恒 plan-ask 稳定口径，预测算法留视图态）。
+- **验证**：warn.test 17 例+TaskInspector +5 例+gschedSummary +1 例；schedule 回归 **57 文件/758 例全绿**；
+  tsc/eslint 0；Go internal/schedule+app(Schedule|Bindings) ok；构建装机 INSTALL OK（exe C3106D4A…）+
+  冒烟 200。
+- **边界**：斑马「预警天数升高/降低」期际升降档子档挂下刀；预测外推是均匀速率近似（斑马内核该点未反编译）；
+  jsdom 中 rc-picker 打字+Enter 解析不出（吐 null）——组件测试只覆盖清除与值渲染，日期→工作日换算由
+  calendar/warn 单测钉死（不伪造交互，沿用办公对话流「jsdom 不测几何」先例）。
+
 ## gaea 进度板块 · 斑马复刻 S1~S4 收编 + 板块分离一级 · 2026-11-14
 
 两笔提交（feda9c04 + 2a564426），承接上一执行体在树面的 S1~S4 遗留并落地用户拍板的板块分离。
