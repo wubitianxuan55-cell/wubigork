@@ -183,3 +183,21 @@
 - **已知边界**（写入 PACKAGE-INFO）：DSH context/fleet 批在途 51 文件不属
   本专项未入包；真机 dwg 实弹挂用户；CAD 可选卡默认关。
 - 包记录提交：`4db1c355`（docs+gitignore，代码与打包源 c85a9815 零漂移）。
+
+## 10. 包 v2 + dsh-context 批代提交（用户拍板「dsh的一起提交」）
+
+- **DSH 批代提交** `2eb8d9fd`：dsh-context 0.84.1 上下文交互续刀 51 文件
+  （+5042/−1401；Go contextview 新模块 command_page/dna/surface + detail/
+  fold/types 扩面 + agent_stream header 通道 + registrymap 注册面 + OfficeB
+  绑定面再生；前端 context 卡族/locales/contextPrefs/mock 同步）。提交前
+  门禁：go build/vet 0、contextview 测试 ok、tsc -b 0；WorkbenchPrefsPanel
+  4 例红系 DSH tasksAutoOpen 文案改名（任务视图→编队视图）未跟上测试——
+  代提交顺手修齐 4 行断言（5/5 绿）。
+- **包 v2**：干净工作树 `.worktrees/pkg-2eb8d9fd` 重建（Vite 26.52s/wails
+  1m01.4s），装机位新 exe sha256 `BFD7CAA2…`（08:22:35）=工作树产物，smoke
+  200（PID 54044 已回收），工作树已回收。包内 exe/SHA256SUMS/源码包/preview
+  zip 全部替换为 2eb8d9fd 构建；PACKAGE-INFO v2（两批构建来源+门禁+边界，
+  dsh 批已知边界如实记档：桥 live surface/历史步骤未下发/chip 待收口）。
+  包更新提交 `dd7bc61a`；v1 快照 tar 作废删除（DSH 批已入库无未提交残留）。
+- 提交链尾：`c85a9815`（专项六刀）→ `4db1c355`（包 v1 记录）→ `c169cc8c`/
+  `ba6d987a`（记档）→ `2eb8d9fd`（DSH 批）→ `dd7bc61a`（包 v2）。
