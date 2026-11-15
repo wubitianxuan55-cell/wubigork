@@ -151,3 +151,20 @@ WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让
   代码同源）；preview.zip + source.tar.gz 留盘不入库；
   PACKAGE-INFO.md + SHA256SUMS-0eb7a2fc.txt 已入库。
 - 工作树 `.worktrees/pkg-0eb7a2fc` 已回收。
+
+## 绑定白名单修复（2026-11-15 晚）
+
+- 用户实弹报「功能绑定失败，未知功能: wenxue」：config 层四向（config_features 四 case /
+  config_keys 三键 / config_save 三 setter / config_types 字段）刀1 已齐、App 层重建缝
+  applyWenxueFeatureModel 已在位，唯 app 层 `feature_model_handler.go` 两张白名单
+  （featureModelKeys / featureModelEnabledKey）漏 "wenxue" case——UI 改绑/启停在
+  core.SetFeatureModel 校验位即报「未知功能」，重建缝根本到不了。
+- 修复 `a3ba3cd6`：两 case 补齐（KeyFuncWenxueEngine/Model/Enabled 三键）+ 钉
+  TestSetFeatureModel_WenxueBinding 三向（绑定 / 启停 / Load 落键读回）。
+  整包回归 app 147s + config 绿；ucrt64 裸 wails build 1m41s + 冒烟 200 + INSTALL OK
+  （exe SHA256 879DB3D0EDE9…）。
+- 教训沉淀：**config 层加功能键时，app 层两张白名单是第三个同批面**（与「新增主区 tab
+  白名单漏 id」同形态——刀只对齐了自己的新面，没盘存量枚举点）。新功能键四处同批 =
+  config_features 四 case + config_keys/save 键域 + feature_model_handler 两白名单 +
+  模型中心 BindSection/utils 档位表。routeFeatures（路由建议面）有意不含 vision，
+  wenxue 暂不补（建议面属可选扩展，非缺陷）。
