@@ -29,13 +29,13 @@ import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
 const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
+const WenxueSettingsHub = lazy(() => import("./components/WenxueSettingsHub").then(m => ({ default: m.WenxueSettingsHub })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
 import { ChatTabs, CHAT_VIEW_TAB_IDS, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { Insights } from "./components/context/Insights";
-import { Fleet } from "./components/context/Fleet";
 import { ContextModal, ContextPill } from "./components/ContextModal";
 import { TrajectoryView } from "./components/TrajectoryView";
 import { SubagentThread } from "./components/SubagentThread";
@@ -87,7 +87,6 @@ import { useWorkspaceLayout } from "./app/useWorkspaceLayout";
 import { usePreviewPanel } from "./app/usePreviewPanel";
 import { useSessionHandlers } from "./app/useSessionHandlers";
 import { useAppKeyboard } from "./app/useAppKeyboard";
-import { useFleetAutoOpen } from "./app/useFleetAutoOpen";
 
 export default function App() {
   const toast = useToast();
@@ -179,7 +178,7 @@ export default function App() {
   const {
     subRunsCacheRef, subagentTabs, subagentTabId, openSubagentThread,
     closeSubagentTab, taskPickCandidates, setTaskPickCandidates,
-    subagentRuns, handleChatTabSelect,
+    handleChatTabSelect,
   } = useSubagentTabs({ currentSessionKey, currentSessionPath, setChatTab });
   // 会话隔离（蒸馏 dsh-better-sidebar）：右侧面板子 Tab 按会话记忆（C3）——
   // 切会话/新建/恢复时恢复该会话上次选中的子面板；显式切换（如点文件回
@@ -305,7 +304,7 @@ export default function App() {
       }
       send(displayText.trim(), submitText.trim());
     },
-    [switchModel, send, setChatTab, openPaneView, currentSessionPath, toast],
+    [switchModel, send, openPaneView, currentSessionPath, toast],
   );
 
   // 会话/历史/记忆操作回调集 → app/useSessionHandlers
@@ -395,16 +394,8 @@ export default function App() {
   const { sessionDeliverables, sessionChanges, freshDeliverablePaths, freshDeliverableCount } = useDeliverables({ state, currentSessionKey, rightTab, openPaneView });
   // 预览浮窗状态机（U2）+ 写后预览实时跟随（U4）→ app/usePreviewAutoFront
   usePreviewAutoFront({ state, currentSessionKey, workspacePanelOpen, previewFile, focusMode });
-  // 新后台任务/子代理运行自动切主区「编队」→ app/useFleetAutoOpen
-  const openFleetView = useCallback(() => {
-    setChatTab("fleet");
-  }, []);
-  useFleetAutoOpen({
-    fleetActive: chatTab === "fleet",
-    openFleetView,
-    currentSessionPath,
-    subagentRuns,
-  });
+  // （编队 tab 已退役——2026-11-16 设定批：useFleetAutoOpen 自动切换接线随之
+  // 摘除；后台任务/子代理进度仍在对话流与轨迹页可见。）
 
   const tabBadges = freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : undefined;
 
@@ -836,16 +827,6 @@ export default function App() {
                         }}
                       />
                     )}
-                    {chatTab === "fleet" && (
-                      <Fleet
-                        running={state.running}
-                        sessionPath={currentSessionPath ?? undefined}
-                        onViewContext={(ref) => {
-                          setCtxModalRef(ref);
-                          setCtxModalOpen(true);
-                        }}
-                      />
-                    )}
                     {chatTab === "characters" && (
                       <Suspense fallback={null}>
                         <WenxueCharacterHub />
@@ -854,6 +835,11 @@ export default function App() {
                     {chatTab === "reading" && (
                       <Suspense fallback={null}>
                         <WenxueReadingHub />
+                      </Suspense>
+                    )}
+                    {chatTab === "settings" && (
+                      <Suspense fallback={null}>
+                        <WenxueSettingsHub />
                       </Suspense>
                     )}
                   </>

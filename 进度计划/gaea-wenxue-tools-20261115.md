@@ -371,4 +371,44 @@ import/openMemory+effect/命令 case"memory"/palette cmd-memory/topbar.memory lo
 - 后置面不动（按裁决）：完整账本/12→7 合并读入口/批量 compact/结构化 writeback
   （刀1.5）/lint 收益实测（真实稿到位后重开）。
 
+## 设定标签页批（2026-11-16 深夜立项，用户令：移编队 tab+增设定 tab——查看/编辑世界观·时间线·规则+AI 生成填充）
+
+**方案**：纯前端批（零 Go——设定目录约定 `设定|worldview|设定集` 与时间线
+`时间线|timeline` 已在 wenxueDirCandidates/wenxue_stats/wenxue_timeline_* 工具侧
+存在，UI 直读文件即可）。①编队 tab 退役：ChatTabs 三处单源摘 fleet+App 摘
+Fleet 分支/useFleetAutoOpen 接线（后台任务自动切编队的钩子随 tab 一起退役；
+子代理进度仍在对话流/轨迹可见）。②新增设定 tab（id=settings，ScrollText 图标）
+= WenxueSettingsHub：master-detail（左列表「设定文档」组+「时间线」组，右详情）；
+设定文档结构化阅读（# 标题/## 小节/列表轻渲染）+CAS 裸文本编辑；时间线结构化
+事件视图（第N章锚解析+章序+未锚分组）；AI 生成 Modal（预设 世界观/力量体系/
+规则/势力/地理/自定义 → Composer 注入生成指令，agent 用 write_file 落
+设定/<名>.md）+新建空白文档+删除；filetree 通道自动重载（设定/时间线目录）。
+同源口径：与 agent 的 write_file/时间线工具共享同一数据面。
+
+### 施工台账（2026-11-16 深夜收官，全绿+装机）
+
+- ChatTabs：type/CHAT_VIEW_TAB_IDS/TABS 三处单源——摘 fleet（Blocks 图标随退）、
+  加 settings（ScrollText 图标，id 序排在 reading 后）。旧存档 tab=fleet 走单源
+  校验自动回落 chat。
+- App：Fleet import/渲染分支/useFleetAutoOpen import+接线（openFleetView+hook
+  调用，后台任务自动切编队随 tab 退役；subagentRuns 解构同步摘）/
+  handleSend deps 里失效的 setChatTab 顺手清（eslint 警告归零）；接
+  WenxueSettingsHub lazy import+渲染分支。
+- WenxueSettingsHub（新组件 ~470 行）：master-detail 双栏——左列表「设定文档」
+  （设定|worldview|设定集）+「时间线」（时间线|timeline）两组+搜索+刷新+新建+
+  AI 生成；右详情：设定文档轻渲染（#/## 标题/列表/段落）+CAS 裸文本编辑；时间线
+  结构化事件视图（`第N章` ASCII 锚解析、未锚组列最前与后端同口径、中文序号行
+  如实展示+改写提示）；编辑态完成钮带脏守卫；删除确认。AI 生成 Modal=预设五类
+  （世界观/力量体系/规则/势力/地理→设定/<名>.md 各带 brief）+自定义名；注入
+  Composer 指令要求 agent 先 wenxue_chapter_list/character_list/timeline_read
+  摸底再 write_file 落盘（已有文件先 read 再修订）；落盘后 filetree 通道自动
+  重载出文档。「让 AI 完善」按文档注入一致性补全指令（时间线冲突以时间线为准）。
+  未脏态外部更新静默跟随（CAS 基线同步）。
+- 测试（WenxueSettingsHub.test.tsx 6 例）：两组列表+同源条；轻渲染+编辑 CAS 保存；
+  时间线章序/未锚最前/中文序号提示；AI 生成注入断言（目标文件+摸底工具名）；
+  filetree 通道自动重载（桩 window.runtime）；新建空白骨架。wenxue 族 21/21 绿。
+- 门禁：tsc -b 0；eslint 0 错误 1 警告（react-refresh 常量导出既有款）；Vite
+  32.3s+Wails 55.9s+冒烟 200+INSTALL OK（PID 49276>构建时刻）。零 Go 改动
+  （设定/时间线目录约定与工具后端本就存在）；绑定面零变化。
+
 

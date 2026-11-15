@@ -1,5 +1,5 @@
 import type React from "react";
-import { BarChart3, Blocks, BookOpen, ListTree, MessageSquare, PieChart, Users } from "../icons";
+import { BarChart3, BookOpen, ListTree, MessageSquare, PieChart, ScrollText, Users } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
 // [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
@@ -11,7 +11,10 @@ import { BarChart3, Blocks, BookOpen, ListTree, MessageSquare, PieChart, Users }
 // Memory/Remember/DreamPurge 绑定=全局默认脑；做梦/晨报/建议卡/蒸馏也全是
 // 办公域机制，图文引擎有意不挂）。图文记忆=独立脑（boot MemoryUserDir 缝），
 // 读写走会话内 remember/forget/memory_search 工具。
-export type ChatTabId = "chat" | "trajectory" | "context" | "insights" | "fleet" | "characters" | "reading";
+// 2026-11-16 设定批：「编队」退役（办公域文件流水线看板，图文无 DAG 面）；
+// 新增「设定」——世界观/时间线/规则等设定文档查看/编辑/AI 生成，与
+// write_file+时间线工具同源（设定|worldview|设定集 + 时间线|timeline 目录）。
+export type ChatTabId = "chat" | "trajectory" | "context" | "insights" | "characters" | "reading" | "settings";
 
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
@@ -26,13 +29,16 @@ export interface ChatSessionTab {
 /** 视图 tab id 单源（useSubagentTabs 白名单/App 持久化校验共用）：
  *  漏新 id 的后果=被当成子代理会话 tab 吃掉（2026-11-05/2026-11-15 两次真机定罪）。 */
 export const CHAT_VIEW_TAB_IDS: ChatTabId[] = [
-  "chat", "trajectory", "context", "insights", "fleet",
+  "chat", "trajectory", "context", "insights",
   // 图文板块专属（2026-11-15 角色页移植）：角色卡管理，与 agent 的
   // wenxue_character_* 专属工具同源（角色/ 目录 md 卡）。
   "characters",
   // 图文板块专属（2026-11-15 阅读刀）：定稿阅读，与 agent 的 wenxue_final_*
   // 专属工具同源（定稿/ 目录发布稿）。
   "reading",
+  // 图文板块专属（2026-11-16 设定批）：设定文档+时间线查看/编辑/AI 生成，
+  // 与 agent 的 write_file/时间线工具同源。
+  "settings",
 ];
 
 const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
@@ -40,9 +46,9 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "trajectory", label: "轨迹", icon: ListTree },
   { id: "context", label: "上下文", icon: BarChart3 },
   { id: "insights", label: "洞察", icon: PieChart },
-  { id: "fleet", label: "编队", icon: Blocks },
   { id: "characters", label: "角色", icon: Users },
   { id: "reading", label: "阅读", icon: BookOpen },
+  { id: "settings", label: "设定", icon: ScrollText },
 ];
 
 export function ChatTabs({ active, onChange, tabs, labelOverrides, className, extraTabs, onCloseExtra }: {
