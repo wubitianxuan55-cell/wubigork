@@ -7,6 +7,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
+	"github.com/gaea/gaea/internal/gaea/workbench"
 )
 
 // SinB 原罪（闲庭·图文故事创作）绑定门面（S2-3「App 绑定面拆分」）：仅暴露原罪（闲庭·图文故事创作）的方法，
@@ -60,5 +61,9 @@ func (b *SinB) SinTopicsList() ([]chat.Topic, error) { return b.a.SinTopicsList(
 func (b *SinB) SinTrajectory(topicID string) (trajectory.Trajectory, error) { return b.a.SinTrajectory(topicID) }
 func (b *SinB) SinWorkspaceBindings() []SinWorkspaceBindingView { return b.a.SinWorkspaceBindings() }
 func (b *SinB) SinWorkspaceGet(topicID string) (SinWorkspaceInfo, error) { return b.a.SinWorkspaceGet(topicID) }
+func (b *SinB) SinWorkspacePreview(rel string) PreviewResult { return b.a.SinWorkspacePreview(rel) }
+func (b *SinB) SinWorkspaceReadPage(rel string, offset int64) (workbench.TextPage, error) { return b.a.SinWorkspaceReadPage(rel, offset) }
+func (b *SinB) SinWorkspaceReadText(rel string) (workbench.TextFile, error) { return b.a.SinWorkspaceReadText(rel) }
 func (b *SinB) SinWorkspaceSet(topicID string, projectPath string) (SinWorkspaceInfo, error) { return b.a.SinWorkspaceSet(topicID, projectPath) }
 func (b *SinB) SinWorkspaceUnbind(topicID string) error { return b.a.SinWorkspaceUnbind(topicID) }
+func (b *SinB) SinWorkspaceWriteText(rel string, content string, expectedMtimeMs int64) (workbench.WriteResult, error) { return b.a.SinWorkspaceWriteText(rel, content, expectedMtimeMs) }

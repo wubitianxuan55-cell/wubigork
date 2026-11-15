@@ -223,7 +223,8 @@ func TestSinEngineRegistryTools(t *testing.T) {
 	}
 }
 
-// TestSinEngineAssembleInput 回合输入富化：角色/底稿块注入与空态逐字直通。
+// TestSinEngineAssembleInput 回合输入富化：角色/底稿块注入与空态直通。
+// 拍板（2026-11-15）：定稿章节**不注入**——AI 用 sin_chapter 自读（提示词约束）。
 func TestSinEngineAssembleInput(t *testing.T) {
 	a := newSinEngineTestApp(t)
 	book := newShelfBook(t, a)
@@ -255,6 +256,12 @@ func TestSinEngineAssembleInput(t *testing.T) {
 	}
 	if strings.Contains(got, "【前情回顾】") {
 		t.Fatal("引擎路径不注入历史窗口段（会话历史由引擎自带）")
+	}
+	// 有定稿章节也不注入（AI 自读）
+	a.sinPersistChapters(book, "@@章节|开篇@@\n\n雨夜的开场正文。")
+	got = a.sinEngineAssembleInput(slug, in)
+	if strings.Contains(got, "【定稿章节") {
+		t.Fatal("定稿章节不应注入（拍板：AI 自读）")
 	}
 }
 

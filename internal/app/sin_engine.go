@@ -91,8 +91,7 @@ func (a *App) sinEngineSink() event.Sink {
 	})
 }
 
-// sinAfterTurn 回合成功后的 sin 钩子（章节落盘扫描挂点；刀3 接线）。
-func (a *App) sinAfterTurn() {}
+// sinAfterTurn 回合成功后的 sin 钩子（章节落盘扫描，实现见 sin_engine_chapter.go）。
 
 // ── 装配 ────────────────────────────────────────────────────────────
 
@@ -345,7 +344,8 @@ func (a *App) sinEngineEnsure() error {
 }
 
 // SinEngineSend 提交一轮创作（异步，事件经 gaea-event-sin 回调）。
-// 输入富化：角色块+底稿块按书 slug 注入（历史由引擎会话自带）。
+// 输入富化：角色块+底稿块按书 slug 注入；定稿章节不注入（AI 用 sin_chapter
+// 自读，拍板 2026-11-15），历史由会话自带。
 func (a *App) SinEngineSend(input string) error {
 	sinEng.mu.Lock()
 	ctrl, slug := sinEng.ctrl, sinEng.bookSlug

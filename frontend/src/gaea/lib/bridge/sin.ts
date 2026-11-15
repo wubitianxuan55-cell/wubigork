@@ -9,6 +9,8 @@
 // （space=play / source_board=sin），并把路径回写到该轮消息 extra.illustrations。
 import type { chat } from "../../../../wailsjs/go/models";
 import type { ContextInfo, ContextNodeDetailView, ContextTimeline, GaeaResyncResult, HistoryMessage, QuestionAnswer, SessionMeta, Trajectory } from "../types";
+import type { PreviewResult } from "../types";
+import type { WorkspaceTextFile, WorkspaceTextPage, WorkspaceWriteResult } from "../types";
 import type { NovelBookSourceSearchResult, NovelBookSourceTocPreview } from "./novel";
 
 export interface SinBindings {
@@ -142,6 +144,16 @@ export interface SinBindings {
   SinEngineContextView(): Promise<ContextTimeline>;
   /** 上下文节点「完整调用」详情。 */
   SinEngineContextNodeDetail(seq: number): Promise<ContextNodeDetailView>;
+
+  // ── 书工作区文件读口（根=当前书；containment fail-closed；刀3）──
+  /** 书内文件预览（多格式分发，走 GaeaPreview 绝对路径直通）。 */
+  SinWorkspacePreview(rel: string): Promise<PreviewResult>;
+  /** 书内文件全文读取（编辑器底稿，带 mtime 基线/编码/EOL）。 */
+  SinWorkspaceReadText(rel: string): Promise<WorkspaceTextFile>;
+  /** 书内文件保存（mtime 冲突拒绝）。 */
+  SinWorkspaceWriteText(rel: string, content: string, expectedMtimeMs: number): Promise<WorkspaceWriteResult>;
+  /** 大文件按行对齐分页读取。 */
+  SinWorkspaceReadPage(rel: string, offset: number): Promise<WorkspaceTextPage>;
 
   // ── 书架工作空间绑定（一书一故事，书下多会话）──
   /** 读取某会话的书绑定（未绑 = bound:false）。 */

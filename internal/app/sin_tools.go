@@ -55,6 +55,8 @@ type sinToolContext struct {
 	app        *App
 	topicID    string
 	contextKey string
+	// bookPath 引擎装配时注入的书目录（sin_chapter 章节落盘用；legacy 为空）。
+	bookPath string
 }
 
 // storeKey 本工具实例的存储键（选角/画风/便签/大纲等 sin 自有存储的键）。

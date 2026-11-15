@@ -29,10 +29,16 @@ type sinPromptOut struct {
 	runtimeCtx *cache.RuntimeLayer
 }
 
+// sinEngineChapterProtocol 章节协议段（升格引擎专属；legacy sinSystemPrompt
+// 不含——锁同步测试面不变）。落盘机制见 sin_engine_chapter.go。
+// 拍板（用户）：定稿章节**不注入**——AI 自己用 sin_chapter 工具阅读，提示词
+// 只给约束（续写前必读对齐）。
+const sinEngineChapterProtocol = `【章节交付】长篇/连载创作时，用独占一行的标记 @@章节|标题@@ 显式开新章：标记之后直到下一个标记或回合结束的正文属于该章。回合结束后系统会把每章自动写入本书 chapters/NNN.md（编号自动续接已有章节），标题进大纲。chapters/ 文件夹是定稿章节的唯一真源（章节导航/阅读都锚定它）。约束：续写或接续已有剧情前，必须先用 sin_chapter list 对齐本书章节清单与最新章号，再用 sin_chapter read 读最近一章（必要时更早章节也要读）——以定稿正文衔接文风与剧情，不要凭会话记忆凭空续写。规则：一回可写多章；一章未写完时不要发标记，续写时在正文直接接上；用户没要求分章/单回短篇时不要发标记；不要用 write_file 写章节文件——改稿用 sin_chapter 工具（自带备份）。`
+
 // sinBuildEnginePrompt 装配原罪引擎的系统提示词与书级记忆。
 // space 恒 "play"（记忆读端收窄到 play facts；project slug=书路径）。
 func sinBuildEnginePrompt(cfg *gaeaConfig.Config, bookPath string) (*sinPromptOut, error) {
-	prompt := sinSystemPrompt()
+	prompt := sinSystemPrompt() + "\n\n" + sinEngineChapterProtocol
 
 	userDir := gaeaConfig.MemoryUserDir()
 	gdb := db.GetDatabase(userDir)
@@ -97,9 +103,9 @@ func sinBuildEnginePrompt(cfg *gaeaConfig.Config, bookPath string) (*sinPromptOu
 	}, nil
 }
 
-// sinEngineAssembleInput 引擎回合输入富化：在用户指令前拼角色块+底稿块。
+// sinEngineAssembleInput 引擎回合输入富化：角色块+底稿块（键=书 slug）。
 // 与 legacy buildSinUserPrompt 的差异：历史窗口段不需要——引擎会话自带完整
-// 历史与压缩；底稿/选角键直接传书 slug（绑定故事）或会话 id（未绑存量）。
+// 历史与压缩；定稿章节不注入（AI 用 sin_chapter 自读，拍板 2026-11-15）。
 // 各块为空时零注入，逐字节对齐 legacy 空态行为。
 func (a *App) sinEngineAssembleInput(storeKey, input string) string {
 	out := ""

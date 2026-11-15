@@ -30,6 +30,7 @@ type SinMethods = Pick<
   | "SinEngineHistory" | "SinEngineContext" | "SinEngineTrajectory"
   | "SinEngineContextView" | "SinEngineContextNodeDetail"
   | "SinWorkspaceGet" | "SinWorkspaceSet" | "SinWorkspaceUnbind" | "SinWorkspaceBindings"
+  | "SinWorkspacePreview" | "SinWorkspaceReadText" | "SinWorkspaceWriteText" | "SinWorkspaceReadPage"
 >;
 
 interface MockStory {
@@ -536,6 +537,19 @@ export function buildSin(): SinMethods {
     },
     async SinWorkspaceBindings() {
       return Array.from(workspaces.entries()).map(([topicId, b]) => ({ topicId, path: b.path, title: b.title }));
+    },
+    // 书工作区文件读口：mock 无真实文件系统——预览/读/写如实拒绝（走查走真机）。
+    async SinWorkspacePreview(rel: string) {
+      return { path: String(rel ?? ""), kind: "error", error: "dev mock：书工作区文件预览需桌面端" } as never;
+    },
+    async SinWorkspaceReadText(_rel: string) {
+      throw new Error("dev mock：书工作区文件读取需桌面端");
+    },
+    async SinWorkspaceWriteText(_rel: string, _content: string, _mtime: number) {
+      throw new Error("dev mock：书工作区文件写入需桌面端");
+    },
+    async SinWorkspaceReadPage(_rel: string, _offset: number) {
+      throw new Error("dev mock：书工作区分页读取需桌面端");
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

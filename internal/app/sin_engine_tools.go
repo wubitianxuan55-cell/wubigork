@@ -25,11 +25,12 @@ import (
 // sin_chapter 与书项目结构化落盘，不给模型裸写盘能力）。
 var sinEngineBuiltinTools = []string{"read_file", "ls"}
 
-// sinEngineSinTools sin 9 工具中进入引擎注册表的清单（sinToolOrder 子集；
-// sin_export 引擎路径未接，见文件头注释）。
+// sinEngineSinTools sin 工具中进入引擎注册表的清单（sinToolOrder 子集 +
+// sin_chapter 章节交付；sin_export 引擎路径未接，见 sin_engine_chapter.go）。
 var sinEngineSinTools = []string{
 	sinToolWebSearch, sinToolWebFetch, sinToolBookSearch, sinToolBookDownload,
 	sinToolCast, sinToolNotes, sinToolOutline, sinToolIllustrate,
+	sinToolChapter,
 }
 
 // sinToolAdapter sinTool → tool.Tool 适配：两接口方法集逐签名相同，内嵌即满足。
@@ -61,8 +62,8 @@ func sinEngineRegistry(a *App, cfg *gaeaConfig.Config, bookPath, bookSlug string
 	reg.Add(memory.NewPromoteSessionFactsTool())
 	reg.Add(memory.NewMemoryGetTool(mem.Store))
 
-	// sin 9 工具适配器（存储键=书 slug；contextKey 双轨见 sin_tools.go）。
-	c := sinToolContext{app: a, contextKey: bookSlug}
+	// sin 工具适配器（存储键=书 slug；书目录供 sin_chapter 章节落盘）。
+	c := sinToolContext{app: a, contextKey: bookSlug, bookPath: bookPath}
 	for _, kind := range sinEngineSinTools {
 		if f, ok := sinToolRegistry[kind]; ok {
 			reg.Add(sinToolAdapter{sinTool: f(c)})
