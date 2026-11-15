@@ -230,6 +230,10 @@ export const GAEA_METHOD_FACETS = {
   SinWorkspaceReadText: "play",
   SinWorkspaceWriteText: "play",
   SinWorkspaceReadPage: "play",
+  SinMemoryList: "play",
+  SinMemorySave: "play",
+  SinMemoryDelete: "play",
+  SinMemoryPinToggle: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

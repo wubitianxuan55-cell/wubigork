@@ -46,6 +46,10 @@ func (b *SinB) SinEngineTrajectory() (trajectory.Trajectory, error) { return b.a
 func (b *SinB) SinExportEpub(topicID string) (string, error) { return b.a.SinExportEpub(topicID) }
 func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.SinExportMarkdown(topicID) }
 func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }
+func (b *SinB) SinMemoryDelete(name string) error { return b.a.SinMemoryDelete(name) }
+func (b *SinB) SinMemoryList(query string) []SinMemoryEntry { return b.a.SinMemoryList(query) }
+func (b *SinB) SinMemoryPinToggle(name string, pinned bool) error { return b.a.SinMemoryPinToggle(name, pinned) }
+func (b *SinB) SinMemorySave(name string, title string, body string) (SinMemoryEntry, error) { return b.a.SinMemorySave(name, title, body) }
 func (b *SinB) SinMessages(topicID string) ([]chat.Message, error) { return b.a.SinMessages(topicID) }
 func (b *SinB) SinMessagesPage(topicID string, beforeSeq int64, limit int) (SinMessagesPageResult, error) { return b.a.SinMessagesPage(topicID, beforeSeq, limit) }
 func (b *SinB) SinNotesGet(topicID string) (SinNotesView, error) { return b.a.SinNotesGet(topicID) }

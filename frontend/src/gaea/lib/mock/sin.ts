@@ -31,6 +31,7 @@ type SinMethods = Pick<
   | "SinEngineContextView" | "SinEngineContextNodeDetail"
   | "SinWorkspaceGet" | "SinWorkspaceSet" | "SinWorkspaceUnbind" | "SinWorkspaceBindings"
   | "SinWorkspacePreview" | "SinWorkspaceReadText" | "SinWorkspaceWriteText" | "SinWorkspaceReadPage"
+  | "SinMemoryList" | "SinMemorySave" | "SinMemoryDelete" | "SinMemoryPinToggle"
 >;
 
 interface MockStory {
@@ -135,6 +136,11 @@ export function buildSin(): SinMethods {
     label: "sin/mock",
   };
   let engineSeq = 0;
+  // 书级记忆内存态（SinMemory* mock；真机走 facts SQLite play 空间）
+  const memStore: Array<{ name: string; title: string; description: string; body: string; pinned: boolean; updatedAt: string }> = [
+    { name: "林晚-身份", title: "林晚：地方台记者", description: "女主设定", body: "林晚，27 岁，夜班记者；右眉骨有旧伤。", pinned: true, updatedAt: "2026-11-15 09:00" },
+    { name: "玉佩伏笔", title: "玉佩的秘密", description: "第三章埋下的伏笔", body: "男主贴身玉佩刻着一个被磨平的名字——与林晚失踪的姐姐有关。", pinned: false, updatedAt: "2026-11-15 09:05" },
+  ];
   const now = () => new Date().toISOString();
 
   const seed = () => {
@@ -550,6 +556,34 @@ export function buildSin(): SinMethods {
     },
     async SinWorkspaceReadPage(_rel: string, _offset: number) {
       throw new Error("dev mock：书工作区分页读取需桌面端");
+    },
+    // 书级记忆管理面 mock（内存 facts；play 空间语义由真实后端承担）
+    async SinMemoryList(query: string) {
+      const q = String(query ?? "").trim().toLowerCase();
+      return memStore
+        .filter((m) => !q || [m.name, m.title, m.body].some((v) => v.toLowerCase().includes(q)))
+        .slice()
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    },
+    async SinMemorySave(name: string, title: string, body: string) {
+      const t = String(title ?? "").trim();
+      const b = String(body ?? "").trim();
+      if (!t) throw new Error("记忆标题不能为空");
+      if (!b) throw new Error("记忆内容不能为空");
+      const key = String(name ?? "").trim() || t.replace(/\s+/g, "-");
+      const entry = { name: key, title: t, description: b.split("\n")[0].slice(0, 120), body: b, pinned: false, updatedAt: new Date().toISOString().slice(0, 16).replace("T", " ") };
+      const idx = memStore.findIndex((m) => m.name === key);
+      if (idx >= 0) memStore[idx] = entry;
+      else memStore.push(entry);
+      return entry;
+    },
+    async SinMemoryDelete(name: string) {
+      const idx = memStore.findIndex((m) => m.name === String(name ?? "").trim());
+      if (idx >= 0) memStore.splice(idx, 1);
+    },
+    async SinMemoryPinToggle(name: string, pinned: boolean) {
+      const m = memStore.find((x) => x.name === String(name ?? "").trim());
+      if (m) m.pinned = pinned;
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

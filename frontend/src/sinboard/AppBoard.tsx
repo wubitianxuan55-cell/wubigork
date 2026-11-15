@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useState } from "react"
 import { Button, Modal } from "antd"
 import { ExportOutlined, PlusOutlined } from "@ant-design/icons"
+import { PanelRightClose, PanelRightOpen } from "../gaea/icons"
 import { Composer } from "../gaea/components/Composer"
 import { ContextView } from "../gaea/components/ContextView"
 import { TrajectoryView } from "../gaea/components/TrajectoryView"
@@ -23,6 +24,7 @@ import SinShelf, { type SinShelfBook, type SinShelfSession } from "./components/
 import { Transcript as SinTranscript } from "./components/SinTranscript"
 import { ChatTabs } from "./components/SinChatTabs"
 import SinReadingPane from "./components/SinReadingPane"
+import SinMemoryCard from "./components/SinMemoryCard"
 import "../gaea/styles.css"
 import "../gaea/tailwind.css"
 import "../gaea/redesign.css"
@@ -65,6 +67,8 @@ const AppBoard: React.FC = () => {
   const [sinTab, setSinTab] = useState<SinTab>("chat")
   // 落章联动信号：回合结束（gaea-event-sin turn_done）递增 → 阅读 tab 重拉章节清单
   const [chapterTick, setChapterTick] = useState(0)
+  // 右栏开合（宽窗默认开；原罪同款 PanelRight 语义）
+  const [panelOpen, setPanelOpen] = useState(true)
 
   // 书架清单（书架目录扫描；失败给空清单不报错阻断）
   const reloadBooks = useCallback(async () => {
@@ -180,6 +184,14 @@ const AppBoard: React.FC = () => {
             <Button
               size="small"
               type="text"
+              icon={panelOpen ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+              onClick={() => setPanelOpen((v) => !v)}
+              title={panelOpen ? "收起创作面板" : "展开创作面板"}
+              aria-label={panelOpen ? "收起创作面板" : "展开创作面板"}
+            />
+            <Button
+              size="small"
+              type="text"
               icon={<ExportOutlined />}
               disabled
               title="导出（刀3 接入）"
@@ -259,9 +271,9 @@ const AppBoard: React.FC = () => {
             )}
           </main>
 
-          {/* ── 右：创作面板（刀6 接入 pane 注册表；占位保留布局位）── */}
-          <div className="sin-side-host is-hidden">
-            <div />
+          {/* ── 右：创作面板（刀6 完整 pane 化；当前=记忆卡 v1，刀4 落地面）── */}
+          <div className={`sin-side-host${panelOpen ? "" : " is-hidden"}`}>
+            <SinMemoryCard enabled={engineReady} />
           </div>
         </div>
 

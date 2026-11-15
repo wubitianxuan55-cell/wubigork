@@ -145,6 +145,17 @@ export interface SinBindings {
   /** 上下文节点「完整调用」详情。 */
   SinEngineContextNodeDetail(seq: number): Promise<ContextNodeDetailView>;
 
+  // ── 书级记忆管理面（刀4：facts play 空间，slug=书路径；AI 侧 remember/
+  //    memory_get 工具读写同一存储，这里是记忆卡的列表/新增/删除/固化）──
+  /** 记忆清单（query 非空=子串过滤 name/title/body；未绑书=空清单）。 */
+  SinMemoryList(query: string): Promise<SinMemoryEntry[]>;
+  /** 新增/修订一条记忆（name 空=按 title 归一生成；play 空间）。 */
+  SinMemorySave(name: string, title: string, body: string): Promise<SinMemoryEntry>;
+  /** 删除一条记忆（fail-closed：play 空间归属确认，拒绝误删办公 facts）。 */
+  SinMemoryDelete(name: string): Promise<void>;
+  /** 固化/取消固化（固化条免疫衰减、注入加权）。 */
+  SinMemoryPinToggle(name: string, pinned: boolean): Promise<void>;
+
   // ── 书工作区文件读口（根=当前书；containment fail-closed；刀3）──
   /** 书内文件预览（多格式分发，走 GaeaPreview 绝对路径直通）。 */
   SinWorkspacePreview(rel: string): Promise<PreviewResult>;
@@ -187,6 +198,16 @@ export interface SinWorkspaceBindingView {
   topicId: string;
   path: string;
   title: string;
+}
+
+/** 书级记忆条目（Go SinMemoryEntry 投影）。 */
+export interface SinMemoryEntry {
+  name: string;
+  title: string;
+  description: string;
+  body: string;
+  pinned: boolean;
+  updatedAt: string;
 }
 
 /** 下载起跑回执：进度/终态订阅 sin-booksource:<jobId>。 */

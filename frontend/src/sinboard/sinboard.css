@@ -112,3 +112,77 @@
   .sin-reading-refresh,
   .sin-reading-nav-item { transition: none; }
 }
+
+/* ── 记忆卡（刀4）：书级 facts 管理面 ── */
+.sin-memory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.sin-memory-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sin-memory-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+}
+
+.sin-memory-error {
+  font-size: 12px;
+  color: #b45309;
+  padding: 4px 2px;
+}
+
+.sin-memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.sin-memory-item {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.sin-memory-item-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.sin-memory-item-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sin-memory-item-time {
+  flex: none;
+  font-size: 10px;
+  color: var(--md-sys-color-text-secondary, var(--fg-dim, inherit));
+}
+
+.sin-memory-item-body {
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: var(--fg);
+}
