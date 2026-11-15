@@ -25,6 +25,26 @@ export function WenxueFileSearch(arg1:string,arg2:number,arg3:Array<string>):Pro
 
 export function WenxueFileTreeWatch(arg1:Array<string>,arg2:Array<string>):Promise<void>;
 
+export function WenxueGitCommit(arg1:string):Promise<string>;
+
+export function WenxueGitCommitDetail(arg1:string):Promise<app.GitCommitDetail>;
+
+export function WenxueGitDiff(arg1:string,arg2:boolean):Promise<string>;
+
+export function WenxueGitDiscard(arg1:string):Promise<void>;
+
+export function WenxueGitGraph(arg1:number,arg2:number,arg3:string):Promise<app.GitGraphPage>;
+
+export function WenxueGitLog(arg1:number):Promise<Array<app.GitCommitInfo>>;
+
+export function WenxueGitStage(arg1:Array<string>):Promise<void>;
+
+export function WenxueGitStatus():Promise<app.GitStatus>;
+
+export function WenxueGitUnstage(arg1:Array<string>):Promise<void>;
+
+export function WenxueGitWorktrees():Promise<Array<app.GitWorktree>>;
+
 export function WenxueListDir(arg1:string):Promise<Array<app.DirEntry>>;
 
 export function WenxueListDirBatch(arg1:Array<string>,arg2:Array<string>):Promise<Array<workbench.Level>>;

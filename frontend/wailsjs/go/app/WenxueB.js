@@ -46,6 +46,46 @@ export function WenxueFileTreeWatch(arg1, arg2) {
   return window['go']['app']['WenxueB']['WenxueFileTreeWatch'](arg1, arg2);
 }
 
+export function WenxueGitCommit(arg1) {
+  return window['go']['app']['WenxueB']['WenxueGitCommit'](arg1);
+}
+
+export function WenxueGitCommitDetail(arg1) {
+  return window['go']['app']['WenxueB']['WenxueGitCommitDetail'](arg1);
+}
+
+export function WenxueGitDiff(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxueGitDiff'](arg1, arg2);
+}
+
+export function WenxueGitDiscard(arg1) {
+  return window['go']['app']['WenxueB']['WenxueGitDiscard'](arg1);
+}
+
+export function WenxueGitGraph(arg1, arg2, arg3) {
+  return window['go']['app']['WenxueB']['WenxueGitGraph'](arg1, arg2, arg3);
+}
+
+export function WenxueGitLog(arg1) {
+  return window['go']['app']['WenxueB']['WenxueGitLog'](arg1);
+}
+
+export function WenxueGitStage(arg1) {
+  return window['go']['app']['WenxueB']['WenxueGitStage'](arg1);
+}
+
+export function WenxueGitStatus() {
+  return window['go']['app']['WenxueB']['WenxueGitStatus']();
+}
+
+export function WenxueGitUnstage(arg1) {
+  return window['go']['app']['WenxueB']['WenxueGitUnstage'](arg1);
+}
+
+export function WenxueGitWorktrees() {
+  return window['go']['app']['WenxueB']['WenxueGitWorktrees']();
+}
+
 export function WenxueListDir(arg1) {
   return window['go']['app']['WenxueB']['WenxueListDir'](arg1);
 }
