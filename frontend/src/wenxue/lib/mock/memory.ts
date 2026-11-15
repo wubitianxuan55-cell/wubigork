@@ -1,9 +1,6 @@
 // mock/memory.ts — 记忆/知识/资料域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
 import type {
-  KnowledgeEntry,
-  KnowledgeSaveRequest,
-  KnowledgeSummary,
   MemorySuggestion,
   ProfileFactView,
   SkillSuggestion,
@@ -39,9 +36,6 @@ type MemoryMethods = Pick<
   | "WhisperProactiveConfig" | "WhisperProactiveSetConfig"
   // 轻语图谱子图/立即评估（批 46 NOT_MOCKED 收尾刀）。
   | "WhisperGraphSubgraph" | "WhisperProactiveNow"
-  | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
-  | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
-  | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
   | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryEvalRun" | "MemoryBrief" | "SetMemoryBrief"
   | "MemoryMorningBrief"
 >;
@@ -190,7 +184,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     // ── 记忆中枢 Mock ────────────────────────────────────────
     async MemoryHubOverview() {
-      return { knowledgeCount: 6, profileCount: 4, officeCount: 5, costCount: 3, whisperCount: 5, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
+      return { knowledgeCount: 0, profileCount: 4, officeCount: 5, costCount: 3, whisperCount: 5, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
     },
     // ── 数据库存档 mock（v4.479）：浏览器开发态无设备存档，空态/no-op。──
     async DatabaseOverview() {
@@ -283,12 +277,6 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     async MemoryGraph() {
       // 浏览器开发态样例：让记忆中枢的星图/记忆流在无后端时可评审。
       const nodes = [
-        { id: "k:1", type: "knowledge", name: "振动锤选型规范", desc: "按地质与桩径选型，先查历史台班价。", val: 1.4 },
-        { id: "k:2", type: "knowledge", name: "钢结构防腐做法", desc: "除锈等级与涂层配套对照表。", val: 1.1 },
-        { id: "k:3", type: "knowledge", name: "清单计价规则", desc: "综合单价组成与人材机拆分口径。", val: 1.2 },
-        { id: "k:4", type: "knowledge", name: "混凝土养护要点", desc: "不同气温下的养护时间与覆盖要求。", val: 0.9 },
-        { id: "k:5", type: "knowledge", name: "安全交底模板", desc: "班前交底六项固定动作。", val: 0.8 },
-        { id: "k:6", type: "knowledge", name: "图纸会审流程", desc: "会审前置条件与问题闭环。", val: 0.7 },
         { id: "p:1", type: "profile", name: "偏好先看结论", desc: "长回答先给结论，再展开依据。", val: 1.3 },
         { id: "p:2", type: "profile", name: "造价口径偏好", desc: "习惯用本地信息价与历史组价对照。", val: 1.1 },
         { id: "p:3", type: "profile", name: "短句沟通", desc: "不喜欢过度铺陈，句子尽量短。", val: 0.9 },
@@ -421,116 +409,6 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
         { source: "ev:3", target: "mem:mock/style-note", type: "affects" },
       ];
       return { nodes, links, eventCount: 3, entityCount: 3, danglingRefs: ["ghost-key"], projectedSeq: 3 };
-    },
-    async KnowledgeList(): Promise<KnowledgeSummary[]> {
-      return [
-        { name: "gb50300-2024", title: "建筑工程施工质量验收统一标准 GB 50300-2024", phase: "实施", category: "规范标准", tags: ["施工", "质量", "验收"], status: "现行", updatedAt: "2025-01-15T00:00:00.000Z" },
-        { name: "case-bio-remediation", title: "某焦化厂生物修复工程案例", phase: "实施", category: "工程案例", tags: ["焦化厂", "生物修复", "PAHs"], status: "已归档", updatedAt: "2024-11-20T00:00:00.000Z" },
-        { name: "soil-sampling-guide", title: "污染场地土壤采样技术要点", phase: "策划", category: "经验总结", tags: ["采样", "布点", "质量控制"], status: "常用", updatedAt: "2025-02-10T00:00:00.000Z" },
-        { name: "hdp-liner-spec", title: "HDPE 土工膜施工技术规范", phase: "实施", category: "材料工艺", tags: ["HDPE", "土工膜", "防渗"], status: "现行", updatedAt: "2024-09-05T00:00:00.000Z" },
-      ];
-    },
-    async KnowledgeSearch(query: string, category: string, _phase: string, status: string): Promise<KnowledgeSummary[]> {
-      let list = await this.KnowledgeList();
-      if (category && category !== "all") list = list.filter((e) => e.category === category);
-      if (status && status !== "all") list = list.filter((e) => e.status === status);
-      if (query) {
-        const q = query.trim().toLowerCase();
-        list = list.filter((e) => [e.title, e.name, e.category, ...e.tags].join(" ").toLowerCase().includes(q));
-      }
-      return list;
-    },
-    async KnowledgeGet(name: string): Promise<KnowledgeEntry | null> {
-      const entries: Record<string, KnowledgeEntry> = {
-        "gb50300-2024": {
-          name: "gb50300-2024", title: "建筑工程施工质量验收统一标准 GB 50300-2024", category: "规范标准", tags: ["施工", "质量", "验收"], status: "现行", updatedAt: "2025-01-15T00:00:00.000Z",
-          body: "## 适用范围\n\n本标准适用于建筑工程施工质量的验收，包括地基与基础、主体结构、建筑装饰装修、建筑屋面、建筑给排水及供暖、通风与空调、建筑电气、智能建筑、建筑节能、电梯等分部工程。\n\n## 基本规定\n\n1. 施工现场质量管理应有相应的技术标准。\n2. 建筑工程施工质量应按下列要求进行验收。\n3. 建筑工程施工质量验收应划分为单位工程、分部工程、分项工程和检验批。",
-          phase: "施工验收", discipline: "土木工程", source: "住房和城乡建设部", version: 2, author: "住建部标准定额司", reviewer: "", createdAt: "2024-06-01T00:00:00.000Z",
-        },
-        "case-bio-remediation": {
-          name: "case-bio-remediation", title: "某焦化厂生物修复工程案例", category: "工程案例", tags: ["焦化厂", "生物修复", "PAHs"], status: "已归档", updatedAt: "2024-11-20T00:00:00.000Z",
-          body: "## 项目概况\n\n某焦化厂退役地块，占地面积约 120 亩。主要污染物为多环芳烃（PAHs）、苯系物（BTEX）和氰化物。\n\n## 修复方案\n\n采用原位生物通风+化学氧化联合修复工艺。\n- 生物通风：注入空气和营养盐，促进土著微生物降解\n- 化学氧化：注射过硫酸钠氧化高浓度区域\n\n## 修复效果\n\n经过 18 个月的修复运行，目标污染物去除率达到 85% 以上，达到修复目标值。",
-          phase: "施工", discipline: "环境工程", source: "内部案例库", version: 1, author: "张三", reviewer: "", createdAt: "2024-06-15T00:00:00.000Z",
-        },
-        "soil-sampling-guide": {
-          name: "soil-sampling-guide", title: "污染场地土壤采样技术要点", category: "经验总结", tags: ["采样", "布点", "质量控制"], status: "常用", updatedAt: "2025-02-10T00:00:00.000Z",
-          body: "## 采样前准备\n\n1. 收集场地历史资料，了解潜在污染物类型\n2. 制定采样方案，明确布点方法和数量\n3. 准备采样设备、样品容器和现场记录表\n\n## 布点方法\n\n- 系统布点法：适用于污染物分布均匀的场地\n- 分层布点法：适用于污染来源明确的场地\n- 判断布点法：适用于历史污染区域\n\n## 质量控制\n\n- 现场平行样：每 10 个样品至少 1 个\n- 运输空白样：每批次至少 1 个\n- 设备清洗样：每个采样点之间采集",
-          phase: "调查", discipline: "环境工程", source: "项目经验总结", version: 3, author: "李四", reviewer: "", createdAt: "2024-08-01T00:00:00.000Z",
-        },
-        "hdp-liner-spec": {
-          name: "hdp-liner-spec", title: "HDPE 土工膜施工技术规范", category: "材料工艺", tags: ["HDPE", "土工膜", "防渗"], status: "现行", updatedAt: "2024-09-05T00:00:00.000Z",
-          body: "## 材料要求\n\nHDPE 土工膜厚度不应小于 1.5mm，密度不低于 0.94g/cm³。\n\n## 施工要点\n\n1. 基底应平整压实，无尖锐物\n2. 膜与膜之间采用热熔焊接\n3. 焊缝强度不低于母材强度\n4. 铺设时应预留 5%-8% 的伸缩余量\n\n## 质量检验\n\n- 目测检查：膜面有无破损、褶皱\n- 气密性试验：焊缝处进行气压测试\n- 厚度检测：每 500m² 测一点",
-          phase: "施工", discipline: "岩土工程", source: "施工技术手册", version: 2, author: "王五", reviewer: "", createdAt: "2024-07-01T00:00:00.000Z",
-        },
-      };
-      return entries[name] || null;
-    },
-    // ── 知识库 CRUD Mock ────────────────────────────────────
-    async KnowledgeSave(_entry: KnowledgeSaveRequest) {
-      // mock: no-op——浏览器开发环境无持久化知识库（真实实现写 SQLite）。
-    },
-    async KnowledgeDelete(_name: string) {
-      // mock: no-op——同上，无库可删。
-    },
-    // ── 知识库导入（mock）──
-    async KnowledgeImportPreview(path: string) {
-      return {
-        path,
-        fileName: path.split(/[\\/]/).pop() ?? path,
-        columns: ["标题", "分类", "正文"],
-        unmapped: [],
-        rows: [
-          {
-            name: "gb36600", title: "GB 36600 风险管控", category: "规范标准", phase: "", discipline: "",
-            tags: [], status: "现行", source: path.split(/[\\/]/).pop() ?? path,
-            body: "建设用地土壤污染风险管控标准要点…",
-            existingName: "", matchNote: "新增", similarName: "", similarNote: "",
-            raw: "", skip: false, skipReason: "",
-          },
-          {
-            name: "", title: "桩基施工要点", category: "工程案例", phase: "施工", discipline: "岩土工程",
-            tags: ["振动锤", "桩基"], status: "现行", source: path.split(/[\\/]/).pop() ?? path,
-            body: "振动锤选型需匹配地质条件…",
-            existingName: "pile", matchNote: "将覆盖更新", similarName: "", similarNote: "",
-            raw: "", skip: false, skipReason: "",
-          },
-        ],
-        message: "",
-        aiUsed: false,
-      };
-    },
-    async KnowledgeImportAIParse(path: string) {
-      const pv = await this.KnowledgeImportPreview(path);
-      pv.aiUsed = true;
-      pv.message = "AI 智能解析完成，请核对后确认导入。";
-      return pv;
-    },
-    async KnowledgeImportApply(_rows: KnowledgeEntry[]) {
-      return 0;
-    },
-    async KnowledgeHistory(name: string) {
-      return [
-        {
-          name, title: "桩基施工要点", version: 2, category: "工程案例", phase: "施工",
-          discipline: "岩土工程", tags: ["振动锤", "桩基"], status: "现行",
-          author: "", reviewer: "", source: "导入文件",
-          body: "旧版正文：振动锤选型需匹配地质条件…",
-          changedAt: new Date().toISOString(), note: "内容更新",
-        },
-      ];
-    },
-    async KnowledgeFindSimilar(title: string) {
-      if (!title.trim()) return [];
-      return [{ name: "pile", title: "桩基施工要点", score: 0.87 }];
-    },
-    async KnowledgeExport(_dir: string) {
-      return 4;
-    },
-    async KnowledgeReview(_name: string, _approve: boolean, _reviewer: string) {
-      // mock: no-op——浏览器开发环境无审核流状态（真实实现更新条目 review 状态）。
-    },
-    async KnowledgeMerge(_target: string, _sources: string[]) {
-      return _target;
     },
     async MemoryDuplicates(_min: number) {
       return [

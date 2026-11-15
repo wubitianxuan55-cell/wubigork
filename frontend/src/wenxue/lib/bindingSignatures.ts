@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 721 名（原生变参 11 名已收窄标注）。
+// 共 773 名（原生变参 11 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -723,6 +723,58 @@ export const bindingSignatures = {
   WeixinReminderDelete: { argc: 1, variadic: false, params: "id string" },
   WeixinReminderList: { argc: 0, variadic: false, params: "" },
   WeixinReminderSetConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
+  WenxueAttachmentChunkBegin: { argc: 1, variadic: false, params: "fileName string" },
+  WenxueAttachmentDataURL: { argc: 1, variadic: false, params: "path string" },
+  WenxueCreateNovel: { argc: 1, variadic: false, params: "name string" },
+  WenxueCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
+  WenxueCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },
+  WenxueDeleteNovel: { argc: 1, variadic: false, params: "path string" },
+  WenxueDeleteWorkspacePaths: { argc: 1, variadic: false, params: "paths []string" },
+  WenxueExportDeliverable: { argc: 1, variadic: false, params: "in ExportDeliverableInput" },
+  WenxueFileSearch: { argc: 3, variadic: false, params: "query string, limit int, exclude []string" },
+  WenxueFileTreeWatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
+  WenxueGitCommit: { argc: 1, variadic: false, params: "message string" },
+  WenxueGitCommitDetail: { argc: 1, variadic: false, params: "hash string" },
+  WenxueGitDiff: { argc: 2, variadic: false, params: "path string, staged bool" },
+  WenxueGitDiscard: { argc: 1, variadic: false, params: "path string" },
+  WenxueGitGraph: { argc: 3, variadic: false, params: "skip int, limit int, branch string" },
+  WenxueGitLog: { argc: 1, variadic: false, params: "limit int" },
+  WenxueGitStage: { argc: 1, variadic: false, params: "paths []string" },
+  WenxueGitStatus: { argc: 0, variadic: false, params: "" },
+  WenxueGitUnstage: { argc: 1, variadic: false, params: "paths []string" },
+  WenxueGitWorktrees: { argc: 0, variadic: false, params: "" },
+  WenxueListDir: { argc: 1, variadic: false, params: "rel string" },
+  WenxueListDirBatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
+  WenxueListProjectSessions: { argc: 0, variadic: false, params: "" },
+  WenxueListSessions: { argc: 0, variadic: false, params: "" },
+  WenxueListWorkspaces: { argc: 0, variadic: false, params: "" },
+  WenxueMaterials: { argc: 1, variadic: false, params: "limit int" },
+  WenxueMeta: { argc: 0, variadic: false, params: "" },
+  WenxueNewSession: { argc: 0, variadic: false, params: "" },
+  WenxueOpenWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
+  WenxuePickWorkspace: { argc: 0, variadic: false, params: "" },
+  WenxuePickWorkspaceUploadFiles: { argc: 1, variadic: false, params: "dir string" },
+  WenxuePickWorkspaceUploadFolder: { argc: 1, variadic: false, params: "dir string" },
+  WenxuePinMaterial: { argc: 1, variadic: false, params: "rel string" },
+  WenxuePinnedMaterials: { argc: 0, variadic: false, params: "" },
+  WenxuePreview: { argc: 1, variadic: false, params: "rel string" },
+  WenxueReadFile: { argc: 1, variadic: false, params: "rel string" },
+  WenxueReadFilePage: { argc: 2, variadic: false, params: "rel string, offset int64" },
+  WenxueReadTextFile: { argc: 1, variadic: false, params: "rel string" },
+  WenxueRenameWorkspacePath: { argc: 2, variadic: false, params: "rel string, name string" },
+  WenxueRevealWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
+  WenxueSaveAttachmentFile: { argc: 2, variadic: false, params: "fileName string, base64Data string" },
+  WenxueSavePastedImage: { argc: 1, variadic: false, params: "dataURL string" },
+  WenxueSaveWorkspacePathAs: { argc: 1, variadic: false, params: "rel string" },
+  WenxueSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
+  WenxueSwitchWorkspace: { argc: 1, variadic: false, params: "path string" },
+  WenxueUnpinMaterial: { argc: 1, variadic: false, params: "rel string" },
+  WenxueWorkspaceUploadAbort: { argc: 1, variadic: false, params: "token string" },
+  WenxueWorkspaceUploadAppend: { argc: 2, variadic: false, params: "token string, base64Chunk string" },
+  WenxueWorkspaceUploadBegin: { argc: 2, variadic: false, params: "dir string, relativePath string" },
+  WenxueWorkspaceUploadFinish: { argc: 1, variadic: false, params: "token string" },
+  WenxueWriteWorkspaceFile: { argc: 3, variadic: false, params: "rel string, content string, expectedMtimeMs int64" },
+  WenxueZipDeliverables: { argc: 1, variadic: false, params: "paths []string" },
   WhirlEngineStart: { argc: 1, variadic: false, params: "profile string" },
   WhirlEngineStatus: { argc: 0, variadic: false, params: "" },
   WhirlEngineStop: { argc: 0, variadic: false, params: "" },
@@ -742,5 +794,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 721。
-export const bindingSignatureCount = 721;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 773。
+export const bindingSignatureCount = 773;

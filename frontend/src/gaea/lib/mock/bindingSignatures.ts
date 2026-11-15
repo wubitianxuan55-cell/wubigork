@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 782 名（原生变参 11 名已收窄标注）。
+// 共 773 名（原生变参 11 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -725,7 +725,6 @@ export const bindingSignatures = {
   WeixinReminderSetConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
   WenxueAttachmentChunkBegin: { argc: 1, variadic: false, params: "fileName string" },
   WenxueAttachmentDataURL: { argc: 1, variadic: false, params: "path string" },
-  WenxueConvertToPdf: { argc: 1, variadic: false, params: "rel string" },
   WenxueCreateNovel: { argc: 1, variadic: false, params: "name string" },
   WenxueCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
   WenxueCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },
@@ -768,14 +767,6 @@ export const bindingSignatures = {
   WenxueSavePastedImage: { argc: 1, variadic: false, params: "dataURL string" },
   WenxueSaveWorkspacePathAs: { argc: 1, variadic: false, params: "rel string" },
   WenxueSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
-  WenxueScheduleLoad: { argc: 0, variadic: false, params: "" },
-  WenxueScheduleProjectArchive: { argc: 2, variadic: false, params: "rel string, archived bool" },
-  WenxueScheduleProjectCopy: { argc: 2, variadic: false, params: "rel string, name string" },
-  WenxueScheduleProjectCreate: { argc: 1, variadic: false, params: "name string" },
-  WenxueScheduleProjectDelete: { argc: 1, variadic: false, params: "rel string" },
-  WenxueScheduleProjectOpen: { argc: 1, variadic: false, params: "rel string" },
-  WenxueScheduleProjects: { argc: 0, variadic: false, params: "" },
-  WenxueScheduleSave: { argc: 2, variadic: false, params: "projectJSON string, rel string" },
   WenxueSwitchWorkspace: { argc: 1, variadic: false, params: "path string" },
   WenxueUnpinMaterial: { argc: 1, variadic: false, params: "rel string" },
   WenxueWorkspaceUploadAbort: { argc: 1, variadic: false, params: "token string" },
@@ -803,5 +794,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 782。
-export const bindingSignatureCount = 782;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 773。
+export const bindingSignatureCount = 773;

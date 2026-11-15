@@ -4,6 +4,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Cpu, ChevronDown, Search, X } from "../../icons";
 import { useGSAPCollapse } from "../../lib/useGSAPCollapse";
+import { isDisabledWenxueTool } from "../../lib/disabledDomains";
 
 type Counts = Record<string, number>;
 
@@ -47,7 +48,7 @@ interface Section {
   items: string[]
 }
 
-const SECTIONS: Section[] = [
+const RAW_SECTIONS: Section[] = [
   { title: "文件与命令", items: ["read_file", "write_file", "ls", "bash", "bash_output", "wait", "kill_shell"] },
   { title: "网络", items: ["web_search", "web_fetch"] },
   { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task"] },
@@ -57,6 +58,13 @@ const SECTIONS: Section[] = [
   { title: "本地专业模型", items: ["vision", "ocr", "semantic_search", "translate_text"] },
   { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm"] },
 ]
+
+// 图文板块：办公域工具按 disabledDomains 兜底滤除（引擎侧物理卸载在刀1），
+// 滤空的分组整体丢弃（如「文档技能」四件全是办公技能名）。
+const SECTIONS: Section[] = RAW_SECTIONS.map((sec) => ({
+  ...sec,
+  items: sec.items.filter((name) => !isDisabledWenxueTool(name)),
+})).filter((sec) => sec.items.length > 0)
 
 function ToolCard({ name, count }: { name: string; count: number }) {
   const active = count > 0

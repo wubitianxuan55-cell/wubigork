@@ -1,21 +1,14 @@
 // office.ts — OfficeBindings（AppBindings 分域接口之一，Go OfficeB 门面）：
-// docx/pptx/xlsx 编辑 + 进度计划板块 + 交付导出/转换/跨应用联动。
+// docx/pptx/xlsx 编辑 + 交付导出（图文板块：进度计划/DAG/转 PDF 面已随
+// 2026-11-15 刀0 撤除，绑定面收缩）。
 import type {
-  ConvertPdfResult,
   CrossEmbedInput,
   CrossEmbedResult,
-  DagRunView,
-  DagTemplateView,
   ExportDeliverableInput,
   ExportDeliverableResult,
   OfficeEditResult,
   PreviewResult,
   PptxOutlineView,
-  ScheduleLoadResult,
-  ScheduleProjectCreateResult,
-  ScheduleProjectOpenResult,
-  ScheduleProjectsResult,
-  ScheduleSaveResult,
   SettingsView,
   XlsxChartInput,
   XlsxChartResult,
@@ -56,29 +49,6 @@ export interface OfficeBindings {
   XlsxApplyEdit(rel: string, ops: string): Promise<XlsxEditResult>;
   // XlsxSetCell 直接写单元格（Excel 式双击编辑）：写值/公式 + LibreOffice 重算。
   XlsxSetCell(rel: string, sheet: string, ref: string, value: string): Promise<XlsxEditResult>;
-  // ScheduleLoad/Save 进度计划板块文件持久化（v4.113.0 刀4）：默认计划文件
-  // 进度计划/当前计划.gsched.json，与 agent 工具（schedule_*）共享同一资产。
-  // v4.139 #15：Save 加可选 rel（方案 A 签名级扩展，防切换竞态——保存显式带
-  // 装载时的工程文件，切换只改指针不动保存目标；空串=当前指针文件）。
-  ScheduleLoad(): Promise<ScheduleLoadResult>;
-  ScheduleSave(projectJSON: string, rel?: string): Promise<ScheduleSaveResult>;
-  // ── 进度计划多工程（v4.139 #15 刀1+刀2）：每文件一工程（进度计划/*.gsched.json），
-  // 当前指针收敛 Go 侧索引（.gaea/schedule/index.json）——板块 Load/Save 与 agent
-  // 三工具缺省 path 解析同一指针，「对话改的=板块打开的」跨多工程保持（设计 §3.3）。
-  ScheduleProjects(): Promise<ScheduleProjectsResult>;
-  ScheduleProjectOpen(rel: string): Promise<ScheduleProjectOpenResult>;
-  ScheduleProjectCreate(name: string): Promise<ScheduleProjectCreateResult>;
-  ScheduleProjectArchive(rel: string, archived: boolean): Promise<ScheduleProjectsResult>;
-  ScheduleProjectDelete(rel: string): Promise<ScheduleProjectsResult>;
-  // ScheduleProjectCopy 工程复制=另存为（v4.145.0）：源文件全套校验→新名 slug
-  // 去重落盘→索引登记；指针不动（文件级动作，同归档）。
-  ScheduleProjectCopy(rel: string, name: string): Promise<ScheduleProjectsResult>;
-  // ScheduleExportXlsx/ImportXlsx 上报 Excel 通道（v4.134.0 刀D3）：导出=计划
-  // JSON → 上报口径 xlsx（base64）；导入=上报 xlsx（base64）→ 计划 JSON。
-  ScheduleExportXlsx(projectJSON: string): Promise<string>;
-  ScheduleImportXlsx(xlsxBase64: string): Promise<string>;
-  // ScheduleImportMpp 二进制 MS Project 工程导入（v4.140.0）：mpp（base64）→ 计划 JSON。
-  ScheduleImportMpp(mppBase64: string): Promise<string>;
   // XlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
   XlsxRecalc(rel: string): Promise<XlsxEditResult>;
   // XlsxRowOps 行级操作：insert_before / insert_after / delete（基于选中单元格所在行）。
@@ -95,9 +65,6 @@ export interface OfficeBindings {
   WriteFile(rel: string, content: string): Promise<void>;
   // ExportDeliverable 统一交付出口：受控 Markdown → docx/pptx/xlsx/md/pdf。
   ExportDeliverable(input: ExportDeliverableInput): Promise<ExportDeliverableResult>;
-  // ConvertToPdf 文档转 PDF（LibreOffice 无头转换）：docx/xlsx/pptx/odt/html/
-  // txt/csv 直接转换，md 先经 create_docx.py 出 docx 再转；PDF 落 .gaea/exports/。
-  ConvertToPdf(rel: string): Promise<ConvertPdfResult>;
   // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
   CrossEmbed(input: CrossEmbedInput): Promise<CrossEmbedResult>;
   // SaveSettings 整体写回办公引擎设置视图（Go OfficeB.GaeaSaveSettings，wailsjsCompat
@@ -115,36 +82,6 @@ export interface OfficeBindings {
   DataBackupCancel(): Promise<void>;
   DataBackupRollback(): Promise<boolean>;
   DataBackupRestoreResult(): Promise<Record<string, unknown>>;
-  // ── 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*，视图类型见 types DagRunView）──
-  // DagList 列出全部流水线（DagPanel 拉取/轮询）；DagGet 单条详情。
-  // 起跑/单跑/续跑改向/验收/终止均返回人类可读受理文案（Promise<string>，
-  // 后端受理即返回，进度靠前端轮询 DagList 自校正，不推事件流）。
-  DagList(): Promise<DagRunView[]>;
-  DagGet(id: string): Promise<DagRunView>;
-  // DagRun 起跑/续跑整链：draft 首跑、failed/ready 续跑（未完成节点续推）。
-  DagRun(id: string): Promise<string>;
-  // DagNodeRun 单节点跑/重跑（不动下游，重跑只覆盖该节点）。
-  DagNodeRun(id: string, nodeId: string): Promise<string>;
-  // DagNodeSteer 对已完成节点续跑改向（steerCount 累加，产物刷新）。
-  DagNodeSteer(id: string, nodeId: string, prompt: string): Promise<string>;
-  // DagNodeAccept 验收（人拍板，产物回流记忆）→ 节点置 accepted。
-  DagNodeAccept(id: string, nodeId: string): Promise<string>;
-  // DagAcceptAll 一键验收（成品直出首刀）：run 内全部 done 节点一次置
-  // accepted 并逐节点回流记忆（单条失败不阻断，汇总如实上报）。
-  DagAcceptAll(id: string): Promise<string>;
-  // DagNodeApprove 审批放行（危险操作分级审批）：hold→pending+Approved，
-  // 后续起跑/续跑/单跑放行（只放行不自动跑）。
-  DagNodeApprove(id: string, nodeId: string): Promise<string>;
-  // DagCancel 终止级联：running 节点停推、未跑节点不再起跑。
-  DagCancel(id: string): Promise<string>;
-  // ── 6.3 余项：流水线模板库（「月度报告」存模板一键重建）──
-  // DagTemplateList 全部模板（创建时间倒序）；DagTemplateSave 把既有 run 存为
-  // 模板（name 空回退 goal 截断）；DagTemplateNew 一键重建=全新草稿 run（不自动
-  // 起跑，起跑仍是人拍板）；DagTemplateDelete 删档即弃（已重建 run 不受影响）。
-  DagTemplateList(): Promise<DagTemplateView[]>;
-  DagTemplateSave(runId: string, name: string): Promise<string>;
-  DagTemplateNew(templateId: string): Promise<string>;
-  DagTemplateDelete(templateId: string): Promise<string>;
 
   // ── 搜索主源设置（众神殿刀3 主源向导）：key 落 ~/.env 与 CLI 同源，保存热生效 ──
   WebSearchSettingsGet(): Promise<Record<string, unknown>>;

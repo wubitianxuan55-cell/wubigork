@@ -1,11 +1,7 @@
 // memory.ts — MemoryBindings（AppBindings 分域接口之一，Go MemoryB 门面）：
-// 办公记忆/知识库/记忆中枢/轻语（Whisper）/微信触点/角色库之外的记忆与画像域。
+// 办公记忆/记忆中枢/轻语（Whisper）/微信触点/角色库之外的记忆与画像域
+// （图文板块：知识库面已随 2026-11-15 刀0 撤除）。
 import type {
-  KnowledgeEntry,
-  KnowledgeHistoryView,
-  KnowledgeImportPreview,
-  KnowledgeSaveRequest,
-  KnowledgeSummary,
   DatabaseOverview,
   MemoryArchivedPage,
   MemoryLifecycleView,
@@ -18,7 +14,6 @@ import type {
   MemorySuggestionsView,
   MemoryView,
   ProfileFactView,
-  SimilarView,
   SkillSuggestion,
   UploadFileRow,
   WeixinAssistantStatusRow,
@@ -71,10 +66,6 @@ export interface MemoryBindings {
   MemoryBrief(): Promise<boolean>;
   SetMemoryBrief(enabled: boolean): Promise<void>;
   MemorySuggestions(): Promise<MemorySuggestionsView>;
-  // Knowledge base panel.
-  KnowledgeList(): Promise<KnowledgeSummary[]>;
-  // KnowledgeSearch 全文检索（标题/分类/标签/正文），空 query 等价于 List。
-  KnowledgeSearch(query: string, category: string, phase: string, status: string): Promise<KnowledgeSummary[]>;
   // ── 记忆中枢 ──
   MemoryHubOverview(): Promise<MemoryHubOverview>;
   ProfileList(): Promise<ProfileFactView[]>;
@@ -172,23 +163,6 @@ export interface MemoryBindings {
   HerdsmanOperations(): Promise<unknown>;
   // 画像冲突裁决
   ProfileResolveConflict(name: string, prefer: string): Promise<void>;
-  // ── 知识库导入 ──
-  KnowledgeImportPreview(path: string): Promise<KnowledgeImportPreview>;
-  KnowledgeImportAIParse(path: string): Promise<KnowledgeImportPreview>;
-  KnowledgeImportApply(rows: KnowledgeEntry[]): Promise<number>;
-  // KnowledgeHistory 返回某条目的版本历史（新→旧）。
-  KnowledgeHistory(name: string): Promise<KnowledgeHistoryView[]>;
-  // KnowledgeFindSimilar 查重：标题模糊相似的既有条目。
-  KnowledgeFindSimilar(title: string): Promise<SimilarView[]>;
-  // KnowledgeExport 批量导出知识库为 Markdown，返回条数。
-  KnowledgeExport(dir: string): Promise<number>;
-  // KnowledgeReview 审核流：approve=true 置为现行并记录审核人，false 驳回。
-  KnowledgeReview(name: string, approve: boolean, reviewer: string): Promise<void>;
-  // KnowledgeMerge 把 sourceNames 合并进 targetName（标签并集/来源合并），返回目标名。
-  KnowledgeMerge(targetName: string, sourceNames: string[]): Promise<string>;
-  KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;
-  KnowledgeSave(entry: KnowledgeSaveRequest): Promise<void>;
-  KnowledgeDelete(name: string): Promise<void>;
   AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
   AcceptMergeSuggestion(keep: string, archive: string): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;

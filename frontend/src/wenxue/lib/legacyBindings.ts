@@ -15,7 +15,7 @@
 // 消费方：frontend/src/wenxue/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 141 名 = Go 导出 782 − 认领且 Go 存在 641（facets 键 642，其中 mock-only 名无 Go 绑定不计）。
+// 共 170 名 = Go 导出 773 − 认领且 Go 存在 603（刀0 口径：进度计划/DAG/知识库/转 PDF 面撤除后重算）。
 
 export const legacyBindings = [
   "AddCustomEngine",
@@ -38,6 +38,19 @@ export const legacyBindings = [
   "GaeaConvertToPdf",
   "GaeaCreateWorkspaceFile",
   "GaeaCreateWorkspaceFolder",
+  "GaeaDagAcceptAll",
+  "GaeaDagCancel",
+  "GaeaDagGet",
+  "GaeaDagList",
+  "GaeaDagNodeAccept",
+  "GaeaDagNodeApprove",
+  "GaeaDagNodeRun",
+  "GaeaDagNodeSteer",
+  "GaeaDagRun",
+  "GaeaDagTemplateDelete",
+  "GaeaDagTemplateList",
+  "GaeaDagTemplateNew",
+  "GaeaDagTemplateSave",
   "GaeaDeleteWorkspacePaths",
   "GaeaExportDeliverable",
   "GaeaFileSearch",
@@ -53,6 +66,19 @@ export const legacyBindings = [
   "GaeaGitStatus",
   "GaeaGitUnstage",
   "GaeaGitWorktrees",
+  "GaeaKnowledgeDelete",
+  "GaeaKnowledgeExport",
+  "GaeaKnowledgeFindSimilar",
+  "GaeaKnowledgeGet",
+  "GaeaKnowledgeHistory",
+  "GaeaKnowledgeImportAIParse",
+  "GaeaKnowledgeImportApply",
+  "GaeaKnowledgeImportPreview",
+  "GaeaKnowledgeList",
+  "GaeaKnowledgeMerge",
+  "GaeaKnowledgeReview",
+  "GaeaKnowledgeSave",
+  "GaeaKnowledgeSearch",
   "GaeaListDir",
   "GaeaListDirBatch",
   "GaeaListProjectSessions",
@@ -77,6 +103,9 @@ export const legacyBindings = [
   "GaeaSavePastedImage",
   "GaeaSaveWorkspacePathAs",
   "GaeaSaveWorkspacePathsAs",
+  "GaeaScheduleExportXlsx",
+  "GaeaScheduleImportMpp",
+  "GaeaScheduleImportXlsx",
   "GaeaScheduleLoad",
   "GaeaScheduleProjectArchive",
   "GaeaScheduleProjectCopy",

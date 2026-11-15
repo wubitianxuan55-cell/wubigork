@@ -4,8 +4,6 @@
 // Git、任务、证据链（GaeaJournal/Verify/Rollback）、WriteFile、数据备份（批次三a）。
 // 方法与返回形状零改动；PinnedMaterials/PinMaterial/UnpinMaterial 三件套同文件
 // 保证 `this.PinnedMaterials()` 的运行时绑定与拆分前逐字节一致。
-// 批 30 FE3-15：DAG 域（mock 态+推进器+Dag* 方法）拆至 methods_dag.ts，此处以
-// `...dagMethods` 原位展开组合（键序不变）。
 // 批 31 FE3-15 续刀：Git/任务/证据链+WriteFile/数据备份四块拆至 methods_ops.ts，
 // 以 `...opsMethods` 原位展开（键序不变）。
 import {
@@ -16,11 +14,8 @@ import {
   pinnedMock,
   setPinnedMock,
 } from "../shared";
-import { makeSampleProject } from "../../../../schedule/sample";
 import type { FilePickResult } from "../../types";
 import { mockFileBodies, mockXlsxState } from "./state";
-import { mockScheduleFiles } from "./schedule";
-import { dagMethods } from "./methods_dag";
 import { opsMethods } from "./methods_ops";
 import { webSearchMethods } from "./methods_websearch";
 import type { OfficeMethods } from "./types";
@@ -344,17 +339,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
         totalPages: truncated ? 1200 : undefined,
       };
     }
-    // v4.121 刀12 走查：计划文件预览=真实 mock 计划态（板块未保存过时给最小
-    // 样例），FilePreview 据此出摘要卡；坏形状仍可手工构造以验证回落文本视图。
-    // v4.139 #15 多工程：任意 .gsched.json 从 Map 按 rel 取内容（未落盘给样例）。
-    if (rel.toLowerCase().endsWith(".gsched.json")) {
-      const body = mockScheduleFiles.get(rel) ?? JSON.stringify(makeSampleProject());
-      return {
-        path: rel, name: rel.split("/").pop() ?? rel, ext: ".gsched.json",
-        size: body.length, kind: "text" as const,
-        body, dataUrl: "", error: "",
-      };
-    }
     return {
       path: rel, name: rel.split("/").pop() ?? rel, ext: `.${ext}`,
       size: samples[rel]?.length ?? 0, kind: "text" as const,
@@ -587,15 +571,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
       size: input.markdown.length,
     };
   },
-  async ConvertToPdf(rel: string) {
-    const base = rel.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "document";
-    return {
-      path: `.gaea/exports/${base}-mock.pdf`,
-      name: `${base}-mock.pdf`,
-      size: 4096,
-      source: rel,
-    };
-  },
   async CrossEmbed(input: { xlsxRel: string; into: string; title?: string }) {
     const name = `${input.title || "chart"}-mock.${input.into}`;
     return {
@@ -682,5 +657,4 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   },
   ...opsMethods,
   ...webSearchMethods,
-  ...dagMethods,
 };

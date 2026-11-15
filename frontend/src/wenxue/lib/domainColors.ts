@@ -10,7 +10,6 @@
 
 /** 记忆库领域分类 → 语义色（固定色值：领域色不随主题，图谱节点/徽标靠色区分）。 */
 export const DOMAIN_COLORS: Record<string, string> = {
-  knowledge: "#818cf8", // indigo
   profile: "#a78bfa", // violet
   office: "#34d399", // emerald
   whisper: "#f472b6", // pink：聊天/情节记忆
@@ -24,7 +23,6 @@ export const DOMAIN_COLORS: Record<string, string> = {
 
 /** 领域分类 → 中文标签（图谱图例/库徽标共用）。 */
 export const DOMAIN_LABELS: Record<string, string> = {
-  knowledge: "知识",
   profile: "画像",
   office: "办公记忆",
   whisper: "聊天记忆",
@@ -36,4 +34,4 @@ export const DOMAIN_LABELS: Record<string, string> = {
 };
 
 /** 领域分类 key 清单（图谱图例/筛选用，稳定顺序）。 */
-export const DOMAIN_KEYS = ["knowledge", "profile", "office", "whisper", "material", "cost", "entity", "event", "source"] as const;
+export const DOMAIN_KEYS = ["profile", "office", "whisper", "material", "cost", "entity", "event", "source"] as const;

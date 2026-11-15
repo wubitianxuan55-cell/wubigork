@@ -2,10 +2,8 @@
 // 走查态（v4.108）：浏览器 mock 从「静态样例」升级为「会话内可变」——
 // XlsxSetCell/WriteFile 真实改动内存状态，Preview 回读即所见，支持
 // 看板拖拽/导图编辑保存的全链真浏览器走查（不落盘，刷新即复位）。
-// 进度计划多工程走查态（mockSchedule*：SCHEDULE_DEFAULT_REL/mockScheduleFiles/
-// mockScheduleMeta/mockScheduleCurrent 及 mockScheduleRegister 等）同属会话内存，
-// 但 `mockScheduleCurrent` 由多个方法直接重赋值——TS 禁止对导入绑定重赋值
-// （TS2632），故进度计划状态与 Schedule* 方法聚合在 schedule.ts，不抽到本文件。
+// （2026-11-15 刀0：进度计划面已撤，原 mockSchedule* 走查态与 schedule.ts 聚合
+// 文件一并删除；TS2632 导入绑定不可重赋值的聚合纪律记录在案备查。）
 import { MOCK_XLSX_BODY } from "../shared";
 
 export const mockFileBodies: Record<string, string> = {};

@@ -1,9 +1,11 @@
 // CapabilitiesPanel 拆分产物：技能列表区（行为零变化，T6-10.1）
 // v3「星枢」面板语言：技能卡实底收敛（/ 图标 + 名称 + 描述 + 范围徽标），
 // 展开态 = 主色容器强调，hover 柔光。
+// 图文板块：办公域技能按 disabledDomains 兜底过滤（引擎侧子集在刀2）。
 import { useMemo, useState } from "react";
 import { useT } from "../../lib/i18n";
 import { summarizeSkillDescription } from "../../lib/capabilities";
+import { isDisabledWenxueSkill } from "../../lib/disabledDomains";
 import type { SkillView } from "../../lib/types";
 
 function skillScopeLabel(scope: string, t: ReturnType<typeof useT>): string {
@@ -143,14 +145,15 @@ export interface SkillsSectionProps {
 export function SkillsSection({ skills, counts, usage, expanded, onToggle }: SkillsSectionProps) {
   const t = useT()
   const [query, setQuery] = useState("")
+  const scopedSkills = useMemo(() => skills.filter((sk) => !isDisabledWenxueSkill(sk.name)), [skills])
   const filteredSkills = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return skills
-    return skills.filter((sk) => {
+    if (!q) return scopedSkills
+    return scopedSkills.filter((sk) => {
       const text = [sk.name, `/${sk.name}`, sk.description, sk.scope, sk.runAs].join(" ").toLowerCase()
       return text.includes(q)
     })
-  }, [skills, query])
+  }, [scopedSkills, query])
 
   return (
     <section className="mb-3">
@@ -169,7 +172,7 @@ export function SkillsSection({ skills, counts, usage, expanded, onToggle }: Ski
           }}
         />
       </div>
-      {skills.length === 0 ? (
+      {scopedSkills.length === 0 ? (
         <div className="py-4 text-xs text-center" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.noSkills")}</div>
       ) : filteredSkills.length === 0 ? (
         <div className="py-4 text-xs text-center" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.noSkillMatches")}</div>
