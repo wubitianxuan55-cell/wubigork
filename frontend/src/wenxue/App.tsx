@@ -28,6 +28,7 @@ import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
+const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
@@ -863,6 +864,11 @@ export default function App() {
                           setCtxModalOpen(true);
                         }}
                       />
+                    )}
+                    {chatTab === "characters" && (
+                      <Suspense fallback={null}>
+                        <WenxueCharacterHub />
+                      </Suspense>
                     )}
                     {chatTab === "memory" && (
                       <MemoryPanel

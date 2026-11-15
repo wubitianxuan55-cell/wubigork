@@ -1,5 +1,5 @@
 import type React from "react";
-import { BarChart3, Blocks, Brain, ListTree, MessageSquare, PieChart } from "../icons";
+import { BarChart3, Blocks, Brain, ListTree, MessageSquare, PieChart, Users } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
 // [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
@@ -8,7 +8,7 @@ import { BarChart3, Blocks, Brain, ListTree, MessageSquare, PieChart } from "../
 // v4.73：左侧「记忆」入口迁入主区 tab（对话/轨迹/上下文/记忆）。
 // v4.542 刀3：第五 tab「洞察」（跨会话 Context Insights，对标 dsh-context
 // 洞察页；会话级四 tab 之后的第一个跨会话视图）。
-export type ChatTabId = "chat" | "trajectory" | "context" | "memory" | "insights" | "fleet";
+export type ChatTabId = "chat" | "trajectory" | "context" | "memory" | "insights" | "fleet" | "characters";
 
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
@@ -27,6 +27,9 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "memory", label: "记忆", icon: Brain },
   { id: "insights", label: "洞察", icon: PieChart },
   { id: "fleet", label: "编队", icon: Blocks },
+  // 图文板块专属（2026-11-15 角色页移植）：角色卡管理，与 agent 的
+  // wenxue_character_* 专属工具同源（角色/ 目录 md 卡）。
+  { id: "characters", label: "角色", icon: Users },
 ];
 
 export function ChatTabs({ active, onChange, tabs, labelOverrides, className, extraTabs, onCloseExtra }: {
