@@ -74,3 +74,19 @@
 ## 进度台账
 
 - 2026-11-15：调研落档 + 本计划立档；动刀待令，零代码改动。
+- 2026-11-15 晚 全六刀收官+装机（按令动刀）：
+  - 刀0 死面清理 83d4cad6（memoryhub 全目录 31 件+7 死组件+Schedule×8/ConvertToPdf/DAG×13/Knowledge×13 绑定链；门面 61→52）
+  - 刀0b 预览链收缩 63d33adf（xlsx/pptx 预览编辑+CrossEmbed+COM 胶囊撤除，docx 编辑三件保留）
+  - 刀1 独立引擎 a7997cb9（boot.ToolFilter/SkillFilter/SkillExtras 三缝+wx 运行时+43 个会话态 Wenxue* 绑定+事件三分线+42 处 Cwd 换锚；绑定面 817）
+  - 刀2 技能子集 79532dbb（allowlist 五面同源+内嵌三件+read_skill 实例化根修——双引擎全局串仓缝）
+  - 刀3 专属工具四族 2514d3eb（九件 wenxue_*，RegistryMap 九行+守卫三条+doc 同步；仅 wx 装配，办公零出现有断言钉死）
+  - 刀4 模板小说化 bac474cd（八条写作模板+欢迎页三快捷卡+三语 i18n）
+  - locale 死键清扫 5a17f731（八组已删面板键 245×3 语）+wailsjs 同步
+- 门禁终态：vitest 全量 532 文件/4901 例绿（331.98s）、Go app+gaea 全量绿、tsc -b 0、
+  eslint 0 错误、drift OK@817（死绑定检测过，StrataModelStop 在册注记为存量）、locale 死键清零
+- 构建装机：ucrt64 裸 wails build -s -ldflags "-s -w" -trimpath（52.1s，bindings 未跳过）；
+  冒烟 /api/health 200；INSTALL OK（四件装机，exe SHA256=A0C717ACCF6E27FE6AB7768A4651EEE0
+  03F94A5EB0C9A6FF3DCA7314204F6761）；拉起 PID 42724（17:40:59 > 构建时刻 17:39:46 ✓）
+- 挂池（未批，后续拍板）：质检工具族、文风工具族、TaskTemplates 后端命令库图文根
+  （现共享办公工作区 .gaea/commands）、记忆建议卡图文专属做梦机制、办公模板八条的
+  ensureTaskTemplateCommands 图文档落盘
