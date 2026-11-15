@@ -1,3 +1,9 @@
+## 桌面端构建装机（2026-11-15 晨）· 主代理直做
+
+- HEAD（a1a2f7f6+图谱重生=40 笔含 pantheon 工作台/browser_run_js/readability/lint 清欠）全量装机：
+  前端 23.82s+wails 1m52.8s+冒烟 200+INSTALL OK；exe sha256 前缀 **ECA72636FFBE**，
+  新壳 PID 27256（08:25:50）>构建 08:25:39。
+
 ## 代码图谱重生成（2026-11-15 凌晨）· 主代理直做（d9b2cdf8）
 
 - `go run scripts/code_atlas_doc.go` 双面重导（markdown+codeAtlas.json）：**164→167 包**
