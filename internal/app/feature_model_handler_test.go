@@ -157,6 +157,38 @@ func TestSetFeatureModel_RebindReenables(t *testing.T) {
 	}
 }
 
+// TestSetFeatureModel_WenxueBinding 图文板块独立绑定三向（绑定/启停/落键）。
+// 2026-11-15 修复：app 层两张白名单漏 wenxue case，UI 改绑报「未知功能:
+// wenxue」——config 层四向齐全、App 层重建缝已在位，仅此处漏（config 层
+// 加键时 app 白名单未同批，钉本测试防复发）。
+func TestSetFeatureModel_WenxueBinding(t *testing.T) {
+	c := newTestCore(t)
+
+	if err := c.SetFeatureModel("wenxue", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(wenxue): %v", err)
+	}
+	if eng, model := c.featureModel("wenxue"); eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("wenxue 绑定 = (%q,%q)，期望 (herdsman,qwen3-8b)", eng, model)
+	}
+	if !c.GetFeatureModelEnabled("wenxue") {
+		t.Error("绑定即启用：wenxue 应为启用")
+	}
+	if err := c.SetFeatureModelEnabled("wenxue", false); err != nil {
+		t.Fatalf("SetFeatureModelEnabled(wenxue,false): %v", err)
+	}
+	if c.GetFeatureModelEnabled("wenxue") {
+		t.Error("停用后 wenxue 应为 false")
+	}
+	// 落键正确：写 func_wenxue_* 域（Load 读回验证），不串其他功能键
+	cfg := config.Load()
+	if eng, model := cfg.GetFeatureModel("wenxue"); eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("持久化 wenxue 绑定 = (%q,%q)，期望 (herdsman,qwen3-8b)", eng, model)
+	}
+	if cfg.GetFeatureModelEnabled("wenxue") {
+		t.Error("持久化 wenxue 启用位应为 false")
+	}
+}
+
 // （TestSetActiveASRModel_Validation 随 V1 语音链退役删除——绑定已不在册）
 // TestGetModelMonitor 启用引擎进入监控列表，isLocal 标记本地/云端
 func TestGetModelMonitor(t *testing.T) {

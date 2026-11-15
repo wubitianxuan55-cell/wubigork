@@ -38,6 +38,10 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 	case "vision":
 		// 办公识图：视觉模型独立绑定（vision 包运行时经动态钩子实时取用）
 		return config.KeyFuncVisionEngine, config.KeyFuncVisionModel, true
+	case "wenxue":
+		// 图文板块：文学创作主 agent 独立绑定（未绑定回落 func_gaea，
+		// wenxueBuildController 同口径；变更经 App.SetFeatureModel 即时重建）
+		return config.KeyFuncWenxueEngine, config.KeyFuncWenxueModel, true
 	}
 	return "", "", false
 }
@@ -61,6 +65,8 @@ func featureModelEnabledKey(feature string) (key string, ok bool) {
 		return config.KeyFuncRoutineEnabled, true
 	case "vision":
 		return config.KeyFuncVisionEnabled, true
+	case "wenxue":
+		return config.KeyFuncWenxueEnabled, true
 	}
 	return "", false
 }
