@@ -316,7 +316,7 @@ export const FEATURES: { key: string; label: string; mergeKeys?: string[] }[] = 
   { key: 'office', label: '办公', mergeKeys: ['gaea'] },
   { key: 'vision', label: '识图' },
   { key: 'characterlib', label: '角色库' },
-  { key: 'sin', label: '原罪' },
+  { key: 'wenxue', label: '文学' },
   { key: 'routine', label: '常规办公' },
 ]
 

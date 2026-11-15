@@ -38,6 +38,7 @@ func loadDefaults(home string) *Config {
 		FuncNovelEnabled:   true,
 		FuncOfficeEnabled:  true,
 		FuncGaeaEnabled:    true,
+		FuncWenxueEnabled:  true,
 		FuncCharLibEnabled: true,
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
 		FuncVisionEnabled:  true, // 办公识图默认启用：绑定即生效，未绑定走 gaea.toml [vision]
@@ -338,6 +339,12 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.FuncGaeaModel != "" {
 				cfg.FuncGaeaModel = cf.FuncGaeaModel
 			}
+			if cf.FuncWenxueEngine != "" {
+				cfg.FuncWenxueEngine = cf.FuncWenxueEngine
+			}
+			if cf.FuncWenxueModel != "" {
+				cfg.FuncWenxueModel = cf.FuncWenxueModel
+			}
 			if cf.FuncCharLibEngine != "" {
 				cfg.FuncCharLibEngine = cf.FuncCharLibEngine
 			}
@@ -355,6 +362,9 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.FuncGaeaEnabled != nil {
 				cfg.FuncGaeaEnabled = *cf.FuncGaeaEnabled
+			}
+			if cf.FuncWenxueEnabled != nil {
+				cfg.FuncWenxueEnabled = *cf.FuncWenxueEnabled
 			}
 			if cf.FuncCharLibEnabled != nil {
 				cfg.FuncCharLibEnabled = *cf.FuncCharLibEnabled

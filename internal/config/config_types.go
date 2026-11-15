@@ -55,12 +55,15 @@ type configFile struct {
 	FuncOfficeModel    string `json:"func_office_model,omitempty"`
 	FuncGaeaEngine     string `json:"func_gaea_engine,omitempty"`
 	FuncGaeaModel      string `json:"func_gaea_model,omitempty"`
+	FuncWenxueEngine   string `json:"func_wenxue_engine,omitempty"`
+	FuncWenxueModel    string `json:"func_wenxue_model,omitempty"`
 	FuncCharLibEngine  string `json:"func_characterlib_engine,omitempty"`
 	FuncCharLibModel   string `json:"func_characterlib_model,omitempty"`
 	FuncChatEnabled    *bool  `json:"func_chat_enabled,omitempty"` // nil=默认启用
 	FuncNovelEnabled   *bool  `json:"func_novel_enabled,omitempty"`
 	FuncOfficeEnabled  *bool  `json:"func_office_enabled,omitempty"`
 	FuncGaeaEnabled    *bool  `json:"func_gaea_enabled,omitempty"`
+	FuncWenxueEnabled  *bool  `json:"func_wenxue_enabled,omitempty"`
 	FuncCharLibEnabled *bool  `json:"func_characterlib_enabled,omitempty"`
 	FuncRoutineEngine  string `json:"func_routine_engine,omitempty"` // 常规任务模型目标（routine_llm 工具）
 	FuncRoutineModel   string `json:"func_routine_model,omitempty"`
@@ -223,6 +226,10 @@ type Config struct {
 	FuncOfficeModel   string
 	FuncGaeaEngine    string
 	FuncGaeaModel     string
+	// 图文板块（wenxue）：文学创作主 agent 独立绑定（空=回落 func_gaea 绑定，
+	// 再回落全局活跃引擎）。
+	FuncWenxueEngine string
+	FuncWenxueModel  string
 	FuncCharLibEngine string
 	FuncCharLibModel  string
 	// 常规任务模型目标（routine）：routine_llm 工具默认调用的引擎/模型，
@@ -238,6 +245,7 @@ type Config struct {
 	FuncNovelEnabled   bool
 	FuncOfficeEnabled  bool
 	FuncGaeaEnabled    bool
+	FuncWenxueEnabled  bool
 	FuncCharLibEnabled bool
 	FuncRoutineEnabled bool
 	FuncVisionEnabled  bool

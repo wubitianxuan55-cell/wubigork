@@ -19,6 +19,9 @@ func (c *Config) GetFeatureModel(feature string) (engine, model string) {
 		return c.FuncOfficeEngine, c.FuncOfficeModel
 	case "gaea":
 		return c.FuncGaeaEngine, c.FuncGaeaModel
+	case "wenxue":
+		// 图文板块（文学创作主 agent）：独立绑定
+		return c.FuncWenxueEngine, c.FuncWenxueModel
 	case "characterlib":
 		return c.FuncCharLibEngine, c.FuncCharLibModel
 	case "routine":
@@ -46,6 +49,8 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 		c.FuncOfficeEngine, c.FuncOfficeModel = engine, model
 	case "gaea":
 		c.FuncGaeaEngine, c.FuncGaeaModel = engine, model
+	case "wenxue":
+		c.FuncWenxueEngine, c.FuncWenxueModel = engine, model
 	case "characterlib":
 		c.FuncCharLibEngine, c.FuncCharLibModel = engine, model
 	case "routine":
@@ -70,6 +75,8 @@ func (c *Config) GetFeatureModelEnabled(feature string) bool {
 		return c.FuncOfficeEnabled
 	case "gaea":
 		return c.FuncGaeaEnabled
+	case "wenxue":
+		return c.FuncWenxueEnabled
 	case "characterlib":
 		return c.FuncCharLibEnabled
 	case "routine":
@@ -95,6 +102,8 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 		c.FuncOfficeEnabled = enabled
 	case "gaea":
 		c.FuncGaeaEnabled = enabled
+	case "wenxue":
+		c.FuncWenxueEnabled = enabled
 	case "characterlib":
 		c.FuncCharLibEnabled = enabled
 	case "routine":

@@ -96,3 +96,21 @@
   RAW_SECTIONS 补图文专属组；提交 8b??（fix(wenxue) 能力面板工具区）；重构建装机
   exe SHA256 416E4327CF2EFDB52E82C6BC9CC8EE429ED2751BC2A5FDDD8E082D02254AB7AD、
   PID 42680（17:49:52 > 构建时刻 17:49:19）、冒烟 200
+
+## 追加刀：模型中心文学专属功能绑定（2026-11-15 深夜，同批收官）
+
+图文引擎此前与办公共用 `gaea` 功能键（wenxue_engine 构建时读 GetFeatureModel("gaea")）——本刀给它
+独立功能键 `wenxue`，模型中心可单独为文学板块绑引擎/模型：
+
+- 配置五件套：config_keys（func_wenxue_engine/model/enabled）+configFile/Config 三字段+loadDefaults
+  Enabled:true+applyConfigFile 回读+saveSetters 三 setter+config_features 四 switch
+- App 层：SetFeatureModel/SetFeatureModelEnabled 增 wenxue 分支 → applyWenxueFeatureModel（跟随重建）
+- **结构性补强（双引擎注入纪律）**：功能绑定注入从「GaeaInit/applyOfficeFeatureModel 预写 bridge 全局槽」
+  收敛为「各 Build 位点构造期注入」——gaeaBuildController/wenxueBuildController 开头各自读自己的绑定
+  （wenxue 回落链=wenxue 绑定→gaea 绑定→全局活跃；启停停用=清绑定回落全局活跃），boot.Build 同步窗内
+  全部 provider（主 agent+子代理）按当前绑定解析；修掉刀1 遗留的「wx 重建可能误取办公绑定」交叉污染缝
+- UI：模型中心功能绑定卡 `sin/原罪`（已退役板块的死卡）腾位为 `wenxue/文学`（BookOutlined+回落链说明）；
+  原罪插图卡与 sinImage 态保留未动（独立挂池项）
+- 门禁：config/app 定向测试绿（新增 config_features_test 三例：四向回环/键域隔离/saveSetters+回读链）、
+  modelcenter 15 文件 119 例绿、tsc -b 0、eslint 0 错误、构建冒烟 200、INSTALL OK
+  （exe SHA256 E073EE0C9D930A1E…，PID 28084 > 构建时刻 18:01:06）

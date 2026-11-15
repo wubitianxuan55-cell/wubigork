@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button, message, Select, Switch } from 'antd'
 import {
-  CommentOutlined, EditOutlined, EyeOutlined, FireOutlined, LinkOutlined, PictureOutlined,
+  BookOutlined, CommentOutlined, EditOutlined, EyeOutlined, LinkOutlined, PictureOutlined,
   RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
@@ -18,7 +18,7 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
   office: <ToolOutlined />,
   vision: <EyeOutlined />,
   characterlib: <UserOutlined />,
-  sin: <FireOutlined />,
+  wenxue: <BookOutlined />,
   routine: <RobotOutlined />,
 }
 
@@ -27,7 +27,7 @@ const FEATURE_NOTES: Record<string, string> = {
   office: '通用 + 方案 + 知识库',
   vision: '办公识图（看懂图）：微信图片、图片附件、绘梦/剧照自评等视觉链路。优先跟随聊天模型（本地多模态主力在线时直接用它，不另载第二份视觉权重）；聊天在云端或本地主力不可用时由此独立绑定接管；再回落 gaea.toml 静态默认。改绑即生效。纯文字提取（OCR）在语音模型页单独绑定',
   characterlib: '生成 / 补全',
-  sin: '原罪（闲庭图文故事）：故事文本生成；未绑定跟随全局；角色库角色随故事走，不读办公工具与办公记忆。插图生图模型在下方「原罪插图」卡独立绑定',
+  wenxue: '文学（图文工作台）：长篇小说创作主模型——独立引擎专属装配（工具/技能/提示词与办公分离）。回落链：未绑定跟随办公绑定，办公也未绑定时跟随全局活跃引擎；停用开关同语义。改绑后切到文学板块的新会话即用新模型',
   routine: '纯文本摘要/归一化/抽取/改写等无专业工具覆盖的活，由云端 agent 通过 routine_llm 兜底调用（识图/OCR/检索/转换走各自专业工具）；未绑定默认本地 herdsman',
 }
 
@@ -367,7 +367,7 @@ export function BindSection() {
         {/* 原罪插图：独立生图后端/模型（v4.388，镜像剧照卡） */}
         <div className={`mc-bind-card${sinImageCfg.backend ? ' is-bound' : ' is-soft'}`}>
           <div className="mc-bind-head">
-            <span className="mc-bind-title"><FireOutlined /> 原罪插图</span>
+            <span className="mc-bind-title"><PictureOutlined /> 原罪插图</span>
             <StatusChip tone={sinImageCfg.backend ? 'accent' : 'neutral'} dot>
               {sinImageCfg.backend ? `${sinImageCfg.backend} / ${sinImageCfg.model || '跟随全局'}` : '跟随全局'}
             </StatusChip>

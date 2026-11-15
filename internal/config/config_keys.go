@@ -50,6 +50,9 @@ const (
 	KeyFuncOfficeModel   = "func_office_model"
 	KeyFuncGaeaEngine    = "func_gaea_engine"
 	KeyFuncGaeaModel     = "func_gaea_model"
+	// 图文板块（wenxue）：文学创作主 agent 独立绑定（未绑定回落 func_gaea）
+	KeyFuncWenxueEngine = "func_wenxue_engine"
+	KeyFuncWenxueModel  = "func_wenxue_model"
 	KeyFuncCharLibEngine = "func_characterlib_engine"
 	KeyFuncCharLibModel  = "func_characterlib_model"
 	KeyFuncRoutineEngine = "func_routine_engine"
@@ -64,6 +67,7 @@ const (
 	KeyFuncNovelEnabled   = "func_novel_enabled"
 	KeyFuncOfficeEnabled  = "func_office_enabled"
 	KeyFuncGaeaEnabled    = "func_gaea_enabled"
+	KeyFuncWenxueEnabled  = "func_wenxue_enabled"
 	KeyFuncCharLibEnabled = "func_characterlib_enabled"
 	KeyFuncRoutineEnabled = "func_routine_enabled"
 	KeyFuncVisionEnabled  = "func_vision_enabled"

@@ -106,6 +106,17 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 
 // gaeaBuildController 用当前配置构建 controller（不持有 ga.mu，调用方负责）。
 func (a *App) gaeaBuildController() (*control.Controller, error) {
+	// 办公功能级模型绑定（feature=gaea）构造期注入（2026-11-15 刀1 评审补强）：
+	// boot.Build 同步窗内全部 provider 按当前绑定解析——每次构建前注入办公自己的
+	// 绑定，杜绝图文引擎构建后 bridge 全局槽残留图文绑定被办公重建误取（双引擎
+	// 隔离）。启停语义与 FeatureModelBar 一致：停用=清绑定回落全局活跃引擎。
+	if a.cfg != nil {
+		eng, mdl := a.cfg.GetFeatureModel("gaea")
+		if !a.cfg.GetFeatureModelEnabled("gaea") {
+			eng, mdl = "", ""
+		}
+		bridge.SetFeature(eng, mdl)
+	}
 	// 事件转发：gaea 事件流 → 前端 gaea-event 回调。经转发层统一打点 wire
 	// seq 并对 phase 节流（v4.26 对话流式重造，见 gaeaEventForwarder）。
 	sink := event.FuncSink(func(e event.Event) {
@@ -294,14 +305,11 @@ func (a *App) GaeaInit() error {
 		return nil
 	}
 
-	// 1. 注入模型中心客户端（bridge provider 的底层）
+	// 1. 注入模型中心客户端（bridge provider 的底层）。功能级绑定改在
+	// gaeaBuildController 构造期注入（双引擎各表各的绑定，见彼处注释）。
 	bridge.SetClient(a.clientRef())
-	// 注入办公功能级模型绑定（func_gaea_engine/model）：办公 agent 走指定
-	// 引擎，而非全局活跃引擎——避免活跃引擎为 xai 时把其他模型名发到 xAI
-	// 导致 404。未绑定则跟随全局活跃引擎。
 	if eng, model := a.cfg.GetFeatureModel("gaea"); eng != "" {
-		bridge.SetFeature(eng, model)
-		slog.Info("办公模型绑定已注入", "engine", eng, "model", model)
+		slog.Info("办公模型绑定生效", "engine", eng, "model", model)
 	}
 
 	// 2. 注入配置：持久化文件（用户设置）+ bridge provider
@@ -371,6 +379,11 @@ func (a *App) SetFeatureModel(feature, engineID, modelName string) error {
 	if feature == "gaea" {
 		a.applyOfficeFeatureModel(engineID, modelName)
 	}
+	// 图文板块（wenxue）专属功能绑定：变更即时重建图文引擎（绑定注入在
+	// Build 位点，见 wenxueBuildController）。
+	if feature == "wenxue" {
+		a.applyWenxueFeatureModel()
+	}
 	return nil
 }
 
@@ -388,13 +401,18 @@ func (a *App) SetFeatureModelEnabled(feature string, enabled bool) error {
 			a.applyOfficeFeatureModel("", "")
 		}
 	}
+	// 图文启停同语义：停用=清绑定回落全局活跃引擎（Build 位点读 enabled）。
+	if feature == "wenxue" {
+		a.applyWenxueFeatureModel()
+	}
 	return nil
 }
 
 // applyOfficeFeatureModel 注入办公 bridge 的 feature 模型，并在办公引擎已初始化时重建
 // controller。办公尚未打开（ga.ctrl == nil）时仅更新注入，后续 GaeaInit 会再按最新配置注入。
 func (a *App) applyOfficeFeatureModel(engine, model string) {
-	bridge.SetFeature(engine, model)
+	// 绑定注入已收敛到 gaeaBuildController 构造期（双引擎各表各的绑定）；
+	// 此处只负责重建生效。
 	ga.mu.Lock()
 	defer ga.mu.Unlock()
 	if ga.ctrl != nil && ga.cfg != nil {

@@ -245,6 +245,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncOfficeModel:     func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
 	KeyFuncGaeaEngine:      func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
 	KeyFuncGaeaModel:       func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
+	KeyFuncWenxueEngine:    func(cf *configFile, v string) error { cf.FuncWenxueEngine = v; return nil },
+	KeyFuncWenxueModel:     func(cf *configFile, v string) error { cf.FuncWenxueModel = v; return nil },
 	KeyFuncCharLibEngine:   func(cf *configFile, v string) error { cf.FuncCharLibEngine = v; return nil },
 	KeyFuncCharLibModel:    func(cf *configFile, v string) error { cf.FuncCharLibModel = v; return nil },
 	KeyFuncChatEnabled: func(cf *configFile, v string) error {
@@ -277,6 +279,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.FuncGaeaEnabled = b
+		return nil
+	},
+	KeyFuncWenxueEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncWenxueEnabled = b
 		return nil
 	},
 	KeyFuncCharLibEnabled: func(cf *configFile, v string) error {

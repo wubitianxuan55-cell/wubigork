@@ -65,13 +65,9 @@ func (a *App) WenxueEngineInit() error {
 		return nil
 	}
 
-	// 模型中心注入（bridge provider 全局，与办公同一客户端；幂等）。
+	// 模型中心客户端注入（bridge provider 全局；幂等）。功能级绑定改在
+	// wenxueBuildController 构造期注入（feature=wenxue，见彼处注释）。
 	bridge.SetClient(a.clientRef())
-	if a.cfg != nil {
-		if eng, model := a.cfg.GetFeatureModel("gaea"); eng != "" {
-			bridge.SetFeature(eng, model)
-		}
-	}
 
 	// 配置加载：ga.cfg 未就绪（用户直进图文板块）时先补办公配置加载与
 	// 全局 loader——这是配置装载（引擎未构建），不触碰办公控制器。
@@ -114,6 +110,20 @@ func (a *App) WenxueEngineInit() error {
 // wenxueBuildController 构建图文控制器（不持 wx.mu，调用方负责）。
 // 骨架与办公 gaeaBuildController 同构；差异点逐条注释。
 func (a *App) wenxueBuildController() (*control.Controller, error) {
+	// 功能级模型绑定（feature=wenxue）构造期注入：boot.Build 是同步窗，窗内
+	// 构造的全部 provider（主 agent+子代理）按当前绑定解析——每次构建前注入
+	// 自己的绑定，杜绝与办公引擎共享 bridge 全局槽的交叉污染（双引擎隔离，
+	// 2026-11-15 刀1 评审补强）。回落链：wenxue 绑定 → gaea 绑定 → 全局活跃；
+	// wenxue 功能停用 = 清绑定回落全局活跃。
+	if a.cfg != nil {
+		eng, mdl := a.cfg.GetFeatureModel("wenxue")
+		if !a.cfg.GetFeatureModelEnabled("wenxue") {
+			eng, mdl = "", ""
+		} else if eng == "" && mdl == "" {
+			eng, mdl = a.cfg.GetFeatureModel("gaea")
+		}
+		bridge.SetFeature(eng, mdl)
+	}
 	// 事件转发：图文事件流 → gaea-wenxue-event 独立通道。办公域 TurnDone
 	// 钩子（做梦/自动命名/COM 收尾）有意不挂——图文会话不触发办公记忆整理。
 	sink := event.FuncSink(func(e event.Event) {
@@ -258,6 +268,12 @@ func (a *App) WenxueReload() (GaeaReloadResult, error) {
 	res := GaeaReloadResult{Tools: len(newCtrl.Tools()), Skills: len(newCtrl.Skills())}
 	a.emit(wenxueReadyEvent, map[string]interface{}{"kind": "reloaded"})
 	return res, nil
+}
+
+// applyWenxueFeatureModel 图文功能绑定变更后跟随重建（绑定注入在 Build 位点，
+// 重建即取新值；未初始化跳过——首次 WenxueEngineInit 自然取最新配置）。
+func (a *App) applyWenxueFeatureModel() {
+	a.wenxueReloadIfInit()
 }
 
 // wenxueRequireCtrl 取图文控制器并保证引擎已初始化（发送/切会话等入口共用）。
