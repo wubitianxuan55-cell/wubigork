@@ -1910,8 +1910,8 @@
   "edges": 381,
   "generated": "2026-11-10",
   "packages": 143,
-  "srcLoc": 237809,
-  "testLoc": 182682
+  "srcLoc": 237688,
+  "testLoc": 182679
  },
  "nodes": [
   {
@@ -1929,8 +1929,8 @@
   {
    "id": "internal/app",
    "layer": "shell",
-   "srcLoc": 59688,
-   "testLoc": 48894
+   "srcLoc": 59567,
+   "testLoc": 48891
   },
   {
    "id": "internal/app/board",

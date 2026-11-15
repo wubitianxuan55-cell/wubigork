@@ -2,7 +2,7 @@
 
 > 由 `go run scripts/code_atlas_doc.go` 从 `go list -json ./...` + 文件盘点单源生成（module `github.com/gaea/gaea`，go 1.26）。§1–§6 为机械段勿手改；§7 接缝导读与 §8 再生成说明随认知更新改模板重导。统计口径：Go 源码=GoFiles+CgoFiles 行数（非测试），测试=Test/XTestGoFiles；前端=ts/tsx/css 行数。`node_modules` 内杂包已滤。
 
-> 全仓 143 个 Go 包 · 源码 237,809 行 · 测试 182,682 行（测试/源码 0.77）。
+> 全仓 143 个 Go 包 · 源码 237,688 行 · 测试 182,679 行（测试/源码 0.77）。
 
 ## 1. 分层总览
 
@@ -17,7 +17,7 @@
 | 层 | 包数 | 源码 LOC | 测试 LOC |
 |---|---:|---:|---:|
 | 入口 | 1 | 124 | 44 |
-| 壳层·板块装配 | 2 | 60,107 | 49,065 |
+| 壳层·板块装配 | 2 | 59,986 | 49,062 |
 | 内核·装配执行 | 22 | 46,923 | 39,570 |
 | 内核·共享库 | 54 | 45,284 | 35,623 |
 | 办公域 | 14 | 8,463 | 3,729 |
@@ -25,7 +25,7 @@
 | 众神殿 | 1 | 11,510 | 8,831 |
 | 领域库 | 31 | 45,576 | 29,931 |
 | scripts 工具带 | 10 | 4,147 | 317 |
-| **合计** | **143** | **237,809** | **182,682** |
+| **合计** | **143** | **237,688** | **182,679** |
 
 层间依赖边矩阵（行=引用方 → 列=被引方，共 381 条内部边）：
 
@@ -52,7 +52,7 @@
 | 包 | 层 | 源码 LOC | 测试 LOC | 被引 | 内部出边 |
 |---|---|---:|---:|---:|---:|
 | `(main)` | 入口 | 124 | 44 | 0 | 2 |
-| `internal/app` | 壳层·板块装配 | 59,688 | 48,894 | 1 | 97 |
+| `internal/app` | 壳层·板块装配 | 59,567 | 48,891 | 1 | 97 |
 | `internal/app/board` | 壳层·板块装配 | 419 | 171 | 1 | 0 |
 | `internal/gaea/agent` | 内核·装配执行 | 13,222 | 12,475 | 3 | 20 |
 | `internal/gaea/tool/builtin` | 内核·装配执行 | 12,300 | 8,466 | 3 | 28 |
@@ -333,8 +333,8 @@
 | `internal/app/gaea_ui_extra.go` | `internal/app` | 1,245 |
 | `internal/gaea/costimport/costimport.go` | `internal/gaea/costimport` | 1,233 |
 | `scripts/gen_bindings/main.go` | `scripts/gen_bindings` | 1,174 |
-| `internal/whisper/orchestrator.go` | `internal/whisper` | 1,168 |
 | `internal/gaea/config/config.go` | `internal/gaea/config` | 1,168 |
+| `internal/whisper/orchestrator.go` | `internal/whisper` | 1,168 |
 | `internal/gaea/agent/agent.go` | `internal/gaea/agent` | 1,158 |
 | `internal/channels/weixin/clawbot.go` | `internal/channels/weixin` | 1,139 |
 | `internal/app/image_handler.go` | `internal/app` | 1,118 |
@@ -356,23 +356,23 @@
 
 | 目录 | 源文件 | 源码 LOC | 测试文件 | 测试 LOC |
 |---|---:|---:|---:|---:|
-| `gaea` | 430 | 107,529 | 248 | 35,316 |
-| `wenxue` | 360 | 84,879 | 4 | 278 |
-| `pages` | 74 | 44,782 | 31 | 8,596 |
-| `components` | 99 | 25,424 | 57 | 7,328 |
+| `gaea` | 430 | 107,308 | 246 | 35,080 |
+| `wenxue` | 358 | 82,612 | 4 | 278 |
+| `pages` | 74 | 44,780 | 31 | 8,596 |
+| `components` | 99 | 25,423 | 57 | 7,328 |
 | `schedule` | 96 | 23,019 | 81 | 16,325 |
-| `(顶层)` | 8 | 9,408 | 7 | 596 |
+| `(顶层)` | 8 | 9,408 | 7 | 585 |
 | `voice` | 10 | 5,034 | 5 | 1,134 |
 | `genui` | 14 | 3,738 | 5 | 573 |
-| `api` | 6 | 1,949 | 2 | 174 |
+| `api` | 6 | 1,944 | 2 | 174 |
 | `data` | 15 | 1,782 | 1 | 35 |
-| `hooks` | 9 | 1,599 | 2 | 204 |
+| `hooks` | 9 | 1,600 | 2 | 204 |
 | `layouts` | 2 | 742 | 2 | 111 |
 | `utils` | 18 | 625 | 11 | 467 |
 | `v3` | 1 | 553 | — | — |
 | `types` | 2 | 512 | — | — |
 | `boards` | 4 | 500 | 2 | 418 |
-| `stores` | 1 | 439 | 2 | 267 |
+| `stores` | 1 | 443 | 2 | 267 |
 | `test` | 2 | 226 | — | — |
 | `lib` | 4 | 186 | 2 | 120 |
 
