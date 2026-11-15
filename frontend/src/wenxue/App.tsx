@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout, Modal } from "antd";
 import {
-  Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
+  Check, SquarePen, ChevronDown, FolderGit2, FileText,
   PanelRight, MessageSquare, Trash2, X, Aim, Inbox,
   ClipboardList, Sparkles,
 } from "./icons";
@@ -27,7 +27,6 @@ import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
-const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
 const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
@@ -132,14 +131,14 @@ export default function App() {
     forget,
     saveDoc,
     updateFact,
-    changeFactType,
     fetchSessionStats,
   } = useController();
   const t = useT();
   const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
   const { histView, setHistView, capsOpen, setCapsOpen, closeTopmost } = useDrawers();
-  // v4.73：记忆由抽屉迁入主区 tab——视图快照在 App 层维护，动作写盘后统一刷新。
-  const [memView, setMemView] = useState<MemoryView | null>(null);
+  // 记忆 tab 已退役（2026-11-16 记忆左右脑批）：memView 视图快照不再进 UI，
+  // setMemView 仅为 useSessionHandlers 契约保留。
+  const [, setMemView] = useState<MemoryView | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { await startNewSession(); }, [startNewSession]);
   // GenUI action 宿主：运行中 → steer（注入当前回合），空闲 → send（短展示文案 +
@@ -263,24 +262,13 @@ export default function App() {
 
   const { todoItem, todos, showTodos, setDismissedTodo } = useTodoExtractor(state.items);
 
-  // 记忆视图：打开（主区 tab / 命令 / /memory）时取新鲜快照；
-  // 写操作成功后 re-fetch，标签页即时反映落盘结果。
-  const openMemory = useCallback(async () => {
-    setMemView(await fetchMemory());
-  }, [fetchMemory, setMemView]);
-
-  // 主区 tab 激活「记忆」即拉取新鲜快照（后续写操作自行刷新）。
-  useEffect(() => {
-    if (chatTab === "memory") void openMemory();
-  }, [chatTab, openMemory]);
-
   // handleSend intercepts the slash commands that need a desktop-native action
   // before they reach the backend: "/model <ref>" rebuilds on that model,
-  // "/memory" switches to the memory tab, and "/context" switches to the
-  // context dashboard tab. Everything else — skills (/init, …), custom
-  // commands, bare /model and the other read-only management verbs
-  // (/skill, /hooks, /mcp) — goes straight to Submit, which the controller
-  // resolves (a turn, or a listing Notice).
+  // and "/context" switches to the context dashboard tab. Everything else —
+  // skills (/init, …), custom commands, bare /model and the other read-only
+  // management verbs (/skill, /hooks, /mcp) — goes straight to Submit, which
+  // the controller resolves (a turn, or a listing Notice).
+  // （"/memory" 已随记忆 tab 退役摘除——2026-11-16 记忆左右脑批。）
   const cwd = state.meta?.cwd;
   const cwdName = cwd ? cwd.split(/[/\\]/).filter(Boolean).pop() || cwd : "";
 
@@ -296,10 +284,6 @@ export default function App() {
       const command = classifyComposerCommand(displayText);
       if (command.type === "model") {
         void switchModel(command.ref);
-        return;
-      }
-      if (command.type === "memory") {
-        setChatTab("memory");
         return;
       }
       if (command.type === "context") {
@@ -329,9 +313,6 @@ export default function App() {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
     confirmDeleteCurrent, switchFolder, resumeSessionInProject,
     resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
-    onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
-    onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
-    distillView, distillLoading, refreshDistill, draftDistill, ignoreDistill, crystallizeDistill,
   } = useSessionHandlers({
     t, toast, refreshSessions, deleteSession, newSessionAndReset, pickWorkspace,
     switchWorkspace, handleResumeSession, handleDeleteSession, handleRenameSession,
@@ -564,7 +545,6 @@ export default function App() {
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
-      { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => { setChatTab("memory"); void openMemory(); } },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
     ];
     // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图 tab。
@@ -642,7 +622,7 @@ export default function App() {
       { chatTab, rightTab: rightTab ?? "files" },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（模板 run 内引用），deps 原样保留
-  }, [t, sidebarSessions, openMemory, openHistory, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath, paneEnabled, setPaneEnabled]);
+  }, [t, sidebarSessions, openHistory, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath, paneEnabled, setPaneEnabled]);
 
   const layoutStyle = useMemo(
     () =>
@@ -875,26 +855,6 @@ export default function App() {
                       <Suspense fallback={null}>
                         <WenxueReadingHub />
                       </Suspense>
-                    )}
-                    {chatTab === "memory" && (
-                      <MemoryPanel
-                        view={memView}
-                        onRemember={onRemember}
-                        onForget={onForget}
-                        onSaveDoc={onSaveDoc}
-                        onSaveFact={onSaveFact}
-                        onChangeType={changeFactType}
-                        onAcceptMemorySuggestion={onAcceptMemorySuggestion}
-                        onAcceptSkillSuggestion={onAcceptSkillSuggestion}
-                        onAcceptMergeSuggestion={onAcceptMergeSuggestion}
-                        onRefreshSuggestions={onRefreshSuggestions}
-                        distillView={distillView}
-                        distillLoading={distillLoading}
-                        onRefreshDistill={refreshDistill}
-                        onDraftDistill={draftDistill}
-                        onIgnoreDistill={ignoreDistill}
-                        onCrystallizeDistill={crystallizeDistill}
-                      />
                     )}
                   </>
                 )}

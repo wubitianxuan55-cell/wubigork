@@ -20,7 +20,6 @@ export const en = {
   "common.busyHint": "Finish or stop the current turn first",
   "common.loading": "Loading…",
   "topbar.history": "History",
-  "topbar.memory": "Memory",
   "topbar.newSession": "New session",
   "topbar.startupError": "startup error: {msg}",
   "topbar.knowledge": "Knowledge",

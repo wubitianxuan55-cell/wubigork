@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sync"
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
@@ -46,6 +47,18 @@ func wenxueCtrl() *control.Controller {
 	wx.mu.Lock()
 	defer wx.mu.Unlock()
 	return wx.ctrl
+}
+
+// wenxueBrainDir 图文记忆脑目录（2026-11-16 记忆左右脑批）：
+// <MemoryUserDir>/wenxue-brain——与办公默认脑物理隔离（独立 docs/画像/
+// auto-memory DB）。基目录不可得（os.UserConfigDir 失败）返回空=不 scope，
+// 回退默认脑（宁共享不建野目录）。
+func wenxueBrainDir() string {
+	base := gaeaConfig.MemoryUserDir()
+	if base == "" {
+		return ""
+	}
+	return filepath.Join(base, "wenxue-brain")
 }
 
 // 图文事件通道：主对话流 + 子代理流式增量（与办公通道物理分线）。
@@ -172,6 +185,11 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		// read_skill/能力抽屉五面同源收口）。
 		SkillFilter: wenxueSkillFilter,
 		SkillExtras: wenxueSkillExtras(),
+		// 记忆左右脑（2026-11-16）：图文脑独立目录（docs/画像/auto-memory/
+		// remember 画像表/会话检索/引用消毒全随目录；DB 路径随目录推导分池）
+		// ——与办公脑物理隔离。办公引擎不传=默认脑现状逐字节。基目录取不到
+		// 时不 scope（回退默认，宁共享不建野目录）。
+		MemoryUserDir: wenxueBrainDir(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("图文引擎初始化失败: %w", err)

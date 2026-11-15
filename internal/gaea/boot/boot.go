@@ -112,6 +112,13 @@ type Options struct {
 	// 双 nil = 现状逐字节（办公引擎不传）。
 	SkillFilter func(name string) bool
 	SkillExtras []skill.Skill
+	// MemoryUserDir 是记忆脑目录覆盖（2026-11-16 记忆左右脑批）：非空时本引擎
+	// 的全部记忆面——用户级 doc 记忆/画像文档发现、auto-memory SQLite 后端、
+	// remember 画像表、会话检索 FTS、引用消毒 store——都锚定该目录（DB 路径
+	// 随目录推导，db.GetDatabase 按目录分池），与默认脑物理隔离；控制器记忆
+	// 热重载复用首载快照的 UserDir/DB，全链跟随。空值 = config.MemoryUserDir()
+	// 现状逐字节（办公引擎不传）。
+	MemoryUserDir string
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -137,6 +144,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 与桌面端 gaeaBuildController 的 SessionDir 空间同源（同一 cfg），因此
 	// GaeaSpaceActivate 的「重建生效」语义对工具/模型/权限装配一致成立。
 	space := cfg.EffectiveSessionSpace()
+	// 记忆脑目录（2026-11-16 左右脑批）：effective 一处算好，四处消费点
+	//（sysprompt 主 Load / sessionquery / remember ProfileStore / 引用消毒）
+	// 统一取它——空值=现状 config.MemoryUserDir() 逐字节。
+	memUserDir := orDefault(opts.MemoryUserDir, config.MemoryUserDir())
 	modelName := opts.Model
 	if modelName == "" {
 		modelName = cfg.DefaultModel
@@ -224,7 +235,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +413,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
 	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。
-	if gdb := db.GetDatabase(config.MemoryUserDir()); gdb != nil {
+	if gdb := db.GetDatabase(memUserDir); gdb != nil {
 		reg.Add(sessionquery.NewSearchTool(gdb, orDefault(opts.SessionDir, config.SessionDir())))
 	}
 	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
@@ -432,7 +443,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// The `remember` tool lets the model persist durable facts to the project's
 	// auto-memory store; `forget` prunes ones that turn out wrong. The saved index
 	// loads into the prefix on the next session.
-	reg.Add(memory.NewRememberTool(mem.Store, memory.NewProfileStore(db.GetDatabase(config.MemoryUserDir()))))
+	reg.Add(memory.NewRememberTool(mem.Store, memory.NewProfileStore(db.GetDatabase(memUserDir))))
 	reg.Add(memory.NewForgetTool(mem.Store))
 	reg.Add(memory.NewPromoteSessionFactsTool())
 	reg.Add(memory.NewMemoryGetTool(mem.Store))
@@ -606,8 +617,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 门控与装配同源：记忆总闸关闭 / 库不可用时不注入（nil = 不改写，子代理
 	// 与 headless executor 均不受影响）。
 	if cfg.Memory.Enabled {
-		if gdb := db.GetDatabase(config.MemoryUserDir()); gdb != nil {
-			sanitizeStore := memory.SQLiteStoreFor(gdb, config.MemoryUserDir(), cwd)
+		if gdb := db.GetDatabase(memUserDir); gdb != nil {
+			sanitizeStore := memory.SQLiteStoreFor(gdb, memUserDir, cwd)
 			sanitizeLog := &memory.EventLog{DB: gdb}
 			sanitizeSpace := space
 			executor.SetFinalizeText(func(text string) string {

@@ -48,7 +48,7 @@ type syspromptOut struct {
 // 同步收口（同 filter），经 syspromptOut.readSkill 交 boot 注册实例化工具
 // （替换全局 builtin 同名件——双引擎下全局 WireReadSkillResolver 后建者覆盖
 // 会跨引擎串仓，实例化是刀2 的结构性修复）。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill) (*syspromptOut, error) {
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
@@ -67,7 +67,10 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	sysPrompt += "\n\n" + config.LanguagePolicy
 	sysPrompt += "\n\n" + genui.OfficePointer
 
-	userDir := config.MemoryUserDir()
+	// memUserDir 由 Build 一处算好传入（2026-11-16 记忆左右脑批）：非空覆盖值
+	// =板块脑目录（docs 发现/文件后端/ScopeUser 写/SQLite 后端全随目录；DB 随
+	// 目录推导分池），空值=config.MemoryUserDir() 现状逐字节。
+	userDir := memUserDir
 	gdb := db.GetDatabase(userDir)
 	if _, err := memory.MigrateLegacyFileMemory(userDir, gdb); err != nil {
 		log.Printf("[hephaestus] 办公记忆迁移失败: %v", err)

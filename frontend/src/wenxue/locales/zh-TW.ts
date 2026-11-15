@@ -22,7 +22,6 @@ export const zhTW: Record<DictKey, string> = {
 
   // 頂欄
   "topbar.history": "歷史",
-  "topbar.memory": "記憶",
   "topbar.newSession": "新工作階段",
   "topbar.startupError": "啟動錯誤：{msg}",
   "topbar.knowledge": "知識庫",

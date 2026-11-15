@@ -21,7 +21,6 @@ export const zh: Record<DictKey, string> = {
   "common.busyHint": "请先完成或停止当前回合",
   "common.loading": "加载中…",
   "topbar.history": "历史",
-  "topbar.memory": "记忆",
   "topbar.newSession": "新建会话",
   "topbar.startupError": "启动错误：{msg}",
   "topbar.knowledge": "知识库",

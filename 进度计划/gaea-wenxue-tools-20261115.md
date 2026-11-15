@@ -306,6 +306,65 @@ WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让
   炸 tsc（noUncheckedIndexedAccess 面）——`?? ""` 归一；管道后 `$?` 是 tail 的
   （三犯），门禁一律 `cmd > log 2>&1; echo EXIT=$?` 落真码。
 
+## 记忆左右脑批（2026-11-16 深夜立项，用户令：图文记忆与办公隔离分属左右脑）
+
+**现状盘点（调研实锤）**：两引擎 `boot.Build→buildSystemPrompt` 都从
+`config.MemoryUserDir()`（<AppConfig>/gaea）取记忆——①用户级 doc 记忆/画像文档
+共享读写；②ProfileStore（remember 工具画像）同一 DB 全局表；③Hephaestus.db 同
+文件（auto-memory 行按 cwd 项目键已天然分，但 DB 本体/其他全局表共享）；④UI 侧
+wenxue 主区「记忆」tab 走 app 级全局脑绑定（app.Memory/Remember/Forget/DreamPurge
+…）=挂在办公脑上的窗，图文 UI 可读写办公记忆=双向污染。已天然隔离面：会话目录
+（SessionDir）、pins（CWD 键）、项目 doc 记忆（AGENTS.md 等随 CWD）、auto-memory
+sqlite 行（cwd 项目键）、memory_search 主路径（控制器实例索引）、做梦/晨报/建议
+（wx 有意不挂=办公域机制）。
+
+**刀1 引擎脑（Go）**：`boot.Options.MemoryUserDir` 新缝（""=现状
+config.MemoryUserDir()，办公逐字节）——effective dir 一处算好，替换四处消费点：
+sysprompt 主 Load+Migrate（文档发现/文件后端/DocPath ScopeUser 写全随目录）、
+boot.go:405 sessionquery 会话检索 DB、boot.go:435 remember ProfileStore DB、
+boot.go:609 引用消毒 store+EventLog。**DB 路径随 userDir 推导**（GetDatabase 池按
+目录）→ wx 脑=独立目录+独立 DB 一条缝整脑分离；控制器热重载复用 c.mem.UserDir/DB
+零改动；promote_session_facts 走 ctx 控制器实例自动随脑；memory_search 空间分槽
+兜底不动（主路径已实例隔离）。wx 引擎传 `<MemoryUserDir()>/wenxue-brain`
+（base 空则不 scope）。
+**刀2 UI 脑窗退役（前端）**：wenxue 主区「记忆」tab 退役（它是办公脑的窗：做梦
+清洗/晨报/建议卡/蒸馏全是办公域机制且 wx 不跑）——ChatTabs 三处单源
+（ChatTabId 类型/CHAT_VIEW_TAB_IDS/TABS+Brain 图标）+App 分支/MemoryPanel lazy
+import/openMemory+effect/命令 case"memory"/palette cmd-memory/topbar.memory locale
+键三语；`const [, setMemView]` 保 hook 传参免大改 useSessionHandlers；图文脑的
+读写走会话内 remember/forget/memory_search 工具（工具面不动）。
+**刀3 隔离测试（Go）**：boot 级双脑 Build——脑 A remember 落盘后脑 B 不可见，
+互不串（SQLite 按目录断言）。
+**边界拍板点（用户须知）**：wx 脑**从零起步不迁移**——既有共享记忆属办公脑留存
+（办公零影响优先）；图文旧会话 remember 过的事实不可溯源地留在办公脑。
+
+### 施工台账（2026-11-16 深夜收官，全绿+装机）
+
+- 刀1（Go）：`boot.Options.MemoryUserDir` 缝 + Build 内 `memUserDir :=
+  orDefault(opts.MemoryUserDir, config.MemoryUserDir())` 一处算好，四处消费点统一：
+  buildSystemPrompt 主 Load+Migrate（签名加 memUserDir 参数）、sessionquery 会话检索
+  DB、remember ProfileStore DB、引用消毒 store+EventLog。wx 引擎
+  `MemoryUserDir: wenxueBrainDir()`（=`<MemoryUserDir>/wenxue-brain`，基目录空则
+  不 scope）。办公（不传）=逐字节现状。
+- 刀2（前端）：记忆 tab 退役——ChatTabs（ChatTabId 类型/CHAT_VIEW_TAB_IDS 单源/
+  TABS 条目+Brain 图标）+App（MemoryPanel lazy import/`const [, setMemView]` 保
+  useSessionHandlers 契约/openMemory+激活 effect/命令 case"memory"/palette
+  cmd-memory/useSessionHandlers 记忆族解构摘除/Brain 图标 import）+command.ts
+  （`/memory` union 成员+解析）+三语 locale 死键 topbar.memory。持久化校验走单源
+  自动回落 chat（旧存档 tab=memory 安全降级）。图文脑读写=会话内
+  remember/forget/memory_search 工具（工具面不动，随脑）。
+- 刀3（测试）：`boot/memory_brain_isolation_test.go` 双脑 Build——脑 A remember
+  落盘后：两脑各自独立 Hephaestus.db 落位、脑 A 应回读、脑 B 三向不可见
+  （memory_get not found/独立 DB 回读无/索引无）、脑 B 自有事实独立落盘可读、
+  脑 A 不可见。hermetic=两脑显式 temp 目录（测试从不触真实默认脑）。
+- 坑：`db.GetDatabase` 池按目录持句柄——TempDir 清理前须 `db.CloseDatabase`
+  （Windows 锁文件）；boot 的 `testKind` 在 `boot_test` 外部测试包，内部包测试
+  文件要自备 kind 序号 helper。
+- 门禁：Go 全量绿（gaea/...+app 106s，GO_EXIT=0 双核过）；前端 tsc -b 0、
+  eslint 0 错误（2 警告=既有 react-refresh 常量导出同款）、wenxue 族 15/15、
+  mock 契约 5/5（绑定面零变化）；Vite 31.2s+Wails 53.0s+冒烟 200+INSTALL OK
+  （KILL FAIL 瞬态一次→重试过，PID 35668>构建时刻）。
+
 
 - 口径漂移顺手修：`wenxue_tools.go` 头注「RegistryMap 九行」→十二行（众神殿指出的
   名单双事实源漂移之一收口）。
