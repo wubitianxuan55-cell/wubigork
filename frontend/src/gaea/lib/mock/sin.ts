@@ -32,6 +32,8 @@ type SinMethods = Pick<
   | "SinWorkspaceGet" | "SinWorkspaceSet" | "SinWorkspaceUnbind" | "SinWorkspaceBindings"
   | "SinWorkspacePreview" | "SinWorkspaceReadText" | "SinWorkspaceWriteText" | "SinWorkspaceReadPage"
   | "SinMemoryList" | "SinMemorySave" | "SinMemoryDelete" | "SinMemoryPinToggle"
+  | "SinBoardCastGet" | "SinBoardCastSet" | "SinBoardNotesGet" | "SinBoardNotesSave"
+  | "SinBoardStyleGet" | "SinBoardStyleSet"
 >;
 
 interface MockStory {
@@ -584,6 +586,44 @@ export function buildSin(): SinMethods {
     async SinMemoryPinToggle(name: string, pinned: boolean) {
       const m = memStore.find((x) => x.name === String(name ?? "").trim());
       if (m) m.pinned = pinned;
+    },
+    // 板载创作上下文 mock：复用 casts/styles/notesDocs 内存表（键=书 slug）
+    async SinBoardCastGet(key: string) {
+      return casts.get(String(key ?? "")) ?? [];
+    },
+    async SinBoardCastSet(key: string, ids: string[]) {
+      const out: string[] = [];
+      for (const id of ids ?? []) {
+        const v = String(id ?? "").trim();
+        if (!v || out.includes(v)) continue;
+        out.push(v);
+        if (out.length >= 8) break;
+      }
+      if (out.length === 0) casts.delete(String(key ?? ""));
+      else casts.set(String(key ?? ""), out);
+      return out;
+    },
+    async SinBoardNotesGet(key: string) {
+      seed();
+      const doc = notesDocs.get(String(key ?? ""));
+      return doc ? { notes: [...doc.notes], outline: doc.outline } : { notes: [], outline: "" };
+    },
+    async SinBoardNotesSave(key: string, _baseline: string, outline: string, notes: string, _force: boolean) {
+      seed();
+      let parsed: string[] = [];
+      try { parsed = JSON.parse(notes) as string[]; } catch { parsed = []; }
+      const doc = { notes: parsed.filter((n) => String(n ?? "").trim() !== "").slice(0, 200), outline: String(outline ?? "").slice(0, 4000) };
+      notesDocs.set(String(key ?? ""), doc);
+      return { notes: [...doc.notes], outline: doc.outline };
+    },
+    async SinBoardStyleGet(key: string) {
+      return styles.get(String(key ?? "")) ?? "";
+    },
+    async SinBoardStyleSet(key: string, style: string) {
+      const v = String(style ?? "").trim().slice(0, 200);
+      if (!v) styles.delete(String(key ?? ""));
+      else styles.set(String(key ?? ""), v);
+      return v;
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

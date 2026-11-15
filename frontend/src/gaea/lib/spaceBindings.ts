@@ -234,6 +234,12 @@ export const GAEA_METHOD_FACETS = {
   SinMemorySave: "play",
   SinMemoryDelete: "play",
   SinMemoryPinToggle: "play",
+  SinBoardCastGet: "play",
+  SinBoardCastSet: "play",
+  SinBoardNotesGet: "play",
+  SinBoardNotesSave: "play",
+  SinBoardStyleGet: "play",
+  SinBoardStyleSet: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

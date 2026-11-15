@@ -156,6 +156,20 @@ export interface SinBindings {
   /** 固化/取消固化（固化条免疫衰减、注入加权）。 */
   SinMemoryPinToggle(name: string, pinned: boolean): Promise<void>;
 
+  // ── 板载创作上下文（刀6a：书 slug 键，无话题守卫——右栏五卡数据源）──
+  /** 已选角色（键=书 slug）。 */
+  SinBoardCastGet(key: string): Promise<string[]>;
+  /** 保存角色选择（悬空 id 丢弃/去重保序/封顶；返回生效清单）。 */
+  SinBoardCastSet(key: string, ids: string[]): Promise<string[]>;
+  /** 便签+大纲读取（缺失/损坏=空文档）。 */
+  SinBoardNotesGet(key: string): Promise<{ notes: string[]; outline: string }>;
+  /** 面板编辑保存（冲突口径与 legacy 同串；force 覆盖）。 */
+  SinBoardNotesSave(key: string, baseline: string, outline: string, notes: string, force: boolean): Promise<{ notes: string[]; outline: string }>;
+  /** 统一插图画风读取。 */
+  SinBoardStyleGet(key: string): Promise<string>;
+  /** 统一插图画风设置（空串=清空）。 */
+  SinBoardStyleSet(key: string, style: string): Promise<string>;
+
   // ── 书工作区文件读口（根=当前书；containment fail-closed；刀3）──
   /** 书内文件预览（多格式分发，走 GaeaPreview 绝对路径直通）。 */
   SinWorkspacePreview(rel: string): Promise<PreviewResult>;

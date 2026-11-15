@@ -25,6 +25,12 @@ import { Transcript as SinTranscript } from "./components/SinTranscript"
 import { ChatTabs } from "./components/SinChatTabs"
 import SinReadingPane from "./components/SinReadingPane"
 import SinMemoryCard from "./components/SinMemoryCard"
+import { SinSidePanel } from "../pages/sin/SinSidePanel"
+import { SinCastPicker } from "../pages/sin/SinCastPicker"
+import { useSinBoardCast } from "./hooks/useSinBoardCast"
+import { useSinBoardNotes } from "./hooks/useSinBoardNotes"
+import { generateCharacterSheet, getCharacter, saveCharacter, scoreCharacterConsistency } from "../api/characterlib"
+import { message } from "antd"
 import "../gaea/styles.css"
 import "../gaea/tailwind.css"
 import "../gaea/redesign.css"
@@ -45,6 +51,11 @@ function toShelfBook(raw: Record<string, unknown>): SinShelfBook {
 }
 
 /** SessionMeta（Go 投影）→ 书架会话条目。 */
+function sinBookSlugOf(path: string): string {
+  // 与 Go sinBookSlug 同规则（分隔符/盘符 → '-'）；展示/键位用，权威值以
+  // SinEngineState.bookSlug 回读为准。
+  return path.replace(/[\\/:]/g, "-")
+}
 function toShelfSession(raw: Record<string, unknown>, currentPath: string): SinShelfSession {
   return {
     path: typeof raw.path === "string" ? raw.path : "",
@@ -67,6 +78,13 @@ const AppBoard: React.FC = () => {
   const [sinTab, setSinTab] = useState<SinTab>("chat")
   // 落章联动信号：回合结束（gaea-event-sin turn_done）递增 → 阅读 tab 重拉章节清单
   const [chapterTick, setChapterTick] = useState(0)
+  // 右栏创作面板（五卡 rehost，键=书 slug）
+  const [bookSlug, setBookSlug] = useState("")
+  const [panelOpen, setPanelOpen] = useState(true)
+  const [castPickerOpen, setCastPickerOpen] = useState(false)
+  const [panelDirty, setPanelDirty] = useState(false)
+  const cast = useSinBoardCast(bookSlug)
+  const notes = useSinBoardNotes(bookSlug)
 
   // 书架清单（书架目录扫描；失败给空清单不报错阻断）
   const reloadBooks = useCallback(async () => {
@@ -96,6 +114,7 @@ const AppBoard: React.FC = () => {
       const st = await app.SinEngineState()
       setEngineReady(st.ready)
       setBookPath(st.bookPath)
+      setBookSlug(st.bookSlug)
       setBookTitle(st.bookPath ? (booksRef.current.get(st.bookPath) ?? "") : "")
     } catch { setEngineReady(false) }
   }, [])
@@ -117,7 +136,23 @@ const AppBoard: React.FC = () => {
 
   // 切书 = 切工作空间：引擎 OpenBook + 小说项目落位（openNovelProject——
   // 设定/阅读页签的 NovelB 绑定吃全局当前项目）→ 新会话 → 装载 → 刷新
-  const handleOpenBook = useCallback(async (path: string) => {
+  // 底稿未保存闸（legacy confirmSwitchThen 同款）：脏面板先确认再切。
+  const confirmSwitchThen = useCallback((action: () => void) => {
+    if (!panelDirty) {
+      action()
+      return
+    }
+    Modal.confirm({
+      title: '底稿有未保存的修改',
+      content: '设定/大纲的编辑还没保存，切换后会丢弃。',
+      okText: '放弃修改并继续',
+      okButtonProps: { danger: true },
+      cancelText: '先不切',
+      onOk: action,
+    })
+  }, [panelDirty])
+
+  const doOpenBook = useCallback(async (path: string) => {
     if (opening) return
     setOpening(true)
     try {
@@ -126,6 +161,7 @@ const AppBoard: React.FC = () => {
       await openNovelProject(path, title)
       setEngineReady(true)
       setBookPath(path)
+      setBookSlug(sinBookSlugOf(path))
       setBookTitle(title)
       await ctl.newSession()
       await reloadSessions()
@@ -137,6 +173,10 @@ const AppBoard: React.FC = () => {
       setOpening(false)
     }
   }, [ctl, opening, reloadSessions])
+  const handleOpenBook = useCallback((path: string) => {
+    confirmSwitchThen(() => { void doOpenBook(path) })
+  }, [confirmSwitchThen, doOpenBook])
+
 
   const handleNewSession = useCallback(async () => {
     await ctl.newSession()
@@ -154,6 +194,74 @@ const AppBoard: React.FC = () => {
   const fetchSinTrajectory = useCallback(() => app.SinEngineTrajectory(), [])
   const fetchSinContext = useCallback(() => app.SinEngineContextView(), [])
   const fetchSinNodeDetail = useCallback((seq: number) => app.SinEngineContextNodeDetail(seq), [])
+
+  // ── 右栏创作面板（五卡，键=书 slug）────────────────────────────
+  // 首次需要展示角色库（面板展开/选择器打开）才拉全量列表——进板块零额外请求
+  useEffect(() => {
+    if (panelOpen || castPickerOpen) cast.ensureLibrary()
+  }, [panelOpen, castPickerOpen, cast])
+
+  // 回合结束重读底稿（AI 可能在回合里用 sin_notes/sin_outline 写了便签/大纲）
+  const { reload: reloadNotes } = notes
+  useEffect(() => {
+    if (chapterTick > 0 && bookSlug) reloadNotes()
+  }, [chapterTick, bookSlug, reloadNotes])
+
+  // 角色保存统一入口：成功才收尾，失败如实透出
+  const handleSaveCast = useCallback(async (ids: string[]) => {
+    const res = await cast.saveCast(ids)
+    if (!res.ok) {
+      message.error(res.message)
+    }
+    return res.ok
+  }, [cast])
+
+  // 生成设定卡（sin 侧入口，与 legacy 同管线）：qedit 三视图并排→存回角色库
+  const handleCastSheet = useCallback(async (id: string) => {
+    try {
+      const detail = await getCharacter(id)
+      const full = detail.character
+      const img = await generateCharacterSheet(full, 'triptych')
+      await saveCharacter({ ...full, referenceImages: [...(full.referenceImages ?? []), img] })
+      cast.reloadLibrary()
+      message.success(`${full.name || '角色'} 的设定卡已生成并存入角色库参考图`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('context canceled')) { message.info('已取消生成'); return }
+      message.error(`设定卡生成失败：${msg}`)
+    }
+  }, [cast])
+
+  // 一致性评分（快路径）：评角色最新一张参考图
+  const handleCastScore = useCallback(async (id: string) => {
+    try {
+      const detail = await getCharacter(id)
+      const full = detail.character
+      const refs = full.referenceImages ?? []
+      const last = refs[refs.length - 1]
+      if (!last) {
+        message.info(`${full.name || '角色'} 暂无参考图——先用设定卡或剧照生成一张再评分`)
+        return
+      }
+      const res = await scoreCharacterConsistency(full, last)
+      Modal.info({
+        title: `一致性评分：${res.score} 分`,
+        content: (
+          <div data-testid="sin-consistency-score-modal">
+            <p>{res.summary || '（无总评）'}</p>
+            {(res.issues?.length ?? 0) > 0 && (
+              <ul>{res.issues.map((it: string, k: number) => <li key={k}>{it}</li>)}</ul>
+            )}
+            {res.score < 60 && <p>建议补充不同角度/光照的参考图后再生成，提高一致性。</p>}
+          </div>
+        ),
+      })
+    } catch (err: unknown) {
+      message.error(`一致性评分失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [])
+
+  const handlePanelDirtyChange = useCallback((dirty: boolean) => setPanelDirty(dirty), [])
 
   return (
     <LocaleProvider>
@@ -178,6 +286,15 @@ const AppBoard: React.FC = () => {
               title="在当前书下新建会话"
             >
               新会话
+            </Button>
+            <Button
+              size="small"
+              type="text"
+              onClick={() => setPanelOpen((v) => !v)}
+              title={panelOpen ? "收起创作面板" : "展开创作面板"}
+              aria-label={panelOpen ? "收起创作面板" : "展开创作面板"}
+            >
+              {panelOpen ? "收面板" : "创作面板"}
             </Button>
             <Button
               size="small"
@@ -273,11 +390,39 @@ const AppBoard: React.FC = () => {
             )}
           </main>
 
-          {/* ── 右：创作面板（刀6 完整 pane 化：文件/交付/创作五卡）── */}
-          <div className={`sin-side-host is-hidden`}>
-            <div />
+          {/* ── 右：创作面板（五卡 rehost，键=书 slug；文件/交付 tab 随刀6b）── */}
+          <div className={`sin-side-host${panelOpen ? "" : " is-hidden"}`}>
+            <SinSidePanel
+              storyId={bookSlug}
+              cast={cast.cast}
+              castSaving={cast.saving}
+              onOpenPicker={() => setCastPickerOpen(true)}
+              onRemoveCast={(id: string) => { void handleSaveCast(cast.castIds.filter((x) => x !== id)) }}
+              onGenerateSheet={handleCastSheet}
+              onScore={handleCastScore}
+              notesDoc={notes.doc}
+              notesError={notes.error}
+              notesLoading={notes.loading}
+              messages={[]}
+              sending={state.running}
+              onRegenerate={async () => { message.info('插图重生成随刀6b 接入引擎产物面') }}
+              onSaveNotes={notes.save}
+              onDirtyChange={handlePanelDirtyChange}
+              visible={panelOpen}
+            />
           </div>
         </div>
+
+        <SinCastPicker
+          open={castPickerOpen}
+          library={cast.library}
+          loading={cast.libraryLoading}
+          error={cast.libraryError}
+          selectedIds={cast.castIds}
+          saving={cast.saving}
+          onSave={(ids: string[]) => { void handleSaveCast(ids).then((ok) => { if (ok) setCastPickerOpen(false) }) }}
+          onClose={() => setCastPickerOpen(false)}
+        />
 
         {/* ── 审批 / 提问卡（引擎交互闸；输入岛上沿非模态）── */}
         {state.approval && (

@@ -14,6 +14,12 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type SinB struct{ a *App }
 
+func (b *SinB) SinBoardCastGet(key string) ([]string, error) { return b.a.SinBoardCastGet(key) }
+func (b *SinB) SinBoardCastSet(key string, ids []string) ([]string, error) { return b.a.SinBoardCastSet(key, ids) }
+func (b *SinB) SinBoardNotesGet(key string) (SinNotesView, error) { return b.a.SinBoardNotesGet(key) }
+func (b *SinB) SinBoardNotesSave(key string, baseline string, outline string, notes string, force bool) (SinNotesView, error) { return b.a.SinBoardNotesSave(key, baseline, outline, notes, force) }
+func (b *SinB) SinBoardStyleGet(key string) (string, error) { return b.a.SinBoardStyleGet(key) }
+func (b *SinB) SinBoardStyleSet(key string, style string) (string, error) { return b.a.SinBoardStyleSet(key, style) }
 func (b *SinB) SinBookSourceBookDelete(path string) error { return b.a.SinBookSourceBookDelete(path) }
 func (b *SinB) SinBookSourceBookExportEpub(path string) (string, error) { return b.a.SinBookSourceBookExportEpub(path) }
 func (b *SinB) SinBookSourceBooksList() ([]SinBookSourceBook, error) { return b.a.SinBookSourceBooksList() }
