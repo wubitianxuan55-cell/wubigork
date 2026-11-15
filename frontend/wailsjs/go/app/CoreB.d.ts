@@ -3,15 +3,12 @@
 import {app} from '../models';
 import {board} from '../models';
 import {modelengine} from '../models';
-import {search} from '../models';
 
 export function AddCustomEngine(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function CreateProject(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
 
 export function DeleteProject(arg1:string):Promise<void>;
-
-export function ExportAll(arg1:boolean):Promise<Record<string, string>>;
 
 export function GaeaSpaceActivate(arg1:string):Promise<app.SpaceActiveView>;
 
@@ -57,8 +54,6 @@ export function GetProgrammingWebStatus():Promise<Record<string, any>>;
 
 export function GetProjectInfo():Promise<Record<string, any>>;
 
-export function GetStats():Promise<Record<string, any>>;
-
 export function ListProjects():Promise<Array<app.ProjectCard>>;
 
 export function ListSkills():Promise<Array<Record<string, any>>>;
@@ -88,8 +83,6 @@ export function ResetModelCallStats():Promise<void>;
 export function SaveConfig(arg1:string,arg2:string):Promise<void>;
 
 export function SaveEngine(arg1:modelengine.EngineConfig):Promise<void>;
-
-export function Search(arg1:string):Promise<Record<string, Array<search.Result>>>;
 
 export function SetActiveEngine(arg1:string):Promise<void>;
 

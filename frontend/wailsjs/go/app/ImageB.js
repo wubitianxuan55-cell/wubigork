@@ -22,10 +22,6 @@ export function GaeaImageDirector(arg1) {
   return window['go']['app']['ImageB']['GaeaImageDirector'](arg1);
 }
 
-export function GenerateCharacterPortrait(arg1, arg2) {
-  return window['go']['app']['ImageB']['GenerateCharacterPortrait'](arg1, arg2);
-}
-
 export function GenerateDiagram(arg1) {
   return window['go']['app']['ImageB']['GenerateDiagram'](arg1);
 }
@@ -90,16 +86,8 @@ export function OpenImageSaveDir() {
   return window['go']['app']['ImageB']['OpenImageSaveDir']();
 }
 
-export function OpenNovelImagesDir() {
-  return window['go']['app']['ImageB']['OpenNovelImagesDir']();
-}
-
 export function SetActiveTTSModel(arg1, arg2) {
   return window['go']['app']['ImageB']['SetActiveTTSModel'](arg1, arg2);
-}
-
-export function SetCharacterPortrait(arg1, arg2) {
-  return window['go']['app']['ImageB']['SetCharacterPortrait'](arg1, arg2);
 }
 
 export function SetChatVoiceModel(arg1, arg2) {

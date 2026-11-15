@@ -38,5 +38,3 @@ export function ChatTopicRename(arg1:string,arg2:string):Promise<void>;
 export function ChatTopicSetMode(arg1:string,arg2:string):Promise<void>;
 
 export function ChatTopicsList():Promise<Array<chat.Topic>>;
-
-export function ChatWorldview(arg1:string,arg2:string):Promise<Record<string, any>>;

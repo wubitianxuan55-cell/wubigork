@@ -12,8 +12,6 @@ export function CancelImageGeneration():Promise<boolean>;
 
 export function GaeaImageDirector(arg1:app.ImageDirectorRequest):Promise<app.ImageDirectorResult>;
 
-export function GenerateCharacterPortrait(arg1:string,arg2:string):Promise<string>;
-
 export function GenerateDiagram(arg1:string):Promise<Record<string, any>>;
 
 export function GenerateFreeImage(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number,arg7:number,arg8:string):Promise<Record<string, any>>;
@@ -46,11 +44,7 @@ export function ImageHubMonthlyUsage(arg1:string):Promise<app.ImageHubMonthlyUsa
 
 export function OpenImageSaveDir():Promise<void>;
 
-export function OpenNovelImagesDir():Promise<void>;
-
 export function SetActiveTTSModel(arg1:string,arg2:string):Promise<void>;
-
-export function SetCharacterPortrait(arg1:string,arg2:string):Promise<void>;
 
 export function SetChatVoiceModel(arg1:string,arg2:string):Promise<void>;
 

@@ -73,7 +73,3 @@ export function ChatTopicSetMode(arg1, arg2) {
 export function ChatTopicsList() {
   return window['go']['app']['ChatB']['ChatTopicsList']();
 }
-
-export function ChatWorldview(arg1, arg2) {
-  return window['go']['app']['ChatB']['ChatWorldview'](arg1, arg2);
-}

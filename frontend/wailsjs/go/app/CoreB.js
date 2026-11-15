@@ -14,10 +14,6 @@ export function DeleteProject(arg1) {
   return window['go']['app']['CoreB']['DeleteProject'](arg1);
 }
 
-export function ExportAll(arg1) {
-  return window['go']['app']['CoreB']['ExportAll'](arg1);
-}
-
 export function GaeaSpaceActivate(arg1) {
   return window['go']['app']['CoreB']['GaeaSpaceActivate'](arg1);
 }
@@ -106,10 +102,6 @@ export function GetProjectInfo() {
   return window['go']['app']['CoreB']['GetProjectInfo']();
 }
 
-export function GetStats() {
-  return window['go']['app']['CoreB']['GetStats']();
-}
-
 export function ListProjects() {
   return window['go']['app']['CoreB']['ListProjects']();
 }
@@ -168,10 +160,6 @@ export function SaveConfig(arg1, arg2) {
 
 export function SaveEngine(arg1) {
   return window['go']['app']['CoreB']['SaveEngine'](arg1);
-}
-
-export function Search(arg1) {
-  return window['go']['app']['CoreB']['Search'](arg1);
 }
 
 export function SetActiveEngine(arg1) {
