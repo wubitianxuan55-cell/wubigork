@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 773 名（原生变参 11 名已收窄标注）。
+// 共 817 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -723,16 +723,37 @@ export const bindingSignatures = {
   WeixinReminderDelete: { argc: 1, variadic: false, params: "id string" },
   WeixinReminderList: { argc: 0, variadic: false, params: "" },
   WeixinReminderSetConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
+  WenxueAgentNetwork: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  WenxueAnswer: { argc: 2, variadic: false, params: "id string, answers []event.AskAnswer" },
+  WenxueApprove: { argc: 2, variadic: false, params: "id string, decision string" },
+  WenxueArchiveSession: { argc: 1, variadic: false, params: "path string" },
   WenxueAttachmentChunkBegin: { argc: 1, variadic: false, params: "fileName string" },
   WenxueAttachmentDataURL: { argc: 1, variadic: false, params: "path string" },
+  WenxueBalance: { argc: 0, variadic: false, params: "" },
+  WenxueCancel: { argc: 0, variadic: false, params: "" },
+  WenxueCapabilities: { argc: 0, variadic: false, params: "" },
+  WenxueChangeFactType: { argc: 2, variadic: false, params: "name string, typ string" },
+  WenxueCommands: { argc: 0, variadic: false, params: "" },
+  WenxueContext: { argc: 0, variadic: false, params: "" },
+  WenxueContextCommands: { argc: 3, variadic: true, params: "beforeSeq int64, limit int, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  WenxueContextDna: { argc: 2, variadic: true, params: "seqs []int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  WenxueContextInsights: { argc: 2, variadic: false, params: "rangeKey string, includeArchived bool" },
+  WenxueContextNodeDetail: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  WenxueContextSurface: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  WenxueContextView: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueCreateNovel: { argc: 1, variadic: false, params: "name string" },
   WenxueCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
   WenxueCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },
   WenxueDeleteNovel: { argc: 1, variadic: false, params: "path string" },
+  WenxueDeleteSession: { argc: 1, variadic: false, params: "path string" },
   WenxueDeleteWorkspacePaths: { argc: 1, variadic: false, params: "paths []string" },
+  WenxueEngineInit: { argc: 0, variadic: false, params: "" },
   WenxueExportDeliverable: { argc: 1, variadic: false, params: "in ExportDeliverableInput" },
+  WenxueFamilyEvents: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueFileSearch: { argc: 3, variadic: false, params: "query string, limit int, exclude []string" },
   WenxueFileTreeWatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
+  WenxueForget: { argc: 1, variadic: false, params: "name string" },
+  WenxueFork: { argc: 1, variadic: false, params: "turn int" },
   WenxueGitCommit: { argc: 1, variadic: false, params: "message string" },
   WenxueGitCommitDetail: { argc: 1, variadic: false, params: "hash string" },
   WenxueGitDiff: { argc: 2, variadic: false, params: "path string, staged bool" },
@@ -743,32 +764,55 @@ export const bindingSignatures = {
   WenxueGitStatus: { argc: 0, variadic: false, params: "" },
   WenxueGitUnstage: { argc: 1, variadic: false, params: "paths []string" },
   WenxueGitWorktrees: { argc: 0, variadic: false, params: "" },
+  WenxueHistory: { argc: 0, variadic: false, params: "" },
+  WenxueJobs: { argc: 0, variadic: false, params: "" },
   WenxueListDir: { argc: 1, variadic: false, params: "rel string" },
   WenxueListDirBatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
   WenxueListProjectSessions: { argc: 0, variadic: false, params: "" },
   WenxueListSessions: { argc: 0, variadic: false, params: "" },
   WenxueListWorkspaces: { argc: 0, variadic: false, params: "" },
   WenxueMaterials: { argc: 1, variadic: false, params: "limit int" },
+  WenxueMemory: { argc: 0, variadic: false, params: "" },
+  WenxueMemorySuggestions: { argc: 0, variadic: false, params: "" },
   WenxueMeta: { argc: 0, variadic: false, params: "" },
   WenxueNewSession: { argc: 0, variadic: false, params: "" },
   WenxueOpenWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
+  WenxuePermLevel: { argc: 0, variadic: false, params: "" },
   WenxuePickWorkspace: { argc: 0, variadic: false, params: "" },
   WenxuePickWorkspaceUploadFiles: { argc: 1, variadic: false, params: "dir string" },
   WenxuePickWorkspaceUploadFolder: { argc: 1, variadic: false, params: "dir string" },
   WenxuePinMaterial: { argc: 1, variadic: false, params: "rel string" },
+  WenxuePinSession: { argc: 2, variadic: false, params: "path string, pinned bool" },
   WenxuePinnedMaterials: { argc: 0, variadic: false, params: "" },
   WenxuePreview: { argc: 1, variadic: false, params: "rel string" },
   WenxueReadFile: { argc: 1, variadic: false, params: "rel string" },
   WenxueReadFilePage: { argc: 2, variadic: false, params: "rel string, offset int64" },
   WenxueReadTextFile: { argc: 1, variadic: false, params: "rel string" },
+  WenxueReload: { argc: 0, variadic: false, params: "" },
+  WenxueRemember: { argc: 2, variadic: false, params: "scope string, note string" },
+  WenxueRenameSession: { argc: 2, variadic: false, params: "path string, title string" },
   WenxueRenameWorkspacePath: { argc: 2, variadic: false, params: "rel string, name string" },
+  WenxueResumeSession: { argc: 1, variadic: false, params: "path string" },
+  WenxueResyncEvents: { argc: 1, variadic: false, params: "afterSeq int" },
   WenxueRevealWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
+  WenxueRewind: { argc: 2, variadic: false, params: "turn int, scope string" },
+  WenxueRunning: { argc: 0, variadic: false, params: "" },
   WenxueSaveAttachmentFile: { argc: 2, variadic: false, params: "fileName string, base64Data string" },
+  WenxueSaveDoc: { argc: 2, variadic: false, params: "path string, body string" },
   WenxueSavePastedImage: { argc: 1, variadic: false, params: "dataURL string" },
   WenxueSaveWorkspacePathAs: { argc: 1, variadic: false, params: "rel string" },
   WenxueSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
+  WenxueSend: { argc: 1, variadic: false, params: "input string" },
+  WenxueSetPermLevel: { argc: 1, variadic: false, params: "level string" },
+  WenxueSlashArgs: { argc: 1, variadic: false, params: "input string" },
+  WenxueSteer: { argc: 1, variadic: false, params: "input string" },
+  WenxueSubagentContextView: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
+  WenxueSubagentFollowUp: { argc: 3, variadic: false, params: "sessionPath string, ref string, prompt string" },
   WenxueSwitchWorkspace: { argc: 1, variadic: false, params: "path string" },
+  WenxueTrajectory: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
+  WenxueUnarchiveSession: { argc: 1, variadic: false, params: "path string" },
   WenxueUnpinMaterial: { argc: 1, variadic: false, params: "rel string" },
+  WenxueUpdateFact: { argc: 2, variadic: false, params: "name string, body string" },
   WenxueWorkspaceUploadAbort: { argc: 1, variadic: false, params: "token string" },
   WenxueWorkspaceUploadAppend: { argc: 2, variadic: false, params: "token string, base64Chunk string" },
   WenxueWorkspaceUploadBegin: { argc: 2, variadic: false, params: "dir string, relativePath string" },
@@ -794,5 +838,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 773。
-export const bindingSignatureCount = 773;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 817。
+export const bindingSignatureCount = 817;

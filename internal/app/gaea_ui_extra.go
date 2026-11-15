@@ -183,6 +183,9 @@ func (a *App) gaeaApplyCfg(mutate func(cfg *gaeaConfig.Config)) error {
 	if err := gaeaConfig.Save(ga.cfg); err != nil {
 		return fmt.Errorf("gaea: 保存配置失败: %w", err)
 	}
+	// 2026-11-15 刀1：图文独立引擎跟随重建（全局配置面变更同步生效；
+	// 图文引擎未初始化时跳过，首次 WenxueEngineInit 自然取新配置）。
+	a.wenxueReloadIfInit()
 	return a.gaeaRebuildLocked()
 }
 

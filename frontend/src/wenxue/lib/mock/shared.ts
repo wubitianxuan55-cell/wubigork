@@ -13,7 +13,7 @@ import type {
 } from "../types";
 
 // 对齐 Go app 层 eventChannel（GaeaMeta：internal/app/gaea_ui_meta.go）。
-export const EVENT_CHANNEL = "gaea-event";
+export const EVENT_CHANNEL = "gaea-wenxue-event";
 
 // 浏览器开发 mock 的固定资料清单（内存态，对应后端 .gaea/pinned.json）。
 export let pinnedMock: string[] = [];

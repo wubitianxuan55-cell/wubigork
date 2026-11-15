@@ -3,9 +3,12 @@ package app
 // wenxue_workspace.go — 文学板块（图文）工作空间与文件面（2026-11-15 二次改造隔离刀）。
 //
 // 图文所有工作空间限定在 C:\\AI\\tuwen（每部小说一个子目录=独立工作空间）；
-// 本文件族全部为加性刀：方法体 fork 自办公对应绑定（gaeaCwd→wenxueWorkspace），
-// 办公共享原语（workbench/wspath/gaeaAttachment/pins/spaces）按路径参数复用，
-// 办公行为零改动。会话/聊天引擎仍与办公全共享（早前拍板），仅文件面隔离。
+// 本文件族全部为加性刀：方法体 fork 自办公对应绑定（工作空间锚换
+// wenxueWorkspace），办公共享原语（workbench/wspath/gaeaAttachment/pins/
+// spaces）按路径参数复用，办公行为零改动。
+// 2026-11-15 刀1（案A）：会话引擎随图文独立（wenxue_engine.go 的 wx 控制器），
+// 本文件会话/工作空间切换面全部改锚 wx；会话列表/项目分组移至
+// wenxue_chat.go（控制器锚 wx）。
 
 import (
 	"archive/zip"
@@ -111,103 +114,61 @@ func (a *App) WenxueListWorkspaces() []WorkspaceView {
 	return out
 }
 
-// WenxueListSessions 返回当前小说工作空间的会话。办公工作空间的会话不会
-// 出现在图文侧栏；没有选择小说时返回空列表。
-func (a *App) WenxueListSessions() []SessionMeta {
-	current := wenxueWorkspace()
-	if current == wenxueWorkspaceRoot() {
-		return []SessionMeta{}
-	}
-	curSession := ""
-	if c := gaeaCtrl(); c != nil {
-		curSession = c.SessionPath()
-	}
-	return a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(current, ""), curSession, true)
-}
-
-// WenxueListProjectSessions 以小说目录为项目分组。列表只扫描 tuwen 根下的
-// 一级子目录，并包含尚未产生会话的新建小说；办公最近工作区不参与。
-func (a *App) WenxueListProjectSessions() []ProjectGroup {
-	current := wenxueWorkspace()
-	curSession := ""
-	if c := gaeaCtrl(); c != nil {
-		curSession = c.SessionPath()
-	}
-	groups := make([]ProjectGroup, 0)
-	for _, ws := range a.WenxueListWorkspaces() {
-		sessions := a.listSessionsForDir(
-			gaeaConfig.WorkspaceSessionDir(ws.Path, ""),
-			curSession,
-			ws.Current,
-		)
-		archived := a.archivedSessionsForDir(gaeaConfig.WorkspaceSessionDir(ws.Path, ""))
-		if len(sessions) > maxProjectSessionsPerGroup {
-			sessions = sessions[:maxProjectSessionsPerGroup]
-		}
-		if len(archived) > maxProjectSessionsPerGroup {
-			archived = archived[:maxProjectSessionsPerGroup]
-		}
-		mod := int64(0)
-		for _, s := range sessions {
-			if s.ModTime > mod {
-				mod = s.ModTime
-			}
-		}
-		for _, s := range archived {
-			if s.ModTime > mod {
-				mod = s.ModTime
-			}
-		}
-		if mod == 0 {
-			if info, err := os.Stat(ws.Path); err == nil {
-				mod = info.ModTime().UnixMilli()
-			}
-		}
-		groups = append(groups, ProjectGroup{
-			Path:     ws.Path,
-			Name:     ws.Name,
-			Current:  wenxueSamePath(ws.Path, current),
-			Sessions: sessions,
-			Archived: archived,
-			ModTime:  mod,
-		})
-	}
-	sort.SliceStable(groups, func(i, j int) bool {
-		if groups[i].Current != groups[j].Current {
-			return groups[i].Current
-		}
-		return groups[i].ModTime > groups[j].ModTime
-	})
-	return groups
-}
-
-// WenxueMeta 返回图文侧看到的会话元信息；工作目录取当前小说，而不是办公
-// 工作区。聊天引擎本身仍沿用既有共享控制器。
+// WenxueMeta 返回图文侧看到的会话元信息（2026-11-15 刀1）：独立引擎锚——
+// Cwd=当前小说工作空间、事件通道=gaea-wenxue-event、就绪态读 wx 控制器。
 func (a *App) WenxueMeta() Meta {
-	meta := a.GaeaMeta()
-	meta.Cwd = wenxueWorkspace()
-	return meta
+	c := wenxueCtrl()
+	if c == nil {
+		// 引擎未就绪：不就地初始化（图文引擎构建较重，Send/NewSession 入口
+		// 已带自动初始化；Meta 只读，保持轻量诚实态）。
+		return Meta{
+			Label:        "图文",
+			Ready:        false,
+			EventChannel: wenxueEventChannel,
+			Cwd:          wenxueWorkspace(),
+		}
+	}
+	perm := "ask"
+	if c != nil {
+		perm = c.PermLevel()
+	}
+	return Meta{
+		Label:        "图文",
+		Ready:        true,
+		EventChannel: wenxueEventChannel,
+		Cwd:          wenxueWorkspace(),
+		Bypass:       c.PermLevel() != "ask",
+		PermLevel:    perm,
+	}
 }
 
-// WenxueNewSession 在当前小说目录下新建会话。控制器原本按办公工作区装配；
-// 新会话前仅替换新会话落盘目录，不改办公工作区持久化配置。
+// WenxueNewSession 在当前小说目录下新建会话（2026-11-15 刀1）：独立图文引擎
+// 锚——初始化 wx 引擎、运行闸、goal 闸清零、NewSession、wire seq 归零
+//（体与办公 GaeaNewSession 同构）。
 func (a *App) WenxueNewSession() error {
 	ws := wenxueWorkspace()
 	if ws == wenxueWorkspaceRoot() {
 		return errors.New("请先新建或选择一部小说")
 	}
-	if err := a.GaeaInit(); err != nil {
+	if err := a.WenxueEngineInit(); err != nil {
 		return err
 	}
-	c := gaeaCtrl()
-	if c == nil {
+	wx.mu.Lock()
+	defer wx.mu.Unlock()
+	if wx.ctrl == nil {
 		return errors.New("图文引擎未初始化")
 	}
-	if c.Running() {
+	if wx.ctrl.Running() {
 		return errors.New("回合正在运行，请先停止当前回合再新建会话")
 	}
-	c.SetSessionDir(gaeaConfig.WorkspaceSessionDir(ws, ""))
-	return a.GaeaNewSession()
+	// 切换落盘目录到当前小说（引擎已按 wenxueWorkspace 构建；显式 SetSessionDir
+	// 兜防切换工作空间与引擎构建的时序差）。
+	wx.ctrl.SetSessionDir(gaeaConfig.WorkspaceSessionDir(ws, ""))
+	if err := wx.ctrl.NewSession(); err != nil {
+		return err
+	}
+	wx.wire.reset()
+	return nil
 }
 
 // wenxueValidateNovelName 校验小说名（即目录名）：拒绝非法文件名字符与越界形态。
@@ -290,14 +251,23 @@ func (a *App) WenxueDeleteNovel(path string) error {
 	}
 	isCurrent := wenxueSamePath(abs, wenxueWorkspace())
 	if isCurrent {
-		if c := gaeaCtrl(); c != nil {
+		wx.mu.Lock()
+		c := wx.ctrl
+		wx.mu.Unlock()
+		if c != nil {
 			if c.Running() {
 				return errors.New("回合正在运行，请先停止当前回合再删除小说")
 			}
+			// 退出当前小说：会话落盘目录切回图文根并开新空会话（wx 引擎）。
 			c.SetSessionDir(gaeaConfig.WorkspaceSessionDir(root, ""))
-			if err := a.GaeaNewSession(); err != nil {
+			wx.mu.Lock()
+			c.SetGoal("")
+			err := c.NewSession()
+			wx.mu.Unlock()
+			if err != nil {
 				return fmt.Errorf("退出当前小说失败: %w", err)
 			}
+			wx.wire.reset()
 		}
 		wenxuePersistWorkspace(root)
 		wenxueCloseFileTreeWatch()
@@ -334,7 +304,7 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	wenxuePersistWorkspace(abs)
 	// 释放图文文件树监视（旧根句柄），树重开时按新根重建。
 	wenxueCloseFileTreeWatch()
-	if c := gaeaCtrl(); c != nil && !c.Running() {
+	if c := wenxueCtrl(); c != nil && !c.Running() {
 		c.SetSessionDir(gaeaConfig.WorkspaceSessionDir(abs, ""))
 	}
 	return abs
@@ -400,7 +370,7 @@ func (a *App) WenxueFileTreeWatch(paths, exclude []string) error {
 
 // WenxueAttachmentChunkBegin 开一个分块上传会话，返回会话 token。
 func (a *App) WenxueAttachmentChunkBegin(fileName string) (string, error) {
-	return gaeaAttachment.BeginChunk(filepath.Join(gaeaCwd(), ".gaea", "uploads"), fileName)
+	return gaeaAttachment.BeginChunk(filepath.Join(wenxueWorkspace(), ".gaea", "uploads"), fileName)
 }
 
 // WenxueAttachmentDataURL 读取附件为 dataURL。
@@ -441,17 +411,17 @@ func (a *App) WenxueAttachmentDataURL(path string) (string, error) {
 
 // WenxueCreateWorkspaceFile creates an empty file inside an existing row.
 func (a *App) WenxueCreateWorkspaceFile(parent, name string) (workbench.MutationResult, error) {
-	return workbench.CreateFile(gaeaCwd(), parent, name)
+	return workbench.CreateFile(wenxueWorkspace(), parent, name)
 }
 
 // WenxueCreateWorkspaceFolder creates a directory inside an existing row.
 func (a *App) WenxueCreateWorkspaceFolder(parent, name string) (workbench.MutationResult, error) {
-	return workbench.CreateFolder(gaeaCwd(), parent, name)
+	return workbench.CreateFolder(wenxueWorkspace(), parent, name)
 }
 
 // WenxueDeleteWorkspacePaths permanently removes selected rows.
 func (a *App) WenxueDeleteWorkspacePaths(paths []string) error {
-	return workbench.DeletePaths(gaeaCwd(), paths)
+	return workbench.DeletePaths(wenxueWorkspace(), paths)
 }
 
 // WenxueExportDeliverable 统一交付出口：事实底座/对话成果的受控 Markdown →
@@ -492,7 +462,7 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 	// （S4 产物路径分区：work 恒 .gaea/exports 现状不动，play 落 .gaea/play/exports）。
 	var outPath string
 	if strings.TrimSpace(in.OutputPath) != "" {
-		p, perr := wspath.ResolveRelWithin(gaeaCwd(), in.OutputPath)
+		p, perr := wspath.ResolveRelWithin(wenxueWorkspace(), in.OutputPath)
 		if perr != nil {
 			return ExportDeliverableResult{}, fmt.Errorf("非法 output_path（须为工作区相对路径）: %s", in.OutputPath)
 		}
@@ -504,7 +474,7 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 		}
 		outPath = p
 	} else {
-		exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
+		exportsDir := spaces.ExportsDir(wenxueWorkspace(), gaeaEffectiveSpace())
 		if err := os.MkdirAll(exportsDir, 0o755); err != nil {
 			return ExportDeliverableResult{}, err
 		}
@@ -541,7 +511,7 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 	if err != nil {
 		return ExportDeliverableResult{}, err
 	}
-	rel, _ := filepath.Rel(gaeaCwd(), outPath)
+	rel, _ := filepath.Rel(wenxueWorkspace(), outPath)
 	return ExportDeliverableResult{
 		Path:   filepath.ToSlash(rel),
 		Name:   filepath.Base(outPath),
@@ -557,7 +527,7 @@ func (a *App) WenxueFileSearch(query string, limit int, exclude []string) []File
 		limit = 30
 	}
 	q := strings.ToLower(strings.TrimSpace(query))
-	root := gaeaCwd()
+	root := wenxueWorkspace()
 	matcher := filefilter.Compile(exclude)
 	out := []FileSearchHit{}
 	matched := 0
@@ -959,7 +929,7 @@ func (a *App) WenxueListDir(rel string) ([]DirEntry, error) {
 
 // WenxueListDirBatch lists all expanded tree levels in one binding round trip.
 func (a *App) WenxueListDirBatch(paths, exclude []string) []workbench.Level {
-	return workbench.ListBatch(gaeaCwd(), paths, exclude)
+	return workbench.ListBatch(wenxueWorkspace(), paths, exclude)
 }
 
 // WenxueMaterials 工作区资料概览：office/文本类文件按修改时间倒序返回
@@ -968,7 +938,7 @@ func (a *App) WenxueMaterials(limit int) []FileSearchHit {
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
-	root := gaeaCwd()
+	root := wenxueWorkspace()
 	matcher := filefilter.Compile(nil)
 	out := []FileSearchHit{}
 	var walk func(dir, rel string, depth int)
@@ -1040,7 +1010,7 @@ func (a *App) WenxuePickWorkspaceUploadFiles(dir string) ([]workbench.UploadResu
 	}
 	files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:            "上传文件到工作区",
-		DefaultDirectory: gaeaCwd(),
+		DefaultDirectory: wenxueWorkspace(),
 	})
 	if err != nil {
 		return nil, err
@@ -1048,7 +1018,7 @@ func (a *App) WenxuePickWorkspaceUploadFiles(dir string) ([]workbench.UploadResu
 	if len(files) == 0 {
 		return []workbench.UploadResult{}, nil
 	}
-	return workbench.ImportFiles(gaeaCwd(), dir, files)
+	return workbench.ImportFiles(wenxueWorkspace(), dir, files)
 }
 
 // WenxuePickWorkspaceUploadFolder chooses one directory natively and recursively
@@ -1059,7 +1029,7 @@ func (a *App) WenxuePickWorkspaceUploadFolder(dir string) ([]workbench.UploadRes
 	}
 	source, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:            "上传文件夹到工作区",
-		DefaultDirectory: gaeaCwd(),
+		DefaultDirectory: wenxueWorkspace(),
 	})
 	if err != nil {
 		return nil, err
@@ -1067,21 +1037,21 @@ func (a *App) WenxuePickWorkspaceUploadFolder(dir string) ([]workbench.UploadRes
 	if source == "" {
 		return []workbench.UploadResult{}, nil
 	}
-	return workbench.ImportFolder(gaeaCwd(), dir, source)
+	return workbench.ImportFolder(wenxueWorkspace(), dir, source)
 }
 
 // WenxuePinMaterial 固定一个工作区相对路径文件，返回更新后的固定清单。
 func (a *App) WenxuePinMaterial(rel string) []FileSearchHit {
-	if _, err := pins.Add(gaeaCwd(), rel); err != nil {
+	if _, err := pins.Add(wenxueWorkspace(), rel); err != nil {
 		return []FileSearchHit{}
 	}
-	return pinnedView(gaeaCwd())
+	return pinnedView(wenxueWorkspace())
 }
 
 // WenxuePinnedMaterials 返回当前工作区的固定常用资料（P1-②）。
 // 固定后的文件在新会话启动时自动带入系统提示词（见 boot 系统提示词组装）。
 func (a *App) WenxuePinnedMaterials() []FileSearchHit {
-	return pinnedView(gaeaCwd())
+	return pinnedView(wenxueWorkspace())
 }
 
 // WenxuePreview 读取工作区相对路径并返回结构化预览。
@@ -1191,7 +1161,7 @@ func (a *App) WenxuePreview(rel string) PreviewResult {
 	case ".xlsx":
 		// 公式无缓存值时先补一次 LibreOffice 重算，保证预览显示计算结果
 		if need, _ := xlsxpreview.NeedsRecalc(path); need {
-			_, _ = xlsxedit.Recalc(path, gaeaCwd())
+			_, _ = xlsxedit.Recalc(path, wenxueWorkspace())
 		}
 		j, err := xlsxpreview.Render(path)
 		if err != nil {
@@ -1276,7 +1246,7 @@ func (a *App) WenxueReadFile(rel string) FilePreview {
 	// 审计 2026-10-02 AP5-09：判据改调唯一原语（原为手写 IsAbs + Clean +
 	// `..` 前缀/片段，与 GaeaWriteFile 逐字重复的两份之一）；绝对/卷相对/
 	// 穿越一律由原语拒绝，措辞不变。
-	abs, err := wspath.ResolveRelWithin(gaeaCwd(), rel)
+	abs, err := wspath.ResolveRelWithin(wenxueWorkspace(), rel)
 	if err != nil {
 		return FilePreview{Path: rel, Markdown: "非法工作区相对路径: " + rel}
 	}
@@ -1301,18 +1271,18 @@ func (a *App) WenxueReadFile(rel string) FilePreview {
 
 // WenxueReadFilePage returns one line-aligned page from a large text file.
 func (a *App) WenxueReadFilePage(rel string, offset int64) (workbench.TextPage, error) {
-	return workbench.ReadPage(gaeaCwd(), rel, offset)
+	return workbench.ReadPage(wenxueWorkspace(), rel, offset)
 }
 
 // WenxueReadTextFile returns one full editable document with its mtime baseline,
 // detected encoding and line-ending convention.
 func (a *App) WenxueReadTextFile(rel string) (workbench.TextFile, error) {
-	return workbench.ReadText(gaeaCwd(), rel)
+	return workbench.ReadText(wenxueWorkspace(), rel)
 }
 
 // WenxueRenameWorkspacePath renames one file or directory row.
 func (a *App) WenxueRenameWorkspacePath(rel, name string) (workbench.MutationResult, error) {
-	return workbench.Rename(gaeaCwd(), rel, name)
+	return workbench.Rename(wenxueWorkspace(), rel, name)
 }
 
 func (a *App) WenxueRevealWorkspacePath(rel string) error {
@@ -1322,7 +1292,7 @@ func (a *App) WenxueRevealWorkspacePath(rel string) error {
 
 // WenxueSaveAttachmentFile 保存附件文件到工作区 .gaea/uploads。
 func (a *App) WenxueSaveAttachmentFile(fileName, base64Data string) (string, error) {
-	store, err := gaeaAttachment.Open(filepath.Join(gaeaCwd(), ".gaea", "uploads"))
+	store, err := gaeaAttachment.Open(filepath.Join(wenxueWorkspace(), ".gaea", "uploads"))
 	if err != nil {
 		return "", err
 	}
@@ -1332,7 +1302,7 @@ func (a *App) WenxueSaveAttachmentFile(fileName, base64Data string) (string, err
 
 // WenxueSavePastedImage 保存粘贴图片到工作区 .gaea/uploads。
 func (a *App) WenxueSavePastedImage(dataURL string) (string, error) {
-	store, err := gaeaAttachment.Open(filepath.Join(gaeaCwd(), ".gaea", "uploads"))
+	store, err := gaeaAttachment.Open(filepath.Join(wenxueWorkspace(), ".gaea", "uploads"))
 	if err != nil {
 		return "", err
 	}
@@ -1351,7 +1321,7 @@ func (a *App) WenxueSaveWorkspacePathAs(rel string) (string, error) {
 		return "", fmt.Errorf("路径为空")
 	}
 	defaultName := filepath.Base(filepath.FromSlash(clean))
-	isDir, err := workbench.Kind(gaeaCwd(), clean)
+	isDir, err := workbench.Kind(wenxueWorkspace(), clean)
 	if err != nil {
 		return "", err
 	}
@@ -1368,7 +1338,7 @@ func (a *App) WenxueSaveWorkspacePathAs(rel string) (string, error) {
 	if dest == "" {
 		return "", nil
 	}
-	if err := workbench.ExportPath(gaeaCwd(), clean, dest); err != nil {
+	if err := workbench.ExportPath(wenxueWorkspace(), clean, dest); err != nil {
 		return "", err
 	}
 	return dest, nil
@@ -1395,7 +1365,7 @@ func (a *App) WenxueSaveWorkspacePathsAs(paths []string) (string, error) {
 	if dest == "" {
 		return "", nil
 	}
-	if err := workbench.ExportPaths(gaeaCwd(), paths, dest); err != nil {
+	if err := workbench.ExportPaths(wenxueWorkspace(), paths, dest); err != nil {
 		return "", err
 	}
 	return dest, nil
@@ -1403,10 +1373,10 @@ func (a *App) WenxueSaveWorkspacePathsAs(paths []string) (string, error) {
 
 // WenxueUnpinMaterial 取消固定一个文件，返回更新后的固定清单。
 func (a *App) WenxueUnpinMaterial(rel string) []FileSearchHit {
-	if _, err := pins.Remove(gaeaCwd(), rel); err != nil {
+	if _, err := pins.Remove(wenxueWorkspace(), rel); err != nil {
 		return []FileSearchHit{}
 	}
-	return pinnedView(gaeaCwd())
+	return pinnedView(wenxueWorkspace())
 }
 
 // WenxueWorkspaceUploadAbort discards an incomplete upload.
@@ -1421,7 +1391,7 @@ func (a *App) WenxueWorkspaceUploadAppend(token, base64Chunk string) error {
 
 // WenxueWorkspaceUploadBegin starts a chunked upload below dir.
 func (a *App) WenxueWorkspaceUploadBegin(dir, relativePath string) (string, error) {
-	return a.workspaceUploadManager().Begin(gaeaCwd(), dir, relativePath)
+	return a.workspaceUploadManager().Begin(wenxueWorkspace(), dir, relativePath)
 }
 
 // WenxueWorkspaceUploadFinish publishes the uploaded file.
@@ -1432,7 +1402,7 @@ func (a *App) WenxueWorkspaceUploadFinish(token string) (workbench.UploadResult,
 // WenxueWriteWorkspaceFile saves an editor draft using the file's original
 // encoding/EOL, rejecting a stale mtime baseline.
 func (a *App) WenxueWriteWorkspaceFile(rel, content string, expectedMtimeMs int64) (workbench.WriteResult, error) {
-	return workbench.WriteText(gaeaCwd(), rel, content, expectedMtimeMs)
+	return workbench.WriteText(wenxueWorkspace(), rel, content, expectedMtimeMs)
 }
 
 // WenxueZipDeliverables 会话产物一键打包：把本次会话交付的文件（工作区相对路径列表）
@@ -1463,7 +1433,7 @@ func (a *App) WenxueZipDeliverables(paths []string) (ZipDeliverableResult, error
 		seen[clean] = true
 		// 审计 2026-10-02 AP5-09：相对条目改调唯一原语（原为手写 ../ 前缀 +
 		// IsAbs 判据；归一后越界的条目静默跳过，与既有「缺失条目跳过」语义一致）。
-		abs, rerr := wspath.ResolveRelWithin(gaeaCwd(), clean)
+		abs, rerr := wspath.ResolveRelWithin(wenxueWorkspace(), clean)
 		if rerr != nil {
 			continue
 		}
@@ -1478,7 +1448,7 @@ func (a *App) WenxueZipDeliverables(paths []string) (ZipDeliverableResult, error
 	}
 
 	// S4 产物路径分区：work 恒 .gaea/exports（现状不动），play 落 .gaea/play/exports。
-	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
+	exportsDir := spaces.ExportsDir(wenxueWorkspace(), gaeaEffectiveSpace())
 	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
 		return ZipDeliverableResult{}, err
 	}
@@ -1526,7 +1496,7 @@ func (a *App) WenxueZipDeliverables(paths []string) (ZipDeliverableResult, error
 		return ZipDeliverableResult{}, err
 	}
 
-	rel, _ := filepath.Rel(gaeaCwd(), zipPath)
+	rel, _ := filepath.Rel(wenxueWorkspace(), zipPath)
 	return ZipDeliverableResult{
 		Path:    filepath.ToSlash(rel),
 		Name:    filepath.Base(zipPath),
@@ -1592,8 +1562,8 @@ func wenxueExportPptx(in ExportDeliverableInput, title, outPath string) error {
 // wenxueFindSkillScript 定位技能脚本（工作区 .gaea/skills 或用户 skills 镜像）。
 func wenxueFindSkillScript(skill, sub, name string) string {
 	candidates := []string{
-		filepath.Join(gaeaCwd(), ".gaea", "skills", skill, sub, name),
-		filepath.Join(gaeaCwd(), "skills", skill, sub, name),
+		filepath.Join(wenxueWorkspace(), ".gaea", "skills", skill, sub, name),
+		filepath.Join(wenxueWorkspace(), "skills", skill, sub, name),
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		candidates = append(candidates,
@@ -1616,7 +1586,7 @@ func wenxueGitRun(args ...string) (string, error) {
 
 // wenxueGitWorkspace 返回 git 面的工作区锚：gaeaCwd 优先，回退进程启动目录。
 func wenxueGitWorkspace() string {
-	cwd := gaeaCwd()
+	cwd := wenxueWorkspace()
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
@@ -1630,7 +1600,7 @@ func wenxueGitWorkspace() string {
 // 直接使用（保留——口径对齐 wenxueResolvePreviewPath 的 IsAbs 分支，含正斜杠写法
 // 的 Windows 盘符路径，与前端 ToSlash 口径互通）。错误带 GAEADIR_* 码透传。
 func wenxueListDirEntries(rel string) ([]DirEntry, error) {
-	root := gaeaCwd()
+	root := wenxueWorkspace()
 	dir := root
 	if rel != "" {
 		if filepath.IsAbs(rel) {
@@ -1701,14 +1671,14 @@ func wenxueResolveAgainstWorkspace(p string) string {
 	if filepath.IsAbs(p) {
 		return p
 	}
-	return filepath.Clean(filepath.Join(gaeaCwd(), p))
+	return filepath.Clean(filepath.Join(wenxueWorkspace(), p))
 }
 
 // wenxueResolvePreviewPath 把工作区相对路径解析为绝对路径并返回展示用相对路径；
 // 裸文件名（无目录分隔符）直接找不到时，在常见输出目录里查找同名文件，
 // 使“输出文件：成本测算.xlsx”这类纯文件名引用也能直接预览。
 func wenxueResolvePreviewPath(rel string) (path, displayRel string) {
-	root := gaeaCwd()
+	root := wenxueWorkspace()
 	if filepath.IsAbs(rel) {
 		return filepath.Clean(rel), rel
 	}
@@ -1742,7 +1712,7 @@ func wenxueResolvePreviewPath(rel string) (path, displayRel string) {
 }
 
 func (a *App) wenxueWithinReadRoots(abs string) bool {
-	roots := []string{gaeaCwd()}
+	roots := []string{wenxueWorkspace()}
 	if dr := config.DataRoot(); dr != "" {
 		roots = append(roots, dr)
 	}
@@ -1770,7 +1740,7 @@ func (a *App) wenxueWithinReadRoots(abs string) bool {
 // wenxueWithinWriteRoots 判断绝对路径是否落在任一可写根（工作区 + allow_write）内。
 // 相对路径按工作区根解析（v4.405.1，与读侧同惯例）。
 func wenxueWithinWriteRoots(abs string) bool {
-	roots := []string{gaeaCwd()}
+	roots := []string{wenxueWorkspace()}
 	if ga.cfg != nil {
 		roots = ga.cfg.WriteRoots()
 	}

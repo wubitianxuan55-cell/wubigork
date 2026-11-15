@@ -51,7 +51,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
   const wenxueMeta = () => ({
     label: "Hephaestus",
     ready: true,
-    eventChannel: "gaea-event",
+    eventChannel: "gaea-wenxue-event",
     cwd: s.cwd,
     bypass: s.settings.permLevel !== "ask",
     permLevel: s.settings.permLevel,
@@ -649,7 +649,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
       return {
         label: "Hephaestus",
         ready: true,
-        eventChannel: "gaea-event",
+        eventChannel: "gaea-wenxue-event",
         cwd: s.cwd,
         bypass: s.settings.permLevel !== "ask",
         permLevel: s.settings.permLevel,

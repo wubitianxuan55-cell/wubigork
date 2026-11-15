@@ -24,7 +24,7 @@ type pluginsOut struct {
 // S1.3-B：space 为装配空间（""=space.mode=off 全注册现状）。MCP 热插拔绕过
 // 构建期过滤，因此启动挂载与 control.connectMCPSpec 的热插补挂载走同一规则
 // （builtin.AllowsSpace，MCP 工具缺省 shared）——spec 层过滤，不改运行时。
-func startPlugins(ctx context.Context, cfg *config.Config, reg *tool.Registry, sink event.Sink, stderrPath io.Writer, space string) *pluginsOut {
+func startPlugins(ctx context.Context, cfg *config.Config, reg *tool.Registry, sink event.Sink, stderrPath io.Writer, space string, toolFilter func(name string) bool) *pluginsOut {
 	out := &pluginsOut{}
 	pluginHost := plugin.NewHost()
 	specs := PluginSpecs(cfg.AutoStartPlugins())
@@ -46,7 +46,7 @@ func startPlugins(ctx context.Context, cfg *config.Config, reg *tool.Registry, s
 		host, ptools := plugin.StartAvailable(ctx, specs)
 		pluginHost = host
 		for _, t := range ptools {
-			if builtin.AllowsSpace(t, space) {
+			if builtin.AllowsSpace(t, space) && (toolFilter == nil || toolFilter(t.Name())) {
 				reg.Add(t)
 			}
 		}

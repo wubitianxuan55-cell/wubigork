@@ -35,7 +35,8 @@ export function onEvent(cb: (e: WireEvent) => void): () => void {
 }
 
 // Must match desktop/app.go's eventChannel constant.
-const EVENT_CHANNEL = "gaea-event";
+// 图文独立引擎（案A 刀1）：主对话流走图文专用通道，与办公 gaea-event 物理分线。
+const EVENT_CHANNEL = "gaea-wenxue-event";
 
 /** 子代理流式增量事件（专用通道 payload，v4.62.1 与 gaea-event 分道）。 */
 export interface SubagentTextEvent {
@@ -49,7 +50,7 @@ export interface SubagentTextEvent {
 // 账本 1:1，丢件可 resync 补拉」（v4.26 防线）；本通道是有损无妨的装饰性实时
 // 流，绝不可上 gaea-event 消费 seq（v4.62.0 曾因此把对话窗过程可见性打断）。
 // mock 场景复用 mockSubscribe：mock 可用 kind=subagent_text 的事件演示流式。
-const SUBAGENT_TEXT_CHANNEL = "gaea-subagent-text";
+const SUBAGENT_TEXT_CHANNEL = "gaea-wenxue-subagent-text";
 
 // onSubagentText subscribes to the subagent streaming-delta channel.
 export function onSubagentText(cb: (e: SubagentTextEvent) => void): () => void {
@@ -152,7 +153,7 @@ export function onTaskEvent(cb: (t: TaskView) => void, space?: string): () => vo
 // The frontend re-fetches Meta/Context/History when this lands.
 export function onReady(cb: () => void): () => void {
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    return subscribeWailsEvent(window.runtime, "gaea-ready", () => cb());
+    return subscribeWailsEvent(window.runtime, "gaea-wenxue-ready", () => cb());
   }
   // In dev mock, fire immediately since there's no real boot sequence.
   cb();

@@ -99,6 +99,12 @@ type Options struct {
 	// ReadPathAllowed is the host's explicit-read allowlist callback (desktop
 	// file picker selections). It extends reads only; writes always use config.
 	ReadPathAllowed func(path string) bool
+	// ToolFilter 是装配期工具过滤谓词（2026-11-15 刀1，图文板块专属工具集）：
+	// 非空时对装配进注册表的每个工具先问一次，返回 false = 物理不装。
+	// 作用点与 space 过滤同三处：addBuiltins、startPlugins（MCP）、ExtraTools；
+	// 会话级元工具（task/ask/记忆族等 build-internal 直加面）不过滤——deny
+	// 名单只收办公域工具，不含元工具。nil = 现状逐字节（办公引擎不传）。
+	ToolFilter func(name string) bool
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -236,11 +242,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			_, _ = fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
 		})
 	}
-	addBuiltins(reg, cwd, cfg.Tools.Enabled, writeRoots, bashSpec, cfg.NetworkProxySpec(), stderr, space)
+	addBuiltins(reg, cwd, cfg.Tools.Enabled, writeRoots, bashSpec, cfg.NetworkProxySpec(), stderr, space, opts.ToolFilter)
 	// Always construct a host, even with no plugins configured, so the controller's
 	// host pointer is stable for the session and `/mcp add` can hot-add into it.
 	// V10.22: plugins + LSP assembled in plugins.go
-	po := startPlugins(ctx, cfg, reg, sink, opts.Stderr, space)
+	po := startPlugins(ctx, cfg, reg, sink, opts.Stderr, space, opts.ToolFilter)
 	pluginHost := po.host
 	cleanup := po.cleanup
 	// 事件日志 sink 的写入器随控制器生命周期释放（Ctrl+Close / 重建换实例时
@@ -642,8 +648,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 前端注入的工具（如桌面端 image_gen）追加到注册表。S1.3-B：按装配空间
 	// 物理过滤（work=办公/编辑/检索域、play=生图/轻语/小说/角色域、shared
 	// 两空间通用；space 为空 = mode=off 全注册现状），重建时随新空间生效。
+	// 2026-11-15 刀1：ToolFilter 非空时叠加板块级过滤（图文 deny 名单）。
 	for _, t := range opts.ExtraTools {
-		if t != nil && builtin.AllowsSpace(t, space) {
+		if t != nil && builtin.AllowsSpace(t, space) && toolAllowed(opts.ToolFilter, t.Name()) {
 			reg.Add(t)
 		}
 	}
@@ -853,6 +860,11 @@ func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
 	})
 }
 
+// toolAllowed 是 ToolFilter 的 nil 安全包装（nil = 恒允许，现状逐字节）。
+func toolAllowed(filter func(name string) bool, name string) bool {
+	return filter == nil || filter(name)
+}
+
 // addBuiltins adds enabled built-in tools to reg. An empty list means all of
 // them. writeRoots confines the file-writing built-ins to the workspace: after
 // the (unconfined) defaults are added, each enabled writer is replaced by an
@@ -860,10 +872,12 @@ func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
 // S1.3-B：space 为装配空间（"work"/"play"；""=space.mode=off 全注册现状），
 // 按 builtin 分类表做装配期物理过滤（play 不含 edit 系/bash，work 不含
 // image_gen，shared 两空间通用）——不改运行时行为，ActiveSchemas 对齐不受影响。
-func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, bashSpec sandbox.Spec, proxySpec netclient.ProxySpec, stderr io.Writer, space string) {
+// 2026-11-15 刀1：toolFilter 非空时叠加板块级过滤（图文 deny 名单；被滤名
+// 的 confined 替换块因 reg.Get 缺席自然跳过，零额外分支）。
+func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, bashSpec sandbox.Spec, proxySpec netclient.ProxySpec, stderr io.Writer, space string, toolFilter func(name string) bool) {
 	if len(enabled) == 0 {
 		for _, t := range tool.Builtins() {
-			if builtin.AllowsSpace(t, space) {
+			if builtin.AllowsSpace(t, space) && toolAllowed(toolFilter, t.Name()) {
 				reg.Add(t)
 			}
 		}
@@ -874,7 +888,7 @@ func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, b
 				_, _ = fmt.Fprintf(stderr, "warning: unknown built-in tool %q\n", name)
 				continue
 			}
-			if builtin.AllowsSpace(t, space) {
+			if builtin.AllowsSpace(t, space) && toolAllowed(toolFilter, t.Name()) {
 				reg.Add(t)
 			}
 		}

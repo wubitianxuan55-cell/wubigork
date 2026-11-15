@@ -402,6 +402,9 @@ func (a *App) applyOfficeFeatureModel(engine, model string) {
 			slog.Warn("办公模型绑定变更后重建引擎失败", "error", err)
 		}
 	}
+	// 2026-11-15 刀1：图文独立引擎跟随（同全局模型注入面；未初始化跳过）。
+	// 注意不可持 ga.mu 调用（wx 构建读全局 loader 闭包内部会取 ga.mu）。
+	a.wenxueReloadIfInit()
 }
 
 // GaeaReloadResult 热加载结果摘要：重建后生效的工具/技能数量，前端可据此提示。
