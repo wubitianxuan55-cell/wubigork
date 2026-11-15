@@ -255,6 +255,25 @@ WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让
   报 unknown，B 方案口径自洽；如需点亮七角色卡，用户侧在 gaea.toml 配
   `[skills] paths = ["<仓>/.gaea/skills"]` 或等安装分发链批。不改默认行为（动配置
   归用户拍板）。
+
+### 验收合同收尾（2026-11-16 续批：动态终验+分发链核验）
+
+- **四段式第四腿闭合**（施工后动态各调一次 read_skill/run_skill）：
+  `internal/app/wenxue_skills_dynamic_test.go`——真实 boot.Build 全链装配
+  （真实 wenxueSkillFilter/SkillExtras/workbench 正文，mock provider hermetic，
+  纪律同 TestGaeaHistoryGolden：chdir 不改 APPDATA）。五断言：图文面
+  run_skill/read_skill 动态调 `wenxue-workbench` 双双返回含「写完一章必须回写」
+  真实正文；store 真实夹具 `gongwen.md` 被 allowlist 拒名后 run_skill 报 unknown、
+  read_skill 报 not found（fail-closed 不依赖用户 home 偶然内容）；办公面（双 nil）
+  同一夹具 run_skill 活读成功——nil-filter 行为不变的动态证明。一次通过。
+- **安装分发链核验**（遗留第②条）：`gaea_install.ps1` 不复制 `.gaea/skills`（grep
+  零命中）；装机 home 根 `~/.gaea/skills` 仅 docx/pdf/pptx/xlsx（无 novel-*，且
+  四件全被图文 allowlist 拒）。结论=装机位图文会话的 novel-* 可达性与开发仓一致
+  （不可达、口径自洽）；点亮路径仍=用户配 `[skills] paths`（或另立分发批）。
+- 工具面口径问答归档：图文会话无 PPT/Excel 工具（xlsx 四件/pptx_apply/office 族
+  deny 名单物理不装+技能索引隐藏）；唯一保留=create_docx.py/create_pptx.py 导出
+  脚本按路径依赖（藏索引不删目录），交付口径 txt/docx 为主。
+
 - 口径漂移顺手修：`wenxue_tools.go` 头注「RegistryMap 九行」→十二行（众神殿指出的
   名单双事实源漂移之一收口）。
 - 后置面不动（按裁决）：完整账本/12→7 合并读入口/批量 compact/结构化 writeback
