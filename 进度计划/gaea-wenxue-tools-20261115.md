@@ -138,3 +138,16 @@ WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让
   :5218 ?mock=1 浏览器驱动实证（tab 跳转+内容渲染+往返+截图）。装机 exe F5AF2C6B…PID 40640。
 - 教训沉淀：**新增主区视图 tab 的三处同步点=ChatTabs TABS/CHAT_VIEW_TAB_IDS、
   useSubagentTabs 白名单（现已单源化）、App 持久化校验（现已单源化）——单源化后只改 ChatTabs 一处**。
+
+## 打包记录（2026-11-15）
+
+- 包标识 `gaea-wenxue-tools-20261115-0eb7a2fc`，构建自独立干净工作树
+  （detached HEAD @ `0eb7a2fc`=打包时 HEAD，主树零未提交——全部工作已入库）。
+- 干净树构建：Vite 26.8s + Wails 50.6s（Skip Bindings=false）；构建后 wailsjs
+  内容零漂移（29 项 status=CRLF 显示假象）；DLL 预构建件取主树 build/bin。
+- 冒烟：payload 正式路径 `/api/health` 200。
+- 产物：payload/gaea.exe `BAC42EE4DE7E9849974CF844CFF66AF1FCCC21A37286496F909477E83F9A932D`
+  （干净树重建哈希，与主树非 clean-tree 构建的 A0717380…/F5AF2C6B… 不同属预期，
+  代码同源）；preview.zip + source.tar.gz 留盘不入库；
+  PACKAGE-INFO.md + SHA256SUMS-0eb7a2fc.txt 已入库。
+- 工作树 `.worktrees/pkg-0eb7a2fc` 已回收。
