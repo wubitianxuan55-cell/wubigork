@@ -51,6 +51,10 @@
 - 正式包路径冒烟：
   `scripts\smoke.ps1 -ExePath ...\payload\gaea.exe`
   → `/api/health` **200**，响应 `{"status":"ok"}`，PID `36124` 已回收。
+- 覆盖装机：`scripts\gaea_install.ps1 -SourceDir ...\payload -Launch`
+  → `INSTALL OK`；四件套安装后 SHA256 与本包一致；桌面只保留
+  `gaea.lnk`，目标为 `C:\AI\gaea-app\gaea.exe`。新 PID `41880`
+  创建于 `2026-11-15 16:12:27`，晚于构建时间 `16:08:10`。
 
 已知非本批阻塞项：
 
@@ -81,4 +85,5 @@
 - 源码 TAR 由 `git archive 404679be...` 生成，不包含本目录后写的包记录文件。
 - exe、三枚 DLL、预览 ZIP 与源码 TAR 留盘但不进入 Git；
   `PACKAGE-INFO.md` 与 SHA256 清单进入 Git。
-- 本包未覆盖 `C:\AI\gaea-app` 的当前安装版；用户明确要求装机时再执行安装脚本。
+- 本包已覆盖安装至 `C:\AI\gaea-app`，并按构建指南使用桌面唯一
+  `gaea.lnk` 启动校验；安装版 SHA256 与包内 payload 完全一致。

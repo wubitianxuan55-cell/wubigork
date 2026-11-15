@@ -17,9 +17,13 @@
   `SHA256SUMS-404679be.txt`；ZIP 根目录直接为四件套。
 - **冒烟**：正式路径 `payload\gaea.exe` → `/api/health` 200，
   `{"status":"ok"}`，PID 36124 已回收。
+- **装机**：`gaea_install.ps1 -SourceDir ...\payload -Launch` →
+  `INSTALL OK`；四件套哈希与包内 payload 一致；桌面仅留 `gaea.lnk`，
+  目标 `C:\AI\gaea-app\gaea.exe`；新 PID 41880 创建于 16:12:27，
+  晚于构建时间 16:08:10。
 - **哈希**：exe `08017F55…B049C7EC`，预览 ZIP
   `357A21E2…0840FC31F`，源码 TAR `D0BBBBA1…7E3D20`。
-- **边界**：未覆盖/安装 `C:\AI\gaea-app`。exe/DLL/ZIP/TAR 留盘不进 Git，
+- **交付边界**：已覆盖安装 `C:\AI\gaea-app`。exe/DLL/ZIP/TAR 留盘不进 Git，
   包记录与校验清单入库。
 
 ## 图文二次改造第三刀：去除办公知识库/CAD/进度计划关联（2026-11-15）· 主代理直做 · 未提交
