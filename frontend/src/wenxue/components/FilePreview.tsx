@@ -13,17 +13,12 @@ import { SandboxedHtml } from "./SandboxedHtml";
 import { Markdown } from "./Markdown";
 import { MdViewToggle, MindMapView } from "./MindMapView";
 import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
-import { PptxOutline } from "./PptxOutline";
-import { PptxEditPanel } from "./PptxEditPanel";
 import { JsonlPreview } from "./JsonlPreview";
 import { MarkdownToc } from "./MarkdownToc";
 import { extractMarkdownOutline } from "../lib/markdownOutline";
 import { registerEditorDraft, unregisterEditorDraft } from "../lib/editorDrafts";
 import { FileVersionStrip } from "./FileVersionStrip";
-import { XlsxPreview } from "./XlsxPreview";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
-import { useOfficeLive } from "../hooks/useOfficeLive";
-import { OfficeLiveBadge } from "./OfficeLiveBadge";
 import { useToast } from "./Toast";
 // 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
 // ErrorBoundary）或运行时挂载失败均回落纯 textarea，编辑能力永不丢失。
@@ -87,10 +82,6 @@ export function FilePreview({
   const [loading, setLoading] = useState(false);
   const ocrProgress = usePreviewProgress(relPath);
   const toast = useToast();
-  // 波3 COM 实时编辑接线：喂入（office_* 工具卡 → officeLiveStore）+
-  // office_file_saved 保存跟随（引用计数单例，多实例挂载安全）。只在头部
-  // 加展示，不动滚动/刷新语义（reloadSignal 链路零改动）。
-  useOfficeLive();
   // C5 工作区内联编辑：编辑态 / 草稿 / 脏标记 / 保存状态机 / 放弃确认
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -110,9 +101,6 @@ export function FilePreview({
   const pptxPagesRef = useRef<HTMLDivElement | null>(null);
   // 换文件滚动回顶：外层滚动容器（markdown/text/image/html/error 共用）
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  // v4.156 pptx 真编辑刀2：编辑面板打开时的初始页码（大纲卡「编辑此页」/
-  // 文本框条目回调）；null = 面板关闭。宿主形态与 DocxQueuePanel 同款右栏侧栏。
-  const [pptxEditSlide, setPptxEditSlide] = useState<number | null>(null);
   // v4.33.0 C：pdf 逐页懒加载（对齐弹窗 FilePreviewModal v4.32 C，同一套
   // lib/pageLazy 纯函数）。lazyPdf.src 记录所属 preview，preview 换载荷时在
   // 渲染期重置（初始窗口 + 清空强制集合，React「props 变化时调整 state」模式，
@@ -123,7 +111,7 @@ export function FilePreview({
   //（本地 onLoad 回调名 handlePdfPageLoad 与弹窗同款，替换原 handlePageImgLoad）。
   const pdfPages = preview?.kind === "pdf" ? preview.pages : undefined;
   const pdfPageCount = pdfPages?.length ?? 0;
-  const { lazyPdf, lazyPdfPages, pdfPageAnchorRef, handlePdfPageLoad, scrollToPptxPage } = useLazyPdfPages(pptxPagesRef, preview, pdfPageCount);
+  const { lazyPdf, lazyPdfPages, pdfPageAnchorRef, handlePdfPageLoad } = useLazyPdfPages(pptxPagesRef, preview, pdfPageCount);
 
   useEffect(() => {
     if (!relPath) { setPreview(null); return; }
@@ -139,7 +127,6 @@ export function FilePreview({
     setPageOffset(0);
     setPageEOF(false);
     setPageBusy(false);
-    setPptxEditSlide(null); // 换文件时收起 pptx 编辑面板（面板归属旧文件）
     // 换文件强制滚动回顶（主区/嵌入 tab/上一份下一份导航同一语义）：显式归零
     // 替代此前「loading 收窄内容靠浏览器 clamp 隐式归零」的脆弱行为。原地内容
     // 刷新（下方 reloadSignal effect）不走这里，滚动位保持 —— U4 语义不变。
@@ -382,9 +369,6 @@ export function FilePreview({
             {t("officeTurn.autoRefreshed")}
           </span>
         )}
-        {/* 波3 COM 实时编辑胶囊：本文件=「此文件正在被 AI 实时编辑」；他文件=
-            正被编辑文档名+进度，点击打开那份的预览（U2 置前同入口）。 */}
-        <OfficeLiveBadge relPath={relPath} />
         <button
           className={HEAD_BTN}
           onClick={() => app.RevealWorkspacePath(relPath).catch(() => {})}
@@ -564,9 +548,6 @@ export function FilePreview({
         {!loading && preview?.kind === "docx" && preview.dataUrl && (
           <DocxPreview dataUrl={preview.dataUrl} fileName={fileName} relPath={relPath} />
         )}
-        {!loading && preview?.kind === "xlsx" && (
-          <XlsxPreview body={preview.body} fileName={fileName} relPath={relPath} />
-        )}
         {!loading && preview?.kind === "pdf" && (
           // v4.28 B2 pptx：kind=pdf = soffice→PDF 的逐页缩略（pages 有值，
           // 纵向铺页 + 大纲卡点页滚动）或整本 dataUrl 回退（pdftoppm 缺失时
@@ -607,25 +588,6 @@ export function FilePreview({
                 </div>
               )}
             </div>
-            {(preview.hint === "outline" || preview.ext === ".pptx") && (
-              <PptxOutline
-                relPath={relPath}
-                fileName={fileName}
-                onPageSelect={scrollToPptxPage}
-                onEditSlide={setPptxEditSlide}
-              />
-            )}
-            {/* v4.156 刀2：pptx 编辑面板（右栏，与大纲卡同排）。应用成功用返回
-                的新 PreviewResult 刷新预览（写盘后预览缓存已自动失效）。 */}
-            {(preview.hint === "outline" || preview.ext === ".pptx") && pptxEditSlide !== null && (
-              <PptxEditPanel
-                relPath={relPath}
-                fileName={fileName}
-                initialSlide={pptxEditSlide}
-                onClose={() => setPptxEditSlide(null)}
-                onApplied={setPreview}
-              />
-            )}
           </div>
         )}
         {!loading && preview?.kind === "markdown" && (

@@ -19,15 +19,12 @@ export type OfficeMethods = Pick<
   | "PinnedMaterials" | "PinMaterial" | "UnpinMaterial" | "SummarizeFile"
   | "TaskTemplates"
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
-  | "PptxSlideText" | "PptxApplyEdit"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
-  | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "DeliverableRegistry" | "WriteFile"
+  | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "DeliverableRegistry" | "WriteFile"
   // 文档 lint / PPT 大纲（批 46 NOT_MOCKED 收尾刀；Gaea 前缀经 mappings 映射）。
-  | "DocumentLint" | "PptxOutline"
   // 众神殿刀3：搜索主源设置三绑定。
   | "WebSearchSettingsGet" | "WebSearchSettingsSet" | "WebSearchTestConnection"
-  | "ExportDeliverable" | "CrossEmbed" | "RevealWorkspacePath"
+  | "ExportDeliverable" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   // 分块上传三段（超大附件过桥形态；Begin 发 token → Append 吞片 → Finish 落名）。
   | "AttachmentChunkBegin" | "AttachmentChunkAppend" | "AttachmentChunkFinish" | "AttachmentChunkAbort"

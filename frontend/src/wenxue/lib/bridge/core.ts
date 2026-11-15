@@ -32,7 +32,6 @@ import type {
   IntentResultView,
   JobView,
   JournalChangeRecord,
-  LintReportView,
   MCPServerInput,
   Meta,
   PreviewResult,
@@ -375,8 +374,6 @@ export interface CoreBindings {
   VerifyRecord(id: string): Promise<VerdictView>;
   // v4.1b：基线快照回滚（目标被手工修改时拒绝，零覆盖）。
   RollbackRecord(id: string): Promise<void>;
-  // v4.1c：中文规范体检（GB/T 9704 红头要素 lint，md/txt/docx）。
-  DocumentLint(rel: string): Promise<LintReportView>;
   // ── 编程板块：隔离 DSH Web 进程与内嵌入口 ─────────────────────
   GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
   StartProgrammingWeb(): Promise<void>;

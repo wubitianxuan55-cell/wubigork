@@ -15,7 +15,7 @@ import {
   setPinnedMock,
 } from "../shared";
 import type { FilePickResult } from "../../types";
-import { mockFileBodies, mockXlsxState } from "./state";
+import { mockFileBodies } from "./state";
 import { opsMethods } from "./methods_ops";
 import { webSearchMethods } from "./methods_websearch";
 import type { OfficeMethods } from "./types";
@@ -290,14 +290,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
         body: "# 季度经营总结\n\n本季度经营数据平稳增长，成本结构持续优化。\n\n详见各章节明细。", dataUrl: MOCK_DOCX_DATA_URL, error: "",
       };
     }
-    if (ext === "xlsx") {
-      // 结构化单元格预览（mock），由 XlsxPreview 渲染。
-      return {
-        path: rel, name: rel.split("/").pop() ?? rel, ext: ".xlsx",
-        size: 2048, kind: "xlsx" as const,
-        body: JSON.stringify(mockXlsxState), dataUrl: "", error: "",
-      };
-    }
     if (ext === "html" || ext === "htm") {
       // 1c 走查样例：沙箱 iframe 渲染（脚本受限+无网络，标注条可见）。
       return {
@@ -521,16 +513,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     }
     return "follow-up started（mock 受理不执行）";
   },
-  async DocumentLint(rel: string) {
-    // 文档规范体检（批 46 NOT_MOCKED 收尾刀）：standard.LintReport 空报告——
-    // mock 无文档解析链，0 处问题如实通过（确定性 lint 的诚实退化态）。
-    if (!rel) throw new Error("缺少文件路径");
-    return { path: rel, issues: [], passed: true, summary: "（mock）0 处问题" };
-  },
-  async PptxOutline(_rel: string) {
-    // PPT 大纲生成（批 46 NOT_MOCKED 收尾刀）：需真实 LLM 内核，诚实拒。
-    throw new Error("dev mock：PPT 大纲生成需真实 LLM 内核");
-  },
   async DeliverableRegistry(_sessionPath: string) {
     // 浏览器开发 mock：模拟会话权威产物登记表（写类 + 生成/导出类工具落盘）。
     return {
@@ -569,15 +551,6 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
       name: `${input.title || "deliverable"}-mock.${format}`,
       format,
       size: input.markdown.length,
-    };
-  },
-  async CrossEmbed(input: { xlsxRel: string; into: string; title?: string }) {
-    const name = `${input.title || "chart"}-mock.${input.into}`;
-    return {
-      path: `.gaea/exports/${name}`,
-      name,
-      size: 4096,
-      chartPath: `.gaea/exports/${input.title || "chart"}-chart-mock.png`,
     };
   },
   async RevealWorkspacePath(rel: string) {
