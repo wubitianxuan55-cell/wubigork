@@ -1910,8 +1910,8 @@
   "edges": 381,
   "generated": "2026-11-10",
   "packages": 143,
-  "srcLoc": 237688,
-  "testLoc": 182679
+  "srcLoc": 237931,
+  "testLoc": 183374
  },
  "nodes": [
   {
@@ -1929,8 +1929,8 @@
   {
    "id": "internal/app",
    "layer": "shell",
-   "srcLoc": 59567,
-   "testLoc": 48891
+   "srcLoc": 59725,
+   "testLoc": 49288
   },
   {
    "id": "internal/app/board",
@@ -2067,8 +2067,8 @@
   {
    "id": "internal/gaea/boot",
    "layer": "kernel-rt",
-   "srcLoc": 1562,
-   "testLoc": 1686
+   "srcLoc": 1579,
+   "testLoc": 1841
   },
   {
    "id": "internal/gaea/browser",
@@ -2361,8 +2361,8 @@
   {
    "id": "internal/gaea/skill",
    "layer": "kernel-lib",
-   "srcLoc": 1716,
-   "testLoc": 1587
+   "srcLoc": 1784,
+   "testLoc": 1730
   },
   {
    "id": "internal/gaea/spaces",

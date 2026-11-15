@@ -2,7 +2,7 @@
 
 > 由 `go run scripts/code_atlas_doc.go` 从 `go list -json ./...` + 文件盘点单源生成（module `github.com/gaea/gaea`，go 1.26）。§1–§6 为机械段勿手改；§7 接缝导读与 §8 再生成说明随认知更新改模板重导。统计口径：Go 源码=GoFiles+CgoFiles 行数（非测试），测试=Test/XTestGoFiles；前端=ts/tsx/css 行数。`node_modules` 内杂包已滤。
 
-> 全仓 143 个 Go 包 · 源码 237,688 行 · 测试 182,679 行（测试/源码 0.77）。
+> 全仓 143 个 Go 包 · 源码 237,931 行 · 测试 183,374 行（测试/源码 0.77）。
 
 ## 1. 分层总览
 
@@ -17,15 +17,15 @@
 | 层 | 包数 | 源码 LOC | 测试 LOC |
 |---|---:|---:|---:|
 | 入口 | 1 | 124 | 44 |
-| 壳层·板块装配 | 2 | 59,986 | 49,062 |
-| 内核·装配执行 | 22 | 46,923 | 39,570 |
-| 内核·共享库 | 54 | 45,284 | 35,623 |
+| 壳层·板块装配 | 2 | 60,144 | 49,459 |
+| 内核·装配执行 | 22 | 46,940 | 39,725 |
+| 内核·共享库 | 54 | 45,352 | 35,766 |
 | 办公域 | 14 | 8,463 | 3,729 |
 | 引擎域 | 8 | 15,675 | 15,572 |
 | 众神殿 | 1 | 11,510 | 8,831 |
 | 领域库 | 31 | 45,576 | 29,931 |
 | scripts 工具带 | 10 | 4,147 | 317 |
-| **合计** | **143** | **237,688** | **182,679** |
+| **合计** | **143** | **237,931** | **183,374** |
 
 层间依赖边矩阵（行=引用方 → 列=被引方，共 381 条内部边）：
 
@@ -52,7 +52,7 @@
 | 包 | 层 | 源码 LOC | 测试 LOC | 被引 | 内部出边 |
 |---|---|---:|---:|---:|---:|
 | `(main)` | 入口 | 124 | 44 | 0 | 2 |
-| `internal/app` | 壳层·板块装配 | 59,567 | 48,891 | 1 | 97 |
+| `internal/app` | 壳层·板块装配 | 59,725 | 49,288 | 1 | 97 |
 | `internal/app/board` | 壳层·板块装配 | 419 | 171 | 1 | 0 |
 | `internal/gaea/agent` | 内核·装配执行 | 13,222 | 12,475 | 3 | 20 |
 | `internal/gaea/tool/builtin` | 内核·装配执行 | 12,300 | 8,466 | 3 | 28 |
@@ -60,7 +60,7 @@
 | `internal/gaea/contextview` | 内核·装配执行 | 3,129 | 2,002 | 1 | 2 |
 | `internal/gaea/agent/session` | 内核·装配执行 | 2,685 | 3,290 | 8 | 4 |
 | `internal/gaea/tool` | 内核·装配执行 | 1,677 | 1,509 | 12 | 2 |
-| `internal/gaea/boot` | 内核·装配执行 | 1,562 | 1,686 | 1 | 28 |
+| `internal/gaea/boot` | 内核·装配执行 | 1,579 | 1,841 | 1 | 28 |
 | `internal/gaea/plugin` | 内核·装配执行 | 1,562 | 748 | 2 | 3 |
 | `internal/gaea/evidence` | 内核·装配执行 | 1,107 | 1,036 | 4 | 0 |
 | `internal/gaea/hook` | 内核·装配执行 | 935 | 825 | 2 | 3 |
@@ -81,7 +81,7 @@
 | `internal/gaea/config` | 内核·共享库 | 2,989 | 2,660 | 9 | 5 |
 | `internal/gaea/browser` | 内核·共享库 | 2,255 | 1,520 | 2 | 1 |
 | `internal/gaea/cost` | 内核·共享库 | 2,203 | 2,103 | 8 | 2 |
-| `internal/gaea/skill` | 内核·共享库 | 1,716 | 1,587 | 3 | 5 |
+| `internal/gaea/skill` | 内核·共享库 | 1,784 | 1,730 | 3 | 5 |
 | `internal/gaea/workbench` | 内核·共享库 | 1,668 | 327 | 1 | 4 |
 | `internal/gaea/trajectory` | 内核·共享库 | 1,545 | 1,231 | 1 | 3 |
 | `internal/gaea/costref` | 内核·共享库 | 1,341 | 558 | 2 | 3 |
@@ -337,19 +337,19 @@
 | `internal/whisper/orchestrator.go` | `internal/whisper` | 1,168 |
 | `internal/gaea/agent/agent.go` | `internal/gaea/agent` | 1,158 |
 | `internal/channels/weixin/clawbot.go` | `internal/channels/weixin` | 1,139 |
+| `internal/app/wenxue_tools.go` | `internal/app` | 1,126 |
 | `internal/app/image_handler.go` | `internal/app` | 1,118 |
 | `internal/gaea/control/controller.go` | `internal/gaea/control` | 1,101 |
 | `internal/gaea/cost/cost.go` | `internal/gaea/cost` | 1,090 |
 | `internal/ai/image_comfyui.go` | `internal/ai` | 1,078 |
-| `internal/gaea/boot/boot.go` | `internal/gaea/boot` | 1,049 |
+| `internal/gaea/boot/boot.go` | `internal/gaea/boot` | 1,069 |
 | `internal/office/omml/latex.go` | `internal/office/omml` | 1,039 |
 | `internal/app/chat_service.go` | `internal/app` | 1,038 |
-| `internal/app/wenxue_tools.go` | `internal/app` | 1,031 |
 | `internal/pantheon/runner.go` | `internal/pantheon` | 1,023 |
 | `internal/gaea/agent/subagent_store.go` | `internal/gaea/agent` | 978 |
 | `internal/app/characterlib_gen_handler.go` | `internal/app` | 975 |
 | `internal/gaea/agent/compact.go` | `internal/gaea/agent` | 974 |
-| `internal/app/gaea_handler.go` | `internal/app` | 956 |
+| `internal/app/gaea_handler.go` | `internal/app` | 964 |
 | `internal/app/app.go` | `internal/app` | 934 |
 
 ## 6. 前端 src 地图（ts/tsx 计数；.test.* 单列）
@@ -357,8 +357,8 @@
 | 目录 | 源文件 | 源码 LOC | 测试文件 | 测试 LOC |
 |---|---:|---:|---:|---:|
 | `gaea` | 430 | 107,308 | 246 | 35,080 |
-| `wenxue` | 358 | 82,612 | 4 | 278 |
-| `pages` | 74 | 44,780 | 31 | 8,596 |
+| `wenxue` | 359 | 83,579 | 5 | 507 |
+| `pages` | 74 | 44,847 | 31 | 8,596 |
 | `components` | 99 | 25,423 | 57 | 7,328 |
 | `schedule` | 96 | 23,019 | 81 | 16,325 |
 | `(顶层)` | 8 | 9,408 | 7 | 585 |
