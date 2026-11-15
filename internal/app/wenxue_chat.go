@@ -515,7 +515,7 @@ func (a *App) WenxueSaveDoc(path, body string) (string, error) {
 }
 
 // WenxueMemorySuggestions 图文记忆建议卡（诚实空态）：图文引擎不跑自动做梦
-//（办公域 TurnDone 钩子不进图文引擎，见 wenxue_engine.go），建议队列恒空；
+// （办公域 TurnDone 钩子不进图文引擎，见 wenxue_engine.go），建议队列恒空；
 // 记忆管理走记忆面板写侧五件与记忆中枢。遗留办公建议的接受/忽略走共享
 // AcceptMemorySuggestion/DismissMemorySuggestion（前端未重指）。
 func (a *App) WenxueMemorySuggestions() MemorySuggestionsView {
@@ -546,7 +546,7 @@ func (a *App) WenxuePermLevel() string {
 }
 
 // WenxueResyncEvents 按前端最后收到的 wire seq 补拉图文当前会话对话视图
-//（体与办公 GaeaResyncEvents 同构；wire 换 wx.wire）。
+// （体与办公 GaeaResyncEvents 同构；wire 换 wx.wire）。
 func (a *App) WenxueResyncEvents(afterSeq int) GaeaResyncResult {
 	res := GaeaResyncResult{Seq: wx.wire.last(), Items: []GaeaResyncItem{}}
 	c := wenxueCtrl()
@@ -563,7 +563,7 @@ func (a *App) WenxueResyncEvents(afterSeq int) GaeaResyncResult {
 
 // WenxueSubagentFollowUp 对图文会话的子代理运行发起追问。体与办公
 // GaeaSubagentFollowUp 同构：runner/运行态读 wx，单飞 claims 复用全局表
-//（ref 全局唯一），空间自描述与办公同配置口径。
+// （ref 全局唯一），空间自描述与办公同配置口径。
 func (a *App) WenxueSubagentFollowUp(sessionPath, ref, prompt string) (string, error) {
 	_ = sessionPath // transcript 目录随 controller 解析；ref 全局唯一无需路由
 	wx.mu.Lock()

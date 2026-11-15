@@ -40,3 +40,42 @@ func TestRegistryMapSpacesMatchExtraTools(t *testing.T) {
 		}
 	}
 }
+
+// ── 图文专属工具四族（2026-11-15 刀3）同口径守卫 ──────────────────
+
+func TestRegistryMapCoversWenxueExtraTools(t *testing.T) {
+	var missing []string
+	for _, tl := range wenxueExtraTools(&App{}) {
+		if _, ok := tool.RegistryMap[tl.Name()]; !ok {
+			missing = append(missing, tl.Name())
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("wenxueExtraTools 有工具缺 P0 契约行: %v", missing)
+	}
+}
+
+func TestRegistryMapSpacesMatchWenxueExtraTools(t *testing.T) {
+	for _, tl := range wenxueExtraTools(&App{}) {
+		row, ok := tool.RegistryMap[tl.Name()]
+		if !ok {
+			continue
+		}
+		if got := builtin.SpaceTagOf(tl); got != row.Spaces {
+			t.Errorf("%s: RegistryMap.Spaces=%q 与生效空间标签 %q 漂移", tl.Name(), row.Spaces, got)
+		}
+	}
+}
+
+func TestWenxueExtraToolsNotInOfficeExtraTools(t *testing.T) {
+	// 红线断言：办公引擎装配面不含任何 wenxue_* 专属工具（案A：办公会话零出现）。
+	office := map[string]bool{}
+	for _, tl := range gaeaExtraTools(&App{}) {
+		office[tl.Name()] = true
+	}
+	for _, tl := range wenxueExtraTools(&App{}) {
+		if office[tl.Name()] {
+			t.Fatalf("图文专属工具 %s 泄进了办公 ExtraTools", tl.Name())
+		}
+	}
+}

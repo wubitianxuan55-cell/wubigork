@@ -44,9 +44,9 @@ type syspromptOut struct {
 // 读取传入）：work 空间会话装配时预装配高频工作记忆晨报块。
 // skillFilter/skillExtras（2026-11-15 刀2，图文板块技能子集）：filter 非空时
 // 索引/slash/run_skill/ctrl.Skills 面只留放行名单；extras 追加宿主内嵌技能
-//（appended before filter——extras 必须自证通过 filter）。read_skill 解析器
+// （appended before filter——extras 必须自证通过 filter）。read_skill 解析器
 // 同步收口（同 filter），经 syspromptOut.readSkill 交 boot 注册实例化工具
-//（替换全局 builtin 同名件——双引擎下全局 WireReadSkillResolver 后建者覆盖
+// （替换全局 builtin 同名件——双引擎下全局 WireReadSkillResolver 后建者覆盖
 // 会跨引擎串仓，实例化是刀2 的结构性修复）。
 func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()

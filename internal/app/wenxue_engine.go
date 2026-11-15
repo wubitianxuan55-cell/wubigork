@@ -50,9 +50,9 @@ func wenxueCtrl() *control.Controller {
 
 // 图文事件通道：主对话流 + 子代理流式增量（与办公通道物理分线）。
 const (
-	wenxueEventChannel         = "gaea-wenxue-event"
-	wenxueSubagentTextChannel  = "gaea-wenxue-subagent-text"
-	wenxueReadyEvent           = "gaea-wenxue-ready"
+	wenxueEventChannel        = "gaea-wenxue-event"
+	wenxueSubagentTextChannel = "gaea-wenxue-subagent-text"
+	wenxueReadyEvent          = "gaea-wenxue-ready"
 )
 
 // WenxueEngineInit 初始化图文引擎（幂等）。模型走 gaea 模型中心（与办公同一
@@ -150,8 +150,9 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		// WenxueListSessions 读取端同口径）。
 		SessionDir: gaeaConfig.WorkspaceSessionDir(ws, ""),
 		Cwd:        ws,
-		// 办公域工具物理不装（案A 拍板）；space 装配过滤照常生效。
-		ExtraTools: gaeaExtraTools(a),
+		// 办公域工具物理不装（ToolFilter，案A 拍板）；wenxue_* 专属四族只进
+		// 本引擎（办公 ExtraTools 不含——办公会话零出现）。space 装配过滤照常。
+		ExtraTools: append(gaeaExtraTools(a), wenxueExtraTools(a)...),
 		ToolFilter: wenxueToolFilter,
 		// 晨报预载/项目本体是 work 空间办公会话注入段——图文一律关。
 		MorningPreload: false,

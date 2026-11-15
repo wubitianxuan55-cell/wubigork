@@ -22,12 +22,12 @@ import (
 // wenxueAllowedSkills 图文引擎放行技能名单（deny-by-absence）。
 var wenxueAllowedSkills = map[string]bool{
 	// 小说创作域（引擎面现役 + 写作域蒸馏）
-	"novel-agents":      true, // 七角色子代理卡（spawn 模板引用）
-	"novel-deslop":      true, // 去 AI 味口径
-	"novel-review":      true, // 章节评审
-	"story-long-write":  true, // 长篇网文工作流（内嵌）
-	"story-deslop":      true, // 去 AI 味润色（内嵌）
-	"wenxue-workbench":  true, // 图文工作台纪律（内嵌）
+	"novel-agents":     true, // 七角色子代理卡（spawn 模板引用）
+	"novel-deslop":     true, // 去 AI 味口径
+	"novel-review":     true, // 章节评审
+	"story-long-write": true, // 长篇网文工作流（内嵌）
+	"story-deslop":     true, // 去 AI 味润色（内嵌）
+	"wenxue-workbench": true, // 图文工作台纪律（内嵌）
 	// 中性元技能
 	"genui":         true, // GenUI 词汇（回答即 UI）
 	"skill-creator": true, // 造技能元技能

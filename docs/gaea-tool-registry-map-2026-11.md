@@ -118,3 +118,22 @@
 | task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | dag_plan / task / todo_write |
 
 适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；若出现第五装配面（如按 `boot.go` 注释绕过 Build 的自定义装配器）则本清单失效，需重新盘点。
+
+## extra-app·wenxue：图文专属工具四族（2026-11-15 刀3）
+
+仅装配进图文独立引擎（`wenxueExtraTools`，`wenxue_engine.go` 的 wx Build）；
+办公引擎 `gaeaExtraTools` 不含 → 办公会话零出现。目录约定与工具用法详见
+图文内嵌技能 `wenxue-workbench`。契约行（RegistryMap 同批）：
+
+- `wenxue_chapter_list`：章节清单（章号/标题/字数），约定目录 章节/chapters/正文 宽容匹配。
+- `wenxue_chapter_read`：读一章+上一章结尾衔接段（path/number 双定位）。
+- `wenxue_chapter_write`：写/建一章（overwrite 显式闸；md/markdown/txt；回执带字数差与下一章提示）。
+- `wenxue_character_list`：角色卡清单（名/字数/摘要）。
+- `wenxue_character_read`：读角色卡全文。
+- `wenxue_character_write`：建/更新角色卡（已存在即拒；自动补首行一级标题）。
+- `wenxue_timeline_read`：时间线事件全量（章节序；sinceChapter 过滤）。
+- `wenxue_timeline_append`：追加事件行（O_APPEND；缺文件自动建）。
+- `wenxue_stats`：工作空间统计快照（总字数/章均字/角色卡数/设定面/时间线事件数/最近修改）。
+
+安全口径：全部路径经 `wspath.ResolveRelWithin`（拒 .. 穿越）；写族 overwrite=false 缺省拒已存在；
+Evidence=none（直写文件无快照链，回滚走 git 面或工作区快照面板）。
