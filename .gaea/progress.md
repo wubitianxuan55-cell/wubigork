@@ -1,3 +1,34 @@
+## 图文角色面板 v2 + 记忆左右脑 + 设定标签页 + 功能包（2026-11-16 深夜）
+
+- **角色面板 v2**（`12a00b4f`，装机 PID 8000）：master-detail 重设计——结构化六节
+  阅读（缺节占位/自由格式回退）+CAS 编辑；agent 回写即见（gaea-wenxue-filetree
+  通道自动重载+未脏态跟随）；新建双通道=空白卡/从角色库导入（CharacterList 只读
+  查询→字段映射六节：设定←定位/标签/背景/动机、外貌、性格、口头禅、关系留白、
+  当前状态←状态/备注；红线=全程零写向绑定，测试挂监视断言零调用——不污染角色库）。
+- **记忆左右脑**（`9773026a`，装机 PID 35668）：`boot.Options.MemoryUserDir` 缝
+  （""=现状逐字节）一处算好四处消费点统一 → wx 脑 `<MemoryUserDir>/wenxue-brain`
+  独立 DB（DB 随目录推导分池）；UI 记忆 tab 退役（办公脑窗：做梦/晨报/建议全办公
+  域机制且 wx 不挂）；boot 双脑隔离测试（A remember 落盘 B 三向不可见+双向互不串）。
+  **边界=图文脑从零起步不迁移**（办公脑留存零影响；旧会话 remember 事实不可溯源
+  留办公侧）。
+- **设定标签页**（`a7cc7c2a`，装机 PID 49276）：编队 tab 退役（ChatTabs 三处单源+
+  Fleet 分支+useFleetAutoOpen 接线）；新增设定 tab——设定文档（设定|worldview|
+  设定集）+时间线（时间线|timeline）两组 master-detail；设定文档轻渲染+CAS 编辑；
+  时间线第N章锚结构化视图（未锚最前/中文序号如实提示，与后端同口径）；AI 生成
+  五类预设（世界观/力量体系/规则/势力/地理）+自定义 → Composer 指令（agent 先
+  wenxue_chapter_list/character_list/timeline_read 摸底再 write_file 落盘）→
+  filetree 自动重载。测试 6 例，wenxue 族 21/21。
+- **技能面动态终验**（`0de58522`）：四段式第四腿闭合——boot 全链动态调
+  read_skill/run_skill（extras 可达/隐藏名 fail-closed/办公活读不变）；分发链
+  核验（安装不复制 .gaea/skills，novel-* 不可达自洽，点亮须用户配 skills.paths）。
+- **功能包** `releases/gaea-wenxue-v2-20261116-a7cc7c2a/`：独立干净树（detached
+  @a7cc7c2a，junction node_modules）Vite 29.59s+Wails 37.4s（bindings 未跳过）；
+  wailsjs 零漂移（git diff --quiet 过）；payload 四件冒烟 200；PACKAGE-INFO+
+  SHA256SUMS 入库（gaea.exe `0211079464f7…`，干净树哈希≠装机位属预期代码同源），
+  zip/tar 留盘（各约 29 MB）；工作树回收+清 .worktrees 两空壳。包面=
+  448743a8..a7cc7c2a 六笔，全批门禁=Go 全量绿+tsc 0+eslint 0+绑定契约 5/5
+  （除记忆缝外绑定面零变化，办公逐字节零触碰）。
+
 ## 图文工具首刀收口批（2026-11-16 凌晨）· 众神殿两场裁决施工
 
 - **依据**：pan_1794751177012（工具/技能取舍四轮）+ pan_1794754879290（收口执行

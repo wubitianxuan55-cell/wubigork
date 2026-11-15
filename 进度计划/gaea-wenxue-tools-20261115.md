@@ -411,4 +411,20 @@ Fleet 分支/useFleetAutoOpen 接线（后台任务自动切编队的钩子随 t
   32.3s+Wails 55.9s+冒烟 200+INSTALL OK（PID 49276>构建时刻）。零 Go 改动
   （设定/时间线目录约定与工具后端本就存在）；绑定面零变化。
 
+## 功能打包（2026-11-16 深夜收官）
+
+- 包 `releases/gaea-wenxue-v2-20261116-a7cc7c2a/`：独立干净工作树（detached
+  @`a7cc7c2a`=打包时 HEAD，主树零未提交；junction node_modules）Vite 29.59s+
+  Wails 37.4s（bindings 未跳过）；构建后 wailsjs 内容零漂移（`git diff --quiet`
+  通过，warning 全 CRLF 显示假象）；DLL 预构建件取主树 build/bin（同源同哈希）。
+- 冒烟：payload 正式路径 `/api/health` 200（PID 49344）。
+- 产物：payload/gaea.exe SHA256=`0211079464f765c8…4a2153`（干净树重建哈希，与
+  主树装机位构建哈希不同属预期，代码同源）；onnxruntime `68d0d5f5…` /
+  sherpa-onnx-c `5dd36dbd…` / sherpa-onnx-cxx `4c563277…`（与上包同源同哈希）。
+  PACKAGE-INFO.md + SHA256SUMS-a7cc7c2a.txt 入库；zip/tar 留盘不入库（各约 29 MB）。
+- 工作树已回收；顺手清 `.worktrees/` 两个既往包空壳残留（pkg-0eb7a2fc/
+  pkg-eb287ecc，零文件空目录）。
+- 本包功能面=448743a8..a7cc7c2a 六笔（工具首刀收口→续议修复落库→动态终验→
+  角色面板 v2→记忆左右脑→设定标签页），台账见本文件各批段。
+
 
