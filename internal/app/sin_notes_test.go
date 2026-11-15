@@ -128,17 +128,21 @@ func TestSinNotesCapsAndOutline(t *testing.T) {
 	}
 }
 
-// TestSinNotesPathGuard 故事 id 越权（路径分隔/上跳/空/非法字符）必须 fail-closed：
-// 不拼出目录外的路径，也不写入。
+// TestSinNotesPathGuard 存储键越权（路径分隔/上跳/空/Windows 保留字符）必须
+// fail-closed：不拼出目录外的路径，也不写入。
+// 2026-11-15 升格刀口径：键双轨（legacy 故事 id 严格字符集 + 书 slug，后者
+// 可含点/空格/中文——安全不变量只剩「无分隔符/无相对段/无保留字符」）。
 func TestSinNotesPathGuard(t *testing.T) {
 	sinTestHome(t)
-	for _, bad := range []string{"", "  ", "../evil", "a/b", `a\b`, "sin.1", ".", "..", "sin 1"} {
+	for _, bad := range []string{"", "  ", "../evil", "a/b", `a\b`, ".", "..", "a..b"} {
 		if _, err := sinNotesPath(bad); err == nil {
-			t.Errorf("非法故事 id %q 应被拒", bad)
+			t.Errorf("非法存储键 %q 应被拒", bad)
 		}
 	}
-	if _, err := sinNotesPath("sin_1726_1"); err != nil {
-		t.Errorf("合法 id 应通过: %v", err)
+	for _, ok := range []string{"sin_1726_1", "sin.1", "sin 1", "C--AI-xiaoshuo-试读书"} {
+		if _, err := sinNotesPath(ok); err != nil {
+			t.Errorf("合法存储键 %q 应通过: %v", ok, err)
+		}
 	}
 	tl := sinNotesTool{topicID: "../evil"}
 	if _, err := tl.Execute(context.Background(), json.RawMessage(`{"action":"write","content":"x"}`)); err == nil {

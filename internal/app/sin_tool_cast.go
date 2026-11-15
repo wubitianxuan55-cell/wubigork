@@ -19,7 +19,8 @@ import (
 
 func init() {
 	registerSinTool(sinToolCast, func(c sinToolContext) sinTool {
-		return sinCastTool{app: c.app, topicID: c.topicID}
+		// 存储键走 storeKey()：legacy=topicID，升格引擎=书 slug（升格刀）。
+		return sinCastTool{app: c.app, topicID: c.storeKey()}
 	})
 }
 

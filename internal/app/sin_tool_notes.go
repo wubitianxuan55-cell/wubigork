@@ -41,10 +41,11 @@ var sinNotesMu sync.Mutex
 
 func init() {
 	registerSinTool(sinToolNotes, func(c sinToolContext) sinTool {
-		return sinNotesTool{topicID: c.topicID}
+		// 存储键走 storeKey()：legacy=topicID，升格引擎=书 slug（升格刀）。
+		return sinNotesTool{topicID: c.storeKey()}
 	})
 	registerSinTool(sinToolOutline, func(c sinToolContext) sinTool {
-		return sinOutlineTool{topicID: c.topicID}
+		return sinOutlineTool{topicID: c.storeKey()}
 	})
 }
 
@@ -53,25 +54,33 @@ func sinNotesDir() string {
 	return filepath.Join(sinRoot(), "notes")
 }
 
-// sinNotesPath 便签文件路径（故事 id 非法 → 错误，绝不拼路径）。
-func sinNotesPath(topicID string) (string, error) {
-	id := strings.TrimSpace(topicID)
-	if !sinNotesIDOK(id) {
-		return "", fmt.Errorf("故事 ID 非法（不能作为文件名）: %q", topicID)
+// sinNotesPath 便签文件路径（存储键非法 → 错误，绝不拼路径）。
+//
+// 存储键双轨（2026-11-15 升格刀）：legacy 故事 id（sin_<ms>_<seq>，严格字符集）
+// 与书 slug（sinBookSlug 产物——分隔符已归一为 '-'，书名可含中文）。统一安全
+// 不变量：非空、无任何路径分隔符、无相对段（".."）、无 Windows 保留字符——
+// 满足即不可能逃出 sinNotesDir()。
+func sinNotesPath(storeKey string) (string, error) {
+	key := strings.TrimSpace(storeKey)
+	if !sinNotesKeyOK(key) {
+		return "", fmt.Errorf("存储键非法（不能作为文件名）: %q", storeKey)
 	}
-	return filepath.Join(sinNotesDir(), id+".json"), nil
+	return filepath.Join(sinNotesDir(), key+".json"), nil
 }
 
-// sinNotesIDOK 故事 id 是否可安全用作文件名：字母/数字/下划线/短横线。
-// 真实 id 形如 sin_1726100000000_1，全部落在字符集内。
-func sinNotesIDOK(id string) bool {
-	if id == "" {
+// sinNotesKeyOK 存储键可安全用作文件名（legacy 故事 id 与书 slug 的并集口径）。
+func sinNotesKeyOK(key string) bool {
+	if key == "" || key == "." {
 		return false
 	}
-	for _, r := range id {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
-		default:
+	if strings.ContainsAny(key, `/\`) || strings.Contains(key, "..") {
+		return false
+	}
+	if strings.ContainsAny(key, `<>:"|?*`) {
+		return false
+	}
+	for _, r := range key {
+		if r < 0x20 || r == 0x7f {
 			return false
 		}
 	}

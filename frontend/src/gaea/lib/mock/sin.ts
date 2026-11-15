@@ -22,6 +22,12 @@ type SinMethods = Pick<
   | "SinBookSourceSearch" | "SinBookSourceToc" | "SinBookSourceDownload"
   | "SinBookSourceDownloadCancel" | "SinBookSourceBooksList" | "SinBookSourceBookDelete"
   | "SinBookSourceBookExportEpub"
+  // 2026-11-15 升格刀：原罪独立引擎 + 书架工作空间。
+  | "SinEngineOpenBook" | "SinEngineSend" | "SinEngineSteer" | "SinEngineCancel"
+  | "SinEngineRunning" | "SinEngineNewSession" | "SinEngineState"
+  | "SinEngineApprove" | "SinEngineAnswerQuestion" | "SinEngineResyncEvents"
+  | "SinEngineListSessions" | "SinEngineResumeSession"
+  | "SinWorkspaceGet" | "SinWorkspaceSet" | "SinWorkspaceUnbind" | "SinWorkspaceBindings"
 >;
 
 interface MockStory {
@@ -116,6 +122,16 @@ export function buildSin(): SinMethods {
   const notesDocs = new Map<string, { notes: string[]; outline: string }>();
   // 在途流（runID → 是否已被取消）：SinCancel 用它中止模拟流式
   const runningStreams = new Map<string, { cancelled: boolean; topicID: string }>();
+  // 2026-11-15 升格刀：书架绑定内存态 + 独立引擎状态（与 SinEngine* 契约对齐）。
+  const workspaces = new Map<string, { path: string; title: string }>();
+  const engine = {
+    ready: false,
+    bookPath: "",
+    bookSlug: "",
+    running: false,
+    label: "sin/mock",
+  };
+  let engineSeq = 0;
   const now = () => new Date().toISOString();
 
   const seed = () => {
@@ -441,6 +457,68 @@ export function buildSin(): SinMethods {
     },
     async SinExportEpub(_topicID: string) {
       throw new Error("dev mock：EPUB 导出需桌面端文件系统");
+    },
+    // ── 2026-11-15 升格刀 mock：原罪独立引擎 + 书架绑定 ──
+    // 引擎回合同构模拟：向 gaea-event-sin 发 office-kind 帧（phase/text/turn_done，
+    // 独立 seq 空间），fork store 的消费面与真机同形。
+    async SinEngineOpenBook(bookPath: string) {
+      const p = String(bookPath ?? "").trim();
+      if (!p) throw new Error("书路径为空");
+      engine.ready = true;
+      engine.bookPath = p;
+      engine.bookSlug = p.replace(/[\\/:]/g, "-");
+      engine.running = false;
+    },
+    async SinEngineSend(input: string) {
+      if (!engine.ready) throw new Error("先在书架选择一本书");
+      engine.running = true;
+      const emit = (payload: Record<string, unknown>) => {
+        if (typeof window === "undefined") return;
+        const rt = (window as unknown as { runtime?: { EventsEmit?: (e: string, ...a: unknown[]) => void } }).runtime;
+        rt?.EventsEmit?.("gaea-event-sin", { ...payload, seq: ++engineSeq });
+      };
+      const reply = `（mock 引擎回合）已收到：${String(input ?? "").slice(0, 40)}——真机由书工作区引擎续写本章。`;
+      emit({ kind: "phase", text: "正在构思" });
+      for (const chunk of reply.match(/.{1,12}/gs) ?? []) {
+        emit({ kind: "text", text: chunk });
+      }
+      emit({ kind: "turn_done", reply });
+      engine.running = false;
+    },
+    async SinEngineSteer(_input: string) { /* mock 无在途回合可插话 */ },
+    async SinEngineCancel() { engine.running = false; },
+    async SinEngineRunning() { return engine.running; },
+    async SinEngineNewSession() { engineSeq = 0; },
+    async SinEngineState() {
+      return { ...engine };
+    },
+    async SinEngineApprove(_id: string, _decision: string) { /* mock 无审批流 */ },
+    async SinEngineAnswerQuestion(_id: string, _answers: unknown[]) { /* mock 无 ask 流 */ },
+    async SinEngineResyncEvents(_afterSeq: number) {
+      return { seq: engineSeq, items: [] };
+    },
+    async SinEngineListSessions() {
+      return [] as unknown as import("../types").SessionMeta[];
+    },
+    async SinEngineResumeSession(_path: string) {
+      return [] as unknown as import("../types").HistoryMessage[];
+    },
+    async SinWorkspaceGet(topicID: string) {
+      const b = workspaces.get(topicID);
+      return b ? { bound: true, path: b.path, title: b.title } : { bound: false, path: "", title: "" };
+    },
+    async SinWorkspaceSet(topicID: string, projectPath: string) {
+      const p = String(projectPath ?? "").trim();
+      if (!p) throw new Error("书路径为空");
+      const b = { path: p, title: p.split(/[\\/]/).pop() || "未命名" };
+      workspaces.set(topicID, b);
+      return { bound: true, path: b.path, title: b.title };
+    },
+    async SinWorkspaceUnbind(topicID: string) {
+      workspaces.delete(topicID);
+    },
+    async SinWorkspaceBindings() {
+      return Array.from(workspaces.entries()).map(([topicId, b]) => ({ topicId, path: b.path, title: b.title }));
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

@@ -26,7 +26,8 @@ import (
 
 func init() {
 	registerSinTool(sinToolIllustrate, func(c sinToolContext) sinTool {
-		return &sinIllustrateTool{app: c.app, topicID: c.topicID}
+		// 存储键走 storeKey()：legacy=topicID，升格引擎=书 slug（升格刀）。
+		return &sinIllustrateTool{app: c.app, topicID: c.storeKey()}
 	})
 }
 

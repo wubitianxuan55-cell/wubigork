@@ -202,6 +202,25 @@ export const GAEA_METHOD_FACETS = {
   SinBookSourceBookDelete: "play",
   SinBookSourceBookExportEpub: "play",
   ImportNovelBookEx: "play",
+  // 2026-11-15 升格刀：原罪独立引擎（第二控制器，与办公 Gaea* 平行实例）+
+  // 书架工作空间绑定。引擎族走 gaea-event-sin 专用通道/书目录会话；全部 play
+  // （sin 命名空间专用，工位侧不消费）。
+  SinEngineOpenBook: "play",
+  SinEngineSend: "play",
+  SinEngineSteer: "play",
+  SinEngineCancel: "play",
+  SinEngineRunning: "play",
+  SinEngineNewSession: "play",
+  SinEngineState: "play",
+  SinEngineApprove: "play",
+  SinEngineAnswerQuestion: "play",
+  SinEngineResyncEvents: "play",
+  SinEngineListSessions: "play",
+  SinEngineResumeSession: "play",
+  SinWorkspaceGet: "play",
+  SinWorkspaceSet: "play",
+  SinWorkspaceUnbind: "play",
+  SinWorkspaceBindings: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

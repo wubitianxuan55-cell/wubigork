@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/gaea/contextview"
+	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 
@@ -24,6 +25,18 @@ func (b *SinB) SinCastGet(topicID string) ([]string, error) { return b.a.SinCast
 func (b *SinB) SinCastSet(topicID string, ids []string) ([]string, error) { return b.a.SinCastSet(topicID, ids) }
 func (b *SinB) SinContextNodeDetail(topicID string, seq int64) (contextview.NodeDetail, error) { return b.a.SinContextNodeDetail(topicID, seq) }
 func (b *SinB) SinContextView(topicID string) (contextview.ContextTimeline, error) { return b.a.SinContextView(topicID) }
+func (b *SinB) SinEngineAnswerQuestion(id string, answers []event.AskAnswer) error { return b.a.SinEngineAnswerQuestion(id, answers) }
+func (b *SinB) SinEngineApprove(id string, decision string) error { return b.a.SinEngineApprove(id, decision) }
+func (b *SinB) SinEngineCancel() { b.a.SinEngineCancel() }
+func (b *SinB) SinEngineListSessions() []SessionMeta { return b.a.SinEngineListSessions() }
+func (b *SinB) SinEngineNewSession() error { return b.a.SinEngineNewSession() }
+func (b *SinB) SinEngineOpenBook(bookPath string) error { return b.a.SinEngineOpenBook(bookPath) }
+func (b *SinB) SinEngineResumeSession(path string) ([]HistoryMessage, error) { return b.a.SinEngineResumeSession(path) }
+func (b *SinB) SinEngineResyncEvents(afterSeq int) GaeaResyncResult { return b.a.SinEngineResyncEvents(afterSeq) }
+func (b *SinB) SinEngineRunning() bool { return b.a.SinEngineRunning() }
+func (b *SinB) SinEngineSend(input string) error { return b.a.SinEngineSend(input) }
+func (b *SinB) SinEngineState() SinEngineStateView { return b.a.SinEngineState() }
+func (b *SinB) SinEngineSteer(input string) error { return b.a.SinEngineSteer(input) }
 func (b *SinB) SinExportEpub(topicID string) (string, error) { return b.a.SinExportEpub(topicID) }
 func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.SinExportMarkdown(topicID) }
 func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }
@@ -40,3 +53,7 @@ func (b *SinB) SinTopicDelete(id string) error { return b.a.SinTopicDelete(id) }
 func (b *SinB) SinTopicRename(id string, title string) error { return b.a.SinTopicRename(id, title) }
 func (b *SinB) SinTopicsList() ([]chat.Topic, error) { return b.a.SinTopicsList() }
 func (b *SinB) SinTrajectory(topicID string) (trajectory.Trajectory, error) { return b.a.SinTrajectory(topicID) }
+func (b *SinB) SinWorkspaceBindings() []SinWorkspaceBindingView { return b.a.SinWorkspaceBindings() }
+func (b *SinB) SinWorkspaceGet(topicID string) (SinWorkspaceInfo, error) { return b.a.SinWorkspaceGet(topicID) }
+func (b *SinB) SinWorkspaceSet(topicID string, projectPath string) (SinWorkspaceInfo, error) { return b.a.SinWorkspaceSet(topicID, projectPath) }
+func (b *SinB) SinWorkspaceUnbind(topicID string) error { return b.a.SinWorkspaceUnbind(topicID) }

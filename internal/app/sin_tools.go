@@ -47,9 +47,22 @@ type sinTool interface {
 
 // sinToolContext 工具实例化入参：话题域是原罪自有存储与角色卡查询的作用域。
 // app 供角色卡/存储等需要 App 能力的工具使用（其余工具可忽略）。
+//
+// 存储键双轨（2026-11-15 升格刀）：legacy 管线只传 topicID（contextKey 空，
+// storeKey() 回落 topicID，行为逐字节不变）；升格引擎路径传 contextKey=书
+// slug（一书一故事，创作上下文挂书、多会话共享），topicID 留空。
 type sinToolContext struct {
-	app     *App
-	topicID string
+	app        *App
+	topicID    string
+	contextKey string
+}
+
+// storeKey 本工具实例的存储键（选角/画风/便签/大纲等 sin 自有存储的键）。
+func (c sinToolContext) storeKey() string {
+	if c.contextKey != "" {
+		return c.contextKey
+	}
+	return c.topicID
 }
 
 // sinToolFactory 按 kind 构建工具实例。

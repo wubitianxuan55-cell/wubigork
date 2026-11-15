@@ -8,7 +8,7 @@
 // 插图：SinIllustrate 复用绘梦图像后端生成，产物落 imagehub 台账
 // （space=play / source_board=sin），并把路径回写到该轮消息 extra.illustrations。
 import type { chat } from "../../../../wailsjs/go/models";
-import type { ContextNodeDetailView, ContextTimeline, Trajectory } from "../types";
+import type { ContextNodeDetailView, ContextTimeline, GaeaResyncResult, HistoryMessage, QuestionAnswer, SessionMeta, Trajectory } from "../types";
 import type { NovelBookSourceSearchResult, NovelBookSourceTocPreview } from "./novel";
 
 export interface SinBindings {
@@ -103,6 +103,68 @@ export interface SinBindings {
   SinBookSourceBookDelete(path: string): Promise<void>;
   /** 导出 EPUB（t5：同名 .epub 落同目录，重复导出覆盖；返回产物路径）。 */
   SinBookSourceBookExportEpub(path: string): Promise<string>;
+
+  // ── 2026-11-15 升格刀：原罪独立引擎（第二控制器，与办公 Gaea* 平行）──
+  // 事件走 gaea-event-sin 专用通道（独立 seq+断号补拉），帧形态与 gaea-event
+  // 同构（text/reasoning/tool_dispatch/tool_result/notice/phase/turn_done/…）；
+  // 会话真源 = 书目录 .gaea/sessions/play/*.jsonl（引擎 session log）。
+  /** 打开/切换书工作区（幂等；书架 containment 校验 fail-closed）。 */
+  SinEngineOpenBook(bookPath: string): Promise<void>;
+  /** 提交一轮创作（输入富化=角色块+底稿块按书 slug 注入，历史由会话自带）。 */
+  SinEngineSend(input: string): Promise<void>;
+  /** 运行中插话调整（不打断工具执行）。 */
+  SinEngineSteer(input: string): Promise<void>;
+  /** 取消当前回合。 */
+  SinEngineCancel(): Promise<void>;
+  /** 引擎是否在运行。 */
+  SinEngineRunning(): Promise<boolean>;
+  /** 开新会话（保留书级记忆；运行闸同款）。 */
+  SinEngineNewSession(): Promise<void>;
+  /** 引擎状态视图（壳启动/书架联动消费）。 */
+  SinEngineState(): Promise<SinEngineStateView>;
+  /** 审批决策回传（决策语义与办公 ApprovalModal 同族）。 */
+  SinEngineApprove(id: string, decision: string): Promise<void>;
+  /** ask 结构化提问答复。 */
+  SinEngineAnswerQuestion(id: string, answers: QuestionAnswer[]): Promise<void>;
+  /** 断号补拉（独立 wire seq；返回会话全量 items）。 */
+  SinEngineResyncEvents(afterSeq: number): Promise<GaeaResyncResult>;
+  /** 书工作区会话清单（新→旧）。 */
+  SinEngineListSessions(): Promise<SessionMeta[]>;
+  /** 切换到指定会话继续（返回其消息投影）。 */
+  SinEngineResumeSession(path: string): Promise<HistoryMessage[]>;
+
+  // ── 书架工作空间绑定（一书一故事，书下多会话）──
+  /** 读取某会话的书绑定（未绑 = bound:false）。 */
+  SinWorkspaceGet(topicID: string): Promise<SinWorkspaceInfo>;
+  /** 绑定会话到书（校验 project.json+书架 containment；绑定即迁移存量键）。 */
+  SinWorkspaceSet(topicID: string, projectPath: string): Promise<SinWorkspaceInfo>;
+  /** 解除绑定（书键数据保留）。 */
+  SinWorkspaceUnbind(topicID: string): Promise<void>;
+  /** 全量绑定清单（书架栏分组用）。 */
+  SinWorkspaceBindings(): Promise<SinWorkspaceBindingView[]>;
+}
+
+/** 原罪引擎状态视图（Go SinEngineStateView 投影）。 */
+export interface SinEngineStateView {
+  ready: boolean;
+  bookPath: string;
+  bookSlug: string;
+  running: boolean;
+  label: string;
+}
+
+/** 书绑定视图（Go SinWorkspaceInfo 投影）。 */
+export interface SinWorkspaceInfo {
+  bound: boolean;
+  path: string;
+  title: string;
+}
+
+/** 绑定清单条目（Go SinWorkspaceBindingView 投影）。 */
+export interface SinWorkspaceBindingView {
+  topicId: string;
+  path: string;
+  title: string;
 }
 
 /** 下载起跑回执：进度/终态订阅 sin-booksource:<jobId>。 */

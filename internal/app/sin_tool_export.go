@@ -31,7 +31,8 @@ const (
 
 func init() {
 	registerSinTool(sinToolExport, func(c sinToolContext) sinTool {
-		return sinExportTool{app: c.app, topicID: c.topicID}
+		// 存储键走 storeKey()：legacy=topicID，升格引擎=书 slug（升格刀）。
+		return sinExportTool{app: c.app, topicID: c.storeKey()}
 	})
 }
 
@@ -117,7 +118,7 @@ func sinExportFileName(raw, topicID string, now time.Time) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
 		id := strings.TrimSpace(topicID)
-		if !sinNotesIDOK(id) {
+		if !sinNotesKeyOK(id) {
 			id = "sin"
 		}
 		return fmt.Sprintf("%s-%s", id, now.Format("20060102-150405")), nil
