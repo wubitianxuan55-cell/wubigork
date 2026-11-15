@@ -486,6 +486,7 @@ export namespace app {
 	export class CapabilitiesView {
 	    servers: ServerView[];
 	    skills: SkillView[];
+	    tools?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CapabilitiesView(source);
@@ -495,6 +496,7 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.servers = this.convertValues(source["servers"], ServerView);
 	        this.skills = this.convertValues(source["skills"], SkillView);
+	        this.tools = source["tools"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

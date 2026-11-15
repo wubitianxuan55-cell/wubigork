@@ -90,3 +90,9 @@
 - 挂池（未批，后续拍板）：质检工具族、文风工具族、TaskTemplates 后端命令库图文根
   （现共享办公工作区 .gaea/commands）、记忆建议卡图文专属做梦机制、办公模板八条的
   ensureTaskTemplateCommands 图文档落盘
+- 补刀（用户实弹反馈「工具面板没更新」）：能力面板工具区双源化——根因=静态清单
+  （刀3 只滤办公未加图文九件）；CapabilitiesView 增 tools 实时字段（ctrl.Tools()
+  名单回填，加性零影响），ToolsTabContent 按引擎实际装配过滤分组+「其他」组兜底，
+  RAW_SECTIONS 补图文专属组；提交 8b??（fix(wenxue) 能力面板工具区）；重构建装机
+  exe SHA256 416E4327CF2EFDB52E82C6BC9CC8EE429ED2751BC2A5FDDD8E082D02254AB7AD、
+  PID 42680（17:49:52 > 构建时刻 17:49:19）、冒烟 200
