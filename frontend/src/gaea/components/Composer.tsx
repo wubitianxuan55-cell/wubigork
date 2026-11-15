@@ -55,9 +55,11 @@ function loadComposerHeight(): number {
 }
 
 export function Composer({
-  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus,
+  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus, placeholderOverride,
 }: {
   running: boolean; cwd?: string;
+  /** placeholder 覆盖（sin 加性缝）：disabled 态显示宿主文案而非「加载中…」。 */
+  placeholderOverride?: string;
   onSend: (displayText: string, submitText?: string) => void;
   onSteer?: (text: string) => void;
   onCancel: () => string | undefined; permLevel?: string; onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void;
@@ -414,13 +416,17 @@ export function Composer({
   const composerCardStyle = { "--composer-height": `${composerHeight}px` } as CSSProperties;
 
   // ── 项目感知 placeholder ──
+  // placeholderOverride（2026-11-15 sin 升格刀加性缝）：宿主可覆盖 disabled 态
+  // 的「加载中…」文案（原罪未绑书=「先在书架选择一本书」）。缺省 undefined =
+  // 办公行为逐字节不变。
   const placeholderText = useMemo(() => {
+    if (placeholderOverride) return placeholderOverride;
     if (disabled) return t("common.loading");
     if (isQueueBusy(queue)) return t("composer.queueSending");
     if (running && queueLen > 0) return t("composer.queuePending", { n: queueLen });
     if (running) return t("composer.runningHint");
     return t("composer.placeholder");
-  }, [disabled, running, queueLen, queue, t]);
+  }, [placeholderOverride, disabled, running, queueLen, queue, t]);
 
   return (
     <div className="office-composer-root relative max-w-(--maxw) mx-auto">

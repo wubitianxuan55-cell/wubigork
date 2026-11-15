@@ -14,6 +14,7 @@ import { ContextView } from "../gaea/components/ContextView"
 import { TrajectoryView } from "../gaea/components/TrajectoryView"
 import { ApprovalModal } from "../gaea/components/ApprovalModal"
 import { AskCard } from "../gaea/components/AskCard"
+import { EmptyState } from "../gaea/components/EmptyState"
 import { LocaleProvider } from "../gaea/lib/i18n"
 import { app } from "../gaea/lib/bridge"
 import { subscribe } from "../events"
@@ -214,6 +215,11 @@ const AppBoard: React.FC = () => {
             />
             <div className={`sin-chat-pane${sinTab === "chat" ? "" : " is-hidden"}`}>
               <div className="sin-stream-host">
+                {engineReady && state.items.length === 0 && !state.running ? (
+                  <div className="sin-chat-empty">
+                    <EmptyState message="这本书还没有会话内容——直接开写，或用 @@章节|标题@@ 标记起一章" />
+                  </div>
+                ) : null}
                 <SinTranscript running={state.running} onFeedback={false} onPrompt={() => {}} />
               </div>
               <div className="sin-composer">
@@ -224,6 +230,7 @@ const AppBoard: React.FC = () => {
                   onPickFolder={async () => ""}
                   disabled={!engineReady}
                   onSteer={ctl.steer}
+                  placeholderOverride={engineReady ? undefined : "先在书架选择一本书开始创作"}
                 />
               </div>
             </div>

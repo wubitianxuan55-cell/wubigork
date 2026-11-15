@@ -205,3 +205,14 @@
   border-radius: 12px;
   padding: 14px;
 }
+
+/* ── 对话空态引导（刀2.5 走查补）── */
+.sin-chat-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+}
