@@ -29,6 +29,8 @@ type syspromptOut struct {
 	compiler   *cache.Compiler
 	runtimeCtx *cache.RuntimeLayer
 	store      *skill.Store
+	// readSkill 是实例化 read_skill 的解析闭包（刀2）：filter 收口 + 统计。
+	readSkill func(name string) (string, error)
 }
 
 // buildSystemPrompt assembles the L1 identity block: base system prompt +
@@ -40,7 +42,13 @@ type syspromptOut struct {
 // 与记忆索引不再跨空间泄露，兑现 S1.2 读端硬隔离的注入侧承诺）。
 // morningPreload 是晨报预载开关（v4.16 刀④，桌面端从 morning_preload 配置键
 // 读取传入）：work 空间会话装配时预装配高频工作记忆晨报块。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool)) (*syspromptOut, error) {
+// skillFilter/skillExtras（2026-11-15 刀2，图文板块技能子集）：filter 非空时
+// 索引/slash/run_skill/ctrl.Skills 面只留放行名单；extras 追加宿主内嵌技能
+//（appended before filter——extras 必须自证通过 filter）。read_skill 解析器
+// 同步收口（同 filter），经 syspromptOut.readSkill 交 boot 注册实例化工具
+//（替换全局 builtin 同名件——双引擎下全局 WireReadSkillResolver 后建者覆盖
+// 会跨引擎串仓，实例化是刀2 的结构性修复）。
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
@@ -135,21 +143,40 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	})
 
 	skillStore := skill.New(skill.Options{ProjectRoot: cwd, CustomPaths: cfg.SkillCustomPaths(), Stderr: stderrPath})
-	skills := skillStore.List()
+	skills := append(skillStore.List(), skillExtras...)
+	if skillFilter != nil {
+		filtered := skills[:0:0]
+		for _, sk := range skills {
+			if skillFilter(sk.Name) {
+				filtered = append(filtered, sk)
+			}
+		}
+		skills = filtered
+	}
 	sysPrompt = skill.ApplyIndex(sysPrompt, skills)
 
-	builtin.WireReadSkillResolver(func(name string) (string, error) {
-		sk, ok := skillStore.Read(name)
-		if onSkillUse != nil {
-			// 7.2-2 判据②：读不到名也算一次 fail——技能名漂移/删除后的
-			// 如实计数，不静默。
-			onSkillUse(name, ok)
-		}
-		if !ok {
+	// read_skill 解析器（实例化，经 syspromptOut.readSkill 交 boot 注册；
+	// 2026-11-15 刀2 起不再走全局 WireReadSkillResolver——双引擎串仓缝）。
+	readSkillResolve := func(name string) (string, error) {
+		if !toolAllowed(skillFilter, name) {
+			if onSkillUse != nil {
+				onSkillUse(name, false)
+			}
 			return "", fmt.Errorf("skill %q not found", name)
 		}
-		return sk.Body, nil
-	})
+		for _, sk := range skills {
+			if sk.Name == name {
+				if onSkillUse != nil {
+					onSkillUse(name, true)
+				}
+				return sk.Body, nil
+			}
+		}
+		if onSkillUse != nil {
+			onSkillUse(name, false)
+		}
+		return "", fmt.Errorf("skill %q not found", name)
+	}
 
 	// 部署级提示词尾拼接（刀14）：非空时置于全部装配块（记忆/晨报/项目/
 	// 固化/固定资料/技能索引）之后，保证「最后」语义；空串零注入。
@@ -180,5 +207,6 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 		compiler:   compiler,
 		runtimeCtx: runtimeCtx,
 		store:      skillStore,
+		readSkill:  readSkillResolve,
 	}, nil
 }

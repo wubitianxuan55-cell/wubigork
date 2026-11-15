@@ -61,6 +61,10 @@ func init() {
 }
 
 // WireReadSkillResolver injects the skill resolution callback. Call from boot.
+//
+// Deprecated（2026-11-15 刀2）：全局注入在双引擎（办公+图文）下后建者覆盖全局
+// 实例，跨引擎串仓。boot 已改为经 NewReadSkillWithResolver 注册实例化同名件
+// （Registry.Add 覆盖内置）；本函数保留给 CLI 旧调用面，boot 链路不再使用。
 func WireReadSkillResolver(resolve func(name string) (string, error)) {
 	// Update all registered readSkill instances.
 	for _, t := range tool.Builtins() {
@@ -68,4 +72,11 @@ func WireReadSkillResolver(resolve func(name string) (string, error)) {
 			rs.resolve = resolve
 		}
 	}
+}
+
+// NewReadSkillWithResolver 构造自持 resolver 的 read_skill 实例（刀2）：boot
+// 每次构建用它注册同名件，替换内置全局实例——每引擎技能面独立（filter 收口
+// 在 resolver 闭包内完成）。
+func NewReadSkillWithResolver(resolve func(name string) (string, error)) tool.Tool {
+	return &readSkill{resolve: resolve}
 }

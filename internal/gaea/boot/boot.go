@@ -105,6 +105,13 @@ type Options struct {
 	// 会话级元工具（task/ask/记忆族等 build-internal 直加面）不过滤——deny
 	// 名单只收办公域工具，不含元工具。nil = 现状逐字节（办公引擎不传）。
 	ToolFilter func(name string) bool
+	// SkillFilter / SkillExtras（2026-11-15 刀2，图文板块技能子集）：filter
+	// 非空时技能索引/slash 条目/run_skill/ctrl.Skills/read_skill 只留放行
+	// 名单（deny-by-absence，未过闸名如实 not found）；extras 追加宿主内嵌
+	// 技能（图文三件：story-long-write/story-deslop/wenxue-workbench）。
+	// 双 nil = 现状逐字节（办公引擎不传）。
+	SkillFilter func(name string) bool
+	SkillExtras []skill.Skill
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -217,7 +224,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras)
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +250,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		})
 	}
 	addBuiltins(reg, cwd, cfg.Tools.Enabled, writeRoots, bashSpec, cfg.NetworkProxySpec(), stderr, space, opts.ToolFilter)
+	// 2026-11-15 刀2：read_skill 实例化注册（替换内置全局同名件——Registry.Add
+	// 同名覆盖语义）。resolver 走 sysprompt 产出的过滤闭包：双引擎（办公+图文）
+	// 各持各的技能面，不再经全局 WireReadSkillResolver 串仓。
+	reg.Add(builtin.NewReadSkillWithResolver(sp.readSkill))
 	// Always construct a host, even with no plugins configured, so the controller's
 	// host pointer is stable for the session and `/mcp add` can hot-add into it.
 	// V10.22: plugins + LSP assembled in plugins.go
