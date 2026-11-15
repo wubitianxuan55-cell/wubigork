@@ -51,7 +51,7 @@ export interface ModelBindings {
   ModelSwitchEstimate(engineID: string, model?: string): Promise<ModelSwitchEstimate>;
   // Feature Model 功能级模型绑定（写侧，Go ModelB.SetFeatureModel 3 参 /
   // SetFeatureModelEnabled 2 参，wailsjsCompat 直调转正；useBindState 消费，
-  // feature 取值 chat/whisper/novel/office/gaea/characterlib）。
+  // feature 取值 chat/whisper/office/gaea/wenxue/characterlib）。
   SetFeatureModel(feature: string, engineID: string, modelName: string): Promise<void>;
   SetFeatureModelEnabled(feature: string, enabled: boolean): Promise<void>;
   // GetActiveModel 当前活跃模型名（空=无可用引擎，Go ModelB.GetActiveModel，

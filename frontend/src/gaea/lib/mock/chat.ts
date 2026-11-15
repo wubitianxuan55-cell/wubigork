@@ -44,7 +44,7 @@ const taskInboxMock: MockTaskInboxItem[] = [
   },
   {
     id: "ti-mock0002", title: "续写《雨夜站台》第五章", space: "play", status: "doing",
-    source: "voice", action: "navigate", target: "novel",
+    source: "voice", action: "navigate", target: "wenxue",
     createdAt: Date.now() - 86_400_000, updatedAt: Date.now() - 7200_000,
   },
 ];

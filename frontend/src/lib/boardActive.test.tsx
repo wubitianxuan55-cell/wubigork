@@ -1,15 +1,15 @@
 // boardActive.test.ts — 板块级可见信号（keepAlive 隐藏态治理）
 //
-// 反向守卫：把「小说板块被切走」与「小说子页非当前页」分开验——v4.421 只做了后者
-// （NovelPage 下发 active），前者是当时留下的观察池项：进过小说板块后切到办公/原罪，
-// 隐藏的阅读页照样吞 Ctrl+S / F11。
+// 反向守卫：板块可见信号语义钉子（原以小说板块为探针；2026-11-15 小说退役后探针换文学板块，语义不变）。
+// 探针板块切走后其子页不得吞 Ctrl+S / F11 等窗口级快捷键（keepAlive 隐藏态治理）。
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { currentBoardActive, isBoardActive, notifyBoardActive, resetBoardActive, useBoardActive } from './boardActive'
 
-function Probe({ page }: { page: 'novel' | 'gaea' }) {
+function Probe({ page }: { page: 'wenxue' | 'gaea' }) {
   const active = useBoardActive(page)
   return <div data-testid={`probe-${page}`} data-active={String(active)} />
 }
@@ -19,24 +19,24 @@ afterEach(() => { act(() => { resetBoardActive() }) })
 describe('boardActive（板块级可见信号）', () => {
   it('未收到壳层通知时恒为可见（兼容「单独渲染页面」的既有写法）', () => {
     expect(currentBoardActive()).toBe('')
-    expect(isBoardActive('novel')).toBe(true)
+    expect(isBoardActive('wenxue')).toBe(true)
     expect(isBoardActive('gaea')).toBe(true)
   })
 
   it('壳层声明当前板块后：本板块可见、其它板块不可见', () => {
-    render(<Probe page="novel" />)
+    render(<Probe page="wenxue" />)
     render(<Probe page="gaea" />)
-    expect(screen.getByTestId('probe-novel').getAttribute('data-active')).toBe('true')
+    expect(screen.getByTestId('probe-wenxue').getAttribute('data-active')).toBe('true')
     expect(screen.getByTestId('probe-gaea').getAttribute('data-active')).toBe('true')
 
     act(() => { notifyBoardActive('gaea') })
-    expect(screen.getByTestId('probe-novel').getAttribute('data-active')).toBe('false')
+    expect(screen.getByTestId('probe-wenxue').getAttribute('data-active')).toBe('false')
     expect(screen.getByTestId('probe-gaea').getAttribute('data-active')).toBe('true')
-    expect(isBoardActive('novel')).toBe(false)
+    expect(isBoardActive('wenxue')).toBe(false)
     expect(isBoardActive('gaea')).toBe(true)
 
-    act(() => { notifyBoardActive('novel') })
-    expect(screen.getByTestId('probe-novel').getAttribute('data-active')).toBe('true')
+    act(() => { notifyBoardActive('wenxue') })
+    expect(screen.getByTestId('probe-wenxue').getAttribute('data-active')).toBe('true')
     expect(screen.getByTestId('probe-gaea').getAttribute('data-active')).toBe('false')
   })
 
@@ -44,22 +44,22 @@ describe('boardActive（板块级可见信号）', () => {
     let renders = 0
     function Counting() {
       renders += 1
-      useBoardActive('novel')
+      useBoardActive('wenxue')
       return null
     }
     render(<Counting />)
     const before = renders
-    act(() => { notifyBoardActive('novel') })
-    act(() => { notifyBoardActive('novel') })
+    act(() => { notifyBoardActive('wenxue') })
+    act(() => { notifyBoardActive('wenxue') })
     expect(renders).toBe(before)
   })
 
   it('resetBoardActive 回到「未通知」默认态（等价于可见）', () => {
     act(() => { notifyBoardActive('gaea') })
-    expect(isBoardActive('novel')).toBe(false)
+    expect(isBoardActive('wenxue')).toBe(false)
     act(() => { resetBoardActive() })
     expect(currentBoardActive()).toBe('')
-    expect(isBoardActive('novel')).toBe(true)
+    expect(isBoardActive('wenxue')).toBe(true)
   })
 
   // 生产者侧 source-guard：壳层不通知 = 本信号恒真 = 板块级门控整体失效

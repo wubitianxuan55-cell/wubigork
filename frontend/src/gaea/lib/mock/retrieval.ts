@@ -142,7 +142,7 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
     async RouteIntent(text: string, dryRun: boolean): Promise<IntentResultView> {
       const q = text.trim();
       const boards: Array<[string, string]> = [
-        ["首页", "home"], ["轻语", "chat"], ["小说", "novel"], ["绘梦", "imagegen"],
+        ["首页", "home"], ["轻语", "chat"], ["文学", "wenxue"], ["绘梦", "imagegen"],
         ["办公", "gaea"], ["造价", "cost"], ["记忆", "memoryhub"], ["模型", "modelcenter"],
         ["角色", "characterlib"], ["设置", "settings"], ["微信", "weixin"],
       ];

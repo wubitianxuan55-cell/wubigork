@@ -51,8 +51,6 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyFuncChatVoiceModel, "fcvm", func(c *config.Config) bool { return c.FuncChatVoiceModel == "fcvm" }},
 		{config.KeyFuncChatEngine, "herdsman", func(c *config.Config) bool { return c.FuncChatEngine == "herdsman" }},
 		{config.KeyFuncChatModel, "chat-m", func(c *config.Config) bool { return c.FuncChatModel == "chat-m" }},
-		{config.KeyFuncNovelEngine, "deepseek", func(c *config.Config) bool { return c.FuncNovelEngine == "deepseek" }},
-		{config.KeyFuncNovelModel, "novel-m", func(c *config.Config) bool { return c.FuncNovelModel == "novel-m" }},
 		{config.KeyFuncOfficeEngine, "herdsman", func(c *config.Config) bool { return c.FuncOfficeEngine == "herdsman" }},
 		{config.KeyFuncOfficeModel, "office-m", func(c *config.Config) bool { return c.FuncOfficeModel == "office-m" }},
 		{config.KeyFuncGaeaEngine, "herdsman", func(c *config.Config) bool { return c.FuncGaeaEngine == "herdsman" }},
@@ -76,7 +74,6 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyUsdCnyRate, "7.14", func(c *config.Config) bool { return c.UsdCnyRate == 7.14 }},
 		// ── 布尔键（10，先全量预置 true 再逐键置 false）──
 		{config.KeyFuncChatEnabled, "false", func(c *config.Config) bool { return !c.FuncChatEnabled }},
-		{config.KeyFuncNovelEnabled, "false", func(c *config.Config) bool { return !c.FuncNovelEnabled }},
 		{config.KeyFuncOfficeEnabled, "false", func(c *config.Config) bool { return !c.FuncOfficeEnabled }},
 		{config.KeyFuncGaeaEnabled, "false", func(c *config.Config) bool { return !c.FuncGaeaEnabled }},
 		{config.KeyFuncCharLibEnabled, "false", func(c *config.Config) bool { return !c.FuncCharLibEnabled }},
@@ -92,7 +89,6 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 
 	// 布尔键全量预置 true：置 false 后逐键可证「确是本键生效」。
 	a.cfg.FuncChatEnabled = true
-	a.cfg.FuncNovelEnabled = true
 	a.cfg.FuncOfficeEnabled = true
 	a.cfg.FuncGaeaEnabled = true
 	a.cfg.FuncCharLibEnabled = true

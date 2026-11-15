@@ -50,7 +50,7 @@ describe('canonical 空间归属表（docs §3，数据面文档化：会话空�
     const by = (s: 'work' | 'play' | 'shared') =>
       canonicalBoards.filter((b) => boardSpace(b) === s).map((b) => b.id)
     expect(by('work')).toEqual(expect.arrayContaining(['gaea', 'cost', 'memoryhub', 'weixin', 'schedule']))
-    expect(by('play')).toEqual(expect.arrayContaining(['chat', 'novel', 'imagegen', 'characterlib']))
+    expect(by('play')).toEqual(expect.arrayContaining(['chat', 'imagegen', 'characterlib']))
     expect(by('shared')).toEqual(expect.arrayContaining(['pantheon', 'modelcenter', 'settings', 'runtime']))
     expect(canonicalBoards.filter(isIndependentBoard).map((b) => b.id)).toEqual(['code'])
   })

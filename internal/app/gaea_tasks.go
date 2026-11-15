@@ -50,7 +50,8 @@ func (a *App) startTaskScheduler() {
 		m.Register(tasks.KindPriceFetch, a.priceFetchTaskHandler)
 		m.Register(tasks.KindPriceFetchAll, a.priceFetchAllTaskHandler)
 		m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
-		m.Register(tasks.KindOutlineReconstruct, a.outlineReconstructTaskHandler)
+		// tasks.KindOutlineReconstruct 处理器随小说板块退役拆除（2026-11-15）：
+		// 存量排队任务恢复时按未知 kind 跳过。
 		// P4 持久任务中心（2026-11-10 众神殿裁决 action-7）：办公批处理进调度器。
 		m.Register(tasks.KindOfficeBatch, a.officeBatchTaskHandler)
 		a.officeState.tasks = m

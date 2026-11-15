@@ -19,7 +19,6 @@ func gaeaSpecialistTools(a *App) []tool.Tool {
 	return []tool.Tool{
 		ocrTool{a: a},
 		semanticSearchTool{a: a},
-		authorMemoryTool{a: a},
 	}
 }
 

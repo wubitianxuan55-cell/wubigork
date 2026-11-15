@@ -22,11 +22,10 @@ import (
 // 的硬编码输出不在断言覆盖内，对齐由 TestMainBrainClassifierBranchesDispatchable
 // （board_manifest_test.go）机器守卫。
 var moduleOfIntent = map[string]string{
-	"novel.create_chapter": "novel",
-	"chat.chat":            "whisper",
-	"imagegen.generate":    "imagegen",
-	"gaea.chat":            "gaea",
-	"gaea.create":          "office",
+	"chat.chat":         "whisper",
+	"imagegen.generate": "imagegen",
+	"gaea.chat":         "gaea",
+	"gaea.create":       "office",
 }
 
 // intentHandlers 主脑模块意图 → App 方法闭包（manifest 声明的意图处理器）。
@@ -47,14 +46,6 @@ func (a *App) intentHandlers() map[string]map[string]Handler {
 					pid = "轻语"
 				}
 				return a.WhisperChat(msg, pid, false)
-			},
-		},
-		"novel": {
-			"create_chapter": func(input map[string]any) (map[string]any, error) {
-				setting, _ := input["setting"].(string)
-				plotReq, _ := input["plot_req"].(string)
-				num := intField(input, "chapter_num", 1)
-				return a.CreateChapter(setting, "", plotReq, num, "", "", 0, 0)
 			},
 		},
 		"imagegen": {

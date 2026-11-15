@@ -18,7 +18,7 @@ import type { ContextInsightsView } from "../types/context";
 // 闭环；真机的 ResolveModel 校验在 Go 侧，演示态非空即收。
 const mockSpaceProfilesInit: SpaceProfileView[] = [
   { space: "work", gaea: "", gaeaResolved: "", gaeaOk: false, models: {}, permMode: "ask", permHardAskCount: 0, permHardAskBySpace: false, guardrailsOn: false, modeOn: true },
-  { space: "play", gaea: "glm/glm-5.3", gaeaResolved: "glm · glm-5.3", gaeaOk: true, models: { novel: "glm/glm-5.3-air" }, permMode: "allow", permHardAskCount: 0, permHardAskBySpace: true, guardrailsOn: true, modeOn: true },
+  { space: "play", gaea: "glm/glm-5.3", gaeaResolved: "glm · glm-5.3", gaeaOk: true, models: { characterlib: "glm/glm-5.3-air" }, permMode: "allow", permHardAskCount: 0, permHardAskBySpace: true, guardrailsOn: true, modeOn: true },
 ];
 let mockSpaceProfiles: SpaceProfileView[] = mockSpaceProfilesInit.map((p) => ({ ...p, models: { ...p.models } }));
 
@@ -38,7 +38,7 @@ type CoreMethods = Pick<
   // v4.171 批次一 legacy 直调转正（CoreB 门面）：应用信息/板块清单/功能级模型读。
   | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
   // 批次二 legacy 直调转正（CoreB 门面）：配置读写/统计/技能/全量导出。
-  | "GetConfig" | "SaveConfig" | "GetStats" | "ListSkills" | "ExportAll"
+  | "GetConfig" | "SaveConfig" | "ListSkills"
   // 批次三a legacy 直调转正（CoreB 门面）：书架工程卡片列表。
   | "ListProjects"
 >;
@@ -765,10 +765,6 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async SaveConfig(_key: string, _value: string) {
       // mock：浏览器开发环境不落盘（no-op；真实实现写入 ~/.gaea_config.json）。
     },
-    async GetStats() {
-      // 最小样例：会话运行统计（NovelPage 消费；字段形状按 Go map 直通）。
-      return { turns: 0, messages: 0, startedAt: 0 };
-    },
     async ListSkills() {
       // 技能清单样例（CreateInspector 消费；浏览器无真实技能注册 → 空数组
       // 为诚实口径，给出单条样例便于面板走查）。
@@ -776,11 +772,6 @@ export function buildCore(s: MakeMockState): CoreMethods {
         { id: "research", name: "调研", description: "联网检索与资料整理" },
         { id: "review", name: "复核", description: "结构/引用/视觉双通道复核" },
       ];
-    },
-    async ExportAll(onlyMainline: boolean) {
-      // mock：无可导出内容 → 空映射（ExportPanel 对空结果渲染空态）。
-      void onlyMainline;
-      return {};
     },
     // 双空间（S4）：mock 会话内可切换（真实后端 Activate 只写配置，重启后生效）。
     async GaeaSpaceList() {
@@ -801,7 +792,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async GaeaSpaceProfileSet(space: string, key: string, ref: string): Promise<SpaceProfileView[]> {
       await delay(150);
       if (space !== "work" && space !== "play") throw new Error(`非法空间 ${space}（仅 work|play）`);
-      if (!["gaea", "chat", "whisper", "novel", "office", "characterlib", "routine"].includes(key)) {
+      if (!["gaea", "chat", "whisper", "office", "wenxue", "characterlib", "routine"].includes(key)) {
         throw new Error(`未知 profile 键 ${key}`);
       }
       const v = ref.trim();

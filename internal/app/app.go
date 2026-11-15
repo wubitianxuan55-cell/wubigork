@@ -18,12 +18,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/gaea/gaea/internal/ai"
-	"github.com/gaea/gaea/internal/analysis"
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/auth"
 	"github.com/gaea/gaea/internal/channels/weixin"
-	"github.com/gaea/gaea/internal/chapter"
-	"github.com/gaea/gaea/internal/character"
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
@@ -38,23 +35,19 @@ import (
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/intent"
 	"github.com/gaea/gaea/internal/modelengine"
-	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
-	"github.com/gaea/gaea/internal/promptstore"
 	"github.com/gaea/gaea/internal/skill"
 	"github.com/gaea/gaea/internal/whisper"
 	whisperdb "github.com/gaea/gaea/internal/whisper/db"
-	"github.com/gaea/gaea/internal/worldview"
 	"io"
 )
 
 // core 是所有子服务共享的基础依赖（ctx/client/cfg/engineMgr 等）。
 // 通过指针嵌入到 App 与各子服务，保证同一实例、方法体零改动。
 type core struct {
-	// 普通对话流式取消登记（P1-5 对话条：runID → cancel）。同章节生成同款纪律：
-	// 协程退出独占清表，取消只调 cancel 不删条目。归 core：chat 域生命周期与
-	// App 装配同步（writingState 仅小说域构造，裸 chat 测试桩不含它）。
+	// 普通对话流式取消登记（P1-5 对话条：runID → cancel）。协程退出独占清表，
+	// 取消只调 cancel 不删条目。归 core：chat 域生命周期与 App 装配同步。
 	chatStreamMu      sync.Mutex
 	chatStreamCancels map[string]context.CancelFunc
 
@@ -85,62 +78,33 @@ type core struct {
 	// 懒构造一律 sync.Once（并发首调只构造一次）。
 	skillLoaderOnce sync.Once
 
+	// 技能加载器（ListSkills 绑定面 + SetPromptFS 时代归 core：写作域
+	// writingState 已随小说板块退役拆除，2026-11-15）。
+	skillLoader *skill.Loader
+
+	// 共享 prompt 引擎（磁盘 prompts/ 优先 + SetPromptFS 内置兜底）。
+	// 原 writingState.eng；小说板块退役后由角色库生成面消费
+	//（character-generate-single 等模板），2026-11-15 起归 core。
+	eng *prompt.Engine
+
 	// 前端静态资源
 	distFS fs.FS
 }
 
 // writingState 是小说写作域状态（章节/角色/大纲/世界观/分析/图谱）。
-type writingState struct {
+// projectState 是书架/项目管理的共享态（原 writingState 收缩：小说写作流
+// 2026-11-15 随板块退役整体拆除后，pm 仅服务书架遍历、项目开关与角色库
+// 「加入项目」导入链）。
+type projectState struct {
 	*core
 
-	// app 反向引用：跨域调用（媒体/轻语）经 App 协调。
+	// app 反向引用：跨域调用经 App 协调。
 	app *App
 
 	mu sync.RWMutex // 保护 pm 的并发读写
 
-	// 章节生成互斥与取消（T6-7.2）：key = chapterGenKey(chapterNum, branch)，
-	// 记录进行中的章节生成任务。同一章节（同一 NNN.md 目标文件）并发生成被拒绝，
-	// 不同章节可并行；CancelCreateChapter 只调取消函数（v4.421.0：条目置 nil 占位，
-	// 不再提前摘表——协程退出时由 unregisterChapterGen 独占清理，否则取消后立即
-	// 重开会绕过互斥并发出两个写者；nil 占位期间 register 以中文错误如实拒绝）。
-	chapterGenMu      sync.Mutex
-	chapterGenCancels map[string]context.CancelFunc
-
-	// 章节计划表（plans.json）整表读-改-写互斥（N7）：单 Wails 客户端下只有
-	// NovelChapterPlanSave 一个写者，但 httpbridge 本机面允许第二个调用方并发
-	// 进入「读旧表→改→写回」，后写覆盖先写丢更新。锁贯穿整个读-改-写临界区。
-	chapterPlanMu sync.Mutex
-
-	// 进行中章节生成协程数：登记表**协程退出才清**（v4.421.0 起；取消路径置 nil
-	// 占位而非删除）——取消后协程仍有「已生成部分落盘」尾步，表项为 nil ≠ 已退出；
-	// 测试等协程真正退出要等它（v4.233 根治 TempDir 清理与尾步写盘的
-	// Windows unlinkat 竞态）。
-	chapterGenWG sync.WaitGroup
-
 	// 项目管理
 	pm *project.Manager
-
-	// 共享 prompt engine（单例）
-	eng *prompt.Engine
-
-	// t6 提示词工坊（规格书 §4.3）eng 的全局覆盖层：覆盖缓存（mutex 串行，
-	// save/reset 后失效、override 闭包惰性重读状态文件）+ 基线引擎（磁盘/embed
-	// 两级、永不挂覆盖，工坊 Base 对比视图用，懒构造）。逻辑见 gaea_prompt_store.go。
-	promptOverridesMu     sync.Mutex
-	promptOverridesCache  []promptstore.Override
-	promptOverridesLoaded bool
-	promptBaseEng         *prompt.Engine
-	promptEmbeddedFS      fs.FS
-
-	// 子代理
-	worldviewAgent *worldview.Agent
-	characterAgent *character.Agent
-	outlineAgent   *outline.Agent
-	chapterAgent   *chapter.Agent
-	analysisAgent  *analysis.Agent
-
-	// Skill
-	skillLoader *skill.Loader
 }
 
 // mediaState 是媒体域状态（图像生成/TTS/语音/ComfyUI 进程）。
@@ -309,7 +273,7 @@ type officeState struct {
 // Wails 要求绑定单对象：所有子服务方法通过 Go 嵌入自动提升，前端调用不变。
 type App struct {
 	*core
-	*writingState
+	*projectState
 	*mediaState
 	*whisperState
 	*officeState
@@ -367,15 +331,10 @@ func New() *App {
 	t0 := time.Now()
 	cfg := config.Load()
 	c := &core{cfg: cfg, client: ai.NewClient(cfg)}
+	// 共享 prompt 引擎（角色库生成面消费；磁盘 prompts/ 优先，SetPromptFS 兜底内置）。
+	c.eng = prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts"))
 	a := &App{core: c}
-	a.writingState = &writingState{
-		core: c,
-		app:  a,
-		eng:  prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts")),
-		mu:   sync.RWMutex{},
-	}
-	// t6 提示词工坊：引擎构造后挂全局覆盖层（规格书 §4.3 三级解析）。
-	a.applyPromptOverrides(a.writingState.eng)
+	a.projectState = &projectState{core: c, app: a, mu: sync.RWMutex{}}
 	a.mediaState = &mediaState{core: c, app: a}
 	a.whisperState = &whisperState{
 		core:            c,
@@ -824,8 +783,8 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 }
 
-// getPM/setPM/closePM/initAgents/restoreImageBackend 已迁移到
-// writing_state.go（writingState 域）。App 经嵌入提升，Startup 调用不变。
+// getPM/setPM/closePM 已迁移到 project_state.go（projectState 域，原
+// writingState 收缩）。App 经嵌入提升，调用方不变。
 // initWeixin/startAssistantWx/stopAssistantWx 已迁移到 whisper_state.go。
 
 // SetDistFS 设置前端静态资源 embed.FS（由 main.go 在启动前调用）
@@ -837,14 +796,11 @@ func (a *App) SetDistFS(fsys fs.FS) {
 // 磁盘 prompts/ 仍优先（开发期可直接改模板生效），exe 单独分发（旁边没有
 // prompts/ 目录，如桌面快捷副本）时由内置模板兜底，避免“缺少 xxx 模板文件”。
 func (a *App) SetPromptFS(fsys fs.FS) {
-	if a.writingState == nil {
+	if a.core == nil || a.cfg == nil {
 		return
 	}
-	a.writingState.eng = prompt.NewEngineWithEmbedded(
+	a.eng = prompt.NewEngineWithEmbedded(
 		filepath.Join(a.cfg.ResourceDir, "prompts"), fsys)
-	// t6 提示词工坊：重建引擎必须重挂覆盖层；内置 FS 交基线引擎重建拾取（规格书 §4.3）。
-	a.writingState.notePromptEmbeddedFS(fsys)
-	a.applyPromptOverrides(a.writingState.eng)
 }
 
 func CLILogin() {

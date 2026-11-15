@@ -62,8 +62,8 @@ func TestSetFeatureModel_ValidationErrors(t *testing.T) {
 		wantErr string
 	}{
 		{"未知功能", "foo", "herdsman", "qwen3-8b", "未知功能"},
-		{"引擎不存在", "novel", "nope", "x", "引擎不存在"},
-		{"模型不在列表", "novel", "herdsman", "grok-4.20", "不在引擎"},
+		{"引擎不存在", "characterlib", "nope", "x", "引擎不存在"},
+		{"模型不在列表", "characterlib", "herdsman", "grok-4.20", "不在引擎"},
 	}
 	// 禁用 xai 后测「引擎未启用」分支
 	if err := c.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "xai", Enabled: false}); err != nil {
@@ -75,7 +75,7 @@ func TestSetFeatureModel_ValidationErrors(t *testing.T) {
 		engine  string
 		model   string
 		wantErr string
-	}{"引擎未启用", "novel", "xai", "grok-4.20", "引擎未启用"})
+	}{"引擎未启用", "characterlib", "xai", "grok-4.20", "引擎未启用"})
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,14 +94,14 @@ func TestSetFeatureModel_ValidationErrors(t *testing.T) {
 func TestSetFeatureModel_RoundTrip(t *testing.T) {
 	c := newTestCore(t)
 
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatalf("SetFeatureModel: %v", err)
 	}
-	eng, model := c.featureModel("novel")
+	eng, model := c.featureModel("characterlib")
 	if eng != "herdsman" || model != "qwen3-8b" {
 		t.Errorf("featureModel = (%q,%q)，期望 (herdsman,qwen3-8b)", eng, model)
 	}
-	got := c.GetFeatureModel("novel")
+	got := c.GetFeatureModel("characterlib")
 	if got["engine"] != "herdsman" || got["model"] != "qwen3-8b" {
 		t.Errorf("GetFeatureModel = %v", got)
 	}
@@ -116,21 +116,21 @@ func TestSetFeatureModel_RoundTrip(t *testing.T) {
 func TestSetFeatureModelEnabled_RoundTrip(t *testing.T) {
 	c := newTestCore(t)
 
-	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+	if err := c.SetFeatureModelEnabled("characterlib", false); err != nil {
 		t.Fatalf("SetFeatureModelEnabled(false): %v", err)
 	}
-	if c.GetFeatureModelEnabled("novel") {
+	if c.GetFeatureModelEnabled("characterlib") {
 		t.Error("停用后 GetFeatureModelEnabled 应为 false")
 	}
 	// 持久化：临时 HOME 下配置文件可读回 false
-	if cfg := config.Load(); cfg.GetFeatureModelEnabled("novel") {
+	if cfg := config.Load(); cfg.GetFeatureModelEnabled("characterlib") {
 		t.Error("持久化后配置文件应为停用")
 	}
 
-	if err := c.SetFeatureModelEnabled("novel", true); err != nil {
+	if err := c.SetFeatureModelEnabled("characterlib", true); err != nil {
 		t.Fatalf("SetFeatureModelEnabled(true): %v", err)
 	}
-	if !c.GetFeatureModelEnabled("novel") {
+	if !c.GetFeatureModelEnabled("characterlib") {
 		t.Error("重新启用后应为 true")
 	}
 }
@@ -146,13 +146,13 @@ func TestSetFeatureModelEnabled_UnknownFeature(t *testing.T) {
 // TestSetFeatureModel_RebindReenables 重新绑定时功能应自动恢复启用
 func TestSetFeatureModel_RebindReenables(t *testing.T) {
 	c := newTestCore(t)
-	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+	if err := c.SetFeatureModelEnabled("characterlib", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatalf("重新绑定: %v", err)
 	}
-	if !c.GetFeatureModelEnabled("novel") {
+	if !c.GetFeatureModelEnabled("characterlib") {
 		t.Error("重新绑定后功能应自动启用")
 	}
 }
@@ -261,10 +261,10 @@ func TestMonitorModelForDropsStaleDefaultModel(t *testing.T) {
 func TestSetFeatureModel_SaveFailureRollsBack(t *testing.T) {
 	c := newTestCore(t)
 	// 前置：一份可回滚的旧绑定 + 功能停用（验证 enabled 也参与回滚）。
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatalf("前置绑定: %v", err)
 	}
-	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+	if err := c.SetFeatureModelEnabled("characterlib", false); err != nil {
 		t.Fatalf("前置停用: %v", err)
 	}
 
@@ -276,7 +276,7 @@ func TestSetFeatureModel_SaveFailureRollsBack(t *testing.T) {
 		return errors.New("模拟落盘失败：配置目录不可写")
 	}
 
-	err := c.SetFeatureModel("novel", "herdsman", "whisper-base")
+	err := c.SetFeatureModel("characterlib", "herdsman", "whisper-base")
 	if err == nil {
 		t.Fatal("落盘失败必须返回 error（此前 return nil 伪成功）")
 	}
@@ -289,10 +289,10 @@ func TestSetFeatureModel_SaveFailureRollsBack(t *testing.T) {
 		t.Errorf("三处 Save 都应被尝试并收集错误，got %d 次", calls)
 	}
 	// 内存 cfg 必须回到保存前的值（旧绑定 + 停用位）。
-	if eng, model := c.featureModel("novel"); eng != "herdsman" || model != "qwen3-8b" {
+	if eng, model := c.featureModel("characterlib"); eng != "herdsman" || model != "qwen3-8b" {
 		t.Errorf("内存绑定未回滚: (%q,%q)，期望 (herdsman,qwen3-8b)", eng, model)
 	}
-	if c.GetFeatureModelEnabled("novel") {
+	if c.GetFeatureModelEnabled("characterlib") {
 		t.Error("内存启用位未回滚（保存前为停用）")
 	}
 }
@@ -301,10 +301,10 @@ func TestSetFeatureModel_SaveFailureRollsBack(t *testing.T) {
 // 落盘失败即回滚内存（否则内存已停用、磁盘仍是启用，重启后状态回跳）。
 func TestSetFeatureModelEnabled_SaveFailureRollsBack(t *testing.T) {
 	c := newTestCore(t)
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatalf("前置绑定（绑定即启用）: %v", err)
 	}
-	if !c.GetFeatureModelEnabled("novel") {
+	if !c.GetFeatureModelEnabled("characterlib") {
 		t.Fatal("前置：绑定后应为启用")
 	}
 
@@ -312,10 +312,10 @@ func TestSetFeatureModelEnabled_SaveFailureRollsBack(t *testing.T) {
 	t.Cleanup(func() { featureModelSave = origSave })
 	featureModelSave = func(key, value string) error { return errors.New("模拟落盘失败") }
 
-	if err := c.SetFeatureModelEnabled("novel", false); err == nil {
+	if err := c.SetFeatureModelEnabled("characterlib", false); err == nil {
 		t.Fatal("落盘失败必须返回 error")
 	}
-	if !c.GetFeatureModelEnabled("novel") {
+	if !c.GetFeatureModelEnabled("characterlib") {
 		t.Error("内存启用位未回滚（保存前为启用）")
 	}
 }
@@ -356,7 +356,7 @@ func TestConfigSave_Concurrent(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			done <- config.Save(config.KeyFuncChatEngine, "herdsman")
-			done <- config.Save(config.KeyFuncNovelModel, "qwen3-8b")
+			done <- config.Save(config.KeyFuncOfficeModel, "qwen3-8b")
 		}()
 	}
 	for i := 0; i < n*2; i++ {
@@ -369,7 +369,7 @@ func TestConfigSave_Concurrent(t *testing.T) {
 	if cfg.FuncChatEngine != "herdsman" {
 		t.Errorf("FuncChatEngine = %q, want herdsman（并发 Save 丢字段）", cfg.FuncChatEngine)
 	}
-	if cfg.FuncNovelModel != "qwen3-8b" {
-		t.Errorf("FuncNovelModel = %q, want qwen3-8b（并发 Save 丢字段）", cfg.FuncNovelModel)
+	if cfg.FuncOfficeModel != "qwen3-8b" {
+		t.Errorf("FuncOfficeModel = %q, want qwen3-8b（并发 Save 丢字段）", cfg.FuncOfficeModel)
 	}
 }

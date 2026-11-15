@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Button, Input, Tooltip } from 'antd'
 import {
-  AppstoreOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
+  AppstoreOutlined, MessageOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined, SearchOutlined,
   SafetyCertificateOutlined, DatabaseOutlined, QuestionCircleOutlined, CloseOutlined,
   ClusterOutlined,
@@ -11,7 +11,6 @@ import { useT } from '../gaea/lib/i18n'
 import type { DictKey } from '../gaea/locales/en'
 import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel } from '../components/settings/AppearancePanel'
 import ChatPanel from '../components/settings/ChatPanel'
-import WorkspacePanel from '../components/settings/WorkspacePanel'
 import ImageGenPanel from '../components/settings/ImageGenPanel'
 import OfficePanel from '../components/settings/OfficePanel'
 import SearchPanel from '../components/settings/SearchPanel'
@@ -36,7 +35,7 @@ interface Category {
   panel: React.ReactNode
 }
 
-/** 设置分组：按当前功能板块整理（通用/聊天/小说/绘梦/办公/模型/关于） */
+/** 设置分组：按当前功能板块整理（通用/聊天/绘梦/办公/模型/关于） */
 const CATEGORIES: Category[] = [
   {
     key: 'general',
@@ -57,16 +56,6 @@ const CATEGORIES: Category[] = [
     descKey: 'settings.cat.chatDesc',
     keywords: ['聊天', '伴侣', '称呼', '性别', '人格', '角色', '语音', '朗读', '音色', '对话', '识别', 'tts', 'asr'],
     panel: <ChatPanel />,
-  },
-  {
-    key: 'novel',
-    icon: <ReadOutlined />,
-    label: '小说',
-    labelKey: 'settings.cat.novel',
-    desc: '目录 · 风格',
-    descKey: 'settings.cat.novelDesc',
-    keywords: ['小说', '目录', '存储', '路径', '书库', '风格', 'skill', '剧照', '写作', '工作区'],
-    panel: <WorkspacePanel />,
   },
   {
     key: 'imagegen',

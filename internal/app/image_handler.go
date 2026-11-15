@@ -484,8 +484,8 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 			} else if a.cfg.ImageSaveDir != "" {
 				return a.saveImageToDisk(imageData, fullPrompt)
 			}
-			// 未配置专用目录时，自动保存到小说 images/ 目录
-			return a.saveToNovelImages(imageData, fullPrompt)
+			// 未配置专用目录时不落盘（小说 images/ 兜底随小说板块退役拆除，2026-11-15）
+			return ""
 		},
 		register: func(item imageItem) imageItem {
 			// T0 图像域试点：落盘后登记（失败只 warn）；模式与角色 ID 如实登记，
@@ -687,7 +687,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 				if a.cfg.ImageSaveDir != "" {
 					return a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
 				}
-				return a.saveToNovelImages(imageData, p.Prompt)
+				// 未配置专用目录时不落盘（小说 images/ 兜底随小说板块退役拆除）
+				return ""
 			},
 			register: func(item imageItem) imageItem {
 				// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）；
@@ -785,16 +786,6 @@ func decodeDataURL(imageData string) ([]byte, bool) {
 // saveImageToDisk 将图片数据保存到 ImageSaveDir，返回保存路径
 func (a *mediaState) saveImageToDisk(imageData string, prompt string) string {
 	return a.saveMediaToDisk(imageData, prompt, a.cfg.ImageSaveDir)
-}
-
-// saveToNovelImages 将图片保存到当前小说的 images/ 目录，返回保存路径（失败返回空串）
-func (a *mediaState) saveToNovelImages(imageData string, prompt string) string {
-	pm := a.app.getPM()
-	if pm == nil {
-		return ""
-	}
-	dir := filepath.Join(pm.Dir, "images")
-	return a.saveMediaToDisk(imageData, prompt, dir)
 }
 
 // GetImageBackend 获取当前图片后端类型（供前端显示）
@@ -1104,19 +1095,6 @@ func (a *mediaState) OpenImageSaveDir() error {
 		return fmt.Errorf("无法创建图片存放目录: %w", err)
 	}
 	return openDir(dir)
-}
-
-// OpenNovelImagesDir 在文件管理器中打开当前小说的图片目录
-func (a *mediaState) OpenNovelImagesDir() error {
-	pm := a.app.getPM()
-	if pm == nil {
-		return fmt.Errorf("请先打开小说")
-	}
-	imgDir := filepath.Join(pm.Dir, "images")
-	if err := os.MkdirAll(imgDir, 0755); err != nil {
-		return fmt.Errorf("无法创建小说图片目录: %w", err)
-	}
-	return openDir(imgDir)
 }
 
 // openDir 用系统文件管理器打开目录，目标不存在则返回明确错误

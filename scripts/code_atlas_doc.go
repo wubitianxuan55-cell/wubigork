@@ -36,14 +36,13 @@ var layerNames = map[string]string{
 	"kernel-rt":  "内核·装配执行",
 	"kernel-lib": "内核·共享库",
 	"office":     "办公域",
-	"novel":      "小说域",
-	"engine":     "引擎域",
+		"engine":     "引擎域",
 	"pantheon":   "众神殿",
 	"domain":     "领域库",
 	"devtools":   "scripts 工具带",
 }
 
-var layerOrder = []string{"entry", "shell", "kernel-rt", "kernel-lib", "office", "novel", "engine", "pantheon", "domain", "devtools"}
+var layerOrder = []string{"entry", "shell", "kernel-rt", "kernel-lib", "office", "engine", "pantheon", "domain", "devtools"}
 
 // kernel-rt = 装配与代理运行时（boot/control/tool/agent/evidence/权限/空间/沙箱/插件）。
 var kernelRT = map[string]bool{
@@ -52,15 +51,8 @@ var kernelRT = map[string]bool{
 	"command": true, "event": true, "context": true, "contextview": true,
 }
 
-// 小说域（创作/书源/人格库）与引擎域（模型/TTS/语音/视觉）的首段集合。
-var novelTops = map[string]bool{
-	"novelcontext": true, "novelgate": true, "novelreview": true, "novelstyle": true,
-	"noveltext": true, "whisper": true, "character": true, "characterlib": true,
-	"characterstate": true, "bookimport": true, "booksource": true, "chapter": true,
-	"outline": true, "worldview": true, "narrative": true, "maturecraft": true,
-	"scene": true, "style": true, "rewrite": true,
-}
-
+// 小说域 2026-11-15 随板块退役拆除；人格库（whisper 轻语链/characterlib
+// 角色库）并入领域库 domain。引擎域（模型/TTS/语音/视觉）首段集合：
 var engineTops = map[string]bool{
 	"herdsman": true, "modelengine": true, "tts": true, "voice": true, "ocr": true, "ai": true,
 }
@@ -85,8 +77,6 @@ func layerOf(importPath string) string {
 	default:
 		top := strings.SplitN(strings.TrimPrefix(rel, "internal/"), "/", 2)[0]
 		switch {
-		case novelTops[top]:
-			return "novel"
 		case engineTops[top]:
 			return "engine"
 		case top == "pantheon":
@@ -258,7 +248,7 @@ func printDoc(pkgs []*pkg, godFiles []fileLOC) {
 	fmt.Println(" 入口 main ──▶ 壳层 internal/app（板块装配/wails bindings）")
 	fmt.Println("                ├─▶ 内核·装配执行 internal/gaea/{boot,control,tool,agent,evidence,…}")
 	fmt.Println("                │        └─▶ 内核·共享库 internal/gaea/{db,memory,skill,proc,…}")
-	fmt.Println("                └─▶ 领域库 internal/{office,novel 系,engine 系,pantheon,schedule,costimport,…}")
+	fmt.Println("                └─▶ 领域库 internal/{office,engine 系,pantheon,schedule,costimport,…}")
 	fmt.Println("```")
 	fmt.Println()
 	fmt.Println("| 层 | 包数 | 源码 LOC | 测试 LOC |")
@@ -580,7 +570,7 @@ func printSeams() {
 	fmt.Println("```")
 	fmt.Println()
 	fmt.Println("机械段（§1–§6）随代码变化重导即可；接缝导读（§7）与分层口径（脚本顶部")
-	fmt.Println("kernelRT/novelTops/engineTops 集合）是人工认知，调整后重导。新增顶层包通常只须")
+	fmt.Println("kernelRT/engineTops 集合）是人工认知，调整后重导。新增顶层包通常只须")
 	fmt.Println("确认它落进的层名是否符合预期（domain 是兜底层）。")
 }
 

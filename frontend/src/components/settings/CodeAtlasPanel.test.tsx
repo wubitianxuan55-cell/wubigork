@@ -75,17 +75,17 @@ describe('CodeAtlasPanel — 设置中心「代码图谱」标签页', () => {
 
   it('重置：清层过滤与搜索态', () => {
     const { container } = render(wrap(<CodeAtlasPanel />))
-    fireEvent.click(chip(container, '小说域'))
+    fireEvent.click(chip(container, '办公域'))
     fireEvent.change(screen.getByLabelText('搜索包名…'), { target: { value: 'xyz-无命中' } })
     fireEvent.click(screen.getByRole('button', { name: /重置/ }))
-    const novel = atlas.nodes.find((n) => n.layer === 'novel')
-    expect(container.querySelector(`[data-node-id="${novel?.id}"]`)?.getAttribute('display')).toBe(null)
+    const office = atlas.nodes.find((n) => n.layer === 'office')
+    expect(container.querySelector(`[data-node-id="${office?.id}"]`)?.getAttribute('display')).toBe(null)
     expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain('点击神经元')
   })
 
   it('空态：全部层隐藏时画布居中提示', () => {
     const { container } = render(wrap(<CodeAtlasPanel />))
-    const chips = ['入口', '壳层·板块装配', '内核·装配执行', '内核·共享库', '办公域', '小说域', '引擎域', '众神殿', '领域库', 'scripts 工具带']
+    const chips = ['入口', '壳层·板块装配', '内核·装配执行', '内核·共享库', '办公域', '引擎域', '众神殿', '领域库', 'scripts 工具带']
     chips.forEach((name) => fireEvent.click(chip(container, name)))
     expect(container.querySelector('svg[data-atlas-svg]')?.textContent).toContain('已隐藏全部层')
   })

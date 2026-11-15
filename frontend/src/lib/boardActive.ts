@@ -16,7 +16,7 @@
  *
  * ## 语义
  * - 壳层在 `page` 变化时调用 `notifyBoardActive(page)`，声明**唯一**可见的板块。
- * - 页面用 `useBoardActive('novel')`（渲染路径）或 `isBoardActive('novel')`
+ * - 页面用 `useBoardActive('wenxue')`（渲染路径）或 `isBoardActive('wenxue')`
  *   （window 事件处理器等非渲染路径）拿到「本板块当前是否可见」。
  * - **未收到任何通知时恒为 `true`**：兼容「页面被单独渲染」的既有测试写法，
  *   也让真实壳层挂载前后的行为连续（壳层挂载后会立刻通知一次）。

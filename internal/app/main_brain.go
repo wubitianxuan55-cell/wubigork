@@ -24,8 +24,6 @@ func classifyMainBrainIntent(msg string) (moduleID, intent string) {
 	switch {
 	case containsAny(lower, "标书", "招标", "方案", "报价", "proposal", "tender"):
 		return "office", "create"
-	case containsAny(lower, "章节", "小说", "大纲", "角色", "章", "chapter", "novel"):
-		return "novel", "create_chapter"
 	case containsAny(lower, "轻语", "聊天", "陪", "whisper"):
 		return "whisper", "chat"
 	case containsAny(lower, "画", "图", "生图", "绘梦", "image", "generate"):

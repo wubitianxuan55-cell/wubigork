@@ -25,14 +25,14 @@ func newRouterTestCore(t *testing.T) *core {
 	return c
 }
 
-// 功能绑定优先：绑定 novel → herdsman/qwen3-8b，即使 cfg.Model 是陈旧模型名。
+// 功能绑定优先：绑定 characterlib → herdsman/qwen3-8b，即使 cfg.Model 是陈旧模型名。
 func TestRouteModelFeatureBindingWins(t *testing.T) {
 	c := newRouterTestCore(t)
 	c.cfg.Model = "stale-xai-model"
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatal(err)
 	}
-	eng, model, source := c.routeModel("novel")
+	eng, model, source := c.routeModel("characterlib")
 	if eng != "herdsman" || model != "qwen3-8b" || source != "feature" {
 		t.Fatalf("route = (%q,%q,%q)", eng, model, source)
 	}
@@ -41,7 +41,7 @@ func TestRouteModelFeatureBindingWins(t *testing.T) {
 // 未绑定 → 全局活跃（client 为空时 = xai + cfg.Model）。
 func TestRouteModelGlobalFallback(t *testing.T) {
 	c := newRouterTestCore(t)
-	eng, model, source := c.routeModel("novel")
+	eng, model, source := c.routeModel("characterlib")
 	if eng != "xai" || model != "grok-4.20" || source != "global" {
 		t.Fatalf("route = (%q,%q,%q)", eng, model, source)
 	}
@@ -50,7 +50,7 @@ func TestRouteModelGlobalFallback(t *testing.T) {
 // 绑定引擎被禁用 → 降级全局。
 func TestRouteModelDisabledBindingFallsBack(t *testing.T) {
 	c := newRouterTestCore(t)
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatal(err)
 	}
 	herd, _ := c.engineMgr.GetEngine("herdsman")
@@ -58,7 +58,7 @@ func TestRouteModelDisabledBindingFallsBack(t *testing.T) {
 	if err := c.engineMgr.SaveEngine(*herd); err != nil {
 		t.Fatal(err)
 	}
-	eng, model, source := c.routeModel("novel")
+	eng, model, source := c.routeModel("characterlib")
 	if eng != "xai" || model != "grok-4.20" || source != "global" {
 		t.Fatalf("route = (%q,%q,%q)", eng, model, source)
 	}
@@ -67,13 +67,13 @@ func TestRouteModelDisabledBindingFallsBack(t *testing.T) {
 // 功能级停用（FeatureModelBar「停用」语义）：绑定仍在但停用 → 路由不得用 feature 绑定。
 func TestRouteModelFeatureDisabledFallsBack(t *testing.T) {
 	c := newRouterTestCore(t)
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+	if err := c.SetFeatureModelEnabled("characterlib", false); err != nil {
 		t.Fatal(err)
 	}
-	eng, model, source := c.routeModel("novel")
+	eng, model, source := c.routeModel("characterlib")
 	if eng != "xai" || model != "grok-4.20" || source != "global" {
 		t.Fatalf("停用后 route = (%q,%q,%q)，期望全局 (xai,grok-4.20,global)", eng, model, source)
 	}
@@ -82,16 +82,16 @@ func TestRouteModelFeatureDisabledFallsBack(t *testing.T) {
 // 功能停用后重新绑定 → 立即恢复 feature 路由。
 func TestRouteModelFeatureReenabledByRebind(t *testing.T) {
 	c := newRouterTestCore(t)
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+	if err := c.SetFeatureModelEnabled("characterlib", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatal(err)
 	}
-	_, model, source := c.routeModel("novel")
+	_, model, source := c.routeModel("characterlib")
 	if model != "qwen3-8b" || source != "feature" {
 		t.Fatalf("重新绑定后 route = (%q,%q)，期望 (qwen3-8b,feature)", model, source)
 	}

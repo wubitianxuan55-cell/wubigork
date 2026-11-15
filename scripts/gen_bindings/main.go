@@ -1,6 +1,6 @@
 // gen_bindings 生成 gaea 的板块绑定门面（S2-3「App 绑定面拆分」）。
 //
-// 用途：把 App（及其嵌入的 core/writingState/mediaState/whisperState/
+// 用途：把 App（及其嵌入的 core/projectState/mediaState/whisperState/
 // officeState）的全部导出方法按板块拆到多个 Wails 绑定对象，方法体零改动
 // （纯委托 b.a.Method(args)）。生成物：
 //   - internal/app/bindings_<板块>.go：每个板块一个门面结构体 + 委托方法
@@ -42,12 +42,12 @@ import (
 
 // receiverTypes 参与绑定的接收者类型（App 及其嵌入的子状态结构）。
 var receiverTypes = map[string]bool{
-	"App": true, "core": true, "writingState": true,
+	"App": true, "core": true, "projectState": true,
 	"mediaState": true, "whisperState": true, "officeState": true, "pantheonState": true,
 }
 
 // facadeOrder 板块顺序（生成文件与绑定顺序一致，稳定可读）。
-var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib", "wenxue", "pantheon"}
+var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "image", "charlib", "wenxue", "pantheon"}
 
 // excludedBindings 绑定面排除清单（A1① 拍板，2026-10-03）：109 条零调用绑定
 // 整体摘除（绑定面 744→635；名单=check-bindings-drift.ps1 §4 knownDead 普查，
@@ -122,7 +122,7 @@ type method struct {
 // 绑定门面，但仍编译、仍可被包内代码直接调用（绕过 App 版本里的修复）。
 type shadowPair struct {
 	Name     string // 方法名
-	Receiver string // 被遮蔽方的接收者类型（core/writingState/…）
+	Receiver string // 被遮蔽方的接收者类型（core/projectState/…）
 	File     string // 被遮蔽方声明所在文件（含 internal/app/ 前缀）
 	Line     int    // 被遮蔽方声明行号
 }
@@ -138,7 +138,7 @@ type shadowPair struct {
 // 口径（与 collectMethods 的去重逻辑同源，别处统计的数字不可直接对比）：
 //
 //	① 只解析 internal/app 顶层、非 _test.go、非 bindings_*.go 的文件；
-//	② 接收者必须是绑定面白名单 receiverTypes（App/core/writingState/mediaState/
+//	② 接收者必须是绑定面白名单 receiverTypes（App/core/projectState/mediaState/
 //	   whisperState/officeState）——**门面类型（CoreB/ModelB/…）不计**，它们在
 //	   shadow-diag 里也会被算成一组，那会把数字抬高到 4 倍以上（实测 455）；
 //	③ 只数「App 声明了同名方法、内嵌类型的实现因此被去重丢弃」的那些实现。
@@ -200,8 +200,10 @@ func mapMethod(m method) string {
 		return "image"
 	}
 	switch m.Receiver {
-	case "writingState":
-		return "novel"
+	case "projectState":
+		// 2026-11-15 小说板块退役：projectState（书架/项目共享态，原 writingState
+		// 收缩）方法归 core——与 GetNovelsDir/ListProjects 显式覆盖同域。
+		return "core"
 	case "mediaState":
 		return "image"
 	case "whisperState":
@@ -247,21 +249,7 @@ var explicitOverrides = map[string]string{
 	"WebSearchSettingsGet":    "office",
 	"WebSearchSettingsSet":    "office",
 	"WebSearchTestConnection": "office",
-	// v4.291：反推任务化两绑定挂 *App（taskMgr 在 App 级），点名归 novel。
-	"NovelOutlineReconstructStart":   "novel",
-	"NovelOutlineReconstructTaskGet": "novel",
-	// v4.323：t6 提示词工坊五绑定挂 *App（覆盖缓存在 writingState 侧、方法
-	// 在 App 级），点名归 novel（规格 进度计划/gaea-prompt-workshop-t6-20260916.md §4.2）。
-	"PromptTemplateList":    "novel",
-	"PromptTemplateGet":     "novel",
-	"PromptTemplateSave":    "novel",
-	"PromptTemplateReset":   "novel",
-	"PromptTemplatePreview": "novel",
-	// v4.324：t6-C2 模板包导入导出两绑定同因挂 *App，点名归 novel
-	//（规格 进度计划/gaea-prompt-bundle-t6c2-20260916.md §4）。
-	"PromptBundleExport": "novel",
-	"PromptBundleImport": "novel",
-	"GetModelRoute":      "model",
+	"GetModelRoute":           "model",
 	// 识图实际生效路由（只读不记账）：与 GetModelRoute 同域展示，归 ModelB。
 	"VisionRoute":       "model",
 	"GetSensitiveLocal": "model",
@@ -303,14 +291,10 @@ var explicitOverrides = map[string]string{
 	"SaveToken":                 "core",
 	"GenerateCharacterPortrait": "image",
 	"SetCharacterPortrait":      "image",
-	"CmdKEdit":                  "novel",
 	"LocalTranslate":            "office",
-	"Search":                    "core",
-	"ExportAll":                 "core",
 	"GetConfig":                 "core",
 	"SaveConfig":                "core",
 	"ListSkills":                "core",
-	"GetStats":                  "core",
 	"CreateProject":             "core",
 	"OpenProject":               "core",
 	"CloseProject":              "core",
@@ -343,9 +327,9 @@ var explicitOverrides = map[string]string{
 	"GaeaSpaceActivate":   "core",
 	"GaeaSpaceProfiles":   "core",
 	"GaeaSpaceProfileSet": "core",
-	// v4.3：TTS 参数预览归 voice 板块；书封生成归 novel 板块（前缀规则会落 office）
-	"GaeaTTSVoiceParams":    "voice",
-	"GaeaGenerateBookCover": "novel",
+	// v4.3：TTS 参数预览归 voice 板块（前缀规则会落 office，显式声明对齐惯例）
+	// （书封生成 GaeaGenerateBookCover 随小说板块退役拆除，2026-11-15）
+	"GaeaTTSVoiceParams": "voice",
 	// v4.113.0 刀4：进度计划文件持久化（前缀规则本就落 office，显式声明对齐登记惯例）
 	"GaeaScheduleLoad": "office",
 	"GaeaScheduleSave": "office",
@@ -826,7 +810,7 @@ func facadeTitle(f string) string {
 		"core": "核心（认证/项目/设置/杂项）", "office": "办公引擎与工作区",
 		"memory": "记忆中枢与知识库", "cost": "成本库与价格源",
 		"model": "模型中心与 Herdsman 底座", "voice": "语音（TTS/ASR/轻语）",
-		"chat": "聊天与主脑", "novel": "小说写作", "image": "绘梦与媒体",
+		"chat": "聊天与主脑", "image": "绘梦与媒体",
 		"charlib": "角色库", "wenxue": "文学（图文工作台）",
 	}
 	if t, ok := titles[f]; ok {
@@ -984,7 +968,6 @@ func writeCompletenessTest(groups map[string][]method) error {
 // 面）时条目消失、注释随之消失，无需手工清理；未命中的注释自动丢弃。
 var legacyTSAnnotations = map[string]string{
 	"CheckModuleIntegrity": "3.0 Step 2：板块装配启动自检（Startup 内部调用，前端不经 AppBindings 消费）",
-	"NovelGhostSuggest":    "v4.444 场景编辑器内联续写（GhostText；wailsApp 直调 legacy 面）",
 	"UpdateProjectMeta":    "v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）",
 	"RunChapterGate":       "章节闸门（v4.7x 小说革命遗留：场景级生成/叙事状态结算族已随批次三b 迁 AppBindings，仅此仍 wailsjsCompat 直调）",
 }

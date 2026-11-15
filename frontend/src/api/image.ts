@@ -42,9 +42,6 @@ type ImageHubFacade = {
   WarmComfyUI(): Promise<{ started: boolean; reason?: string; model?: string }>
   GetSystemStats(): Promise<Partial<SystemStats>>
   OpenImageSaveDir(): Promise<void>
-  OpenNovelImagesDir(): Promise<void>
-  GetCharacters(): Promise<{ characters?: Array<Record<string, unknown>> }>
-  SetCharacterPortrait(characterId: string, portraitPath: string): Promise<void>
 }
 const appFacade = (): ImageHubFacade => (window.go?.app?.App ?? bridgeApp) as unknown as ImageHubFacade
 
@@ -92,17 +89,6 @@ interface GenImageLike {
 export async function getImageBackendInfo(): Promise<BackendInfo> {
   const info = await appFacade().GetImageBackendInfo()
   return info as unknown as BackendInfo
-}
-
-/** 获取角色列表 */
-export async function getCharacters(): Promise<{ id: string; name: string }[]> {
-  try {
-    const cf = await appFacade().GetCharacters()
-    if (cf?.characters) {
-      return cf.characters.map((c: { id?: string; name?: string }) => ({ id: c.id ?? '', name: c.name ?? '' }))
-    }
-  } catch (_) {}
-  return []
 }
 
 /** 获取 ComfyUI 状态 */
@@ -460,17 +446,6 @@ export async function stopComfyUI(): Promise<void> {
 export async function openImageSaveDir(): Promise<void> {
   await appFacade().OpenImageSaveDir()
 }
-
-/** 打开小说图片目录 */
-export async function openNovelImagesDir(): Promise<void> {
-  await appFacade().OpenNovelImagesDir()
-}
-
-/** 设置角色剧照 */
-export async function setCharacterPortrait(charID: string, imageData: string): Promise<void> {
-  await appFacade().SetCharacterPortrait(charID, imageData)
-}
-
 
 /** 抠图/透明底导出（阶段二刀 E，T3 收官）：涂选保留主体（蒙版白=保留）→
  * 透明 PNG 落盘 ImageSaveDir+台账登记，返回路径与资产 id。零模型调用。 */

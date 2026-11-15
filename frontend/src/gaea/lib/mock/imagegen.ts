@@ -1,7 +1,6 @@
 // mock/imagegen.ts — 图像域 legacy 直调族转正后的 dev mock（v4.102）。
 // 口径：查询类中性空态（后端信息/ComfyUI/系统统计=未配置不编造）、动作类诚实
-// 失败（浏览器无生成后端/无文件管理器）；GetCharacters 给最小样例（参考槽走查），
-// SetCharacterPortrait 内存 no-op。真实绑定见 internal/app/bindings_image.go。
+// 失败（浏览器无生成后端/无文件管理器）。真实绑定见 internal/app/bindings_image.go。
 import type { AppBindings } from "../bridge";
 
 type ImagegenMethods = Pick<
@@ -10,7 +9,7 @@ type ImagegenMethods = Pick<
   | "GetImageBackendInfo" | "GetPortraitConfig" | "SetPortraitConfig"
   | "GetComfyUIStatus" | "GetComfyUILoras" | "GetComfyUITaskProgress"
   | "StartComfyUI" | "StopComfyUI" | "GetSystemStats"
-  | "OpenImageSaveDir" | "OpenNovelImagesDir" | "GetCharacters" | "SetCharacterPortrait"
+  | "OpenImageSaveDir"
   // v4.171 批次一 legacy 直调转正（ImageB 门面，与图像域同门面就近）。
   | "StartLocalTTSService"
   // 批次二 legacy 直调转正（ImageB 门面）：绘梦后端配置。
@@ -77,21 +76,6 @@ export function buildImagegenTools(): ImagegenMethods {
     },
     async OpenImageSaveDir(): Promise<void> {
       throw new Error("浏览器 dev mock 无文件管理器，打开目录不可用（mock）");
-    },
-    async OpenNovelImagesDir(): Promise<void> {
-      throw new Error("浏览器 dev mock 无文件管理器，打开目录不可用（mock）");
-    },
-    async GetCharacters() {
-      // 最小样例：参考槽/角色带入走查用（与 mock/weixin CharacterList 同人物宇宙）。
-      return {
-        characters: [
-          { id: "linwan", name: "林晚" },
-          { id: "gucheng", name: "顾城" },
-        ],
-      };
-    },
-    async SetCharacterPortrait(_characterId: string, _portraitPath: string): Promise<void> {
-      // 内存 no-op（同 SetPortraitConfig）。
     },
     async StartLocalTTSService(engineID: string) {
       // 契约对齐 Go ensureLocalTTSService（internal/app/tts_service.go）：幂等

@@ -41,18 +41,17 @@ const (
 	KeyVoicePersonality    = "voice_personality"      // 语音对话角色（首页语音固定 gaea；聊天板块内语音跟随所选人格）
 	KeyFuncChatVoiceEngine = "func_chat_voice_engine" // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	KeyFuncChatVoiceModel  = "func_chat_voice_model"  // 聊天语音合成模型
-	// 功能级模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）
-	KeyFuncChatEngine    = "func_chat_engine"
-	KeyFuncChatModel     = "func_chat_model"
-	KeyFuncNovelEngine   = "func_novel_engine"
-	KeyFuncNovelModel    = "func_novel_model"
-	KeyFuncOfficeEngine  = "func_office_engine"
-	KeyFuncOfficeModel   = "func_office_model"
-	KeyFuncGaeaEngine    = "func_gaea_engine"
-	KeyFuncGaeaModel     = "func_gaea_model"
+	// 功能级模型绑定（聊天/轻语/办公 各自独立 LLM，持久化重启不丢；
+	// func_novel_* 三键 2026-11-15 随小说板块退役拆除）
+	KeyFuncChatEngine   = "func_chat_engine"
+	KeyFuncChatModel    = "func_chat_model"
+	KeyFuncOfficeEngine = "func_office_engine"
+	KeyFuncOfficeModel  = "func_office_model"
+	KeyFuncGaeaEngine   = "func_gaea_engine"
+	KeyFuncGaeaModel    = "func_gaea_model"
 	// 图文板块（wenxue）：文学创作主 agent 独立绑定（未绑定回落 func_gaea）
-	KeyFuncWenxueEngine = "func_wenxue_engine"
-	KeyFuncWenxueModel  = "func_wenxue_model"
+	KeyFuncWenxueEngine  = "func_wenxue_engine"
+	KeyFuncWenxueModel   = "func_wenxue_model"
 	KeyFuncCharLibEngine = "func_characterlib_engine"
 	KeyFuncCharLibModel  = "func_characterlib_model"
 	KeyFuncRoutineEngine = "func_routine_engine"
@@ -64,7 +63,6 @@ const (
 	KeyFuncVisionModel  = "func_vision_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
 	KeyFuncChatEnabled    = "func_chat_enabled"
-	KeyFuncNovelEnabled   = "func_novel_enabled"
 	KeyFuncOfficeEnabled  = "func_office_enabled"
 	KeyFuncGaeaEnabled    = "func_gaea_enabled"
 	KeyFuncWenxueEnabled  = "func_wenxue_enabled"
@@ -101,10 +99,8 @@ const (
 	// 不转移）。默认关闭——关闭即现状，成功路径行为零改动。
 	KeyEngineFailover = "engine_failover_enabled"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
-	KeyNovelDryDisabled = "novel_dry_disabled"
-	KeyNovelSamplerJSON = "novel_sampler_json"
-	KeyKeepWarm         = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载
-	KeyAutoPreload      = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
+	KeyKeepWarm    = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载
+	KeyAutoPreload = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
 	// 外部引擎空闲自动退出（分钟）：天璇/Strata 等 gaea 代启的本地模型进程，
 	// 连续 N 分钟无真实使用（LLM 请求/启动/识图）即自动停止，不占 GPU/内存。
 	// 默认 5；0=关闭。gaea 退出（含崩溃）另有 Job Object 兜底杀整树。

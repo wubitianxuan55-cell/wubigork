@@ -49,8 +49,6 @@ type configFile struct {
 	FuncWhisperEngine  string `json:"func_whisper_engine,omitempty"`
 	FuncWhisperModel   string `json:"func_whisper_model,omitempty"`
 	FuncWhisperEnabled *bool  `json:"func_whisper_enabled,omitempty"`
-	FuncNovelEngine    string `json:"func_novel_engine,omitempty"`
-	FuncNovelModel     string `json:"func_novel_model,omitempty"`
 	FuncOfficeEngine   string `json:"func_office_engine,omitempty"`
 	FuncOfficeModel    string `json:"func_office_model,omitempty"`
 	FuncGaeaEngine     string `json:"func_gaea_engine,omitempty"`
@@ -60,7 +58,6 @@ type configFile struct {
 	FuncCharLibEngine  string `json:"func_characterlib_engine,omitempty"`
 	FuncCharLibModel   string `json:"func_characterlib_model,omitempty"`
 	FuncChatEnabled    *bool  `json:"func_chat_enabled,omitempty"` // nil=默认启用
-	FuncNovelEnabled   *bool  `json:"func_novel_enabled,omitempty"`
 	FuncOfficeEnabled  *bool  `json:"func_office_enabled,omitempty"`
 	FuncGaeaEnabled    *bool  `json:"func_gaea_enabled,omitempty"`
 	FuncWenxueEnabled  *bool  `json:"func_wenxue_enabled,omitempty"`
@@ -95,10 +92,6 @@ type configFile struct {
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
 	// 晨报预载开关（v4.16 刀④，nil=默认开启）：只影响上下文注入，与晨报卡片无关。
 	MorningPreload *bool `json:"morning_preload,omitempty"`
-	// 小说写作档防重复采样（阶段八 8.7，nil=默认启用 DRY 档）
-	NovelDryDisabled *bool `json:"novel_dry_disabled,omitempty"`
-	// 全量采样档覆盖（JSON 对象字符串，空=内置 DRY 缺省 0.8/1.75/2/4096）
-	NovelSamplerJSON string `json:"novel_sampler_json,omitempty"`
 	// ProjectBrief 是项目本体注入开关（6.2，默认开）：work 空间新会话装配时
 	// 把固化/项目/反馈决策带 [MEM:] 引用键注入缓存稳定前缀。
 	ProjectBrief *bool `json:"project_brief,omitempty"`
@@ -218,18 +211,16 @@ type Config struct {
 	FuncChatVoiceModel  string // 聊天语音合成模型
 
 	// 功能级模型绑定（各功能独立 LLM，空=用全局激活引擎+模型）
-	FuncChatEngine    string
-	FuncChatModel     string
-	FuncNovelEngine   string
-	FuncNovelModel    string
-	FuncOfficeEngine  string
-	FuncOfficeModel   string
-	FuncGaeaEngine    string
-	FuncGaeaModel     string
+	FuncChatEngine   string
+	FuncChatModel    string
+	FuncOfficeEngine string
+	FuncOfficeModel  string
+	FuncGaeaEngine   string
+	FuncGaeaModel    string
 	// 图文板块（wenxue）：文学创作主 agent 独立绑定（空=回落 func_gaea 绑定，
 	// 再回落全局活跃引擎）。
-	FuncWenxueEngine string
-	FuncWenxueModel  string
+	FuncWenxueEngine  string
+	FuncWenxueModel   string
 	FuncCharLibEngine string
 	FuncCharLibModel  string
 	// 常规任务模型目标（routine）：routine_llm 工具默认调用的引擎/模型，
@@ -242,7 +233,6 @@ type Config struct {
 	FuncVisionModel  string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
 	FuncChatEnabled    bool
-	FuncNovelEnabled   bool
 	FuncOfficeEnabled  bool
 	FuncGaeaEnabled    bool
 	FuncWenxueEnabled  bool
@@ -274,11 +264,9 @@ type Config struct {
 	//                     herdsman 空闲卸载/降温，保持「说用就能用」；
 	//   AutoPreload：启动自动预载——按功能绑定（gaea→office→chat）预载一个
 	//                 herdsman 模型，降低首次对话的冷启动等待。
-	// 小说写作档防重复采样（阶段八 8.7）：DRY 默认档开关 + 全量覆盖
-	NovelDryDisabled bool
-	NovelSamplerJSON string
-	KeepWarmEnabled  bool
-	AutoPreload      bool
+	// 小说写作档防重复采样键已随板块退役拆除（2026-11-15）
+	KeepWarmEnabled bool
+	AutoPreload     bool
 
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
 	// agent 上下文（零 LLM、预算受限）。默认开启，只影响上下文注入。

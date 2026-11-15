@@ -175,7 +175,7 @@ func wenxueParseChapterFile(root, rel string) (wenxueChapterMeta, bool) {
 		i++
 	}
 	if i > 0 {
-		fmt.Sscanf(stem[:i], "%d", &meta.Number)
+		_, _ = fmt.Sscanf(stem[:i], "%d", &meta.Number)
 		rest := strings.TrimLeft(stem[i:], "-_ .：:")
 		meta.Title = strings.TrimSpace(rest)
 	} else {

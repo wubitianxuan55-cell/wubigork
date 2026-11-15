@@ -3,12 +3,8 @@ import { create } from 'zustand'
 import { isShellSpace, type ShellSpace } from '../boards/space'
 
 // ═══════════════════════════════════════════════════════════
-// Types
+// Types（ProjectInfo/StatsData/ProjectCard 随小说板块退役拆除，2026-11-15）
 // ═══════════════════════════════════════════════════════════
-
-export interface ProjectInfo { title: string; genre: string; style: string; path: string; /** v4.439 成人向档位：''|sensual|explicit（Go 侧 omitempty，可能缺省） */ mature?: string }
-export interface StatsData { totalWords: number; chapterCount: number; avgWordsPerChapter: number; characterCount: number; charAlive: number; foreshadowTotal: number; foreshadowRevealed: number; foreshadowRate: number; plannedChapters?: number }
-export interface ProjectCard { title: string; genre: string; style: string; path: string; word_count: number; chapter_count: number; created_at: string; last_opened_at: string; /** v4.443 成人向档位（sensual/explicit；非成人向缺省） */ mature?: string }
 
 // 暗夜系列 — 7套精心调色（v10 新增「天玄」：玄穹墨蓝 + 月华金，首页卡片工作台的母题）
 export type ThemePreset = 'nightJade' | 'nightViolet' | 'nightRose' | 'nightAmber' | 'nightMoss' | 'nightSlate' | 'tianXuan'
@@ -304,14 +300,9 @@ function loadBase(): ThemePreset {
 
 interface AppState {
   loggedIn: boolean
-  projectOpen: boolean
+  /** 当前打开的小说项目路径（2026-11-15 书架随小说板块退役后无写入方，恒 ''；
+   *  角色库「加入项目」门控仍消费——字段保留，opener 挂池待拍板）。 */
   projectPath: string
-  projectTitle: string
-  novelsDir: string
-  projects: ProjectCard[]
-  /** 书架读取失败原因（null=正常）。v4.349：loadProjects 此前只 console.error，
-   *  首页拿不到失败信号 → 把「后端读失败」渲染成「书架空空如也」的假空态。 */
-  projectsError: string | null
   baseTheme: ThemePreset      // 色系（暗色名）
   mode: DisplayMode            // light/dark/system
   systemDark: boolean          // 操作系统当前明暗（matchMedia）
@@ -322,17 +313,10 @@ interface AppState {
   fontFamily: string           // 界面字体预设 key（FONT_OPTIONS）
   fontSize: number             // 界面字号 12-20
   space: ShellSpace            // S2.1 壳层视图空间（工位/乐园，持久化）
-  projectInfo: ProjectInfo | null
-  stats: StatsData | null
   login: () => Promise<void>
   logout: () => Promise<void>
   checkLogin: () => Promise<void>
   setLoggedIn: (v: boolean) => void
-  openProject: (path: string, title: string) => void
-  closeProject: () => void
-  loadProjects: () => Promise<void>
-  loadNovelsDir: () => Promise<void>
-  deleteProject: (path: string) => Promise<void>
   setTheme: (base: ThemePreset) => void
   setMode: (m: DisplayMode) => void
   toggleDarkMode: () => void
@@ -342,19 +326,11 @@ interface AppState {
   setFontFamily: (f: string) => void
   setFontSize: (n: number) => void
   setSpace: (s: ShellSpace) => void
-  loadProjectInfo: () => Promise<void>
-  loadStats: () => Promise<void>
-  setNovelsDir: (dir: string) => Promise<void>
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   loggedIn: false,
-  projectOpen: false,
   projectPath: '',
-  projectTitle: '',
-  novelsDir: 'C:\\AI\\xiaoshuo',
-  projects: [],
-  projectsError: null,
   baseTheme: loadBase(),
   mode: loadMode(),
   systemDark: systemPrefersDark(),
@@ -365,8 +341,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   fontFamily: loadFontFamily(),
   fontSize: loadFontSize(),
   space: loadShellSpace(),
-  projectInfo: null,
-  stats: null,
 
   setTheme: (base: ThemePreset) => {
     set({ baseTheme: base })
@@ -453,70 +427,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setLoggedIn: (v: boolean) => set({ loggedIn: v }),
-
-  openProject: (path: string, title: string) =>
-    set({ projectOpen: true, projectPath: path, projectTitle: title }),
-
-  closeProject: () =>
-    set({ projectOpen: false, projectPath: '', projectTitle: '', projectInfo: null, stats: null }),
-
-  loadProjectInfo: async () => {
-    try {
-      const info = await wailsApp().GetProjectInfo()
-      if (info) set({ projectInfo: info as ProjectInfo })
-    } catch (_) {}
-  },
-
-  loadStats: async () => {
-    try {
-      const s = await wailsApp().GetStats()
-      if (s) set({ stats: s as StatsData })
-    } catch (_) {}
-  },
-
-  loadNovelsDir: async () => {
-    try {
-      const dir: string = await wailsApp().GetNovelsDir()
-      set({ novelsDir: dir })
-    } catch (_) {
-      // 保持默认值
-    }
-  },
-
-  loadProjects: async () => {
-    try {
-      const cards: ProjectCard[] = await wailsApp().ListProjects()
-      set({ projects: cards || [], projectsError: null })
-    } catch (err) {
-      console.error('loadProjects failed:', err)
-      // 只表态不抛出（调用方既有 await 序列零变化）：首页据 projectsError 显示
-      // 可重试的错误态，而不是假装「一本都没有」。
-      set({ projectsError: err instanceof Error ? err.message : String(err) })
-    }
-  },
-
-  deleteProject: async (path: string) => {
-    try {
-      await wailsApp().DeleteProject(path)
-      const projects = get().projects.filter((p) => p.path !== path)
-      set({ projects })
-    } catch (err: unknown) {
-      console.error('deleteProject failed:', err)
-      throw err
-    }
-  },
-
-  setNovelsDir: async (dir: string) => {
-    await wailsApp().SaveConfig('novels_dir', dir)
-    set({ novelsDir: dir, projectOpen: false, projectPath: '', projectTitle: '' })
-    // 刷新书架
-    try {
-      const cards: ProjectCard[] = await wailsApp().ListProjects()
-      set({ projects: cards || [] })
-    } catch (err) {
-      console.error('loadProjects failed after setNovelsDir:', err)
-    }
-  },
 }))
 
 // system 显示模式：监听操作系统明暗变化，实时派生 darkMode

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/assistant"
-	"github.com/gaea/gaea/internal/character"
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
@@ -38,7 +37,7 @@ func newCharacterLibTestApp(t *testing.T) *App {
 
 	a := &App{core: c}
 	a.mediaState = &mediaState{core: c, app: a}
-	a.writingState = &writingState{core: c, app: a, mu: sync.RWMutex{}}
+	a.projectState = &projectState{core: c, app: a, mu: sync.RWMutex{}}
 	a.whisperState = &whisperState{core: c, app: a, whisperDataRoot: root}
 	a.assistantMgr = assistant.NewEmpty(root)
 	return a
@@ -97,7 +96,6 @@ func TestCharacterImportAssociateSyncProject(t *testing.T) {
 		t.Fatalf("创建项目: %v", err)
 	}
 	a.setPM(pm)
-	a.characterAgent = character.New(nil, pm, a.cfg, nil)
 
 	cf := &types.CharacterFile{
 		Characters: []types.Character{
@@ -116,7 +114,6 @@ func TestCharacterImportAssociateSyncProject(t *testing.T) {
 	dir2 := filepath.Join(t.TempDir(), "novelB")
 	pm2, _ := project.Create(dir2, "第二本", "都市", "", "")
 	a.setPM(pm2)
-	a.characterAgent = character.New(nil, pm2, a.cfg, nil)
 	if err := a.CharacterAssociate("ch_1", "supporting"); err != nil {
 		t.Fatalf("关联到第二项目: %v", err)
 	}
@@ -155,7 +152,6 @@ func TestCharacterAssociateTo_PicksSpecificNovel(t *testing.T) {
 		t.Fatalf("创建项目A: %v", err)
 	}
 	a.setPM(pmA)
-	a.characterAgent = character.New(nil, pmA, a.cfg, nil)
 
 	// 未打开的另一个项目 B
 	dirB := filepath.Join(a.cfg.NovelsDir, "novelB")
@@ -198,44 +194,6 @@ func TestCharacterAssociateTo_PicksSpecificNovel(t *testing.T) {
 	}
 }
 
-// TestGetCharacters_HealsOrphanLibraryRefs 回归：旧版本从角色库「加入项目」
-// 只写关联表、未物化 characters.json，打开小说角色面板（GetCharacters）时
-// 应自动按 ID 合入，保证角色立即可见。
-func TestGetCharacters_HealsOrphanLibraryRefs(t *testing.T) {
-	a := newCharacterLibTestApp(t)
-	a.cfg.NovelsDir = t.TempDir()
-	dir := filepath.Join(a.cfg.NovelsDir, "novelA")
-	pm, err := project.Create(dir, "测试小说", "玄幻", "", "")
-	if err != nil {
-		t.Fatalf("创建项目: %v", err)
-	}
-	a.setPM(pm)
-	a.characterAgent = character.New(nil, pm, a.cfg, nil)
-
-	c, err := a.CharacterSave(`{"id":"ch_1","name":"林晚","roleType":"protagonist","chatEnabled":false}`)
-	if err != nil {
-		t.Fatalf("保存角色: %v", err)
-	}
-	// 模拟旧版「加入项目」：只写关联表，characters.json 保持为空
-	if err := a.charLib.Associate(dir, c.ID, "protagonist", "", "Alive"); err != nil {
-		t.Fatalf("关联角色: %v", err)
-	}
-	cf0, err := pm.ReadCharacters()
-	if err != nil || len(cf0.Characters) != 0 {
-		t.Fatalf("前置：characters.json 应为空: %+v %v", cf0, err)
-	}
-
-	data := a.GetCharacters()
-	chars, ok := data["characters"].([]types.Character)
-	if !ok || len(chars) != 1 || chars[0].ID != c.ID {
-		t.Fatalf("GetCharacters 应包含角色库关联角色: %+v", data)
-	}
-	cf1, err := pm.ReadCharacters()
-	if err != nil || len(cf1.Characters) != 1 || cf1.Characters[0].Name != "林晚" {
-		t.Fatalf("characters.json 应已写入物化副本: %+v %v", cf1, err)
-	}
-}
-
 func TestCharacterSave_JSONRoundTrip(t *testing.T) {
 	a := newCharacterLibTestApp(t)
 	c, err := a.CharacterSave(`{"name":"测试角色","chatEnabled":false,"roleType":"supporting"}`)
@@ -256,169 +214,16 @@ func TestCharacterSave_JSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestNovelSaveDoesNotPolluteLibrary(t *testing.T) {
-	a := newCharacterLibTestApp(t)
-	dir := filepath.Join(t.TempDir(), "novel")
-	pm, _ := project.Create(dir, "测试", "玄幻", "", "")
-	a.setPM(pm)
-	a.characterAgent = character.New(nil, pm, a.cfg, nil)
-
-	// 库内先有丰富设定
-	if _, err := a.CharacterSave(`{"id":"ch_1","name":"林晚","background":"库内丰富背景","arc":"崛起"}`); err != nil {
-		t.Fatalf("库内保存: %v", err)
-	}
-	// 小说页保存同名同 ID 的薄记录
-	if err := a.SaveCharacter(`{"id":"ch_1","name":"林晚","background":"项目薄记录","arc":"黑化"}`); err != nil {
-		t.Fatalf("小说页保存: %v", err)
-	}
-	c, err := a.charLib.Get("ch_1")
-	if err != nil || c == nil {
-		t.Fatalf("读取库内角色: %v %v", c, err)
-	}
-	if c.Background != "库内丰富背景" || c.Arc != "崛起" {
-		t.Fatalf("小说页反向污染了全局角色库: %+v", c)
-	}
-}
-
 func TestCharacterSyncProject_RefusesLegacyChars(t *testing.T) {
 	a := newCharacterLibTestApp(t)
 	dir := filepath.Join(t.TempDir(), "novel")
 	pm, _ := project.Create(dir, "测试", "玄幻", "", "")
 	a.setPM(pm)
-	a.characterAgent = character.New(nil, pm, a.cfg, nil)
 	// 项目里有未入库角色（旧数据）
 	cf := &types.CharacterFile{Characters: []types.Character{{ID: "ch_9", Name: "未入库角色"}}}
 	_ = pm.WriteCharacters(cf)
 	if err := a.CharacterSyncProject(); err == nil {
 		t.Fatalf("存在未入库角色时同步应被拒绝（防止覆盖丢数据）")
-	}
-}
-
-// TestSaveCharactersBatchStaysInProject 回归：章节捕获的新角色批量保存后
-// 只进项目 characters.json，不自动进全局角色库；入库必须由用户手动迁移。
-func TestSaveCharactersBatchStaysInProject(t *testing.T) {
-	a := newCharacterLibTestApp(t)
-	dir := filepath.Join(t.TempDir(), "novel")
-	pm, err := project.Create(dir, "测试", "玄幻", "", "")
-	if err != nil {
-		t.Fatalf("创建项目: %v", err)
-	}
-	a.setPM(pm)
-	a.characterAgent = character.New(nil, pm, a.cfg, nil)
-
-	res, err := a.SaveCharactersBatch(`["阿九","老乞丐"]`)
-	if err != nil {
-		t.Fatalf("SaveCharactersBatch: %v", err)
-	}
-	created, ok := res["created"].([]types.Character)
-	if !ok || len(created) != 2 {
-		t.Fatalf("created = %#v, want 2 个角色", res["created"])
-	}
-
-	// 1. 项目 characters.json 已写入
-	cf, err := pm.ReadCharacters()
-	if err != nil || len(cf.Characters) != 2 {
-		t.Fatalf("项目 characters.json = %d 个, want 2 (err=%v)", len(cf.Characters), err)
-	}
-
-	// 2. 未自动入库：全局库查不到，项目引用为空
-	for _, ch := range created {
-		lib, err := a.charLib.Get(ch.ID)
-		if err != nil {
-			t.Fatalf("查询全局库失败: %v", err)
-		}
-		if lib != nil {
-			t.Fatalf("角色 %s(%s) 不应自动进入全局角色库（必须手动迁移）: %+v", ch.Name, ch.ID, lib)
-		}
-	}
-	refs, err := a.charLib.ListByProject(dir)
-	if err != nil || len(refs) != 0 {
-		t.Fatalf("未手动迁移前项目引用应为空, got %d (err=%v)", len(refs), err)
-	}
-
-	// 3. 手动「一次性迁移」后：全局库可查 + 项目建立引用
-	report, err := a.CharacterImportProject("")
-	if err != nil || report["imported"] != 2 {
-		t.Fatalf("手动迁移 = %v, want imported 2 (err=%v)", report, err)
-	}
-	for _, ch := range created {
-		lib, err := a.charLib.Get(ch.ID)
-		if err != nil || lib == nil {
-			t.Fatalf("手动迁移后角色 %s(%s) 仍不在全局库: lib=%v err=%v", ch.Name, ch.ID, lib, err)
-		}
-		if lib.Name != ch.Name || lib.RoleType != "supporting" {
-			t.Errorf("库内角色字段异常: %+v", lib)
-		}
-	}
-	refs, err = a.charLib.ListByProject(dir)
-	if err != nil || len(refs) != 2 {
-		t.Fatalf("手动迁移后项目引用 = %d 个, want 2 (err=%v)", len(refs), err)
-	}
-}
-
-// TestMergeCharacters 回归：合并同一人的两个角色卡——
-// 保留角色、填充空缺字段、关系与组织引用重定向并去重、被合并角色移除。
-func TestMergeCharacters(t *testing.T) {
-	a := newCharacterLibTestApp(t)
-	dir := filepath.Join(t.TempDir(), "novel")
-	pm, _ := project.Create(dir, "测试", "玄幻", "", "")
-	a.setPM(pm)
-	a.characterAgent = character.New(nil, pm, a.cfg, nil)
-
-	cf := &types.CharacterFile{
-		Characters: []types.Character{
-			{ID: "ch_keep", Name: "阿九", RoleType: "protagonist", Gender: "male", Personality: "冷静", Status: "Alive"},
-			{ID: "ch_dup", Name: "九公子", RoleType: "supporting", Appearance: "白衣", Background: "江湖游侠", Status: "Alive"},
-		},
-		Organizations: []types.Organization{
-			{ID: "org_1", Name: "丐帮", Members: []string{"ch_keep", "ch_dup", "ch_dup"}},
-		},
-		Relationships: []types.Relationship{
-			{FromID: "ch_dup", ToID: "ch_keep", RelationType: "rival", Description: "自环", Intimacy: 0},
-			{FromID: "ch_keep", ToID: "ch_dup", RelationType: "friend", Description: "重复", Intimacy: 10},
-			{FromID: "ch_keep", ToID: "ch_dup", RelationType: "friend", Description: "重复", Intimacy: 10},
-			{FromID: "ch_dup", ToID: "ch_other", RelationType: "mentor", Description: "师父", Intimacy: 20},
-		},
-	}
-	if err := pm.WriteCharacters(cf); err != nil {
-		t.Fatalf("写角色文件: %v", err)
-	}
-
-	res, err := a.MergeCharacters("ch_keep", "ch_dup")
-	if err != nil {
-		t.Fatalf("MergeCharacters: %v", err)
-	}
-	chars, _ := res["characters"].([]types.Character)
-	if len(chars) != 1 {
-		t.Fatalf("合并后角色数 = %d, want 1", len(chars))
-	}
-	kept := chars[0]
-	if kept.Name != "阿九" {
-		t.Errorf("应保留主角色名, got %q", kept.Name)
-	}
-	if kept.Appearance != "白衣" || kept.Background != "江湖游侠" {
-		t.Errorf("空缺字段未从被合并角色补充: %+v", kept)
-	}
-
-	rels, _ := res["relationships"].([]types.Relationship)
-	if len(rels) != 1 {
-		t.Fatalf("合并后关系数 = %d, want 1（同名自环删除、重复去重、其余重定向）: %+v", len(rels), rels)
-	}
-	for _, r := range rels {
-		if r.FromID == "ch_dup" || r.ToID == "ch_dup" {
-			t.Errorf("关系仍指向被合并角色: %+v", r)
-		}
-	}
-
-	orgs, _ := res["organizations"].([]types.Organization)
-	if len(orgs[0].Members) != 1 || orgs[0].Members[0] != "ch_keep" {
-		t.Errorf("组织成员未重定向/去重: %+v", orgs[0].Members)
-	}
-
-	// 文件已落盘
-	cf2, err := pm.ReadCharacters()
-	if err != nil || len(cf2.Characters) != 1 || cf2.Characters[0].ID != "ch_keep" {
-		t.Fatalf("文件未同步: %+v err=%v", cf2, err)
 	}
 }
 

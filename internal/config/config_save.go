@@ -239,8 +239,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncChatVoiceModel:  func(cf *configFile, v string) error { cf.FuncChatVoiceModel = v; return nil },
 	KeyFuncChatEngine:      func(cf *configFile, v string) error { cf.FuncChatEngine = v; return nil },
 	KeyFuncChatModel:       func(cf *configFile, v string) error { cf.FuncChatModel = v; return nil },
-	KeyFuncNovelEngine:     func(cf *configFile, v string) error { cf.FuncNovelEngine = v; return nil },
-	KeyFuncNovelModel:      func(cf *configFile, v string) error { cf.FuncNovelModel = v; return nil },
 	KeyFuncOfficeEngine:    func(cf *configFile, v string) error { cf.FuncOfficeEngine = v; return nil },
 	KeyFuncOfficeModel:     func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
 	KeyFuncGaeaEngine:      func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
@@ -255,14 +253,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.FuncChatEnabled = b
-		return nil
-	},
-	KeyFuncNovelEnabled: func(cf *configFile, v string) error {
-		b, err := parseBoolPtr(v)
-		if err != nil {
-			return err
-		}
-		cf.FuncNovelEnabled = b
 		return nil
 	},
 	KeyFuncOfficeEnabled: func(cf *configFile, v string) error {
@@ -396,15 +386,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.EngineFailoverEnabled = b
 		return nil
 	},
-	KeyNovelDryDisabled: func(cf *configFile, v string) error {
-		b, err := parseBoolPtr(v)
-		if err != nil {
-			return err
-		}
-		cf.NovelDryDisabled = b
-		return nil
-	},
-	KeyNovelSamplerJSON: func(cf *configFile, v string) error { cf.NovelSamplerJSON = v; return nil },
 	KeyKeepWarm: func(cf *configFile, v string) error {
 		b, err := parseBoolPtr(v)
 		if err != nil {

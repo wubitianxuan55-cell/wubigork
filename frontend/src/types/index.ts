@@ -128,7 +128,7 @@ export interface ForeshadowItemData {
 }
 
 /** 运行时紧急度投影（GetForeshadows 附带，后端实时算不落库；保存写回前应剥离）。
- *  对齐 bridge/novel.ts ForeshadowUrgencyPayload。 */
+ *  （对齐注释所指 bridge/novel.ts 已随小说板块退役，2026-11-15） */
 export interface ForeshadowUrgencyData {
   level: number // 0=不紧急 1=需关注 2=急需回收 3=已超期
   remainingChapters: number

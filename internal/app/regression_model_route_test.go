@@ -9,10 +9,10 @@ import (
 func TestRegressionE03NovelBindingBeatsStaleGlobal(t *testing.T) {
 	c := newRouterTestCore(t)
 	c.cfg.Model = "stale-xai-model"
-	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+	if err := c.SetFeatureModel("characterlib", "herdsman", "qwen3-8b"); err != nil {
 		t.Fatal(err)
 	}
-	eng, model, _ := c.routeModel("novel")
+	eng, model, _ := c.routeModel("characterlib")
 	if eng != "herdsman" || model != "qwen3-8b" {
 		t.Fatalf("E03 回归失败: (%q,%q)", eng, model)
 	}

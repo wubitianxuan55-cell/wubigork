@@ -21,9 +21,9 @@ beforeEach(() => {
 })
 
 describe('SettingsPage 按功能板块组织', () => {
-  it('渲染九个功能分组导航', () => {
+  it('渲染八个功能分组导航（小说分区随板块退役拆除，2026-11-15）', () => {
     render(wrap(<SettingsPage />))
-    for (const label of ['通用', '聊天', '小说', '绘梦', '办公', '模型', '安全', '数据', '关于']) {
+    for (const label of ['通用', '聊天', '绘梦', '办公', '模型', '安全', '数据', '关于']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy()
     }
   })

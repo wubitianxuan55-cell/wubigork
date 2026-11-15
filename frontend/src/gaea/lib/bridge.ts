@@ -6,7 +6,7 @@
 // developed and laid out without rebuilding the Go side.
 //
 // P3 结构版1「巨文件拆分」：绑定面/路由逻辑分置 lib/bridge/ 子模块
-// （core/office/memory/cost/model/voice/chat/novel/image/charlib 分域接口 +
+// （core/office/memory/cost/model/voice/chat/image/charlib 分域接口 +
 // appBindings/mappings/proxy/events/http/drift）。本文件为唯一入口：全部公开名
 // 从子模块 re-export，名字逐一同、行为零变化（含浏览器 dev mock 回退）。
 

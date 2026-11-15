@@ -61,7 +61,6 @@ func TestManifestDuplicateIDRejected(t *testing.T) {
 func TestManifestSpaceAssignments(t *testing.T) {
 	want := map[string]string{
 		"chat":         SpacePlay,
-		"novel":        SpacePlay,
 		"imagegen":     SpacePlay,
 		"gaea":         SpaceWork,
 		"cost":         SpaceWork,
@@ -74,6 +73,7 @@ func TestManifestSpaceAssignments(t *testing.T) {
 		"weixin":       SpaceWork,
 		"knowledge":    SpaceWork,
 		"schedule":     SpaceWork,
+		"wenxue":       SpaceWork,
 	}
 	got := map[string]string{}
 	for _, m := range BuiltinManifests() {

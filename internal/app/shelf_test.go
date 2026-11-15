@@ -13,7 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/config"
 )
 
-// shelfTestApp 构造带 cfg 与裸 writingState 的 App（getPM/closePM 可用但
+// shelfTestApp 构造带 cfg 与裸 projectState 的 App（getPM/closePM 可用但
 // 无项目；config.Save 写入临时 USERPROFILE/HOME 下的 .gaea_config.json）。
 func shelfTestApp(t *testing.T) *App {
 	t.Helper()
@@ -22,7 +22,7 @@ func shelfTestApp(t *testing.T) *App {
 	t.Setenv("HOME", home)
 	return &App{
 		core:         &core{cfg: &config.Config{}},
-		writingState: &writingState{mu: sync.RWMutex{}},
+		projectState: &projectState{mu: sync.RWMutex{}},
 	}
 }
 
@@ -63,7 +63,7 @@ func TestSaveConfig_SyncsBoolKeys(t *testing.T) {
 
 	for _, k := range []string{
 		config.KeyKeepWarm, config.KeyAutoPreload, config.KeySensitiveLocal,
-		config.KeyFuncChatEnabled, config.KeyFuncNovelEnabled, config.KeyFuncOfficeEnabled,
+		config.KeyFuncChatEnabled, config.KeyFuncOfficeEnabled,
 		config.KeyFuncGaeaEnabled, config.KeyFuncCharLibEnabled, config.KeyFuncRoutineEnabled,
 	} {
 		if err := a.SaveConfig(k, "false"); err != nil {
@@ -74,7 +74,7 @@ func TestSaveConfig_SyncsBoolKeys(t *testing.T) {
 	if a.cfg.KeepWarmEnabled || a.cfg.AutoPreload || a.cfg.SensitiveLocal {
 		t.Error("布尔开关应全部同步为 false")
 	}
-	if a.cfg.FuncChatEnabled || a.cfg.FuncNovelEnabled || a.cfg.FuncOfficeEnabled ||
+	if a.cfg.FuncChatEnabled || a.cfg.FuncOfficeEnabled ||
 		a.cfg.FuncGaeaEnabled || a.cfg.FuncCharLibEnabled || a.cfg.FuncRoutineEnabled {
 		t.Error("功能级启停开关应全部同步为 false")
 	}
@@ -116,7 +116,7 @@ func TestListProjectsMatureBadge(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
 	a := &App{core: &core{cfg: &config.Config{NovelsDir: filepath.Join(home, "shelf")}}}
-	a.writingState = &writingState{mu: sync.RWMutex{}}
+	a.projectState = &projectState{mu: sync.RWMutex{}}
 
 	seed := func(name, mature string) {
 		t.Helper()

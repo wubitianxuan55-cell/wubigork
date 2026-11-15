@@ -10,8 +10,6 @@ import (
 // 编译期验证：各子服务方法经 App 嵌入提升（前端 window.go.app.* 绑定不变）。
 func TestEmbeddingPromotion(t *testing.T) {
 	var _ interface {
-		// writingState
-		ChatCharacter(userMsg string) (map[string]interface{}, error)
 		// mediaState
 		GenerateFreeImage(prompt, negative, size, style, model string, seed, n int, lora string) (map[string]interface{}, error)
 		// whisperState

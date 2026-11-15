@@ -63,10 +63,10 @@ const ImageGenPage: React.FC = () => {
     backend, selectedLoras, setSelectedLoras,
     loraOptions, loraLoading, loraError, refreshComfyLoras,
     backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
-    modelOptions, characters,
+    modelOptions,
     refChars, applyRefCharacter, refSlot, clearRefSlot, refMethod, setRefMethod,
     handleSwitchBackend, handleStartEngine, handleStopEngine,
-    handleOpenDir, handleOpenNovelDir,
+    handleOpenDir,
   } = cfg
 
   // CU1 绘梦预热（蒸馏 unsloth §六-2）：页首入触发一次后台 64×64 空跑，
@@ -81,7 +81,7 @@ const ImageGenPage: React.FC = () => {
   const historyApi = useImageGenHistory({ setPrompt, setNegative, setSeed, setSize })
   const {
     history, setHistory, lightboxIndex, setLightboxIndex,
-    handleDownload, handleReuse, handleSetPortrait,
+    handleDownload, handleReuse,
   } = historyApi
 
   const queueApi = useImageGenQueue({
@@ -349,9 +349,6 @@ const ImageGenPage: React.FC = () => {
 
         <div className="ig-strip-actions">
           <Button type="text" size="small" icon={<FolderOpenOutlined />}
-            onClick={handleOpenNovelDir} title="小说图片目录" aria-label="打开小说图片目录"
-            style={{ color: 'var(--color-text-secondary)', fontSize: 13, padding: '0 6px' }} />
-          <Button type="text" size="small" icon={<FolderOpenOutlined />}
             onClick={handleOpenDir} title="生成图片目录" aria-label="打开生成图片目录"
             style={{ color: 'var(--color-text-secondary)', fontSize: 13, padding: '0 6px' }} />
         </div>
@@ -480,12 +477,10 @@ const ImageGenPage: React.FC = () => {
         <Lightbox
           results={history}
           index={lightboxIndex}
-          characters={characters}
           onClose={() => setLightboxIndex(-1)}
           onIndexChange={setLightboxIndex}
           onDownload={handleDownload}
           onReuse={handleReuse}
-          onSetPortrait={handleSetPortrait}
         />
       )}
 

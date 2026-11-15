@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { errText } from '../utils/errText'
 import { message } from 'antd'
 import {
-  getImageBackendInfo, getCharacters, getComfyUIStatus, getSystemStats,
+  getImageBackendInfo, getComfyUIStatus, getSystemStats,
   getComfyUILoras, startComfyUI, stopComfyUI,
-  openImageSaveDir, openNovelImagesDir, readFileAsDataURL,
+  openImageSaveDir, readFileAsDataURL,
   type SystemStats,
 } from '../api/image'
 import { getCharacter, listCharacters } from '../api/characterlib'
@@ -47,7 +47,6 @@ export function useImageGenConfig() {
   const [engineModelCount, setEngineModelCount] = useState(0)
   const [sysStats, setSysStats] = useState<SystemStats | null>(null)
 
-  const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
   // T2 角色参考槽 v0：全局角色库中有参考图的角色（角色资产 → 绘梦入口）。
   const [refChars, setRefChars] = useState<{ id: string; name: string; refCount: number }[]>([])
   // T2 角色参考槽：当前选中的角色（ID + 已解析参考图 + 名称；随生成进入溯源）。
@@ -103,8 +102,6 @@ export function useImageGenConfig() {
         const info = await getImageBackendInfo()
         if (info?.backend) setBackend(info.backend)
         if (info?.model) setModel(info.model)
-        const chars = await getCharacters()
-        setCharacters(chars || [])
       } catch (_) { /* ignore */ }
       try {
         const list = await getEngines()
@@ -337,9 +334,6 @@ export function useImageGenConfig() {
   const handleOpenDir = useCallback(async () => {
     try { await openImageSaveDir() } catch (err: unknown) { message.error(errText(err, '打开失败')) }
   }, [])
-  const handleOpenNovelDir = useCallback(async () => {
-    try { await openNovelImagesDir() } catch (err: unknown) { message.error(errText(err, '打开失败')) }
-  }, [])
 
   return {
     mode, setMode, prompt, setPrompt, negative, setNegative, size, setSize,
@@ -349,9 +343,9 @@ export function useImageGenConfig() {
     backend, setBackend, selectedLoras, setSelectedLoras,
     comfyLoras, loraOptions, loraLoading, loraError, refreshComfyLoras,
     engines, backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
-    modelOptions, characters,
+    modelOptions,
     refChars, applyRefCharacter, refSlot, clearRefSlot, refMethod, setRefMethod,
     handleSwitchBackend, handleStartEngine, handleStopEngine,
-    handleOpenDir, handleOpenNovelDir,
+    handleOpenDir,
   }
 }

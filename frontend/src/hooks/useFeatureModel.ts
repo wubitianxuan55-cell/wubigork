@@ -12,7 +12,7 @@ interface FeatureModelEvent {
 
 /**
  * 功能模型 hook — 读取并实时监听某功能的绑定模型（持久化，重启不丢）。
- * feature: 'chat' | 'whisper' | 'novel' | 'office' | 'gaea' | 'characterlib'
+ * feature: 'chat' | 'whisper' | 'office' | 'gaea' | 'wenxue' | 'characterlib'
  * enabled: 功能级启停（FeatureModelBar 启停语义，默认启用）
  */
 export function useFeatureModel(feature: string): { engine: string; model: string; enabled: boolean } {

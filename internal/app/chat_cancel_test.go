@@ -10,7 +10,7 @@ import (
 
 // TestChatStreamCancelUnknownRun 未知/已结束 runID 返 false 不报错。
 func TestChatStreamCancelUnknownRun(t *testing.T) {
-	a := newGateEmptyApp()
+	a := &App{core: &core{}}
 	if a.ChatStreamCancel("no-such-run") {
 		t.Fatal("未知 runID 应返 false")
 	}
@@ -18,7 +18,7 @@ func TestChatStreamCancelUnknownRun(t *testing.T) {
 
 // TestChatStreamCancelRegistry 登记表生命周期：register→cancel 命中 true→unregister 后 false。
 func TestChatStreamCancelRegistry(t *testing.T) {
-	a := newGateEmptyApp()
+	a := &App{core: &core{}}
 	a.chatStreamRegister("run-1", func() {})
 	if !a.ChatStreamCancel("run-1") {
 		t.Fatal("已登记 runID 应命中 true")
@@ -33,7 +33,7 @@ func TestChatStreamCancelRegistry(t *testing.T) {
 // 传播→协程感知 ctx 断→退出清表；不依赖 chat 路由可用性——挂起假站对 chat
 // feature 的快速失败路径已在生产代码由 error 帧收尾）。
 func TestChatStreamCancelEndToEnd(t *testing.T) {
-	a := newGateEmptyApp()
+	a := &App{core: &core{}}
 	ctx, cancel := context.WithCancel(context.Background())
 	a.chatStreamRegister("run-e2e", cancel)
 	done := make(chan struct{})
@@ -59,4 +59,18 @@ func TestChatStreamCancelEndToEnd(t *testing.T) {
 	if a.ChatStreamCancel("run-e2e") {
 		t.Fatal("清表后二次取消应返 false（幂等）")
 	}
+}
+
+// waitFor 轮询等待条件成立（原 create_chapter_cancel_test.go 的共享 helper，
+// 2026-11-15 小说板块拆除后本文件自持一份）。
+func waitFor(t *testing.T, d time.Duration, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("waitFor 超时: %s", what)
 }

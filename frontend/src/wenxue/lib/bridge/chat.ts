@@ -17,7 +17,7 @@ export interface ChatBindings {
   ChatAppendMessages(topicID: string, messages: AppModels.ChatMessageInput[]): Promise<void>;
   // ── 批次二 wailsjsCompat 双轨退役转正（Go ChatB 门面，同名前缀）──
   // 对话板块话题管理 + 发送：ChatTopicCreate 新建话题（title/mode，mode 如
-  // "chat"/"novel" 等）；Delete/Rename/SetMode/Clear 话题生命周期操作；
+  // "chat" 等）；Delete/Rename/SetMode/Clear 话题生命周期操作；
   // ChatImportTopic 批量导入消息建话题（返回 chat.Topic 形状 Record）；
   // ChatSend 发送消息（mode + 搜索/思考/强搜开关，返回结构化结果）；
   // ChatStreamPlain 无流式纯文本通道（返回最终文本）；

@@ -444,7 +444,7 @@ describe('微信助手工作台 · 轮询门控（FE5-05）', () => {
   })
 
   it('⑮ 板块不可见（壳层已切到别的板块）：首拉与 5s 轮询都不触达绑定；切回后立即恢复', async () => {
-    notifyBoardActive('novel') // 壳层声明当前可见板块=小说，微信助手仍挂着（keepAlive）
+    notifyBoardActive('chat') // 壳层声明当前可见板块=聊天，微信助手仍挂着（keepAlive）
     render(<WeixinPage />)
     await flushAsync()
 

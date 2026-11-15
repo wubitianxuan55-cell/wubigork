@@ -131,7 +131,6 @@ func RenderTOML(c *Config) string {
 		b.WriteString("# 权限策略（S1.5-A）与 play 内容护栏（S1.5-B）。\n")
 		renderSpaceModelKey(&b, "chat", p.Chat)
 		renderSpaceModelKey(&b, "whisper", p.Whisper)
-		renderSpaceModelKey(&b, "novel", p.Novel)
 		renderSpaceModelKey(&b, "office", p.Office)
 		renderSpaceModelKey(&b, "gaea", p.Gaea)
 		renderSpaceModelKey(&b, "characterlib", p.CharacterLib)

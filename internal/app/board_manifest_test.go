@@ -26,7 +26,7 @@ func (f fakeBoard) Tools() []string          { return nil }
 func (f fakeBoard) Init(board.AppHost) error { return nil }
 
 // TestInitModulesManifestDriven initModules 由 manifest 驱动（§5.2）：canonical
-// 板块清单声明意图 → 装配出 gaea/whisper/novel/imagegen/office 五个主脑模块，
+// 板块清单声明意图 → 装配出 gaea/whisper/imagegen/office 四个主脑模块（novel 2026-11-15 退役），
 // 装配无完整性错误；office.create（D8）可正常派发。
 func TestInitModulesManifestDriven(t *testing.T) {
 	a := &App{}
@@ -37,7 +37,7 @@ func TestInitModulesManifestDriven(t *testing.T) {
 	if err := a.modules.Err(); err != nil {
 		t.Fatalf("canonical manifest 装配不应有完整性错误: %v", err)
 	}
-	for _, want := range []string{"gaea", "whisper", "novel", "imagegen", "office"} {
+	for _, want := range []string{"gaea", "whisper", "imagegen", "office"} {
 		if !a.modules.Has(want) {
 			t.Fatalf("manifest 驱动装配缺少模块 %q", want)
 		}
@@ -152,8 +152,8 @@ func TestFillFromManifestsHappyPath(t *testing.T) {
 func TestGetBoardManifestsCanonical(t *testing.T) {
 	a := &App{}
 	manifests := a.GetBoardManifests()
-	if len(manifests) != 16 {
-		t.Fatalf("GetBoardManifests 应返回 16 个板块（15 canonical〔含 pantheon、wenxue〕+ knowledge D7），got %d", len(manifests))
+	if len(manifests) != 15 {
+		t.Fatalf("GetBoardManifests 应返回 15 个板块（14 canonical〔含 pantheon、wenxue；novel 2026-11-15 退役〕+ knowledge D7），got %d", len(manifests))
 	}
 	byID := map[string]board.Manifest{}
 	for _, m := range manifests {
@@ -284,7 +284,6 @@ func TestMainBrainClassifierBranchesDispatchable(t *testing.T) {
 	a.initModules()
 	for _, msg := range []string{
 		"写一份标书",     // → office.create
-		"生成第三章",     // → novel.create_chapter
 		"和轻语聊聊天",    // → whisper.chat
 		"画一张星空图",    // → imagegen.generate
 		"帮我看看今天的安排", // → gaea.chat（default 分支）

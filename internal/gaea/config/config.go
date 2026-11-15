@@ -278,7 +278,6 @@ type PlayGuardrails struct {
 type SpaceProfile struct {
 	Chat         string `toml:"chat"`
 	Whisper      string `toml:"whisper"`
-	Novel        string `toml:"novel"`
 	Office       string `toml:"office"`
 	Gaea         string `toml:"gaea"`
 	CharacterLib string `toml:"characterlib"`

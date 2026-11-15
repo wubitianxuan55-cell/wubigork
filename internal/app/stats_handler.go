@@ -5,8 +5,6 @@ import (
 
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/skill"
-	"github.com/gaea/gaea/internal/stats"
-	"github.com/gaea/gaea/internal/util"
 )
 
 // ── Skill ────────────────────────────────────────────────────
@@ -33,27 +31,6 @@ func (a *App) ListSkills() []map[string]interface{} {
 		}
 	}
 	return result
-}
-
-// ── 统计 ────────────────────────────────────────────────────
-
-// GetStats 获取统计摘要
-func (a *App) GetStats() map[string]interface{} {
-	pm := a.getPM()
-	if pm == nil {
-		return nil
-	}
-	s := stats.Collect(pm)
-	return map[string]interface{}{
-		"totalWords":         s.TotalWords,
-		"chapterCount":       s.ChapterCount,
-		"avgWordsPerChapter": s.AvgWordsPerCh,
-		"characterCount":     s.CharCount,
-		"charAlive":          s.CharAlive,
-		"foreshadowTotal":    s.ForeshadowTotal,
-		"foreshadowRevealed": s.ForeshadowRevealed,
-		"foreshadowRate":     float64(s.ForeshadowRevealed) / float64(util.Max(s.ForeshadowTotal, 1)) * 100,
-	}
 }
 
 // ── 配置 ──────────────────────────────────────────────────────

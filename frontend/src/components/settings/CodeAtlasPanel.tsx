@@ -31,7 +31,6 @@ const LAYERS: { id: string; name: string; color: string }[] = [
   { id: 'kernel-rt', name: '内核·装配执行', color: 'var(--md-sys-color-info)' },
   { id: 'kernel-lib', name: '内核·共享库', color: 'color-mix(in srgb, var(--md-sys-color-info) 70%, var(--md-sys-color-primary))' },
   { id: 'office', name: '办公域', color: 'var(--md-sys-color-success)' },
-  { id: 'novel', name: '小说域', color: 'color-mix(in srgb, var(--md-sys-color-success) 70%, var(--gaea-glow))' },
   { id: 'engine', name: '引擎域', color: 'var(--md-sys-color-warning)' },
   { id: 'pantheon', name: '众神殿', color: 'color-mix(in srgb, var(--md-sys-color-warning) 65%, var(--md-sys-color-error))' },
   { id: 'domain', name: '领域库', color: 'color-mix(in srgb, var(--md-sys-color-primary) 75%, var(--md-sys-color-text-secondary))' },

@@ -1,7 +1,7 @@
 // ImageGenPage 拆分产物：历史/灯箱状态与结果操作（行为零变化，T6-10.1）
 import { useCallback, useEffect, useState } from 'react'
 import { message } from 'antd'
-import { setCharacterPortrait as setPortrait, readFileAsDataURL } from '../api/image'
+import { readFileAsDataURL } from '../api/image'
 import { restoreHistoryImages } from '../components/imagegen/historyMeta'
 import { downloadFileName } from '../components/imagegen/media'
 import { loadHistoryMeta, saveHistoryMeta, resolveResultImage } from '../components/imagegen/meta'
@@ -93,22 +93,8 @@ export function useImageGenHistory({ setPrompt, setNegative, setSeed, setSize }:
     setHistory((prev) => prev.filter((_, idx) => idx !== i))
   }, [])
 
-  const handleSetPortrait = useCallback(async (i: number, charID: string) => {
-    const r = history[i]
-    if (!r) return
-    const dataUrl = await resolveResultImage(r)
-    if (!dataUrl) {
-      message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
-      return
-    }
-    try {
-      await setPortrait(charID, dataUrl)
-      message.success('已设为角色剧照')
-    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '设置失败') }
-  }, [history])
-
   return {
     history, setHistory, lightboxIndex, setLightboxIndex,
-    handleDownload, handleReuse, handleDelete, handleSetPortrait,
+    handleDownload, handleReuse, handleDelete,
   }
 }

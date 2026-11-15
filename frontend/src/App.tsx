@@ -119,7 +119,7 @@ const App: React.FC = () => {
     set('--md-sys-color-warning', effTokens.colorWarning)
     set('--md-sys-color-destructive', effTokens.colorDestructive)
     // -info 明暗分档（v4.350）：此前仅 gaea/tailwind.css 定义 --color-info 且转发的
-    // --md-sys-color-info 本身无注入源，gaea 板块外消费（novel 风格指纹/CreatePage
+    // --md-sys-color-info 本身无注入源，gaea 板块外消费（文学板块面板
     // 图表分组）整条 invalid；亮档取 sky-700（白底 4.6:1），暗档 sky-400。hex-exempt：
     // 主题库无 info 字段，锁定值对齐 v4.349 lightFn 下沉色先例。
     set('--md-sys-color-info', darkMode ? '#38bdf8' : '#0369a1') // hex-exempt

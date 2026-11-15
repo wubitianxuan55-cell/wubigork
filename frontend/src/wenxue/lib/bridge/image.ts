@@ -26,7 +26,6 @@ export interface ImageBindings {
   WarmComfyUI(): Promise<{ started: boolean; reason?: string; model?: string }>;
   GetSystemStats(): Promise<Record<string, unknown>>;
   OpenImageSaveDir(): Promise<void>;
-  OpenNovelImagesDir(): Promise<void>;
   // ImageHubAssets 图像域登记只读视图（按空间/来源过滤，T1 画室素材库；
   // 原 legacy wailsjsCompat 直调转正，浏览器 dev mock 可达；从 LegacySurfaceNames 摘除）。
   ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>;
@@ -36,7 +35,6 @@ export interface ImageBindings {
   // ImageHubMonthlyUsage 当月画室消耗聚合（只读台账；刀 E）。
   ImageHubMonthlyUsage(space: string): Promise<StudioUsageView>;
   // ChapterArtList 项目章节配图清单（chapter-art.json 只读取，同批转正）。
-  ChapterArtList(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   // CaptureScreen 捕获整个屏幕（返回 PNG data URL）；RecognizeImage 用本地
   // 视觉模型识别图片内容，返回文本描述。
   CaptureScreen(): Promise<string>;

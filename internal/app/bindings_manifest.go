@@ -16,7 +16,6 @@ func NewBindings(a *App) []interface{} {
 		&ModelB{a: a},
 		&VoiceB{a: a},
 		&ChatB{a: a},
-		&NovelB{a: a},
 		&ImageB{a: a},
 		&CharlibB{a: a},
 		&WenxueB{a: a},

@@ -1,23 +1,19 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { BACKEND_EVENTS, FRONTEND_EVENTS, OPEN_STATS_FLAG, bookImportProgressChannel, chatStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
+import { BACKEND_EVENTS, FRONTEND_EVENTS, OPEN_STATS_FLAG, chatStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
 // 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流
 // + v4.283 书源在线导入进度 + v4.294 原罪书源下载进度）+ 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，27 个）', () => {
-  it('共 27 个后端事件常量（2026-11-15 原罪退役 −SIN_STREAM/−SIN_BOOKSOURCE_PROGRESS；v4.283 +BOOK_IMPORT_PROGRESS，v4.526 后 +KNOWLEDGE_IMPORT_PROGRESS，M5 刀二 +VOICE_TOOL_PREVIEW）', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(27)
+describe('BACKEND_EVENTS（§4.1，23 个）', () => {
+  it('共 23 个后端事件常量（2026-11-15 原罪退役 −SIN_STREAM/−SIN_BOOKSOURCE_PROGRESS；同日小说退役 −CREATE_CHAPTER_STREAM/−BOOK_IMPORT_PROGRESS/−GHOST_STREAM/−XAI_OUTPUT/−NEW_CHARACTERS_DISCOVERED）', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(23)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {
     expect(BACKEND_EVENTS.MODEL_CHANGED).toBe('model-changed')
     expect(BACKEND_EVENTS.FEATURE_MODEL_CHANGED).toBe('feature-model-changed')
     expect(BACKEND_EVENTS.CHAT_STREAM).toBe('chat-stream')
-    expect(BACKEND_EVENTS.CREATE_CHAPTER_STREAM).toBe('create-chapter-stream')
-    expect(BACKEND_EVENTS.GHOST_STREAM).toBe('ghost-stream')
-    expect(BACKEND_EVENTS.XAI_OUTPUT).toBe('xai-output')
     expect(BACKEND_EVENTS.TTS_STREAM).toBe('tts-stream')
-    expect(BACKEND_EVENTS.NEW_CHARACTERS_DISCOVERED).toBe('new-characters-discovered')
     expect(BACKEND_EVENTS.CHARACTER_FILL_PROGRESS).toBe('character-fill-progress')
     expect(BACKEND_EVENTS.KNOWLEDGE_IMPORT_PROGRESS).toBe('knowledge-import-progress')
     expect(BACKEND_EVENTS.VOICE_STATE).toBe('voice:state')
@@ -41,10 +37,6 @@ describe('BACKEND_EVENTS（§4.1，27 个）', () => {
     expect(chatStreamChannel('run-42')).toBe('chat-stream:run-42')
   })
 
-
-  it('bookImportProgressChannel 生成动态频道（novel-import-progress:<jobId>，与 chatStreamChannel 同形）', () => {
-    expect(bookImportProgressChannel('bsi_1_2')).toBe('novel-import-progress:bsi_1_2')
-  })
 })
 
 describe('FRONTEND_EVENTS（§4.2，7 个）', () => {
@@ -67,10 +59,10 @@ describe('FRONTEND_EVENTS（§4.2，7 个）', () => {
   it('emitFrontendEvent 分发 CustomEvent 并可被监听', () => {
     const handler = vi.fn()
     window.addEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
-    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'novel' })
+    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'wenxue' })
     expect(handler).toHaveBeenCalledTimes(1)
     const ev = handler.mock.calls[0][0] as CustomEvent
-    expect(ev.detail).toEqual({ page: 'novel' })
+    expect(ev.detail).toEqual({ page: 'wenxue' })
     window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
   })
 })

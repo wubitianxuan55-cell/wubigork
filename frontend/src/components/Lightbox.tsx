@@ -1,29 +1,22 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Typography, Button, Space, Tag, Select } from 'antd'
-import { DownloadOutlined, SyncOutlined, CloseOutlined, LeftOutlined, RightOutlined, UserOutlined, ZoomInOutlined } from '@ant-design/icons'
+import { Typography, Button, Space, Tag } from 'antd'
+import { DownloadOutlined, SyncOutlined, CloseOutlined, LeftOutlined, RightOutlined, ZoomInOutlined } from '@ant-design/icons'
 import type { GenResult } from './imagegen/types'
 import { mediaIsVideo } from './imagegen/media'
 import { Z_INDEX } from '../utils/zIndex'
 
-interface Character {
-  id: string
-  name: string
-}
-
 interface Props {
   results: GenResult[]
   index: number
-  characters: Character[]
-  /** 单张图片模式（剧照等），传此则忽略 results/index */
+  /** 单张图片模式，传此则忽略 results/index */
   singleImage?: string
   onClose: () => void
   onIndexChange: (i: number) => void
   onDownload: (i: number) => void
   onReuse: (i: number) => void
-  onSetPortrait: (i: number, charID: string) => void
 }
 
-const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, onClose, onIndexChange, onDownload, onReuse, onSetPortrait }) => {
+const Lightbox: React.FC<Props> = ({ results, index, singleImage, onClose, onIndexChange, onDownload, onReuse }) => {
   const r = singleImage ? null : results[index]
   const imageSrc = singleImage || r?.image
   const isSingle = !!singleImage
@@ -184,16 +177,6 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
             <Space>
               <Button icon={<DownloadOutlined />} onClick={() => onDownload(index)} ghost>下载</Button>
               <Button icon={<SyncOutlined />} onClick={() => onReuse(index)} ghost>重用参数</Button>
-              {characters.length > 0 && (
-                <Select
-                  placeholder={<span><UserOutlined /> 设为剧照</span>}
-                  style={{ width: 140 }}
-                  size="small"
-                  onChange={(charID: string) => onSetPortrait(index, charID)}
-                  options={characters.map((c) => ({ label: c.name, value: c.id }))}
-                  popupMatchSelectWidth={false}
-                />
-              )}
             </Space>
           </div>
         </div>

@@ -1,13 +1,13 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef, Suspense, useReducer, useCallback } from 'react'
-import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification, Popover } from 'antd'
+import { Layout, Button, Space, Typography, Tooltip, Spin, notification, Popover } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
-  FileTextOutlined, UpOutlined, DownOutlined, ThunderboltOutlined,
+  UpOutlined, DownOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS, type StatsData, type ProjectInfo } from '../stores/appStore'
+import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS } from '../stores/appStore'
 import { TaskInboxHost } from '../components/TaskInboxHost'
 import { getModelMonitor } from '../api/engines'
 // 3.0「星枢 Constellation OS」壳层革命：顶栏横向菜单 → 左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道。
@@ -16,7 +16,7 @@ import {
   type BoardId, resolveBoardIcon, DEFAULT_BOARD_ID,
   subscribeBoards, loadBoardManifests,
   getActiveMenuBoards, getActiveIndependentBoards, getActiveNavigateWhitelist,
-  getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
+  getActiveBoard, activeBoardLabel,
 } from '../boards/manifests'
 import {
   boardSpace,
@@ -26,7 +26,7 @@ import { subscribe, subscribeForSpace, BACKEND_EVENTS, FRONTEND_EVENTS } from '.
 import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { notifyBoardActive } from '../lib/boardActive'
-import { useT, type Translator } from '../gaea/lib/i18n'
+import { useT } from '../gaea/lib/i18n'
 import {
   LOCAL_ENGINE_WARN_LIMIT,
   countLocalEngines,
@@ -62,11 +62,6 @@ function resolvePageComponent(p: Page): React.ComponentType | undefined {
 const themeKeys = THEME_PRESETS.map((t) => t.key)
 const themeDots = THEME_PRESET_COLORS
 const themeLabels = THEME_PRESET_LABELS
-
-function fmtWords(n: number, t: Translator): string {
-  if (n >= 10000) return (n / 10000).toFixed(1) + t('shell.launcher.fmtWan')
-  return n.toLocaleString()
-}
 
 // ─── 遥测数据模型 ─────────────────────────────────────────────
 interface MonitorStats {
@@ -121,7 +116,7 @@ const SparkCard: React.FC<{ label: string; value: string; data: number[]; hint?:
 )
 
 // ─── 遥测轨道（底部）────────────────────────────────────────
-const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | null; showProject: boolean }> = ({ stats, info, showProject }) => {
+const TelemetryRail: React.FC = () => {
   const [collapsed, setCollapsed] = useState(true)
   const [monitor, setMonitor] = useState<{ engines?: MonitorEngine[]; stats?: MonitorStats } | null>(null)
   const t = useT()
@@ -207,10 +202,6 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
   const gpuOk = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
   // 只展示实际已连接的本地引擎；云端与仅启用但未连通的引擎不占本机资源。
   const engLabel = runningLocalEngineLabels(monitor?.engines || [])
-  // 项目写作进度
-  const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, stats.plannedChapters || 0) : 0
-  const writtenChapters = stats?.chapterCount || 0
-  const progressPercent = plannedChapters > 0 ? Math.round((writtenChapters / Math.max(plannedChapters, writtenChapters + 5)) * 100) : 0
 
   return (
     <div className={`v3-telemetry${collapsed ? ' is-collapsed' : ''}`} aria-label={t('shell.tele.aria')}>
@@ -236,24 +227,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
             <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} /><span className="v3-pod-text">{t('shell.tele.noEngines')}</span></span>
           </Tooltip>
         )}
-        {info && showProject && (
-          <span style={{ color: 'var(--color-text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.title}</span>
-        )}
-        {stats && showProject && (
-          <>
-            <span className="v3-tele-key">{t('shell.tele.progress')}</span>
-            <Progress
-              percent={progressPercent}
-              size="small"
-              showInfo={false}
-              style={{ width: 90, margin: 0 }}
-              strokeColor="var(--gaea-glow)"
-              trailColor="var(--md-sys-color-outline-variant)"
-            />
-            <span className="v3-tele-value">{progressPercent}%</span>
-            <span className="v3-tele-key"><FileTextOutlined />{t('shell.tele.chapters', { count: stats.chapterCount, words: fmtWords(stats.totalWords, t) })}</span>
-          </>
-        )}
+        {/* 项目写作进度段随小说板块退役拆除（2026-11-15） */}
         <span className="v3-telemetry-spacer" style={{ flex: 1 }} />
         <span className="v3-tele-key">CPU</span><span className="v3-tele-value">{cpuOk != null ? cpuOk + '%' : '--'}</span>
         <span className="v3-tele-key">{t('shell.tele.mem')}</span><span className="v3-tele-value">{ms ? memPct + '%' : '--'}</span>
@@ -408,11 +382,6 @@ const MainLayout: React.FC = () => {
       }
   const setTheme = useAppStore((s) => s.setTheme)
   const toggleDarkMode = useAppStore((s) => s.toggleDarkMode)
-  const projectOpen = useAppStore((s) => s.projectOpen)
-  const projectInfo = useAppStore((s) => s.projectInfo)
-  const stats = useAppStore((s) => s.stats)
-  const loadProjectInfo = useAppStore((s) => s.loadProjectInfo)
-  const loadStats = useAppStore((s) => s.loadStats)
 
   const [searchOpen, setSearchOpen] = useState(false)
   // 简化批：strip 常驻主题色点 7 颗收进单钮弹出（触发钮=当前主题色）
@@ -462,7 +431,6 @@ const MainLayout: React.FC = () => {
       : t('shell.strip.modelTipNone')
   // 项目上下文（小说标题/进度/字数）只在「项目锚点板块」（小说）显示；
   // 切到绘梦/办公/聊天等板块时，顶栏面包屑与底栏遥测不再残留小说信息。
-  const projectContextVisible = projectOpen && !!getActiveBoard(page)?.breadcrumb?.anchorTo
 
   const loadActiveModel = async () => {
     try {
@@ -479,15 +447,8 @@ const MainLayout: React.FC = () => {
     return subscribeForSpace(BACKEND_EVENTS.MODEL_CHANGED, handler, space)
   }, [space])
 
-  useEffect(() => {
-    if (projectOpen) {
-      loadProjectInfo()
-      loadStats()
-    }
-  }, [projectOpen, loadProjectInfo, loadStats])
-
-  // 全局快捷键：Ctrl+1~9 = 指挥轨道板块顺序（一级导航合一后为全量序，
-  // home 恒首位除外），Ctrl+N 新建项目（仅首页；显式切到乐园小说页）
+  // 全局快捷键：Ctrl+1~9 = 指挥轨道板块顺序（一级导航合一后为全量序）。
+  // Ctrl+N（新建项目→乐园小说页）随小说板块退役拆除（2026-11-15）。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
@@ -501,13 +462,6 @@ const MainLayout: React.FC = () => {
         }
         return
       }
-      if (e.key === 'n' && !projectOpen) {
-        e.preventDefault()
-        // 一级导航合一：切空间只影响数据面（会话/事件分域），导航直达小说
-        if (space !== 'play') setSpace('play')
-        setPage('novel')
-        return
-      }
       // v4.7 S4.6：Ctrl+K 打开全局搜索/命令面板（顶栏 tooltip「Search (Ctrl+K)」
       // 名副其实落地）+ 面板内统一意图路由直通（SearchModal 指令预览卡）。
       // gaea 工作台内让位给其自有 CommandPalette（gaea/App.tsx document 级监听
@@ -519,7 +473,7 @@ const MainLayout: React.FC = () => {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [projectOpen, space, setSpace, page])
+  }, [page])
 
   // Content 布局 = manifest.layout（chat/gaea/pantheon=full，其余 padded）
   const currentLayout = getActiveBoard(page)?.layout ?? 'padded'
@@ -594,23 +548,8 @@ const MainLayout: React.FC = () => {
           {/* 顶部轨道条 */}
           <header className="v3-strip">
             <div className="v3-strip-context">
-              {projectContextVisible && page !== getActiveProjectAnchorId() && (
-                <>
-                  <span
-                    role="link"
-                    tabIndex={0}
-                    aria-label={`回到项目 ${projectInfo?.title || ''}`}
-                    onClick={() => setPage(getActiveProjectAnchorId() as Page)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPage(getActiveProjectAnchorId() as Page) } }}
-                    style={{ color: 'var(--color-text-secondary)', cursor: 'pointer' }}
-                  >
-                    {projectInfo?.title || ''}
-                  </span>
-                  <span style={{ opacity: 0.5 }}>/</span>
-                  <strong>{activeBoardLabel(page)}</strong>
-                </>
-              )}
-              {!projectContextVisible && <strong>{activeBoardLabel(page)}</strong>}
+              {/* 项目上下文 chip（projectInfo→锚点跳转）随小说板块退役拆除（2026-11-15） */}
+              <strong>{activeBoardLabel(page)}</strong>
             </div>
             {/* 聊天模式切换条宿主（T6-10.2：ChatPage 经 portal 渲染进此容器；
                 仅聊天板块激活时可见，其他板块隐藏） */}
@@ -680,12 +619,10 @@ const MainLayout: React.FC = () => {
                 />
               </Tooltip>
             </Popover>
-            {/* 搜索 */}
-            {projectOpen && (
-              <Tooltip title={t('shell.strip.searchTip')}>
-                <Button type="text" size="small" icon={<SearchOutlined />} onClick={() => setSearchOpen(true)} aria-label={t('shell.strip.searchAria')} style={{ color: 'var(--color-text-secondary)' }} />
-              </Tooltip>
-            )}
+            {/* 搜索（原 projectOpen 门控随小说板块退役拆除，恒显示） */}
+            <Tooltip title={t('shell.strip.searchTip')}>
+              <Button type="text" size="small" icon={<SearchOutlined />} onClick={() => setSearchOpen(true)} aria-label={t('shell.strip.searchAria')} style={{ color: 'var(--color-text-secondary)' }} />
+            </Tooltip>
             {/* 设置 */}
             <Tooltip title={t('shell.strip.settings')}>
               <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setPage('settings')} aria-label={t('shell.strip.settingsAria')} style={{ color: 'var(--color-text-secondary)' }} />
@@ -745,7 +682,7 @@ const MainLayout: React.FC = () => {
           </Layout>
 
           {/* ═══ 底部遥测轨道 ═══ */}
-          <TelemetryRail stats={stats} info={projectInfo} showProject={projectContextVisible} />
+          <TelemetryRail />
         </div>
       </div>
 

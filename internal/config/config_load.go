@@ -35,7 +35,6 @@ func loadDefaults(home string) *Config {
 		QualityMaxRetries:   2,      // 最多重试 2 次
 		// 功能级模型默认启用（未显式停用时，绑定立即生效）
 		FuncChatEnabled:    true,
-		FuncNovelEnabled:   true,
 		FuncOfficeEnabled:  true,
 		FuncGaeaEnabled:    true,
 		FuncWenxueEnabled:  true,
@@ -321,12 +320,6 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.FuncChatModel != "" {
 				cfg.FuncChatModel = cf.FuncChatModel
 			}
-			if cf.FuncNovelEngine != "" {
-				cfg.FuncNovelEngine = cf.FuncNovelEngine
-			}
-			if cf.FuncNovelModel != "" {
-				cfg.FuncNovelModel = cf.FuncNovelModel
-			}
 			if cf.FuncOfficeEngine != "" {
 				cfg.FuncOfficeEngine = cf.FuncOfficeEngine
 			}
@@ -353,9 +346,6 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.FuncChatEnabled != nil {
 				cfg.FuncChatEnabled = *cf.FuncChatEnabled
-			}
-			if cf.FuncNovelEnabled != nil {
-				cfg.FuncNovelEnabled = *cf.FuncNovelEnabled
 			}
 			if cf.FuncOfficeEnabled != nil {
 				cfg.FuncOfficeEnabled = *cf.FuncOfficeEnabled
@@ -416,12 +406,6 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
-			}
-			if cf.NovelDryDisabled != nil {
-				cfg.NovelDryDisabled = *cf.NovelDryDisabled
-			}
-			if cf.NovelSamplerJSON != "" {
-				cfg.NovelSamplerJSON = cf.NovelSamplerJSON
 			}
 			if cf.AutoPreload != nil {
 				cfg.AutoPreload = *cf.AutoPreload

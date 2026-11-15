@@ -28,4 +28,3 @@ func (b *ChatB) ChatTopicExportMarkdown(topicID string) (string, error) { return
 func (b *ChatB) ChatTopicRename(id string, title string) error { return b.a.ChatTopicRename(id, title) }
 func (b *ChatB) ChatTopicSetMode(id string, mode string) error { return b.a.ChatTopicSetMode(id, mode) }
 func (b *ChatB) ChatTopicsList() ([]chat.Topic, error) { return b.a.ChatTopicsList() }
-func (b *ChatB) ChatWorldview(userMsg string, currentContent string) (map[string]interface{}, error) { return b.a.ChatWorldview(userMsg, currentContent) }

@@ -90,11 +90,6 @@ describe('可访问性守卫（v4.349）', () => {
     expect(src).not.toContain('aria-modal="false"')
   })
 
-  it('阅读「删除高亮」走二次确认（Popconfirm），不再裸 onClick', () => {
-    const src = read('pages/chapter/readingOverlays.tsx')
-    expect(src).toContain('<Popconfirm')
-    expect(src).not.toContain('<Button danger size="small" onClick={() => onDeleteAnnotation(noteTarget.id)}>')
-  })
 })
 
 describe('后台空转与流式节流守卫（v4.365）', () => {
@@ -116,12 +111,6 @@ describe('后台空转与流式节流守卫（v4.365）', () => {
     expect(read('components/RelationGraph.tsx')).toMatch(/document\.hidden \|\| !canvas \|\| canvas\.offsetParent === null/)
   })
 
-  it('AI 控制台走 subscribeWailsEvent 唯一入口且隐藏时丢事件（v4.62.2 EventsOff 事故纪律）', () => {
-    const src = read('components/novel/AIConsole.tsx')
-    expect(src).toContain('subscribeWailsEvent')
-    expect(src).toContain('if (document.hidden) return')
-    expect(src).not.toMatch(/EventsOff\s*\(/)
-  })
 
   it('AOA 几何管线已 memo 化（缩放/选中变化不再全量重算）', () => {
     const src = read('schedule/AoaView.tsx')

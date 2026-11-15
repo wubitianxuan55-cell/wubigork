@@ -24,7 +24,6 @@ export type BindingSpace = ShellSpace | "shared" | "independent";
 
 /** gaea 桥方法空间归属（键名 = AppBindings 短方法名，经 gaeaToGaea 映射到 Go）。 */
 export const GAEA_METHOD_FACETS = {
-  AnalyzeChapter: "play",
   // 编程板块：隔离 DSH Web 进程管理仅由 independent 入口消费。
   GetProgrammingWebPreflight: "independent",
   GetProgrammingWebStatus: "independent",
@@ -152,9 +151,6 @@ export const GAEA_METHOD_FACETS = {
   StopComfyUI: "play",
   GetSystemStats: "play",
   OpenImageSaveDir: "play",
-  OpenNovelImagesDir: "play",
-  GetCharacters: "shared",
-  SetCharacterPortrait: "shared",
   // 图像域登记只读视图（T1 画室素材库）：space 由参数承担、两空间各自 ledger，
   // 消费面绘梦（play）与后续工位配图（work）都会调 → shared（转正自 Legacy 直调）。
   ImageHubAssets: "shared",
@@ -163,11 +159,9 @@ export const GAEA_METHOD_FACETS = {
   ImageCutout: "play",
   ImageHubMonthlyUsage: "play",
   // 项目章节配图清单（chapter-art.json）：小说域（play）专属消费。
-  ChapterArtList: "play",
   // sin 书源 t2（sin 书源线移交本线，规格 docs/gaea-sin-booksource-distill-2026-09.md §5）：
   // 搜书/目录/下载成书/取消/成书清单/成书删除——原罪域内素材获取，产物落 sin 数据面
   // （sinRoot()/books），规则用共享资产层；同原罪板块全部归 play。
-  ImportNovelBookEx: "play",
   // 2026-11-15 升格刀：原罪独立引擎（第二控制器，与办公 Gaea* 平行实例）+
   // 书架工作空间绑定。引擎族走 gaea-event-sin 专用通道/书目录会话；全部 play
   // （sin 命名空间专用，工位侧不消费）。
@@ -194,59 +188,22 @@ export const GAEA_METHOD_FACETS = {
   WhisperGetTraces: "play",
   WhisperDeleteFact: "play",
   WhisperUpdateFact: "play",
-  GenerateBookCover: "play",
   // NovelSearch 章内全文检索（ChapterPage 小说创作间消费，同书封归 play）。
-  NovelSearch: "play",
   // 批次二 legacy 直调转正（NovelB 门面）：世界观读写/一致性检查/伏笔读写/
   // 批量角色/阅读助手/场景插图——小说创作间数据面，同书封/NovelSearch 归 play。
-  GetWorldview: "play",
-  SaveWorldview: "play",
-  ChatWorldview: "play",
-  GetWorldviewSections: "play",
-  SaveAllWorldviewSections: "play",
-  CheckConsistency: "play",
-  CheckConsistencyDeep: "play",
-  GetForeshadows: "play",
-  SaveForeshadows: "play",
   // 伏笔一致性体检（NovelB 门面）：ForeshadowPanel「一致性体检」——小说创作间
   // 数据面，同伏笔读写族归 play。
-  LintForeshadows: "play",
   // 伏笔生命周期清理与统计（t1-P3，spec §8.1/§5.1）：三个清理入口（章节删除/
   // 重分析前清理/项目重置，手动条目只重置不删除）+ 统计（分状态+超期数），
   // 同伏笔读写族归 play。
-  CleanChapterAnalysisForeshadows: "play",
   // 上次分析同步结果（t1-P4：SyncResult 上绑定面，跳过原因可见不静默 D3）。
-  GetLastForeshadowSync: "play",
   // 驱动式整章重写（t4-C3 首刀：whole 模式+版本库，生成后不自动落章）。
-  NovelChapterRewrite: "play",
-  NovelListRewriteVersions: "play",
-  NovelGetRewriteVersion: "play",
-  NovelApplyRewriteVersion: "play",
-  NovelDiscardRewriteVersion: "play",
-  NovelRestoreRewriteVersion: "play",
-  RunBookHealthCheck: "play",
   // 章节分析建议读取（t4-C3 重写建议驱动 UI 数据源）。
-  NovelChapterSuggestions: "play",
-  NovelSceneBibleView: "play",
   // 章节分析标注（t4-C4：keyword→正文偏移，前端内联高亮数据源）。
-  NovelChapterAnnotations: "play",
-  NovelChapterAnalysisV2: "play",
   // 章节生成 + 写前硬闸显式覆盖开关（v4.422 刀1：缺计划时默认拒绝生成；
   // allowOverride=true 由作者显式承担「没有计划也照写」）。
-  CreateChapterWithOverride: "play",
   // 章节计划闭环（v4.422 刀1：故事脊椎 + 章节计划；规格 docs/gaea-longform-novel-system-2026-09.md §7.2）。
   // 计划=生成前的意图输入 + 写前硬闸唯一判据来源；草案由 AI 提、落盘一律经作者审批。
-  NovelChapterPlanGet: "play",
-  NovelChapterPlanSave: "play",
-  NovelChapterPlanPropose: "play",
-  NovelChapterPlanDeviation: "play",
-  NovelChapterGatePrecheck: "play",
-  NovelScanAnalyze: "play", // 选题扫榜（oh-story 蒸馏）：建档前扫榜分析，CreateNovelModal 消费
-  NovelDissectChapter: "play", // 对标拆解（oh-story 蒸馏）：逐章写法拆解，DissectPanel 消费
-  NovelDissectList: "play",
-  NovelDissectReport: "play",
-  NovelFactsList: "play", // 设定事实词典（词典蒸馏）：双时间线口径约束，FactsPanel 消费
-  NovelFactsSave: "play",
   CostBulkPricePreview: "play", // 资源价批量维护（三期 3.4）：Excel 预览→确认应用
   CostBulkPriceApply: "play",
   CostQuotaFlywheelPreview: "play", // 企业定额自生成（11.6）：跨项目含量聚合
@@ -254,44 +211,15 @@ export const GAEA_METHOD_FACETS = {
   CostAuditScan: "play", // 跨项目对标查漏（11.3）：确定性引擎+溯源引用
   CostHealthScan: "play",
   CostDedupeResources: "play",
-  ForeshadowDue: "play", // 伏笔到期预警（阶段八 8.6）：计划卡/阅读页横幅
 
   // 章节定稿回写（阶段八 8.4）：草案→作者确认→三件套落库（建议制）。
-  ChapterFinalizationGet: "play",
-  FinalizeChapterDraft: "play",
-  FinalizeChapterApply: "play",
-  ClearProjectForeshadowsForReset: "play",
-  DeleteChapterForeshadows: "play",
-  GetForeshadowStats: "play",
-  SaveCharactersBatch: "play",
-  NovelReadingAsk: "play",
-  GenerateSceneIllustration: "play",
   // 长篇刀2：场景卡与场景级生成（NovelB 门面）。
-  NovelChapterScenesGenerate: "play",
-  NovelSceneRewrite: "play",
-  NovelSceneCardsPropose: "play",
   // 长篇刀3：故事层骨架（NovelB 门面）。
-  NovelStorySpineGet: "play",
-  NovelStorySpineSave: "play",
-  NovelStoryHealth: "play",
-  NovelStorySpinePropose: "play",
   // 长篇刀4：质量收敛闭环（NovelB 门面）。
-  NovelChapterConverge: "play",
-  NovelChapterConvergePreview: "play",
   // 长篇刀5：风格学习回灌（NovelB 门面）。
-  NovelStyleDigestBuild: "play",
-  NovelStyleDigestGet: "play",
-  NovelStyleDigestClear: "play",
   // N11 技法检索库（webnovel-writer 九表思想蒸馏）：零 LLM 确定性检索，TechniquePanel 消费
-  NovelTechniqueSearch: "play",
   // 长篇刀6：上下文编译清单（dry-run，NovelB 门面）。
-  NovelContextInventory: "play",
   // 长篇刀7：评测基线（NovelB 门面）。
-  NovelEvalSnapshot: "play",
-  NovelEvalSnapshotsList: "play",
-  NovelEvalSnapshotDelete: "play",
-  NovelEvalBaselineSet: "play",
-  NovelEvalCompare: "play",
   // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
   // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/
   // SetPortraitConfig 归 play。
@@ -374,9 +302,7 @@ export const GAEA_METHOD_FACETS = {
   // ChatTopicsList/MessagesList/AppendMessages 为 shared 基础设施，如需对齐随后续批次调整）。
   GetConfig: "work",
   SaveConfig: "work",
-  GetStats: "work",
   ListSkills: "work",
-  ExportAll: "work",
   ChatTopicCreate: "work",
   ChatTopicDelete: "work",
   ChatTopicRename: "work",
@@ -737,71 +663,19 @@ export const GAEA_METHOD_FACETS = {
   // 批次三b legacy 直调转正（Go NovelB 门面，同名前缀）：章节族/叙事状态族/
   // 场景族/项目角色族——小说创作间数据面（ChapterPage/CreatePage/小说角色面板
   // 消费），同书封/NovelSearch/批次二 NovelB 族归 play。
-  GetChapter: "play",
-  GetChapterBranch: "play",
-  SaveChapterContent: "play",
-  SaveChapterBranchContent: "play",
   // 批次三c legacy 直调转正（CreatePage 收尾）：分支构思/创建章节/大纲节点删除
   // （Go NovelB.QuickBrainstormBranches/CreateChapter/DeleteOutlineNode）——
   // 创作间消费面，同章节族归 play。
-  QuickBrainstormBranches: "play",
-  CreateChapter: "play",
-  DeleteOutlineNode: "play",
-  GetNovelState: "play",
-  BuildNovelStatePatch: "play",
-  SettleNovelState: "play",
-  DeSlopChapterAiTaste: "play",
   // 文风指纹（NovelB 门面）：参考档状态/构建/章节 AI 味体检——小说创作间数据面
   // （CreatePage「文风指纹」面板消费），同叙事状态族/去味族归 play。
-  NovelFingerprintBuild: "play",
-  NovelFingerprintScore: "play",
-  NovelFingerprintStatus: "play",
   // 拆书反推（v4.281）：立项 + 分批章节大纲反推与幂等落库——小说创作间数据面，归 play。
-  NovelOutlineReconstruct: "play",
-  NovelOutlineReconstructApply: "play",
   // 平台质量评审（v4.282，oh-story 蒸馏 T1）：档位清单 + 章节确定性评审——小说创作间
   // 数据面（CreatePage「平台评审」面板消费），同文风指纹/伏笔体检族归 play。
-  NovelReviewPlatforms: "play",
-  NovelChapterReview: "play",
   // 提示词工坊（t6 首刀：模板可编辑覆盖层）：模板清单/详情/保存覆盖/恢复内置/
   // 渲染预览——小说创作间数据面（CreatePage「提示词工坊」面板消费），同平台
   // 评审族归 play（play 锁 +5，数量锁待主代理收口同步）。
-  PromptTemplateList: "play",
-  PromptTemplateGet: "play",
-  PromptTemplateSave: "play",
-  PromptTemplateReset: "play",
-  PromptTemplatePreview: "play",
-  PromptBundleExport: "play",
-  PromptBundleImport: "play",
   // 书源取书（书源→拆书导入 t1）：搜书/目录预览/在线导入/取消——书架「在线搜书」
   // 数据面（规格 docs/gaea-novel-booksource-import-2026-09.md），同导入/书封族归 play。
-  NovelBookSourceSearch: "play",
-  NovelBookSourceToc: "play",
-  NovelBookSourceImport: "play",
-  NovelBookSourceImportCancel: "play",
-  NovelBookSourceImportChapters: "play",
-  NovelBookSourceEnginesGet: "play",
-  NovelBookSourceEnginesSave: "play",
-  NovelOutlineReconstructStart: "play",
-  NovelOutlineReconstructTaskGet: "play",
-  RewriteChapterAiTaste: "play",
-  GetEntityRelations: "play",
-  GetChapterScenes: "play",
-  GenerateScene: "play",
-  CreateScene: "play",
-  SaveSceneMeta: "play",
-  CancelCreateChapter: "play",
-  GenerateProjectCharacterFill: "play",
-  GenerateProjectProtagonistRelations: "play",
-  GenerateCharacterPortrait: "play",
-  MergeCharacters: "play",
-  SaveOrganization: "play",
-  DeleteOrganization: "play",
-  ToggleOrgMember: "play",
-  SetCharacterCareer: "play",
-  RemoveCharacterCareer: "play",
-  SaveRelationship: "play",
-  DeleteRelationship: "play",
 } as const satisfies Record<keyof AppBindings, BindingSpace>;
 
 /** 编译期双向断言（与 bridge 绑定面漂移检查同范式）：分类表不得出现

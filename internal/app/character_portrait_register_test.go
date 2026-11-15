@@ -96,21 +96,3 @@ func TestPortraitImageBindingCascade(t *testing.T) {
 }
 
 // TestEffectiveSceneIllustrationModel 章节配图/书封生效模型：配置优先、
-// 未配置回落 Aurora 档（登记与请求同源的前提）。
-func TestEffectiveSceneIllustrationModel(t *testing.T) {
-	cfg := &config.Config{}
-	if got := effectiveSceneIllustrationModel(cfg); got != auroraSceneImageModel {
-		t.Fatalf("未配置应回落 Aurora 档, got %q", got)
-	}
-	cfg.ImageModel = "krea2"
-	if got := effectiveSceneIllustrationModel(cfg); got != "krea2" {
-		t.Fatalf("配置优先, got %q", got)
-	}
-	cfg.ImageModel = "   "
-	if got := effectiveSceneIllustrationModel(cfg); got != auroraSceneImageModel {
-		t.Fatalf("纯空白应回落 Aurora 档, got %q", got)
-	}
-	if got := effectiveSceneIllustrationModel(nil); got != auroraSceneImageModel {
-		t.Fatalf("nil 配置应回落 Aurora 档, got %q", got)
-	}
-}

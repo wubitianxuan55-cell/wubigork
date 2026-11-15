@@ -227,7 +227,7 @@ func setBool(assign func(*config.Config, bool)) func(*config.Config, string) err
 	}
 }
 
-// cfgMemSetters SaveConfig 配置键 → 内存 setter 注册表（62 键；novels_dir
+// cfgMemSetters SaveConfig 配置键 → 内存 setter 注册表（59 键；novels_dir
 // 见 SaveConfig 特判）。model 经 SetModelMem（并发安全写，modelMu）。
 var cfgMemSetters = map[string]func(*config.Config, string) error{
 	config.KeyXaiClientID:          setStr(func(cfg *config.Config, v string) { cfg.XaiClientID = v }),
@@ -268,8 +268,6 @@ var cfgMemSetters = map[string]func(*config.Config, string) error{
 	config.KeyFuncChatVoiceModel:   setStr(func(cfg *config.Config, v string) { cfg.FuncChatVoiceModel = v }),
 	config.KeyFuncChatEngine:       setStr(func(cfg *config.Config, v string) { cfg.FuncChatEngine = v }),
 	config.KeyFuncChatModel:        setStr(func(cfg *config.Config, v string) { cfg.FuncChatModel = v }),
-	config.KeyFuncNovelEngine:      setStr(func(cfg *config.Config, v string) { cfg.FuncNovelEngine = v }),
-	config.KeyFuncNovelModel:       setStr(func(cfg *config.Config, v string) { cfg.FuncNovelModel = v }),
 	config.KeyFuncOfficeEngine:     setStr(func(cfg *config.Config, v string) { cfg.FuncOfficeEngine = v }),
 	config.KeyFuncOfficeModel:      setStr(func(cfg *config.Config, v string) { cfg.FuncOfficeModel = v }),
 	config.KeyFuncGaeaEngine:       setStr(func(cfg *config.Config, v string) { cfg.FuncGaeaEngine = v }),
@@ -285,7 +283,6 @@ var cfgMemSetters = map[string]func(*config.Config, string) error{
 	config.KeyVoicePersonaPresets:  setStr(func(cfg *config.Config, v string) { cfg.VoicePersonaPresets = v }),
 	// 布尔开关（*bool 在盘上，内存为 bool）
 	config.KeyFuncChatEnabled:    setBool(func(cfg *config.Config, b bool) { cfg.FuncChatEnabled = b }),
-	config.KeyFuncNovelEnabled:   setBool(func(cfg *config.Config, b bool) { cfg.FuncNovelEnabled = b }),
 	config.KeyFuncOfficeEnabled:  setBool(func(cfg *config.Config, b bool) { cfg.FuncOfficeEnabled = b }),
 	config.KeyFuncGaeaEnabled:    setBool(func(cfg *config.Config, b bool) { cfg.FuncGaeaEnabled = b }),
 	config.KeyFuncCharLibEnabled: setBool(func(cfg *config.Config, b bool) { cfg.FuncCharLibEnabled = b }),

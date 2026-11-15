@@ -34,7 +34,7 @@ const getBoardManifestsMock = app.GetBoardManifests as unknown as {
 // 无 home 壳层，weixin.page=""、label=微信助手（2026-10-31 去掉隐喻名）。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
-  { id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'project' }, featureModel: 'novel' },
+  { id: 'wenxue', label: '文学', icon: 'ReadOutlined', page: 'WenxuePage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, featureModel: 'wenxue' },
   { id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3', menuOrder: 3, inMenu: true, featureModel: 'imagegen' },
   { id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4', menuOrder: 4, inMenu: true, featureModel: 'gaea' },
   { id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true, featureModel: 'cost' },
@@ -51,22 +51,22 @@ const BACKEND_FIXTURE = [
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序：聊天 → … → 进度计划 → 文学 → 运行监测（共 13 项；文学 2026-11-15 拷贝办公成板块）', () => {
+  it('菜单顺序：聊天 → … → 进度计划 → 文学 → 运行监测（共 13 项；文学 2026-11-15 接替退役小说板块的一级位）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'wenxue', 'runtime',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
     ])
   })
 
   it('菜单文案与现状一致（含众神殿）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '文学', '运行监测',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['MessageOutlined', 'ReadOutlined', 'PictureOutlined',
       'ToolOutlined', 'AccountBookOutlined', 'CrownOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
-      'ScheduleOutlined', 'BookOutlined', 'MonitorOutlined']
+      'ScheduleOutlined', 'MonitorOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
@@ -83,10 +83,10 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，不再按空间分域）', () => {
   it('全量序 = 全部 inMenu 板块（menuOrder 派生；首页已删除）', () => {
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'wenxue', 'runtime',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
     ])
     expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '文学', '运行监测',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
@@ -113,15 +113,15 @@ describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () 
   // 板块（inMenu=true），白名单语义不变（注册即可导航）。
   it('注册即可导航：全部业务板块（仍含 inMenu=false 的 settings；首页已删除）', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'wenxue', 'runtime',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
     ])
   })
 })
 
 describe('shortcutMap（附 B #6：Ctrl+1~4 显式声明）', () => {
-  it('ctrl+1~4 → chat/novel/imagegen/gaea（与旧顺序绑定一致）', () => {
+  it('ctrl+1~4 → chat/wenxue/imagegen/gaea（文学接替 novel 一级位）', () => {
     expect(shortcutMap['ctrl+1']).toBe('chat')
-    expect(shortcutMap['ctrl+2']).toBe('novel')
+    expect(shortcutMap['ctrl+2']).toBe('wenxue')
     expect(shortcutMap['ctrl+3']).toBe('imagegen')
     expect(shortcutMap['ctrl+4']).toBe('gaea')
   })
@@ -137,14 +137,14 @@ describe('layout / breadcrumb / default board（附 B #8/#9/#10）', () => {
     expect(getBoard('chat')?.layout).toBe('full')
     expect(getBoard('gaea')?.layout).toBe('full')
     expect(getBoard('pantheon')?.layout).toBe('full')
-    for (const id of ['novel', 'imagegen', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'schedule']) {
+    for (const id of ['imagegen', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'schedule']) {
       expect(getBoard(id)?.layout, id).toBe('padded')
     }
   })
 
-  it('面包屑项目锚点 = novel（novel 声明自己是项目锚点）', () => {
-    expect(projectAnchorId).toBe('novel')
-    expect(getBoard('novel')?.breadcrumb?.anchorTo).toBe('novel')
+  it('面包屑项目锚点 = wenxue（2026-11-15 文学接替 novel 锚点位）', () => {
+    expect(projectAnchorId).toBe('wenxue')
+    expect(getBoard('wenxue')?.breadcrumb?.anchorTo).toBe('wenxue')
   })
 
   it('首页已删除，启动页固定为办公', () => {
@@ -162,7 +162,7 @@ describe('layout / breadcrumb / default board（附 B #8/#9/#10）', () => {
 describe('boardLabel（附 B #7：pageLabels = manifest.label）', () => {
   it('按 id 取显示名', () => {
     expect(boardLabel('chat')).toBe('聊天')
-    expect(boardLabel('novel')).toBe('小说')
+    expect(boardLabel('wenxue')).toBe('文学')
     expect(boardLabel('gaea')).toBe('办公')
   })
   it('未知 id 返回自身（安全退化）', () => {
@@ -191,10 +191,10 @@ describe('normalizeManifests（板块差集归一：后端清单 + 静态字段�
   it('重叠 id 后端字段优先：菜单顺序/文案与静态一致（knowledge 被过滤，不尾随）', () => {
     const menu = deriveMenuBoards(normalizeManifests(BACKEND_FIXTURE))
     expect(menu.map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(menu.map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '编程', '众神殿', '记忆中枢', '模型中心', '角色库',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '编程', '众神殿', '记忆中枢', '模型中心', '角色库',
     ])
   })
 
@@ -203,14 +203,14 @@ describe('normalizeManifests（板块差集归一：后端清单 + 静态字段�
   // 已并入记忆中枢被过滤（不单列也不尾随）。
   it('注册即可导航：inMenu=false 的 settings/weixin 进白名单；home/knowledge 被过滤', () => {
     expect(deriveNavigateWhitelist(normalizeManifests(BACKEND_FIXTURE))).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
   })
 
   it('快捷键 ctrl+1~4 后端声明保留（像素回归）', () => {
     const sc = deriveShortcutMap(normalizeManifests(BACKEND_FIXTURE))
     expect(sc['ctrl+1']).toBe('chat')
-    expect(sc['ctrl+2']).toBe('novel')
+    expect(sc['ctrl+2']).toBe('wenxue')
     expect(sc['ctrl+3']).toBe('imagegen')
     expect(sc['ctrl+4']).toBe('gaea')
   })
@@ -220,13 +220,13 @@ describe('normalizeManifests（板块差集归一：后端清单 + 静态字段�
     expect(deriveBoard(merged, 'chat')?.layout).toBe('full')
     expect(deriveBoard(merged, 'gaea')?.layout).toBe('full')
     expect(deriveBoard(merged, 'pantheon')?.layout).toBe('full')
-    for (const id of ['novel', 'imagegen', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
+    for (const id of ['imagegen', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
       expect(deriveBoard(merged, id)?.layout, id).toBe('padded')
     }
   })
 
-  it('面包屑项目锚点归到 novel（后端 anchorTo=project 取声明板块 id，值不参与）', () => {
-    expect(deriveProjectAnchorId(normalizeManifests(BACKEND_FIXTURE))).toBe('novel')
+  it('面包屑项目锚点回退 wenxue（fixture 无声明，走 ?? 锚点兜底）', () => {
+    expect(deriveProjectAnchorId(normalizeManifests(BACKEND_FIXTURE))).toBe('wenxue')
   })
 
   it('knowledge 已被过滤：一级导航不并入（记忆中枢承载），图标注册表仍可解析', () => {
@@ -285,7 +285,7 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     await loadBoardManifests()
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(getActiveNavigateWhitelist()).not.toContain('knowledge')
     expect(getActiveShortcutMap()['ctrl+4']).toBe('gaea')

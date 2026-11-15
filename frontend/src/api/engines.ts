@@ -299,7 +299,7 @@ export interface StreamProbeResult {
 
 /** 功能维度用量汇总（RouteLedgerView.features 元素；一行 = feature×引擎×模型桶） */
 export interface FeatureUsageSummary {
-  feature: string // 功能绑定键（chat/novel/office/...；空串 = 历史/未标记）
+  feature: string // 功能绑定键（chat/office/...；空串 = 历史/未标记）
   engine_id: string
   model: string
   calls: number

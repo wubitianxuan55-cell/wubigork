@@ -42,16 +42,9 @@ export function resolveBoardIcon(name: string): ComponentType | null {
 }
 
 // ─── 板块内子导航（与各页面实际 tab/分类一致）─────────────────────────────
-const NOVEL_NAV: BoardNavChild[] = [
-  { id: 'home', label: '书架' },
-  { id: 'novelsetting', label: '设定' },
-  { id: 'character', label: '角色' },
-  { id: 'create', label: '创作' },
-  { id: 'chapter', label: '阅读' },
-]
 const SETTINGS_NAV: BoardNavChild[] = [
   { id: 'general', label: '通用' }, { id: 'chat', label: '聊天' },
-  { id: 'novel', label: '小说' }, { id: 'imagegen', label: '绘梦' },
+  { id: 'imagegen', label: '绘梦' },
   { id: 'office', label: '办公' }, { id: 'model', label: '模型' },
   { id: 'security', label: '安全' }, { id: 'data', label: '数据' },
   { id: 'about', label: '关于' },
@@ -83,10 +76,14 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 1, inMenu: true, featureModel: 'chat', space: 'play', // §10.3 对话降为对话流（乐园=会客厅）
   },
   {
-    id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage',
-    lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2',
-    menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'novel' },
-    nav: { children: NOVEL_NAV }, featureModel: 'novel', space: 'play',
+    // 文学板块（2026-11-15）：办公板块的完整前端拷贝（frontend/src/wenxue/），独立
+    // 引擎装配（feature=wenxue 绑定）。2026-11-15 小说板块退役后接替其一级导航位
+    // （menuOrder 2 + ReadOutlined + ctrl+2，用户拍板「一级图标给文学板块」）；
+    // 与 Go builtins.go 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
+    id: 'wenxue', label: '文学', icon: 'ReadOutlined', page: 'WenxuePage',
+    lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+2',
+    menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'wenxue' },
+    featureModel: 'wenxue', space: 'work',
   },
   {
     id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage',
@@ -151,14 +148,6 @@ export const canonicalBoards: BoardManifest[] = [
     featureModel: 'schedule',
   },
   {
-    // 文学板块（2026-11-15）：办公板块的完整前端拷贝（frontend/src/wenxue/），全共享
-    // 引擎与会话流（同一批 OfficeB 等绑定），UI 层独立二次改造；与 Go builtins.go
-    // 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
-    id: 'wenxue', label: '文学', icon: 'BookOutlined', page: 'WenxuePage',
-    lazy: true, keepAlive: true, layout: 'full',
-    menuOrder: 13, inMenu: true, space: 'work',
-  },
-  {
     // 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：系统资源 + 引擎状态 +
     // Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的聚合仪表盘。
     id: 'runtime', label: '运行监测', icon: 'MonitorOutlined', page: 'RuntimePage',
@@ -196,9 +185,10 @@ export function deriveShortcutMap(list: BoardManifest[]): Record<string, string>
   return Object.fromEntries(list.filter((b) => b.shortcut).map((b) => [b.shortcut as string, b.id]))
 }
 
-/** 面包屑项目锚点板块（附 B #8：声明 breadcrumb.anchorTo 的板块，novel 是项目锚点） */
+/** 面包屑项目锚点板块（附 B #8：声明 breadcrumb.anchorTo 的板块，wenxue 是项目锚点——
+ *  2026-11-15 小说板块退役后文学板块接替锚点位） */
 export function deriveProjectAnchorId(list: BoardManifest[]): string {
-  return list.find((b) => b.breadcrumb?.anchorTo)?.id ?? 'novel'
+  return list.find((b) => b.breadcrumb?.anchorTo)?.id ?? 'wenxue'
 }
 
 /** 按 id 查板块（附 B #7 pageLabels 来源） */

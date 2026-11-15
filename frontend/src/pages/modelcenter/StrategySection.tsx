@@ -18,12 +18,12 @@ const SPACE_META: Record<string, { title: string; desc: string }> = {
 }
 
 /** 其余功能域覆写（与 Go spaceProfileKeys 同序，不含 gaea 主控） */
-const DOMAIN_KEYS = ['chat', 'whisper', 'novel', 'office', 'characterlib', 'routine'] as const
+const DOMAIN_KEYS = ['chat', 'whisper', 'office', 'wenxue', 'characterlib', 'routine'] as const
 type DomainKey = (typeof DOMAIN_KEYS)[number]
 type ProfileKey = 'gaea' | DomainKey
 
 const MODEL_KEY_LABELS: Record<DomainKey, string> = {
-  chat: '对话', whisper: '轻语', novel: '小说',
+  chat: '对话', whisper: '轻语', wenxue: '文学',
   office: '办公文档', characterlib: '角色库', routine: '例行',
 }
 

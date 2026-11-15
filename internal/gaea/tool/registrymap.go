@@ -159,7 +159,6 @@ var RegistryMap = map[string]RegistryEntry{
 	"office_status":          {"extra-app", "work", "read", "none", "dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配）"},
 	"ocr":                    {"extra-app", "work", "read", "none", "全文提取与图片内容一致（seam 测试防真拉起）"},
 	"semantic_search":        {"extra-app", "work", "read", "none", "召回与向量库一致"},
-	"author_memory":          {"extra-app", "play", "read", "none", "作者记忆读取一致（自声明 play：小说/角色域）"},
 
 	// ── plugin-mcp：动态行（备注）──
 	"mcp__<server>__<tool>": {"plugin-mcp", "随插件", "随工具", "随工具", "动态热插（plugins.go/controller_mcp.go reg.Add 同账）；名单凭证边界不枚举，P0 按非凭证方式标注"},

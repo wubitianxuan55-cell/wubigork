@@ -150,7 +150,7 @@ type SpaceProfileView struct {
 	// 现状模型继续生效——失败说人话，不让用户猜）。
 	GaeaResolved string `json:"gaeaResolved"`
 	GaeaOk       bool   `json:"gaeaOk"`
-	// Models 是其余功能域覆写（仅非空项；键=chat/whisper/novel/office/
+	// Models 是其余功能域覆写（仅非空项；键=chat/whisper/office/
 	// characterlib/routine）。
 	Models map[string]string `json:"models"`
 	// PermMode 是生效权限模式（PermissionsForSpace 既有链：顶层策略+空间段，
@@ -192,7 +192,6 @@ func buildSpaceProfileViews(cfg *gaeaConfig.Config) []SpaceProfileView {
 				for k, ref := range map[string]string{
 					"chat":         prof.Chat,
 					"whisper":      prof.Whisper,
-					"novel":        prof.Novel,
 					"office":       prof.Office,
 					"characterlib": prof.CharacterLib,
 					"routine":      prof.Routine,
@@ -224,7 +223,6 @@ func (a *App) GaeaSpaceProfiles() []SpaceProfileView {
 var spaceProfileKeys = map[string]func(*gaeaConfig.SpaceProfile, string){
 	"chat":         func(p *gaeaConfig.SpaceProfile, v string) { p.Chat = v },
 	"whisper":      func(p *gaeaConfig.SpaceProfile, v string) { p.Whisper = v },
-	"novel":        func(p *gaeaConfig.SpaceProfile, v string) { p.Novel = v },
 	"office":       func(p *gaeaConfig.SpaceProfile, v string) { p.Office = v },
 	"gaea":         func(p *gaeaConfig.SpaceProfile, v string) { p.Gaea = v },
 	"characterlib": func(p *gaeaConfig.SpaceProfile, v string) { p.CharacterLib = v },
@@ -241,7 +239,7 @@ func applySpaceProfileEdit(cfg *gaeaConfig.Config, space, key, ref string) error
 	}
 	apply, ok := spaceProfileKeys[key]
 	if !ok {
-		return fmt.Errorf("未知 profile 键 %q（可写：gaea/chat/whisper/novel/office/characterlib/routine）", key)
+		return fmt.Errorf("未知 profile 键 %q（可写：gaea/chat/whisper/office/characterlib/routine）", key)
 	}
 	ref = strings.TrimSpace(ref)
 	if ref != "" {

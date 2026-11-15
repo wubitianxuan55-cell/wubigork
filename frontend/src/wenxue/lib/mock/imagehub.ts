@@ -4,7 +4,7 @@
 // 缩略 dataURL 复用 office.ts 的 AttachmentDataURL 占位色块。
 import type { AppBindings } from "../bridge";
 
-type ImageHubMethods = Pick<AppBindings, "ImageHubAssets" | "ImageHubAssetDelete" | "ChapterArtList" | "ImageHubMonthlyUsage">;
+type ImageHubMethods = Pick<AppBindings, "ImageHubAssets" | "ImageHubAssetDelete" | "ImageHubMonthlyUsage">;
 
 // type alias（非 interface）：MockAsset[] 要赋给 Record<string, unknown>[] 视图。
 type MockAsset = {
@@ -123,10 +123,6 @@ export function buildImagehub(): ImageHubMethods {
       if (idx < 0) return { error: "素材未在素材库登记，拒绝删除" };
       ASSETS.splice(idx, 1);
       return { ok: true, file_removed: true, removed_entries: 1 };
-    },
-    async ChapterArtList(_chapterNum: number) {
-      // 项目级按章清单语义，走查保持中性空态（各章历史配图属真数据域）。
-      return [];
     },
     // 刀 E：当月画室消耗聚合 mock（两模型样本=免费+付费，未定价一档）。
     async ImageHubMonthlyUsage(_space: string) {

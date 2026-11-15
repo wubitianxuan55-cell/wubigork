@@ -14,14 +14,7 @@ export const BACKEND_EVENTS = {
   FEATURE_MODEL_CHANGED: 'feature-model-changed',
   /** 聊天流动态频道前缀：实际事件名为 `chat-stream:${runID}`（useChatStream） */
   CHAT_STREAM: 'chat-stream',
-  /** 章节生成流（useChapterStream） */
-  CREATE_CHAPTER_STREAM: 'create-chapter-stream',
-  /** 书源在线导入进度动态频道前缀：实际事件名为 `novel-import-progress:<jobId>`（BookSearchModal） */
-  BOOK_IMPORT_PROGRESS: 'novel-import-progress',
-  /** 幽灵补写（GhostText） */
-  GHOST_STREAM: 'ghost-stream',
-  /** AI 控制台输出（AIConsole） */
-  XAI_OUTPUT: 'xai-output',
+  // 章节生成流/书源导入进度/幽灵补写/AI 控制台四通道随小说板块退役拆除（2026-11-15）
   /** TTS 语音流（TTSPlayer） */
   TTS_STREAM: 'tts-stream',
   /** 新角色发现（NewCharactersModal） */
@@ -98,11 +91,6 @@ export type FrontendEventName = (typeof FRONTEND_EVENTS)[keyof typeof FRONTEND_E
 /** 聊天流动态频道：chat-stream:<runID> */
 export function chatStreamChannel(runID: string): string {
   return `${BACKEND_EVENTS.CHAT_STREAM}:${runID}`
-}
-
-/** 书源在线导入进度动态频道：novel-import-progress:<jobId>（与 chatStreamChannel 同形） */
-export function bookImportProgressChannel(jobId: string): string {
-  return `${BACKEND_EVENTS.BOOK_IMPORT_PROGRESS}:${jobId}`
 }
 
 /**

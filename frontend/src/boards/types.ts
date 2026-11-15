@@ -51,7 +51,7 @@ export interface BoardManifest {
   menuOrder?: number
   /** 是否进菜单（settings 不进菜单，右上角按钮） */
   inMenu?: boolean
-  /** 面包屑"项目名→novel"锚点语义 */
+  /** 面包屑"项目名→锚点板块"锚点语义（wenxue 接替 novel，2026-11-15） */
   breadcrumb?: { anchorTo?: string }
   /** 板块内子导航（NovelPage 6 tab/SettingsPage 9 分类/MemoryHubPage 8 库等） */
   nav?: BoardNav

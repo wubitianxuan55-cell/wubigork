@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button, message, Select, Switch } from 'antd'
 import {
-  BookOutlined, CommentOutlined, EditOutlined, EyeOutlined, LinkOutlined, PictureOutlined,
+  BookOutlined, CommentOutlined, EyeOutlined, LinkOutlined, PictureOutlined,
   RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
@@ -14,7 +14,6 @@ import { useModelCenterActions, useModelCenterState } from './context'
 
 const FEATURE_ICONS: Record<string, ReactNode> = {
   chat: <CommentOutlined />,
-  novel: <EditOutlined />,
   office: <ToolOutlined />,
   vision: <EyeOutlined />,
   characterlib: <UserOutlined />,

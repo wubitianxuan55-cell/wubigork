@@ -11,7 +11,6 @@ func (b *ImageB) BreezeListVoices() map[string]interface{} { return b.a.BreezeLi
 func (b *ImageB) BreezeSaveVoice(name string, description string, refText string, refAudioB64 string) map[string]interface{} { return b.a.BreezeSaveVoice(name, description, refText, refAudioB64) }
 func (b *ImageB) CancelImageGeneration() bool { return b.a.CancelImageGeneration() }
 func (b *ImageB) GaeaImageDirector(req ImageDirectorRequest) (ImageDirectorResult, error) { return b.a.GaeaImageDirector(req) }
-func (b *ImageB) GenerateCharacterPortrait(charID string, model string) (string, error) { return b.a.GenerateCharacterPortrait(charID, model) }
 func (b *ImageB) GenerateDiagram(prompt string) (map[string]interface{}, error) { return b.a.GenerateDiagram(prompt) }
 func (b *ImageB) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) { return b.a.GenerateFreeImage(prompt, negative, size, style, model, seed, n, lora) }
 func (b *ImageB) GenerateMedia(paramsJSON string) (map[string]interface{}, error) { return b.a.GenerateMedia(paramsJSON) }
@@ -28,9 +27,7 @@ func (b *ImageB) ImageHubAssetDelete(space string, path string) map[string]inter
 func (b *ImageB) ImageHubAssets(space string, sourceBoard string, limit int) []imageHubAssetView { return b.a.ImageHubAssets(space, sourceBoard, limit) }
 func (b *ImageB) ImageHubMonthlyUsage(space string) (ImageHubMonthlyUsageReport, error) { return b.a.ImageHubMonthlyUsage(space) }
 func (b *ImageB) OpenImageSaveDir() error { return b.a.OpenImageSaveDir() }
-func (b *ImageB) OpenNovelImagesDir() error { return b.a.OpenNovelImagesDir() }
 func (b *ImageB) SetActiveTTSModel(engineID string, modelID string) error { return b.a.SetActiveTTSModel(engineID, modelID) }
-func (b *ImageB) SetCharacterPortrait(charID string, imageData string) error { return b.a.SetCharacterPortrait(charID, imageData) }
 func (b *ImageB) SetChatVoiceModel(engineID string, modelID string) error { return b.a.SetChatVoiceModel(engineID, modelID) }
 func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error { return b.a.SetImageBackend(backend, comfyUIURL, imageModel, imageSaveDir) }
 func (b *ImageB) SetPortraitConfig(backend string, model string) error { return b.a.SetPortraitConfig(backend, model) }

@@ -312,7 +312,6 @@ export function imageModelDefaultFor(backend: string, engines: EngineConfig[]): 
 // 字段曾是死数据（v4.415 审计发现零渲染点，已删——禁 emoji 当图标红线）。
 export const FEATURES: { key: string; label: string; mergeKeys?: string[] }[] = [
   { key: 'chat', label: '聊天' },
-  { key: 'novel', label: '小说' },
   { key: 'office', label: '办公', mergeKeys: ['gaea'] },
   { key: 'vision', label: '识图' },
   { key: 'characterlib', label: '角色库' },

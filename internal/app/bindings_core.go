@@ -5,7 +5,6 @@ package app
 import (
 	"github.com/gaea/gaea/internal/app/board"
 	"github.com/gaea/gaea/internal/modelengine"
-	"github.com/gaea/gaea/internal/search"
 )
 
 // CoreB 核心（认证/项目/设置/杂项）绑定门面（S2-3「App 绑定面拆分」）：仅暴露核心（认证/项目/设置/杂项）的方法，
@@ -15,7 +14,6 @@ type CoreB struct{ a *App }
 func (b *CoreB) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) { return b.a.AddCustomEngine(name, baseURL, apiKey) }
 func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) { return b.a.CreateProject(dir, title, genre, style) }
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
-func (b *CoreB) ExportAll(onlyMainline bool) (map[string]string, error) { return b.a.ExportAll(onlyMainline) }
 func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) { return b.a.GaeaSpaceActivate(space) }
 func (b *CoreB) GaeaSpaceActive() SpaceActiveView { return b.a.GaeaSpaceActive() }
 func (b *CoreB) GaeaSpaceList() []SpaceOption { return b.a.GaeaSpaceList() }
@@ -38,7 +36,6 @@ func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
 func (b *CoreB) GetProgrammingWebPreflight() map[string]interface{} { return b.a.GetProgrammingWebPreflight() }
 func (b *CoreB) GetProgrammingWebStatus() map[string]interface{} { return b.a.GetProgrammingWebStatus() }
 func (b *CoreB) GetProjectInfo() map[string]interface{} { return b.a.GetProjectInfo() }
-func (b *CoreB) GetStats() map[string]interface{} { return b.a.GetStats() }
 func (b *CoreB) ListProjects() ([]ProjectCard, error) { return b.a.ListProjects() }
 func (b *CoreB) ListSkills() []map[string]interface{} { return b.a.ListSkills() }
 func (b *CoreB) Login() error { return b.a.Login() }
@@ -54,7 +51,6 @@ func (b *CoreB) RemoveCustomEngine(engineID string) error { return b.a.RemoveCus
 func (b *CoreB) ResetModelCallStats() { b.a.ResetModelCallStats() }
 func (b *CoreB) SaveConfig(key string, value string) error { return b.a.SaveConfig(key, value) }
 func (b *CoreB) SaveEngine(cfg modelengine.EngineConfig) error { return b.a.SaveEngine(cfg) }
-func (b *CoreB) Search(query string) (map[string][]search.Result, error) { return b.a.Search(query) }
 func (b *CoreB) SetActiveEngine(engineID string) error { return b.a.SetActiveEngine(engineID) }
 func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error { return b.a.SetActiveOCRModel(engineID, modelID) }
 func (b *CoreB) SetDeepseekKey(apiKey string) error { return b.a.SetDeepseekKey(apiKey) }

@@ -13,8 +13,6 @@ func (c *Config) GetFeatureModel(feature string) (engine, model string) {
 	case "whisper":
 		// 2.x 聊天/轻语合并：轻语绑定并入聊天，查询走 chat 别名
 		return c.FuncChatEngine, c.FuncChatModel
-	case "novel":
-		return c.FuncNovelEngine, c.FuncNovelModel
 	case "office":
 		return c.FuncOfficeEngine, c.FuncOfficeModel
 	case "gaea":
@@ -43,8 +41,6 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 	case "whisper":
 		// 2.x 聊天/轻语合并：写入 chat 绑定
 		c.FuncChatEngine, c.FuncChatModel = engine, model
-	case "novel":
-		c.FuncNovelEngine, c.FuncNovelModel = engine, model
 	case "office":
 		c.FuncOfficeEngine, c.FuncOfficeModel = engine, model
 	case "gaea":
@@ -69,8 +65,6 @@ func (c *Config) GetFeatureModelEnabled(feature string) bool {
 		return c.FuncChatEnabled
 	case "whisper":
 		return c.FuncChatEnabled
-	case "novel":
-		return c.FuncNovelEnabled
 	case "office":
 		return c.FuncOfficeEnabled
 	case "gaea":
@@ -96,8 +90,6 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 		c.FuncChatEnabled = enabled
 	case "whisper":
 		c.FuncChatEnabled = enabled
-	case "novel":
-		c.FuncNovelEnabled = enabled
 	case "office":
 		c.FuncOfficeEnabled = enabled
 	case "gaea":

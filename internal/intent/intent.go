@@ -40,7 +40,6 @@ type Intent struct {
 var boardAliases = []struct{ alias, id string }{
 	{"首页", "home"}, {"主页", "home"},
 	{"轻语", "chat"}, {"会客厅", "chat"}, {"聊天", "chat"},
-	{"小说", "novel"}, {"写作", "novel"},
 	{"绘梦", "imagegen"}, {"画室", "imagegen"}, {"生图", "imagegen"}, {"画图", "imagegen"},
 	{"办公", "gaea"},
 	{"造价数据库", "cost"}, {"造价库", "cost"}, {"造价", "cost"}, {"成本库", "cost"},

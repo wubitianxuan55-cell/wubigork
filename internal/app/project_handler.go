@@ -35,7 +35,6 @@ func (a *App) CreateProject(dir, title, genre, style string) (map[string]interfa
 		return nil, err
 	}
 	a.setPM(pm)
-	a.initAgents()
 	return map[string]interface{}{
 		"title":  pm.Meta.Title,
 		"genre":  pm.Meta.Genre,
@@ -53,7 +52,6 @@ func (a *App) OpenProject(dir string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	a.setPM(pm)
-	a.initAgents()
 	return map[string]interface{}{
 		"title":  pm.Meta.Title,
 		"genre":  pm.Meta.Genre,

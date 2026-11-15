@@ -35,10 +35,10 @@ beforeEach(() => {
 })
 
 describe('CommandRail 一级导航合一（2026-10-26）', () => {
-  it('全量一级导航：办公默认 + 全部 inMenu 板块同栏尽收（首页已删除；原罪并入小说第六页签；进度计划 2026-11-14 拍板恢复一级；文学 2026-11-15 拷贝办公成板块）', () => {
+  it('全量一级导航：办公默认 + 全部 inMenu 板块同栏尽收（首页已删除；进度计划 2026-11-14 拍板恢复一级；文学 2026-11-15 接替退役小说板块一级位）', () => {
     renderRail()
     expect(navLabels()).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '文学', '运行监测',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
@@ -58,12 +58,12 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
     expect(screen.getByLabelText('切换暗色')).toBeTruthy()
   })
 
-  it('点击办公/小说均直达（同栏跨域可点；空间切换由 navigateBoard 隐式驱动）', () => {
+  it('点击办公/文学均直达（同栏跨域可点；空间切换由 navigateBoard 隐式驱动）', () => {
     const { onNavigate } = renderRail()
     fireEvent.click(screen.getByLabelText('办公'))
     expect(onNavigate).toHaveBeenCalledWith('gaea')
-    fireEvent.click(screen.getByLabelText('小说'))
-    expect(onNavigate).toHaveBeenCalledWith('novel')
+    fireEvent.click(screen.getByLabelText('文学'))
+    expect(onNavigate).toHaveBeenCalledWith('wenxue')
   })
 
   it('点击独立窗口“编程”直达 code 页面', () => {

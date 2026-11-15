@@ -41,53 +41,8 @@
    "layer": "engine"
   },
   {
-   "from": "internal/analysis",
-   "to": "internal/ai",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/characterstate",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/config",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/gaea/strutil",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/prompt",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/types",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/analysis",
-   "to": "internal/util",
-   "layer": "domain"
-  },
-  {
    "from": "internal/app",
    "to": "internal/ai",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/analysis",
    "layer": "shell"
   },
   {
@@ -107,32 +62,7 @@
   },
   {
    "from": "internal/app",
-   "to": "internal/authorprefs",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/bookimport",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/booksource",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/channels/weixin",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/chapter",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/character",
    "layer": "shell"
   },
   {
@@ -152,22 +82,12 @@
   },
   {
    "from": "internal/app",
-   "to": "internal/context",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/core",
    "layer": "shell"
   },
   {
    "from": "internal/app",
    "to": "internal/docmd",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/export",
    "layer": "shell"
   },
   {
@@ -432,11 +352,6 @@
   },
   {
    "from": "internal/app",
-   "to": "internal/graph",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/herdsman",
    "layer": "shell"
   },
@@ -457,42 +372,12 @@
   },
   {
    "from": "internal/app",
-   "to": "internal/memory",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/modelengine",
    "layer": "shell"
   },
   {
    "from": "internal/app",
-   "to": "internal/narrative",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/netclient",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/novelcontext",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/novelgate",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/novelreview",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/novelstyle",
    "layer": "shell"
   },
   {
@@ -547,11 +432,6 @@
   },
   {
    "from": "internal/app",
-   "to": "internal/outline",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/pantheon",
    "layer": "shell"
   },
@@ -567,22 +447,7 @@
   },
   {
    "from": "internal/app",
-   "to": "internal/promptstore",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/rewrite",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
    "to": "internal/routesuggest",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/scene",
    "layer": "shell"
   },
   {
@@ -593,11 +458,6 @@
   {
    "from": "internal/app",
    "to": "internal/screen",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/search",
    "layer": "shell"
   },
   {
@@ -613,16 +473,6 @@
   {
    "from": "internal/app",
    "to": "internal/skillstats",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/stats",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/style",
    "layer": "shell"
   },
   {
@@ -643,11 +493,6 @@
   {
    "from": "internal/app",
    "to": "internal/util",
-   "layer": "shell"
-  },
-  {
-   "from": "internal/app",
-   "to": "internal/visual",
    "layer": "shell"
   },
   {
@@ -681,11 +526,6 @@
    "layer": "shell"
   },
   {
-   "from": "internal/app",
-   "to": "internal/worldview",
-   "layer": "shell"
-  },
-  {
    "from": "internal/assistant",
    "to": "internal/gaea/secure",
    "layer": "domain"
@@ -711,31 +551,6 @@
    "layer": "domain"
   },
   {
-   "from": "internal/authorprefs",
-   "to": "internal/gaea/fileutil",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/bookimport",
-   "to": "internal/gaea/strutil",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/bookimport",
-   "to": "internal/util",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/booksource",
-   "to": "internal/bookimport",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/booksource",
-   "to": "internal/netclient",
-   "layer": "novel"
-  },
-  {
    "from": "internal/channels/weixin",
    "to": "internal/gaea/strutil",
    "layer": "domain"
@@ -744,106 +559,26 @@
    "from": "internal/channels/weixin",
    "to": "internal/netclient",
    "layer": "domain"
-  },
-  {
-   "from": "internal/chapter",
-   "to": "internal/ai",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/chapter",
-   "to": "internal/config",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/chapter",
-   "to": "internal/project",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/chapter",
-   "to": "internal/prompt",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/chapter",
-   "to": "internal/types",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/chapter",
-   "to": "internal/util",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/ai",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/characterstate",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/config",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/maturecraft",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/project",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/prompt",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/types",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/character",
-   "to": "internal/util",
-   "layer": "novel"
   },
   {
    "from": "internal/characterlib",
    "to": "internal/assistant",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/characterlib",
    "to": "internal/gaea/fileutil",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/characterlib",
    "to": "internal/types",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/characterlib",
    "to": "internal/whisper",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/characterstate",
-   "to": "internal/gaea/strutil",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/characterstate",
-   "to": "internal/types",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/config",
@@ -853,21 +588,6 @@
   {
    "from": "internal/config",
    "to": "internal/gaea/fileutil",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/context",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/context",
-   "to": "internal/types",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/context",
-   "to": "internal/util",
    "layer": "domain"
   },
   {
@@ -888,21 +608,6 @@
   {
    "from": "internal/docmd",
    "to": "internal/gaea/proc",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/export",
-   "to": "internal/gaea/fileutil",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/export",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/export",
-   "to": "internal/types",
    "layer": "domain"
   },
   {
@@ -1936,36 +1641,11 @@
    "layer": "kernel-lib"
   },
   {
-   "from": "internal/graph",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/graph",
-   "to": "internal/types",
-   "layer": "domain"
-  },
-  {
    "from": "internal/herdsman",
    "to": "internal/netclient",
    "layer": "engine"
   },
   {
-   "from": "internal/memory",
-   "to": "internal/gaea/bm25",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/memory",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/memory",
-   "to": "internal/util",
-   "layer": "domain"
-  },
-  {
    "from": "internal/modelengine",
    "to": "internal/gaea/fileutil",
    "layer": "engine"
@@ -1981,69 +1661,9 @@
    "layer": "engine"
   },
   {
-   "from": "internal/narrative",
-   "to": "internal/gaea/fileutil",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/narrative",
-   "to": "internal/util",
-   "layer": "novel"
-  },
-  {
    "from": "internal/netclient",
    "to": "internal/netclient/sysproxy",
    "layer": "domain"
-  },
-  {
-   "from": "internal/novelcontext",
-   "to": "internal/gaea/strutil",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelcontext",
-   "to": "internal/graph",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelcontext",
-   "to": "internal/project",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelcontext",
-   "to": "internal/style",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelcontext",
-   "to": "internal/types",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelcontext",
-   "to": "internal/util",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelgate",
-   "to": "internal/noveltext",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelgate",
-   "to": "internal/types",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelreview",
-   "to": "internal/noveltext",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/novelstyle",
-   "to": "internal/util",
-   "layer": "novel"
   },
   {
    "from": "internal/ocr",
@@ -2091,41 +1711,6 @@
    "layer": "office"
   },
   {
-   "from": "internal/outline",
-   "to": "internal/ai",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/outline",
-   "to": "internal/config",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/outline",
-   "to": "internal/maturecraft",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/outline",
-   "to": "internal/project",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/outline",
-   "to": "internal/prompt",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/outline",
-   "to": "internal/types",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/outline",
-   "to": "internal/util",
-   "layer": "novel"
-  },
-  {
    "from": "internal/pantheon",
    "to": "internal/gaea/fileutil",
    "layer": "pantheon"
@@ -2156,43 +1741,18 @@
    "layer": "domain"
   },
   {
-   "from": "internal/promptstore",
-   "to": "internal/prompt",
+   "from": "internal/scene",
+   "to": "internal/gaea/fileutil",
    "layer": "domain"
   },
   {
-   "from": "internal/rewrite",
-   "to": "internal/gaea/textsim",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/rewrite",
-   "to": "internal/types",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/scene",
-   "to": "internal/gaea/fileutil",
-   "layer": "novel"
-  },
-  {
    "from": "internal/scene",
    "to": "internal/types",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/schedule",
    "to": "internal/gaea/fileutil",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/search",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/search",
-   "to": "internal/types",
    "layer": "domain"
   },
   {
@@ -2201,29 +1761,19 @@
    "layer": "domain"
   },
   {
-   "from": "internal/stats",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/stats",
-   "to": "internal/types",
-   "layer": "domain"
-  },
-  {
    "from": "internal/style",
    "to": "internal/ai",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/style",
    "to": "internal/project",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/style",
    "to": "internal/util",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/tts",
@@ -2236,16 +1786,6 @@
    "layer": "domain"
   },
   {
-   "from": "internal/visual",
-   "to": "internal/project",
-   "layer": "domain"
-  },
-  {
-   "from": "internal/visual",
-   "to": "internal/types",
-   "layer": "domain"
-  },
-  {
    "from": "internal/voice",
    "to": "internal/tts",
    "layer": "engine"
@@ -2253,62 +1793,37 @@
   {
    "from": "internal/whisper",
    "to": "internal/gaea/fileutil",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/whisper",
    "to": "internal/gaea/genui",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/whisper",
    "to": "internal/gaea/proc",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/whisper",
    "to": "internal/gaea/strutil",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/whisper",
    "to": "internal/util",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/whisper/db/repos",
    "to": "internal/whisper",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "internal/whisper/db/repos",
    "to": "internal/whisper/db",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/worldview",
-   "to": "internal/ai",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/worldview",
-   "to": "internal/config",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/worldview",
-   "to": "internal/project",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/worldview",
-   "to": "internal/prompt",
-   "layer": "novel"
-  },
-  {
-   "from": "internal/worldview",
-   "to": "internal/types",
-   "layer": "novel"
+   "layer": "domain"
   },
   {
    "from": "scripts/attention_report",
@@ -2392,11 +1907,11 @@
   }
  ],
  "meta": {
-  "edges": 478,
+  "edges": 381,
   "generated": "2026-11-10",
-  "packages": 167,
-  "srcLoc": 274000,
-  "testLoc": 215250
+  "packages": 143,
+  "srcLoc": 237809,
+  "testLoc": 182682
  },
  "nodes": [
   {
@@ -2412,21 +1927,15 @@
    "testLoc": 5361
   },
   {
-   "id": "internal/analysis",
-   "layer": "domain",
-   "srcLoc": 1685,
-   "testLoc": 1232
-  },
-  {
    "id": "internal/app",
    "layer": "shell",
-   "srcLoc": 78616,
-   "testLoc": 70580
+   "srcLoc": 59688,
+   "testLoc": 48894
   },
   {
    "id": "internal/app/board",
    "layer": "shell",
-   "srcLoc": 422,
+   "srcLoc": 419,
    "testLoc": 171
   },
   {
@@ -2442,52 +1951,16 @@
    "testLoc": 842
   },
   {
-   "id": "internal/authorprefs",
-   "layer": "domain",
-   "srcLoc": 516,
-   "testLoc": 164
-  },
-  {
-   "id": "internal/bookimport",
-   "layer": "novel",
-   "srcLoc": 1013,
-   "testLoc": 688
-  },
-  {
-   "id": "internal/booksource",
-   "layer": "novel",
-   "srcLoc": 2432,
-   "testLoc": 1716
-  },
-  {
    "id": "internal/channels/weixin",
    "layer": "domain",
    "srcLoc": 2296,
    "testLoc": 2810
   },
   {
-   "id": "internal/chapter",
-   "layer": "novel",
-   "srcLoc": 222,
-   "testLoc": 0
-  },
-  {
-   "id": "internal/character",
-   "layer": "novel",
-   "srcLoc": 836,
-   "testLoc": 309
-  },
-  {
    "id": "internal/characterlib",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 1610,
    "testLoc": 1093
-  },
-  {
-   "id": "internal/characterstate",
-   "layer": "novel",
-   "srcLoc": 387,
-   "testLoc": 222
   },
   {
    "id": "internal/chat",
@@ -2498,14 +1971,8 @@
   {
    "id": "internal/config",
    "layer": "domain",
-   "srcLoc": 1969,
-   "testLoc": 1158
-  },
-  {
-   "id": "internal/context",
-   "layer": "domain",
-   "srcLoc": 232,
-   "testLoc": 90
+   "srcLoc": 1902,
+   "testLoc": 1204
   },
   {
    "id": "internal/core",
@@ -2518,12 +1985,6 @@
    "layer": "domain",
    "srcLoc": 3617,
    "testLoc": 3171
-  },
-  {
-   "id": "internal/export",
-   "layer": "domain",
-   "srcLoc": 762,
-   "testLoc": 694
   },
   {
    "id": "internal/gaea/agent",
@@ -2606,7 +2067,7 @@
   {
    "id": "internal/gaea/boot",
    "layer": "kernel-rt",
-   "srcLoc": 1509,
+   "srcLoc": 1562,
    "testLoc": 1686
   },
   {
@@ -2636,7 +2097,7 @@
   {
    "id": "internal/gaea/config",
    "layer": "kernel-lib",
-   "srcLoc": 2991,
+   "srcLoc": 2989,
    "testLoc": 2660
   },
   {
@@ -2654,7 +2115,7 @@
   {
    "id": "internal/gaea/control",
    "layer": "kernel-rt",
-   "srcLoc": 4656,
+   "srcLoc": 4669,
    "testLoc": 4149
   },
   {
@@ -2936,13 +2397,13 @@
   {
    "id": "internal/gaea/tool",
    "layer": "kernel-rt",
-   "srcLoc": 1664,
+   "srcLoc": 1677,
    "testLoc": 1509
   },
   {
    "id": "internal/gaea/tool/builtin",
    "layer": "kernel-rt",
-   "srcLoc": 12289,
+   "srcLoc": 12300,
    "testLoc": 8466
   },
   {
@@ -2982,12 +2443,6 @@
    "testLoc": 236
   },
   {
-   "id": "internal/graph",
-   "layer": "domain",
-   "srcLoc": 800,
-   "testLoc": 456
-  },
-  {
    "id": "internal/herdsman",
    "layer": "engine",
    "srcLoc": 750,
@@ -3002,32 +2457,20 @@
   {
    "id": "internal/intent",
    "layer": "domain",
-   "srcLoc": 374,
+   "srcLoc": 373,
    "testLoc": 308
   },
   {
    "id": "internal/maturecraft",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 147,
    "testLoc": 100
-  },
-  {
-   "id": "internal/memory",
-   "layer": "domain",
-   "srcLoc": 300,
-   "testLoc": 294
   },
   {
    "id": "internal/modelengine",
    "layer": "engine",
    "srcLoc": 3809,
    "testLoc": 4650
-  },
-  {
-   "id": "internal/narrative",
-   "layer": "novel",
-   "srcLoc": 359,
-   "testLoc": 290
   },
   {
    "id": "internal/netclient",
@@ -3040,36 +2483,6 @@
    "layer": "domain",
    "srcLoc": 208,
    "testLoc": 50
-  },
-  {
-   "id": "internal/novelcontext",
-   "layer": "novel",
-   "srcLoc": 1038,
-   "testLoc": 620
-  },
-  {
-   "id": "internal/novelgate",
-   "layer": "novel",
-   "srcLoc": 530,
-   "testLoc": 609
-  },
-  {
-   "id": "internal/novelreview",
-   "layer": "novel",
-   "srcLoc": 1238,
-   "testLoc": 423
-  },
-  {
-   "id": "internal/novelstyle",
-   "layer": "novel",
-   "srcLoc": 1943,
-   "testLoc": 993
-  },
-  {
-   "id": "internal/noveltext",
-   "layer": "novel",
-   "srcLoc": 108,
-   "testLoc": 114
   },
   {
    "id": "internal/ocr",
@@ -3162,12 +2575,6 @@
    "testLoc": 303
   },
   {
-   "id": "internal/outline",
-   "layer": "novel",
-   "srcLoc": 677,
-   "testLoc": 600
-  },
-  {
    "id": "internal/pantheon",
    "layer": "pantheon",
    "srcLoc": 11510,
@@ -3186,18 +2593,6 @@
    "testLoc": 493
   },
   {
-   "id": "internal/promptstore",
-   "layer": "domain",
-   "srcLoc": 616,
-   "testLoc": 789
-  },
-  {
-   "id": "internal/rewrite",
-   "layer": "novel",
-   "srcLoc": 412,
-   "testLoc": 380
-  },
-  {
    "id": "internal/routesuggest",
    "layer": "domain",
    "srcLoc": 184,
@@ -3205,7 +2600,7 @@
   },
   {
    "id": "internal/scene",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 279,
    "testLoc": 141
   },
@@ -3220,12 +2615,6 @@
    "layer": "domain",
    "srcLoc": 242,
    "testLoc": 122
-  },
-  {
-   "id": "internal/search",
-   "layer": "domain",
-   "srcLoc": 152,
-   "testLoc": 0
   },
   {
    "id": "internal/skill",
@@ -3252,14 +2641,8 @@
    "testLoc": 127
   },
   {
-   "id": "internal/stats",
-   "layer": "domain",
-   "srcLoc": 364,
-   "testLoc": 172
-  },
-  {
    "id": "internal/style",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 218,
    "testLoc": 159
   },
@@ -3288,12 +2671,6 @@
    "testLoc": 522
   },
   {
-   "id": "internal/visual",
-   "layer": "domain",
-   "srcLoc": 389,
-   "testLoc": 32
-  },
-  {
    "id": "internal/voice",
    "layer": "engine",
    "srcLoc": 308,
@@ -3313,27 +2690,21 @@
   },
   {
    "id": "internal/whisper",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 18039,
    "testLoc": 7628
   },
   {
    "id": "internal/whisper/db",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 683,
    "testLoc": 167
   },
   {
    "id": "internal/whisper/db/repos",
-   "layer": "novel",
+   "layer": "domain",
    "srcLoc": 1958,
    "testLoc": 557
-  },
-  {
-   "id": "internal/worldview",
-   "layer": "novel",
-   "srcLoc": 252,
-   "testLoc": 41
   },
   {
    "id": "scripts/attention_report",
@@ -3344,7 +2715,7 @@
   {
    "id": "scripts/gen_bindings",
    "layer": "devtools",
-   "srcLoc": 1191,
+   "srcLoc": 1174,
    "testLoc": 130
   },
   {

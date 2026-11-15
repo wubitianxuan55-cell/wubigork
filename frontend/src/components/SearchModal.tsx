@@ -1,7 +1,7 @@
-import { wailsApp } from '../lib/wailsApp';
+
 import React, { useRef, useState } from 'react'
 import { Typography, Space, Tag, Modal, Input, Spin, Button, message } from 'antd'
-import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined, InboxOutlined } from '@ant-design/icons'
+import { SearchOutlined, FileTextOutlined, ThunderboltOutlined, InboxOutlined } from '@ant-design/icons'
 import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 
 import { C } from '../utils/theme'
@@ -22,14 +22,6 @@ interface SearchModalProps {
   onClose: () => void
   /** S2.1：当前壳层空间——搜索 scope 默认跟随（docs/gaea-space-shell-design.md §4.8） */
   space: ShellSpace
-}
-
-const categoryIcons: Record<string, React.ReactNode> = {
-  chapters: <FileTextOutlined style={{ color: 'var(--color-success)' }} />,
-  characters: <UserOutlined style={{ color: '#60a5fa' /* hex-exempt 分类识别色 */ }} />,
-}
-const categoryLabels: Record<string, DictKey> = {
-  chapters: 'shell.search.catChapters', characters: 'shell.search.catCharacters',
 }
 
 /** S4.6 指令动作 → 标签 i18n key（指令预览卡用；与后端 intent.Action 对齐） */
@@ -69,21 +61,6 @@ interface SearchSection {
   label: string
   icon?: React.ReactNode
   rows: SearchResult[]
-}
-
-/** 小说项目搜索 → 章节/角色分节 */
-function sectionsFromNovel(
-  results: Record<string, SearchResult[]>,
-  t: (k: DictKey) => string,
-): SearchSection[] {
-  return Object.keys(results)
-    .filter((k) => results[k].length > 0)
-    .map((cat) => ({
-      key: cat,
-      label: categoryLabels[cat] ? t(categoryLabels[cat]) : cat,
-      icon: categoryIcons[cat],
-      rows: results[cat],
-    }))
 }
 
 /** 统一检索（工位记忆/文件）→ 工作区文件 + 记忆语义分节 */
@@ -160,9 +137,10 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
     try {
       // S4.6：dry-run 意图预览（RouteIntent(q,true) 零副作用）与检索并行——
       // 命中才出指令预览卡；未命中/调用失败都按无指令处理，检索行为零变化。
-      const [intentHit, novel, unified] = await Promise.all([
+      // 小说项目 Search 线随小说板块退役拆除（2026-11-15）：play 空间不再有
+      // 项目内检索，统一检索 work 照常、play 走意图路由。
+      const [intentHit, unified] = await Promise.all([
         app.RouteIntent(q, true).catch(() => null),
-        scope === 'work' ? Promise.resolve(null) : wailsApp().Search(q).catch(() => null),
         scope === 'play' ? Promise.resolve(null) : app.UnifiedSearch(q, 8, scope === 'work' ? 'work' : '').catch(() => null),
       ])
       if (seq !== searchSeqRef.current) return
@@ -170,13 +148,9 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
       // 失败判定：null=调用失败。只统计参与本 scope 的线（scope 外的线是
       // Promise.resolve(null)）——「参与者全部失败」才报错；单路失败按可得
       // 结果降级显示。不参与的路对合取式贡献 true（vacuous）。
-      const novelFailed = scope !== 'work' && novel === null
       const unifiedFailed = scope !== 'play' && unified === null
-      setSearchFailed(
-        (scope === 'work' || novelFailed) && (scope === 'play' || unifiedFailed),
-      )
+      setSearchFailed(unifiedFailed)
       const all: SearchSection[] = []
-      if (novel) all.push(...sectionsFromNovel(novel, t))
       if (unified) all.push(...sectionsFromUnified(unified, t))
       setSections(all)
     } catch (_) {

@@ -144,7 +144,7 @@ func (a *App) WenxueMeta() Meta {
 
 // WenxueNewSession 在当前小说目录下新建会话（2026-11-15 刀1）：独立图文引擎
 // 锚——初始化 wx 引擎、运行闸、goal 闸清零、NewSession、wire seq 归零
-//（体与办公 GaeaNewSession 同构）。
+// （体与办公 GaeaNewSession 同构）。
 func (a *App) WenxueNewSession() error {
 	ws := wenxueWorkspace()
 	if ws == wenxueWorkspaceRoot() {

@@ -31,22 +31,6 @@ var builtinManifests = []Manifest{
 		Intents:      []IntentDecl{{ID: "chat", Handler: "WhisperChat"}},
 	},
 	{
-		ID: "novel", Label: "小说", Icon: "ReadOutlined",
-		Page: "NovelPage", Lazy: true,
-		KeepAlive: Bool(true), Layout: "padded", Shortcut: "ctrl+2",
-		MenuOrder: 2, InMenu: Bool(true),
-		Space:      SpacePlay,                            // 乐园·小说
-		Breadcrumb: &BreadcrumbSpec{AnchorTo: "project"}, // 附 B #8：项目名→novel 锚点
-		Nav: &NavSpec{Children: []NavChild{
-			{ID: "home", Label: "书架"}, {ID: "novelsetting", Label: "设定"},
-			{ID: "character", Label: "角色"}, {ID: "create", Label: "创作"},
-			{ID: "chapter", Label: "阅读"}, {ID: "export", Label: "导出"},
-		}},
-		FeatureModel: "novel",
-		Bindings:     []string{"NovelB"},
-		Intents:      []IntentDecl{{ID: "create_chapter", Handler: "CreateChapter"}},
-	},
-	{
 		ID: "imagegen", Label: "绘梦", Icon: "PictureOutlined",
 		Page: "ImageGenPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded", Shortcut: "ctrl+3",
@@ -177,14 +161,17 @@ var builtinManifests = []Manifest{
 	{
 		// 文学板块（2026-11-15 二次改造）：办公板块的完整前端拷贝（frontend/src/wenxue/），
 		// 文件面已隔离=WenxueB（工作空间限定 C:\AI\tuwen，每部小说一个子目录）；
-		// 会话/聊天引擎仍与办公全共享（早前拍板）。与前端 manifests.ts 同步翻，
-		// 防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
-		ID: "wenxue", Label: "文学", Icon: "BookOutlined",
+		// 会话/聊天引擎独立装配（案A，feature=wenxue 绑定）。2026-11-15 小说板块
+		// 退役后接替其一级导航位（menuOrder 2 + ReadOutlined + ctrl+2，用户拍板
+		// 「一级图标给文学板块」）。与前端 manifests.ts 同步翻，防 normalizeManifests
+		// 后端字段优先导致真机/浏览器分裂。
+		ID: "wenxue", Label: "文学", Icon: "ReadOutlined",
 		Page: "WenxuePage", Lazy: true,
-		KeepAlive: Bool(true), Layout: "full",
-		MenuOrder: 13, InMenu: Bool(true),
-		Space:    SpaceWork, // 工位·文学工作台（图文，工作空间限 tuwen 根）
-		Bindings: []string{"WenxueB", "OfficeB", "MemoryB", "CostB"},
+		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+2",
+		MenuOrder: 2, InMenu: Bool(true),
+		Space:        SpaceWork, // 工位·文学工作台（图文，工作空间限 tuwen 根）
+		FeatureModel: "wenxue",
+		Bindings:     []string{"WenxueB", "OfficeB", "MemoryB", "CostB"},
 	},
 	{
 		// 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：本机系统资源 +
@@ -222,6 +209,7 @@ func Builtins() []Board {
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
 // knowledge 是 D7 独立板块，见 BuiltinManifests）。sin 已退役并整体删除
 // （2026-10-27 撤导航、2026-11-15 拍板全删：SinB 门面/功能绑定/前端同步拆除）。
+// novel 同日退役（板块+NovelB 门面+功能绑定全拆），文学板块接替其一级导航位。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "wenxue", "runtime"}
+	return []string{"chat", "imagegen", "gaea", "cost", "code", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "wenxue", "runtime"}
 }

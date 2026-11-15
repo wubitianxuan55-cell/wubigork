@@ -13,7 +13,6 @@ import { registerPage } from './boards/pageRegistry'
 // manifest.page 键 ↔ 页面组件统一 lazy 包装；MainLayout 渲染时按 manifest 查表。
 // 所有业务板块统一走本注册表；启动页为办公（DEFAULT_BOARD_ID）。
 registerPage('ChatPage', lazy(() => import('./pages/ChatPage')))
-registerPage('NovelPage', lazy(() => import('./pages/NovelPage')))
 registerPage('ImageGenPage', lazy(() => import('./pages/ImageGenPage')))
 registerPage('GaeaPage', lazy(() => import('./pages/GaeaPage')))
 registerPage('MemoryHubPage', lazy(() => import('./pages/MemoryHubPage')))

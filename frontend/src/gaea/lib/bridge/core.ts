@@ -283,7 +283,7 @@ export interface CoreBindings {
   GetBoardManifests(): Promise<Array<Record<string, unknown>>>;
   // Feature Model 功能级模型绑定（读侧，Go CoreB.GetFeatureModel/GetFeatureModelEnabled，
   // wailsjsCompat 直调转正；useFeatureModel / useBindState 共用；feature 取值
-  // chat/whisper/novel/office/gaea/characterlib）。
+  // chat/whisper/office/gaea/wenxue/characterlib）。
   GetFeatureModel(feature: string): Promise<Record<string, string>>;
   GetFeatureModelEnabled(feature: string): Promise<boolean>;
   // Window state persistence.
@@ -392,9 +392,7 @@ export interface CoreBindings {
   // 只导出主线时传 onlyMainline=true，返回文件名 → 内容映射）。
   GetConfig(): Promise<Record<string, string>>;
   SaveConfig(key: string, value: string): Promise<void>;
-  GetStats(): Promise<Record<string, unknown>>;
   ListSkills(): Promise<Array<Record<string, unknown>>>;
-  ExportAll(onlyMainline: boolean): Promise<Record<string, string>>;
   // ── 批次三a legacy 直调转正（Go CoreB.ListProjects，同名前缀无需映射）──
   // ListProjects 书架工程卡片列表（api/characterlib.listShelfProjects 消费；
   // Go 返回 []ProjectCard，前端投影为 Record）。

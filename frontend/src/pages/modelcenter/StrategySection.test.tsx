@@ -30,7 +30,7 @@ const workView = {
 }
 const playView = {
   space: 'play', gaea: 'glm/glm-5.3', gaeaResolved: 'glm · glm-5.3', gaeaOk: true,
-  models: { novel: 'glm/glm-5.3-air' },
+  models: { characterlib: 'glm/glm-5.3-air' },
   permMode: 'allow', permHardAskCount: 0, permHardAskBySpace: true,
   guardrailsOn: true, modeOn: true,
 }
@@ -53,8 +53,8 @@ describe('模型中心「空间策略」分区（总闸画面）', () => {
     expect(screen.getByTestId('mc-strategy-work-gaea').textContent).toContain('未配置（维持现状模型）')
     expect(screen.getByTestId('mc-strategy-play-gaea').textContent).toContain('glm/glm-5.3')
     expect(screen.getByTestId('mc-strategy-play-gaea').textContent).toContain('glm · glm-5.3')
-    // 其余功能域常显：已配小说 + 空键「未配置」；play 护栏
-    expect(screen.getByTestId('mc-strategy-play-novel').textContent).toContain('glm/glm-5.3-air')
+    // 其余功能域常显：已配角色库 + 空键「未配置」；play 护栏
+    expect(screen.getByTestId('mc-strategy-play-characterlib').textContent).toContain('glm/glm-5.3-air')
     expect(screen.getByTestId('mc-strategy-work-chat').textContent).toContain('未配置（维持现状）')
     expect(play.textContent).toContain('生效（钳制中）')
     expect(play.textContent).toContain('按空间配置（0 项）')
@@ -122,39 +122,39 @@ describe('模型中心「空间策略」分区（总闸画面）', () => {
     await waitFor(() => expect(screen.getByTestId('mc-strategy-play')).toBeTruthy())
   })
 
-  it('其余功能域编辑闭环：点小说编辑带出当前值 → 保存调 Set(play, novel, …)', async () => {
+  it('其余功能域编辑闭环：点角色库编辑带出当前值 → 保存调 Set(play, characterlib, …)', async () => {
     mocks.GaeaSpaceProfiles.mockResolvedValue([workView, playView])
     mocks.GaeaSpaceProfileSet.mockResolvedValue([
       workView,
-      { ...playView, models: { novel: 'prov/air2' } },
+      { ...playView, models: { characterlib: 'prov/air2' } },
     ])
     render(<StrategySection />)
-    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-novel-edit')).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-characterlib-edit')).toBeTruthy())
 
-    fireEvent.click(screen.getByTestId('mc-strategy-play-novel-edit'))
-    const input = screen.getByTestId('mc-strategy-play-novel-input') as HTMLInputElement
+    fireEvent.click(screen.getByTestId('mc-strategy-play-characterlib-edit'))
+    const input = screen.getByTestId('mc-strategy-play-characterlib-input') as HTMLInputElement
     expect(input.value).toBe('glm/glm-5.3-air')
     fireEvent.change(input, { target: { value: 'prov/air2' } })
-    fireEvent.click(screen.getByTestId('mc-strategy-play-novel-save'))
+    fireEvent.click(screen.getByTestId('mc-strategy-play-characterlib-save'))
 
-    await waitFor(() => expect(mocks.GaeaSpaceProfileSet).toHaveBeenCalledWith('play', 'novel', 'prov/air2'))
-    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-novel').textContent).toContain('prov/air2'))
+    await waitFor(() => expect(mocks.GaeaSpaceProfileSet).toHaveBeenCalledWith('play', 'characterlib', 'prov/air2'))
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-characterlib').textContent).toContain('prov/air2'))
   })
 
-  it('其余功能域清除：空串保存 → Set(play, novel, "") 行回未配置', async () => {
+  it('其余功能域清除：空串保存 → Set(play, characterlib, "") 行回未配置', async () => {
     mocks.GaeaSpaceProfiles.mockResolvedValue([workView, playView])
     mocks.GaeaSpaceProfileSet.mockResolvedValue([
       workView,
       { ...playView, models: {} },
     ])
     render(<StrategySection />)
-    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-novel-edit')).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-characterlib-edit')).toBeTruthy())
 
-    fireEvent.click(screen.getByTestId('mc-strategy-play-novel-edit'))
-    fireEvent.change(screen.getByTestId('mc-strategy-play-novel-input'), { target: { value: '' } })
-    fireEvent.click(screen.getByTestId('mc-strategy-play-novel-save'))
+    fireEvent.click(screen.getByTestId('mc-strategy-play-characterlib-edit'))
+    fireEvent.change(screen.getByTestId('mc-strategy-play-characterlib-input'), { target: { value: '' } })
+    fireEvent.click(screen.getByTestId('mc-strategy-play-characterlib-save'))
 
-    await waitFor(() => expect(mocks.GaeaSpaceProfileSet).toHaveBeenCalledWith('play', 'novel', ''))
-    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-novel').textContent).toContain('未配置（维持现状）'))
+    await waitFor(() => expect(mocks.GaeaSpaceProfileSet).toHaveBeenCalledWith('play', 'characterlib', ''))
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-characterlib').textContent).toContain('未配置（维持现状）'))
   })
 })

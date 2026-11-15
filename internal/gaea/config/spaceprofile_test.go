@@ -45,7 +45,7 @@ permissions.allow = ["bash(go test*)"]
 	if err != nil {
 		t.Fatalf("SpaceProfile(play): %v", err)
 	}
-	if pp.Whisper != "mimo-flash" || pp.Novel != "deepseek-pro" || pp.Chat != "deepseek-pro/deepseek-v4-pro" {
+	if pp.Whisper != "mimo-flash" || pp.Chat != "deepseek-pro/deepseek-v4-pro" {
 		t.Errorf("play profile = %+v", pp)
 	}
 	if pp.Permissions == nil {
