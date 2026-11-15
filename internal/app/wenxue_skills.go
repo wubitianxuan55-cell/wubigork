@@ -80,6 +80,9 @@ const wenxueWorkbenchBody = `# 图文工作台纪律（长篇小说创作）
 - 时间线/（或 timeline/）——时间线事件，一事件一文件或单文件分行条目：
   每条带章节锚点（如「第12章」）+ 一句话事件。
 - 设定/（或 worldview/）——世界观/体系/势力/地理等设定文档。
+- 定稿/（或 final/）——**发布稿专区：只放定稿不放草稿**。用户明确说
+  「定稿/入库/发布稿」时用 wenxue_final_write 写入；草稿一律在 章节/ 演进。
+  阅读标签页据此目录生成小说目录与阅读窗。
 - .gaea/——工作台数据（会话/导出/固定资料），勿手动整理。
 
 ## 会话纪律
@@ -97,6 +100,8 @@ const wenxueWorkbenchBody = `# 图文工作台纪律（长篇小说创作）
 - wenxue_character_list / wenxue_character_read / wenxue_character_write：
   角色卡读写。
 - wenxue_timeline_read / wenxue_timeline_append：时间线条目读/追加。
+- wenxue_final_list / wenxue_final_read / wenxue_final_write：定稿域专用
+  （发布稿读取/审校对照/入库；域隔离——章节工具写不进定稿目录）。
 - wenxue_stats：全书字数/文件统计快照。
 
 ## 交付

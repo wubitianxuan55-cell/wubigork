@@ -111,6 +111,41 @@ func TestWenxueStatsSnapshot(t *testing.T) {
 	}
 }
 
+func TestWenxueFinalDomainIsolation(t *testing.T) {
+	wenxueToolsTestRoot(t)
+	// 定稿写入（final_write 建目录+落盘）
+	mustRun(t, wenxueFinalWriteTool(), `{"number":1,"title":"开局","content":"发布稿：雨夜。"}`)
+	// 章节工具拒写定稿目录（防草稿入库）
+	if _, err := wenxueChapterWriteTool().Execute(t.Context(), json.RawMessage(`{"path":"定稿/001-开局.md","content":"草稿误入"}`)); err == nil {
+		t.Fatal("章节工具写定稿目录应被拒绝（域隔离）")
+	}
+	// 定稿工具拒写定稿目录之外
+	if _, err := wenxueFinalWriteTool().Execute(t.Context(), json.RawMessage(`{"path":"章节/001-开局.md","content":"越域"}`)); err == nil {
+		t.Fatal("定稿工具写章节目录应被拒绝（域隔离）")
+	}
+	// 清单/读取只在定稿域
+	list := mustRun(t, wenxueFinalListTool(), `{}`)
+	if !wenxueContains(list, `"count":1`) {
+		t.Fatalf("定稿清单应含 1 章: %s", list)
+	}
+	read := mustRun(t, wenxueFinalReadTool(), `{"number":1}`)
+	if !wenxueContains(read, "发布稿：雨夜。") {
+		t.Fatalf("定稿读取不符: %s", read)
+	}
+}
+
+func TestWenxueCreateNovelScaffoldsFinalDir(t *testing.T) {
+	wenxueToolsTestRoot(t)
+	a := &App{}
+	if _, err := a.WenxueCreateNovel("脚手架书"); err != nil {
+		t.Fatalf("建书: %v", err)
+	}
+	root := wenxueWorkspace()
+	if info, err := os.Stat(filepath.Join(root, "定稿")); err != nil || !info.IsDir() {
+		t.Fatalf("新建小说应脚手架定稿目录（err=%v）", err)
+	}
+}
+
 func TestWenxueToolsRejectPathEscape(t *testing.T) {
 	wenxueToolsTestRoot(t)
 	if _, err := wenxueChapterWriteTool().Execute(t.Context(), json.RawMessage(`{"path":"../逃逸.md","content":"x"}`)); err == nil {

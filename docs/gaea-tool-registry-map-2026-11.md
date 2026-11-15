@@ -137,3 +137,14 @@
 
 安全口径：全部路径经 `wspath.ResolveRelWithin`（拒 .. 穿越）；写族 overwrite=false 缺省拒已存在；
 Evidence=none（直写文件无快照链，回滚走 git 面或工作区快照面板）。
+
+### extra-app·wenxue：定稿族（2026-11-15 阅读刀）
+
+定稿目录（`定稿|final|finalized`）只放发布稿不放草稿，域隔离由工具强制：`wenxue_chapter_write`
+拒写定稿目录、`wenxue_final_write` 只允许写定稿目录。
+
+- `wenxue_final_list`：定稿章节清单（章号/标题/字数）。
+- `wenxue_final_read`：读定稿全文（审校对照/前情/风格参考）。
+- `wenxue_final_write`：写/更新定稿（用户明确「定稿/入库/发布稿」时才用；overwrite 显式闸）。
+
+阅读标签页（图文主区）据此目录生成导航与阅读窗，与三件共享同一目录。

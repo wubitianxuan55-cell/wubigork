@@ -64,6 +64,9 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueTimelineReadTool(),
 		wenxueTimelineAppendTool(),
 		wenxueStatsTool(),
+		wenxueFinalListTool(),
+		wenxueFinalReadTool(),
+		wenxueFinalWriteTool(),
 	}
 }
 
@@ -80,6 +83,10 @@ func wenxueDirCandidates(root, kind string) []string {
 		return []string{"时间线", "timeline"}
 	case "settings":
 		return []string{"设定", "worldview", "设定集"}
+	case "final":
+		// 定稿域（2026-11-15 阅读刀）：只放发布稿不放草稿；agent 经
+		// wenxue_final_* 读写，阅读标签页据此生成目录与阅读窗。
+		return []string{"定稿", "final", "finalized"}
 	}
 	return nil
 }
@@ -119,6 +126,22 @@ func wenxueCountWords(s string) int {
 		}
 	}
 	return n
+}
+
+// wenxueIsUnderFinalDir 报告 rel 是否落在定稿域目录内（域隔离判据：章节
+// 工具不写定稿、定稿工具只写定稿——草稿/定稿分离由工具域强制）。
+func wenxueIsUnderFinalDir(root, rel string) bool {
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	if rel == "" {
+		return false
+	}
+	rel = strings.TrimSuffix(rel, "/") + "/"
+	for _, cand := range wenxueDirCandidates(root, "final") {
+		if strings.HasPrefix(rel, cand+"/") || rel == cand+"/" {
+			return true
+		}
+	}
+	return false
 }
 
 // wenxueChapterMeta 解析章节文件名：前导数字=章号，其后分隔符后=标题。
@@ -364,6 +387,9 @@ func wenxueChapterWriteTool() *wenxueTool {
 			abs, err := wspath.ResolveRelWithin(root, rel)
 			if err != nil {
 				return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+			}
+			if wenxueIsUnderFinalDir(root, rel) {
+				return "", fmt.Errorf("定稿目录（%s）请用 wenxue_final_write——章节工具不写定稿，防草稿入库", wenxueFindDir(root, "final"))
 			}
 			if ext := strings.ToLower(filepath.Ext(abs)); ext != ".md" && ext != ".markdown" && ext != ".txt" {
 				return "", fmt.Errorf("章节正文仅支持 md/markdown/txt，收到 %s", ext)
@@ -774,6 +800,183 @@ func wenxueStatsTool() *wenxueTool {
 				"timelineEvents": len(timeline),
 				"lastModified":   lastMod,
 				"generatedAt":    time.Now().Format(time.RFC3339),
+			})
+		},
+	}
+}
+
+// ── 定稿族（阅读刀 2026-11-15：只放发布稿不放草稿）──────────────
+
+// wenxueListFinalChapters 枚举定稿目录章节（结构同 wenxueListChapters，域不同）。
+func wenxueListFinalChapters(root string) []wenxueChapterMeta {
+	out := []wenxueChapterMeta{}
+	dir := wenxueFindDir(root, "final")
+	if dir == "" {
+		return out
+	}
+	abs, err := wspath.ResolveRelWithin(root, dir)
+	if err != nil {
+		return out
+	}
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		return out
+	}
+	for _, e := range entries {
+		if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		rel := dir + "/" + e.Name()
+		if m, ok := wenxueParseChapterFile(root, rel); ok {
+			out = append(out, m)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Number != out[j].Number {
+			return out[i].Number < out[j].Number
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func wenxueFinalListTool() *wenxueTool {
+	return &wenxueTool{
+		name:     "wenxue_final_list",
+		desc:     "列出定稿目录章节（发布稿，非草稿；章号/标题/字数）。写审校/前情回顾/发布对照前用它。",
+		schema:   `{"type":"object","additionalProperties":false}`,
+		readOnly: true,
+		run: func(args json.RawMessage) (string, error) {
+			root := wenxueWorkspace()
+			chapters := wenxueListFinalChapters(root)
+			total := 0
+			for _, c := range chapters {
+				total += c.Words
+			}
+			return wenxueJSON(map[string]any{
+				"dir":        wenxueFindDir(root, "final"),
+				"count":      len(chapters),
+				"totalWords": total,
+				"chapters":   chapters,
+			})
+		},
+	}
+}
+
+func wenxueFinalReadTool() *wenxueTool {
+	return &wenxueTool{
+		name:     "wenxue_final_read",
+		desc:     "读一章定稿全文（发布稿口径）。按 path 或 number 定位；审校对照、前情摘要、风格参考用。",
+		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"定稿文件工作区相对路径（优先）"},"number":{"type":"integer","description":"章号（path 缺省时按号定位）"}},"additionalProperties":false}`,
+		readOnly: true,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				Path   string `json:"path"`
+				Number int    `json:"number"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			root := wenxueWorkspace()
+			chapters := wenxueListFinalChapters(root)
+			idx := -1
+			if in.Path != "" {
+				for i, c := range chapters {
+					if c.Path == filepath.ToSlash(strings.TrimSpace(in.Path)) {
+						idx = i
+						break
+					}
+				}
+			} else if in.Number > 0 {
+				for i, c := range chapters {
+					if c.Number == in.Number {
+						idx = i
+						break
+					}
+				}
+			}
+			if idx < 0 {
+				return "", fmt.Errorf("未定位到定稿章节（path=%q number=%d）；先用 wenxue_final_list", in.Path, in.Number)
+			}
+			body, _, err := wenxueReadBody(root, chapters[idx].Path)
+			if err != nil {
+				return "", err
+			}
+			out := map[string]any{"chapter": chapters[idx], "content": body}
+			if idx+1 < len(chapters) {
+				out["next"] = map[string]any{"path": chapters[idx+1].Path, "number": chapters[idx+1].Number, "title": chapters[idx+1].Title}
+			}
+			return wenxueJSON(out)
+		},
+	}
+}
+
+func wenxueFinalWriteTool() *wenxueTool {
+	return &wenxueTool{
+		name:     "wenxue_final_write",
+		desc:     "写/更新定稿章节（发布稿专用；只允许写定稿目录）。用户明确说「定稿」「入库」「发布稿」时才用；草稿请用 wenxue_chapter_write。",
+		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"定稿文件相对路径（须在定稿目录内；缺省按 number+title 生成 序号-标题.md）"},"number":{"type":"integer","description":"章号"},"title":{"type":"string","description":"章节标题（新建命名用）"},"content":{"type":"string","description":"定稿全文"},"overwrite":{"type":"boolean","description":"允许覆盖已存在定稿，缺省 false"}},"required":["content"],"additionalProperties":false}`,
+		readOnly: false,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				Path      string `json:"path"`
+				Number    int    `json:"number"`
+				Title     string `json:"title"`
+				Content   string `json:"content"`
+				Overwrite bool   `json:"overwrite"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			if strings.TrimSpace(in.Content) == "" {
+				return "", fmt.Errorf("content 为空")
+			}
+			root := wenxueWorkspace()
+			rel := filepath.ToSlash(strings.TrimSpace(in.Path))
+			if rel == "" {
+				dir := wenxueEnsureDir(root, "final")
+				title := strings.TrimSpace(in.Title)
+				if title == "" {
+					title = "未命名"
+				}
+				num := in.Number
+				if num > 0 {
+					for _, c := range wenxueListFinalChapters(root) {
+						if c.Number == num {
+							rel = c.Path
+							break
+						}
+					}
+				}
+				if rel == "" {
+					rel = fmt.Sprintf("%s/%03d-%s.md", dir, num, sanitizeFileName(title))
+				}
+			}
+			if !wenxueIsUnderFinalDir(root, rel) {
+				return "", fmt.Errorf("wenxue_final_write 只允许写定稿目录内（%s）；草稿请用 wenxue_chapter_write", strings.Join(wenxueDirCandidates(root, "final"), "/"))
+			}
+			abs, err := wspath.ResolveRelWithin(root, rel)
+			if err != nil {
+				return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+			}
+			if info, err := os.Stat(abs); err == nil && !in.Overwrite {
+				return "", fmt.Errorf("定稿已存在（%d 字节，%s）；确认覆盖请传 overwrite=true", info.Size(), info.ModTime().Format("15:04:05"))
+			}
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				return "", err
+			}
+			prevWords := 0
+			if b, err := os.ReadFile(abs); err == nil {
+				prevWords = wenxueCountWords(string(b))
+			}
+			if err := os.WriteFile(abs, []byte(in.Content), 0o644); err != nil {
+				return "", err
+			}
+			meta, _ := wenxueParseChapterFile(root, rel)
+			return wenxueJSON(map[string]any{
+				"saved": meta, "words": meta.Words, "prevWords": prevWords,
+				"delta": meta.Words - prevWords,
+				"hint":  "定稿已入库：阅读标签页刷新即见；阅读 tab 与 wenxue_final_list/read 共享此目录",
 			})
 		},
 	}

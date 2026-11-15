@@ -220,6 +220,8 @@ func (a *App) WenxueCreateNovel(name string) (WorkspaceView, error) {
 		return WorkspaceView{}, fmt.Errorf("创建工作空间失败: %w", err)
 	}
 	slog.Info("图文新建小说工作空间", "dir", dir)
+	// 定稿目录脚手架（发布稿域，阅读刀约定；WenxueSwitchWorkspace 亦兜底）。
+	_ = os.MkdirAll(filepath.Join(dir, "定稿"), 0o755)
 	if got := a.WenxueSwitchWorkspace(dir); got != dir {
 		return WorkspaceView{}, errors.New("工作空间切换失败")
 	}
@@ -299,8 +301,10 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	if err != nil || !info.IsDir() {
 		return wenxueWorkspace()
 	}
-	// 确保小说目录结构就绪（.gaea 子目录懒建）
+	// 确保小说目录结构就绪（.gaea 子目录懒建；定稿目录一并在位——发布稿
+	// 域约定，阅读标签页与 wenxue_final_* 工具共享，2026-11-15 阅读刀）。
 	_ = os.MkdirAll(filepath.Join(abs, ".gaea"), 0o755)
+	_ = os.MkdirAll(filepath.Join(abs, "定稿"), 0o755)
 	wenxuePersistWorkspace(abs)
 	// 释放图文文件树监视（旧根句柄），树重开时按新根重建。
 	wenxueCloseFileTreeWatch()

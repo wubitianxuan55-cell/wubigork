@@ -51,6 +51,9 @@ const TOOL_DESC: Record<string, string> = {
   wenxue_timeline_read: "时间线事件全量（章节序，可按起始章过滤）",
   wenxue_timeline_append: "追加时间线事件（章节锚+一句话，缺文件自动建）",
   wenxue_stats: "工作空间统计快照——总字数/章均/角色卡/设定/时间线",
+  wenxue_final_list: "定稿章节清单（发布稿域，非草稿）",
+  wenxue_final_read: "读一章定稿全文（审校/前情/风格参考）",
+  wenxue_final_write: "定稿入库（仅定稿目录；用户明确「定稿」时才用）",
 }
 
 interface Section {
@@ -59,7 +62,7 @@ interface Section {
 }
 
 const RAW_SECTIONS: Section[] = [
-  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats"] },
+  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats", "wenxue_final_list", "wenxue_final_read", "wenxue_final_write"] },
   { title: "文件与命令", items: ["read_file", "write_file", "ls", "bash", "bash_output", "wait", "kill_shell"] },
   { title: "网络", items: ["web_search", "web_fetch"] },
   { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task"] },

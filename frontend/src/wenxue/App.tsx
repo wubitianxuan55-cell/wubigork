@@ -29,10 +29,11 @@ import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
+const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
-import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
+import { ChatTabs, CHAT_VIEW_TAB_IDS, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { Insights } from "./components/context/Insights";
 import { Fleet } from "./components/context/Fleet";
@@ -97,7 +98,7 @@ export default function App() {
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
-      return saved === "trajectory" || saved === "context" || saved === "memory" || saved === "insights" || saved === "fleet" ? saved : "chat";
+      return saved != null && (CHAT_VIEW_TAB_IDS as string[]).includes(saved) ? saved as ChatTabId : "chat";
     } catch { return "chat"; }
   });
   useEffect(() => {
@@ -868,6 +869,11 @@ export default function App() {
                     {chatTab === "characters" && (
                       <Suspense fallback={null}>
                         <WenxueCharacterHub />
+                      </Suspense>
+                    )}
+                    {chatTab === "reading" && (
+                      <Suspense fallback={null}>
+                        <WenxueReadingHub />
                       </Suspense>
                     )}
                     {chatTab === "memory" && (
