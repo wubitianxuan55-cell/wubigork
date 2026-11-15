@@ -274,6 +274,39 @@ WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让
   deny 名单物理不装+技能索引隐藏）；唯一保留=create_docx.py/create_pptx.py 导出
   脚本按路径依赖（藏索引不删目录），交付口径 txt/docx 为主。
 
+## 角色标签面板重设计批（2026-11-16 深夜，v2 master-detail+角色库只读联动，已装机）
+
+用户令：重新设计文学板块角色标签面板，与角色工具联动，新建角色与 gaea 角色卡联动，
+**不能污染角色库**。纯前端批（零 Go 改动、零新绑定，绑定面/drift 不变）。
+
+- **v2 形态**（WenxueCharacterHub 重写）：master-detail 双栏——左列表（搜索/刷新/
+  新建/卡列表：名字+字数+摘要），右详情：**阅读态=结构化六节**（解析 `# 名`+`## 节`，
+  缺节虚线占位「未填写」；自由格式卡回退原文展示）/**编辑态=裸文本 CAS**（保 md
+  契约与并发安全；脏态退出编辑有守卫提示）。数据面不变：工作空间角色/ 目录 md，
+  与 wenxue_character_* 工具同源。
+- **联动（与角色工具）**：①订阅 `gaea-wenxue-filetree` 通道——变更路径落在角色/
+  目录即自动重载（agent wenxue_character_write 回写 UI 即见，不再手动刷新）；
+  ②未脏态选中卡被外部更新时静默跟随最新（基线同步，脏草稿不动 CAS 兜底）；
+  ③「让 AI 完善」保留（Composer 注入六节补全指令+wenxue_character_write）。
+- **新建角色双通道**（Modal Tabs）：空白卡（原名输入+六节骨架）/ **从角色库导入**
+  （只读联动 gaea 角色库：CharacterList 查询分页列表→选卡→字段映射六节落工作
+  空间卡）。映射：设定←定位(RoleType/Gender/Age 中文)+标签+背景+动机；外貌←外貌
+  +身材；性格←性格+弧线；口头禅←对白样本(- 行)；关系←留待书中发展（库无关系
+  字段）；当前状态←状态(Alive→存活等)+备注。
+- **红线（不能污染角色库）**：面板全程只调 `CharacterList`（读）；不触 Save/Delete/
+  Import*/Set*/Associate*/Sync 等任何写向/登记绑定——导入=读库卡映射为工作空间
+  卡，库卡不受影响，两边此后各自演进。测试钉死：写向绑定 mock 全挂监视，断言
+  全流程零调用。
+- 测试（WenxueCharacterHub.test.tsx 重写 5 例）：列表/同源说明条；阅读态结构化+
+  编辑态 CAS；空白卡六节骨架；**库导入映射+红线零调用**；filetree 通道自动重载
+  （桩 window.runtime.EventsOn 捕获订阅回调）。wenxue 全族 15/15 绿；tsc -b 0
+  （真退出码）；eslint 0；Vite 31.1s+Wails build+冒烟 200+INSTALL OK（PID 8000
+  >构建时刻）。
+- 坑：`bodyOf([c.appearance, c.figure])` 可选字段数组→`(string|undefined)[]`
+  炸 tsc（noUncheckedIndexedAccess 面）——`?? ""` 归一；管道后 `$?` 是 tail 的
+  （三犯），门禁一律 `cmd > log 2>&1; echo EXIT=$?` 落真码。
+
+
 - 口径漂移顺手修：`wenxue_tools.go` 头注「RegistryMap 九行」→十二行（众神殿指出的
   名单双事实源漂移之一收口）。
 - 后置面不动（按裁决）：完整账本/12→7 合并读入口/批量 compact/结构化 writeback
