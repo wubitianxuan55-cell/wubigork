@@ -601,6 +601,10 @@ func (a *App) GaeaKnowledgeDelete(name string) error {
 type CapabilitiesView struct {
 	Servers []ServerView `json:"servers"`
 	Skills  []SkillView  `json:"skills"`
+	// Tools 是引擎当前装配的工具名清单（2026-11-15 刀3 续：能力面板工具区
+	// 吃引擎实时面，杜绝静态清单陈旧——图文引擎=底座+wenxue_* 专属九件，
+	// 办公引擎=办公全量；消费方缺省忽略该字段不影响旧观感）。
+	Tools []string `json:"tools,omitempty"`
 }
 
 // ServerView 是一个 MCP 服务器条目。

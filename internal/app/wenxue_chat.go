@@ -417,10 +417,13 @@ func (a *App) WenxueJobs() []JobView {
 // WenxueCapabilities 返回图文引擎的 MCP 服务器与技能列表（刀2 起技能面为
 // 图文子集；本绑定如实反映引擎装配结果）。
 func (a *App) WenxueCapabilities() CapabilitiesView {
-	view := CapabilitiesView{Servers: []ServerView{}, Skills: []SkillView{}}
+	view := CapabilitiesView{Servers: []ServerView{}, Skills: []SkillView{}, Tools: []string{}}
 	c := wenxueCtrl()
 	if c == nil {
 		return view
+	}
+	for _, t := range c.Tools() {
+		view.Tools = append(view.Tools, t.Name())
 	}
 	if h := c.Host(); h != nil {
 		for _, s := range h.Servers() {

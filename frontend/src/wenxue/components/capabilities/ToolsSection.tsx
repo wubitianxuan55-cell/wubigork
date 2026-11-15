@@ -41,6 +41,16 @@ const TOOL_DESC: Record<string, string> = {
   semantic_search: "本地 bge-m3——跨库语义检索(成本/知识/办公记忆)",
   routine_llm: "通用文本兜底——纯文本摘要/归一化/抽取/改写，本地/免费优先",
   translate_text: "本地翻译——优先 Hunyuan-MT / Hy-MT 翻译模型，未安装时回退办公模型",
+  // 图文专属四族（刀3，仅图文引擎装配；与 wenxue-workbench 技能同源）
+  wenxue_chapter_list: "章节清单——章号/标题/字数/修改时间（按约定目录）",
+  wenxue_chapter_read: "读一章正文+上一章结尾衔接段",
+  wenxue_chapter_write: "写/建一章（overwrite 显式闸；回执带字数差与前后章）",
+  wenxue_character_list: "角色卡清单——名字/字数/摘要",
+  wenxue_character_read: "读角色卡全文",
+  wenxue_character_write: "建/更新角色卡（已存在即拒，自动补一级标题）",
+  wenxue_timeline_read: "时间线事件全量（章节序，可按起始章过滤）",
+  wenxue_timeline_append: "追加时间线事件（章节锚+一句话，缺文件自动建）",
+  wenxue_stats: "工作空间统计快照——总字数/章均/角色卡/设定/时间线",
 }
 
 interface Section {
@@ -49,6 +59,7 @@ interface Section {
 }
 
 const RAW_SECTIONS: Section[] = [
+  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats"] },
   { title: "文件与命令", items: ["read_file", "write_file", "ls", "bash", "bash_output", "wait", "kill_shell"] },
   { title: "网络", items: ["web_search", "web_fetch"] },
   { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task"] },
@@ -167,20 +178,36 @@ function ToolGroup({
   )
 }
 
-export function ToolsTabContent({ toolCounts }: { toolCounts: Counts }) {
+export function ToolsTabContent({ toolCounts, liveTools }: { toolCounts: Counts; liveTools?: string[] }) {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const totalTools = SECTIONS.reduce((sum, s) => sum + s.items.length, 0)
+  // 工具区双源（刀3 续）：引擎实时装配清单优先（杜绝静态清单陈旧——新增
+  // wenxue_* 专属件自动进场、被引擎卸载的办公件自动消失），不在任何分组
+  // 的实时工具归「其他」组；实时清单缺席（旧后端/加载前）退回静态+deny 滤。
+  const sections = useMemo(() => {
+    if (!liveTools || liveTools.length === 0) return SECTIONS
+    const allowed = new Set(liveTools)
+    const covered = new Set<string>()
+    const base = RAW_SECTIONS.map((sec) => ({
+      ...sec,
+      items: sec.items.filter((name) => !isDisabledWenxueTool(name) && allowed.has(name)),
+    })).filter((sec) => sec.items.length > 0)
+    for (const sec of base) for (const n of sec.items) covered.add(n)
+    const extras = liveTools.filter((n) => !covered.has(n) && !isDisabledWenxueTool(n))
+    return extras.length > 0 ? [...base, { title: "其他", items: extras }] : base
+  }, [liveTools])
+
+  const totalTools = sections.reduce((sum, s) => sum + s.items.length, 0)
   const activeTotal = useMemo(
-    () => SECTIONS.reduce((sum, s) => sum + s.items.filter((n) => (toolCounts[n] ?? 0) > 0).length, 0),
-    [toolCounts],
+    () => sections.reduce((sum, s) => sum + s.items.filter((n) => (toolCounts[n] ?? 0) > 0).length, 0),
+    [sections, toolCounts],
   )
 
   const filteredSections = useMemo(() => {
-    if (!query.trim()) return SECTIONS
+    if (!query.trim()) return sections
     const q = query.toLowerCase()
-    return SECTIONS
+    return sections
       .map((sec) => ({
         ...sec,
         items: sec.items.filter(
@@ -190,7 +217,7 @@ export function ToolsTabContent({ toolCounts }: { toolCounts: Counts }) {
         ),
       }))
       .filter((sec) => sec.items.length > 0)
-  }, [query])
+  }, [sections, query])
 
   const hasResults = filteredSections.length > 0
 

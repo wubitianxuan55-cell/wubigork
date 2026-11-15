@@ -21,6 +21,8 @@ export type SkillView = WireShape<AppModels.SkillView>;
 export interface CapabilitiesView {
   servers: ServerView[];
   skills: SkillView[];
+  /** 引擎当前装配的工具名清单（刀3 续：工具区实时面；旧后端缺省 undefined） */
+  tools?: string[];
 }
 export type MCPServerInput = WireShape<AppModels.MCPServerInput>;
 

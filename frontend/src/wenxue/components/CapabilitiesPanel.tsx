@@ -243,7 +243,7 @@ export function CapabilitiesPanel({
                 ) : null}
               </section>
             ) : tab === "tools" ? (
-              <ToolsTabContent toolCounts={toolCounts} />
+              <ToolsTabContent toolCounts={toolCounts} liveTools={view.tools} />
             ) : (
               <SkillsSection skills={view.skills} counts={skillCounts} usage={skillUsage} expanded={expandedSkills} onToggle={toggleSkill} />
             )}
