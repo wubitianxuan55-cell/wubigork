@@ -10,22 +10,29 @@ import React, { useCallback, useEffect, useState } from "react"
 import { Button, Modal } from "antd"
 import { ExportOutlined, PlusOutlined } from "@ant-design/icons"
 import { Composer } from "../gaea/components/Composer"
-import { ChatTabs } from "../gaea/components/ChatTabs"
 import { ContextView } from "../gaea/components/ContextView"
 import { TrajectoryView } from "../gaea/components/TrajectoryView"
 import { ApprovalModal } from "../gaea/components/ApprovalModal"
 import { AskCard } from "../gaea/components/AskCard"
 import { LocaleProvider } from "../gaea/lib/i18n"
 import { app } from "../gaea/lib/bridge"
+import { subscribe } from "../events"
+import { openNovelProject } from "../components/novel/openNovelProject"
 import { useSinController } from "./lib/store/controller"
 import SinShelf, { type SinShelfBook, type SinShelfSession } from "./components/SinShelf"
 import { Transcript as SinTranscript } from "./components/SinTranscript"
+import { ChatTabs } from "./components/SinChatTabs"
+import SinReadingPane from "./components/SinReadingPane"
 import "../gaea/styles.css"
 import "../gaea/tailwind.css"
 import "../gaea/redesign.css"
 import "../pages/sin/sin.css"
+import "./sinboard.css"
 
-type SinTab = "chat" | "trajectory" | "context"
+type SinTab = "chat" | "trajectory" | "context" | "reading" | "setting"
+
+/** 设定 tab：小说板块 SettingHub 整件 rehost（世界观/人物内切，薄壳只读复用）。 */
+const SettingHub = React.lazy(() => import("../pages/SettingHub")) as React.ComponentType<{ active?: boolean }>
 
 /** ProjectCard（Go 投影）→ 书架条目；字段按 Record 弱类型读取，缺省诚实兜底。 */
 function toShelfBook(raw: Record<string, unknown>): SinShelfBook {
@@ -56,6 +63,8 @@ const AppBoard: React.FC = () => {
   const [bookTitle, setBookTitle] = useState("")
   const [opening, setOpening] = useState(false)
   const [sinTab, setSinTab] = useState<SinTab>("chat")
+  // 落章联动信号：回合结束（gaea-event-sin turn_done）递增 → 阅读 tab 重拉章节清单
+  const [chapterTick, setChapterTick] = useState(0)
 
   // 书架清单（书架目录扫描；失败给空清单不报错阻断）
   const reloadBooks = useCallback(async () => {
@@ -89,25 +98,33 @@ const AppBoard: React.FC = () => {
     } catch { setEngineReady(false) }
   }, [])
 
-  // 启动：书架 + 引擎状态 + 会话
+  // 启动：书架 + 引擎状态 + 会话；落章联动订阅（turn_done → chapterTick）
   useEffect(() => {
     void reloadBooks()
     void refreshEngineState()
+    const off = subscribe("gaea-event-sin", (raw) => {
+      const e = (raw || {}) as { kind?: string }
+      if (e.kind === "turn_done") setChapterTick((t) => t + 1)
+    })
+    return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useEffect(() => {
     if (engineReady) void reloadSessions()
   }, [engineReady, reloadSessions])
 
-  // 切书 = 切工作空间：OpenBook → 新会话 → 装载 → 刷新书架/会话
+  // 切书 = 切工作空间：引擎 OpenBook + 小说项目落位（openNovelProject——
+  // 设定/阅读页签的 NovelB 绑定吃全局当前项目）→ 新会话 → 装载 → 刷新
   const handleOpenBook = useCallback(async (path: string) => {
     if (opening) return
     setOpening(true)
     try {
       await app.SinEngineOpenBook(path)
+      const title = booksRef.current.get(path) ?? ""
+      await openNovelProject(path, title)
       setEngineReady(true)
       setBookPath(path)
-      setBookTitle(booksRef.current.get(path) ?? "")
+      setBookTitle(title)
       await ctl.newSession()
       await reloadSessions()
       const st = await app.SinEngineState()
@@ -184,12 +201,12 @@ const AppBoard: React.FC = () => {
             onResumeSession={(p) => void handleResumeSession(p)}
           />
 
-          {/* ── 中：主区页签（故事/轨迹/上下文）── */}
+          {/* ── 中：主区页签（故事/轨迹/上下文/阅读/设定）── */}
           <main className="sin-main">
             <ChatTabs
               active={sinTab}
               onChange={(id) => setSinTab(id as SinTab)}
-              tabs={["chat", "trajectory", "context"]}
+              tabs={["chat", "trajectory", "context", "reading", "setting"]}
               labelOverrides={{ chat: "故事" }}
               className="sin-tabs"
             />
@@ -226,6 +243,18 @@ const AppBoard: React.FC = () => {
                   spaceOverride="娱乐空间"
                   showAgentNetwork={false}
                 />
+              </div>
+            )}
+            {sinTab === "reading" && (
+              <div className="sin-reading-host">
+                <SinReadingPane active={sinTab === "reading"} chapterTick={chapterTick} hasBook={engineReady} />
+              </div>
+            )}
+            {sinTab === "setting" && (
+              <div className="sin-setting-host">
+                <React.Suspense fallback={<div className="novel-tab-skeleton" aria-hidden />}>
+                  <SettingHub active={sinTab === "setting"} />
+                </React.Suspense>
               </div>
             )}
           </main>
