@@ -114,3 +114,12 @@
 - 门禁：config/app 定向测试绿（新增 config_features_test 三例：四向回环/键域隔离/saveSetters+回读链）、
   modelcenter 15 文件 119 例绿、tsc -b 0、eslint 0 错误、构建冒烟 200、INSTALL OK
   （exe SHA256 E073EE0C9D930A1E…，PID 28084 > 构建时刻 18:01:06）
+
+## 追加刀：角色标签页移植（2026-11-15 深夜，同批收官）
+
+小说板块角色页（SettingHub「人物」视图，characters.json+角色库数据面）形态移植到图文主区第七 tab
+「角色」；数据层**不搬**——重接为小说工作空间角色卡 md（角色|characters|人物 目录），与
+wenxue_character_* 专属工具同源（UI 改=agent 所见，agent 回写=UI 刷新即见）。组件
+WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让 AI 完善」（Composer 注入
+@文件+工具指令）+切书刷新。测试 3 例 hermetic；装机 exe A0717380…PID 20044>构建时刻。
+挂池：角色卡立绘（portrait 基建属角色库线）、关系图谱可视化（novel 关系数据模型不同源）。
