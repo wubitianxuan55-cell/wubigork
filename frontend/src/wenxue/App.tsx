@@ -4,7 +4,7 @@ import { Layout, Modal } from "antd";
 import {
   Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
   PanelRight, MessageSquare, Trash2, X, Aim, Inbox,
-  ClipboardList, Sparkles, Table,
+  ClipboardList, Sparkles,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -545,10 +545,12 @@ export default function App() {
       templates.find((template) => template.name === name)
       ?? FALLBACK_TEMPLATES.find((template) => template.name === name)
       ?? FALLBACK_TEMPLATES[fallbackIndex]!;
+    // 2026-11-15 刀4：欢迎页三快捷卡小说化（开篇/续写/大纲），模板与
+    // lib/taskTemplates.ts 八条小说模板同源。
     return [
-      { key: "weekly-report", label: t("office.quickReport"), Icon: FileText, template: resolve("weekly-report", 0) },
-      { key: "meeting-minutes", label: t("office.quickMinutes"), Icon: ClipboardList, template: resolve("meeting-minutes", 1) },
-      { key: "cost-estimate", label: t("office.quickCost"), Icon: Table, template: resolve("cost-estimate", 2) },
+      { key: "chapter-first", label: t("wenxue.quickChapterFirst"), Icon: FileText, template: resolve("chapter-first", 0) },
+      { key: "chapter-continue", label: t("wenxue.quickChapterContinue"), Icon: ClipboardList, template: resolve("chapter-continue", 1) },
+      { key: "outline-push", label: t("wenxue.quickOutlinePush"), Icon: Sparkles, template: resolve("outline-push", 2) },
     ];
   }, [templates, t]);
 
