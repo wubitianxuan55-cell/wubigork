@@ -1,3 +1,47 @@
+## 图文工具首刀收口批（2026-11-16 凌晨）· 众神殿两场裁决施工
+
+- **依据**：pan_1794751177012（工具/技能取舍四轮）+ pan_1794754879290（收口执行
+  四轮）四席+主席收敛，12 项分歧台账全归宿；本批只施工「采纳」面，后置面
+  （完整账本/12→7 合并读入口/批量 compact/结构化 writeback/lint 收益实测）按裁决不动。
+- **六刀**：①`fact_add/list/clear` 图文面除名（办公实现与 RegistryMap 契约行不动）；
+  ②run_skill 接可见 Skill 集合（`skill.NewRunSkillToolFromSet` + `skill.VisibleSkills`
+  装配收敛单点——extras 可达、隐藏名 fail-closed、unknown 提示名单只列可见；
+  办公双 nil 保持 store 活读逐字节）；③媒体根分档（image_gen/ocr `mediaRoot` 注入缝，
+  wx 引擎 `wenxueBaseTools` 注入 wenxueWorkspace，生成图/OCR 不再落办公工作区；
+  vision 不动）；④chapter_list 删假 `dir` 输入参数 + 共享章号 helper
+  （wenxueStemNumber/wenxueAnchorNumber，解析与告警同源）；⑤窄告警两条
+  （章节清单未编号聚合+根回退；时间线 `#` 标题行跳过+缺锚聚合告警附 文件:行号）+
+  追加缺锚回执 hint；⑥workbench 回写句三子串。
+- **测试**：skill 包五例（extras 经 run_skill 返回正文/隐藏名 unknown 且名单不泄露/
+  办公 store 活读不变/同名去重 store-first/subagent 进 runner）+ app 包五例
+  （章节四类 fixture 含 0 号组排序确定/根回退告警/时间线四类 fixture 含标题不进
+  events/追加 hint/三子串断言）+ 一次性探针转正 census 守卫三例。
+- **门禁与装机**：Go app 106s + boot/agent/control/skill/tool/config 全量绿；
+  tsc -b 0；eslint 0；gofmt 改动面清。ucrt64 裸 wails build 1m01.8s（bindings 未
+  跳过）；冒烟 /api/health 200；INSTALL OK（exe SHA256 322C6E5E4664…，
+  PID 22312 > 构建时刻）。
+- **遗留**：novel-agents/novel-deslop/novel-review 三件当前不可达（用户 gaea.toml
+  无 `[skills] paths`，wx store 只扫小说目录项目域）——索引不列、run_skill 不报
+  unknown，B 方案口径自洽；点亮七角色卡须用户侧配置 skills.paths（安装分发链批
+  另议）。台账详见 `进度计划/gaea-wenxue-tools-20261115.md` 首刀收口批段。
+
+## 众神殿续议立题页矮窗遮挡修复（2026-11-15）· 主代理直做
+
+- **实弹根因**：续议会自动展开议题名称、背景与成功标准，额外字段把固定高度
+  工作台撑破；同时 `.pantheon-canvas.is-composing` 仍锁死 `overflow:hidden`，
+  于是议题底稿内的材料、方法、节奏与“开始讨论”被裁掉且无法滚动。
+  1264×670 实测画布仅 602px，底稿内容需要 1069px 才能完整呈现。
+- **修复**：发起态画布改为纵向滚动容器；窗口高度 ≤900px 时立题舞台、左右栏
+  与底稿切换为自然高度；续议出现额外字段时，无论窗口高度都使用自然高度，
+  由画布统一滚动。未展开额外字段的高窗口仍保持原满屏双栏布局。
+- **验证**：1264×670 与 1440×920 实测续议展开态可滚动到完整底稿、起议条、
+  背景/成功标准及右侧配置；1440×920 普通新讨论态仍无画布溢出、双栏等高
+  铺满。`git diff --check` 通过；`npm.cmd run build` 绿（tsc 0，Vite 22.40s；
+  仅保留既有 wenxue CSS 与 chunk 体积告警）；UCRT64 + `CGO_ENABLED=1` 裸
+  `wails build -s -ldflags "-s -w" -trimpath` 50.27s，bindings 未跳过；
+  `build\bin\gaea.exe` 与三枚 DLL 同目录，正式路径冒烟 `/api/health` 200
+  （PID 45456 已回收）。exe SHA256 `A18167BC…BC9221`。未装机。
+
 ## 图文二次改造桌面端打包（2026-11-15）· 主代理直做 · 已构建预览包
 
 - **提交链**：功能提交 `44f8bb6b`（原罪退役、文学板块隔离、左栏小说树、

@@ -8452,9 +8452,10 @@
 
 /* 2026-11-14 · 立题工作台铺满窗口
    底稿与配置共享同一行高度；设置区按“材料 / 方法 / 节奏”三张卡组织。
-   页面本身不滚动，只有展开后的补充字段与配置索引在各自卡片内滚动。 */
+   高窗口优先同屏；矮窗口与续议额外字段按自然高度，由画布统一滚动。 */
 .pantheon-canvas.is-composing {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body:has(.pantheon-canvas.is-composing) {
@@ -8769,6 +8770,72 @@ body:has(.pantheon-canvas.is-composing) {
 
   body:has(.pantheon-canvas.is-composing) {
     overflow: auto;
+  }
+}
+
+/* 续议会自动展开议题名称、背景与成功标准。只要这些字段在场，就不再
+   把两栏压回固定高度，避免底稿操作条被额外字段挤到可视区之外。 */
+.pantheon-canvas.is-composing:has(.pantheon-composer-extra:not(:empty)) .pantheon-compose-stage {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.pantheon-canvas.is-composing:has(.pantheon-composer-extra:not(:empty)) .pantheon-composer-studio {
+  flex: none;
+}
+
+.pantheon-canvas.is-composing:has(.pantheon-composer-extra:not(:empty)) :is(
+  .pantheon-composer--studio,
+  .pantheon-composer-main,
+  .pantheon-composer-config,
+  .pantheon-composer--studio .pantheon-topic-sheet
+) {
+  height: auto;
+}
+
+.pantheon-canvas.is-composing:has(.pantheon-composer-extra:not(:empty)) .pantheon-composer-config,
+.pantheon-canvas.is-composing:has(.pantheon-composer-extra:not(:empty)) .pantheon-composer-extra:not(:empty) {
+  overflow: visible;
+}
+
+.pantheon-canvas.is-composing:has(.pantheon-composer-extra:not(:empty)) .pantheon-composer-extra:not(:empty) {
+  max-height: none;
+}
+
+/* 矮窗口不再强行把整张立题卷塞进固定高度。底稿、材料与配置按自然高度
+   排列，由画布统一滚动；高窗口仍保留上面的同屏工作台布局。 */
+@media (max-height: 900px) {
+  .pantheon-canvas.is-composing .pantheon-compose-stage {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer--studio {
+    height: auto;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-studio {
+    flex: none;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-main,
+  .pantheon-canvas.is-composing .pantheon-composer-config {
+    height: auto;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-config {
+    overflow: visible;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer--studio .pantheon-topic-sheet {
+    height: auto;
+  }
+
+  .pantheon-canvas.is-composing .pantheon-composer-extra:not(:empty) {
+    max-height: none;
+    overflow: visible;
   }
 }
 
