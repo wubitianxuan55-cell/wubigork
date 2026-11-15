@@ -1,3 +1,27 @@
+## 图文二次改造桌面端打包（2026-11-15）· 主代理直做 · 已构建预览包
+
+- **提交链**：功能提交 `44f8bb6b`（原罪退役、文学板块隔离、左栏小说树、
+  会话新建/小说删除、图文去知识库/CAD/进度计划）；构建前补齐 Wails 自动生成的
+  `WenxueB` 10 个 Git 包装器，提交 `404679be`（本包源码提交）。
+- **干净构建**：`.worktrees/pkg-404679be` detached 于 `404679be`，构建前
+  `git status --porcelain` 为空；系统默认 TMP/TEMP、UCRT64 GCC、
+  `CGO_ENABLED=1`，先 `npm.cmd run build`，再
+  `wails build -s -ldflags "-s -w" -trimpath`，未跳过 bindings。
+- **门禁**：前端全量 532 文件/4901 例通过 310.14s；图文定向 13/13；
+  前端总构建 61.774s（Vite 22.58s）；Wails 42.425s；Go
+  `internal/app` 129.558s、`go vet`/golangci-lint 通过；绑定漂移 OK@782。
+  全量 CI 剩余失败仅为本机真实配置写权限、ORT DLL API 版本、realtime
+  pipeline 与 Bash guard 环境差异，已记录为包边界而非声称全绿。
+- **交付物**：`releases/gaea-wenxue-20261115-404679be/`，含正式 payload
+  （exe+三 DLL）、预览 ZIP、源码 TAR、`PACKAGE-INFO.md` 与
+  `SHA256SUMS-404679be.txt`；ZIP 根目录直接为四件套。
+- **冒烟**：正式路径 `payload\gaea.exe` → `/api/health` 200，
+  `{"status":"ok"}`，PID 36124 已回收。
+- **哈希**：exe `08017F55…B049C7EC`，预览 ZIP
+  `357A21E2…0840FC31F`，源码 TAR `D0BBBBA1…7E3D20`。
+- **边界**：未覆盖/安装 `C:\AI\gaea-app`。exe/DLL/ZIP/TAR 留盘不进 Git，
+  包记录与校验清单入库。
+
 ## 图文二次改造第三刀：去除办公知识库/CAD/进度计划关联（2026-11-15）· 主代理直做 · 未提交
 
 - **范围铁律**：只改 `frontend/src/wenxue/` 图文副本，办公板块 `gaea/`、调度器与
