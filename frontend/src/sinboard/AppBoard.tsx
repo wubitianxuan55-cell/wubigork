@@ -9,7 +9,6 @@
 import React, { useCallback, useEffect, useState } from "react"
 import { Button, Modal } from "antd"
 import { ExportOutlined, PlusOutlined } from "@ant-design/icons"
-import { PanelRightClose, PanelRightOpen } from "../gaea/icons"
 import { Composer } from "../gaea/components/Composer"
 import { ContextView } from "../gaea/components/ContextView"
 import { TrajectoryView } from "../gaea/components/TrajectoryView"
@@ -31,7 +30,7 @@ import "../gaea/redesign.css"
 import "../pages/sin/sin.css"
 import "./sinboard.css"
 
-type SinTab = "chat" | "trajectory" | "context" | "reading" | "setting"
+type SinTab = "chat" | "trajectory" | "context" | "memory" | "reading" | "setting"
 
 /** 设定 tab：小说板块 SettingHub 整件 rehost（世界观/人物内切，薄壳只读复用）。 */
 const SettingHub = React.lazy(() => import("../pages/SettingHub")) as React.ComponentType<{ active?: boolean }>
@@ -67,8 +66,6 @@ const AppBoard: React.FC = () => {
   const [sinTab, setSinTab] = useState<SinTab>("chat")
   // 落章联动信号：回合结束（gaea-event-sin turn_done）递增 → 阅读 tab 重拉章节清单
   const [chapterTick, setChapterTick] = useState(0)
-  // 右栏开合（宽窗默认开；原罪同款 PanelRight 语义）
-  const [panelOpen, setPanelOpen] = useState(true)
 
   // 书架清单（书架目录扫描；失败给空清单不报错阻断）
   const reloadBooks = useCallback(async () => {
@@ -184,14 +181,6 @@ const AppBoard: React.FC = () => {
             <Button
               size="small"
               type="text"
-              icon={panelOpen ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
-              onClick={() => setPanelOpen((v) => !v)}
-              title={panelOpen ? "收起创作面板" : "展开创作面板"}
-              aria-label={panelOpen ? "收起创作面板" : "展开创作面板"}
-            />
-            <Button
-              size="small"
-              type="text"
               icon={<ExportOutlined />}
               disabled
               title="导出（刀3 接入）"
@@ -213,12 +202,13 @@ const AppBoard: React.FC = () => {
             onResumeSession={(p) => void handleResumeSession(p)}
           />
 
-          {/* ── 中：主区页签（故事/轨迹/上下文/阅读/设定）── */}
+          {/* ── 中：主区页签（故事/轨迹/上下文/记忆/阅读/设定——记忆位与办公
+              ChatTabs 同席，主区顶部 tab；书级 facts play 空间）── */}
           <main className="sin-main">
             <ChatTabs
               active={sinTab}
               onChange={(id) => setSinTab(id as SinTab)}
-              tabs={["chat", "trajectory", "context", "reading", "setting"]}
+              tabs={["chat", "trajectory", "context", "memory", "reading", "setting"]}
               labelOverrides={{ chat: "故事" }}
               className="sin-tabs"
             />
@@ -257,6 +247,11 @@ const AppBoard: React.FC = () => {
                 />
               </div>
             )}
+            {sinTab === "memory" && (
+              <div className="sin-memory-host">
+                <SinMemoryCard enabled={engineReady} />
+              </div>
+            )}
             {sinTab === "reading" && (
               <div className="sin-reading-host">
                 <SinReadingPane active={sinTab === "reading"} chapterTick={chapterTick} hasBook={engineReady} />
@@ -271,9 +266,9 @@ const AppBoard: React.FC = () => {
             )}
           </main>
 
-          {/* ── 右：创作面板（刀6 完整 pane 化；当前=记忆卡 v1，刀4 落地面）── */}
-          <div className={`sin-side-host${panelOpen ? "" : " is-hidden"}`}>
-            <SinMemoryCard enabled={engineReady} />
+          {/* ── 右：创作面板（刀6 完整 pane 化：文件/交付/创作五卡）── */}
+          <div className={`sin-side-host is-hidden`}>
+            <div />
           </div>
         </div>
 

@@ -186,3 +186,22 @@
   white-space: pre-wrap;
   color: var(--fg);
 }
+
+/* ── 记忆 tab（主区顶部席位，对齐办公 ChatTabs memory 位）── */
+.sin-memory-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  padding: 16px 20px;
+}
+
+.sin-memory-host .sin-memory-card {
+  width: 100%;
+  max-width: 760px;
+  background: var(--md-sys-color-surface, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px;
+}
