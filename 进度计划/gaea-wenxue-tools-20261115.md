@@ -123,3 +123,18 @@ wenxue_character_* 专属工具同源（UI 改=agent 所见，agent 回写=UI �
 WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让 AI 完善」（Composer 注入
 @文件+工具指令）+切书刷新。测试 3 例 hermetic；装机 exe A0717380…PID 20044>构建时刻。
 挂池：角色卡立绘（portrait 基建属角色库线）、关系图谱可视化（novel 关系数据模型不同源）。
+
+## 追加刀：定稿目录+阅读标签页（2026-11-15 深夜，同批收官）
+
+- 定稿域：定稿|final|finalized 目录只放发布稿不放草稿；新建小说/切书脚手架定稿目录；
+  工具三件 wenxue_final_list/read/write（仅定稿目录内写）+域隔离（chapter_write 拒写定稿、
+  final_write 拒越域）；RegistryMap 三行+doc；技能正文补定稿段。
+- 阅读标签页：主区第八 tab「阅读」（WenxueReadingHub）——定稿目录导航（章号序、序章在前、
+  字数徽标）+Markdown 阅读窗（本地图片按章节路径解析）+翻章+切书刷新；工具面板图文专属组补录。
+- 测试：域隔离/脚手架 Go 两例+阅读 Hub 两例 hermetic；门禁全绿。
+- **网页版实测翻车与修复（用户实弹反馈）**：角色/阅读 tab 点击不跳转（tab 高亮内容回落对话）——
+  useSubagentTabs.handleChatTabSelect 视图白名单漏新 id（2026-11-05 同款事故复发）；修复=视图 id
+  收敛单源 CHAT_VIEW_TAB_IDS（ChatTabs 导出）三方同源消费（白名单/持久化校验/渲染）；vite dev
+  :5218 ?mock=1 浏览器驱动实证（tab 跳转+内容渲染+往返+截图）。装机 exe F5AF2C6B…PID 40640。
+- 教训沉淀：**新增主区视图 tab 的三处同步点=ChatTabs TABS/CHAT_VIEW_TAB_IDS、
+  useSubagentTabs 白名单（现已单源化）、App 持久化校验（现已单源化）——单源化后只改 ChatTabs 一处**。
