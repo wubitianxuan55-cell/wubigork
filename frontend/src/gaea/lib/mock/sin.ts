@@ -27,6 +27,8 @@ type SinMethods = Pick<
   | "SinEngineRunning" | "SinEngineNewSession" | "SinEngineState"
   | "SinEngineApprove" | "SinEngineAnswerQuestion" | "SinEngineResyncEvents"
   | "SinEngineListSessions" | "SinEngineResumeSession"
+  | "SinEngineHistory" | "SinEngineContext" | "SinEngineTrajectory"
+  | "SinEngineContextView" | "SinEngineContextNodeDetail"
   | "SinWorkspaceGet" | "SinWorkspaceSet" | "SinWorkspaceUnbind" | "SinWorkspaceBindings"
 >;
 
@@ -502,6 +504,21 @@ export function buildSin(): SinMethods {
     },
     async SinEngineResumeSession(_path: string) {
       return [] as unknown as import("../types").HistoryMessage[];
+    },
+    async SinEngineHistory() {
+      return [] as unknown as import("../types").HistoryMessage[];
+    },
+    async SinEngineContext() {
+      return { used: 0, window: 0 };
+    },
+    async SinEngineTrajectory() {
+      return { turns: [] } as unknown as import("../types").Trajectory;
+    },
+    async SinEngineContextView() {
+      return { ok: true, window: 0 } as unknown as import("../types").ContextTimeline;
+    },
+    async SinEngineContextNodeDetail(_seq: number) {
+      throw new Error("dev mock：无上下文节点详情");
     },
     async SinWorkspaceGet(topicID: string) {
       const b = workspaces.get(topicID);

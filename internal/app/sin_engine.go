@@ -34,6 +34,7 @@ import (
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/control"
+	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/hook"
@@ -43,6 +44,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 	"github.com/gaea/gaea/internal/gaea/sandbox"
+	"github.com/gaea/gaea/internal/gaea/trajectory"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -502,4 +504,85 @@ func (a *App) sinEngineHistory() []HistoryMessage {
 		return out
 	}
 	return buildHistoryMessages(c.History())
+}
+
+// SinEngineHistory 当前会话对话历史（前端 store 装载/兜底消费）。
+func (a *App) SinEngineHistory() []HistoryMessage {
+	return a.sinEngineHistory()
+}
+
+// SinEngineContext 上下文用量快照（fork GaeaContext，读 sin 控制器）。
+func (a *App) SinEngineContext() ContextInfo {
+	c := sinCtrlSnapshot()
+	if c == nil {
+		return ContextInfo{}
+	}
+	used, window := c.ContextSnapshot()
+	info := ContextInfo{Used: used, Window: window}
+	if _, ratio, _ := c.CompactionTiers(); ratio > 0 && window > 0 {
+		info.CompactRatio = ratio
+		left := int(float64(window)*ratio) - used
+		if left < 0 {
+			left = 0
+		}
+		info.CompactLeft = left
+	}
+	return info
+}
+
+// SinEngineTrajectory 会话轨迹时间线（fork GaeaTrajectory，读 sin 会话日志；
+// 折叠器 readEntriesForCached/FoldTrajectory 为同包复用）。
+func (a *App) SinEngineTrajectory() (trajectory.Trajectory, error) {
+	c := sinCtrlSnapshot()
+	if c == nil {
+		return trajectory.EmptyTrajectory(), nil
+	}
+	entries, err := readEntriesForCached(c.SessionPath())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return trajectory.EmptyTrajectory(), nil
+		}
+		return trajectory.EmptyTrajectory(), err
+	}
+	return trajectory.FoldTrajectory(entries), nil
+}
+
+// SinEngineContextView 会话上下文构成快照（fork GaeaContextView）。
+func (a *App) SinEngineContextView() (contextview.ContextTimeline, error) {
+	c := sinCtrlSnapshot()
+	if c == nil {
+		return contextview.EmptyTimeline(), nil
+	}
+	entries, err := readEntriesForCached(c.SessionPath())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return contextview.EmptyTimeline(), nil
+		}
+		return contextview.EmptyTimeline(), err
+	}
+	_, window := c.ContextSnapshot()
+	tl := contextview.FoldTimeline(entries, int64(window), 0)
+	if soft, ratio, force := c.CompactionTiers(); ratio > 0 && soft > 0 && force > 0 {
+		tl.Compact = &contextview.CompactTiers{Soft: soft, Ratio: ratio, Force: force}
+	}
+	return tl, nil
+}
+
+// SinEngineContextNodeDetail 上下文节点「完整调用」详情（fork GaeaContextNodeDetail）。
+func (a *App) SinEngineContextNodeDetail(seq int64) (contextview.NodeDetail, error) {
+	c := sinCtrlSnapshot()
+	if c == nil {
+		return contextview.NodeDetail{}, fmt.Errorf("原罪引擎未初始化")
+	}
+	entries, err := readEntriesForCached(c.SessionPath())
+	if err != nil {
+		return contextview.NodeDetail{}, err
+	}
+	d, ok := contextview.NodeDetailFor(entries, seq)
+	if !ok {
+		return contextview.NodeDetail{}, fmt.Errorf("未找到 seq=%d 的可展开节点", seq)
+	}
+	resolveNodeImages(&d, sinEng.bookPath)
+	resolveNodeAttachments(&d, sinEng.bookPath)
+	return d, nil
 }

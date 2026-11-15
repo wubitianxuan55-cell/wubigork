@@ -35,7 +35,8 @@ vi.mock('./CreatePage', () => ({
 vi.mock('./ChapterPage', () => ({
   default: ({ active }: { active?: boolean }) => <div data-testid="pane-chapter" data-active={String(active)} />,
 }))
-vi.mock('./OriginalSinPage', () => ({
+// 2026-11-15 升格刀：sin 页签组件切到 sinboard/AppBoard（独立引擎壳），桩同步改路径。
+vi.mock('../sinboard/AppBoard', () => ({
   default: ({ active }: { active?: boolean }) => <div data-testid="pane-sin" data-active={String(active)} />,
 }))
 

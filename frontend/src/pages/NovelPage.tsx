@@ -47,7 +47,10 @@ const ChapterPage = React.lazy(() => import('./ChapterPage')) as React.Component
 // 按 NovelPaneProps 对齐类型只为 pane 渲染处的统一 props 面——页面本体不消费
 // active（无 window 级监听），隐藏 ≠ 卸载期间行为与既有板块级 keepAlive 一致
 // （Composer 草稿/流式订阅/插图进度不因切页签而丢）。
-const OriginalSinPage = React.lazy(() => import('./OriginalSinPage')) as React.ComponentType<NovelPaneProps>
+// 2026-11-15 升格刀：sin 页签切到独立引擎壳（sinboard/AppBoard——fork 办公架构
+// +书架工作空间+SinEngine* 绑定）；旧 OriginalSinPage（legacy 管线）保留文件，
+// 刀8 退役删除。
+const OriginalSinPage = React.lazy(() => import('../sinboard/AppBoard')) as React.ComponentType<NovelPaneProps>
 
 /** 2026-10-27 大道至简重组：'character' 页签退役并入设定（SettingHub「人物」视图） */
 export type NovelTab = 'home' | 'novelsetting' | 'create' | 'chapter' | 'sin'

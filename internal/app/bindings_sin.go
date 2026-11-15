@@ -28,6 +28,10 @@ func (b *SinB) SinContextView(topicID string) (contextview.ContextTimeline, erro
 func (b *SinB) SinEngineAnswerQuestion(id string, answers []event.AskAnswer) error { return b.a.SinEngineAnswerQuestion(id, answers) }
 func (b *SinB) SinEngineApprove(id string, decision string) error { return b.a.SinEngineApprove(id, decision) }
 func (b *SinB) SinEngineCancel() { b.a.SinEngineCancel() }
+func (b *SinB) SinEngineContext() ContextInfo { return b.a.SinEngineContext() }
+func (b *SinB) SinEngineContextNodeDetail(seq int64) (contextview.NodeDetail, error) { return b.a.SinEngineContextNodeDetail(seq) }
+func (b *SinB) SinEngineContextView() (contextview.ContextTimeline, error) { return b.a.SinEngineContextView() }
+func (b *SinB) SinEngineHistory() []HistoryMessage { return b.a.SinEngineHistory() }
 func (b *SinB) SinEngineListSessions() []SessionMeta { return b.a.SinEngineListSessions() }
 func (b *SinB) SinEngineNewSession() error { return b.a.SinEngineNewSession() }
 func (b *SinB) SinEngineOpenBook(bookPath string) error { return b.a.SinEngineOpenBook(bookPath) }
@@ -37,6 +41,7 @@ func (b *SinB) SinEngineRunning() bool { return b.a.SinEngineRunning() }
 func (b *SinB) SinEngineSend(input string) error { return b.a.SinEngineSend(input) }
 func (b *SinB) SinEngineState() SinEngineStateView { return b.a.SinEngineState() }
 func (b *SinB) SinEngineSteer(input string) error { return b.a.SinEngineSteer(input) }
+func (b *SinB) SinEngineTrajectory() (trajectory.Trajectory, error) { return b.a.SinEngineTrajectory() }
 func (b *SinB) SinExportEpub(topicID string) (string, error) { return b.a.SinExportEpub(topicID) }
 func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.SinExportMarkdown(topicID) }
 func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }

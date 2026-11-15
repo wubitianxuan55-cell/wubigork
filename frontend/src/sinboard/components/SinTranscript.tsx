@@ -1,0 +1,1167 @@
+/* eslint-disable react-refresh/only-export-components -- buildSegments 纯函数导出供测试与消息渲染复用 */
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { AlertCircle, ArrowDown, Ban, CheckCircle, ChevronRight, FileText, ListTree, Loader } from "../../gaea/icons";
+import { LxThought } from "../../gaea/components/lingxiIcons";
+import type { Item } from "../lib/store";
+import { useItems, useTurnStartAt } from "../lib/store";
+import { t, useT } from "../../gaea/lib/i18n";
+import { AssistantMessage, UserMessage } from "./SinMessage";
+import { StreamingIndicator } from "../../gaea/components/StreamingIndicator";
+import { WorkHeader } from "./SinWorkHeader";
+import { ToolCard } from "../../gaea/components/ToolCard";
+import { ToolGroup, scanGroups } from "../../gaea/components/ToolGroup";
+import { ErrorCard } from "../../gaea/components/ErrorCard";
+import { useEntranceAnimation } from "../../gaea/lib/useEntranceAnimation";
+import { useGSAPCollapse } from "../../gaea/lib/useGSAPCollapse";
+import { useNow } from "../../gaea/lib/useNow";
+import { displayReasoningText } from "../../gaea/lib/reasoningDisplay";
+
+
+// ── 滚动参数 ──────────────────────────────────────────────────────────
+const BOTTOM_THRESHOLD_PX = 80;
+const NOOP_SCROLL = () => {};
+
+function isNearBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD_PX;
+}
+
+type ToolItem = Extract<Item, { kind: "tool" }>;
+
+// scrollVersion: 轻量级内容变化信号
+function scrollVersion(items: Item[]): string {
+  const n = items.length;
+  if (n === 0) return "0";
+  const last = items[n - 1];
+  switch (last.kind) {
+    case "assistant":
+      return `${n}:${last.id}:${last.text.length}:${last.streaming ? 1 : 0}`;
+    case "tool":
+      return `${n}:${last.id}:${last.status}`;
+    default:
+      return `${n}:${last.id}`;
+  }
+}
+
+// mergeConsecutiveReasoning: 合并连续纯推理消息
+function mergeConsecutiveReasoning(items: Item[]): Item[] {
+  const out: Item[] = [];
+  for (const it of items) {
+    let prevIdx = out.length - 1;
+    while (prevIdx >= 0) {
+      const pi = out[prevIdx];
+      if (pi.kind === "phase" || pi.kind === "notice") { prevIdx--; continue; }
+      if (pi.kind === "tool" && pi.name === "todo_write") { prevIdx--; continue; }
+      break;
+    }
+    const prev = prevIdx >= 0 ? out[prevIdx] : null;
+    if (
+      prev && prev.kind === "assistant" && it.kind === "assistant" &&
+      !prev.text && !it.text && !prev.streaming && !it.streaming
+    ) {
+      out[prevIdx] = { ...prev, reasoning: prev.reasoning + "\n\n" + it.reasoning };
+    } else {
+      out.push(it);
+    }
+  }
+  return out;
+}
+
+type AssistantItem = Extract<Item, { kind: "assistant" }>;
+
+// ── 过程卡：把一轮助手回合的“思考 + 工具调用”收进可折叠卡片 ──
+// 参考 tianxuan 桌面端 TurnCollapse：运行中自动展开，完成后自动收起，
+// 头部显示耗时 / 工具数 / 思考段数，正文按“思考 → 工具批次”分段。
+// 2026-08-26 决策（用户）：删除「大过程卡」——已完成轮不再把整轮合并成一张
+// 展开的大卡，文本与过程卡分开：正文始终以独立消息显示，过程（思考/工具）
+// 单独成小卡、默认折叠。所有轮次统一走 alternatingSegments（与流式一致）。
+
+type Segment = { processItems: Item[]; outsideItems: Item[] };
+
+// 流式进行中的轮 / 已完成轮：与 tianxuan 一致，正文与过程卡交替出现。
+// （用户决策 2026-08-26 起不再区分：删除大过程卡后，全部轮次统一交替。）
+function alternatingSegments(turn: Item[]): Segment[] {
+  const segments: Segment[] = [];
+  let curProcess: Item[] = [];
+  let curOutside: Item[] = [];
+  const flush = () => {
+    if (curProcess.length > 0 || curOutside.length > 0) {
+      segments.push({ processItems: curProcess, outsideItems: curOutside });
+      curProcess = [];
+      curOutside = [];
+    }
+  };
+  for (const it of turn) {
+    if (it.kind === "user") {
+      flush();
+      segments.push({ processItems: [], outsideItems: [it] });
+      continue;
+    }
+    if (it.kind === "assistant") {
+      if (it.text) {
+        // 与 tianxuan 一致：正文出现时先落盘当前过程，正文留在外面，
+        // 后续工具/思考再开新过程段 —— 形成“文本 ↔ 过程卡”交替效果。
+        if (curOutside.length > 0) flush();
+        if (it.reasoning) curProcess.push({ ...it, text: "" } as Item);
+        curOutside.push({ ...it, reasoning: "" } as Item);
+      } else {
+        if (curOutside.length > 0) flush();
+        curProcess.push(it);
+      }
+      continue;
+    }
+    if (curOutside.length > 0) flush();
+    // v4.26 phase 收编：phase 不再独立成行走消息流（此前堆叠成一行行
+    // 「.phase」弱存在感文本）——统一进过程卡：最新 phase 由 WorkHeader
+    // 工作态头部展示，历史 phase 折叠在过程卡内。item 形态不变。
+    // v4.419 notice 摘出分组：动词回执（/plan on 等）与失败告警此前被折叠
+    // 进过程卡默认不可见（真机走查实锤）——notice 一律独立成行渲染。
+    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "phase") {
+      curProcess.push(it);
+    } else {
+      curOutside.push(it);
+    }
+  }
+  flush();
+  return segments;
+}
+
+export function buildSegments(items: Item[], _running = false): Segment[] {
+  // 先按用户消息切成轮
+  const turns: Item[][] = [];
+  let curTurn: Item[] = [];
+  for (const it of items) {
+    if (it.kind === "user") {
+      if (curTurn.length > 0) turns.push(curTurn);
+      curTurn = [it];
+    } else {
+      curTurn.push(it);
+    }
+  }
+  if (curTurn.length > 0) turns.push(curTurn);
+
+  // 2026-08-26（用户决策）：删除大过程卡——所有轮次（含已完成）统一交替，
+  // 文本独立显示、过程单独成卡，不再把文本和过程包在一张卡片内。
+  // 2026-09-18（尾随工具段合并）：store 事件序里工具项物理上排在流式
+  // assistant 项之后（reasoning/text 先建项、tool_dispatch 尾追），末段若为
+  // 纯过程段（无正文），时序上它属于本轮回答的生成过程而非「答后动作」——
+  // 并回前一段（前一段必有正文），过程卡随 Codex 语义渲染在正文之前。
+  const segments: Segment[] = [];
+  turns.forEach((turn) => {
+    const segs = alternatingSegments(turn);
+    if (segs.length >= 2) {
+      const last = segs[segs.length - 1];
+      const prev = segs[segs.length - 2];
+      const lastHasText = last.outsideItems.some((it) => it.kind === "assistant" && it.text);
+      const prevHasText = prev.outsideItems.some((it) => it.kind === "assistant" && it.text);
+      if (!lastHasText && last.processItems.length > 0 && prevHasText) {
+        prev.processItems = [...prev.processItems, ...last.processItems];
+        segs.pop();
+      }
+    }
+    segments.push(...segs);
+  });
+  return segments;
+}
+
+// segSig 计算一段内容的版本签名（T7-4 轮级缓存用）：流式只改最后一轮时，
+// 已完成段的 item 引用与内容都不变 → 签名不变 → Transcript 复用缓存段对象，
+// TurnBlock（memo）才能整体跳过重渲染。
+function segSig(seg: Segment): string {
+  let s = "";
+  for (const it of [...seg.processItems, ...seg.outsideItems]) {
+    if (it.kind === "assistant") s += `${it.id}:${it.text.length}:${it.reasoning.length}:${it.streaming ? 1 : 0};`;
+    else if (it.kind === "tool") s += `${it.id}:${it.status}:${it.output?.length ?? 0};`;
+    else s += `${it.id};`;
+  }
+  return s;
+}
+
+// buildSubcalls 收集段内的父子工具调用（parentId → 子调用列表），供本段的
+// 过程卡与外部工具卡渲染子调用。
+function buildSubcalls(seg: Segment): Map<string, ToolItem[]> {
+  const map = new Map<string, ToolItem[]>();
+  for (const it of [...seg.processItems, ...seg.outsideItems]) {
+    if (it.kind === "tool" && it.parentId) {
+      const arr = map.get(it.parentId) ?? [];
+      arr.push(it);
+      map.set(it.parentId, arr);
+    }
+  }
+  return map;
+}
+
+// renderOutsideItems 渲染段内正文元素（用户/助手/工具/阶段/通知/压缩卡）。
+// 顶层纯函数 + TurnBlock 内 useMemo：段 props 不变时整棵子树跳过重渲染。
+function renderOutsideItems(
+  outsideItems: Item[],
+  ctx: {
+    turnNo?: number;
+    /** 轮尾段才合并登记-only 交付卡（同轮去重）。 */
+    turnTail?: boolean;
+    openTurn: number | null;
+    onToggleTurn: (tn: number) => void;
+    onRewindTurn: (turn: number, scope: string) => void;
+    onCollapse: () => void;
+    dismissedErrors: Set<string>;
+    onDismissError: (id: string) => void;
+    /** v4.232 重新生成：符合条件的那条 assistant 消息 id（当前会话最后一条
+     *  且非运行中；undefined=无）。回调 props 恒稳定，不击穿 AssistantMessage memo。 */
+    canRegenerateId?: string;
+    onRegenerateTurn?: (turn: number) => void;
+    /** v4.238 回答反馈能力开关（App 层恒传 true）。 */
+    onFeedback?: boolean;
+    /** 轮尾登记合并卡须排除的路径键集（同轮其它段正文已提及的文件）。 */
+    deliverOmitPaths?: ReadonlySet<string>;
+    /** 波3.5 实弹反馈：本段正文卡的跨段去重 omit 集（同轮内该路径的首现段
+     *  才渲染正文卡，后续段提及同文件不再重复出卡——修复「交付文件卡重复
+     *  出现相同的好几个」）。 */
+    textOmitPaths?: ReadonlySet<string>;
+    subcalls: Map<string, ToolItem[]>;
+    setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
+  },
+): React.ReactNode[] {
+  const gs = scanGroups(outsideItems);
+  return gs.map((g) => {
+    if (g.kind === "group") {
+      return <ToolGroup key={g.id} tools={g.tools} onCollapse={ctx.onCollapse} />;
+    }
+    const it = g.item;
+    switch (it.kind) {
+      case "user": {
+        const tn = ctx.turnNo;
+        return (
+          <div
+            key={it.id}
+            data-turn={tn != null ? tn : undefined}
+            data-entrance={it.id}
+            ref={tn != null ? ctx.setTurnEl(tn) : undefined}
+          >
+            {/* v4.27 回合分隔：第 2 轮起在用户消息上方加细分隔线 + 轮次小标
+                （Codex 式回合结构，长会话可扫描；首轮无分隔）。 */}
+            {tn != null && tn > 0 && (
+              <div className="turn-divider" role="separator" aria-label={t("msg.turnDivider", { n: tn + 1 })}>
+                <span>{t("msg.turnDivider", { n: tn + 1 })}</span>
+              </div>
+            )}
+            <UserMessage
+              text={it.text} turn={tn}
+              open={tn != null && ctx.openTurn === tn}
+              onToggle={tn != null ? () => ctx.onToggleTurn(tn) : undefined}
+              onRewind={ctx.onRewindTurn}
+            />
+          </div>
+        );
+      }
+      case "assistant":
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <AssistantMessage
+              item={it}
+              turnNo={ctx.turnNo}
+              deliverTail={ctx.turnTail}
+              deliverOmitPaths={(() => {
+                // 正文卡跨段去重（textOmit）恒生效；轮尾段再并上登记合并卡的
+                // tailOmit（登记-only 卡排除同轮其它段正文提及——既有语义不变）。
+                const merged = new Set<string>();
+                if (ctx.textOmitPaths) for (const k of ctx.textOmitPaths) merged.add(k);
+                if (ctx.turnTail && ctx.deliverOmitPaths) for (const k of ctx.deliverOmitPaths) merged.add(k);
+                return merged.size > 0 ? merged : undefined;
+              })()}
+              onCollapse={ctx.onCollapse}
+              canRegenerate={ctx.canRegenerateId === it.id}
+              onRegenerateTurn={ctx.onRegenerateTurn}
+              onFeedback={ctx.onFeedback}
+            />
+          </div>
+        );
+      case "tool":
+        if (it.parentId) return null;
+        if (it.name === "todo_write") return null;
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <ToolCard item={it} subcalls={ctx.subcalls.get(it.id)} />
+          </div>
+        );
+      case "phase":
+        // v4.26 phase 收编：phase 统一进过程卡 + 最新进 WorkHeader 头部，
+        // 不再在消息流里渲染独立行（此分支仅防御历史/异常路径）。
+        return null;
+      case "notice":
+        // 波3.5 实弹反馈：提炼记忆提示由 notice 文本行升级为结构化卡片
+        //（点击弹窗查看建议内容+接受/忽略操作）。
+        if (isDreamSuggestNotice(it.text)) {
+          return <MemorySuggestCard key={it.id} text={it.text} />;
+        }
+        if (it.level === "warn") {
+          if (ctx.dismissedErrors.has(it.id)) return null;
+          return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={ctx.onDismissError} />;
+        }
+        if (it.text.startsWith("diagnostics:")) {
+          const clean = it.text.includes("— clean");
+          return (
+            <div key={it.id} className={`flex items-center gap-1.5 px-4 py-1 text-[11px] ${clean ? "text-ok" : "text-warning"}`}>
+              <span aria-hidden className="shrink-0">{clean ? <CheckCircle size={12} className="text-ok" /> : <AlertCircle size={12} className="text-warning" />}</span>
+              <span>{it.text}</span>
+            </div>
+          );
+        }
+        return <div key={it.id} className="notice">{it.text}</div>;
+      case "compaction":
+        return <CompactionCard key={it.id} item={it} />;
+      default:
+        return null;
+    }
+  });
+}
+
+// T7-4 轮级 memo：把每一段的渲染拆进独立 memo 组件。流式只追加/修改最后一轮
+// 时，其余已完成的段（props 引用不变）整体跳过重渲染——避免每 chunk 全量
+// 重建消息树造成的滚动/渲染卡顿。onToggle/onRewind 等回调全部
+// 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
+export const TurnBlock = memo(function TurnBlock({
+  seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
+  dismissedErrors, onDismissError, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
+}: {
+  seg: Segment;
+  running: boolean;
+  isLast: boolean;
+  turnNo?: number;
+  /** 本段是否为所属轮的最后一段（登记-only 交付卡只挂轮尾）。 */
+  turnTail?: boolean;
+  openTurn: number | null;
+  onToggleTurn: (tn: number) => void;
+  onRewindTurn: (turn: number, scope: string) => void;
+  onCollapse: () => void;
+  dismissedErrors: Set<string>;
+  onDismissError: (id: string) => void;
+  canRegenerateId?: string;
+  onRegenerateTurn?: (turn: number) => void;
+  /** v4.238 回答反馈能力开关（透传 AssistantMessage）。 */
+  onFeedback?: boolean;
+  turnElsRef: React.MutableRefObject<Map<number, HTMLElement>>;
+  /** v4.26 工作态头部：锚定在最后一轮的用户消息段（WorkHeader 自订 store 的
+   *  running/turnStartAt/items，running→done 转换不依赖本组件重渲染）。 */
+  workHeader?: boolean;
+  /** 本轮（工作态头部所属轮）存在过程卡时，完成态「已完成·用时」行被
+   *  过程卡头部（已工作 Xs · …）取代——同组信息不再占两行。 */
+  turnDoneSuppressed?: boolean;
+  /** 本段为轮尾且轮尾无正文时，登记-only 交付卡改挂在本段（登记合并口径
+   *  不变）；值为同轮其它段正文已提及的路径键集，防同文件双卡。 */
+  tailOmitMentions?: ReadonlySet<string>;
+  /** 波3.5 实弹反馈：本段正文卡的跨段去重 omit 集（同轮首现段渲染、后续段
+   *  提及同文件不再重复出卡）。 */
+  textOmitMentions?: ReadonlySet<string>;
+}) {
+  // v4.505：todo_write 不进过程卡——待办有专属面板（useTodoExtractor →
+  // 任务待办区），外部项渲染线同款过滤（renderOutsideItems）；
+  // 此前只有外部线滤了、过程卡体内漏滤，每轮待办更新以裸 todo_write 卡
+  // （展开整包 todos JSON）堆在卡内。纯 todo_write 段不空壳出卡。
+  const visibleProcess = useMemo(() => {
+    const withoutTodos = seg.processItems.filter(
+      (it) => !(it.kind === "tool" && it.name === "todo_write"),
+    );
+    return withoutTodos.filter((_, index) => !isRedundantThinkingPhase(withoutTodos, index));
+  }, [seg.processItems]);
+  const toolCount = visibleProcess.filter((it) => it.kind === "tool" && !it.parentId).length;
+  const thoughtCount = visibleProcess.filter((it) => it.kind === "assistant" && it.reasoning).length;
+  const hasProcess = visibleProcess.length > 0;
+  const subcalls = useMemo(() => buildSubcalls(seg), [seg]);
+  const setTurnEl = useCallback(
+    (tn: number) => (el: HTMLElement | null) => {
+      if (el) turnElsRef.current.set(tn, el);
+      else turnElsRef.current.delete(tn);
+    },
+    [turnElsRef],
+  );
+  const outside = useMemo(
+    () =>
+      renderOutsideItems(seg.outsideItems, {
+        turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
+        dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback,
+        deliverOmitPaths: tailOmitMentions, textOmitPaths: textOmitMentions, subcalls, setTurnEl,
+      }),
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, textOmitMentions, subcalls, setTurnEl],
+  );
+  // 轮尾无正文段（reasoning-first 回合里工具段在正文之后成为轮尾）：
+  // 登记-only 交付卡原来只挂在轮尾段的 AssistantMessage 上，这里整段缺席
+  // 会导致本轮登记的产物卡整体丢失——补挂在本段末尾（跨段去重见
+  // tailOmitMentions）。
+  const tailHasText = seg.outsideItems.some((it) => it.kind === "assistant" && it.text);
+  return (
+    <>
+      {hasProcess && (
+        <ProcessCard
+          items={visibleProcess}
+          toolCount={toolCount}
+          thoughtCount={thoughtCount}
+          running={running && isLast}
+          small={running && !isLast}
+          subcallsByParent={subcalls}
+        />
+      )}
+      {seg.outsideItems.length > 0 && outside}
+      {turnTail && turnNo != null && !tailHasText && (
+        <DeliverableCards text="" turnNo={turnNo} mergeRegistry omitPaths={tailOmitMentions} />
+      )}
+      {/* 工作态头部只负责过程卡出现前的死寂窗口。过程卡一旦出现，其头部
+          已承载运行状态、耗时、工具数和思考数，这里不再重复“思考中…”。 */}
+      {workHeader && <WorkHeader doneSuppressed={turnDoneSuppressed} />}
+    </>
+  );
+});
+
+// 过程卡内的思考块（复用 .reasoning 样式）。
+// metaLines：bare 模式（纯思考段无卡头）时把行数摘要并进思考行头部
+// （i18n 由 InlineReasoning 的 useT 格式化），替代原「已工作 · N 段思考」
+// 卡头信息，避免同组信息占两行。
+function InlineReasoning({ item, metaLines }: { item: AssistantItem; metaLines?: number }) {
+  // 思考卡始终默认折叠；运行中只在折叠头展示最新一行摘要。
+  const [open, setOpen] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
+  const t = useT();
+  const running = item.streaming && !item.text;
+  useGSAPCollapse(bodyRef, open);
+  const reasoning = displayReasoningText(item.reasoning ?? "", {
+    streaming: item.streaming ?? false,
+    truncateStreaming: true,
+  });
+  const preview = running && !open
+    ? reasoning.split("\n").map((line) => line.trim()).filter(Boolean).at(-1) ?? ""
+    : "";
+  if (!reasoning) return null;
+  return (
+    <div className="reasoning">
+      <button
+        type="button"
+        className="reasoning__head"
+        data-running={running ? "" : undefined}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+      >
+        <LxThought width={12} height={12} className="reasoning__icon" />
+        <span className="reasoning__label">{running ? t("msg.thinkingRunning") : t("reasoning.label")}</span>
+        <span className="reasoning__preview" title={preview || undefined}>{preview}</span>
+        {metaLines != null && <span className="reasoning__meta">{t(metaLines === 1 ? "reasoning.metaLineOne" : "reasoning.metaLines", { n: metaLines })}</span>}
+        <ChevronRight size={12} className={`reasoning__chevron${open ? " reasoning__chevron--open" : ""}`} />
+      </button>
+      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="reasoning__body">{reasoning}</div>
+      </div>
+    </div>
+  );
+}
+
+const THINKING_PHASE_TEXTS = new Set(["思考中", "思考中…"]);
+
+// processItems 里，模型每轮调用前会先落一条 phase「思考中」，随后才落
+// assistant.reasoning。两者同时展示时，前一条只是状态占位，思考卡已经承担
+// 了同一信息。仅在后续确有 reasoning 时折叠该 phase；首包尚未到达时仍保留，
+// 避免运行态重新变成静默窗口。
+function isRedundantThinkingPhase(items: Item[], index: number): boolean {
+  const item = items[index];
+  if (item.kind !== "phase" || !THINKING_PHASE_TEXTS.has(item.text.trim())) return false;
+  for (let i = index + 1; i < items.length; i++) {
+    const next = items[i];
+    if (next.kind === "phase" || next.kind === "tool" || next.kind === "compaction") return false;
+    if (next.kind === "assistant" && next.reasoning.trim()) return true;
+  }
+  return false;
+}
+
+function ProcessPhaseLine({ text }: { text: string }) {
+  return (
+    <div className="phase office-phase-line">
+      <LxThought width={12} height={12} />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+// T7-4：ProcessCard 也加 memo——流式期间已完成轮的过程卡 props 不变，
+// 无需随每 chunk 重渲染内部工具/思考卡。
+
+// ── 过程卡状态四态（推导纯函数在 lib/processStatus.ts：
+//    状态不只靠颜色——色 + 图标 + 文字三重传达，12 主题下可区分）──
+import { deriveProcessStatus, PROCESS_STATUS_META } from "../../gaea/lib/processStatus";
+import { turnTailSegs } from "../../gaea/lib/deliverablesTurn";
+import { deliverableMentions } from "../../gaea/lib/fileLinks";
+import { deliverablePathKey } from "../../gaea/lib/deliverablesTurn";
+import { isDreamSuggestNotice } from "../../gaea/lib/memorySuggest";
+import { MemorySuggestCard } from "../../gaea/components/MemorySuggestCard";
+import { DeliverableCards } from "../../gaea/components/DeliverableCards";
+
+// v4.350：提及扫描按文本内容缓存。流式期间 items 每 chunk 换引用，tailOmitBySeg
+// 的 useMemo 随 segments 新身份每 chunk 重算，原实现对全会话所有 assistant 正文
+// 跑两遍全局正则——长会话（数百 KB 文本）下每 chunk 数 ms~数十 ms，打字/滚动
+// 卡顿。段内文本完成后不可变，缓存命中后每 chunk 只对仍在增长的流式段付扫描成本。
+// 值为 deliverablePathKey 集合；上限清理防跨会话文本滞留。
+const mentionsCache = new Map<string, Set<string>>();
+function deliverableMentionKeysCached(text: string): Set<string> {
+  let hit = mentionsCache.get(text);
+  if (!hit) {
+    if (mentionsCache.size > 512) mentionsCache.clear();
+    hit = new Set<string>();
+    for (const p of deliverableMentions(text)) hit.add(deliverablePathKey(p));
+    mentionsCache.set(text, hit);
+  }
+  return hit;
+}
+
+const STATUS_ICONS = { alert: AlertCircle, ban: Ban, check: CheckCircle } as const;
+
+export const ProcessCard = memo(function ProcessCard({
+  items,
+  toolCount,
+  thoughtCount,
+  running = false,
+  small = false,
+  subcallsByParent,
+}: {
+  items: Item[];
+  toolCount: number;
+  thoughtCount: number;
+  running?: boolean;
+  /** 流式交替段的小过程卡（默认折叠）；false = 展开态（默认展开） */
+  small?: boolean;
+  subcallsByParent: Map<string, ToolItem[]>;
+}) {
+  // Codex 对齐（2026-09-18）：过程卡只在运行中自动展开（实时活动可见），
+  // 完成即收起为一行「已工作 Xs · …」；历史会话恢复同样折叠。用户手动
+  // 展开/折叠过则不干预。展开态的「默认展开」旧行为已废——完成后整卡
+  // 摊开（思考+每个工具各占一行）是对话流垂直噪音的主源。
+  const [open, setOpen] = useState(false);
+  const userOverridden = useRef(false);
+  const prevRunningRef = useRef(running);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
+  const turnStartAt = useTurnStartAt();
+  // v4.350：仅运行中订阅全局时钟——已完成过程卡（历史会话可达数百张）不再
+  // 每秒重渲染；完成定格走 finalElapsedRef（下），不依赖 now 持续更新。
+  const now = useNow(running);
+  const finalElapsedRef = useRef(0);
+  useGSAPCollapse(bodyRef, open);
+  const visibleItems = useMemo(
+    () => items.filter((_, index) => !isRedundantThinkingPhase(items, index)),
+    [items],
+  );
+
+  useEffect(() => {
+    const wasRunning = prevRunningRef.current;
+    prevRunningRef.current = running;
+    // 2026-11-13 二轮实弹（用户）：running 卡不再自动展开——折叠态+「最近三行」
+    // 活尾巴即完整运行视图；完成/历史卡折叠为一行状态摘要（用户手动展开过则
+    // 保留展开，userOverridden 语义不变）。
+    if (wasRunning && !running && !userOverridden.current) {
+      setOpen(false);
+      finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+    }
+  }, [running, turnStartAt, now]);
+
+  const elapsed = running
+    ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
+    : finalElapsedRef.current;
+  const elapsedStr = elapsed > 0
+    ? (elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`)
+    : "";
+
+  // 纯思考段（只有 reasoning、无工具/阶段/通知）：不出过程卡——卡头
+  // 「已工作 · N 段思考」与卡内「思考」行是同组信息占两行，是消息流
+  // 视觉噪音的主要来源。改为一行裸思考块（bare），行数/耗时并进思考行。
+  const bare = toolCount === 0 && thoughtCount > 0 &&
+    visibleItems.every((it) => it.kind === "assistant");
+
+  const labelParts: string[] = [];
+  if (elapsedStr) labelParts.push(t("process.worked", { t: elapsedStr }));
+  if (toolCount > 0) labelParts.push(t(toolCount === 1 ? "process.toolOne" : "process.toolOther", { n: toolCount }));
+  if (thoughtCount > 0) labelParts.push(t(thoughtCount === 1 ? "process.thoughtOne" : "process.thoughtOther", { n: thoughtCount }));
+  const detail = labelParts.length > 0
+    ? labelParts.join(" · ")
+    : (running ? t("process.working") : "");
+
+  // 波3.5 三轮实弹：**运行中**过程卡折叠态显示**最近三个卡片**（工具卡形态，
+  // 可展开看内容——非文本行）；已完成卡折叠=一行状态摘要无尾巴，全部内容
+  // 展开查看。running 不自动展开=折叠+三卡尾巴即完整运行视图。
+  const recentItems = useMemo(() => {
+    const acts: Item[] = [];
+    for (const it of visibleItems) {
+      if (it.kind === "tool") {
+        if (it.parentId) continue;
+        acts.push(it);
+      } else if (it.kind === "assistant" && it.reasoning) {
+        acts.push(it);
+      } else if (it.kind === "phase") {
+        acts.push(it);
+      }
+    }
+    return acts.slice(-3);
+  }, [visibleItems]);
+
+  // 状态四态：色 + 图标 + 文字（头部徽标传达）
+  const status = deriveProcessStatus(visibleItems, running);
+  const statusMeta = status !== "idle" ? PROCESS_STATUS_META[status] : null;
+  const StatusIcon = statusMeta?.icon ? STATUS_ICONS[statusMeta.icon] : null;
+
+  // v4.26：运行中最新 phase 已上 WorkHeader 工作态头部，卡内不再重复展示
+  // （历史 phase 折叠在卡内）；轮完成后头部转耗时行，全部 phase 回到卡内。
+  const lastPhaseId = running
+    ? visibleItems.reduceRight<string>((acc, it) => acc || (it.kind === "phase" ? it.id : ""), "")
+    : "";
+
+  const body = useMemo(() => {
+    const out: React.ReactNode[] = [];
+    // v4.26 重复工具折叠（Claude Code "Called slack 3 times" 式）：只折叠
+    // 全部完成的连续同名调用；running 的保持独立卡不折叠。
+    const grouped = scanGroups(visibleItems, { skipRunning: true });
+    for (const gi of grouped) {
+      if (gi.kind === "group") {
+        out.push(
+          <div key={gi.id} className="office-process-step" data-kind="tool-group">
+            <ToolGroup tools={gi.tools} />
+          </div>,
+        );
+        continue;
+      }
+      const it = gi.item;
+      switch (it.kind) {
+        case "assistant":
+          if (it.reasoning) out.push(
+            <div key={it.id} className="office-process-step" data-kind="reasoning">
+              <InlineReasoning item={it as AssistantItem} metaLines={bare ? it.reasoning.split("\n").filter((l) => l.trim()).length : undefined} />
+            </div>,
+          );
+          /* batch3 UI：过程流不再渲染中间叙述文本盒（灵犀形态=折叠条+思考+工具
+             步骤三类；最终答复由主回答区承担）——2026-11-13 用户反馈删除。 */
+          break;
+        case "tool":
+          if (it.parentId) break;
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="tool">
+              <ToolCard item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />
+            </div>,
+          );
+          break;
+        case "phase":
+          if (it.id === lastPhaseId) break;
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="phase">
+              <ProcessPhaseLine text={it.text} />
+            </div>,
+          );
+          break;
+        case "notice":
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="notice">
+              <div className="notice">{it.text}</div>
+            </div>,
+          );
+          break;
+        case "compaction":
+          out.push(
+            <div key={it.id} className="office-process-step" data-kind="compaction">
+              <CompactionCard item={it} />
+            </div>,
+          );
+          break;
+      }
+    }
+    return out;
+  }, [visibleItems, subcallsByParent, lastPhaseId, bare]);
+
+  // 纯思考段：只渲染裸思考行（无卡头/无耗时角标）；行数摘要见 InlineReasoning。
+  if (bare) {
+    return (
+      <div className="my-1 space-y-0.5" data-bare-process="">
+        {body}
+      </div>
+    );
+  }
+
+  // 过程卡是轮级执行摘要：完成态保持一行，运行态自动展开；进入正文后
+  // 不抢阅读焦点。细节仍由内部思考与工具卡承担。
+  return (
+    <div
+      className="office-process-card"
+      data-running={running ? "true" : "false"}
+      data-status={status}
+      data-compact={small ? "true" : "false"}
+    >
+      <button
+        type="button"
+        className="office-process-card__head"
+        data-running={running ? "" : undefined}
+        onClick={() => { userOverridden.current = true; setOpen((v) => !v); }}
+        aria-expanded={open}
+        aria-controls={bodyId}
+      >
+        <span className="office-process-card__rail" aria-hidden />
+        <span className="office-process-card__icon" aria-hidden>
+          <ListTree size={14} />
+        </span>
+        <span className="office-process-card__copy">
+          {detail && <span className="office-process-card__meta">{detail}</span>}
+        </span>
+        {statusMeta && (
+          <span className={`office-process-card__status ${statusMeta.cls}`} data-status={status}>
+            {StatusIcon && <StatusIcon size={11} className="shrink-0" />}
+            <span>{t(statusMeta.labelKey)}</span>
+          </span>
+        )}
+        <ChevronRight
+          size={13}
+          className="office-process-card__chevron"
+          data-open={open ? "true" : "false"}
+          aria-hidden
+        />
+      </button>
+      {running && !open && recentItems.length > 0 && (
+        <div className="office-process-card__recent" data-testid="process-recent-preview">
+          {recentItems.map((it) =>
+            it.kind === "tool" ? (
+              <div key={it.id} className="office-process-card__recent-row" data-kind="tool">
+                <ToolCard item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />
+              </div>
+            ) : it.kind === "assistant" ? (
+              <div key={it.id} className="office-process-card__recent-row" data-kind="reasoning">
+                <InlineReasoning item={it as AssistantItem} />
+              </div>
+            ) : (
+              <div key={it.id} className="office-process-card__recent-row" data-kind="phase">
+                <ProcessPhaseLine text={(it as { text?: string }).text ?? ""} />
+              </div>
+            ),
+          )}
+        </div>
+      )}
+      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="office-process-card__body">{body}</div>
+      </div>
+    </div>
+  );
+});
+
+export function Transcript({
+  // 欢迎页移除后 Transcript 不再消费 onPrompt；保留宿主契约，避免嵌入方同步改签名。
+  onPrompt: _onPrompt, onRewind, onRegenerate, onFeedback, running, onThreadEl, onScrollToTurnReady,
+}: {
+  onPrompt: (text: string) => void;
+  onRewind?: (turn: number, scope: string) => void;
+  /** v4.236 重新生成：controller.regenerate（截断该轮后原样重发）。 */
+  onRegenerate?: (turn: number) => void;
+  /** v4.238 回答反馈能力开关。 */
+  onFeedback?: boolean;
+  running: boolean;
+  onThreadEl?: (el: HTMLElement | null) => void;
+  onScrollToTurnReady?: (fn: (turn: number) => void) => void;
+}) {
+  const items = useItems();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
+  const rAF = useRef<number | null>(null);
+
+  useEffect(() => {
+    onThreadEl?.(scrollRef.current);
+    return () => onThreadEl?.(null);
+  }, [onThreadEl]);
+
+  useEffect(() => {
+    return () => { if (rAF.current !== null) cancelAnimationFrame(rAF.current); };
+  }, []);
+
+  const [showScrollDown, setShowScrollDown] = useState(false);
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = isNearBottom(el);
+    // v4.512：贴底才恢复跟随；「不贴底」不再清除 stick——折叠卡收起时
+    // 浏览器滚动锚定/夹紧产生的程序性 scroll 事件曾把 stick 误杀（v2.13.5
+    // 的「冻住假象」根因，当时用运行中强拉底部权宜，代价=流式生成时用户
+    // 无法上翻阅读）。现在 stick 的清除权唯一归滚轮上滚手势（onWheel）：
+    // 布局扰动杀不死跟随，运行中也不再强拉。
+    if (atBottom) stick.current = true;
+    setShowScrollDown(!atBottom && el.scrollHeight > el.clientHeight);
+  }, []);
+
+  // 上滚 = 显式暂停跟随（运行中亦然）：流式生成时可上翻读历史，视图停在
+  // 原处，「回到底部」按钮（v4.510 起常驻可用）点击或滚回底部即恢复。
+  // 仅在容器真实可滚时清除——短会话（内容不足一屏）上滚无位移，不产生
+  // 暂停态（否则贴底视角被无声冻结）。
+  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY >= 0) return;
+    const el = scrollRef.current;
+    if (el && el.scrollHeight - el.clientHeight > 0) stick.current = false;
+  }, []);
+
+  // ── 智能滚动 ──────────────────────────────────────────────────────
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // v4.512：跟随只认 stick（滚轮上滚=暂停）。运行中强拉退役——冻住
+    // 假象已由「onScroll 不贴底不清 stick」根治：即使程序性落底比布局
+    // 收敛早半拍（短暂不贴底），stick 仍为 true，下一拍内容更新自动补拉。
+    if (!stick.current) return;
+
+    if (rAF.current !== null) cancelAnimationFrame(rAF.current);
+    rAF.current = requestAnimationFrame(() => {
+      rAF.current = null;
+      if (!stick.current) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }, []);
+
+  const onNewQuestion = useCallback(() => {
+    stick.current = true;
+    setShowScrollDown(false);
+    scrollToBottom();
+  }, [scrollToBottom]);
+
+  // ── 内容变化时自动跟随 ──────────────────────────────────────────
+  const contentVersion = useMemo(() => scrollVersion(items), [items]);
+  const prevItemsLen = useRef(items.length);
+  useEffect(() => {
+    if (items.length > prevItemsLen.current) {
+      const last = items[items.length - 1];
+      if (last && last.kind === "user") onNewQuestion();
+    }
+    prevItemsLen.current = items.length;
+  }, [onNewQuestion, items]);
+
+  useEffect(() => {
+    scrollToBottom();
+    // 按钮态自愈（仅暂停态）：上翻暂停后内容继续增长不触发 scroll 事件，
+    // 「回到底部」按钮的显隐在此随内容重算；跟随态由 onScroll 在落底后接管。
+    const el = scrollRef.current;
+    if (el && !stick.current) {
+      setShowScrollDown(!isNearBottom(el) && el.scrollHeight > el.clientHeight);
+    }
+  }, [contentVersion, scrollToBottom]);
+
+  // ── ResizeObserver ─────────────────────────────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (!stick.current) return;
+      scrollToBottom();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollToBottom]);
+
+  // ── 预处理 ──────────────────────────────────────────────────────
+  // items 重置（新会话/切换会话）时清空 turnEls，防止残留旧 DOM 引用。
+  useEffect(() => {
+    if (items.length === 0) turnEls.current.clear();
+  }, [items.length]);
+  const merged = useMemo(() => mergeConsecutiveReasoning(items), [items]);
+
+  // T7-4 轮级缓存：按「段内容签名」复用已构建的 Segment 对象。流式只改
+  // 最后一轮时，已完成段的签名不变 → 引用不变 → TurnBlock memo 生效。
+  const segCache = useRef(new Map<number, { sig: string; seg: Segment }>());
+  const segments = useMemo(() => {
+    const built = buildSegments(merged, running);
+    const cache = segCache.current;
+    const out: Segment[] = [];
+    built.forEach((seg, i) => {
+      const sig = segSig(seg);
+      const prev = cache.get(i);
+      if (prev && prev.sig === sig) {
+        out.push(prev.seg);
+      } else {
+        cache.set(i, { sig, seg });
+        out.push(seg);
+      }
+    });
+    // 剪枝：段数收缩（新会话）时丢弃多余缓存
+    for (const k of cache.keys()) if (k >= built.length) cache.delete(k);
+    return out;
+  }, [merged, running]);
+
+  // turn→DOM 元素映射（用于跳转）
+  const turnEls = useRef(new Map<number, HTMLElement>());
+  const scrollToTurnRef = useRef((turn: number) => {
+    const el = turnEls.current.get(turn);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  // V10.17.1: Transcript 卸载时清除 App 中的 scrollToTurn，避免
+  // 重新挂载后 MessageNavigator/JumpBar 仍持有旧实例的 turnEls 引用导致跳转失效。
+  useEffect(() => {
+    onScrollToTurnReady?.(scrollToTurnRef.current);
+    return () => onScrollToTurnReady?.(NOOP_SCROLL);
+  }, [onScrollToTurnReady]);
+  // ── 折叠/展开保持滚动 ──────────────────────────────────────────
+  // 250ms 与 GSAP collapse 动画时长耦合（useGSAPCollapse 默认 duration）。
+  // 若动画时长变更，此处需同步调整。
+  const scheduleMeasure = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const savedTop = el.scrollTop;
+    setTimeout(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = savedTop;
+    }, 250);
+  }, []);
+
+  // ── 入场动画 ──────────────────────────────────────────────────────
+  const entranceRef = useEntranceAnimation<HTMLDivElement>(
+    items.length > 0 ? `${items[0].id}|${items[items.length - 1].id}` : undefined,
+    items.length,
+  );
+
+  const [dismissedErrors, setDismissedErrors] = useState(new Set<string>());
+  const [openTurn, setOpenTurn] = useState<number | null>(null);
+  useEffect(() => {
+    if (openTurn === null) return;
+    const onDown = (e: MouseEvent) => {
+      const el = e.target as Element | null;
+      if (!el || !el.closest(".rewind")) setOpenTurn(null);
+    };
+    // v4.515 键盘可达：Escape 关闭回退菜单（与外点关闭同效应同状态）——
+    // 菜单项是真实按钮（Tab 可达），方向键漫游在菜单容器 onKeyDown 上
+    // （Message.tsx）；此处 document 级监听覆盖焦点在触发钮/菜单项两态。
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenTurn(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openTurn]);
+
+  // 每段对应的用户轮次号（data-turn / 回退弹窗 open 判定 / 助手消息登记卡
+  // 的本轮匹配用）。用户消息段：turnNo = 已见用户数（本段用户即第 n 轮，
+  // 0-based）。无用户的后续段（同一轮的交替段，alternatingSegments 会把
+  // 工具/正文拆成多段）：继承本轮 turnNo（= 已见用户数 − 1），否则助手
+  // 卡片拿不到轮次。首条用户消息之前的段（n=0）保持 undefined（轮外，
+  // 对应后端 Turn=0 的「轮外」口径，不参与轮次匹配）。
+  const turnNos = useMemo(() => {
+    const map = new Map<number, number>();
+    let n = 0;
+    segments.forEach((seg, i) => {
+      const users = seg.outsideItems.filter((it) => it.kind === "user");
+      if (users.length > 0) map.set(i, n);
+      else if (n > 0) map.set(i, n - 1);
+      n += users.length;
+    });
+    return map;
+  }, [segments]);
+
+  // v4.26 工作态头部锚点：最后一轮的用户消息段。WorkHeader 只挂这一处——
+  // 运行中常驻（spinner + 阶段 + 用时 + 步数），轮完成转「已完成 · 用时 · 步数」；
+  // 新一轮发出后锚点随最后一条 user 消息移动，上一轮头部自然卸载。
+  const lastUserSegIdx = useMemo(() => {
+    let last = -1;
+    segments.forEach((seg, i) => {
+      if (seg.outsideItems.some((it) => it.kind === "user")) last = i;
+    });
+    return last;
+  }, [segments]);
+
+  // 最后一轮是否存在过程卡（任意段的 processItems 非空）。存在时运行态与
+  // 完成态都由过程卡头部承载，外部 WorkHeader 整条不再重复展示。
+  const lastTurnHasProcess = useMemo(() => {
+    if (lastUserSegIdx < 0) return false;
+    return segments.some((seg, i) => i > lastUserSegIdx && seg.processItems.length > 0);
+  }, [segments, lastUserSegIdx]);
+
+  // 每轮「最后一段」集合：登记-only 交付卡只挂轮尾段（同轮去重，见
+  // deliverablesTurn.turnTailSegs）。
+  const turnTails = useMemo(() => turnTailSegs(turnNos), [turnNos]);
+
+  // 轮尾段的跨段提及排除集：正文提及卡在非轮尾段也渲染，轮尾的登记合并
+  // 须排除同轮其它段已提及的路径（键 = deliverablePathKey），防同文件双卡。
+  const { tail: tailOmitBySeg, text: textOmitBySeg } = useMemo(() => {
+    const mentionsBySeg = new Map<number, Set<string>>();
+    const allByTurn = new Map<number, Set<string>>();
+    segments.forEach((seg, i) => {
+      const set = new Set<string>();
+      for (const it of seg.outsideItems) {
+        if (it.kind === "assistant" && it.text) {
+          for (const k of deliverableMentionKeysCached(it.text)) set.add(k);
+        }
+      }
+      mentionsBySeg.set(i, set);
+      const tn = turnNos.get(i);
+      if (tn != null && set.size > 0) {
+        const acc = allByTurn.get(tn);
+        if (acc) for (const k of set) acc.add(k);
+        else allByTurn.set(tn, new Set(set));
+      }
+    });
+    const out = new Map<number, Set<string>>();
+    for (const idx of turnTails) {
+      const tn = turnNos.get(idx);
+      const all = tn != null ? allByTurn.get(tn) : undefined;
+      if (!all) continue;
+      const own = mentionsBySeg.get(idx);
+      const others = new Set<string>();
+      for (const k of all) if (!own?.has(k)) others.add(k);
+      if (others.size > 0) out.set(idx, others);
+    }
+    // 波3.5 实弹反馈：正文卡跨段去重——同轮内同路径只在**首现段**渲染正文卡
+    //（修复「最下方的交付文件卡重复出现相同的好几个」：同轮多段正文提及同一
+    // 文件时每段各出一卡）。首现判定按段序（segments 顺序=对话时序）。
+    const textOut = new Map<number, Set<string>>();
+    const firstByTurn = new Map<number, Map<string, number>>();
+    segments.forEach((_seg, i) => {
+      const tn = turnNos.get(i);
+      if (tn == null) return;
+      const own = mentionsBySeg.get(i);
+      if (!own || own.size === 0) return;
+      let first = firstByTurn.get(tn);
+      if (!first) {
+        first = new Map<string, number>();
+        firstByTurn.set(tn, first);
+      }
+      for (const k of own) {
+        const prevSeg = first.get(k);
+        if (prevSeg === undefined) first.set(k, i);
+        else {
+          const set = textOut.get(i) ?? new Set<string>();
+          set.add(k);
+          textOut.set(i, set);
+        }
+      }
+    });
+    void textOut;
+    return { tail: out, text: textOut };
+  }, [segments, turnNos, turnTails]);
+
+  // T7-4：onToggle/onRewind/onDismiss 全部 useCallback 稳定化，UserMessage/
+  // ErrorCard 的 memo 才不会被每次渲染的新函数击穿。
+  const toggleTurn = useCallback((tn: number) => {
+    setOpenTurn((cur) => (cur === tn ? null : tn));
+  }, []);
+
+  const handleRewindTurn = useCallback((turn: number, scope: string) => {
+    onRewind?.(turn, scope);
+    setOpenTurn(null);
+  }, [onRewind]);
+
+  const handleRegenerateTurn = useCallback((turn: number) => {
+    onRegenerate?.(turn);
+  }, [onRegenerate]);
+
+  // v4.232 重新生成资格：当前会话最后一条 assistant 消息（非运行中、非流式）。
+  // 运行中/流式一律不显形；半截取消的回复同样可重发（rewind 截断该轮后 resend）。
+  const canRegenerateId = useMemo(() => {
+    if (running) return undefined;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (it.kind === "assistant") return it.streaming ? undefined : it.id;
+    }
+    return undefined;
+  }, [items, running]);
+
+  const dismissError = useCallback((id: string) => {
+    setDismissedErrors((p) => new Set(p).add(id));
+  }, []);
+
+  const scrollDown = useCallback(() => {
+    stick.current = true;
+    setShowScrollDown(false);
+    scrollToBottom();
+  }, [scrollToBottom]);
+
+  return (
+    // v4.510 根修包装层：外层接管 flex 尺寸（原 .transcript 直接作为 .main /
+    // ChatPane 的弹性行），滚动容器降为包装层子节点——「回到底部」按钮必须
+    // 是滚动容器的兄弟节点：此前 absolute 挂在容器内部，绝对定位随内容
+    // 滚走（无头 Edge 实证：scrollTop=900 时按钮已滚出视口 666px），长会话
+    // 上翻时按钮恰在视口外永远不可见，只有首屏内短暂可见。
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll} onWheel={onWheel}>
+        <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
+          {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中） */}
+          <div className="v3-reading">
+            {/* v4.26：StreamingIndicator 降级为最底兜底（工作态头部已接管主反馈），
+              文案收敛为「连接中…/仍在等待事件…」。items 为空且 running 时
+              WorkHeader 在此独立兜底挂载（无 segments 可锚定的死寂窗口）。 */}
+            <StreamingIndicator running={running} />
+            {items.length === 0 && running && <WorkHeader />}
+            {segments.map((seg, segIdx, arr) => {
+              const isLast = segIdx === arr.length - 1;
+              // 2026-08-26：删除大过程卡后全部走交替段，key 直接用段内首条 id
+              // （不再有 done- 重挂载——交替段跨 running 复用实例，用户手动
+              // 折叠/展开的过程卡状态不丢）。
+              const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
+              return (
+                <TurnBlock
+                  key={segKey}
+                  seg={seg}
+                  running={running}
+                  isLast={isLast}
+                  turnNo={turnNos.get(segIdx)}
+                  turnTail={turnTails.has(segIdx)}
+                  openTurn={openTurn}
+                  onToggleTurn={toggleTurn}
+                  onRewindTurn={handleRewindTurn}
+                  onCollapse={scheduleMeasure}
+                  dismissedErrors={dismissedErrors}
+                  onDismissError={dismissError}
+                  canRegenerateId={canRegenerateId}
+                  onRegenerateTurn={handleRegenerateTurn}
+                  onFeedback={onFeedback}
+                  turnElsRef={turnEls}
+                  workHeader={segIdx === lastUserSegIdx && !lastTurnHasProcess}
+                  turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
+                  tailOmitMentions={tailOmitBySeg.get(segIdx)}
+                  textOmitMentions={textOmitBySeg.get(segIdx)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {/* 回到底部按钮 —— 居中圆形，v3 柔光；滚动容器的兄弟节点（锚定包装层，
+          不随内容滚动，上翻时常驻视口底部） */}
+      {showScrollDown && items.length > 0 && (
+        <button
+          className="absolute left-1/2 bottom-8 z-20 flex items-center justify-center w-9 h-9 rounded-full border border-accent/25 bg-bg-elev/85 backdrop-blur-md text-fg-dim cursor-pointer hover:text-accent hover:border-accent/40 hover:bg-bg-elev-2 active:scale-95 transition-all shadow-[var(--v3-glow-faint)]"
+          style={{ transform: "translateX(-50%)" }}
+          onClick={scrollDown}
+          aria-label={t("scroll.bottom")}
+        >
+          <ArrowDown size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+
+
+// ── CompactionCard ──────────────────────────────────────────────────
+type CompactionItem = Extract<Item, { kind: "compaction" }>;
+function CompactionCard({ item }: { item: CompactionItem }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  if (item.pending) {
+    return (
+      <div className="flex items-center gap-2 my-1 px-2.5 py-1.5 rounded-lg text-fg-faint text-xs animate-pulse">
+        <Loader size={12} className="animate-spin text-accent" />
+        <span>{t("msg.compacting")}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="my-1 rounded-lg overflow-hidden">
+      <button
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg bg-transparent border-0 text-fg-dim text-[12px] cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high) transition-colors"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className={`shrink-0 w-0.5 self-stretch rounded-full ${open ? "bg-accent/60" : "bg-transparent"}`} />
+        <FileText size={12} className="text-accent shrink-0" />
+        <span className="font-medium text-fg">{t("msg.compacted")}</span>
+        <span className="text-fg-faint text-[11px] ml-auto tabular-nums">{t("msg.compactedMeta", { n: item.messages, trigger: item.trigger })}</span>
+        <span className="text-fg-faint text-[10.5px] shrink-0">{open ? t("msg.hideSummary") : t("msg.showSummary")}</span>
+      </button>
+      {open && <pre className="m-0 px-3 pb-2 pt-1 text-fg-dim text-[11.5px] leading-relaxed whitespace-pre-wrap">{item.summary}</pre>}
+    </div>
+  );
+}

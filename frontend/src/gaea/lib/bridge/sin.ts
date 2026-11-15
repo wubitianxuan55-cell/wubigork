@@ -8,7 +8,7 @@
 // 插图：SinIllustrate 复用绘梦图像后端生成，产物落 imagehub 台账
 // （space=play / source_board=sin），并把路径回写到该轮消息 extra.illustrations。
 import type { chat } from "../../../../wailsjs/go/models";
-import type { ContextNodeDetailView, ContextTimeline, GaeaResyncResult, HistoryMessage, QuestionAnswer, SessionMeta, Trajectory } from "../types";
+import type { ContextInfo, ContextNodeDetailView, ContextTimeline, GaeaResyncResult, HistoryMessage, QuestionAnswer, SessionMeta, Trajectory } from "../types";
 import type { NovelBookSourceSearchResult, NovelBookSourceTocPreview } from "./novel";
 
 export interface SinBindings {
@@ -132,6 +132,16 @@ export interface SinBindings {
   SinEngineListSessions(): Promise<SessionMeta[]>;
   /** 切换到指定会话继续（返回其消息投影）。 */
   SinEngineResumeSession(path: string): Promise<HistoryMessage[]>;
+  /** 当前会话对话历史（装载兜底/final-answer 对账）。 */
+  SinEngineHistory(): Promise<HistoryMessage[]>;
+  /** 上下文用量快照（ContextPill/水位）。 */
+  SinEngineContext(): Promise<ContextInfo>;
+  /** 会话轨迹时间线（轨迹 tab）。 */
+  SinEngineTrajectory(): Promise<Trajectory>;
+  /** 会话上下文构成快照（上下文 tab）。 */
+  SinEngineContextView(): Promise<ContextTimeline>;
+  /** 上下文节点「完整调用」详情。 */
+  SinEngineContextNodeDetail(seq: number): Promise<ContextNodeDetailView>;
 
   // ── 书架工作空间绑定（一书一故事，书下多会话）──
   /** 读取某会话的书绑定（未绑 = bound:false）。 */
