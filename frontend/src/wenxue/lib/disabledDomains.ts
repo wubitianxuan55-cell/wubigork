@@ -4,7 +4,9 @@
 const DISABLED_COMMAND_PREFIXES = ["knowledge", "schedule", "cad"] as const;
 const DISABLED_TOOL_PREFIXES = ["knowledge_", "schedule_", "cad_"] as const;
 
-// 办公域工具（刀1 引擎侧物理卸载的同一批）：本地面板兜底不展示。
+// 办公域工具（刀1 引擎侧物理卸载的同一批；fact_* 三件为首刀收口批除名
+// 2026-11-15 众神殿）：本地面板兜底不展示。与 wenxue_tool_policy.go 同源
+// 对齐，改名单两处同批。
 const DISABLED_TOOL_NAMES = [
   "office_generate", "office_batch",
   "docx_apply", "docx_accept", "pptx_apply",
@@ -13,7 +15,9 @@ const DISABLED_TOOL_NAMES = [
   "office_save", "office_close", "office_help", "office_macro", "office_selection",
   "cad_ask", "cost_search", "cost_save", "cost_compose", "cost_indicators",
   "chart_gen", "diagram_gen", "diagram", "doc_render", "format_convert",
-  "screen_capture", "dag_plan", "semantic_search", "browser_",
+  "screen_capture", "dag_plan", "semantic_search",
+  "fact_add", "fact_list", "fact_clear",
+  "browser_",
 ] as const;
 
 // 办公域技能（刀2 引擎侧技能子集的补集）：能力面板兜底不展示。

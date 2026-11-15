@@ -168,3 +168,96 @@ WenxueCharacterHub：网格+搜索+编辑（CAS）+新建骨架卡+删除+「让
   config_features 四 case + config_keys/save 键域 + feature_model_handler 两白名单 +
   模型中心 BindSection/utils 档位表。routeFeatures（路由建议面）有意不含 vision，
   wenxue 暂不补（建议面属可选扩展，非缺陷）。
+
+## 首刀收口批（2026-11-15 深夜，众神殿 pan_1794751177012 + pan_1794754879290 两场裁决施工）
+
+用户令：按最新众神殿对文学板块工具的论证优化文学板块，办公零影响。两场四轮+主席裁决，
+12 项分歧台账全归宿；本批只施工「采纳」面，**后置面不碰**（完整账本/12→7 合并读入口/
+批量 compact/结构化 writeback→刀1.5/lint 收益实测→真实稿到位后重开）。
+
+### 采纳面（本批动刀清单）
+
+1. **`fact_*` 除名**：`fact_add/fact_list/fact_clear` 加进 `wenxueDeniedTools`（探针实锤
+   三件当前 KEEP 流进图文会话；语义=办公交付事实库，图文不装）。办公实现零动。
+2. **run_skill 接可见 Skill 集合**（issue-1 收口，B 方案）：`runSkillTool` resolver 化
+   + 新 `skill.NewRunSkillToolFromSet`——extras 可达（wenxue-workbench 经 run_skill
+   返回正文）+ 隐藏名 fail-closed（unknown 名单也只列可见）。**办公引擎（双 nil）保持
+   `NewRunSkillTool(store)` 活读原样逐字节**——boot 构造位按 filter/extras 有无分流。
+3. **装配收敛单点**：sysprompt 合并改 `skill.VisibleSkills(storeList, extras, filter)`
+   ——同名去重 store-first（store/extras 同名不重复且序不变），索引/read_skill/
+   run_skill 三面共享同一可见集合。
+4. **媒体根分档**：`image_gen`/`ocr` 根注入缝（`mediaRoot func() string` 字段，nil→
+   `gaeaCwd()` 办公现状逐字节）；wx 引擎经 `wenxueBaseTools` 注入 `wenxueWorkspace`
+   ——图文会话生成图/OCR 相对路径锚小说目录，不再落办公工作区。`vision` 不动
+   （builtin-workspace 随 Build cwd 注入，本就正确）。
+5. **删假 `dir`**：`wenxue_chapter_list` schema 删 `dir` 输入参数（执行体本就不解析；
+   回执 `dir` 字段保留=自动探测结果）。
+6. **共享章号 helper + 两条窄告警**（不新增第 13 个工具，纯函数挂回执 `warnings` 字段）：
+   - `wenxueChapterWarnings`：未编号文件一条列表级告警 + 根目录回退一条（不逐文件重复）；
+   - `wenxueTimelineWarnings`：无章号事件聚合一条（附 文件:行号，封顶 8 处）；
+   - `wenxue_timeline_read` 跳过 `#` 开头 Markdown 标题行（裁决=合理默认，标题不进 events）；
+   - `wenxue_timeline_append` chapter=0 不强制必填，回执加「本章事件应传 chapter」提示。
+7. **workbench 回写句三子串**（`:93` 正文）：「写完一章必须回写」+ 阿拉伯数字锚点样例
+   「第12章」+「不要新建 foreshadows.json」——grep 断言三条钉死。
+8. **测试包**：技能面五例（①extras 经 run_skill 返回正文 ②被 filter 拒名返回 unknown
+   ③办公 nil-filter 行为不变 ④store/extras 同名不重复序不变 ⑤subagent 型技能经
+   run_skill 仍进 runner）+ 章节四类 fixture（001-标题/第一章→Number=0/无编号/根回退，
+   断言=告警条数+0 号组排序确定）+ 时间线 fixture（合法锚/中文数字锚/标题行/缺章号行）
+   + `wenxue_surface_probe_test.go` 转 census 守卫（deny 面不变式+keep 面存在性）。
+
+### 红线与验收
+
+- 办公逐字节零变化：双 nil 缝原样 + nil-filter 行为不变测试钉死；`fact_*` 办公实现/
+  RegistryMap 契约行不动（只加图文 deny 名单）；媒体根 nil→gaeaCwd 缺省。
+- 三条约束照旧：只用合成 fixture 验规则、真实稿未到不主张收益、不启动账本/跨章检索/
+  工具合并。
+- 遗留施工期核验（不阻塞）：novel-agents/novel-deslop/novel-review 可达性（allowlist
+  三件在 repo `.gaea/skills/`，wx 引擎 store ProjectRoot=小说 cwd——除非用户 gaea.toml
+  `skills.paths` 指到仓内 `.gaea/skills`，否则索引不列、亦不报 unknown，B 方案口径自洽）；
+  安装分发链是否复制 `.gaea/skills`。
+
+### 施工台账（2026-11-16 凌晨收官，全绿+装机）
+
+- 刀A 技能面：`skill/tools.go` runSkillTool resolver 化（resolve/names 双闭包）+
+  `NewRunSkillToolFromSet`（可见集合构造：extras 可达+隐藏名 fail-closed+unknown
+  名单只列可见）+ `skill.VisibleSkills` 纯函数（合并+同名去重 store-first+filter 收口）。
+  NewRunSkillTool(store) 行为逐字节保留（store 活读，装配后 install 新技能即可用）。
+- 刀B boot：`sysprompt.go` 合并改 VisibleSkills 单装配点（索引/read_skill/run_skill
+  三面共享）；`boot.go` run_skill 按 filter/extras 有无分流——**办公双 nil 保持 store
+  活读原样（红线）**。
+- 刀C fact_* 除名：`wenxue_tool_policy.go` deny 加三件（探针实锤 KEEP→DENY）+
+  policy 测试翻转 + 前端 `disabledDomains.ts` 同批（两处同批纪律）；
+  `wenxue_surface_probe_test.go` 一次性探针转正 census 守卫三例（keep 面 12 件+
+  deny 面 fact/office 抽样+底座在场）。
+- 刀D 工具面：chapter_list 删假 `dir` 输入参数（schema 无参化）；共享章号 helper
+  两件（`wenxueStemNumber` 前导数字解析/`wenxueAnchorNumber` 第N章锚解析——解析
+  与告警同源）；`wenxueChapterWarnings`（未编号聚合一条+根回退一条，列表级不逐
+  文件）挂 `wenxue_chapter_list` 回执 `warnings`（仅非空携带）；timeline `#` 标题行
+  跳过（不进 events）+`wenxueTimelineWarnings`（缺锚聚合一条附 文件:行号 封顶 8）+
+  timeline_append 缺锚回执 hint「本章事件应传 chapter」（不强制必填）。
+- 刀E 媒体根分档：`imageGenTool`/`ocrTool` 加 `mediaRoot func() string` 缝
+  （nil=gaeaCwd 办公现状逐字节）；`gaeaExtraTools`→`extraToolsWithMediaRoot(a, nil)`
+  壳；wx 引擎 `wenxueBaseTools`（注入 wenxueWorkspace）——生成图与 OCR 相对路径锚
+  当前小说目录。vision 不动（builtin-workspace 随 Build Cwd，本就正确）。
+- 刀F 文案：workbench 回写句改写，三子串齐备（写完一章必须回写/第12章/不要新建
+  foreshadows.json）。
+- 刀G 测试：skill 包五例（extras 可达/隐藏名 fail-closed+名单不泄露/办公活读不变/
+  同名去重 store-first/subagent 进 runner）+ app 包五例（章节四类 fixture+0 号组
+  排序确定+告警条数/根回退告警/时间线四类 fixture+标题不进 events+行号保序/
+  追加 hint/三子串断言）。
+- 门禁：Go app 106s+boot+agent+control+skill+tool+config 全量绿（gaea/... 全家族
+  ok）；`tsc -b` 0；eslint 0；gofmt 改动面清（bindings_* 生成件不 gofmt 属已知）。
+  ucrt64 裸 `wails build -s -ldflags "-s -w" -trimpath` 1m01.8s（bindings 未跳过，
+  前置 `npm run build` 32.6s）；冒烟 `/api/health` 200（PID 39564 已回收）；
+  INSTALL OK（exe SHA256 322C6E5E4664…，PID 22312 启动 00:11:34>构建 00:11:14）。
+- 遗留核验结论：novel-* 三件**当前不可达**（用户 gaea.toml 无 `[skills] paths`，
+  wx store ProjectRoot=小说目录不扫仓内 `.gaea/skills`）——索引不列、run_skill 不
+  报 unknown，B 方案口径自洽；如需点亮七角色卡，用户侧在 gaea.toml 配
+  `[skills] paths = ["<仓>/.gaea/skills"]` 或等安装分发链批。不改默认行为（动配置
+  归用户拍板）。
+- 口径漂移顺手修：`wenxue_tools.go` 头注「RegistryMap 九行」→十二行（众神殿指出的
+  名单双事实源漂移之一收口）。
+- 后置面不动（按裁决）：完整账本/12→7 合并读入口/批量 compact/结构化 writeback
+  （刀1.5）/lint 收益实测（真实稿到位后重开）。
+
+

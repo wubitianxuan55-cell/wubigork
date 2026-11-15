@@ -31,6 +31,16 @@ func TestWenxueToolFilterDeniesOfficeFamily(t *testing.T) {
 	}
 }
 
+func TestWenxueToolFilterDeniesFactFamily(t *testing.T) {
+	// 2026-11-15 众神殿首刀除名（pan_1794754879290）：交付事实库是办公语义，
+	// 图文回写纪律走 时间线/角色卡，不装 fact_*。办公实现不动。
+	for _, n := range []string{"fact_add", "fact_list", "fact_clear"} {
+		if wenxueToolFilter(n) {
+			t.Fatalf("交付事实库工具 %s 应被图文引擎拒绝装配", n)
+		}
+	}
+}
+
 func TestWenxueToolFilterDeniesBrowserPrefixFamily(t *testing.T) {
 	for _, n := range []string{
 		"browser_navigate", "browser_new_tab", "browser_click", "browser_type",
@@ -51,7 +61,6 @@ func TestWenxueToolFilterAllowsGenericBase(t *testing.T) {
 		"bash", "bash_output", "kill_shell", "wait",
 		"web_fetch", "web_search", "vision", "ocr",
 		"translate_text", "routine_llm",
-		"fact_add", "fact_list", "fact_clear",
 		// 会话级元工具（build-internal 直加面，不过滤）
 		"task", "ask", "todo_write", "complete_step",
 		"remember", "forget", "promote_session_facts", "memory_get", "memory_search",

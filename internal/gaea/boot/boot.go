@@ -523,7 +523,16 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			ActiveSchemas: reg.Schemas(),
 		}, agent.NestedSink(sctx, event.Discard), subagentStore, nil)
 	}
-	runSkill := skill.NewRunSkillTool(skillStore, skillRunner)
+	// run_skill 解析源（2026-11-15 众神殿首刀，pan_1794754879290 裁决）：板块
+	// 引擎（SkillFilter/SkillExtras 任一非空）换用与 read_skill 同源的可见集合
+	// ——extras 内嵌件可达、被 filter 拒名 fail-closed、unknown 提示名单只列
+	// 可见；办公引擎（双 nil）保持 store 活读现状逐字节（红线）。
+	var runSkill tool.Tool
+	if opts.SkillFilter != nil || len(opts.SkillExtras) > 0 {
+		runSkill = skill.NewRunSkillToolFromSet(sp.skills, skillRunner)
+	} else {
+		runSkill = skill.NewRunSkillTool(skillStore, skillRunner)
+	}
 	if opts.OnSkillUse != nil {
 		// 7.2-2 判据②：run_skill 执行结果计入调用统计（args.name 解析失败
 		// 不计——宁少勿扰）。装饰器只包 Execute，其余方法原样转发。

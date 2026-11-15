@@ -8,7 +8,9 @@ package app
 //   章节/|chapters/、角色/|characters/、时间线/|timeline/、设定/|worldview/。
 // 路径安全：全部写读经 wspath.ResolveRelWithin（工作区内解析，拒 .. 穿越）；
 // 写侧带 overwrite 显式闸（缺省 false，已存在即拒——宁拒不误改）。
-// 契约行：RegistryMap 九行（extra-app/work），守卫测试随批扩展。
+// 契约行：RegistryMap 十二行（extra-app/work——刀3 原九件+定稿刀三件；
+// 2026-11-15 众神殿首刀收口批改口径归一），装配面守卫=wenxue_surface_probe_test.go
+// census 三例。
 
 import (
 	"context"
@@ -68,6 +70,15 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueFinalReadTool(),
 		wenxueFinalWriteTool(),
 	}
+}
+
+// wenxueBaseTools 图文引擎通用 extra 工具单点（= gaeaExtraTools 媒体根分档版，
+// 2026-11-15 众神殿首刀，pan_1794754879290 裁决）：image_gen/ocr 媒体根注入
+// wenxueWorkspace——图文会话生成图与 OCR 相对路径锚当前小说目录，不再落办公
+// 工作区；vision 不动（builtin-workspace 随 Build Cwd 注入，本就正确）。
+// 办公装配走 gaeaExtraTools 原样（nil 缝=gaeaCwd 现状逐字节，红线）。
+func wenxueBaseTools(a *App) []tool.Tool {
+	return extraToolsWithMediaRoot(a, wenxueWorkspace)
 }
 
 // ── 目录约定与共享 helper ────────────────────────────────────────
@@ -154,6 +165,25 @@ type wenxueChapterMeta struct {
 	ModTime int64  `json:"modTime"`
 }
 
+// wenxueStemNumber 从文件名 stem 提取章号与标题余部：前导 ASCII 数字=章号，
+// 其后分隔符剥离=标题；无前导数字 → 章号 0、标题=整个 stem（ok=false）。
+// 共享章号 helper（2026-11-15 众神殿首刀）：章节文件解析与告警单一来源——
+// 中文序号（第一章.md）不可解析，落 Number=0，由 wenxueChapterWarnings 显式告警。
+func wenxueStemNumber(stem string) (number int, title string, ok bool) {
+	i := 0
+	for i < len(stem) && stem[i] >= '0' && stem[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return 0, strings.TrimSpace(stem), false
+	}
+	n, err := strconv.Atoi(stem[:i])
+	if err != nil {
+		return 0, strings.TrimSpace(stem), false
+	}
+	return n, strings.TrimSpace(strings.TrimLeft(stem[i:], "-_ .：:")), true
+}
+
 // wenxueParseChapterFile 解析单个章节文件（缺文件/目录/非法路径返回 ok=false）。
 func wenxueParseChapterFile(root, rel string) (wenxueChapterMeta, bool) {
 	abs, err := wspath.ResolveRelWithin(root, rel)
@@ -170,28 +200,20 @@ func wenxueParseChapterFile(root, rel string) (wenxueChapterMeta, bool) {
 	}
 	meta := wenxueChapterMeta{Path: filepath.ToSlash(rel), Name: filepath.Base(abs), ModTime: info.ModTime().UnixMilli()}
 	stem := strings.TrimSuffix(meta.Name, filepath.Ext(meta.Name))
-	i := 0
-	for i < len(stem) && stem[i] >= '0' && stem[i] <= '9' {
-		i++
-	}
-	if i > 0 {
-		_, _ = fmt.Sscanf(stem[:i], "%d", &meta.Number)
-		rest := strings.TrimLeft(stem[i:], "-_ .：:")
-		meta.Title = strings.TrimSpace(rest)
-	} else {
-		meta.Title = strings.TrimSpace(stem)
-	}
+	meta.Number, meta.Title, _ = wenxueStemNumber(stem)
 	if b, err := os.ReadFile(abs); err == nil {
 		meta.Words = wenxueCountWords(string(b))
 	}
 	return meta, true
 }
 
-// wenxueListChapters 枚举约定章节目录全部章节（无约定目录时回退工作区根一层
-// 的 md/txt），按 章号→文件名 排序。
-func wenxueListChapters(root string) []wenxueChapterMeta {
+// wenxueListChaptersWithFallback 枚举约定章节目录全部章节（无约定目录时回退
+// 工作区根一层的 md/txt），按 章号→文件名 排序；第二返回值报告是否走了根
+// 目录回退（wenxue_chapter_list 告警判据）。
+func wenxueListChaptersWithFallback(root string) ([]wenxueChapterMeta, bool) {
 	out := []wenxueChapterMeta{}
 	dir := wenxueFindDir(root, "chapters")
+	fellBack := dir == ""
 	scanDirs := []string{}
 	if dir != "" {
 		scanDirs = append(scanDirs, dir)
@@ -226,6 +248,33 @@ func wenxueListChapters(root string) []wenxueChapterMeta {
 		}
 		return out[i].Name < out[j].Name
 	})
+	return out, fellBack
+}
+
+// wenxueListChapters 枚举章节（不关心回退判据的调用面）。
+func wenxueListChapters(root string) []wenxueChapterMeta {
+	out, _ := wenxueListChaptersWithFallback(root)
+	return out
+}
+
+// wenxueChapterWarnings 章节清单窄告警（2026-11-15 众神殿首刀，列表级两条
+// 上限、不逐文件重复；纯函数，挂 wenxue_chapter_list 回执 warnings 字段）：
+// ① 存在章号未解析文件（前导无阿拉伯数字，含「第一章.md」式中文序号）→ 一条；
+// ② 无约定目录走了根目录回退 → 一条。
+func wenxueChapterWarnings(chapters []wenxueChapterMeta, fellBack bool) []string {
+	var out []string
+	unnumbered := 0
+	for _, c := range chapters {
+		if c.Number == 0 {
+			unnumbered++
+		}
+	}
+	if unnumbered > 0 {
+		out = append(out, fmt.Sprintf("有 %d 个章节文件章号未解析（文件名需以阿拉伯数字开头，如 001-标题.md；中文序号如「第一章」不可解析）；这些文件按文件名排序", unnumbered))
+	}
+	if fellBack {
+		out = append(out, "未找到约定章节目录（章节/chapters/正文），已回退扫描工作区根一层")
+	}
 	return out
 }
 
@@ -262,23 +311,29 @@ func wenxueReadBody(root, rel string) (string, os.FileInfo, error) {
 
 func wenxueChapterListTool() *wenxueTool {
 	return &wenxueTool{
-		name:     "wenxue_chapter_list",
-		desc:     "列出当前小说全部章节（章号/标题/字数/修改时间，按序号排序）。写作前用它把握全局进度。",
-		schema:   `{"type":"object","properties":{"dir":{"type":"string","description":"可选：章节目录相对路径，缺省按约定目录（章节/chapters/正文）"}},"additionalProperties":false}`,
+		name: "wenxue_chapter_list",
+		desc: "列出当前小说全部章节（章号/标题/字数/修改时间，按序号排序）。写作前用它把握全局进度。",
+		// schema 无参数（众神殿首刀删假 dir：执行体从不解析输入目录，清单
+		// 恒按约定目录自动探测；回执 dir 字段=探测结果）。
+		schema:   `{"type":"object","additionalProperties":false}`,
 		readOnly: true,
 		run: func(args json.RawMessage) (string, error) {
 			root := wenxueWorkspace()
-			chapters := wenxueListChapters(root)
+			chapters, fellBack := wenxueListChaptersWithFallback(root)
 			total := 0
 			for _, c := range chapters {
 				total += c.Words
 			}
-			return wenxueJSON(map[string]any{
+			out := map[string]any{
 				"dir":        wenxueFindDir(root, "chapters"),
 				"count":      len(chapters),
 				"totalWords": total,
 				"chapters":   chapters,
-			})
+			}
+			if w := wenxueChapterWarnings(chapters, fellBack); len(w) > 0 {
+				out["warnings"] = w // 仅告警非空时携带（低影响契约）
+			}
+			return wenxueJSON(out)
 		},
 	}
 }
@@ -592,14 +647,16 @@ type wenxueTimelineEntry struct {
 	Line    int    `json:"line"`
 }
 
-// wenxueParseTimelineLine 从行文本提取章节锚与事件文本（宽容格式）。
-func wenxueParseTimelineLine(line string) (int, string) {
-	text := strings.TrimSpace(line)
+// wenxueAnchorNumber 从行文本提取「第N章/话」章节锚（ASCII 数字）；无锚 → 0。
+// 共享章号 helper（2026-11-15 众神殿首刀）：时间线解析/告警单一来源——中文
+// 数字（第十二章）不可解析落 0，由 wenxueTimelineWarnings 显式告警，workbench
+// 回写句已钉阿拉伯数字口径。
+func wenxueAnchorNumber(text string) int {
+	text = strings.TrimSpace(text)
 	text = strings.TrimLeft(text, "-•*· ")
-	chapter := 0
-	rs := []rune(text)
 	if i := strings.Index(text, "第"); i >= 0 {
 		// rune 索引扫描（byte 索引比较多字节 rune 会溢出）
+		rs := []rune(text)
 		start := len([]rune(text[:i]))
 		j := start + 1
 		for j < len(rs) && rs[j] >= '0' && rs[j] <= '9' {
@@ -607,11 +664,36 @@ func wenxueParseTimelineLine(line string) (int, string) {
 		}
 		if j > start+1 && j < len(rs) && (rs[j] == '章' || rs[j] == '话') {
 			if n, err := strconv.Atoi(string(rs[start+1 : j])); err == nil {
-				chapter = n
+				return n
 			}
 		}
 	}
-	return chapter, text
+	return 0
+}
+
+// wenxueParseTimelineLine 从行文本提取章节锚与事件文本（宽容格式）。
+func wenxueParseTimelineLine(line string) (int, string) {
+	text := strings.TrimSpace(line)
+	text = strings.TrimLeft(text, "-•*· ")
+	return wenxueAnchorNumber(text), text
+}
+
+// wenxueTimelineWarnings 时间线窄告警（2026-11-15 众神殿首刀：聚合一条、附
+// 文件:行号封顶 8 处；纯函数，挂 wenxue_timeline_read 回执 warnings 字段）。
+func wenxueTimelineWarnings(entries []wenxueTimelineEntry) []string {
+	var refs []string
+	for _, e := range entries {
+		if e.Chapter == 0 {
+			refs = append(refs, fmt.Sprintf("%s:%d", e.File, e.Line))
+			if len(refs) >= 8 {
+				break
+			}
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("有事件缺章号锚点（写法需「第12章 · 一句话事件」，章号用阿拉伯数字）：%s", strings.Join(refs, "、"))}
 }
 
 // wenxueTimelineEntries 全量时间线事件（按章节→文件→行序）。
@@ -643,7 +725,10 @@ func wenxueTimelineEntries(root string) []wenxueTimelineEntry {
 			continue
 		}
 		for i, line := range strings.Split(body, "\n") {
-			if strings.TrimSpace(line) == "" {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				// 空行与 Markdown 标题行（# 时间线）不是事件——2026-11-15
+				// 众神殿首刀裁决：跳过，标题不进 events。
 				continue
 			}
 			ch, text := wenxueParseTimelineLine(line)
@@ -684,7 +769,11 @@ func wenxueTimelineReadTool() *wenxueTool {
 				}
 				entries = filtered
 			}
-			return wenxueJSON(map[string]any{"dir": wenxueFindDir(root, "timeline"), "count": len(entries), "events": entries})
+			out := map[string]any{"dir": wenxueFindDir(root, "timeline"), "count": len(entries), "events": entries}
+			if w := wenxueTimelineWarnings(entries); len(w) > 0 {
+				out["warnings"] = w // 仅告警非空时携带（低影响契约）
+			}
+			return wenxueJSON(out)
 		},
 	}
 }
@@ -735,7 +824,13 @@ func wenxueTimelineAppendTool() *wenxueTool {
 			if werr != nil {
 				return "", werr
 			}
-			return wenxueJSON(map[string]any{"appended": strings.TrimRight(line, "\n"), "file": rel})
+			out := map[string]any{"appended": strings.TrimRight(line, "\n"), "file": rel}
+			if in.Chapter == 0 {
+				// 非章节事件（如全书纲要注意）合法保留弹性，但章节事件缺锚会
+				// 在按章排序时失位——回执提示而非强制必填（众神殿首刀裁决）。
+				out["hint"] = "本章事件应传 chapter（章号锚点用阿拉伯数字，落盘形如「第12章 · 事件」），否则时间线按章排序时无法归位"
+			}
+			return wenxueJSON(out)
 		},
 	}
 }

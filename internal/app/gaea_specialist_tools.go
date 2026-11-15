@@ -16,8 +16,16 @@ import (
 // semantic_search 实现完整且有 E2E 测试，能力面板「本地专业模型」分组也声明了它），
 // gaea_handler.go 装配时展开进 ExtraTools，后续新增专业工具只需改这一处。
 func gaeaSpecialistTools(a *App) []tool.Tool {
+	return specialistToolsWithMediaRoot(a, nil)
+}
+
+// specialistToolsWithMediaRoot 专业工具清单的媒体根注入版（2026-11-15 众神殿
+// 首刀媒体分档，pan_1794754879290）：mediaRoot 非 nil 时 ocr 相对路径锚该根
+// （图文引擎注入 wenxueWorkspace——OCR 不再读办公工作区）；nil=gaeaCwd() 办公
+// 现状逐字节。
+func specialistToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 	return []tool.Tool{
-		ocrTool{a: a},
+		ocrTool{a: a, mediaRoot: mediaRoot},
 		semanticSearchTool{a: a},
 	}
 }
@@ -25,7 +33,16 @@ func gaeaSpecialistTools(a *App) []tool.Tool {
 // ocrTool 专业 OCR 工具：图片/扫描件文字提取走本地 uocr2 链（docmd auto 引擎序）。
 // 与 vision（整图理解）分工：要"看懂图"用 vision，要"提取图中文字"用 ocr。
 type ocrTool struct {
-	a *App
+	a         *App
+	mediaRoot func() string // 媒体根注入缝（nil=gaeaCwd 办公现状；图文=wenxueWorkspace）
+}
+
+// root 相对图片路径锚根（nil 缝=办公 gaeaCwd 现状）。
+func (t ocrTool) root() string {
+	if t.mediaRoot != nil {
+		return t.mediaRoot()
+	}
+	return gaeaCwd()
 }
 
 func (t ocrTool) Name() string { return "ocr" }
@@ -58,7 +75,7 @@ func (t ocrTool) ReadTarget(args json.RawMessage) (string, bool) {
 		return "", false
 	}
 	if !filepath.IsAbs(p.ImagePath) {
-		p.ImagePath = filepath.Join(gaeaCwd(), p.ImagePath)
+		p.ImagePath = filepath.Join(t.root(), p.ImagePath)
 	}
 	return p.ImagePath, true
 }
@@ -86,7 +103,7 @@ func (t ocrTool) Execute(ctx context.Context, args json.RawMessage) (string, err
 		return "", fmt.Errorf("ocr: image_path 不能为空")
 	}
 	if !filepath.IsAbs(p.ImagePath) {
-		p.ImagePath = filepath.Join(gaeaCwd(), p.ImagePath)
+		p.ImagePath = filepath.Join(t.root(), p.ImagePath)
 	}
 	text, err := t.a.GaeaOCRText(p.ImagePath)
 	if err != nil {

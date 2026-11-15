@@ -25,14 +25,51 @@ type InstalledHook func(name, path string, scope Scope)
 // --- run_skill ---
 
 type runSkillTool struct {
-	store  *Store
-	runner SubagentRunner
+	// resolve 按名解析完整 Skill（保 RunAs——run_skill 必须拿到完整 Skill，
+	// 不是 read_skill 那样的 Body 字符串）。names 供 unknown 错误提示名单。
+	resolve func(name string) (Skill, bool)
+	names   func() string
+	runner  SubagentRunner
 }
 
 // NewRunSkillTool builds the general skill-invocation tool. runner may be nil
-// (subagent skills then error).
+// (subagent skills then error). 解析走 store 活读（装配后 install 的新技能即
+// 可用）——办公引擎（无 SkillFilter/SkillExtras）现状逐字节；板块引擎
+// （filter/extras 非空）应改用 NewRunSkillToolFromSet 与 read_skill 同源。
 func NewRunSkillTool(store *Store, runner SubagentRunner) tool.Tool {
-	return &runSkillTool{store: store, runner: runner}
+	return &runSkillTool{
+		resolve: store.Read,
+		names:   func() string { return availableNames(store) },
+		runner:  runner,
+	}
+}
+
+// NewRunSkillToolFromSet 以「可见 Skill 集合」构造 run_skill（2026-11-15 众神殿
+// 首刀，pan_1794754879290 裁决）：与 read_skill 共享 sysprompt 产出的同一过滤
+// 合并表——extras 内嵌件可达、被 filter 拒绝的名字 fail-closed（unknown 提示
+// 名单同样只列可见，不泄露隐藏名）。办公引擎不走此构造（保持 store 活读现状）。
+func NewRunSkillToolFromSet(visible []Skill, runner SubagentRunner) tool.Tool {
+	return &runSkillTool{
+		resolve: func(name string) (Skill, bool) {
+			for _, sk := range visible {
+				if sk.Name == name {
+					return sk, true
+				}
+			}
+			return Skill{}, false
+		},
+		names: func() string {
+			if len(visible) == 0 {
+				return "(none — no skills defined)"
+			}
+			ns := make([]string, len(visible))
+			for i, s := range visible {
+				ns[i] = s.Name
+			}
+			return strings.Join(ns, ", ")
+		},
+		runner: runner,
+	}
 }
 
 func (*runSkillTool) Name() string { return "run_skill" }
@@ -76,9 +113,9 @@ func (t *runSkillTool) Execute(ctx context.Context, args json.RawMessage) (strin
 	if name == "" {
 		return "", fmt.Errorf("run_skill requires a 'name' argument (got %q, which is just a marker/tag)", p.Name)
 	}
-	sk, ok := t.store.Read(name)
+	sk, ok := t.resolve(name)
 	if !ok {
-		return "", fmt.Errorf("unknown skill %q — available: %s", name, availableNames(t.store))
+		return "", fmt.Errorf("unknown skill %q — available: %s", name, t.names())
 	}
 	rawArgs := strings.TrimSpace(p.Arguments)
 

@@ -143,16 +143,10 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	})
 
 	skillStore := skill.New(skill.Options{ProjectRoot: cwd, CustomPaths: cfg.SkillCustomPaths(), Stderr: stderrPath})
-	skills := append(skillStore.List(), skillExtras...)
-	if skillFilter != nil {
-		filtered := skills[:0:0]
-		for _, sk := range skills {
-			if skillFilter(sk.Name) {
-				filtered = append(filtered, sk)
-			}
-		}
-		skills = filtered
-	}
+	// 可见集合唯一装配点（2026-11-15 众神殿首刀）：合并+同名去重（store-first）
+	// + filter 收口一次完成——技能索引/read_skill/run_skill 三面共享同一可见
+	// 集合（run_skill 经 Options 分流取 sp.skills，见 Build 内 run_skill 构造位）。
+	skills := skill.VisibleSkills(skillStore.List(), skillExtras, skillFilter)
 	sysPrompt = skill.ApplyIndex(sysPrompt, skills)
 
 	// read_skill 解析器（实例化，经 syspromptOut.readSkill 交 boot 注册；

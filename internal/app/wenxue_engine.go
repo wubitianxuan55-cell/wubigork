@@ -162,7 +162,8 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		Cwd:        ws,
 		// 办公域工具物理不装（ToolFilter，案A 拍板）；wenxue_* 专属四族只进
 		// 本引擎（办公 ExtraTools 不含——办公会话零出现）。space 装配过滤照常。
-		ExtraTools: append(gaeaExtraTools(a), wenxueExtraTools(a)...),
+		// 通用面走媒体根分档版（wenxueBaseTools）：image_gen/ocr 锚小说目录。
+		ExtraTools: append(wenxueBaseTools(a), wenxueExtraTools(a)...),
 		ToolFilter: wenxueToolFilter,
 		// 晨报预载/项目本体是 work 空间办公会话注入段——图文一律关。
 		MorningPreload: false,

@@ -19,6 +19,18 @@ import (
 // 结果保存到工作区 .gaea/uploads/ 并返回文件路径。
 type imageGenTool struct {
 	a *App
+	// mediaRoot 媒体根注入缝（2026-11-15 众神殿首刀媒体分档，pan_1794754879290）：
+	// nil=gaeaCwd() 办公现状逐字节；图文引擎（wenxueBaseTools）注入 wenxueWorkspace
+	// ——图文会话生成图落小说目录 .gaea/uploads/，不再写错书。
+	mediaRoot func() string
+}
+
+// root 落盘根解析（nil 缝=办公 gaeaCwd 现状）。
+func (t imageGenTool) root() string {
+	if t.mediaRoot != nil {
+		return t.mediaRoot()
+	}
+	return gaeaCwd()
 }
 
 func (t imageGenTool) Name() string { return "image_gen" }
@@ -117,7 +129,7 @@ func (t imageGenTool) Execute(ctx context.Context, args json.RawMessage) (string
 			out = append(out, fmt.Sprintf("[%d] 无图片数据", i+1))
 			continue
 		}
-		rel, err := saveGenImage(gaeaCwd(), dataURL)
+		rel, err := saveGenImage(t.root(), dataURL)
 		if err != nil {
 			out = append(out, fmt.Sprintf("[%d] 保存失败: %v", i+1, err))
 			continue

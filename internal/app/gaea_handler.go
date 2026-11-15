@@ -903,9 +903,17 @@ func gaeaLevelName(l event.Level) string {
 // 四入口之一，boot.Build reg.Add 同账；新增应用层工具只改这一处）。P1a
 // office 工具族（office_generate + 四类写）同点装配，不新开装配源
 // （2026-11-09 众神殿 pan_1794234593182 裁决 action-3）。
+// 媒体根=gaeaCwd 现状（nil 缝）；图文引擎的媒体根分档版见 wenxueBaseTools。
 func gaeaExtraTools(a *App) []tool.Tool {
+	return extraToolsWithMediaRoot(a, nil)
+}
+
+// extraToolsWithMediaRoot gaeaExtraTools 的媒体根注入版（2026-11-15 众神殿
+// 首刀媒体分档，pan_1794754879290）：mediaRoot 非 nil 时 image_gen/ocr 锚该根
+// （仅图文引擎用）；nil=gaeaCwd() 办公现状逐字节。新增应用层工具仍只改这一处。
+func extraToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 	tools := []tool.Tool{
-		imageGenTool{a: a},
+		imageGenTool{a: a, mediaRoot: mediaRoot},
 		diagramTool{a: a},
 		routineLLMTool{a: a},
 		translateTextTool{a: a},
@@ -951,5 +959,5 @@ func gaeaExtraTools(a *App) []tool.Tool {
 			officeMacroTool{},
 		)
 	}
-	return append(tools, gaeaSpecialistTools(a)...)
+	return append(tools, specialistToolsWithMediaRoot(a, mediaRoot)...)
 }

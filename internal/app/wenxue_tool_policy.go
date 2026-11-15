@@ -36,6 +36,11 @@ var wenxueDeniedTools = []string{
 	"format_convert", "screen_capture",
 	// 办公文件流水线
 	"dag_plan",
+	// 交付事实库（2026-11-15 众神殿首刀除名，pan_1794754879290 裁决）：语义=
+	// 办公交付任务的"确认数字/单位/期限"收集（PersistWrite），与图文写作闭环
+	// 无关——回写纪律走 时间线/角色卡（wenxue-workbench）。办公实现与
+	// RegistryMap 契约行不动，仅图文面不装配。
+	"fact_add", "fact_list", "fact_clear",
 	// 浏览器自动化族（前缀匹配）
 	"browser_",
 }

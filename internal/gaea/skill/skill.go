@@ -266,6 +266,37 @@ func (s *Store) Read(name string) (Skill, bool) {
 	return Skill{}, false
 }
 
+// VisibleSkills 合并 store 清单与宿主内嵌件并按板块 filter 收口（2026-11-15
+// 众神殿首刀，pan_1794754879290 裁决）：技能索引/read_skill/run_skill 三面
+// 共享的唯一可见集合装配点。同名去重 store-first（extras 同名不重复、序维持
+// store 先 extras 后）；filter 非空时未放行名整条摘除（deny-by-absence）。
+// 办公引擎（filter=nil、extras 空）产出=store.List() 原序原样。
+func VisibleSkills(storeList, extras []Skill, filter func(string) bool) []Skill {
+	merged := make([]Skill, 0, len(storeList)+len(extras))
+	seen := map[string]bool{}
+	for _, sk := range storeList {
+		if seen[sk.Name] {
+			continue
+		}
+		seen[sk.Name] = true
+		if filter != nil && !filter(sk.Name) {
+			continue
+		}
+		merged = append(merged, sk)
+	}
+	for _, sk := range extras {
+		if seen[sk.Name] {
+			continue // store-first：同名以 store 版为准，extras 不重复入表
+		}
+		seen[sk.Name] = true
+		if filter != nil && !filter(sk.Name) {
+			continue
+		}
+		merged = append(merged, sk)
+	}
+	return merged
+}
+
 // readEntry turns one directory entry into a skill. It resolves symlinks via
 // os.Stat (os.ReadDir reports a symlink's own type, not its target's), so a
 // linked skill directory or a linked flat <name>.md is discovered like a real
