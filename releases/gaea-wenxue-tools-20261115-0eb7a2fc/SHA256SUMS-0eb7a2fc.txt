@@ -1,0 +1,6 @@
+﻿226c106216afce187cd749b0a59cb6e1f0824c9ab8b32270fad214e9e0c3624f *gaea-0eb7a2fc-source.tar.gz
+4b5736f30059b736465fd3ab18ca6cebd16ad48c035f7f6749c9fda91ff24c3c *gaea-0eb7a2fc-preview.zip
+4c56327796cdb980dcbf90025c28093d89ca286088fb74c3b107f2f633e67ffe *payload/sherpa-onnx-cxx-api.dll
+5dd36dbd3572846b72c4a40a4017c5a770160ee8e00da5053bebc8b2632501e8 *payload/sherpa-onnx-c-api.dll
+68d0d5f502be4509e2a16f932627a95137d748b2fae519027f80125c0b1f550b *payload/onnxruntime.dll
+bac42ee4de7e9849974cf844cff66af1fccc21a37286496f909477e83f9a932d *payload/gaea.exe
