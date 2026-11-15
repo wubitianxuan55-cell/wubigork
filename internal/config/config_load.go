@@ -40,7 +40,6 @@ func loadDefaults(home string) *Config {
 		FuncGaeaEnabled:    true,
 		FuncCharLibEnabled: true,
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
-		FuncSinEnabled:     true, // 原罪（闲庭·图文故事创作）默认启用：绑定即生效
 		FuncVisionEnabled:  true, // 办公识图默认启用：绑定即生效，未绑定走 gaea.toml [vision]
 		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
 		SensitiveLocal: true,
@@ -243,11 +242,8 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.PortraitModel != "" {
 				cfg.PortraitModel = cf.PortraitModel
 			}
-			if cf.SinImageBackend != "" {
-				cfg.SinImageBackend = cf.SinImageBackend
-			}
-			if cf.SinImageModel != "" {
-				cfg.SinImageModel = cf.SinImageModel
+			if cf.WenxueWorkspace != "" {
+				cfg.WenxueWorkspace = cf.WenxueWorkspace
 			}
 			if cf.ComfyUIPath != "" {
 				cfg.ComfyUIPath = cf.ComfyUIPath
@@ -371,15 +367,6 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.FuncRoutineEnabled != nil {
 				cfg.FuncRoutineEnabled = *cf.FuncRoutineEnabled
-			}
-			if cf.FuncSinEngine != "" {
-				cfg.FuncSinEngine = cf.FuncSinEngine
-			}
-			if cf.FuncSinModel != "" {
-				cfg.FuncSinModel = cf.FuncSinModel
-			}
-			if cf.FuncSinEnabled != nil {
-				cfg.FuncSinEnabled = *cf.FuncSinEnabled
 			}
 			if cf.FuncVisionEngine != "" {
 				cfg.FuncVisionEngine = cf.FuncVisionEngine

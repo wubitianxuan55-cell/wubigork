@@ -19,8 +19,9 @@ import (
 	"github.com/gaea/gaea/internal/routesuggest"
 )
 
-// routeFeatures 建议覆盖的功能绑定键（whisper 并入 chat——featureModelKeys 同口径）。
-var routeFeatures = []string{"chat", "novel", "office", "gaea", "characterlib", "routine", "sin"}
+// routeFeatures 建议覆盖的功能绑定键（whisper 并入 chat——featureModelKeys 同口径；
+// sin 2026-11-15 随原罪板块退役移除）。
+var routeFeatures = []string{"chat", "novel", "office", "gaea", "characterlib", "routine"}
 
 // RouteSuggestionsView 建议视图（Wails 绑定，模型中心「成本归因」tab 消费）。
 type RouteSuggestionsView struct {

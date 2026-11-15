@@ -1,0 +1,208 @@
+// gaea 图标兼容层 — lucide-react → @ant-design/icons 统一映射。
+// 目的：办公模块与主应用共享同一套图标体系（antd），消除两套图标来源。
+// 用法：`import { X, Check, ... } from "../icons"`（原 lucide 图标名保持可用）。
+import {
+  AlertOutlined,
+  DislikeFilled,
+  DislikeOutlined,
+  LikeFilled,
+  LikeOutlined,
+  AimOutlined,
+  ApartmentOutlined,
+  ApiOutlined,
+  AppstoreOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  AuditOutlined,
+  BarChartOutlined,
+  BarsOutlined,
+  BlockOutlined,
+  BookOutlined,
+  BorderRightOutlined,
+  BulbOutlined,
+  CameraOutlined,
+  CheckCircleOutlined,
+  CheckOutlined,
+  ClockCircleOutlined,
+  CloseCircleOutlined,
+  CloseOutlined,
+  CloudUploadOutlined,
+  CodeOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DiffOutlined,
+  DownloadOutlined,
+  FileWordOutlined,
+  DashboardOutlined,
+  DownOutlined,
+  EditOutlined,
+  EyeOutlined,
+  FileExcelOutlined,
+  FileImageOutlined,
+  FileOutlined,
+  FilePdfOutlined,
+  FilePptOutlined,
+  FileTextOutlined,
+  FolderAddOutlined,
+  FolderOpenOutlined,
+  FolderOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
+  DatabaseOutlined,
+  GlobalOutlined,
+  HolderOutlined,
+  HomeOutlined,
+  InboxOutlined,
+  LineChartOutlined,
+  LinkOutlined,
+  LoadingOutlined,
+  MenuOutlined,
+  MessageOutlined,
+  MoneyCollectOutlined,
+  NumberOutlined,
+  PaperClipOutlined,
+  PartitionOutlined,
+  PieChartOutlined,
+  PictureOutlined,
+  PushpinOutlined,
+  PlusOutlined,
+  PullRequestOutlined,
+  ReloadOutlined,
+  RightOutlined,
+  RollbackOutlined,
+  RobotOutlined,
+  SafetyCertificateOutlined,
+  SaveOutlined,
+  ScanOutlined,
+  SearchOutlined,
+  SettingOutlined,
+  StopOutlined,
+  SwapOutlined,
+  TableOutlined,
+  TeamOutlined,
+  ThunderboltOutlined,
+  ToolOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
+import { createElement, type ComponentType, type ElementType, type SVGProps } from "react";
+
+export type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
+export type Icon = ComponentType<IconProps>;
+
+// 包装 antd 图标，兼容 lucide 的 size prop（映射到 style.fontSize）。
+// antd 图标 props（AntdIconProps）与 lucide 的 SVGProps 并不完全兼容
+// （如 focusable 类型不同），因此 wrap 参数用 ElementType 接受任意组件，
+// 由 createElement 泛型收窄 props，无需放宽类型（T6-10.2）。
+function wrap(Comp: ElementType): Icon {
+  return function GaeaIcon(props: IconProps) {
+    const { size, style, ...rest } = props;
+    const fontSize = size !== undefined ? size : undefined;
+    return createElement(Comp, { ...rest, style: fontSize !== undefined ? { ...style, fontSize } : style });
+  };
+}
+
+// lucide 名 → antd 图标
+export const AlertCircle: Icon = wrap(AlertOutlined);
+export const ThumbsUp: Icon = wrap(LikeOutlined);
+export const ThumbsUpFilled: Icon = wrap(LikeFilled);
+export const ThumbsDown: Icon = wrap(DislikeOutlined);
+export const ThumbsDownFilled: Icon = wrap(DislikeFilled);
+export const Aim: Icon = wrap(AimOutlined);
+export const ArrowDown: Icon = wrap(ArrowDownOutlined);
+export const ArrowUp: Icon = wrap(ArrowUpOutlined);
+export const ArrowUpRight: Icon = wrap(ArrowUpOutlined);
+export const Archive: Icon = wrap(InboxOutlined);
+export const BarChart3: Icon = wrap(BarChartOutlined);
+export const BookOpen: Icon = wrap(BookOutlined);
+export const Bot: Icon = wrap(RobotOutlined);
+export const Box: Icon = wrap(BlockOutlined);
+export const Brain: Icon = wrap(ApiOutlined);
+export const Camera: Icon = wrap(CameraOutlined);
+export const Check: Icon = wrap(CheckOutlined);
+
+export const CheckCircle: Icon = wrap(CheckCircleOutlined);
+export const ChevronDown: Icon = wrap(DownOutlined);
+export const ChevronRight: Icon = wrap(RightOutlined);
+export const ChevronsUpDown: Icon = wrap(SwapOutlined);
+export const Circle: Icon = wrap(CheckCircleOutlined);
+export const ClipboardList: Icon = wrap(AuditOutlined);
+export const Clock: Icon = wrap(ClockCircleOutlined);
+export const CloudUpload: Icon = wrap(CloudUploadOutlined);
+export const Coins: Icon = wrap(MoneyCollectOutlined);
+export const Command: Icon = wrap(CodeOutlined);
+export const Copy: Icon = wrap(CopyOutlined);
+export const Cpu: Icon = wrap(ApiOutlined);
+export const Diff: Icon = wrap(DiffOutlined);
+export const Gauge: Icon = wrap(DashboardOutlined);
+export const ExternalLink: Icon = wrap(LinkOutlined);
+export const Eye: Icon = wrap(EyeOutlined);
+export const File: Icon = wrap(FileOutlined);
+export const FileImage: Icon = wrap(FileImageOutlined);
+export const FileSpreadsheet: Icon = wrap(FileExcelOutlined);
+export const FilePpt: Icon = wrap(FilePptOutlined);
+export const FileText: Icon = wrap(FileTextOutlined);
+export const FilePdf: Icon = wrap(FilePdfOutlined);
+export const FileWord: Icon = wrap(FileWordOutlined);
+export const Download: Icon = wrap(DownloadOutlined);
+export const Folder: Icon = wrap(FolderOutlined);
+export const FolderGit2: Icon = wrap(FolderOpenOutlined);
+export const FolderOpen: Icon = wrap(FolderOpenOutlined);
+export const FolderPlus: Icon = wrap(FolderAddOutlined);
+export const GitBranch: Icon = wrap(PullRequestOutlined);
+export const Globe: Icon = wrap(GlobalOutlined);
+export const Home: Icon = wrap(HomeOutlined);
+export const Inbox: Icon = wrap(InboxOutlined);
+export const Image: Icon = wrap(PictureOutlined);
+export const Loader: Icon = wrap(LoadingOutlined);
+export const LineChart: Icon = wrap(LineChartOutlined);
+export const PieChart: Icon = wrap(PieChartOutlined);
+export const MessageSquare: Icon = wrap(MessageOutlined);
+export const Palette: Icon = wrap(EditOutlined);
+export const Paperclip: Icon = wrap(PaperClipOutlined);
+export const Pin: Icon = wrap(PushpinOutlined);
+export const Pencil: Icon = wrap(EditOutlined);
+export const Plus: Icon = wrap(PlusOutlined);
+export const Rollback: Icon = wrap(RollbackOutlined);
+export const RefreshCw: Icon = wrap(ReloadOutlined);
+export const Save: Icon = wrap(SaveOutlined);
+export const ScrollText: Icon = wrap(FileTextOutlined);
+export const Scan: Icon = wrap(ScanOutlined);
+export const Search: Icon = wrap(SearchOutlined);
+export const Shield: Icon = wrap(SafetyCertificateOutlined);
+export const Square: Icon = wrap(AppstoreOutlined);
+export const Trash2: Icon = wrap(DeleteOutlined);
+export const Database: Icon = wrap(DatabaseOutlined);
+export const TrendingUp: Icon = wrap(LineChartOutlined);
+export const User: Icon = wrap(UserOutlined);
+export const Wand2: Icon = wrap(BulbOutlined);
+export const Wrench: Icon = wrap(ToolOutlined);
+export const X: Icon = wrap(CloseOutlined);
+export const XCircle: Icon = wrap(CloseCircleOutlined);
+
+export const SquarePen: Icon = wrap(EditOutlined);
+export const FolderTree: Icon = wrap(FolderOpenOutlined);
+export const Maximize2: Icon = wrap(FullscreenOutlined);
+export const Minimize2: Icon = wrap(FullscreenExitOutlined);
+export const PanelRightOpen: Icon = wrap(HolderOutlined);
+export const PanelRightClose: Icon = wrap(HolderOutlined);
+export const PanelRight: Icon = wrap(BorderRightOutlined);
+export const GripVertical: Icon = wrap(HolderOutlined);
+export const Settings: Icon = wrap(SettingOutlined);
+
+export const Blocks: Icon = wrap(ApartmentOutlined);
+export const PanelLeftClose: Icon = wrap(MenuOutlined);
+export const PanelLeftOpen: Icon = wrap(MenuOutlined);
+export const Ban: Icon = wrap(StopOutlined);
+export const Loader2: Icon = wrap(LoadingOutlined);
+
+export const Calculator: Icon = wrap(NumberOutlined);
+export const FilePen: Icon = wrap(EditOutlined);
+export const Hourglass: Icon = wrap(ClockCircleOutlined);
+export const Layers: Icon = wrap(AppstoreOutlined);
+export const ListTree: Icon = wrap(PartitionOutlined);
+export const PlusCircle: Icon = wrap(PlusOutlined);
+export const Sparkles: Icon = wrap(BulbOutlined);
+export const Users: Icon = wrap(TeamOutlined);
+export const List: Icon = wrap(BarsOutlined);
+export const Table: Icon = wrap(TableOutlined);
+export const Zap: Icon = wrap(ThunderboltOutlined);

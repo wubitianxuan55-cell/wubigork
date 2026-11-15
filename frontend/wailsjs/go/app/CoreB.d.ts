@@ -57,8 +57,6 @@ export function GetProgrammingWebStatus():Promise<Record<string, any>>;
 
 export function GetProjectInfo():Promise<Record<string, any>>;
 
-export function GetSinImageConfig():Promise<Record<string, string>>;
-
 export function GetStats():Promise<Record<string, any>>;
 
 export function ListProjects():Promise<Array<app.ProjectCard>>;
@@ -110,8 +108,6 @@ export function SetKeepWarm(arg1:boolean):Promise<void>;
 export function SetOpencodeGoKey(arg1:string):Promise<void>;
 
 export function SetPreloadPlan(arg1:boolean):Promise<void>;
-
-export function SetSinImageConfig(arg1:string,arg2:string):Promise<void>;
 
 export function StartProgrammingWeb():Promise<void>;
 

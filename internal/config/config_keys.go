@@ -24,10 +24,9 @@ const (
 	KeyComfyUIURL          = "comfyui_url"
 	KeyImageSaveDir        = "image_save_dir"
 	KeyImageModel          = "image_model"
-	KeyPortraitBackend     = "portrait_backend"  // 角色库剧照独立后端（空=跟随绘梦）
-	KeyPortraitModel       = "portrait_model"    // 角色库剧照独立模型（空=跟随绘梦）
-	KeySinImageBackend     = "sin_image_backend" // 原罪插图独立生图后端（空=跟随全局生图设置）
-	KeySinImageModel       = "sin_image_model"   // 原罪插图独立生图模型（空=跟随全局生图设置）
+	KeyPortraitBackend     = "portrait_backend" // 角色库剧照独立后端（空=跟随绘梦）
+	KeyPortraitModel       = "portrait_model"   // 角色库剧照独立模型（空=跟随绘梦）
+	KeyWenxueWorkspace     = "wenxue_workspace" // 文学板块（图文）当前小说工作空间（C:\AI	uwen 子目录绝对路径）
 	KeyComfyUIPath         = "comfyui_path"
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"
@@ -55,10 +54,6 @@ const (
 	KeyFuncCharLibModel  = "func_characterlib_model"
 	KeyFuncRoutineEngine = "func_routine_engine"
 	KeyFuncRoutineModel  = "func_routine_model"
-	// 原罪（闲庭·图文故事创作板块）：独立 LLM 绑定，便于给故事创作单挂
-	// 无审查/长上下文模型，与聊天/小说互不干扰。
-	KeyFuncSinEngine = "func_sin_engine"
-	KeyFuncSinModel  = "func_sin_model"
 	// 办公识图（vision）：视觉模型独立绑定。未绑定时视觉链路沿用 gaea.toml
 	// [vision] 静态注入（默认本机 herdsman Qwen3.6 视觉模型）；绑定后识图
 	// （看懂图/微信图片/图片附件等）改走绑定引擎的 OpenAI 兼容端点。
@@ -71,7 +66,6 @@ const (
 	KeyFuncGaeaEnabled    = "func_gaea_enabled"
 	KeyFuncCharLibEnabled = "func_characterlib_enabled"
 	KeyFuncRoutineEnabled = "func_routine_enabled"
-	KeyFuncSinEnabled     = "func_sin_enabled"
 	KeyFuncVisionEnabled  = "func_vision_enabled"
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman，
 	// 可配置回云端。默认开启。

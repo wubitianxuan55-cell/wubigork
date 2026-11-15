@@ -1,0 +1,2050 @@
+/* context-view.css — 上下文页观测台卡片语言
+ *
+ * 结构对齐 dsh-context 0.84.1 的 contextView.tsx：
+ *   lc-cols.lc-head        = StatsContext + 右侧信息列
+ *   lc-cols.lc-head        = Token + Timing
+ *   lc-cols.lc-cols-main   = 左 CurrentComposition + Trend，右 ContextBrowser
+ *   lc-cols                = Events + FileActivity
+ * 视觉对齐 base.css/stats.css：7-9px 栅格、平边卡、浅边界、10px 卡片圆角；
+ * 卡头图标只保留 14px 线性符号，不放色块底座。
+ * 纪律：零硬编码色值，全部走语义令牌。
+ */
+
+
+.wx-root .ctx-cockpit {
+
+  --ctx-gap: 8px;
+  scrollbar-gutter: stable;
+  padding: var(--ctx-gap) !important;
+  gap: 0 !important;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-cols {
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--ctx-gap);
+  margin-bottom: var(--ctx-gap);
+  min-width: 0;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-col {
+
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--ctx-gap);
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-col > .ctx-card {
+
+  margin-bottom: 0;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-head-row {
+
+  container-type: inline-size;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-head-row > .ctx-col-stats {
+
+  flex: 3 1 520px;
+  min-width: min(360px, 100%);
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-head-row > .ctx-col-session {
+
+  flex: 1 1 220px;
+  min-width: min(220px, 100%);
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-head-row .ctx-col > .ctx-card {
+
+  flex: 1 1 auto;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-head-row .ctx-col-session > .ctx-card:not(.ctx-summary) {
+
+  flex: 0 0 auto;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-head-row .ctx-col-session > .ctx-summary {
+
+  flex: 1 1 auto;
+  align-content: flex-start;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-instruments-row > .ctx-card,
+.wx-root .ctx-cockpit .ctx-audit-row > .ctx-card {
+
+  flex: 1 1 360px;
+  min-width: min(320px, 100%);
+  margin-bottom: 0;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-main-row > .ctx-col {
+
+  flex: 1 1 360px;
+  min-width: min(360px, 100%);
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-col-browser {
+
+  overflow: hidden;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-col-browser > .ctx-card {
+
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-cols[data-context-row="commands"] > .ctx-card,
+.wx-root .ctx-cockpit .ctx-cols[data-context-row="agent-network"] > .ctx-card {
+
+  flex: 1 1 100%;
+  min-width: min(360px, 100%);
+  margin-bottom: 0;
+}
+
+
+@container (min-width: 640px) {
+
+  .ctx-cockpit .ctx-head-row > .ctx-col-session {
+    flex-basis: 25%;
+    max-width: 320px;
+  }
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-card,
+.wx-root .ctx-cockpit .ctx-tile {
+
+  border-color: color-mix(in srgb, var(--fg) 9%, transparent);
+}
+
+
+
+.wx-root .ctx-tile {
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 56%,
+    var(--color-surface-container, var(--md-sys-color-surface-container))
+  );
+  box-shadow: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+
+.wx-root .ctx-tile:hover {
+
+  border-color: color-mix(
+    in srgb,
+    var(--color-primary, var(--md-sys-color-primary)) 34%,
+    var(--color-border, var(--md-sys-color-outline-variant))
+  );
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--color-primary, var(--md-sys-color-primary)) 8%, transparent);
+}
+
+
+
+.wx-root .ctx-card {
+
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  box-shadow: none;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-card {
+
+  padding: 7px 8px !important;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-summary {
+
+  padding: 8px 12px !important;
+}
+
+
+/* 目标形态是平边观测台，不再叠加顶部装饰高光。 */
+
+.wx-root .ctx-card::before {
+
+  display: none;
+}
+
+
+/* 当前上下文不再做 hero 主色渐变，改为同一卡面。 */
+
+.wx-root .ctx-hero {
+
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+}
+
+
+/* 卡头图标：只保留 12px 线性符号，去掉色块底座。 */
+
+.wx-root .ctx-head-ic {
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 0;
+  color: var(--fg-faint);
+  background: transparent;
+}
+
+
+/* 列表行 cardlet：独立小卡，替代细分隔线 */
+
+.wx-root .ctx-row {
+
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 26%,
+    transparent
+  );
+  transition: background-color 150ms ease;
+}
+
+
+.wx-root .ctx-row:hover {
+
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 58%,
+    transparent
+  );
+}
+
+
+.wx-root .ctx-row:disabled,
+.wx-root .ctx-row[aria-disabled="true"] {
+
+  cursor: default;
+}
+
+
+.wx-root .ctx-row:disabled:hover,
+.wx-root .ctx-row[aria-disabled="true"]:hover {
+
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 26%,
+    transparent
+  );
+}
+
+
+/* 底部汇总条：扁长卡 */
+
+.wx-root .ctx-summary {
+
+  padding: 8px 12px;
+}
+
+
+
+.wx-root .ctx-cockpit .ctx-card > .flex:first-child {
+
+  min-height: 18px;
+}
+
+
+/* StatsContext 的 lc-ledger：顶部 4 KPI + 2 格事件，其后 IO/tool、
+   commands/fleet 各占双列的一侧。 */
+
+.wx-root .ctx-stats-ledger {
+
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 6px 28px;
+}
+
+
+
+.wx-root .ctx-core-grid {
+
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+
+
+.wx-root .ctx-core-events {
+
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 8px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 56%,
+    var(--color-surface-container, var(--md-sys-color-surface-container))
+  );
+}
+
+
+
+.wx-root .ctx-stat-row {
+
+  min-width: 0;
+  padding-bottom: 5px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+
+
+.wx-root .ctx-stat-row-io {
+
+  grid-column: 1;
+  grid-row: 2;
+}
+
+
+
+.wx-root .ctx-stat-row-tools {
+
+  grid-column: 2;
+  grid-row: 2;
+}
+
+
+
+.wx-root .ctx-stat-row-commands {
+
+  grid-column: 1;
+  grid-row: 3;
+}
+
+
+
+.wx-root .ctx-fleet-summary {
+
+  display: flex;
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 3;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 40%,
+    transparent
+  );
+  font-size: 10.5px;
+}
+
+
+
+.wx-root .ctx-events-list,
+.wx-root .ctx-files-list {
+
+  height: 320px;
+  max-height: 320px !important;
+}
+
+
+
+.wx-root .ctx-kind-filters {
+
+  padding: 1px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 46%,
+    transparent
+  );
+}
+
+
+
+.wx-root .ctx-kind-filter {
+
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  background: transparent;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-kind-filter:hover {
+
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+
+
+.wx-root .ctx-kind-filter[aria-pressed="true"] {
+
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+
+
+.wx-root .ctx-kind-filter[data-kind="inject"][aria-pressed="true"] {
+
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-kind-filter[data-kind="compact"][aria-pressed="true"] {
+
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-kind-filter[data-kind="prune"][aria-pressed="true"] {
+
+  color: var(--md-sys-color-tertiary, var(--info));
+  background: color-mix(in srgb, var(--md-sys-color-tertiary, var(--info)) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-event-row {
+
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+
+
+.wx-root .ctx-event-row:nth-child(even) {
+
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+
+
+
+.wx-root .ctx-event-row:hover {
+
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+
+
+.wx-root .ctx-event-row:focus-visible {
+
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+
+
+.wx-root .ctx-event-sign {
+
+  width: 14px;
+  flex: none;
+  color: var(--ok);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+
+
+.wx-root .ctx-event-row[data-kind="compact"] .ctx-event-sign {
+
+  color: var(--err);
+}
+
+
+
+.wx-root .ctx-event-row[data-kind="prune"] .ctx-event-sign {
+
+  color: var(--warn);
+}
+
+
+
+.wx-root .ctx-event-row[data-kind="switch"] .ctx-event-sign,
+.wx-root .ctx-event-row[data-kind="mode"] .ctx-event-sign {
+
+  color: var(--info);
+}
+
+
+
+.wx-root .ctx-event-kind {
+
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-event-row[data-kind="inject"] .ctx-event-kind {
+
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 13%, transparent);
+}
+
+
+
+.wx-root .ctx-event-row[data-kind="compact"] .ctx-event-kind {
+
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 13%, transparent);
+}
+
+
+
+.wx-root .ctx-event-row[data-kind="prune"] .ctx-event-kind {
+
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+}
+
+
+
+.wx-root .ctx-event-label {
+
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-event-meta {
+
+  flex: none;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-event-delta {
+
+  min-width: 42px;
+  flex: none;
+  color: var(--warn);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-event-delta[data-sign="up"] {
+
+  color: var(--ok);
+}
+
+
+
+.wx-root .ctx-event-time {
+
+  min-width: 52px;
+  flex: none;
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-file-head {
+
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+
+
+.wx-root .ctx-file-meta {
+
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-faint);
+  font-size: 10px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-file-added {
+
+  color: var(--ok);
+  font-family: var(--font-mono, var(--mono));
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .ctx-file-removed {
+
+  color: var(--err);
+  font-family: var(--font-mono, var(--mono));
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .ctx-file-chips,
+.wx-root .ctx-file-sorts {
+
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 46%,
+    transparent
+  );
+}
+
+
+
+.wx-root .ctx-file-chips {
+
+  margin-left: auto;
+}
+
+
+
+.wx-root .ctx-file-chip,
+.wx-root .ctx-file-sort {
+
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  background: transparent;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-file-chip:hover,
+.wx-root .ctx-file-sort:hover {
+
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+
+
+.wx-root .ctx-file-chip[aria-pressed="true"],
+.wx-root .ctx-file-sort[aria-pressed="true"] {
+
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+
+
+.wx-root .ctx-file-chip[data-tone="read"][aria-pressed="true"] {
+
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-file-chip[data-tone="write"][aria-pressed="true"] {
+
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-file-chip[data-tone="search"][aria-pressed="true"] {
+
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-file-controls {
+
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+
+
+.wx-root .ctx-file-row {
+
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  color: var(--fg);
+  background: transparent;
+}
+
+
+
+.wx-root .ctx-files-list > div:nth-child(even) > .ctx-file-row {
+
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+
+
+
+.wx-root .ctx-file-row:hover {
+
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+
+
+.wx-root .ctx-file-open {
+
+  min-width: 0;
+}
+
+
+
+.wx-root .ctx-file-path {
+
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono, var(--mono));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-file-dir {
+
+  color: var(--fg-faint);
+}
+
+
+
+.wx-root .ctx-file-name {
+
+  color: var(--fg);
+  font-weight: 540;
+}
+
+
+
+.wx-root .ctx-file-delta {
+
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-file-badges {
+
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+
+
+.wx-root .ctx-file-badge {
+
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-file-badge[data-kind="read"] {
+
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+}
+
+
+
+.wx-root .ctx-file-badge[data-kind="write"] {
+
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+
+
+.wx-root .ctx-file-badge[data-kind="move"] {
+
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+
+
+.wx-root .ctx-file-badge[data-kind="dir"] {
+
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+
+
+.wx-root .ctx-file-time {
+
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+/* CommandPanel：源码 lc-cmd-body = minmax(200px, 1fr) + minmax(0, 2fr)，
+ * 左摘要/关注/程序分布，右侧可筛选排序的命令日志。 */
+
+.wx-root .ctx-cmd-card {
+
+  display: flex;
+  max-height: 560px;
+  flex-direction: column;
+}
+
+
+
+.wx-root .ctx-cmd-head {
+
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+
+
+.wx-root .ctx-cmd-head > .ctx-card-title-text {
+
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+
+
+.wx-root .ctx-cmd-filters,
+.wx-root .ctx-cmd-sort {
+
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 48%,
+    transparent
+  );
+}
+
+
+
+.wx-root .ctx-cmd-filters {
+
+  margin-left: auto;
+}
+
+
+
+.wx-root .ctx-cmd-filter,
+.wx-root .ctx-cmd-sort > button {
+
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-dim);
+  background: transparent;
+  font: inherit;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-cmd-filter:hover,
+.wx-root .ctx-cmd-sort > button:hover {
+
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-filter b {
+
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+
+
+.wx-root .ctx-cmd-filter[aria-pressed="true"] {
+
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+
+
+.wx-root .ctx-cmd-filter[data-tone="failed"][aria-pressed="true"] {
+
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-filter[data-tone="slow"][aria-pressed="true"] {
+
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-filter[data-tone="background"][aria-pressed="true"] {
+
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-sort > button[aria-pressed="true"] {
+
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+
+
+.wx-root .ctx-cmd-body {
+
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(210px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+}
+
+
+
+.wx-root .ctx-cmd-rail {
+
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+
+
+.wx-root .ctx-cmd-rail-section {
+
+  min-width: 0;
+}
+
+
+
+.wx-root .ctx-cmd-rail-title {
+
+  display: flex;
+  min-height: 23px;
+  align-items: center;
+  margin: 0 0 7px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 11%, transparent);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+
+
+.wx-root .ctx-cmd-kpis {
+
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 9px;
+}
+
+
+
+.wx-root .ctx-cmd-kpi {
+
+  display: flex;
+  min-width: 0;
+  min-height: 45px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--fg);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 54%,
+    transparent
+  );
+  text-align: left;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-cmd-kpi:hover {
+
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-kpi b {
+
+  overflow: hidden;
+  font-family: var(--font-mono, var(--mono));
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-kpi span {
+
+  color: var(--fg-faint);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-kpi[data-tone="failed"] b {
+
+  color: var(--err);
+}
+
+
+
+.wx-root .ctx-cmd-kpi[data-tone="background"] b {
+
+  color: var(--info);
+}
+
+
+
+.wx-root .ctx-cmd-attention {
+
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+
+
+.wx-root .ctx-cmd-attention > button {
+
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 7px 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-cmd-attention > button:hover {
+
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-attention > button[aria-pressed="true"] {
+
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-attention i {
+
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+
+
+.wx-root .ctx-cmd-attention i[data-tone="repeat"] {
+
+  background: var(--md-sys-color-tertiary, var(--info));
+}
+
+
+
+.wx-root .ctx-cmd-attention span {
+
+  color: var(--fg-dim);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-attention em {
+
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-attention b {
+
+  color: var(--fg);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-programs {
+
+  min-height: 0;
+  flex: 1;
+}
+
+
+
+.wx-root .ctx-cmd-programs-list {
+
+  display: flex;
+  max-height: 180px;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+
+
+.wx-root .ctx-cmd-program-search {
+
+  width: 100%;
+  height: 22px;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 5px;
+  outline: none;
+  color: var(--fg);
+  background: var(--bg-soft);
+  font-size: 9.5px;
+}
+
+
+
+.wx-root .ctx-cmd-program-search:focus {
+
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-program-empty {
+
+  padding: 5px 6px;
+  color: var(--fg-faint);
+  font-size: 9.5px;
+}
+
+
+
+.wx-root .ctx-cmd-program {
+
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg);
+  background: transparent;
+  font: inherit;
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-cmd-program:hover,
+.wx-root .ctx-cmd-program[data-picked="true"] {
+
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-program i {
+
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+
+
+.wx-root .ctx-cmd-program i[data-rank="1"] {
+
+  background: var(--info);
+}
+
+
+
+.wx-root .ctx-cmd-program i[data-rank="2"] {
+
+  background: var(--ok);
+}
+
+
+
+.wx-root .ctx-cmd-program i[data-rank="3"],
+.wx-root .ctx-cmd-program i[data-rank="4"] {
+
+  background: var(--warn);
+}
+
+
+
+.wx-root .ctx-cmd-program span {
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-program b {
+
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .ctx-cmd-main {
+
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+
+
+.wx-root .ctx-cmd-controls {
+
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+
+
+.wx-root .ctx-cmd-search {
+
+  min-width: 120px;
+  flex: 1;
+  height: 25px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  outline: none;
+  color: var(--fg);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 42%,
+    transparent
+  );
+  font-size: 10.5px;
+}
+
+
+
+.wx-root .ctx-cmd-search::placeholder {
+
+  color: var(--fg-faint);
+}
+
+
+
+.wx-root .ctx-cmd-search:focus {
+
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-search-active {
+
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-soft));
+}
+
+
+
+.wx-root .ctx-cmd-list {
+
+  min-height: 120px;
+  max-height: 420px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+
+
+.wx-root .ctx-cmd-row {
+
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 10.5px;
+}
+
+
+
+.wx-root .ctx-cmd-row-alt {
+
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-row:hover {
+
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-row-button {
+
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+
+
+.wx-root .ctx-cmd-row-button:disabled {
+
+  cursor: default;
+}
+
+
+
+.wx-root .ctx-cmd-row-button:not(:disabled) {
+
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-cmd-row-open {
+
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-chev {
+
+  flex: none;
+  padding-top: 1px;
+  color: var(--fg-faint);
+  font-size: 9px;
+}
+
+
+
+.wx-root .ctx-cmd-detail {
+
+  margin: 3px 0 2px 18px;
+}
+
+
+
+.wx-root .ctx-cmd-row-state {
+
+  width: 12px;
+  flex: none;
+  color: var(--ok);
+  text-align: center;
+  font-weight: 700;
+}
+
+
+
+.wx-root .ctx-cmd-row-state[data-status="failed"] {
+
+  color: var(--err);
+}
+
+
+
+.wx-root .ctx-cmd-row-state[data-status="killed"] {
+
+  color: var(--warn);
+}
+
+
+
+.wx-root .ctx-cmd-dot {
+
+  display: none;
+}
+
+
+
+.wx-root .ctx-cmd-row-main {
+
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+
+
+.wx-root .ctx-cmd-stamp {
+
+  flex: none;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .ctx-cmd-badge {
+
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+}
+
+
+
+.wx-root .ctx-cmd-exit,
+.wx-root .ctx-cmd-error {
+
+  color: var(--err);
+  font-family: var(--font-mono, var(--mono));
+}
+
+
+
+.wx-root .ctx-cmd-duration {
+
+  margin-left: auto;
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-command {
+
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-error {
+
+  margin-top: 1px;
+  font-size: 9.5px;
+}
+
+
+
+.wx-root .ctx-browser-delta {
+
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 11%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .ctx-browser-delta[data-sign="down"] {
+
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 10%, transparent);
+}
+
+
+
+.wx-root .ctx-browser-source {
+
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+
+
+.wx-root .ctx-browser-map-hint {
+
+  margin-bottom: 5px;
+  color: var(--fg-faint);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+
+
+.wx-root .ctx-browser-map-shell {
+
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--fg) 8%, transparent);
+  border-radius: 7px;
+  background: var(--bg-soft);
+}
+
+
+
+.wx-root .ctx-browser-map-item {
+
+  position: absolute;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--map-color) 38%, var(--color-border));
+  border-radius: 5px;
+  outline: none;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--map-color) 15%, var(--bg-soft));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+
+
+.wx-root .ctx-browser-map-item:hover {
+
+  border-color: color-mix(in srgb, var(--map-color) 72%, var(--color-border));
+  background: color-mix(in srgb, var(--map-color) 24%, var(--bg-soft));
+}
+
+
+
+.wx-root .ctx-browser-map-item:focus-visible {
+
+  border-color: var(--map-color);
+  box-shadow:
+    0 0 0 2px var(--bg-soft),
+    0 0 0 4px color-mix(in srgb, var(--map-color) 52%, transparent);
+}
+
+
+
+.wx-root .ctx-browser-map-name {
+
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+
+
+.wx-root .ctx-browser-map-name i {
+
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--map-color);
+}
+
+
+
+.wx-root .ctx-browser-map-name span,
+.wx-root .ctx-browser-map-value,
+.wx-root .ctx-browser-map-count {
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-browser-map-value {
+
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .ctx-browser-map-count {
+
+  color: var(--fg-faint);
+  font-size: 8.5px;
+}
+
+
+
+.wx-root .ctx-browser-map-item[data-compact="true"] {
+
+  justify-content: center;
+  gap: 1px;
+  padding: 4px;
+}
+
+
+
+.wx-root .ctx-browser-map-item[data-compact="true"] .ctx-browser-map-count {
+
+  display: none;
+}
+
+
+
+.wx-root .ctx-browser-map-item[data-compact="true"] .ctx-browser-map-name {
+
+  font-size: 8.5px;
+}
+
+
+
+.wx-root .ctx-browser-map-item[data-compact="true"] .ctx-browser-map-value {
+
+  font-size: 8px;
+}
+
+
+
+.wx-root .ctx-browser-map-empty {
+
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--fg-faint);
+  font-size: 10px;
+}
+
+
+
+.wx-root .ctx-browser-source-live {
+
+  flex: none;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-dim);
+  background: var(--bg-soft);
+  font: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-browser-source-live[aria-pressed="true"] {
+
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+
+
+.wx-root .ctx-browser-source select {
+
+  min-width: 0;
+  flex: 1;
+  height: 23px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 5px;
+  outline: none;
+  color: var(--fg-dim);
+  background: var(--bg-soft);
+  font-size: 9.5px;
+}
+
+
+
+.wx-root .ctx-browser-source select:focus {
+
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+
+
+.wx-root .ctx-tool-source {
+
+  max-width: 45%;
+  overflow: hidden;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 8.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-file-attachment {
+
+  display: flex;
+  width: min(15rem, 100%);
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: 7px;
+  color: var(--fg);
+  background: var(--bg-soft);
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-file-attachment:hover:not(:disabled) {
+
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft));
+}
+
+
+
+.wx-root .ctx-file-attachment:disabled {
+
+  cursor: default;
+  opacity: 0.58;
+}
+
+
+
+.wx-root .ctx-file-attachment-icon {
+
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+
+
+.wx-root .ctx-file-scope {
+
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .ctx-cmd-empty {
+
+  padding: 18px 8px;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  text-align: center;
+}
+
+
+
+.wx-root .ctx-cmd-loadmore {
+
+  display: flex;
+  justify-content: center;
+  padding: 7px 4px 3px;
+  color: var(--fg-faint);
+  font-size: 9.5px;
+}
+
+
+
+.wx-root .ctx-cmd-loadmore button {
+
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 6px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font: inherit;
+  cursor: pointer;
+}
+
+
+
+.wx-root .ctx-cmd-loadmore button:hover:not(:disabled) {
+
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+
+
+.wx-root .ctx-cmd-loadmore button:disabled {
+
+  cursor: default;
+  opacity: 0.55;
+}
+
+
+@media (min-width: 800px) {
+(['\n  ', '\n.wx-root .ctx-core-grid {\n\n    grid-template-columns: repeat(6, minmax(0, 1fr));\n  }\n', '\n\n  ', '\n.wx-root .ctx-core-events {\n\n    grid-column: span 2;\n  }\n', '\n'], {})}
+
+
+@media (max-width: 900px) {
+(['\n  ', '\n.wx-root .ctx-cmd-card {\n\n    max-height: none;\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-body {\n\n    grid-template-columns: minmax(0, 1fr);\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-rail {\n\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-programs {\n\n    grid-column: 1 / -1;\n  }\n', '\n'], {})}
+
+
+@media (max-width: 620px) {
+(['\n  ', '\n.wx-root .ctx-cmd-rail {\n\n    display: none;\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-head {\n\n    align-items: flex-start;\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-filters {\n\n    width: 100%;\n    margin-left: 0;\n  }\n', '\n'], {})}
+
+
+@media (max-width: 699px) {
+(['\n  ', '\n.wx-root .ctx-stats-ledger {\n\n    grid-template-columns: minmax(0, 1fr);\n  }\n', '\n\n  ', '\n.wx-root .ctx-stat-row,\n.wx-root .ctx-fleet-summary {\n\n    grid-column: 1;\n    grid-row: auto;\n  }\n', '\n'], {})}
+
+
+@media (prefers-reduced-motion: reduce) {
+(['\n  ', '\n.wx-root .ctx-tile,\n.wx-root .ctx-row,\n.wx-root .ctx-browser-map-item {\n\n    transition: none;\n  }\n', '\n'], {})}
+

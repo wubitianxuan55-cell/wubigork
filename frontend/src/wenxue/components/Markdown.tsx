@@ -1,0 +1,667 @@
+// ── 内嵌 HTML 白名单（蒸馏规划 3b 遗留刀，决策记录）─────────────────
+// 范围 = 文件预览链（本组件：FilePreview/AskCard 的 .md
+// 渲染）。MemoMarkdown（聊天流）不在此刀范围，仍走其 DOMPurify 流式尾部
+// 消毒；两条渲染链并存，互不改动。
+// 机制：rehypeRaw 把 raw HTML 解析进 hast 树（此前 react-markdown 默认整体
+// 跳过 raw，README 的 details/table/img 全部消失）；消毒在 raw 解析后、
+// React 渲染前完成（lib/sanitize.ts mdHtmlSchemaSanitize：rehype-sanitize
+// 显式白名单 schema），全程不经 dangerouslySetInnerHTML。树级选
+// rehype-sanitize 而非 DOMPurify，正因消毒发生在 hast 树级：早于 React
+// createElement，与 md 管线产物同树统一过滤，可按值保住 KaTeX math-* /
+// 围栏代码 language-* 命脉 class，且渲染无 HTML 序列化回转（无 mXSS 面；
+// DOMPurify 逐 raw 片段消毒会补全残缺标签、与 rehype-raw 重组冲突，
+// 详见 sanitize.ts 头注）。
+// 链接/图片策略不变：urlTransform 与点击分流（classifyExternalLink /
+// FileChip / mem 徽标）对渲染树所有 a/img 生效，raw HTML 版本同策略
+// （测试覆盖）；urlTransform 额外放行 data:image/*（README 内嵌 base64 图）。
+// 性能：插件恒挂管线（未做 "<字母" 启发式门控）——树级消毒 O(树)，代价
+// 远小于一次 reparse，正确性优先避免启发式漏判。
+
+import { cloneElement, isValidElement, memo, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import type { Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+import { Check, Copy, FileText, Loader } from "../icons";
+
+import { app, openExternal } from "../lib/bridge";
+import { copyToClipboard } from "../lib/clipboard";
+import { classifyExternalLink } from "../lib/browserPolicy";
+import { HlCode } from "./HlCode";
+import { isLocalFilePath, parseFilePathHref } from "../lib/fileLinks";
+import { remarkFileLinks } from "../lib/remarkFileLinks";
+import { remarkMemCitations } from "../lib/remarkMemCitations";
+import { mdHtmlSchemaSanitize } from "../lib/sanitize";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
+import { useToast } from "./Toast";
+import { useTOptional } from "../lib/i18n";
+import { CodeCollapse, type CodeCollapseLabels } from "./CodeCollapse";
+import { FileChip } from "./FileChip";
+import { MemCitationChip } from "./MemCitationChip";
+import { extractFence, GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../genui/markdownFence";
+import { parseGenuiFenceBody, splitGenuiFences } from "../../genui/parse";
+import { useGenuiScope } from "../../genui/scope";
+import { useGenuiPanelStore } from "../lib/genuiPanel";
+import { ensureKatexCss, hasMathContent, normalizeMath } from "../lib/mathText";
+import { resolveMarkdownImagePath } from "../lib/markdownImage";
+
+// ── Mermaid 图表渲染（agent 生成的流程图/架构图/思维导图等）─────────────
+
+let mermaidInitedTheme: string | null = null;
+
+// 已自动导出过的 Mermaid 代码（按内容哈希去重，避免历史消息滚动重复生成）。
+const autoExportedCodes = new Set<string>();
+
+function codeHash(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return String(h);
+}
+
+function utf8ToB64(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)));
+}
+
+// standaloneHtmlFromSvg 把渲染后的 Mermaid SVG 包成可独立打开的 HTML 页面。
+function standaloneHtmlFromSvg(svg: string): string {
+  const bg = mermaidTheme() === "dark" ? "#1e1e2e" : "#ffffff"; // hex-exempt mermaid 渲染底色（主题已分支）
+  return `<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Mermaid 图表</title>
+<style>html,body{margin:0;padding:16px;background:${bg};font-family:system-ui,-apple-system,'Segoe UI',sans-serif;} svg{max-width:100%;height:auto;}</style>
+</head>
+<body>
+${svg}
+</body>
+</html>`;
+}
+
+function mermaidTheme(): "default" | "dark" {
+  // v4.350：跟应用主题而非操作系统——App.tsx 把实际明暗挂在 <html data-hl>；
+  // 此前读 prefers-color-scheme，应用选亮色而 OS 为暗色时深底图表嵌进浅色文档。
+  if (typeof document !== "undefined" && document.documentElement.dataset.hl) {
+    return document.documentElement.dataset.hl === "dark" ? "dark" : "default";
+  }
+  if (typeof window === "undefined" || !window.matchMedia) return "default";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
+}
+
+// P4-H1：mermaid 由静态 import 改为运行时动态 import——只在首次实际渲染图表时
+// 才加载模块（Vite 将 mermaid.core 拆为独立 async chunk，不再进入页面急切包）。
+// 初始化配置对象与原本一致（startOnLoad/theme/securityLevel/fontFamily 原样保留）。
+let mermaidMod: typeof import("mermaid") | null = null;
+
+async function ensureMermaid(theme: "default" | "dark") {
+  if (mermaidInitedTheme === theme && mermaidMod) return mermaidMod.default;
+  mermaidMod = mermaidMod ?? (await import("mermaid"));
+  const mm = mermaidMod.default;
+  mm.initialize({
+    startOnLoad: false,
+    theme,
+    securityLevel: "strict",
+    fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+  });
+  mermaidInitedTheme = theme;
+  return mm;
+}
+
+const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { code: string; autoExport?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const idRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportedPath, setExportedPath] = useState<string | null>(null);
+  const [svgExporting, setSvgExporting] = useState(false);
+  const [view, setView] = useState<"chart" | "code" | "html">("chart");
+  const [zoom, setZoom] = useState(1);
+  const htmlDocRef = useRef<string | null>(null);
+  const openFilePreview = openPaneFileOrPreview;
+  const toast = useToast();
+
+  const setZoomClamped = (next: number) => setZoom(Math.min(4, Math.max(0.5, Math.round(next * 100) / 100)));
+
+  // 把已渲染的 SVG 转成 PNG data URL（SVG 图片异步加载，返回 Promise）。
+  const toPngDataUrl = useCallback((): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const el = ref.current?.querySelector("svg");
+      if (!el) {
+        resolve(null);
+        return;
+      }
+      const vb = el.getAttribute("viewBox")?.split(/\s+/).map(Number);
+      const rect = el.getBoundingClientRect();
+      const w = vb?.[2] || rect.width || 800;
+      const h = vb?.[3] || rect.height || 600;
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      const bg = getComputedStyle(el).backgroundColor;
+      ctx.fillStyle = bg && bg !== "rgba(0, 0, 0, 0)" ? bg : mermaidTheme() === "dark" ? "#1e1e2e" : "#ffffff"; // hex-exempt mermaid 渲染底色（主题已分支）
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const xml = new XMLSerializer().serializeToString(el);
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(null);
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    // P4-H1：ensureMermaid 为异步（首次触发 mermaid 动态 import），渲染改在
+    // await 之后进行；取消/失败语义与原同步路径一致（卸载丢弃、失败显示源码）。
+    void (async () => {
+      try {
+        const mm = await ensureMermaid(mermaidTheme());
+        if (cancelled) return;
+        const id = `gm-${Date.now()}-${idRef.current++}`;
+        const { svg } = await mm.render(id, code);
+        if (cancelled || !ref.current) return;
+        htmlDocRef.current = standaloneHtmlFromSvg(svg);
+        // 注：SVG 不做外层 DOMPurify 再消毒——mermaid strict 已内置消毒，
+        // svg profile 的外层 pass 会剥离 foreignObject 文字（3b 实验（成文））。
+        ref.current.innerHTML = svg;
+        const svgEl = ref.current.querySelector("svg");
+        if (svgEl) {
+          svgEl.style.background = "transparent";
+          svgEl.style.width = "100%";
+          svgEl.style.height = "auto";
+          svgEl.style.maxWidth = "none";
+        }
+        // 自动导出 PNG 到工作区（每个唯一图表只导出一次）。
+        if (autoExport) {
+          const key = codeHash(code);
+          if (!autoExportedCodes.has(key)) {
+            autoExportedCodes.add(key);
+            void toPngDataUrl().then((dataUrl) => {
+              if (!dataUrl || cancelled) return;
+              return app.SavePastedImage(dataUrl)
+                .then((path) => { if (!cancelled) setExportedPath(path); })
+                .catch(() => {});
+            });
+          }
+        }
+      } catch (e: unknown) {
+        if (!cancelled) setError(String((e as Error)?.message ?? e));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [code, autoExport, toPngDataUrl]);
+
+  // 手动导出图片：存到工作区并打开预览。
+  const exportPng = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const dataUrl = await toPngDataUrl();
+      if (!dataUrl) {
+        toast.show("导出图片失败：图表尚未渲染完成", "warn");
+        return;
+      }
+      const path = await app.SavePastedImage(dataUrl);
+      setExportedPath(path);
+      toast.show(`已导出图片：${path}`);
+      openFilePreview(path);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, toPngDataUrl, openFilePreview, toast]);
+
+  // 导出 SVG：序列化渲染后的 SVG，保存到工作区并打开预览。
+  const exportSvg = useCallback(async () => {
+    const el = ref.current?.querySelector("svg");
+    if (!el || svgExporting) return;
+    setSvgExporting(true);
+    try {
+      const xml = new XMLSerializer().serializeToString(el);
+      const name = `diagram-${Date.now()}.svg`;
+      const path = await app.SaveAttachmentFile(name, utf8ToB64(xml));
+      setExportedPath(path);
+      toast.show(`已导出 SVG：${path}`);
+      openFilePreview(path);
+    } catch (e: unknown) {
+      toast.show(String((e as Error)?.message ?? e), "warn");
+    } finally {
+      setSvgExporting(false);
+    }
+  }, [svgExporting, openFilePreview, toast]);
+
+  // 导出 HTML：保存独立页面到工作区并打开预览。
+  const exportHtml = useCallback(async () => {
+    const html = htmlDocRef.current;
+    if (!html) return;
+    try {
+      const name = `diagram-${Date.now()}.html`;
+      const path = await app.SaveAttachmentFile(name, utf8ToB64(html));
+      setExportedPath(path);
+      toast.show(`已导出 HTML：${path}`);
+      openFilePreview(path);
+    } catch (e: unknown) {
+      toast.show(String((e as Error)?.message ?? e), "warn");
+    }
+  }, [openFilePreview, toast]);
+
+  if (error) {
+    return (
+      <div className="my-3 rounded-lg border border-warning/30 bg-warning/5 overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-warning/20 text-[11px] text-warning">Mermaid 渲染失败，显示源码</div>
+        <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg">{code}</pre>
+      </div>
+    );
+  }
+  return (
+    <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
+      <div className="flex items-center gap-1 px-2.5 py-1 bg-bg-soft/80 border-b border-border-soft/50 text-[10px] select-none">
+        <span className="text-fg-faint/60 font-mono font-medium uppercase tracking-wider mr-1.5">Mermaid</span>
+        {/* 图表 / 代码切换 */}
+        <div className="flex rounded-md overflow-hidden border border-border-soft/60">
+          {(["chart", "code", "html"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              className={`px-2 py-0.5 cursor-pointer transition-colors ${view === v ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
+              onClick={() => setView(v)}
+            >
+              {v === "chart" ? "图表" : v === "code" ? "代码" : "HTML"}
+            </button>
+          ))}
+        </div>
+        {view === "chart" && (
+          <div className="flex items-center gap-0.5 ml-1 text-fg-faint">
+            <button type="button" className="px-1 py-0.5 cursor-pointer hover:text-fg" onClick={() => setZoomClamped(zoom / 1.25)} title="缩小">−</button>
+            <span className="w-7 text-center text-fg-dim">{Math.round(zoom * 100)}%</span>
+            <button type="button" className="px-1 py-0.5 cursor-pointer hover:text-fg" onClick={() => setZoomClamped(zoom * 1.25)} title="放大">＋</button>
+            <button type="button" className="px-1 py-0.5 cursor-pointer hover:text-fg" onClick={() => setZoom(1)} title="适应窗口宽度">适应</button>
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-1">
+          {view === "html" && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 cursor-pointer hover:text-fg transition-colors"
+              onClick={() => void exportHtml()}
+              title="导出为独立 HTML 页面，保存到工作区"
+            >
+              <FileText size={10} />
+              HTML
+            </button>
+          )}
+          {view === "chart" && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 cursor-pointer hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-default"
+              onClick={() => void exportSvg()}
+              disabled={svgExporting}
+              title="导出为 SVG 矢量图，保存到工作区"
+            >
+              {svgExporting ? <Loader size={10} className="animate-spin" /> : <FileText size={10} />}
+              SVG
+            </button>
+          )}
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 cursor-pointer hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-default"
+            onClick={() => void exportPng()}
+            disabled={exporting}
+            title="导出为 PNG 图片，保存到工作区"
+          >
+            {exporting ? <Loader size={10} className="animate-spin" /> : <FileText size={10} />}
+            PNG
+          </button>
+        </div>
+      </div>
+      <div
+        className="overflow-auto p-3 bg-bg-elev-2/40"
+        aria-label="Mermaid 图表"
+        style={{ display: view === "chart" ? undefined : "none" }}
+      >
+        <div style={{ zoom }} className="w-full">
+          <div ref={ref} />
+        </div>
+      </div>
+      {view === "code" && (
+        <div className="relative bg-bg">
+          <pre className="px-3 py-2.5 font-mono text-[12px] leading-[1.55] overflow-auto whitespace-pre text-fg max-h-80">{code}</pre>
+          <button
+            type="button"
+            className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border-soft bg-bg-elev-2 text-fg-dim text-[10.5px] cursor-pointer hover:text-fg"
+            onClick={() => { void copyToClipboard(code).then((ok) => toast.show(ok ? "Mermaid 源码已复制" : "复制失败：剪贴板不可用", ok ? "info" : "warn")); }}
+          >
+            <Copy size={10} /> 复制
+          </button>
+        </div>
+      )}
+      {view === "html" && (
+        <div className="bg-bg">
+          {htmlDocRef.current ? (
+            <iframe
+              title="Mermaid HTML 查看器"
+              srcDoc={htmlDocRef.current}
+              className="w-full h-80 border-0 bg-white"
+              sandbox=""
+            />
+          ) : (
+            <div className="py-8 text-center text-fg-faint text-xs">HTML 尚未生成，请稍候</div>
+          )}
+        </div>
+      )}
+      {exportedPath && (
+        <div className="px-3 py-1.5 border-t border-border-soft/50 bg-bg-soft/40 text-[11px]">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-accent cursor-pointer hover:underline"
+            onClick={() => openFilePreview(exportedPath)}
+            title="点击预览导出的图片文件"
+          >
+            <FileText size={11} />
+            已导出：{exportedPath.split("/").pop()}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ── 代码块复制按钮 ──────────────────────────────────────────────────
+
+function CodeBlockHeader({ language, text }: { language?: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  const toast = useToast();
+  const copy = useCallback(async () => {
+    // v4.513 诚实反馈：成功才翻转「已复制」，失败 toast 可见（不再假成功）。
+    if (await copyToClipboard(text)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } else {
+      toast.show("复制失败：剪贴板不可用", "warn");
+    }
+  }, [text, toast]);
+  return (
+    <div className="flex items-center justify-between px-3 py-1 bg-bg-soft/80 border-b border-border-soft/50 rounded-t-lg text-[10px] select-none">
+      <span className="text-fg-faint/60 font-mono font-medium uppercase tracking-wider">
+        {language || "text"}
+      </span>
+      <button
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/40 cursor-pointer hover:text-fg transition-colors"
+        onClick={copy}
+        title="复制代码"
+      >
+        {copied ? <Check size={10} className="text-ok" /> : <Copy size={10} />}
+        {copied ? "已复制" : "复制"}
+      </button>
+    </div>
+  );
+}
+
+// ── Markdown 组件 ────────────────────────────────────────────────────
+
+function buildComponents(
+  onOpenFile: (rel: string) => void,
+  autoExportMermaid: boolean,
+  fenceKeyFor: ((body: string) => string | undefined) | undefined,
+  codeLabels: CodeCollapseLabels,
+  imageBasePath?: string,
+): Components {
+  const Code = ({
+    className,
+    children,
+    "data-code-fence": inFence,
+  }: {
+    className?: string;
+    children?: ReactNode;
+    "data-code-fence"?: boolean;
+  }) => {
+    // FE6-05：样板（language- 提取/去尾换行/块级判定）走 extractFence 单源。
+    // 本文件分支语义与前两路并不同构，保留自有分支：mermaid 独占分支；
+    // genui 围栏不带块级闸（inline 亦按围栏体解析）、panelRender="chip"
+    // （panel:true 规格只出占位 chip，面板发布由上方 useEffect 负责）；
+    // 块级代码走 CodeBlockHeader+CodeCollapse+HlCode 文档面板。
+    const { text, lang, isBlock } = extractFence(className, children);
+    if (lang === "mermaid") {
+      return <MermaidBlock code={text} autoExport={autoExportMermaid} />;
+    }
+    if (lang !== undefined && isGenuiFenceLang(lang)) {
+      return (
+        <GenuiMarkdownFence
+          code={text}
+          stateKey={fenceKeyFor?.(text)}
+          panelRender="chip"
+        />
+      );
+    }
+    if (isBlock || inFence) {
+      return (
+        <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
+          <CodeBlockHeader language={lang} text={text} />
+          <CodeCollapse text={text} labels={codeLabels}>
+            <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><HlCode text={text} lang={lang} /></pre>
+          </CodeCollapse>
+        </div>
+      );
+    }
+    // 模型常在正文里用行内代码包裹文件路径。它们看起来已高亮，但此前
+    // remarkFileLinks 按“代码不处理”跳过，导致桌面/网页都不可点击。
+    // 仅当归一化后的整段内联代码确实是一个本地文件时升级为 FileChip；
+    // 普通内联代码和围栏代码仍保持原样。
+    const inline = text.trim();
+    if (!inFence && isLocalFilePath(inline)) {
+      const path = parseFilePathHref(inline) ?? inline;
+      return (
+        <FileChip
+          path={path}
+          onOpen={onOpenFile}
+          title={`点击预览 ${path}`}
+        />
+      );
+    }
+    return <code className="px-1 py-0.5 rounded bg-bg-soft text-fg text-[0.9em] font-mono border border-border-soft/50">{children}</code>;
+  };
+
+  return {
+    pre: ({ children }) => {
+      // md 围栏代码：components.code 已产出完整样式块，pre 透传避免双层
+      // 包裹；raw HTML 的 <pre>（子节点非 code 组件产物）给基本等宽样式。
+      if (isValidElement(children)) {
+        return <>{cloneElement(children as ReactElement<{ "data-code-fence"?: boolean }>, { "data-code-fence": true })}</>;
+      }
+      return (
+        <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg">
+          {children}
+        </pre>
+      );
+    },
+    code: Code,
+    a: ({ href, children }) => {
+      // 记忆引用键（remarkMemCitations 产出 mem:<name> 链接）：渲染成可点击
+      // 溯源徽标（C2 记忆引用可追溯）。
+      if (href?.startsWith("mem:")) {
+        const name = decodeURIComponent(href.slice(4));
+        return <MemCitationChip name={name} />;
+      }
+      if (href && isLocalFilePath(href)) {
+        // 伪协议（file:///、local-file:///、sandbox:///）先还原成真实路径，
+        // 否则 FileChip 拿到带协议的 href，预览一定打不开。
+        const rel =
+          parseFilePathHref(href) ?? decodeURIComponent(href.replace(/^\.{0,2}\//, ""));
+        return (
+          <FileChip
+            path={rel}
+            label={typeof children === "string" ? children : undefined}
+            onOpen={onOpenFile}
+            title={`点击预览 ${rel}`}
+          />
+        );
+      }
+      return (
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault();
+            // 1c 外链协议分流：http(s)→系统浏览器（loopback 拒）、mailto/tel
+            // →系统处理器；javascript:/file:/相对路径等一律不交给系统。
+            if (!href) return;
+            const decision = classifyExternalLink(href);
+            if (decision.kind === "open") openExternal(decision.url);
+          }}
+          className="text-accent hover:underline"
+        >
+          {children}
+        </a>
+      );
+    },
+    img: ({ src, alt, title }) => (
+      <MarkdownImage
+        src={typeof src === "string" ? src : ""}
+        alt={alt}
+        title={title}
+        basePath={imageBasePath}
+      />
+    ),
+    table: ({ children }) => (
+      <div className="my-3 overflow-x-auto rounded-lg border border-border-soft">
+        <table>{children}</table>
+      </div>
+    ),
+    th: ({ children }) => <th>{children}</th>,
+    td: ({ children }) => <td>{children}</td>,
+    blockquote: ({ children }) => <blockquote>{children}</blockquote>,
+    hr: () => <hr />,
+    // h1-h4 / p / ul / ol 刻意不挂排版工具类：styles.css 的 .md 排版块是
+    // 唯一字级/间距来源（v4.503 收敛——此前两边各写一套、按 CSS 特异度
+    // 逐属性混战：h1 实际 1.45em≈20px、th 11px vs td 13px 失配、引用斜体
+    // 只有工具类有）。这里只保留 preflight 需要的 list-style 补偿。
+    ol: ({ children }) => <ol className="list-decimal">{children}</ol>,
+    ul: ({ children }) => <ul className="list-disc">{children}</ul>,
+  };
+}
+
+function MarkdownImage({
+  src,
+  alt,
+  title,
+  basePath,
+}: {
+  src: string;
+  alt?: string;
+  title?: string;
+  basePath?: string;
+}) {
+  const direct = /^(data:image\/|https?:\/\/|blob:)/i.test(src);
+  const [resolved, setResolved] = useState(direct ? src : "");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (direct) {
+      setResolved(src);
+      setFailed(false);
+      return;
+    }
+    const path = resolveMarkdownImagePath(src, basePath);
+    if (!path) {
+      setResolved("");
+      setFailed(true);
+      return;
+    }
+    let live = true;
+    setFailed(false);
+    setResolved("");
+    void app.AttachmentDataURL(path)
+      .then((url) => {
+        if (live) setResolved(url);
+      })
+      .catch(() => {
+        if (!live) return;
+        setResolved("");
+        setFailed(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [basePath, direct, src]);
+
+  if (src === "") return <img src="" alt={alt ?? ""} title={title} data-markdown-image="blocked" />;
+  if (failed || !resolved) {
+    return (
+      <span className="inline-flex max-w-full rounded border border-dashed border-border-soft px-2 py-1 text-[11px] text-fg-faint">
+        {alt || "图片"}不可用
+      </span>
+    );
+  }
+  return <img src={resolved} alt={alt ?? ""} title={title} loading="lazy" data-markdown-image="true" />;
+}
+
+// 渲染层 URL 收口（对渲染树所有 a/img 生效，含 raw HTML 版本）：
+// 本地文件路径 / mem: 引用 / data:image/* 显式放行；其余（javascript:、
+// data:text/html 等）交 defaultUrlTransform 剥成空串。
+const mdUrlTransform = (url: string): string =>
+  isLocalFilePath(url) || url.startsWith("mem:") || /^data:image\//i.test(url)
+    ? url
+    : defaultUrlTransform(url);
+
+export const Markdown = memo(function Markdown({
+  text,
+  autoExportMermaid = true,
+  genuiKey,
+  imageBasePath,
+}: {
+  text: string;
+  autoExportMermaid?: boolean;
+  /** 消息级源 key：用于 GenUI 状态持久化与面板发布去重（预览等场景缺省）。 */
+  genuiKey?: string;
+  /** Markdown 文件自身路径；本地相对图片据此解析到工作区。 */
+  imageBasePath?: string;
+}) {
+  if (hasMathContent(text)) ensureKatexCss();
+  const openFilePreview = openPaneFileOrPreview;
+  const genuiScope = useGenuiScope();
+  const publishPanel = useGenuiPanelStore((s) => s.publish);
+  // panel:true 规格投递右栏 UI 面板（同一来源+内容指纹幂等；历史重放收敛）。
+  useEffect(() => {
+    if (genuiScope === null || genuiKey === undefined) return;
+    const { segments } = splitGenuiFences(text);
+    for (const seg of segments) {
+      if (seg.kind !== "fence" || !seg.closed) continue;
+      const spec = parseGenuiFenceBody(seg.body);
+      if (spec?.panel === true) {
+        publishPanel(genuiScope.sessionKey, `${genuiKey}#${seg.fenceNo}`, spec);
+      }
+    }
+  }, [text, genuiKey, genuiScope, publishPanel]);
+  const fenceKeyFor =
+    genuiScope !== null && genuiKey !== undefined
+      ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
+      : undefined;
+  const t = useTOptional();
+  return (
+    <div className="md text-[14px] leading-relaxed">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
+        rehypePlugins={[rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex]}
+        components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, {
+          expand: (n: number) => t("msg.codeExpand", { n }),
+          collapse: t("msg.codeCollapse"),
+        }, imageBasePath)}
+        urlTransform={mdUrlTransform}
+      >
+        {normalizeMath(text)}
+      </ReactMarkdown>
+    </div>
+  );
+});

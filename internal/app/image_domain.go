@@ -242,7 +242,8 @@ func imageHubAssetIDByPath(cwd, space, path string) string {
 }
 
 // recordImageHubGeneratedFor 与 recordImageHubGenerated 同语义，但把来源板块与
-// **生效后端** 参数化：绘梦/媒体走 "imagegen"（原行为逐字节），原罪板块走 "sin"。
+// **生效后端** 参数化：绘梦/媒体走 "imagegen"（原行为逐字节）。历史注：原罪板块
+// 曾走 "sin"，2026-11-15 随原罪板块退役删除。
 // 动机（v4.257 硬隔离刀）：一个产物只登记一条——生成链内部登记，调用方
 // 不得再补第二条（否则画室同一张图会以两个来源重复出现）。
 //

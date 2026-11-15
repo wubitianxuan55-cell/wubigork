@@ -48,8 +48,6 @@ const NOVEL_NAV: BoardNavChild[] = [
   { id: 'character', label: '角色' },
   { id: 'create', label: '创作' },
   { id: 'chapter', label: '阅读' },
-  // 2026-10-27 拍板：原罪收编为小说板块第六页签（导航级合并，页面/绑定/数据面零改动）
-  { id: 'sin', label: '原罪' },
 ]
 const SETTINGS_NAV: BoardNavChild[] = [
   { id: 'general', label: '通用' }, { id: 'chat', label: '聊天' },
@@ -75,8 +73,8 @@ const COST_NAV: BoardNavChild[] = [
  * 内置 canonical 板块清单（14 条业务板块，含 inMenu=false 的 settings）。
  * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
  * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail。
- * sin 板块已退役（2026-10-27 拍板导航级合并）：原罪收编为小说板块第六页签，
- * 页面本体经 NovelPage 挂载，featureModel 'sin' 功能绑定与 SinB 门面不受影响。
+ * sin 板块已退役并整体删除（2026-10-27 撤导航收编第六页签；2026-11-15 拍板全删：
+ * sinboard/pages-sin/SinB 门面/sin 功能绑定/sin 引擎全家同步拆除）。
  */
 export const canonicalBoards: BoardManifest[] = [
   {
@@ -151,6 +149,14 @@ export const canonicalBoards: BoardManifest[] = [
     // 后端字段优先导致真机/浏览器分裂。
     menuOrder: 12, inMenu: true, space: 'work',
     featureModel: 'schedule',
+  },
+  {
+    // 文学板块（2026-11-15）：办公板块的完整前端拷贝（frontend/src/wenxue/），全共享
+    // 引擎与会话流（同一批 OfficeB 等绑定），UI 层独立二次改造；与 Go builtins.go
+    // 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
+    id: 'wenxue', label: '文学', icon: 'BookOutlined', page: 'WenxuePage',
+    lazy: true, keepAlive: true, layout: 'full',
+    menuOrder: 13, inMenu: true, space: 'work',
   },
   {
     // 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：系统资源 + 引擎状态 +

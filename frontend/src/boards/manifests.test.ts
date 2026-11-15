@@ -51,22 +51,22 @@ const BACKEND_FIXTURE = [
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序：聊天 → … → 造价数据库 → 众神殿 → 记忆中枢 → … → 进度计划 → 运行监测（共 12 项）', () => {
+  it('菜单顺序：聊天 → … → 进度计划 → 文学 → 运行监测（共 13 项；文学 2026-11-15 拷贝办公成板块）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'wenxue', 'runtime',
     ])
   })
 
   it('菜单文案与现状一致（含众神殿）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '文学', '运行监测',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['MessageOutlined', 'ReadOutlined', 'PictureOutlined',
       'ToolOutlined', 'AccountBookOutlined', 'CrownOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
-      'ScheduleOutlined', 'MonitorOutlined']
+      'ScheduleOutlined', 'BookOutlined', 'MonitorOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
@@ -83,10 +83,10 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，不再按空间分域）', () => {
   it('全量序 = 全部 inMenu 板块（menuOrder 派生；首页已删除）', () => {
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'wenxue', 'runtime',
     ])
     expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
-      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
+      '聊天', '小说', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '文学', '运行监测',
     ])
   })
 
@@ -113,7 +113,7 @@ describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () 
   // 板块（inMenu=true），白名单语义不变（注册即可导航）。
   it('注册即可导航：全部业务板块（仍含 inMenu=false 的 settings；首页已删除）', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'wenxue', 'runtime',
     ])
   })
 })

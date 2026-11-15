@@ -1,0 +1,127 @@
+import { memo, useRef, useState, useEffect, useMemo } from "react";
+import { Markdown } from "./Markdown";
+import { escapeHtml, htmlFileLinks } from "../lib/fileLinks";
+import { sanitizeHtml } from "../lib/sanitize";
+import { findStableCut } from "../lib/markdownCut";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
+
+interface MemoMarkdownProps {
+  text: string;
+  streaming: boolean;
+  /** 消息级源 key（透传 Markdown → genui 状态 key）。 */
+  genuiKey?: string;
+}
+
+/**
+ * renderPending — 对不稳定尾部做简单 HTML 渲染。
+ *
+ * 处理标题、列表、引用、代码块，与旧版类似但只用于最后的不稳定部分。
+ */
+function renderPending(text: string): string {
+  const lines = text.split("\n");
+  let inFence = false;
+  const out: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isLast = i === lines.length - 1;
+
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      out.push(`<span class="text-fg-faint font-mono text-[90%]">${escapeHtml(line)}</span>`);
+    } else if (inFence) {
+      out.push(`<span class="font-mono text-[90%]">${escapeHtml(line)}</span>`);
+    } else if (/^#{1,4}\s/.test(line)) {
+      // 字号近似 .md 阶梯（h1/h2 1.3/1.16em、h3/h4 同正文），稳定段接管时
+      // 标题不再从纯加粗 14px 跳到 16~18px（v4.503 与 .md 单源对齐）。
+      const big = /^#{1,2}\s/.test(line);
+      out.push(`<span class="font-bold${big ? " text-[1.25em]" : ""}">${htmlFileLinks(line)}</span>`);
+    } else if (/^[-*+]\s/.test(line)) {
+      out.push(`<span class="text-fg-dim">  · ${htmlFileLinks(line.slice(2))}</span>`);
+    } else if (/^\d+\.\s/.test(line)) {
+      out.push(`<span class="text-fg-dim">  ${htmlFileLinks(line)}</span>`);
+    } else if (/^>\s/.test(line)) {
+      out.push(`<span class="text-fg-faint">│ ${htmlFileLinks(line.slice(2))}</span>`);
+    } else if (line.trim() === "" && !isLast) {
+      out.push("");
+    } else {
+      out.push(htmlFileLinks(line));
+    }
+  }
+
+  return out.join("\n");
+}
+
+/**
+ * useProgressiveMarkdown — 渐进式 Markdown。
+ *
+ * 找到稳定切分点后，前缀用 Markdown 渲染，后缀用简单 HTML。
+ */
+function useProgressiveMarkdown(text: string): { stable: string; pending: string } {
+  return useMemo(() => {
+    const [s, p] = findStableCut(text);
+    return { stable: s, pending: p };
+  }, [text]);
+}
+
+/**
+ * MemoMarkdown — 流式友好的 Markdown 渲染器。
+ *
+ * 流式期间：找到稳定段落边界（\n\n），前缀用完整 Markdown 渲染，
+ * 未完成尾部用简单样式。流式结束后全量 Markdown 渲染。
+ */
+export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming, genuiKey }: MemoMarkdownProps) {
+  const openFilePreview = openPaneFileOrPreview;
+  // RAF 节流：每帧最多更新一次
+  const [visible, setVisible] = useState(text);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    if (!streaming) {
+      setVisible(text);
+      return;
+    }
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => setVisible(text));
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [text, streaming]);
+
+  const { stable, pending } = useProgressiveMarkdown(visible);
+
+  // 流式结束：全量 Markdown
+  if (!streaming) {
+    return (
+      <div className="break-words overflow-wrap-break-word">
+        <Markdown text={text || ""} genuiKey={genuiKey} />
+      </div>
+    );
+  }
+
+  // 流式中：稳定部分 Markdown + 不稳定部分简单样式 + 闪烁光标
+  return (
+    <div className="break-words overflow-wrap-break-word">
+      {stable && (
+        <div className="md text-[14px] leading-relaxed">
+          <Markdown text={stable} genuiKey={genuiKey} />
+        </div>
+      )}
+      {pending && (
+        <div
+          className="!font-sans whitespace-pre-wrap !bg-transparent !p-0 !m-0 !text-[inherit] !border-0 leading-relaxed text-[14px]"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderPending(pending)) }}
+          onClick={(e) => {
+            const btn = (e.target as HTMLElement).closest?.("button[data-file-preview]");
+            if (btn instanceof HTMLElement) {
+              const path = btn.getAttribute("data-file-preview");
+              if (path) openFilePreview(path);
+            }
+          }}
+        />
+      )}
+      <span
+        className="inline-block w-[2px] h-[1em] bg-accent align-middle ml-px animate-pulse"
+        aria-hidden
+      />
+    </div>
+  );
+}, (prev, next) => prev.text === next.text && prev.streaming === next.streaming);

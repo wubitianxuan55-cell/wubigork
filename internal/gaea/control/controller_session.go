@@ -54,6 +54,19 @@ func (c *Controller) NewSession() error {
 	return nil
 }
 
+// SetSessionDir changes the directory used by subsequent NewSession calls.
+// The desktop host uses this to keep 图文 (tuwen) sessions inside the selected
+// novel workspace without changing the office controller's persisted workspace.
+// Existing sessions and their paths are not moved.
+func (c *Controller) SetSessionDir(dir string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.sessionDir = dir
+	c.mu.Unlock()
+}
+
 // resetSessionToolState clears per-session mutable state on tools that opt in
 // via tool.SessionStateResetter (currently the bash shell anchor). Nil-safe and
 // a no-op for tools that don't implement it.

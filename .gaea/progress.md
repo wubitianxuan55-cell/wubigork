@@ -1,3 +1,157 @@
+## 图文二次改造第三刀：去除办公知识库/CAD/进度计划关联（2026-11-15）· 主代理直做 · 未提交
+
+- **范围铁律**：只改 `frontend/src/wenxue/` 图文副本，办公板块 `gaea/`、调度器与
+  Go 绑定不动。目标=文学工作台不再出现知识库、CAD 图纸、进度计划的入口、标签、
+  工具卡、文件预览卡或跨板跳转。
+- **知识库**：撤左栏展开/折叠入口、`Ctrl+Shift+K`、抽屉状态、命令面板命令、
+  `KnowledgePanel` lazy 与渲染；删除图文内的 KnowledgePanel/knowledge 子面板与
+  知识导入弹窗，能力清单移除知识工具说明。后端 `/knowledge` 等命令即使返回，
+  图文 Composer 菜单与工具统计/卡片也统一过滤。
+- **CAD / 进度计划**：右栏 Tab 收敛为 `files/deliverables/browser/git/ui`；撤
+  Composer「工具」下拉、`OPEN_TOOL` 事件、CAD 文件直达、右栏 CadPanel/
+  ScheduleTool 注册与 lazy chunk；删除图文内 CadPanel、ScheduleTool、
+  ScheduleFileCard、ScheduleApplyRollback 及 cadOpen/cadExt。`.gsched` 文件回落到
+  普通文本预览；`schedule_apply` 专用 diff/回滚卡与预览联动不再出现。
+- **办公隔离补点**：交付复核失败不再跨板 NAVIGATE 到 `gaea`；mock 文件树移除
+  DWG/DXF 样例，避免图文开发态仍展示 CAD 关联。
+- **门禁**：`tsc -b --force` 0；图文隔离 2 例 + Sidebar 6 例 + mock 契约 5 例
+  = **13/13**；改动面 ESLint 0；`npm run build` 38.33s 绿（既有 CSS 告警不变）；
+  Go `TestWenxue*` 4 例与 `go vet internal/app` 全绿。网页实页验证：图文左栏仅
+  “MCP 与技能”，右栏仅 5 个允许 Tab，命令面板无知识库/CAD/进度计划；办公板块仍
+  保留知识库按钮及 CAD/进度计划工具入口。截图
+  `temp/wenxue-palette-isolated-dark.png`。未构建 Wails、未装机。
+
+## 图文二次改造第二刀：左栏小说工作空间主入口（2026-11-15）· 主代理直做 · 未提交
+
+- **拍板落点**：图文（文学）二次改造的左侧导航改为小说工作空间主入口；原先右栏
+  FileTree 的《新建小说》重复按钮撤下，左栏一键弹窗输入小说名，在
+  `C:\AI\tuwen\<小说名>` 建独立目录并自动切换。左栏列表只消费 tuwen 一级子目录，
+  办公最近项目不再混入。
+- **后端加性**：`WenxueListProjectSessions` 按小说目录分组（含新建但暂无会话的书），
+  `WenxueListSessions` 只列当前小说；`WenxueMeta` 返回 tuwen 当前路径；
+  `WenxueNewSession` 把新会话落盘目录设到当前小说 `.gaea/sessions`，不修改办公工作区
+  持久化配置。`WenxueDeleteNovel` 只接受 tuwen 根的直接普通子目录，拒绝根/越界/
+  嵌套/符号链接；当前小说被删时先切回根会话再删目录。工作空间根字符串修为单一
+  反斜杠，列表稳定排序。绑定面 777→782，WenxueB 61 方法。
+- **前端设计**：按 `design-taste-frontend` 的 preserve-mode 审计 + `ui-ux-pro-max`
+  产品导航规则重做左栏。小说是父级、会话直接嵌套；每本小说右缘固定“新建会话”
+  与“删除小说”两个图标操作，删除先弹不可恢复确认并显示完整路径。顶部只保留
+  一个主操作《新建小说》，知识库/MCP 下沉到底部工具区；暗亮双主题同用既有 teal
+  accent，控制圆角统一为 7-10px，交互过渡 160ms 且保留 reduced-motion。
+- **接线**：Composer 菜单残留“添加新项目”改为“新建小说”并复用左栏弹窗；选择或
+  新建小说后清预览、刷新会话并广播 `wenxue:workspace-changed`。Composer 工作目录、
+  文件树、右栏文件面均跟同一小说；删除当前小说回到 tuwen 根。
+- **隔离边界**：文件操作、工作空间归属与新会话磁盘落点已隔离到 tuwen；LLM/事件流
+  仍使用既有共享引擎，办公隐藏页与图文同时挂载时的引擎态独立仍属后续专项。
+- **门禁**：`tsc -b --force` 0；Sidebar 5 例 + mock 契约 5 例绿；Go `TestWenxue*`
+  4 例绿；control 包全绿；`go vet internal/app` 0；改动面 ESLint 0；绑定漂移
+  OK@782；`npm run build` 24.04s 绿（既有 wenxue CSS 语法告警仍为构建警告，非本刀
+  引入）。浏览器实页走查 1440×920 暗/亮、1100/880 窄桌面：小说树层级、右缘双操作、
+  新建会话计数 +1、删除确认均通过；截图 `temp/wenxue-sidebar-actions-{dark,light}.png`。
+  未构建 Wails、未装机。
+
+## 图文二次改造第一刀：右侧文件面板工作空间隔离（2026-11-15）· 主代理直做 · 未提交
+
+- **拍板**：图文（文学板块）二次改造第一刀=右侧文件面板：所有工作空间限定 C:\AI	uwen、
+  新增《新建小说》按钮（弹窗输入名字→建 tuwen/<名字> 目录→自动切换）。中途用户纠正
+  「不好共享分离就自己另起炉灶」→ 放弃 209 方法引擎大 fork（boot BuildWithConfig 缝已回滚），
+  改走**紧凑文件面 fork**：仅文件/工作空间面隔离，聊天引擎仍全共享（维持早前拍板）。
+- **后端**（新文件 `internal/app/wenxue_workspace.go`，62 方法/50 fork+12 手写，WenxueB 门面 46）：
+  wenxueWorkspaceRoot（C:\AI	uwen，GAEA_TUWEN_ROOT 测试覆盖）+ wenxueWorkspace（appconfig
+  新键 `wenxue_workspace` 持久化当前小说目录，无效回退根）+ WenxueListWorkspaces（根子目录）
+  + WenxueCreateNovel（校验名→mkdir→自动切换）+ WenxueSwitchWorkspace（限根内，越界拒绝）
+  + WenxuePickWorkspace（禁用占位）+ 文件面 45 方法 fork（listdir/preview/readtext/page/write/
+  create/delete/rename/save-as/uploads 四件+pick 两件/filetree（**独立监视槽+独立通道
+  gaea-wenxue-filetree**，与办公 officeState.fileTreeWatch 物理分离）/filesearch/materials/pin
+  四件/attachment 5/export/zip/convert-pdf/git 10（wenxueGitWorkspace 换根））。全部加性：
+  办公绑定体零改动，共享原语（workbench/wspath/gaeaAttachment/pins/spaces）按路径参数复用。
+- **config**：加性 `wenxue_workspace` 键四件套（keys/types/configFile+Config 字段/save row/load merge）。
+- **gen_bindings**：mapMethod 加 `Wenxue*→wenxue` 前缀规则+facadeOrder/facadeTitle；绑定面
+  **777 方法/12 门面**；bindingNames(双树)/legacy(gaea 138 名)/signatures(777) 再生；
+  builtins.go wenxue Bindings 加 WenxueB。
+- **前端 wenxue**：mappings 55 条重定向（工作空间/文件面/git/schedule/交付全打 Wenxue*，短名与
+  Gaea 直调名双口径）；`bridge/wenxue.ts` 新增 WenxueCreateNovel 接口+appBindings 组合+
+  spaceBindings facet(work)+mock；FileTree：**《新建小说》按钮+弹窗**（antd Modal 输入名→
+  WenxueCreateNovel→广播 `wenxue:workspace-changed`→wx Cwd 状态切树）、独立订阅通道、
+  wxCwd 状态（ListWorkspaces 现值跟随，prefs/expanded/树复位全随它）；controller_actions_workspace
+  加事件监听（同 switchWorkspace 复位+Meta/Context 重载）；useComposerWorkspace 加监听重拉列表。
+  **wenxue 树 legacyBindings 按本树认领集现算**（gen -legacy-ts 按 gaea 口径算，双树口径不同属预期）。
+- **门禁**：go vet 0+config/board/app 三包绿（121.9s）；tsc -b --force 0；vitest **4893/4893**
+  （中途单红=再生瞬态，复跑连绿）；drift OK@767+死绑定过；改动面 eslint 0；wails 37s+**smoke 200**
+  （PID 18080 回收）；装机 INSTALL OK，新壳 PID 40340（14:45:12）>构建 14:45:00。
+- **已知边界**（二次改造后续批次收）：聊天/会话/任务中心/DAG 仍共享办公引擎（wenxue 右栏
+  Git/交付已隔离，schedule 文件面已隔离）；Composer 工作区名显示仍读办公 Meta.cwd（下拉列表
+  已是 wenxue 口径）；PickWorkspace 按钮仍在 Composer 菜单（点了返回空=无操作）。
+- 未提交。生成器 `.tmp/wenxue-analysis/gen_workspace.py`（heredoc 反斜杠坑：脚本一律 Write 工具写）。
+
+## 原罪板块整体退役（2026-11-15）· 主代理直做 · 未提交
+
+- **拍板**：用户令「把原罪板块全部删除」——sin 全家（引擎/绑定/前端/导航/功能绑定/配置键）一次性拆除；
+  同树 sin 线在途未提交改动（SinCastPane 等五新件+bindingNames/spaceBindings 增量）随拆除一并废弃。
+- **删除面**：Go `internal/app/sin_*.go` 44 文件（引擎/工具/书源/EPUB/workspace/store/insight/refs 全家+
+  测试）+`bindings_sin.go`+前端 `src/sinboard/`（含 5 个未提交新件）+`src/pages/sin/`+
+  legacy `pages/OriginalSinPage.tsx`+其 tabs 测试+wailsjs `SinB.{d.ts,js}`。
+- **横切拆点**：`feature_model_handler` sin 两 case；`chat_service` ChatTopicsList 过滤改局部字面量
+  `"sin"`（存量 mode=sin 话题行继续滤除，不再引 sin_prompt 常量）；`gaea_route_suggestions`
+  routeFeatures 去 sin；`image_handler` 删 GetSinImageConfig/SetSinImageConfig 两绑定（CoreB 面）、
+  `image_domain` 注释留历史注；`shelf.go` 两 setter 行；config 包五文件（类型/键/载入/保存/特征 +
+  config_test SinBinding 用例删）；`saveconfig_keys_test` sin 行删；`board/builtins.go` NOVEL_NAV
+  去 sin 子项+CanonicalIDs **补上刀A 漏登记的 wenxue**（锁测试单向断言没抓到的疏漏）；gen_bindings
+  三处去 sin（facadeOrder/mapMethod/facadeTitle）。
+- **前端拆点**：`bridge/sin.ts`+`mock/sin.ts` 删；`appBindings.ts` 去 SinBindings 域；`spaceBindings.ts`
+  去 66 facets（两处带注释行补刀）；`bridge/image.ts`+`mock/imagegen.ts` 去 SinImageConfig 两声明与
+  mock；`bridge/http.ts` FACADES 去 SinB；`mock.ts` 去 buildSin；`events.ts` 去 SIN_STREAM/
+  SIN_BOOKSOURCE_PROGRESS/sinStreamChannel/sinBooksourceChannel（events.test 29→27）；NovelPage
+  去 sin 页签全家（lazy/类型/挂载集/身份区条件/DARK FICTION/封面 guard/FireOutlined 导入）+
+  NovelPage.test 两用例删；`boards/manifests.ts` NOVEL_NAV 去子项+注释；main.tsx 注释更新；
+  `test/logicEnvFiles.ts` 去 2 个已删测试登记。
+- **再生四件**：`gen_bindings` 全量（**721 方法/11 门面**，bindingNames.ts 手工按 -names 重排时
+  **曾丢 `as const` 致 drift 编译锁红——已补**；教训=两份生成件尾缀 `] as const` 是 drift.ts
+  编译期锁的一部分，再生时必须保留）；`-legacy-ts`（82 名）+`-signatures-ts`（721 名，
+  bindingSignatureCount=721 自洽）；wails build 再生 wailsjs（models.ts 0 Sin）。
+- **wenxue 拷贝树同步拆 sin**：bridge/sin.ts+mock/sin.ts 删、appBindings/mock.ts/spaceBindings/
+  http.ts/image.ts/mock imagegen 同款清洗、三生成件从 gaea 拷入——fork 与母本保持一致。
+- **门禁**：`tsc -b --force` 0；**vitest 4893/4893 全绿**（543→530 文件；既有 contract 787vs751 红
+  随再生自愈=生成器本就写 count 常量，sin 线手改导致失同步）；改动面 eslint 0；drift OK@721+
+  死绑定检测过（StrataModelStop 提示系既有）；knip sin 项清零（唯一命中=voice-worklets/
+  sinkProcessor.js 文件名子串既有假阳性）；Go app/config/board 三包绿；wails 37.9s+
+  **smoke 200**（PID 13944 回收）。
+- **语义保留**：统一会话存储内 mode=sin 存量话题行不动（ChatTopicsList 继续过滤，聊天板块不可见）；
+  用户数据（书架产物/gaea/sin/ 目录）零触碰。未提交。
+
+## 文学一级板块（2026-11-15）· 主代理直做 · 未提交
+
+- **拍板**：新增一级标题「文学」＝办公板块完整拷贝（frontend/src/wenxue/），**全共享引擎与会话流**
+  （用户明确选「先全共享，二次开发时再根据变动进行隔离」——零 Go 绑定 fork，OfficeB 同批绑定直用；
+  引擎级隔离刀=115 方法 fork+WenxueB 门面的完整方案已在案，待二次开发真分化再立项）。
+- **改动面**：Go 仅 `board/builtins.go` 增 wenxue 条目（menuOrder 13/BookOutlined/space work/
+  Bindings=["OfficeB","MemoryB","CostB"]/无 Intents）+`board_manifest_test.go` 总数 15→16；
+  前端 robocopy 全拷 gaea→wenxue（436 文件，**排除 248 测试件**——防 vitest 时长翻倍，
+  二次开发随组件分化重写）+`pages/WenxuePage.tsx`+manifests.ts/main.tsx 注册
+  （DEFAULT_BOARD_ID 仍 gaea，不占 ctrl+1~9）。
+- **CSS 隔离（keepAlive 双挂载防互染）**：4 个 office-*.css 拷贝件改名 wenxue-*.css 并全量
+  `.wx-root` 前缀作用域（:root→.wx-root、文件内 keyframes 改名 wx-*）+11 个组件级 css
+  （context-view/cad-panel/agent-topology/fleet-*/changesdiff-tok/morning-brief-card/hljs-theme）
+  同法作用域；schedule.css 是共享文件不动；`pages/WenxuePage` 根 div 挂 wx-root。
+  共享基础 css（styles/redesign/tailwind）仍 import 自 ../gaea。
+- **拷贝内定向修改**：genui scope "office"→"wenxue"（共享 genui/scope.tsx+fingerprint.ts
+  联合类型加值 'wenxue'，GenuiPanel 硬编码 genuiPanelKey 同步）；mock 全局钩子改名
+  `__wxMockScheduleFile` 防双 mock chunk 互踩；locale 三语可见文案改「文学工作台」
+  （skeleton.*/deliverPanel.replan*；schedChat.* 描述与办公共享线程属事实陈述保留）。
+- **knip**：`src/wenxue/**` 入 ignore（fork 素材含 81 个拷贝内暂不可达件——消费方在拷贝外
+  或仅 gaea 测试件引用；二次开发接线后再收窄）。
+- **门禁**：tsc -b 0；vitest 5023/5024（唯一红=`mock/contract.test.ts` 787vs751 **既有红**，
+  sin 线在途再生 bindingNames/bindingSignatures 未同步硬编码数，与本批零交集——git diff
+  定性 +1 行全 Sin 名）；改动面 eslint 0 错误（4 警告与 gaea 原件逐字同款）；
+  `npm run build` 23.89s 绿（WenxuePage 独立 chunk 963KB 懒加载=fork 自含预期代价）；
+  Go：board 包绿+app 包清单三测试绿（15→16 修后）；wails build 55.8s+
+  `scripts\smoke.ps1` **/api/health 200**（PID 33320 回收）。
+- **共享面登记（二次改造不得假设隔离）**：引擎/会话/事件通道 gaea-event 共用——双板块
+  keepAlive 同挂时各自切会话另一侧对话流会跟随引擎当前会话（已知形态，用户拍板接受）；
+  工作区/文件树/COM 桥/任务中心/做梦管线全共享。
+- 未提交（本树另有 sin 线在途改动，未混入）；真机走查（rail 出现文学入口/双板块同挂无样式
+  互染/共享会话流）挂用户实弹。
+
 ## 桌面端构建装机（2026-11-15 晨）· 主代理直做
 
 - HEAD（a1a2f7f6+图谱重生=40 笔含 pantheon 工作台/browser_run_js/readability/lint 清欠）全量装机：

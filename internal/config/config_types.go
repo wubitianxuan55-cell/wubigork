@@ -21,8 +21,7 @@ type configFile struct {
 	ImageModel          string            `json:"image_model,omitempty"`            // 图片模型
 	PortraitBackend     string            `json:"portrait_backend,omitempty"`       // 角色库剧照后端（空=跟随绘梦）
 	PortraitModel       string            `json:"portrait_model,omitempty"`         // 角色库剧照模型（空=跟随绘梦）
-	SinImageBackend     string            `json:"sin_image_backend,omitempty"`      // 原罪插图生图后端（空=跟随全局生图设置）
-	SinImageModel       string            `json:"sin_image_model,omitempty"`        // 原罪插图生图模型（空=跟随全局生图设置）
+	WenxueWorkspace     string            `json:"wenxue_workspace,omitempty"`       // 文学板块（图文）当前小说工作空间
 	ComfyUIPath         string            `json:"comfyui_path,omitempty"`           // ComfyUI 安装目录
 	ComfyUIPythonPath   string            `json:"comfyui_python_path,omitempty"`    // Python 解释器路径
 	TTSPort             int               `json:"tts_port,omitempty"`               // TTS 服务端口
@@ -66,10 +65,6 @@ type configFile struct {
 	FuncRoutineEngine  string `json:"func_routine_engine,omitempty"` // 常规任务模型目标（routine_llm 工具）
 	FuncRoutineModel   string `json:"func_routine_model,omitempty"`
 	FuncRoutineEnabled *bool  `json:"func_routine_enabled,omitempty"`
-	// 原罪板块（闲庭·图文故事创作）：独立 LLM 绑定 + 启停
-	FuncSinEngine  string `json:"func_sin_engine,omitempty"`
-	FuncSinModel   string `json:"func_sin_model,omitempty"`
-	FuncSinEnabled *bool  `json:"func_sin_enabled,omitempty"`
 	// 办公识图（vision）：视觉模型独立绑定 + 启停（未绑定走 gaea.toml [vision]）
 	FuncVisionEngine  string `json:"func_vision_engine,omitempty"`
 	FuncVisionModel   string `json:"func_vision_model,omitempty"`
@@ -179,8 +174,7 @@ type Config struct {
 	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "krea2" | "z-image-turbo" | "qwen-image-2.1-turbo" | "qwen-image-2.1-edit" | "flux"
 	PortraitBackend   string // 角色库剧照后端（空=跟随绘梦）
 	PortraitModel     string // 角色库剧照模型（空=跟随绘梦）
-	SinImageBackend   string // 原罪插图生图后端（空=跟随全局生图设置）
-	SinImageModel     string // 原罪插图生图模型（空=跟随全局生图设置）
+	WenxueWorkspace   string // 文学板块（图文）当前小说工作空间（C:\AI	uwen 子目录绝对路径）
 	ComfyUIPath       string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
 	// tianxuan 独立引擎项目根目录（C:\AI\tianxuan）。
@@ -236,9 +230,6 @@ type Config struct {
 	// 不参与强制路由——是否调用由云端 agent 自行决定。
 	FuncRoutineEngine string
 	FuncRoutineModel  string
-	// 原罪板块（闲庭·图文故事创作）：故事文本生成的独立引擎/模型绑定。
-	FuncSinEngine string
-	FuncSinModel  string
 	// 办公识图（vision）：视觉模型独立引擎/模型绑定（空=gaea.toml [vision]）。
 	FuncVisionEngine string
 	FuncVisionModel  string
@@ -249,7 +240,6 @@ type Config struct {
 	FuncGaeaEnabled    bool
 	FuncCharLibEnabled bool
 	FuncRoutineEnabled bool
-	FuncSinEnabled     bool
 	FuncVisionEnabled  bool
 
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman。

@@ -47,7 +47,7 @@ var receiverTypes = map[string]bool{
 }
 
 // facadeOrder 板块顺序（生成文件与绑定顺序一致，稳定可读）。
-var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib", "sin", "pantheon"}
+var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib", "wenxue", "pantheon"}
 
 // excludedBindings 绑定面排除清单（A1① 拍板，2026-10-03）：109 条零调用绑定
 // 整体摘除（绑定面 744→635；名单=check-bindings-drift.ps1 §4 knownDead 普查，
@@ -185,9 +185,9 @@ func mapMethod(m method) string {
 	case strings.HasPrefix(n, "Chat"), strings.HasPrefix(n, "MainBrainChat"),
 		strings.HasPrefix(n, "Brain"), n == "RunModule":
 		return "chat"
-	case strings.HasPrefix(n, "Sin"):
-		// 原罪板块（闲庭·图文故事创作）：Sin* 前缀独占一门面
-		return "sin"
+	case strings.HasPrefix(n, "Wenxue"):
+		// 文学板块（图文）：Wenxue* 前缀独占一门面（工作空间限定 C:\AI	uwen）
+		return "wenxue"
 	case strings.HasPrefix(n, "Pantheon"):
 		// 众神殿：本机异构 Agent 议事内核独占门面。
 		return "pantheon"
@@ -827,7 +827,7 @@ func facadeTitle(f string) string {
 		"memory": "记忆中枢与知识库", "cost": "成本库与价格源",
 		"model": "模型中心与 Herdsman 底座", "voice": "语音（TTS/ASR/轻语）",
 		"chat": "聊天与主脑", "novel": "小说写作", "image": "绘梦与媒体",
-		"charlib": "角色库", "sin": "原罪（闲庭·图文故事创作）",
+		"charlib": "角色库", "wenxue": "文学（图文工作台）",
 	}
 	if t, ok := titles[f]; ok {
 		return t

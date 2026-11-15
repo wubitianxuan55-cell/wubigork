@@ -35,9 +35,6 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 		// 常规任务模型目标：routine_llm 工具默认引擎/模型（不做强制路由，
 		// 是否调用由云端 agent 决定；此处只是"入口"的目标配置）
 		return config.KeyFuncRoutineEngine, config.KeyFuncRoutineModel, true
-	case "sin":
-		// 原罪（闲庭·图文故事创作）：故事文本生成独立绑定
-		return config.KeyFuncSinEngine, config.KeyFuncSinModel, true
 	case "vision":
 		// 办公识图：视觉模型独立绑定（vision 包运行时经动态钩子实时取用）
 		return config.KeyFuncVisionEngine, config.KeyFuncVisionModel, true
@@ -62,8 +59,6 @@ func featureModelEnabledKey(feature string) (key string, ok bool) {
 		return config.KeyFuncCharLibEnabled, true
 	case "routine":
 		return config.KeyFuncRoutineEnabled, true
-	case "sin":
-		return config.KeyFuncSinEnabled, true
 	case "vision":
 		return config.KeyFuncVisionEnabled, true
 	}

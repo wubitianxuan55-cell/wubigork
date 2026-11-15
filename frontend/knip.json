@@ -10,6 +10,7 @@
   ],
   "ignore": [
     "src/genui/index.ts",
-    "src/gaea/icons.ts"
+    "src/gaea/icons.ts",
+    "src/wenxue/**"
   ]
 }

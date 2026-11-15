@@ -87,8 +87,6 @@ export const LOGIC_ENV_TEST_FILES: string[] = [
   'src/pages/chapter/searchHitAnnotation.test.ts',
   'src/pages/modelcenter/utils.test.tsx',
   'src/pages/pantheon/chairReceipts.test.ts',
-  'src/pages/sin/illustrationQueue.test.ts',
-  'src/pages/sin/storyText.test.ts',
   'src/schedule/advice.test.ts',
   'src/schedule/aoa.test.ts',
   'src/schedule/aoaLayout.test.ts',

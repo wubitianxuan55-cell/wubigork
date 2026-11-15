@@ -1,0 +1,51 @@
+// mock/office/types.ts — office 域共享类型（P4 结构刀2 拆分自 mock/office.ts）。
+// OfficeMethods = OfficeBindings 的 mock 实现契约（Pick 收窄自 AppBindings）；
+// 按方法域拆出的分组文件（methods_office/methods_xlsx/schedule）各自用
+// Partial<OfficeMethods> 声明自己的方法子集，build.ts 合并为完整 OfficeMethods。
+import type { AppBindings } from "../../bridge";
+
+export type OfficeMethods = Pick<
+  AppBindings,
+  | "ListDir" | "FileSearch" | "Materials" | "WorkspaceSearch"
+  | "GaeaListDirBatch" | "GaeaFileTreeWatch"
+  | "GaeaRenameWorkspacePath" | "GaeaCreateWorkspaceFolder" | "GaeaCreateWorkspaceFile"
+  | "GaeaDeleteWorkspacePaths"
+  | "GaeaWorkspaceUploadBegin" | "GaeaWorkspaceUploadAppend"
+  | "GaeaWorkspaceUploadFinish" | "GaeaWorkspaceUploadAbort"
+  | "GaeaPickWorkspaceUploadFiles" | "GaeaPickWorkspaceUploadFolder"
+  | "GaeaReadTextFile" | "GaeaReadFilePage" | "GaeaWriteWorkspaceFile"
+  | "GaeaSaveWorkspacePathAs" | "GaeaSaveWorkspacePathsAs"
+  | "PinnedMaterials" | "PinMaterial" | "UnpinMaterial" | "SummarizeFile"
+  | "TaskTemplates"
+  | "ReadFile" | "Preview" | "OpenWorkspacePath"
+  | "PptxSlideText" | "PptxApplyEdit"
+  | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
+  | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
+  | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx" | "ScheduleImportMpp"
+  | "ScheduleProjects" | "ScheduleProjectOpen" | "ScheduleProjectCreate" | "ScheduleProjectArchive" | "ScheduleProjectDelete" | "ScheduleProjectCopy"
+  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "DeliverableRegistry" | "WriteFile"
+  // 文档 lint / PPT 大纲（批 46 NOT_MOCKED 收尾刀；Gaea 前缀经 mappings 映射）。
+  | "DocumentLint" | "PptxOutline"
+  // 众神殿刀3：搜索主源设置三绑定。
+  | "WebSearchSettingsGet" | "WebSearchSettingsSet" | "WebSearchTestConnection"
+  | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
+  | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
+  // 分块上传三段（超大附件过桥形态；Begin 发 token → Append 吞片 → Finish 落名）。
+  | "AttachmentChunkBegin" | "AttachmentChunkAppend" | "AttachmentChunkFinish" | "AttachmentChunkAbort"
+  | "CaptureScreen" | "RecognizeImage" | "OCRText"
+  // v4.524 CAD 图纸卡（Go OfficeB.GaeaCad*，Gaea 前缀经 mappings 映射）。
+  | "CadOpen" | "CadRaster" | "CadTexts"
+  | "CadCount"
+  | "HerdsmanDigitalLife" | "HerdsmanOperations"
+  | "PickFiles" | "PickDirectory" | "ReadFileB64" | "SaveFileAs" | "OpenLogsDir"
+  | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"
+  | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
+  | "GaeaGitStatus" | "GaeaGitDiff" | "GaeaGitStage" | "GaeaGitUnstage" | "GaeaGitDiscard" | "GaeaGitCommit" | "GaeaGitLog" | "GaeaGitWorktrees" | "GaeaGitGraph" | "GaeaGitCommitDetail"
+  // 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*，Gaea 前缀经 mappings 映射）。
+  | "DataBackupInfo" | "DataBackupCreate" | "DataBackupRestore"
+  | "DataBackupCancel" | "DataBackupRollback" | "DataBackupRestoreResult"
+  // 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*，Gaea 前缀经 mappings 映射）。
+  | "DagList" | "DagGet" | "DagRun" | "DagNodeRun" | "DagNodeSteer" | "DagNodeAccept" | "DagNodeApprove" | "DagAcceptAll" | "DagCancel"
+  // 6.3 余项：流水线模板库（存模板一键重建）。
+  | "DagTemplateList" | "DagTemplateSave" | "DagTemplateNew" | "DagTemplateDelete"
+>;

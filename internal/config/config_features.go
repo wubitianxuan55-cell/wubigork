@@ -23,9 +23,6 @@ func (c *Config) GetFeatureModel(feature string) (engine, model string) {
 		return c.FuncCharLibEngine, c.FuncCharLibModel
 	case "routine":
 		return c.FuncRoutineEngine, c.FuncRoutineModel
-	case "sin":
-		// 原罪（闲庭·图文故事创作）：故事文本生成的独立绑定
-		return c.FuncSinEngine, c.FuncSinModel
 	case "vision":
 		// 办公识图：视觉模型独立绑定（空=走 gaea.toml [vision] 静态注入）
 		return c.FuncVisionEngine, c.FuncVisionModel
@@ -53,8 +50,6 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 		c.FuncCharLibEngine, c.FuncCharLibModel = engine, model
 	case "routine":
 		c.FuncRoutineEngine, c.FuncRoutineModel = engine, model
-	case "sin":
-		c.FuncSinEngine, c.FuncSinModel = engine, model
 	case "vision":
 		c.FuncVisionEngine, c.FuncVisionModel = engine, model
 	}
@@ -79,8 +74,6 @@ func (c *Config) GetFeatureModelEnabled(feature string) bool {
 		return c.FuncCharLibEnabled
 	case "routine":
 		return c.FuncRoutineEnabled
-	case "sin":
-		return c.FuncSinEnabled
 	case "vision":
 		return c.FuncVisionEnabled
 	}
@@ -106,8 +99,6 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 		c.FuncCharLibEnabled = enabled
 	case "routine":
 		c.FuncRoutineEnabled = enabled
-	case "sin":
-		c.FuncSinEnabled = enabled
 	case "vision":
 		c.FuncVisionEnabled = enabled
 	}

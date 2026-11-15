@@ -867,31 +867,6 @@ func (a *App) SetPortraitConfig(backend, model string) error {
 	return nil
 }
 
-// GetSinImageConfig 获取原罪插图独立生图后端/模型（v4.388；空 = 跟随全局
-// 生图设置，即绘梦页当前后端）。
-func (a *App) GetSinImageConfig() map[string]string {
-	return map[string]string{
-		"backend": a.cfg.SinImageBackend,
-		"model":   a.cfg.SinImageModel,
-	}
-}
-
-// SetSinImageConfig 设置原罪插图独立生图后端/模型（空 = 跟随全局）。
-func (a *App) SetSinImageConfig(backend, model string) error {
-	a.cfg.SinImageBackend = backend
-	a.cfg.SinImageModel = model
-	if err := config.Save(config.KeySinImageBackend, backend); err != nil {
-		slog.Warn("保存原罪插图后端失败", "error", err)
-		return err
-	}
-	if err := config.Save(config.KeySinImageModel, model); err != nil {
-		slog.Warn("保存原罪插图模型失败", "error", err)
-		return err
-	}
-	slog.Info("原罪插图生图绑定已设置", "backend", backend, "model", model)
-	return nil
-}
-
 // SetImageBackend 切换图片生成后端（供设置页调用）。
 func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
 	if a.clientRef() == nil {

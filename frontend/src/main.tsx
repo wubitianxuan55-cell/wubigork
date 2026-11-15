@@ -29,8 +29,11 @@ registerPage('WeixinPage', lazy(() => import('./pages/WeixinPage')))
 registerPage('SchedulePage', lazy(() => import('./pages/SchedulePage')))
 // 2026-10-19 运行监测板块（参照 Strata Monitor：系统/引擎/遥测/最近调用仪表盘）
 registerPage('RuntimePage', lazy(() => import('./pages/RuntimePage')))
-// 原罪页不再独立注册（2026-10-27 拍板导航级合并收编为小说板块第六页签）：
-// 由 pages/NovelPage.tsx 直接 lazy import 挂载，SinB 门面与 sin 功能绑定不动。
+// 文学板块（2026-11-15）：办公板块完整拷贝（frontend/src/wenxue/），全共享引擎，
+// UI 层独立二次改造；皮肤 css 经 .wx-root 作用域隔离。
+registerPage('WenxuePage', lazy(() => import('./pages/WenxuePage')))
+// 原罪（sin）已整体退役（2026-11-15 拍板全删）：sinboard 壳/SinB 门面/独立引擎
+// 同步拆除，小说板块不再有原罪页签。
 
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════

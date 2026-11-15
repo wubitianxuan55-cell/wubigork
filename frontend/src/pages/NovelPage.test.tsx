@@ -8,12 +8,10 @@
 //   ②点目录树时 novel:open-chapter 必须在阅读 pane **已成为当前页之后**才派发
 //     （同 tick 同步派发时隐藏页拿到的 active 还是 false，会被门控丢弃 → 点章失效）。
 //
-// 2026-10-27 起第六 pane = 原罪页（导航级合并收编，lazy import）——**惰性挂载**：
-// 首次激活才挂（独立数据域零请求）、挂载过即常驻（切走不卸载）。
-//
 // 2026-10-27 大道至简重组：角色页并入设定——外壳 6→5 页签，'novelsetting' 的
 // component 换成真 SettingHub（内部再挂 mock 的世界观/人物两子 pane）。DOM 里
-// pane-* 计数 = 外壳 4（home/create/chapter+惰性 sin）+ 设定 hub 内 2 子 pane。
+// pane-* 计数 = 外壳 3（home/create/chapter）+ 设定 hub 内 2 子 pane = 5。
+// 历史注（2026-11-15）：第六 pane 原罪页已随原罪板块整体退役删除。
 //
 // 手法：子页替换为只暴露 `data-active` 的桩（线2 允许的两种手法之一），
 // 大纲树 OutlinePanel 替换为「点一下即 onSelectNode」的按钮。
@@ -35,11 +33,6 @@ vi.mock('./CreatePage', () => ({
 vi.mock('./ChapterPage', () => ({
   default: ({ active }: { active?: boolean }) => <div data-testid="pane-chapter" data-active={String(active)} />,
 }))
-// 2026-11-15 升格刀：sin 页签组件切到 sinboard/AppBoard（独立引擎壳），桩同步改路径。
-vi.mock('../sinboard/AppBoard', () => ({
-  default: ({ active }: { active?: boolean }) => <div data-testid="pane-sin" data-active={String(active)} />,
-}))
-
 // 壳层左 zone 的目录树：真实 OutlinePanel 依赖大纲数据，这里只保留「点击 → onSelectNode」。
 // 注意：.novel-side-zone 在书架/设定/角色/创作 tab 上是 display:none
 // （novel-workspace.css:272-291），只有阅读 tab 才可见——所以第 3 例用 testid 直接点
@@ -73,7 +66,7 @@ const activePanes = () =>
 const paneActive = (key: string) =>
   screen.getByTestId(`pane-${key}`).getAttribute('data-active')
 
-const PANE_KEYS = ['home', 'novelsetting', 'character', 'create', 'chapter', 'sin']
+const PANE_KEYS = ['home', 'novelsetting', 'character', 'create', 'chapter']
 
 describe('NovelPage 常驻 pane 的 active 下发', () => {
   beforeEach(() => {
@@ -87,7 +80,7 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     useOutlineStore.setState({ outlines: [], loading: false, error: null })
   })
 
-  it('默认书架 tab：home=true、其余常驻隐藏页=false，且恰好一个可见；sin 惰性未挂载', async () => {
+  it('默认书架 tab：home=true、其余常驻隐藏页=false，且恰好一个可见', async () => {
     render(<NovelPage />)
     await screen.findByTestId('pane-home')
     // 五 pane 为各自 React.lazy chunk——重载机器上 home 先到、设定 hub 等慢半拍，
@@ -95,14 +88,12 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     await waitFor(() => expect(document.querySelectorAll('[data-testid^="pane-"]').length).toBe(5))
 
     expect(paneActive('home')).toBe('true')
-    for (const key of PANE_KEYS.filter((k) => k !== 'home' && k !== 'sin')) {
+    for (const key of PANE_KEYS.filter((k) => k !== 'home')) {
       expect(paneActive(key)).toBe('false')
     }
-    // 外壳 4 pane 一次全挂（home/create/chapter + 设定 hub；隐藏 ≠ 卸载），设定 hub
-    // 内部再挂世界观/人物两子 pane——DOM pane-* 计数 = 3 + 2 = 5；
-    // sin pane 惰性：未进过原罪页签就不挂载（独立数据域零请求）
+    // 外壳 3 pane 一次全挂（home/create/chapter；隐藏 ≠ 卸载），设定 hub
+    // 内部再挂世界观/人物两子 pane——DOM pane-* 计数 = 3 + 2 = 5
     expect(document.querySelectorAll('[data-testid^="pane-"]').length).toBe(5)
-    expect(screen.queryByTestId('pane-sin')).toBeNull()
     expect(activePanes()).toEqual(['pane-home'])
   })
 
@@ -190,41 +181,4 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     expect(activePanes()).toEqual(['pane-chapter'])
   })
 
-  // ── 第六 pane：原罪（2026-10-27 导航级合并收编；惰性挂载=首次激活才挂）──────
-  it('原罪页签：首次点击才挂载 pane-sin 并独占 active，身份区切原罪语境、封面按钮退场、切走常驻不卸载', async () => {
-    render(<NovelPage />)
-    await screen.findByTestId('pane-home')
-    // 惰性：未点过原罪页签，pane 不存在
-    expect(screen.queryByTestId('pane-sin')).toBeNull()
-
-    fireEvent.click(within(screen.getByRole('navigation', { name: '小说板块' }))
-      .getByRole('button', { name: /原罪/ }))
-
-    await waitFor(() => expect(paneActive('sin')).toBe('true'))
-    expect(activePanes()).toEqual(['pane-sin'])
-    // data-novel-tab='sin' 是 novel-workspace.css 收敛项目级目录树/检查器/AI 控制台
-    // FAB 的选择器锚点——丢了它 sin 页签会挤在双 zone 之间
-    expect(document.querySelector('.novel-hub')?.getAttribute('data-novel-tab')).toBe('sin')
-    // 身份区切原罪语境：kicker 不再是书房，书名/项目统计退场
-    expect(document.querySelector('.novel-atelier-kicker')?.textContent).toBe('原罪')
-    expect(screen.getByText('图文故事')).toBeTruthy()
-    expect(screen.queryByText('书房')).toBeNull()
-    expect(screen.queryByTitle('为当前项目生成书封（3:4 竖版）')).toBeNull()
-    // activeTab 持久化（回访落在原罪页签）
-    expect(localStorage.getItem('gaea.novel.activeTab')).toBe('sin')
-
-    // 挂载过即常驻：切回书架只隐藏不卸载（active=false 但 pane 仍在 DOM）
-    fireEvent.click(within(screen.getByRole('navigation', { name: '小说板块' }))
-      .getByRole('button', { name: /书架/ }))
-    await waitFor(() => expect(paneActive('home')).toBe('true'))
-    expect(paneActive('sin')).toBe('false')
-    expect(screen.getByTestId('pane-sin')).toBeTruthy()
-  })
-
-  it('回访恢复：activeTab 持久为 sin 时，NovelPage 挂载即直挂 sin pane（不闪空白）', async () => {
-    localStorage.setItem('gaea.novel.activeTab', 'sin')
-    render(<NovelPage />)
-    await waitFor(() => expect(paneActive('sin')).toBe('true'))
-    expect(activePanes()).toEqual(['pane-sin'])
-  })
 })

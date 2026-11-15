@@ -41,9 +41,6 @@ var builtinManifests = []Manifest{
 			{ID: "home", Label: "书架"}, {ID: "novelsetting", Label: "设定"},
 			{ID: "character", Label: "角色"}, {ID: "create", Label: "创作"},
 			{ID: "chapter", Label: "阅读"}, {ID: "export", Label: "导出"},
-			// 2026-10-27 拍板导航级合并：原罪收编为小说板块第六页签（sin 板块退役，
-			// SinB 门面与 featureModel 'sin' 功能绑定不受影响）
-			{ID: "sin", Label: "原罪"},
 		}},
 		FeatureModel: "novel",
 		Bindings:     []string{"NovelB"},
@@ -178,6 +175,18 @@ var builtinManifests = []Manifest{
 		FeatureModel: "schedule",
 	},
 	{
+		// 文学板块（2026-11-15 二次改造）：办公板块的完整前端拷贝（frontend/src/wenxue/），
+		// 文件面已隔离=WenxueB（工作空间限定 C:\AI\tuwen，每部小说一个子目录）；
+		// 会话/聊天引擎仍与办公全共享（早前拍板）。与前端 manifests.ts 同步翻，
+		// 防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
+		ID: "wenxue", Label: "文学", Icon: "BookOutlined",
+		Page: "WenxuePage", Lazy: true,
+		KeepAlive: Bool(true), Layout: "full",
+		MenuOrder: 13, InMenu: Bool(true),
+		Space:    SpaceWork, // 工位·文学工作台（图文，工作空间限 tuwen 根）
+		Bindings: []string{"WenxueB", "OfficeB", "MemoryB", "CostB"},
+	},
+	{
 		// 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：本机系统资源 +
 		// 引擎状态 + Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的
 		// 聚合仪表盘。数据源 App.RuntimeMonitor（runtime_monitor.go）。
@@ -211,8 +220,8 @@ func Builtins() []Board {
 }
 
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
-// knowledge 是 D7 独立板块，见 BuiltinManifests）。sin 已退役（2026-10-27 拍板
-// 导航级合并：原罪收编为小说板块第六页签，SinB 门面经 NewBindings 照常注册）。
+// knowledge 是 D7 独立板块，见 BuiltinManifests）。sin 已退役并整体删除
+// （2026-10-27 撤导航、2026-11-15 拍板全删：SinB 门面/功能绑定/前端同步拆除）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "runtime"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "wenxue", "runtime"}
 }

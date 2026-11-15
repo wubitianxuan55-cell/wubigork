@@ -106,10 +106,6 @@ export function GetProjectInfo() {
   return window['go']['app']['CoreB']['GetProjectInfo']();
 }
 
-export function GetSinImageConfig() {
-  return window['go']['app']['CoreB']['GetSinImageConfig']();
-}
-
 export function GetStats() {
   return window['go']['app']['CoreB']['GetStats']();
 }
@@ -212,10 +208,6 @@ export function SetOpencodeGoKey(arg1) {
 
 export function SetPreloadPlan(arg1) {
   return window['go']['app']['CoreB']['SetPreloadPlan'](arg1);
-}
-
-export function SetSinImageConfig(arg1, arg2) {
-  return window['go']['app']['CoreB']['SetSinImageConfig'](arg1, arg2);
 }
 
 export function StartProgrammingWeb() {

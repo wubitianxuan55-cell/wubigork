@@ -1,0 +1,141 @@
+export type LayoutSizeKey =
+  | "sidebarWidth"
+  | "workspacePanelWidth"
+  | "workspaceFileTreePanelWidth"
+  | "workspaceTreeWidth"
+  | "workspacePreviewWidth"
+  | "composerHeight"
+  | "composerHeightV2"
+  | "drawerWidth"
+  | "settingsDrawerWidth";
+
+type LayoutPreferences = {
+  sizes?: Partial<Record<LayoutSizeKey, number>>;
+};
+
+// S2.2 空间分键：旧 JSON blob key 只读回退；新写入走 `gaea.work.*`
+import { workbenchKey } from "./workbenchStorage";
+
+const LEGACY_STORAGE_KEY = "gaea.layoutPreferences.v1";
+const STORAGE_KEY = workbenchKey(LEGACY_STORAGE_KEY);
+
+const LEGACY_SIZE_KEYS: Record<LayoutSizeKey, string[]> = {
+  sidebarWidth: ["gaea.sidebar.width"],
+  workspacePanelWidth: ["gaea.workspacePanel.width"],
+  workspaceFileTreePanelWidth: [],
+  workspaceTreeWidth: ["gaea.workspaceTree.width"],
+  workspacePreviewWidth: [],
+  composerHeight: ["gaea.composerHeight"],
+  composerHeightV2: [],
+  drawerWidth: ["gaea.drawer.width"],
+  settingsDrawerWidth: ["gaea.settingsDrawer.width"],
+};
+
+type ClampSize = (value: number) => number;
+
+function readPrefs(): LayoutPreferences {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as LayoutPreferences;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePrefs(prefs: LayoutPreferences): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ sizes: prefs.sizes ?? {} }));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
+function readLegacySize(key: LayoutSizeKey): number | null {
+  if (typeof window === "undefined") return null;
+  for (const legacyKey of LEGACY_SIZE_KEYS[key]) {
+    try {
+      const raw = Number(window.localStorage.getItem(legacyKey));
+      if (Number.isFinite(raw) && raw > 0) return raw;
+    } catch {
+      /* keep trying other keys */
+    }
+  }
+  return null;
+}
+
+function normalizeSize(value: number, clamp?: ClampSize): number {
+  const rounded = Math.round(value);
+  return clamp ? clamp(rounded) : rounded;
+}
+
+export function loadLayoutSize(key: LayoutSizeKey, fallback: number, clamp?: ClampSize): number {
+  const prefs = readPrefs();
+  const saved = prefs.sizes?.[key];
+  const value = Number.isFinite(saved) && saved! > 0 ? saved! : readLegacySize(key);
+  return value === null ? normalizeSize(fallback, clamp) : normalizeSize(value, clamp);
+}
+
+export function loadOptionalLayoutSize(key: LayoutSizeKey, clamp?: ClampSize): number | null {
+  const prefs = readPrefs();
+  const saved = prefs.sizes?.[key];
+  const value = Number.isFinite(saved) && saved! > 0 ? saved! : readLegacySize(key);
+  return value === null ? null : normalizeSize(value, clamp);
+}
+
+export function saveLayoutSize(key: LayoutSizeKey, value: number, clamp?: ClampSize): void {
+  const prefs = readPrefs();
+  const sizes = { ...(prefs.sizes ?? {}), [key]: normalizeSize(value, clamp) };
+  writePrefs({ ...prefs, sizes });
+}
+
+export function clearLayoutSize(key: LayoutSizeKey): void {
+  const prefs = readPrefs();
+  const sizes = { ...(prefs.sizes ?? {}) };
+  delete sizes[key];
+  writePrefs({ ...prefs, sizes });
+}
+
+// 主区域预览面板宽度（Codex 式：点文件后在聊天区右侧展开，可拖拽调整）
+export const PREVIEW_MIN_WIDTH = 320;
+export const PREVIEW_MAX_WIDTH = 1100;
+export const PREVIEW_DEFAULT_WIDTH = 620;
+
+export function clampPreviewWidth(width: number): number {
+  return Math.min(PREVIEW_MAX_WIDTH, Math.max(PREVIEW_MIN_WIDTH, Math.round(width)));
+}
+
+export function loadPreviewWidth(): number {
+  return loadLayoutSize("workspacePreviewWidth", PREVIEW_DEFAULT_WIDTH, clampPreviewWidth);
+}
+
+export function savePreviewWidth(width: number): void {
+  saveLayoutSize("workspacePreviewWidth", width, clampPreviewWidth);
+}
+
+// v4.32 预览两档占幅持久化：最大化状态跨会话记忆（writePrefs 只落 sizes
+// 数字 map，布尔开关走独立简单键，对齐 browserPrefs 的 "1"/"0" 约定）。
+const PREVIEW_MAXIMIZED_KEY = "gaea.previewMaximized";
+
+/** 读取预览最大化偏好；未设置/损坏/无 window 时默认半幅（false）。 */
+export function loadPreviewMaximized(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PREVIEW_MAXIMIZED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** 持久化预览最大化偏好（"1"/"0"，可读可手改）。 */
+export function savePreviewMaximized(maximized: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PREVIEW_MAXIMIZED_KEY, maximized ? "1" : "0");
+  } catch {
+    /* 存储失败静默降级：记忆是增强项，不阻塞预览 */
+  }
+}

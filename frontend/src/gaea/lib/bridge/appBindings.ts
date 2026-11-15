@@ -18,7 +18,6 @@ import type { ChatBindings } from "./chat";
 import type { NovelBindings } from "./novel";
 import type { ImageBindings } from "./image";
 import type { CharLibBindings } from "./charlib";
-import type { SinBindings } from "./sin";
 import type { CadBindings } from "./cad";
 import type { PantheonBindings } from "./pantheon";
 
@@ -33,6 +32,5 @@ export interface AppBindings
     NovelBindings,
     ImageBindings,
     CharLibBindings,
-    SinBindings,
     CadBindings,
     PantheonBindings {}

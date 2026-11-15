@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 
@@ -13,6 +16,63 @@ import (
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/util"
 )
+
+// refDataURLMaxBytes 参考图转 data URL 的体积上限。无闸整读会把几十 MB 的原图
+// base64（约 1.33 倍膨胀）塞进生成请求体；超限跳过该参考，不整单失败。
+const refDataURLMaxBytes = 8 * 1024 * 1024
+
+// refDataURL 本地参考图 → data URL：远端 URL/不存在/超限一律跳过（ok=false），
+// 一张可用即可。原 sinRefDataURL（原罪板块 2026-11-15 退役）由本文件接管同实现，
+// 供设定卡生成（Qwen 参考编辑）收集参考图。
+func refDataURL(path string) (string, bool) {
+	p := strings.TrimSpace(path)
+	if p == "" {
+		return "", false
+	}
+	if strings.HasPrefix(p, "data:image/") {
+		return p, true
+	}
+	if strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+		return "", false
+	}
+	if info, err := os.Stat(p); err != nil {
+		slog.Warn("参考图读取失败（跳过该参考）", "path", p, "error", err)
+		return "", false
+	} else if info.Size() > refDataURLMaxBytes {
+		slog.Warn("参考图超过体积上限（跳过该参考）", "path", p, "size", info.Size(), "limit", refDataURLMaxBytes)
+		return "", false
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		slog.Warn("参考图读取失败（跳过该参考）", "path", p, "error", err)
+		return "", false
+	}
+	ext := strings.ToLower(pathExt(p))
+	mime := "image/png"
+	switch ext {
+	case ".jpg", ".jpeg":
+		mime = "image/jpeg"
+	case ".webp":
+		mime = "image/webp"
+	case ".gif":
+		mime = "image/gif"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(raw), true
+}
+
+// pathExt 取扩展名（.png 等，保持原大小写；调用方自行 ToLower）。
+func pathExt(p string) string {
+	idx := strings.LastIndexAny(p, `/\`)
+	name := p
+	if idx >= 0 {
+		name = p[idx+1:]
+	}
+	dot := strings.LastIndex(name, ".")
+	if dot < 0 {
+		return ""
+	}
+	return name[dot:]
+}
 
 // libFillKeys 随机补全允许写入的字段（仅当当前为空时填充）。
 var libFillKeys = []string{
@@ -860,18 +920,18 @@ func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 		return "", fmt.Errorf("设定卡生成（Qwen 参考编辑）当前仅 ComfyUI 本地档（当前后端：%s）", backend)
 	}
 	// 收集可用参考：参考图列表优先（最多 3 张），其次剧照兜底；
-	// 远端 URL/读取失败按 sinRefDataURL 口径跳过，一张可用即可。
+	// 远端 URL/读取失败按 refDataURL 口径跳过，一张可用即可。
 	var refs []string
 	for _, p := range c.ReferenceImages {
 		if len(refs) >= 3 {
 			break
 		}
-		if data, ok := sinRefDataURL(p); ok {
+		if data, ok := refDataURL(p); ok {
 			refs = append(refs, data)
 		}
 	}
 	if len(refs) == 0 {
-		if data, ok := sinRefDataURL(c.PortraitURL); ok {
+		if data, ok := refDataURL(c.PortraitURL); ok {
 			refs = append(refs, data)
 		}
 	}

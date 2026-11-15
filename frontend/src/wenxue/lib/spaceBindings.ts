@@ -1,0 +1,935 @@
+// spaceBindings.ts — S2.3 bridge 分面（work/play/shared）绑定空间分类表
+// （docs/gaea-space-shell-design.md §7 S2.3）
+//
+// 单一注册表：gaea 桥 AppBindings 全部方法 → 空间归属。导航/搜索/守卫/门面
+// 代理全部从这里派生（三层防线：导航层 manifest.space → 事件层 subscribeForSpace
+// → 调用层本表）。规则：
+//   - work：工位工作台（会话/办公/记忆/知识库/造价/任务/文件/截图 OCR）；
+//   - play：乐园数据面（轻语聊天记忆）；
+//   - shared：两空间共用基础设施（元信息/更新/遥测/空间控制/模型与设置/对话/
+//     统一检索——UnifiedSearch 的隔离由 scope 参数承担，搜索面板两空间都会用）；
+//   - independent：独立窗口板块（用户拍板：不并入工位、不共享工具面；壳层
+//     独立入口两空间均可达）。编程板块的隔离 DSH Web 进程管理归入该分面。
+// 全部方法必须显式分类（satisfies Record<keyof AppBindings, BindingSpace>），
+// 新方法未分类 tsc 直接报错，防止静默落入错误空间。
+// FE4-04 机器可读约定：本表键被 scripts/gen_bindings -legacy-ts 逐行解析（行格式
+// `键: "空间",` ——两空格缩进、裸标识符、四空间字面量之一、行尾可带 // 注释）以
+// 推导 AppBindings 认领集、生成 legacyBindings.ts。增删键请保持该行格式：解析
+// 整体失灵时生成器有键数下限闸（红而不落盘），个别漏解析则由 drift.ts 的
+// _CheckLegacyNoOverlap 锁与 spaceBindings.test.ts 的推导断言抓红。
+import type { AppBindings } from "./bridge";
+import type { ShellSpace } from "../../boards/space";
+
+export type BindingSpace = ShellSpace | "shared" | "independent";
+
+/** gaea 桥方法空间归属（键名 = AppBindings 短方法名，经 gaeaToGaea 映射到 Go）。 */
+export const GAEA_METHOD_FACETS = {
+  WenxueCreateNovel: "work",
+  WenxueDeleteNovel: "work",
+  WenxueListProjectSessions: "work",
+  WenxueListSessions: "work",
+  WenxueListWorkspaces: "work",
+  WenxueMeta: "work",
+  WenxueNewSession: "work",
+  WenxueSwitchWorkspace: "work",
+  AnalyzeChapter: "play",
+  // 编程板块：隔离 DSH Web 进程管理仅由 independent 入口消费。
+  GetProgrammingWebPreflight: "independent",
+  GetProgrammingWebStatus: "independent",
+  ProgrammingWebLogTail: "independent",
+  StartProgrammingWeb: "independent",
+  StopProgrammingWeb: "independent",
+  // ── shared：两空间共用基础设施 ──────────────────────────────
+  Meta: "shared",
+  Version: "shared",
+  CheckUpdate: "shared",
+  ApplyUpdate: "shared",
+  OpenDownloadPage: "shared",
+  LogFrontendError: "shared",
+  SaveWindowState: "shared",
+  GaeaSpaceList: "shared",
+  GaeaSpaceActive: "shared",
+  GaeaSpaceActivate: "shared",
+  GaeaSpaceProfiles: "shared",
+  GaeaSpaceProfileSet: "shared",
+  // v4.171 批次一 legacy 直调转正：应用信息/板块清单（壳层元信息，两空间共用，
+  // AboutPanel/主页 launcher 消费）。
+  GetAppInfo: "shared",
+  GetBoardManifests: "shared",
+  Models: "shared",
+  SetModel: "shared",
+  ModelSwitchEstimate: "shared",
+  // v4.171 批次一 legacy 直调转正：功能级模型绑定读写 + 活跃模型（模型与设置域，
+  // useFeatureModel / useBindState / 模型中心 / api/settings.ts 两空间共用）。
+  GetFeatureModel: "shared",
+  GetFeatureModelEnabled: "shared",
+  SetFeatureModel: "shared",
+  SetFeatureModelEnabled: "shared",
+  GetActiveModel: "shared",
+  // 路由学习四名（阶段七 7.1-2）：功能级账本/改绑建议（模型中心「成本归因」
+  // tab，两空间模型中心共用）。
+  GaeaRouteLedger: "shared",
+  GaeaRouteSuggestions: "shared",
+  GaeaRouteSuggestionApply: "shared",
+  GaeaRouteSuggestionIgnore: "shared",
+  // 任务收件箱四名（阶段七 7.3-1）：多入口统一任务实体——双空间首页收件箱
+  // 挂点各自调用（书斋 w-vitals/闲庭 p-foot）；隔离由 space 参数承担
+  // （GaeaTaskInboxList 严格过滤，UnifiedSearch 同款口径）。
+  GaeaTaskInboxList: "shared",
+  GaeaTaskInboxSave: "shared",
+  GaeaTaskInboxSetStatus: "shared",
+  GaeaTaskInboxDelete: "shared",
+  // 众神殿（本机异构 Agent 议事）：两空间共用入口，材料范围由每场议事显式选择。
+  PantheonAgents: "shared",
+  PantheonWorkspaces: "shared",
+  PantheonPickWorkspace: "shared",
+  PantheonList: "shared",
+  PantheonGet: "shared",
+  PantheonStart: "shared",
+  PantheonCancel: "shared",
+  PantheonSkipAgent: "shared",
+  PantheonRetryAgent: "shared",
+  PantheonRestart: "shared",
+  PantheonResume: "shared",
+  PantheonDelete: "shared",
+  PantheonEvaluation: "shared",
+  PantheonExport: "shared",
+  PantheonOpenResult: "shared",
+  PantheonSignOff: "shared",
+  PantheonSetExecutable: "shared",
+  PantheonAddUserNote: "shared",
+  PantheonAskSeat: "shared",
+  PantheonAnswerSeat: "shared",
+  PantheonOpenGate: "shared",
+  PantheonResolveGate: "shared",
+  Settings: "shared",
+  SetDefaultModel: "shared",
+  // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。
+  SaveSettings: "shared",
+  // 众神殿刀3：搜索主源设置（主源向导/连通性实测，设置卡两空间共用）。
+  WebSearchSettingsGet: "shared",
+  WebSearchSettingsSet: "shared",
+  WebSearchTestConnection: "shared",
+  SaveProvider: "shared",
+  DeleteProvider: "shared",
+  LoginProvider: "shared",
+  LogoutProvider: "shared",
+  SetProviderKey: "shared",
+  SetPermissionMode: "shared",
+  AddPermissionRule: "shared",
+  RemovePermissionRule: "shared",
+  SetSandbox: "shared",
+  SetAgentParams: "shared",
+  // FE3-04：SetSubagentTemperature/SetEffort/SetSubagentModel 三名已随 AppBindings
+  // 摘除（Go 从无绑定、零调用者的 mock-only 死面），facets 同步收缩。
+  SetSubagentEffort: "shared",
+  SetSubagentModelForSkill: "shared",
+  SetPermLevel: "shared",
+  KeepWarmGet: "shared",
+  KeepWarmSet: "shared",
+  PreloadPlanGet: "shared",
+  PreloadPlanSet: "shared",
+  HerdsmanDigitalLife: "shared",
+  HerdsmanOperations: "shared",
+  ChatTopicsList: "shared",
+  ChatMessagesList: "shared",
+  ChatMessagesPage: "shared",
+  ChatAppendMessages: "shared",
+  // 统一检索：隔离由 scope 参数承担（S1.2-C），搜索面板两空间都会调用 → shared
+  UnifiedSearch: "shared",
+  // v4.7 S4.6 命令面板接统一意图路由：触点层内核两空间共用（路线图 §10.4a
+  // 「路由内核是触点层内核（两空间共用家底）」），dry-run 预览-确认制防误触发
+  RouteIntent: "shared",
+  // ── 图像域 legacy 直调族转正（v4.102）：绘梦/图示消费面=play；角色数据
+  // （GetCharacters/SetCharacterPortrait）跨画室参考槽（play）与微信助手/角色域
+  // （work）两用 → shared。分类锁同步见 spaceBindings.test.ts。──
+  GenerateFreeImage: "play",
+  GaeaImageDirector: "play", // 绘梦导演（11.6）：解析→生成→自评→重试
+  CancelImageGeneration: "play",
+  GenerateMedia: "play",
+  GenerateDiagram: "play",
+  GetImageBackendInfo: "play",
+  GetPortraitConfig: "play",
+  SetPortraitConfig: "play",
+  // v4.388 原罪插图独立生图绑定（模型中心功能绑定卡，play 数据面）。
+  GetComfyUIStatus: "play",
+  GetComfyUILoras: "play",
+  GetComfyUITaskProgress: "play",
+  StartComfyUI: "play",
+  WarmComfyUI: "play",
+  StopComfyUI: "play",
+  GetSystemStats: "play",
+  OpenImageSaveDir: "play",
+  OpenNovelImagesDir: "play",
+  GetCharacters: "shared",
+  SetCharacterPortrait: "shared",
+  // 图像域登记只读视图（T1 画室素材库）：space 由参数承担、两空间各自 ledger，
+  // 消费面绘梦（play）与后续工位配图（work）都会调 → shared（转正自 Legacy 直调）。
+  ImageHubAssets: "shared",
+  // 素材库删除（v4.502）：与 ImageHubAssets 同消费面（素材库页删除钮）→ shared。
+  ImageHubAssetDelete: "shared",
+  ImageCutout: "play",
+  ImageHubMonthlyUsage: "play",
+  // 项目章节配图清单（chapter-art.json）：小说域（play）专属消费。
+  ChapterArtList: "play",
+  // sin 书源 t2（sin 书源线移交本线，规格 docs/gaea-sin-booksource-distill-2026-09.md §5）：
+  // 搜书/目录/下载成书/取消/成书清单/成书删除——原罪域内素材获取，产物落 sin 数据面
+  // （sinRoot()/books），规则用共享资产层；同原罪板块全部归 play。
+  ImportNovelBookEx: "play",
+  // 2026-11-15 升格刀：原罪独立引擎（第二控制器，与办公 Gaea* 平行实例）+
+  // 书架工作空间绑定。引擎族走 gaea-event-sin 专用通道/书目录会话；全部 play
+  // （sin 命名空间专用，工位侧不消费）。
+
+  // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
+  WhisperMemories: "play",
+  WhisperEpisodes: "play",
+  WhisperEpisodeReplay: "play",
+  WhisperAnchors: "play",
+  WhisperAnchorReplay: "play",
+  WhisperMemoryRetell: "play",
+  WhisperCausalExplain: "play",
+  WhisperExportArchive: "play",
+  // v4.3 会客厅：关系图谱/主动关心（轻语数据面）；书封生成（创作间 play）
+  WhisperGraphSubgraph: "play",
+  WhisperProactiveNow: "play",
+  // v4.3c 后续小步：主动关心定时推送配置（频控/时窗，play 数据面）
+  WhisperProactiveConfig: "play",
+  WhisperProactiveSetConfig: "play",
+  // v4.171 批次一 legacy 直调转正：轻语读取/写入族（角色记忆面板 CharacterMemoryModal
+  // 与轻语记忆 WhisperMemoryModal 消费，同 WhisperMemories 归 play 数据面）。
+  WhisperGetState: "play",
+  WhisperGetFacts: "play",
+  WhisperGetTraces: "play",
+  WhisperDeleteFact: "play",
+  WhisperUpdateFact: "play",
+  GenerateBookCover: "play",
+  // NovelSearch 章内全文检索（ChapterPage 小说创作间消费，同书封归 play）。
+  NovelSearch: "play",
+  // 批次二 legacy 直调转正（NovelB 门面）：世界观读写/一致性检查/伏笔读写/
+  // 批量角色/阅读助手/场景插图——小说创作间数据面，同书封/NovelSearch 归 play。
+  GetWorldview: "play",
+  SaveWorldview: "play",
+  ChatWorldview: "play",
+  GetWorldviewSections: "play",
+  SaveAllWorldviewSections: "play",
+  CheckConsistency: "play",
+  CheckConsistencyDeep: "play",
+  GetForeshadows: "play",
+  SaveForeshadows: "play",
+  // 伏笔一致性体检（NovelB 门面）：ForeshadowPanel「一致性体检」——小说创作间
+  // 数据面，同伏笔读写族归 play。
+  LintForeshadows: "play",
+  // 伏笔生命周期清理与统计（t1-P3，spec §8.1/§5.1）：三个清理入口（章节删除/
+  // 重分析前清理/项目重置，手动条目只重置不删除）+ 统计（分状态+超期数），
+  // 同伏笔读写族归 play。
+  CleanChapterAnalysisForeshadows: "play",
+  // 上次分析同步结果（t1-P4：SyncResult 上绑定面，跳过原因可见不静默 D3）。
+  GetLastForeshadowSync: "play",
+  // 驱动式整章重写（t4-C3 首刀：whole 模式+版本库，生成后不自动落章）。
+  NovelChapterRewrite: "play",
+  NovelListRewriteVersions: "play",
+  NovelGetRewriteVersion: "play",
+  NovelApplyRewriteVersion: "play",
+  NovelDiscardRewriteVersion: "play",
+  NovelRestoreRewriteVersion: "play",
+  RunBookHealthCheck: "play",
+  // 章节分析建议读取（t4-C3 重写建议驱动 UI 数据源）。
+  NovelChapterSuggestions: "play",
+  NovelSceneBibleView: "play",
+  // 章节分析标注（t4-C4：keyword→正文偏移，前端内联高亮数据源）。
+  NovelChapterAnnotations: "play",
+  NovelChapterAnalysisV2: "play",
+  // 章节生成 + 写前硬闸显式覆盖开关（v4.422 刀1：缺计划时默认拒绝生成；
+  // allowOverride=true 由作者显式承担「没有计划也照写」）。
+  CreateChapterWithOverride: "play",
+  // 章节计划闭环（v4.422 刀1：故事脊椎 + 章节计划；规格 docs/gaea-longform-novel-system-2026-09.md §7.2）。
+  // 计划=生成前的意图输入 + 写前硬闸唯一判据来源；草案由 AI 提、落盘一律经作者审批。
+  NovelChapterPlanGet: "play",
+  NovelChapterPlanSave: "play",
+  NovelChapterPlanPropose: "play",
+  NovelChapterPlanDeviation: "play",
+  NovelChapterGatePrecheck: "play",
+  NovelScanAnalyze: "play", // 选题扫榜（oh-story 蒸馏）：建档前扫榜分析，CreateNovelModal 消费
+  NovelDissectChapter: "play", // 对标拆解（oh-story 蒸馏）：逐章写法拆解，DissectPanel 消费
+  NovelDissectList: "play",
+  NovelDissectReport: "play",
+  NovelFactsList: "play", // 设定事实词典（词典蒸馏）：双时间线口径约束，FactsPanel 消费
+  NovelFactsSave: "play",
+  CostBulkPricePreview: "play", // 资源价批量维护（三期 3.4）：Excel 预览→确认应用
+  CostBulkPriceApply: "play",
+  CostQuotaFlywheelPreview: "play", // 企业定额自生成（11.6）：跨项目含量聚合
+  CostQuotaFlywheelApply: "play",
+  CostAuditScan: "play", // 跨项目对标查漏（11.3）：确定性引擎+溯源引用
+  CostHealthScan: "play",
+  CostDedupeResources: "play",
+  ForeshadowDue: "play", // 伏笔到期预警（阶段八 8.6）：计划卡/阅读页横幅
+
+  // 章节定稿回写（阶段八 8.4）：草案→作者确认→三件套落库（建议制）。
+  ChapterFinalizationGet: "play",
+  FinalizeChapterDraft: "play",
+  FinalizeChapterApply: "play",
+  ClearProjectForeshadowsForReset: "play",
+  DeleteChapterForeshadows: "play",
+  GetForeshadowStats: "play",
+  SaveCharactersBatch: "play",
+  NovelReadingAsk: "play",
+  GenerateSceneIllustration: "play",
+  // 长篇刀2：场景卡与场景级生成（NovelB 门面）。
+  NovelChapterScenesGenerate: "play",
+  NovelSceneRewrite: "play",
+  NovelSceneCardsPropose: "play",
+  // 长篇刀3：故事层骨架（NovelB 门面）。
+  NovelStorySpineGet: "play",
+  NovelStorySpineSave: "play",
+  NovelStoryHealth: "play",
+  NovelStorySpinePropose: "play",
+  // 长篇刀4：质量收敛闭环（NovelB 门面）。
+  NovelChapterConverge: "play",
+  NovelChapterConvergePreview: "play",
+  // 长篇刀5：风格学习回灌（NovelB 门面）。
+  NovelStyleDigestBuild: "play",
+  NovelStyleDigestGet: "play",
+  NovelStyleDigestClear: "play",
+  // N11 技法检索库（webnovel-writer 九表思想蒸馏）：零 LLM 确定性检索，TechniquePanel 消费
+  NovelTechniqueSearch: "play",
+  // 长篇刀6：上下文编译清单（dry-run，NovelB 门面）。
+  NovelContextInventory: "play",
+  // 长篇刀7：评测基线（NovelB 门面）。
+  NovelEvalSnapshot: "play",
+  NovelEvalSnapshotsList: "play",
+  NovelEvalSnapshotDelete: "play",
+  NovelEvalBaselineSet: "play",
+  NovelEvalCompare: "play",
+  // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
+  // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/
+  // SetPortraitConfig 归 play。
+  SetImageBackend: "play",
+  // 批次三a legacy 直调转正（Go ImageB bindings_image.go:30/32）：TTS 音色列表/
+  // 语音管线配置读取——模型配置读，模型中心/语音设置两空间共用 → shared。
+  GetTTSSpeakers: "shared",
+  GetVoicePipelineConfig: "shared",
+  // 批次四 bridge 双轨退役终局（Go ImageB bindings_image.go:37/38/40）：语音模型
+  // 设置写口（SetActiveASRModel/SetActiveTTSModel 激活识别/合成模型、
+  // SetChatVoiceModel 功能绑定聊天语音）——同 GetTTSSpeakers/GetVoicePipelineConfig
+  // 模型配置读写面，模型中心/语音设置两空间共用 → shared。
+  SetActiveTTSModel: "shared",
+  SetChatVoiceModel: "shared",
+  // Breeze 克隆音色管理（Go ImageB breeze_voices_handler.go）：列表/保存/删除
+  // 克隆音色——语音设置面板 Breeze 音色区消费，两空间共用 → shared。
+  BreezeListVoices: "shared",
+  BreezeSaveVoice: "shared",
+  BreezeDeleteVoice: "shared",
+  // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
+  TTSVoiceParams: "shared",
+  // 批次三a legacy 直调转正：TTS base64 合成入口同 TTSVoiceParams 归 shared
+  // （语音朗读两空间共用；WhisperClearSession 是轻语会话运行时清空，
+  // 同 WhisperGetState/GetFacts 等轻语数据面归 play；语音运行时启停族归 play）。
+  TTSSpeakBase64: "shared",
+  TTSSpeakBase64WithParams: "shared",
+  // M5 刀一执行回执 TTS 朗读（VoiceConsoleV2 speakActionAck；同朗读面 shared）
+  TTSSpeakStreaming: "shared",
+  // 角色档案试听段（角色库编辑器/检查器试听钮）：合成入口同 TTSSpeakBase64 归 shared。
+  TTSVoicePreviewBase64: "shared",
+  // 角色台词语音文件（内容寻址缓存优先）：试听链同上归 shared。
+  TTSLineAudioFor: "shared",
+  WhisperClearSession: "play",
+  // 批次四 bridge 双轨退役终局（Go VoiceB bindings_voice.go:27）：语音服务健康
+  // 状态（语音设置面板「检测」按钮消费）——语音运行时状态面，同启停族归 play。
+  VoiceHealth: "play",
+  // v4.171 批次一 legacy 直调转正：语音设置应用（useChatVoice/语音设置面板/
+  // 模型中心 BindSection）+ 本地 TTS 服务启动（模型中心「启动」按钮）——
+  // 语音朗读/模型设置两空间共用，同 TTSVoiceParams 归 shared。
+  VoiceApplySettings: "shared",
+  // Voice V2 档（M4 产品接入刀）：sidecar 依赖链监护——语音设置面板（实验档
+  // 卡片）与语音台（v2 会话前置检查）共用，语音朗读/模型设置同跨，归 shared。
+  VoiceV2Status: "shared",
+  VoiceV2Ensure: "shared",
+  VoiceV2Stop: "shared",
+  VoiceV2AbortTurn: "shared",
+  VoiceV2CommitTurn: "shared",
+  // P2 确认执行：动作预览台账（dry-run 登记）+ 确认执行（幂等/TTL/hash）。
+  VoiceV2PreviewIntent: "shared",
+  VoiceV2ExecuteAction: "shared",
+  // P2 续：自管 35B llama 引擎（8124，语音+聊天共用）——语音设置面板启停。
+  Qwen35EngineStart: "shared",
+  Qwen35EngineStop: "shared",
+  Qwen35EngineStatus: "shared",
+  // 批次二 legacy 直调转正：语音设置读取（VoiceGetSettings）与
+  // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。
+  VoiceGetSettings: "shared",
+  StartLocalTTSService: "shared",
+
+  // ── work：gaea 工位工作台（会话/办公/记忆/知识库/造价/任务/文件）──
+  // v4.4 微信触点（书房·离线代办）：扫码绑定/通道状态/助手管理/提醒管理，全部 work。
+  WhisperWeixinGetQR: "work",
+  WhisperWeixinQRStatus: "work",
+  WhisperWeixinQRStatusWithCode: "work",
+  WhisperWeixinStatus: "work",
+  WhisperAssistantList: "work",
+  WhisperAssistantSave: "work",
+  WhisperAssistantDelete: "work",
+  // v4.48 起人格选择器（WeixinPage 经 bridge 消费，转正出 legacy 名单）。
+  WhisperGetPersonalities: "work",
+  CharacterList: "work",
+  WeixinReminderList: "work",
+  WeixinReminderAdd: "work",
+  WeixinReminderDelete: "work",
+  WeixinReminderConfig: "work",
+  WeixinReminderSetConfig: "work",
+  // 批次二 wailsjsCompat 双轨退役转正（CoreB/ChatB 门面）：配置/统计/技能/
+  // 导出归工位数据面；对话板块话题管理（create/delete/rename/setmode/import/
+  // send/stream/clear/export-markdown）同批转正归 work（现有唯读三列
+  // ChatTopicsList/MessagesList/AppendMessages 为 shared 基础设施，如需对齐随后续批次调整）。
+  GetConfig: "work",
+  SaveConfig: "work",
+  GetStats: "work",
+  ListSkills: "work",
+  ExportAll: "work",
+  ChatTopicCreate: "work",
+  ChatTopicDelete: "work",
+  ChatTopicRename: "work",
+  ChatTopicSetMode: "work",
+  ChatImportTopic: "work",
+  ChatSend: "work",
+  ChatStreamPlain: "work",
+  ChatStreamPersona: "work",
+  // P1-5：对话流取消（ChatB 门面，work/play 共用通道）。
+  ChatStreamCancel: "work",
+  ChatTopicClear: "work",
+  ChatTopicExportMarkdown: "work",
+  Submit: "work",
+  SubmitDisplay: "work",
+  Cancel: "work",
+  Steer: "work",
+  GaeaRunning: "work",
+  SubagentFollowUp: "work",
+  Approve: "work",
+  AnswerQuestion: "work",
+  NewSession: "work",
+  Reload: "work",
+  History: "work",
+  Rewind: "work",
+  Fork: "work",
+  SummarizeFrom: "work",
+  SummarizeUpTo: "work",
+  ListSessions: "work",
+  ListProjectSessions: "work",
+  ResumeSession: "work",
+  SessionStats: "work",
+  ArchiveSession: "work",
+  UnarchiveSession: "work",
+  PinSession: "work",
+  DeleteSession: "work",
+  RenameSession: "work",
+  ListWorkspaces: "work",
+  PickWorkspace: "work",
+  SwitchWorkspace: "work",
+  ContextUsage: "work",
+  ContextView: "work",
+  ContextDna: "work",
+  ContextCommands: "work",
+  ContextSurface: "work",
+  ContextInsights: "work",
+  FamilyEvents: "work",
+  Trajectory: "work",
+  AgentNetwork: "work",
+  Balance: "work",
+  Jobs: "work",
+  FactBase: "work",
+  FactBaseClear: "work",
+  FactBasePromote: "work",
+  CaptureSkill: "work",
+  SkillDraftFromSession: "work",
+  SkillDraftSave: "work",
+  Commands: "work",
+  Capabilities: "work",
+  AddMCPServer: "work",
+  RemoveMCPServer: "work",
+  RetryMCPServer: "work",
+  SetMCPServerEnabled: "work",
+  SlashArgs: "work",
+  ListDir: "work",
+  GaeaListDirBatch: "work",
+  GaeaFileTreeWatch: "work",
+  GaeaRenameWorkspacePath: "work",
+  GaeaCreateWorkspaceFolder: "work",
+  GaeaCreateWorkspaceFile: "work",
+  GaeaDeleteWorkspacePaths: "work",
+  GaeaWorkspaceUploadBegin: "work",
+  GaeaWorkspaceUploadAppend: "work",
+  GaeaWorkspaceUploadFinish: "work",
+  GaeaWorkspaceUploadAbort: "work",
+  GaeaPickWorkspaceUploadFiles: "work",
+  GaeaPickWorkspaceUploadFolder: "work",
+  GaeaReadTextFile: "work",
+  GaeaReadFilePage: "work",
+  GaeaWriteWorkspaceFile: "work",
+  GaeaSaveWorkspacePathAs: "work",
+  GaeaSaveWorkspacePathsAs: "work",
+  FileSearch: "work",
+  Materials: "work",
+  WorkspaceSearch: "work",
+  PinnedMaterials: "work",
+  PinMaterial: "work",
+  UnpinMaterial: "work",
+  SummarizeFile: "work",
+  TaskTemplates: "work",
+  ReadFile: "work",
+  Preview: "work",
+  PptxOutline: "work",
+  PromoteSubagent: "work",
+  GaeaBrowserObserve: "work",
+  OfficeEditText: "work",
+  DocxApplyEdit: "work",
+  PptxApplyEdit: "work",
+  PptxSlideText: "work", // v4.156 pptx 真编辑刀2：每页段落全文（编辑面板取数）
+  DocxAcceptChanges: "work",
+  XlsxPlanEdit: "work",
+  XlsxApplyEdit: "work",
+  XlsxSetCell: "work",
+  XlsxRecalc: "work",
+  XlsxRowOps: "work",
+  XlsxColOps: "work",
+  XlsxChart: "work",
+  ScheduleLoad: "work",
+  ScheduleSave: "work",
+  ScheduleExportXlsx: "work",
+  ScheduleImportXlsx: "work",
+  ScheduleImportMpp: "work",
+  // v4.139 #15 进度计划多工程（列表/切换/新建/归档/删除）：进度计划板块数据面。
+  ScheduleProjects: "work",
+  ScheduleProjectOpen: "work",
+  ScheduleProjectCreate: "work",
+  ScheduleProjectArchive: "work",
+  ScheduleProjectDelete: "work",
+  ScheduleProjectCopy: "work", // v4.145 工程复制（另存为）
+  ZipDeliverables: "work",
+  SubagentRuns: "work",
+  SubagentTranscript: "work",
+  DeliverableRegistry: "work",
+  ResyncEvents: "work",
+  WriteFile: "work",
+  ExportDeliverable: "work",
+  ConvertToPdf: "work",
+  CrossEmbed: "work",
+  OpenWorkspacePath: "work",
+  RevealWorkspacePath: "work",
+  SavePastedImage: "work",
+  SaveAttachmentFile: "work",
+  AttachmentChunkBegin: "work",
+  AttachmentChunkAppend: "work",
+  AttachmentChunkFinish: "work",
+  AttachmentChunkAbort: "work",
+  AttachmentDataURL: "work",
+  CaptureScreen: "work",
+  RecognizeImage: "work",
+  OCRText: "work",
+  CadOpen: "work",
+  CadRaster: "work",
+  CadTexts: "work",
+  CadCount: "work",
+  Memory: "work",
+  Remember: "work",
+  Forget: "work",
+  SaveDoc: "work",
+  UpdateFact: "work",
+  ChangeFactType: "work",
+  SetMemoryEnabled: "work",
+  MorningPreload: "work",
+  SetMorningPreload: "work",
+  MemorySuggestions: "work",
+  AcceptMemorySuggestion: "work",
+  // v4.377 建议制：待确认建议忽略 + 自动做梦直写清污 + 模式开关，恒 work。
+  DismissMemorySuggestion: "work",
+  DreamPurgePreview: "work",
+  DreamPurge: "work",
+  SetDreamMode: "work",
+  AcceptMergeSuggestion: "work",
+  AcceptSkillSuggestion: "work",
+  // journal 历史蒸馏（7.2-2）：journal 证据链恒 work 空间，建议/蒸馏/决定同域。
+  SkillDistillCandidates: "work",
+  SkillDistillDraft: "work",
+  SkillDistillDecide: "work",
+  SkillStats: "work",
+  KnowledgeList: "work",
+  KnowledgeSearch: "work",
+  MemoryHubOverview: "work",
+  // 数据库存档（v4.479）：本设备聊天记录/上传文件管理，记忆中枢 work 面。
+  DatabaseOverview: "work",
+  UploadsList: "work",
+  DeleteUpload: "work",
+  ProfileList: "work",
+  ProfileSave: "work",
+  ProfileDelete: "work",
+  ProfileConflicts: "work",
+  PickDirectory: "work",
+  MemoryGraph: "work",
+  SemanticGraph: "work",
+  MemoryPin: "work",
+  MemoryFeedback: "work",
+  MemoryLifecycle: "work",
+  MemoryEvalRun: "work",
+  MemoryBrief: "work",
+  SetMemoryBrief: "work",
+  // 晨报（做梦 2.0 主动预取）：只读 work 空间记忆，play 不渲染（双空间红线）。
+  MemoryMorningBrief: "work",
+  CostSearch: "work",
+  // v4.386 分页检索（成本库列表/表格分页 + EntryPicker top8，载荷/DOM 双降）。
+  CostSearchPage: "work",
+  CostGet: "work",
+  CostSave: "work",
+  CostDelete: "work",
+  CostImportPreview: "work",
+  CostImportAIParse: "work",
+  CostImportApply: "work",
+  CostImportVisionPreview: "work",
+  CostCategories: "work",
+  CostCategorySave: "work",
+  CostCategoryDelete: "work",
+  PriceSources: "work",
+  PriceSourceSave: "work",
+  PriceSourceDelete: "work",
+  PriceFetch: "work",
+  PriceFetchAll: "work",
+  PriceFetches: "work",
+  PriceFetchApply: "work",
+  PriceFetchIgnore: "work",
+  PriceHistory: "work",
+  SemanticIndexBackfill: "work",
+  SemanticIndexStatus: "work",
+  SemanticSearch: "work",
+  CostCompare: "work",
+  CostCompose: "work",
+  CostComposeApply: "work",
+  CostComposeRecords: "work", // v4.158 组价复核闭环：确认记录回看（条目详情）
+  CostInquiryScan: "work",
+  CostInquirySave: "work",
+  CostInquiryList: "work",
+  CostInquiryDelete: "work",
+  CostInquiryExpiring: "work",
+  CostInquiryAdjust: "work",
+  CostProjectList: "work",
+  // ── 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）：全归工位 ──
+  WorkcostResourceSave: "work",
+  WorkcostResourceGet: "work",
+  WorkcostResourceList: "work",
+  WorkcostResourceDelete: "work",
+  WorkcostResourceSetPrice: "work",
+  WorkcostResourcePrices: "work",
+  WorkcostQuotaSave: "work",
+  WorkcostQuotaGet: "work",
+  WorkcostQuotaList: "work",
+  WorkcostQuotaDelete: "work",
+  WorkcostQuotaCompose: "work",
+  WorkcostQuotaComposeMany: "work",
+  WorkcostProjectFees: "work",
+  WorkcostSeedPreview: "work",
+  WorkcostSeedApply: "work",
+  WorkcostRecompose: "work",
+  WorkcostProjectParse: "work",
+  WorkcostProjectApply: "work",
+  WorkcostProjectExport: "work",
+  WorkcostProjectExportToWorkspace: "work",
+  WorkcostBillProjects: "work",
+  WorkcostBillItems: "work",
+  WorkcostBillItemSave: "work",
+  WorkcostBillItemDelete: "work",
+  WorkcostBillProjectRatesSave: "work",
+  WorkcostBillProjectDelete: "work",
+  WorkcostBillQuotaAttach: "work",
+  WorkcostBillQuotaDetach: "work",
+  WorkcostBillQuotaLinks: "work",
+  CostIndicators: "work",
+  CostGraph: "work",
+  RetrievalEvalRun: "work",
+  KnowledgeImportPreview: "work",
+  KnowledgeImportAIParse: "work",
+  KnowledgeImportApply: "work",
+  KnowledgeHistory: "work",
+  KnowledgeFindSimilar: "work",
+  KnowledgeExport: "work",
+  KnowledgeReview: "work",
+  KnowledgeMerge: "work",
+  MemoryDuplicates: "work",
+  MemoryMerge: "work",
+  MemoryArchivedList: "work",
+  MemoryCleanupArchived: "work",
+  MemoryUnarchive: "work",
+  MemoryUnarchiveBatch: "work",
+  MemorySetRetentionDays: "work",
+  FileIndexRebuild: "work",
+  FileSemanticSearch: "work",
+  ProfileResolveConflict: "work",
+  KnowledgeGet: "work",
+  KnowledgeSave: "work",
+  KnowledgeDelete: "work",
+  PickFiles: "work",
+  ReadFileB64: "work",
+  SaveFileAs: "work",
+  OpenLogsDir: "work",
+  TaskList: "work",
+  TaskCancel: "work",
+  TaskKill: "work",
+  TaskRetry: "work",
+  TaskOutput: "work",
+  ContextNodeDetail: "work",
+  // v4.1 证据链：Journal 读取属工位（前端「证据」入口，DeliverablesPanel）。
+  GaeaJournalList: "work",
+  // 2b Git 面板最小集（工位工作台文件域；D3：单仓库无 push）。
+  GaeaGitStatus: "work",
+  GaeaGitDiff: "work",
+  GaeaGitStage: "work",
+  GaeaGitUnstage: "work",
+  GaeaGitDiscard: "work",
+  GaeaGitCommit: "work",
+  GaeaGitLog: "work",
+  // G1 深化：worktree 只读展示（工位工作台文件域）。
+  GaeaGitWorktrees: "work",
+  // G2 只读提交图（工位工作台文件域；筛选不 checkout）。
+  GaeaGitGraph: "work",
+  GaeaGitCommitDetail: "work",
+  GaeaSubagentContextView: "work",
+  VerifyRecord: "work",
+  RollbackRecord: "work",
+  DocumentLint: "work",
+  // 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*）：数据备份/恢复属
+  // 设置域（DataPanel 工位消费；同 SaveSettings 归属精神但落盘是工作台动作）→ work。
+  DataBackupInfo: "work",
+  DataBackupCreate: "work",
+  DataBackupRestore: "work",
+  DataBackupCancel: "work",
+  DataBackupRollback: "work",
+  DataBackupRestoreResult: "work",
+  // 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*）：任务视图 DagPanel 消费面 → work。
+  DagList: "work",
+  DagGet: "work",
+  DagRun: "work",
+  DagNodeRun: "work",
+  DagNodeSteer: "work",
+  DagNodeAccept: "work",
+  DagNodeApprove: "work",
+  DagAcceptAll: "work",
+  DagCancel: "work",
+  // 6.3 余项：流水线模板库（存模板一键重建）→ work。
+  DagTemplateList: "work",
+  DagTemplateSave: "work",
+  DagTemplateNew: "work",
+  DagTemplateDelete: "work",
+  // 批次三a legacy 直调转正（Go CoreB.ListProjects）：书架工程卡片清单
+  // （api/characterlib.listShelfProjects 消费面=创作间书架/角色库）→ play。
+  ListProjects: "play",
+  // 批次三b legacy 直调转正（Go CharlibB/NovelB 门面，同名前缀）：角色库档案/
+  // 加入项目/抽卡/补全/剧照族（角色库板块 characterlib 归 play 空间，消费面=
+  // CharacterLibraryPage/NewCharactersModal/小说角色面板）→ play。
+  CharacterSave: "play",
+  CharacterGet: "play",
+  CharacterDelete: "play",
+  CharacterImportPreview: "play",
+  CharacterImportProject: "play",
+  CharacterListByProject: "play",
+  CharacterAssociate: "play",
+  CharacterAssociateTo: "play",
+  CharacterSetProjectState: "play",
+  CharacterSetInjectConfig: "play",
+  CharacterSetProgressions: "play",
+  CharacterDissociate: "play",
+  CharacterSyncProject: "play",
+  CharacterDrawRandom: "play",
+  CharacterGenerateFill: "play",
+  CharacterGenerateRandom: "play",
+  CharacterFillAll: "play",
+  CharacterGeneratePortrait: "play",
+  CharacterGeneratePortraitWithRef: "play",
+  CharacterGenerateSheet: "play",
+  CharacterScoreConsistency: "play",
+  // 批次三b legacy 直调转正（Go NovelB 门面，同名前缀）：章节族/叙事状态族/
+  // 场景族/项目角色族——小说创作间数据面（ChapterPage/CreatePage/小说角色面板
+  // 消费），同书封/NovelSearch/批次二 NovelB 族归 play。
+  GetChapter: "play",
+  GetChapterBranch: "play",
+  SaveChapterContent: "play",
+  SaveChapterBranchContent: "play",
+  // 批次三c legacy 直调转正（CreatePage 收尾）：分支构思/创建章节/大纲节点删除
+  // （Go NovelB.QuickBrainstormBranches/CreateChapter/DeleteOutlineNode）——
+  // 创作间消费面，同章节族归 play。
+  QuickBrainstormBranches: "play",
+  CreateChapter: "play",
+  DeleteOutlineNode: "play",
+  GetNovelState: "play",
+  BuildNovelStatePatch: "play",
+  SettleNovelState: "play",
+  DeSlopChapterAiTaste: "play",
+  // 文风指纹（NovelB 门面）：参考档状态/构建/章节 AI 味体检——小说创作间数据面
+  // （CreatePage「文风指纹」面板消费），同叙事状态族/去味族归 play。
+  NovelFingerprintBuild: "play",
+  NovelFingerprintScore: "play",
+  NovelFingerprintStatus: "play",
+  // 拆书反推（v4.281）：立项 + 分批章节大纲反推与幂等落库——小说创作间数据面，归 play。
+  NovelOutlineReconstruct: "play",
+  NovelOutlineReconstructApply: "play",
+  // 平台质量评审（v4.282，oh-story 蒸馏 T1）：档位清单 + 章节确定性评审——小说创作间
+  // 数据面（CreatePage「平台评审」面板消费），同文风指纹/伏笔体检族归 play。
+  NovelReviewPlatforms: "play",
+  NovelChapterReview: "play",
+  // 提示词工坊（t6 首刀：模板可编辑覆盖层）：模板清单/详情/保存覆盖/恢复内置/
+  // 渲染预览——小说创作间数据面（CreatePage「提示词工坊」面板消费），同平台
+  // 评审族归 play（play 锁 +5，数量锁待主代理收口同步）。
+  PromptTemplateList: "play",
+  PromptTemplateGet: "play",
+  PromptTemplateSave: "play",
+  PromptTemplateReset: "play",
+  PromptTemplatePreview: "play",
+  PromptBundleExport: "play",
+  PromptBundleImport: "play",
+  // 书源取书（书源→拆书导入 t1）：搜书/目录预览/在线导入/取消——书架「在线搜书」
+  // 数据面（规格 docs/gaea-novel-booksource-import-2026-09.md），同导入/书封族归 play。
+  NovelBookSourceSearch: "play",
+  NovelBookSourceToc: "play",
+  NovelBookSourceImport: "play",
+  NovelBookSourceImportCancel: "play",
+  NovelBookSourceImportChapters: "play",
+  NovelBookSourceEnginesGet: "play",
+  NovelBookSourceEnginesSave: "play",
+  NovelOutlineReconstructStart: "play",
+  NovelOutlineReconstructTaskGet: "play",
+  RewriteChapterAiTaste: "play",
+  GetEntityRelations: "play",
+  GetChapterScenes: "play",
+  GenerateScene: "play",
+  CreateScene: "play",
+  SaveSceneMeta: "play",
+  CancelCreateChapter: "play",
+  GenerateProjectCharacterFill: "play",
+  GenerateProjectProtagonistRelations: "play",
+  GenerateCharacterPortrait: "play",
+  MergeCharacters: "play",
+  SaveOrganization: "play",
+  DeleteOrganization: "play",
+  ToggleOrgMember: "play",
+  SetCharacterCareer: "play",
+  RemoveCharacterCareer: "play",
+  SaveRelationship: "play",
+  DeleteRelationship: "play",
+} as const satisfies Record<keyof AppBindings, BindingSpace>;
+
+/** 编译期双向断言（与 bridge 绑定面漂移检查同范式）：分类表不得出现
+ *  AppBindings 之外的名字，AppBindings 每个方法必须被显式分类。 */
+type AssertNever<T extends never> = T;
+/** @public 编译期空间归属漂移锁。 */
+export type _NoStrayFacet = AssertNever<
+  Exclude<keyof typeof GAEA_METHOD_FACETS, keyof AppBindings>
+>;
+/** @public 空间归属漂移锁。 */
+export type _NoMissingFacet = AssertNever<
+  Exclude<keyof AppBindings, keyof typeof GAEA_METHOD_FACETS>
+>;
+
+/** 按空间取方法名联合（work/play/shared/independent 四类，供门面类型派生） */
+type NamesOf<F extends BindingSpace> = {
+  [K in keyof typeof GAEA_METHOD_FACETS]: (typeof GAEA_METHOD_FACETS)[K] extends F ? K : never
+}[keyof typeof GAEA_METHOD_FACETS];
+
+export type WorkBindingName = NamesOf<"work">;
+export type PlayBindingName = NamesOf<"play">;
+export type SharedBindingName = NamesOf<"shared">;
+/** @public independent 空间绑定名集合（契约面）。 */
+export type IndependentBindingName = NamesOf<"independent">;
+
+/** 三空间门面两两无重叠（编译期）：一个方法只能归属一个空间门面。 */
+/** @public facet 重叠锁。 */
+export type _NoFacetOverlap = AssertNever<
+  | Extract<WorkBindingName, PlayBindingName | SharedBindingName>
+  | Extract<PlayBindingName, SharedBindingName>
+>;
+
+/** 运行时方法名清单（测试/门面代理过滤用，由单一注册表派生）。 */
+export const WORK_BINDING_NAMES = Object.keys(GAEA_METHOD_FACETS).filter(
+  (k) => GAEA_METHOD_FACETS[k as keyof typeof GAEA_METHOD_FACETS] === "work",
+) as WorkBindingName[];
+export const PLAY_BINDING_NAMES = Object.keys(GAEA_METHOD_FACETS).filter(
+  (k) => GAEA_METHOD_FACETS[k as keyof typeof GAEA_METHOD_FACETS] === "play",
+) as PlayBindingName[];
+export const SHARED_BINDING_NAMES = Object.keys(GAEA_METHOD_FACETS).filter(
+  (k) => GAEA_METHOD_FACETS[k as keyof typeof GAEA_METHOD_FACETS] === "shared",
+) as SharedBindingName[];
+
+/**
+ * 未登记方法的空间归属哨兵（FE3-06 fail-closed）。
+ *
+ * 语义上「未登记」与「work」是两回事：本表是门面代理唯一的运行时防线
+ * （bridge/proxy.ts isBindingAllowedInSpace），若把未登记名兜底成 work，
+ * 则任何未登记方法在**工位空间**被放行、且乐园空间也不会拦到 work 兜底值
+ * 之外的语义——门控退化为「类型提示 + 无日志」。故此处显式立哨兵：
+ * 未知一律**不属于任何空间**，由 isBindingAllowedInSpace 拒绝并留痕。
+ *
+ * 与 BindingSpace 分开成独立类型，是为了让 `facet === space` 这类比较在编译期
+ * 就不可能把哨兵当成普通空间（哨兵不参与 ShellSpace 联合）。
+ */
+export const UNKNOWN_BINDING_SPACE = "unknown" as const;
+export type UnknownBindingSpace = typeof UNKNOWN_BINDING_SPACE;
+/** bindingSpaceOf 的返回：已登记空间 或 未登记哨兵。 */
+export type BindingSpaceLookup = BindingSpace | UnknownBindingSpace;
+
+// 未登记名告警去重集：门面 get 陷阱可能被高频探测（如 React 渲染期属性访问），
+// 同一名字只告警一次，避免刷屏；进程内生命周期足够（名字集合编译期固定）。
+const WARNED_UNKNOWN_BINDINGS = new Set<string>();
+
+/** 测试用：回到「未告警」初始态（仅 spaceBindings.test.ts 使用）。 */
+export function resetUnknownBindingWarningsForTest(): void {
+  WARNED_UNKNOWN_BINDINGS.clear();
+}
+
+/**
+ * FE3-06：未登记名留痕。走 console.warn（空间门控是运行时防线，失败必须可见），
+ * 同名前缀便于日志检索；只告警不抛错——门面 get 返回 undefined 已足以拒绝调用，
+ * 抛错会改变 ESLint/类型探针（如 `if (facade.SomeName)`) 的语义。
+ */
+function warnUnknownBinding(method: string): void {
+  if (WARNED_UNKNOWN_BINDINGS.has(method)) return;
+  WARNED_UNKNOWN_BINDINGS.add(method);
+  console.warn(
+    `[spaceBindings] 未登记的 gaea 绑定方法「${method}」：空间门控按 fail-closed 拒绝` +
+      `（未登记 ≠ work）。若该方法确属某空间，请在 GAEA_METHOD_FACETS 显式分类。`,
+  );
+}
+
+/**
+ * 方法空间归属解析（FE3-06：**未登记一律返回哨兵 unknown**，不再兜底 work）。
+ *
+ * 历史：v4.454 之前兜底 work——理由「合法调用面均已被编译期覆盖，运行期仅防呆」。
+ * 实测证伪：Go 侧 744 个绑定中 184 个（AddCustomEngine/ApplyBranch/… 见
+ * .tmp 审计脚本）不在 AppBindings/本表内，运行期若被门面访问即按 work 放行，
+ * 空间隔离从门控退化为类型提示且无任何日志。现改 fail-closed + 一次性告警。
+ */
+export function bindingSpaceOf(method: string): BindingSpaceLookup {
+  const known = (GAEA_METHOD_FACETS as Record<string, BindingSpace | undefined>)[method];
+  if (known !== undefined) return known;
+  warnUnknownBinding(method);
+  return UNKNOWN_BINDING_SPACE;
+}
+
+/** gaea 方法在指定壳层空间是否可调用：shared/independent 两空间可达，其余仅所属空间；未登记一律拒绝。 */
+export function isBindingAllowedInSpace(method: string, space: ShellSpace): boolean {
+  const facet = bindingSpaceOf(method);
+  if (facet === UNKNOWN_BINDING_SPACE) return false;
+  return facet === "shared" || facet === "independent" || facet === space;
+}
+
+/** 是否共用绑定（sharedApp 门面只暴露 shared 方法）；未登记名一律 false（FE3-06 fail-closed）。 */
+export function isSharedBinding(method: string): boolean {
+  return bindingSpaceOf(method) === "shared";
+}
+
+/**
+ * 类型级门面：按壳层空间窄化 gaea 桥方法集（work/play 各自只看到
+ * 所属空间 + shared + independent），编译期防呆——play 页面代码引用
+ * workApp 上的 work 专属方法会直接 tsc 报错。
+ */
+type FacetOf<K extends keyof AppBindings> = (typeof GAEA_METHOD_FACETS)[K];
+export type GaeaFacetBySpace = {
+  [S in ShellSpace]: {
+    [K in keyof AppBindings as FacetOf<K> extends S | "shared" | "independent"
+      ? K
+      : never]: AppBindings[K];
+  };
+};

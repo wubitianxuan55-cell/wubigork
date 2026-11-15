@@ -1,0 +1,1870 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Office conversation output
+
+   A quiet execution surface for long-running knowledge work. Process,
+   reasoning, tool and decision cards share one visual grammar while keeping
+   four distinct jobs:
+   - Process: where the turn is, and how much work it has done
+   - Reasoning: why the agent is taking the next action
+   - Tool: what actually ran and what came back
+   - Decision: where the turn is intentionally waiting for the user
+   ═══════════════════════════════════════════════════════════════════════ */
+
+
+.wx-root .gaea-app-layout {
+
+  --office-output-surface: color-mix(in srgb, var(--bg-elev) 94%, var(--office-canvas));
+  --office-output-surface-raised: color-mix(in srgb, var(--bg-elev-2) 88%, var(--office-canvas));
+  --office-output-border: color-mix(in srgb, var(--fg) 9%, transparent);
+  --office-output-border-strong: color-mix(in srgb, var(--fg) 15%, transparent);
+  --office-output-shadow: 0 1px 1px color-mix(in srgb, var(--fg) 3%, transparent),
+    0 12px 30px color-mix(in srgb, var(--bg) 16%, transparent);
+}
+
+
+
+.wx-root .office-ask-card,
+.wx-root .office-approval-card {
+
+  --office-output-surface: var(--bg-elev);
+  --office-output-surface-raised: var(--bg-elev-2);
+  --office-output-border: color-mix(in srgb, var(--fg) 9%, transparent);
+  --office-output-border-strong: color-mix(in srgb, var(--fg) 15%, transparent);
+  --office-output-shadow: 0 12px 30px color-mix(in srgb, var(--bg) 16%, transparent);
+}
+
+
+
+.wx-root .gaea-app-layout .transcript .v3-reading {
+
+  width: min(100%, 860px);
+  max-width: 860px;
+  margin-inline: auto;
+}
+
+
+
+.wx-root .office-user-message {
+
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border-soft)) !important;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-elev)) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 5%, transparent);
+}
+
+
+
+.wx-root .office-assistant-message {
+
+  width: 100%;
+}
+
+
+/* ── turn-level work header ─────────────────────────────────────────── */
+
+
+.wx-root .office-work-header {
+
+  min-height: 30px;
+  margin: 4px 0 6px;
+  padding: 5px 9px !important;
+  border: 1px solid transparent;
+  border-radius: 9px !important;
+  background: color-mix(in srgb, var(--office-output-surface) 72%, transparent) !important;
+  box-shadow: none !important;
+}
+
+
+
+.wx-root .office-work-header[data-state="running"] {
+
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--office-output-border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--office-output-surface)) !important;
+}
+
+
+
+.wx-root .office-work-header__rail {
+
+  width: 2px !important;
+  border-radius: 2px !important;
+}
+
+
+/* ── process card ───────────────────────────────────────────────────── */
+
+
+.wx-root .office-process-card {
+
+  margin: 7px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--office-output-border);
+  border-radius: 14px;
+  /* 2026-11-13 实弹反馈：底色透明=与对话窗口背景一致（边界由边框+圆角承担，
+     不再垫 surface 色差）；状态色仅留在边框。 */
+  background: transparent;
+  box-shadow: none;
+}
+
+
+
+.wx-root .office-process-card[data-running="true"] {
+
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--office-output-border));
+}
+
+
+
+.wx-root .office-process-card[data-status="error"] {
+
+  border-color: color-mix(in srgb, var(--err) 28%, var(--office-output-border));
+}
+
+
+
+.wx-root .office-process-card[data-status="stopped"] {
+
+  border-color: color-mix(in srgb, var(--warn) 25%, var(--office-output-border));
+}
+
+
+
+.wx-root .office-process-card__head {
+
+  display: grid;
+  width: 100%;
+  min-height: 38px;
+  grid-template-columns: 3px 26px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 0;
+  border: 0;
+  color: var(--fg);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-process-card__head:hover {
+
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
+}
+
+
+
+.wx-root .office-process-card__head:focus-visible {
+
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+
+
+.wx-root .office-process-card__rail {
+
+  align-self: stretch;
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+}
+
+
+
+.wx-root .office-process-card[data-running="true"] .office-process-card__rail {
+
+  background: var(--accent);
+  animation: wx-office-activity-pulse 1.8s ease-in-out infinite;
+}
+
+
+
+.wx-root .office-process-card__icon {
+
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--office-output-border);
+  border-radius: 9px;
+  color: var(--fg-dim);
+  background: var(--office-output-surface-raised);
+}
+
+
+
+.wx-root .office-process-card[data-running="true"] .office-process-card__icon {
+
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--office-output-border));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--office-output-surface-raised));
+}
+
+
+
+.wx-root .office-process-card__copy {
+
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+
+
+.wx-root .office-process-card__meta {
+
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-family: var(--font-ui, var(--sans));
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .office-process-card__status {
+
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px !important;
+  border-radius: 7px !important;
+  font-size: 10.5px !important;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .office-process-card__status[data-status="running"] {
+
+  color: var(--accent) !important;
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 9%, transparent) !important;
+}
+
+
+
+.wx-root .office-process-card__status[data-status="done"] {
+
+  color: var(--ok) !important;
+  border-color: color-mix(in srgb, var(--ok) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--ok) 8%, transparent) !important;
+}
+
+
+
+.wx-root .office-process-card__status[data-status="error"] {
+
+  color: var(--err) !important;
+  border-color: color-mix(in srgb, var(--err) 26%, transparent) !important;
+  background: color-mix(in srgb, var(--err) 9%, transparent) !important;
+}
+
+
+
+.wx-root .office-process-card__status[data-status="stopped"] {
+
+  color: var(--warn) !important;
+  border-color: color-mix(in srgb, var(--warn) 26%, transparent) !important;
+  background: color-mix(in srgb, var(--warn) 9%, transparent) !important;
+}
+
+
+
+.wx-root .office-process-card__chevron {
+
+  color: var(--fg-faint);
+  transition: transform var(--dur-base) var(--ease-out), color var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-process-card__chevron[data-open="true"] {
+
+  transform: rotate(90deg);
+}
+
+
+
+.wx-root .office-process-card[data-compact="true"] .office-process-card__head {
+
+  min-height: 36px;
+  grid-template-columns: 3px 24px minmax(0, 1fr) auto 12px;
+  gap: 7px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+
+
+.wx-root .office-process-card[data-compact="true"] .office-process-card__icon {
+
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+}
+
+
+
+.wx-root .office-process-card[data-compact="true"] .office-process-card__meta {
+
+  font-size: 11px;
+}
+
+
+
+.wx-root .office-process-card__body {
+
+  position: relative;
+  padding: 2px 10px 10px 22px;
+  border-top: 1px solid var(--office-output-border);
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
+}
+
+
+
+.wx-root .office-process-card__body::before {
+
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: 18px;
+  left: 15px;
+  width: 1px;
+  background: var(--office-output-border);
+  pointer-events: none;
+}
+
+
+
+.wx-root .office-process-card__body .office-process-step {
+
+  position: relative;
+  min-width: 0;
+  padding: 5px 0 1px 10px;
+}
+
+
+
+.wx-root .office-process-card__body .office-process-step + .office-process-step {
+
+  margin-top: 2px;
+}
+
+
+/* 阶段行：Tailwind preflight 把 svg 设为 block，若只靠 inline 文本排版，
+   图标会被挤到独立一行。阶段行统一为单行 flex，图标固定在文字左侧。 */
+
+.wx-root .office-phase-line {
+
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+
+
+.wx-root .office-phase-line > svg {
+
+  display: block;
+  flex: 0 0 auto;
+}
+
+
+
+.wx-root .office-phase-line > span {
+
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+
+/* ── reasoning card ─────────────────────────────────────────────────── */
+
+
+.wx-root .gaea-app-layout .reasoning {
+
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--office-output-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--office-output-surface-raised) 68%, transparent);
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__head {
+
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  grid-template-columns: 14px auto minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--fg-dim);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__head:hover {
+
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__head[data-running] {
+
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  animation: none;
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__head .reasoning__label {
+
+  font-weight: 600;
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__head .reasoning__meta {
+
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  opacity: 1;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__head[data-running] .reasoning__icon {
+
+  color: var(--accent);
+  opacity: 1;
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__preview {
+
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-family: var(--font-ui, var(--sans));
+  font-size: 11.5px;
+  font-weight: 430;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .gaea-app-layout .reasoning__body {
+
+  max-height: 240px;
+  margin: 0 8px 8px 27px;
+  padding: 8px 10px;
+  overflow-y: auto;
+  border: 0;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 34%, var(--office-output-border));
+  border-radius: 0 8px 8px 0;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--bg) 24%, transparent);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.68;
+  white-space: pre-wrap;
+}
+
+
+/* ── tool card ──────────────────────────────────────────────────────── */
+
+
+.wx-root .office-tool-card {
+
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-tool-card:hover {
+
+  border-color: var(--office-output-border);
+  background: color-mix(in srgb, var(--fg) 2.5%, transparent);
+}
+
+
+
+.wx-root .office-tool-card[data-open="true"] {
+
+  border-color: var(--office-output-border);
+  background: var(--office-output-surface);
+}
+
+
+
+.wx-root .office-tool-card[data-tone="danger"] {
+
+  border-color: color-mix(in srgb, var(--err) 24%, var(--office-output-border));
+}
+
+
+
+.wx-root .office-tool-card[data-tone="warning"] {
+
+  border-color: color-mix(in srgb, var(--warn) 22%, var(--office-output-border));
+}
+
+
+
+.wx-root .office-tool-card__head {
+
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  grid-template-columns: 19px 18px minmax(0, 1fr) auto 13px;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border: 0;
+  color: var(--fg-dim);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+
+.wx-root .office-tool-card__head:hover {
+
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
+}
+
+
+
+.wx-root .office-tool-card__head:disabled {
+
+  cursor: default;
+}
+
+
+
+.wx-root .office-tool-card[data-compact="true"] .office-tool-card__head {
+
+  min-height: 28px;
+  grid-template-columns: 17px 16px minmax(0, 1fr) auto 11px;
+  gap: 4px;
+  padding: 2px 6px;
+}
+
+
+
+.wx-root .office-tool-card[data-compact="true"] .office-tool-card__status {
+
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+}
+
+
+
+.wx-root .office-tool-card[data-compact="true"] .office-tool-card__name,
+.wx-root .office-tool-card[data-compact="true"] .office-tool-card__subject {
+
+  font-size: 10.5px;
+}
+
+
+
+.wx-root .office-tool-card[data-quiet="true"] .office-tool-card__head {
+
+  color: var(--fg-faint);
+}
+
+
+
+.wx-root .office-tool-card__status {
+
+  display: inline-flex;
+  width: 19px;
+  height: 19px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+
+
+
+.wx-root .office-tool-card__status[data-status="done"] {
+
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+}
+
+
+
+.wx-root .office-tool-card__status[data-status="running"] {
+
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+
+
+.wx-root .office-tool-card__status[data-status="error"] {
+
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 9%, transparent);
+}
+
+
+
+.wx-root .office-tool-card__status[data-status="stopped"] {
+
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+
+
+
+.wx-root .office-tool-card__icon {
+
+  color: var(--fg-faint);
+}
+
+
+
+.wx-root .office-tool-card[data-tone="info"] .office-tool-card__icon {
+
+  color: var(--accent);
+}
+
+
+
+.wx-root .office-tool-card[data-tone="danger"] .office-tool-card__icon {
+
+  color: var(--err);
+}
+
+
+
+.wx-root .office-tool-card__identity {
+
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
+
+
+.wx-root .office-tool-card__name {
+
+  flex: none;
+  overflow: hidden;
+  color: var(--fg);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .office-tool-card__subject {
+
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .office-tool-card__subject[data-command="true"] {
+
+  color: var(--fg-dim);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 11px;
+}
+
+
+
+.wx-root .office-tool-card__trail {
+
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+
+
+.wx-root .office-tool-card__summary {
+
+  min-width: 0;
+  max-width: 170px;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .office-tool-card__diffstat {
+
+  flex: none;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+
+
+.wx-root .office-tool-card__chevron {
+
+  color: var(--fg-faint);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+
+
+.wx-root .office-tool-card__chevron[data-open="true"] {
+
+  transform: rotate(90deg);
+}
+
+
+
+.wx-root .office-tool-card__body {
+
+  padding: 3px 7px 7px 43px;
+}
+
+
+
+.wx-root .office-tool-card__output,
+.wx-root .office-tool-card__command,
+.wx-root .office-tool-card__args,
+.wx-root .office-tool-card__diff {
+
+  margin: 0;
+  border: 1px solid var(--office-output-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 60%, var(--bg-soft));
+  font-family: var(--font-mono, var(--mono));
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+
+
+.wx-root .office-tool-card__section-label {
+
+  margin: 0 0 4px;
+  color: var(--fg-faint);
+  font-family: var(--font-ui, var(--sans));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+
+
+.wx-root .office-tool-card__error {
+
+  margin-top: 4px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--err) 22%, var(--office-output-border));
+  border-radius: 8px;
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 6%, transparent);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+
+
+.wx-root .office-tool-card__error[data-recoverable="true"] {
+
+  border-color: var(--office-output-border);
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
+}
+
+
+/* ── shared decision surfaces ───────────────────────────────────────── */
+
+
+.wx-root .office-decision-head {
+
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+
+
+.wx-root .office-decision-head__icon {
+
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border-radius: 9px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+}
+
+
+
+.wx-root .office-decision-head__copy {
+
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+
+.wx-root .office-decision-head__kicker {
+
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+  line-height: 1.4;
+}
+
+
+
+.wx-root .office-decision-head__title {
+
+  margin: 0;
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 640;
+  letter-spacing: -0.015em;
+  line-height: 1.4;
+}
+
+
+
+.wx-root .office-decision-head__note {
+
+  margin: 3px 0 0;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+
+
+.wx-root .office-decision-context {
+
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg) 34%, var(--bg-soft));
+}
+
+
+
+.wx-root .office-decision-context__label {
+
+  flex: none;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+
+
+.wx-root .office-decision-context__value {
+
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 11.5px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.wx-root .office-decision-option {
+
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-decision-option:hover {
+
+  border-color: var(--office-output-border-strong);
+  background: var(--bg-elev-2);
+}
+
+
+
+.wx-root .office-decision-option:active {
+
+  transform: scale(0.985);
+}
+
+
+
+.wx-root .office-decision-option[data-tone="primary"] {
+
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-elev));
+}
+
+
+
+.wx-root .office-decision-option[data-tone="primary"]:hover {
+
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--bg-elev));
+}
+
+
+
+.wx-root .office-decision-option[data-tone="danger"] {
+
+  border-color: color-mix(in srgb, var(--err) 22%, var(--border-soft));
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 5%, var(--bg-elev));
+}
+
+
+
+.wx-root .office-decision-key {
+
+  display: inline-flex;
+  width: 23px;
+  height: 23px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+
+
+.wx-root .office-decision-option[data-tone="primary"] .office-decision-key {
+
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+
+
+.wx-root .office-decision-option[data-tone="danger"] .office-decision-key {
+
+  border-color: color-mix(in srgb, var(--err) 28%, var(--border));
+  color: var(--err);
+}
+
+
+
+.wx-root .office-decision-option__copy {
+
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+
+
+.wx-root .office-decision-option__title {
+
+  font-size: 12.5px;
+  font-weight: 610;
+  line-height: 1.35;
+}
+
+
+
+.wx-root .office-decision-option__hint {
+
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+
+/* ── ask card ───────────────────────────────────────────────────────── */
+
+
+.wx-root .office-ask-layer {
+
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  padding: 24px;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 46% 48% at 50% 50%,
+      color-mix(in srgb, var(--bg) 42%, transparent),
+      transparent 78%
+    );
+}
+
+
+
+.wx-root .office-ask-card {
+
+  position: absolute;
+  display: flex;
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(88vh, 820px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--office-output-border-strong);
+  border-radius: 16px;
+  color: var(--fg);
+  background: var(--bg-elev);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent) inset,
+    0 28px 88px color-mix(in srgb, var(--bg) 42%, transparent),
+    0 10px 28px color-mix(in srgb, var(--bg) 26%, transparent);
+  pointer-events: auto;
+}
+
+
+
+.wx-root .office-ask-card:focus {
+
+  outline: none !important;
+}
+
+
+
+.wx-root .office-ask-handle {
+
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  height: 24px;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 7px;
+  cursor: grab;
+  user-select: none;
+}
+
+
+
+.wx-root .office-ask-handle:active {
+
+  cursor: grabbing;
+}
+
+
+
+.wx-root .office-ask-handle > span {
+
+  width: 30px;
+  height: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fg-faint) 36%, transparent);
+  transition: width var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-ask-handle:hover > span {
+
+  width: 38px;
+  background: color-mix(in srgb, var(--fg-dim) 54%, transparent);
+}
+
+
+
+.wx-root .office-ask-header {
+
+  padding: 18px 20px 13px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+
+
+.wx-root .office-ask-progress {
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg) 20%, transparent);
+}
+
+
+
+.wx-root .office-ask-progress__track {
+
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--bg-soft);
+}
+
+
+
+.wx-root .office-ask-progress__fill {
+
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 220ms var(--ease-out);
+}
+
+
+
+.wx-root .office-ask-progress__label {
+
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+.wx-root .office-ask-body {
+
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+
+
+.wx-root .office-ask-question {
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+
+
+.wx-root .office-ask-question__title {
+
+  margin: 0;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.4;
+}
+
+
+
+.wx-root .office-ask-question__prompt {
+
+  color: var(--fg-dim);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+
+
+.wx-root .office-ask-options {
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+
+
+.wx-root .office-ask-option {
+
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--bg-elev) 72%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-ask-option:hover {
+
+  color: var(--fg);
+  border-color: var(--office-output-border-strong);
+  background: var(--bg-elev-2);
+}
+
+
+
+.wx-root .office-ask-option:active {
+
+  transform: scale(0.99);
+}
+
+
+
+.wx-root .office-ask-option[aria-pressed="true"] {
+
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+
+
+.wx-root .office-ask-option__mark {
+
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  border: 1.5px solid var(--fg-faint);
+  border-radius: 999px;
+  color: var(--accent-fg);
+}
+
+
+
+.wx-root .office-ask-option__mark[data-multi="true"] {
+
+  border-radius: 5px;
+}
+
+
+
+.wx-root .office-ask-option[aria-pressed="true"] .office-ask-option__mark {
+
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+
+
+.wx-root .office-ask-option__copy {
+
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+
+.wx-root .office-ask-option__title {
+
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.4;
+}
+
+
+
+.wx-root .office-ask-option__hint {
+
+  color: var(--fg-faint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+
+
+.wx-root .office-ask-custom {
+
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  outline: none;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg) 24%, var(--bg-elev));
+  font-size: 12px;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+
+
+.wx-root .office-ask-custom::placeholder {
+
+  color: var(--fg-faint);
+}
+
+
+
+.wx-root .office-ask-custom:focus {
+
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+
+
+.wx-root .office-ask-footer {
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 14px;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg) 22%, var(--bg-elev));
+}
+
+
+
+.wx-root .office-ask-footer__hint {
+
+  min-width: 0;
+  flex: 1;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+}
+
+
+
+.wx-root .office-ask-footer button {
+
+  min-height: 34px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+
+.wx-root .office-ask-footer__dismiss {
+
+  border: 1px solid var(--border-soft);
+  color: var(--fg-dim);
+  background: transparent;
+}
+
+
+
+.wx-root .office-ask-footer__submit {
+
+  border: 1px solid transparent;
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+
+
+.wx-root .office-ask-footer__dismiss:hover {
+
+  color: var(--fg);
+  border-color: var(--office-output-border-strong);
+  background: var(--bg-soft);
+}
+
+
+
+.wx-root .office-ask-footer__submit:hover:not(:disabled) {
+
+  filter: brightness(1.08);
+}
+
+
+
+.wx-root .office-ask-footer__submit:disabled {
+
+  opacity: 0.42;
+  cursor: default;
+}
+
+
+/* ── approval dock ──────────────────────────────────────────────────── */
+
+
+.wx-root .office-approval-dock {
+
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 0 8px;
+  pointer-events: auto;
+}
+
+
+
+.wx-root .office-approval-card {
+
+  width: min(720px, 100%);
+  max-height: min(44vh, 520px);
+  overflow-y: auto;
+  border: 1px solid var(--office-output-border-strong);
+  border-radius: 15px;
+  color: var(--fg);
+  background: var(--bg-elev);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent) inset,
+    0 22px 64px color-mix(in srgb, var(--bg) 40%, transparent);
+  pointer-events: auto;
+}
+
+
+
+.wx-root .office-approval-card:focus {
+
+  outline: none !important;
+}
+
+
+
+.wx-root .office-approval-head {
+
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 54%),
+    var(--bg-elev);
+}
+
+
+
+.wx-root .office-approval-body {
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+
+
+.wx-root .office-approval-request {
+
+  padding: 9px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg) 28%, var(--bg-soft));
+}
+
+
+
+.wx-root .office-approval-request__label {
+
+  margin-bottom: 3px;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+
+
+.wx-root .office-approval-request__text {
+
+  max-height: 112px;
+  overflow: auto;
+  color: var(--fg-dim);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+
+.wx-root .office-approval-pre {
+
+  max-height: 124px;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--bg) 64%, var(--bg-soft));
+  font-family: var(--font-mono, var(--mono));
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+
+.wx-root .office-approval-actions {
+
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg) 20%, var(--bg-elev));
+}
+
+
+
+.wx-root .office-approval-actions__primary,
+.wx-root .office-approval-actions__secondary {
+
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+
+
+.wx-root .office-approval-actions__secondary .office-decision-option[data-decision="abort"] {
+
+  grid-column: 1 / -1;
+  min-height: 38px;
+}
+
+
+
+.wx-root .office-approval-note {
+
+  margin: 0;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+
+/* ── responsive and motion ─────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+
+  
+.wx-root .gaea-app-layout .transcript .v3-reading {
+
+    width: 100%;
+  }
+
+
+  
+.wx-root .office-process-card__head {
+
+    grid-template-columns: 3px 24px minmax(0, 1fr) auto 12px;
+    gap: 7px;
+    padding-right: 9px;
+  }
+
+
+  
+.wx-root .office-process-card__status {
+
+    width: fit-content;
+    min-height: 20px;
+    padding-inline: 5px !important;
+  }
+
+
+  
+.wx-root .office-tool-card__head {
+
+    grid-template-columns: 19px 18px minmax(0, 1fr) 12px;
+    row-gap: 2px;
+  }
+
+
+  
+.wx-root .office-tool-card__trail {
+
+    grid-column: 3 / 4;
+    justify-content: flex-start;
+  }
+
+
+  
+.wx-root .office-tool-card__summary {
+
+    max-width: min(52vw, 180px);
+  }
+
+
+  
+.wx-root .office-tool-card__chevron {
+
+    grid-column: 4;
+    grid-row: 1 / span 2;
+  }
+
+
+  
+.wx-root .office-tool-card__body {
+
+    padding-left: 34px;
+  }
+
+
+  
+.wx-root .office-ask-layer {
+
+    padding: 12px;
+  }
+
+
+  
+.wx-root .office-ask-card {
+
+    width: 100%;
+    max-height: calc(100vh - 24px);
+  }
+
+
+  
+.wx-root .office-ask-header,
+.wx-root .office-ask-body,
+.wx-root .office-ask-footer {
+
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+
+  
+.wx-root .office-ask-progress {
+
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+
+  
+.wx-root .office-approval-dock {
+
+    padding: 0 0 7px;
+  }
+
+
+  
+.wx-root .office-approval-actions__primary,
+.wx-root .office-approval-actions__secondary {
+
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+
+  
+.wx-root .office-approval-actions__secondary .office-decision-option[data-decision="abort"] {
+
+    grid-column: auto;
+  }
+
+}
+
+
+@media (max-width: 480px) {
+
+  
+.wx-root .office-tool-card__identity {
+
+    display: block;
+  }
+
+
+  
+.wx-root .office-tool-card__subject {
+
+    display: block;
+    max-width: 100%;
+  }
+
+
+  
+.wx-root .office-tool-card__trail {
+
+    grid-column: 2 / 4;
+  }
+
+
+  
+.wx-root .office-process-card__body {
+
+    padding-left: 14px;
+  }
+
+
+  
+.wx-root .office-process-card__body::before {
+
+    left: 8px;
+  }
+
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+
+  
+.wx-root .office-process-card__rail,
+.wx-root .office-process-card__chevron,
+.wx-root .office-tool-card__chevron,
+.wx-root .office-ask-progress__fill {
+
+    animation: none !important;
+    transition: none !important;
+  }
+
+}
+
+
+@keyframes wx-office-activity-pulse {
+
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+
+/* 波3.5 实弹反馈：过程卡折叠态的「最近三条」活尾巴——卡头下方紧凑行，
+   展开即隐藏（全部内容在展开态）。颜色随 kind 弱区分（工具/思考/阶段）。 */
+
+.wx-root .office-process-card__recent {
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 14px 6px 30px;
+}
+
+
+.wx-root .office-process-card__recent-row {
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--md-sys-color-text-secondary);
+  min-width: 0;
+}
+
+
+.wx-root .office-process-card__recent-row .truncate {
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.wx-root .office-process-card__recent-dot {
+
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--md-sys-color-outline-variant);
+}
+
+
+.wx-root .office-process-card__recent-row[data-kind="tool"] .office-process-card__recent-dot {
+
+  background: var(--md-sys-color-primary);
+}
+
+
+.wx-root .office-process-card__recent-row[data-kind="reasoning"] .office-process-card__recent-dot {
+
+  background: var(--md-sys-color-secondary);
+}
+

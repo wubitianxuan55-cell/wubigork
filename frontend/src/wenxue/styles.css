@@ -1,0 +1,1203 @@
+/*
+ * gaea desktop — single-column, office-focused, terminal-flavored chat UI.
+ *
+ * Multi-platform notes:
+ *  - System font stack only; no web-font fetches (offline-first, consistent).
+ *  - Colors via CSS variables + prefers-color-scheme so the webview follows the OS.
+ *  - --wails-draggable marks the title region as an OS drag handle (macOS inset
+ *    title bar); interactive children opt out with --wails-draggable: no-drag.
+ *
+ * Design tokens: --ds-* prefix is canonical (per DESIGN.md); legacy short names
+ * (--bg, --fg, etc.) remain as aliases for backward compat with Tailwind classes.
+ */
+
+:root {
+  /* ── surfaces — 引用主应用 M3 令牌（老栈 App.tsx 写入 :root），主题联动 ── */
+  /*   回退值保留原暗色 palette，供主应用令牌未就绪时兜底             */
+  --bg: var(--md-sys-color-surface-dim, #0F172A);
+  --bg-soft: var(--md-sys-color-surface-container, #1B2336);
+  --bg-elev: var(--md-sys-color-surface-container-high, #1E293B);
+  --bg-elev-2: var(--md-sys-color-surface-container-highest, #272F42);
+  --sidebar-bg: var(--md-sys-color-shell-sidebar, var(--md-sys-color-surface, #0A111F));
+  --sidebar-hover: var(--md-sys-color-surface-container, #18202F);
+  --sidebar-active: var(--accent-soft, rgba(99, 102, 241, 0.14));
+  --border: var(--md-sys-color-outline, #475569);
+  --border-soft: var(--md-sys-color-outline-variant, #334155);
+
+  /* ── text — 引用主应用文本令牌 ──────────────────────────────────── */
+  --fg: var(--md-sys-color-on-surface, #F8FAFC);
+  --fg-dim: var(--md-sys-color-on-surface-variant, #CBD5E1);
+  --fg-faint: var(--md-sys-color-text-secondary, #94A3B8);
+
+  /* ── brand accent — 引用主应用主色 ──────────────────────────────── */
+  --accent: var(--md-sys-color-primary, #6366F1);
+  --accent-fg: var(--md-sys-color-on-primary, #FFFFFF);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+
+  /* ── semantic — ok/warn/err 跟随主应用令牌（hex 仅作兜底） ── */
+  --ok: var(--md-sys-color-success, #22C55E);
+  --warn: var(--md-sys-color-warning, #F59E0B);
+  --err: var(--md-sys-color-destructive, #EF4444);
+  --info: var(--md-sys-color-info, #38BDF8);
+  --warning: var(--warn);
+  --error: var(--err);
+  --danger: var(--err);
+
+  /* ── diff ──────────────────────────────────────────────────────────── */
+  --add-bg: color-mix(in srgb, var(--ok) 14%, transparent);
+  --add-fg: var(--ok);
+  --del-bg: color-mix(in srgb, var(--err) 14%, transparent);
+  --del-fg: var(--err);
+
+  /* ── syntax highlight — 色值已迁 gaea/hljs-theme.css（跨板块共享：聊天线
+     ChatCodeBlock 同用；--hl-* 生效令牌仍在此名下由该文件定义） ── */
+
+  /* ── layout ────────────────────────────────────────────────────────── */
+  --radius: var(--md-sys-radius-md, 12px); /* v4.256 桥接 M3 圆角令牌（原 9px 孤值收敛） */
+  --maxw: min(1000px, 100%);
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans",
+    "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  /* ── motion ────────────────────────────────────────────────────────── */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 340ms;
+  --dur-slower: 420ms;
+  --ease-out: cubic-bezier(0.2, 0.72, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --motion-pop-scale: 0.98;
+  --motion-rise: 4px;
+
+  /* ── --ds-* canonical 令牌完整定义（3.0 Wave 2 补全，此前仅 2/14 定义、27 处消费失效）── */
+  --ds-bg-app: var(--bg);
+  --ds-overlay: rgba(0, 0, 0, 0.4);
+  --ds-gradient-sidebar: linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+  --ds-gradient-topbar: linear-gradient(90deg, var(--bg) 0%, var(--bg-soft) 100%);
+  --ds-font-display: var(--sans);
+  --ds-font-mono: var(--mono);
+  --ds-radius-sm: var(--md-sys-radius-sm, 8px);
+  --ds-radius-lg: var(--md-sys-radius-lg, 16px);
+  --ds-radius-xl: var(--md-sys-radius-xl, 28px);
+  --ds-radius-3xl: 24px;
+  --ds-radius-pill: 999px;
+  --ds-shadow-card: var(--md-sys-elevation-2, 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15));
+  --ds-shadow-card-hover: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
+  --ds-shadow-panel: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
+  --ds-shadow-dropdown: var(--md-sys-elevation-4, 0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15));
+  --ds-danger: var(--err);
+  --ds-danger-soft: color-mix(in srgb, var(--err) 14%, transparent);
+  --ds-success: var(--ok);
+  --ds-success-soft: color-mix(in srgb, var(--ok) 14%, transparent);
+  --ds-warning: var(--warn);
+  --ds-warning-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+/* -- Platform-specific font stacks -------------------------------------------------- */
+:root[data-platform="windows"] {
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
+  --font-content-family: var(--font-ui);
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono",
+    ui-monospace, monospace;
+  --font-smoothing: auto;
+  --text-rendering: auto;
+}
+
+:root[data-platform="darwin"] {
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Helvetica Neue", Arial, sans-serif;
+  --font-content-family: var(--font-ui);
+  --font-mono: "SF Mono", SFMono-Regular, ui-monospace, Menlo, Monaco,
+    "Cascadia Code", Consolas, monospace;
+}
+
+:root[data-platform="linux"] {
+  --font-ui: system-ui, "Noto Sans", "Noto Sans CJK SC", "WenQuanYi Micro Hei",
+    "Microsoft YaHei", Arial, sans-serif;
+  --font-content-family: var(--font-ui);
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono",
+    "Noto Sans Mono", "Liberation Mono", Consolas, monospace;
+}
+
+/* Font-family presets */
+:root[data-font-family="yahei"] {
+  --font-ui: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-content-family: var(--font-ui);
+}
+
+:root[data-font-family="pingfang"] {
+  --font-ui: "PingFang SC", "Noto Sans SC",
+    "Microsoft YaHei", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-content-family: var(--font-ui);
+}
+
+:root[data-font-family="noto"] {
+  --font-ui: "Noto Sans SC", "Noto Sans", "PingFang SC",
+    "Microsoft YaHei", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-content-family: var(--font-ui);
+}
+
+:root[data-font-family="custom"] {
+  --font-ui: var(--font-family-custom, "PingFang SC"),
+    "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-content-family: var(--font-ui);
+}
+
+:root[data-mono-font-family="cascadia"] {
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono",
+    ui-monospace, monospace;
+}
+
+:root[data-mono-font-family="jetbrains"] {
+  --font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas,
+    ui-monospace, monospace;
+}
+
+:root[data-mono-font-family="sfmono"] {
+  --font-mono: "SF Mono", SFMono-Regular, ui-monospace, Menlo, Monaco,
+    "Cascadia Code", Consolas, monospace;
+}
+
+:root[data-mono-font-family="custom"] {
+  --font-mono: var(--font-family-mono-custom, "Cascadia Code"),
+    "Cascadia Code", "SF Mono", Consolas, ui-monospace, monospace;
+}
+
+
+/* Force light regardless of OS when the user picks it in Settings. */
+
+/* ── warm reading theme — amber accent ──────────────────────────────────── */
+
+/* ── ice blue theme — sky accent ──────────────────────────────────────── */
+
+/* ── forest green — emerald accent ────────────────────────────────────── */
+
+/* box-sizing handled by tailwind.css base layer */
+html,
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  transition: background-color var(--dur-slow) ease, color var(--dur-slow) ease;
+}
+
+.layout {
+  --sidebar-width: var(--sidebar-expanded-width, 264px);
+  --workspace-width: 340px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  transition: grid-template-columns var(--dur-base) ease;
+}
+.layout--resizing {
+  cursor: col-resize;
+  transition: none;
+}
+.layout--resizing * {
+  user-select: none;
+}
+.layout--sidebar-collapsed {
+  --sidebar-width: 68px;
+}
+.layout--workspace-open {
+  grid-template-columns: var(--sidebar-width) minmax(200px, 1fr) minmax(0, var(--workspace-width));
+}
+.layout--preview-open {
+  grid-template-columns: var(--sidebar-width) minmax(200px, 1fr) 10px minmax(0, var(--preview-width));
+}
+.layout--preview-open .workspace-pane {
+  display: none;
+}
+
+/* 主区域预览面板：点文件后展开在聊天区右侧，宽度可拖 */
+.preview-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  border-left: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+.preview-resizer {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+}
+.preview-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.preview-resizer:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.preview-resizer:hover::after,
+.preview-resizer.is-active::after,
+.layout--preview-resizing .preview-resizer::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.sidebar-resizer {
+  --wails-draggable: no-drag;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width) - 4px);
+  z-index: 12;
+  width: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.layout--sidebar-resizing .sidebar-resizer::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.layout--sidebar-collapsed .sidebar-resizer {
+  display: none;
+}
+.chat-pane {
+  display: none;
+}
+
+.sidebar-resizer {
+  --wails-draggable: no-drag;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width) - 4px);
+  z-index: 12;
+  width: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.layout--sidebar-resizing .sidebar-resizer::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.layout--sidebar-collapsed .sidebar-resizer {
+  display: none;
+}
+.chat-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+/* ── transcript ──────────────────────────────────────────────────────────── */
+.transcript {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* 回合分隔线（v4.27 对齐 Codex 回合结构）：两侧细分隔线 + 居中轮次小标，
+   只出现在第 2 轮起的用户消息上方，安静不抢正文。 */
+.turn-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+  color: var(--fg-faint);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.turn-divider::before,
+.turn-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-soft);
+}
+
+.main {
+  flex: 1 1 auto;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── markdown prose ── Codex 式排版：留白从容、层级克制、表格只留横线 ──────
+   v4.503：本块是 markdown 字级/间距的唯一来源（Markdown.tsx 组件已摘除
+   平行工具类）。聊天场景阶梯压平一档（此前 h1 1.45em≈20px 与正文跳变过大），
+   节奏同步收紧；h4 起以降色不降级，`####` 不再隐形。 */
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0 0 8px;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 16px 0 6px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.md h1 {
+  font-size: 1.3em;
+}
+.md h2 {
+  font-size: 1.16em;
+}
+.md h3 {
+  font-size: 1.06em;
+}
+.md h4 {
+  font-size: 1em;
+  color: var(--fg-dim);
+}
+.md ul,
+.md ol {
+  margin: 0 0 8px;
+  padding-left: 24px;
+}
+.md li {
+  margin: 3px 0;
+}
+.md li::marker {
+  color: var(--fg-faint);
+}
+.md li > p {
+  margin: 0 0 4px;
+}
+.md li > ul,
+.md li > ol {
+  margin: 4px 0 2px;
+}
+.md input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin: 2px 6px 0 0;
+}
+/* 任务清单（GFM `- [ ]`）：li 既有圆点标记又有复选框（「● ☐」双标记）——
+   去圆点留复选框，清单缩进随之收紧（无标记不需要 24px 列位）。消毒白名单
+   会剥 remark-gfm 的 task-list-item 类名（fail-closed），故按结构 :has()
+   选择（WebView2/Chromium 105+）。 */
+.md li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+.md ul:has(> li > input[type="checkbox"]) {
+  padding-left: 10px;
+}
+/* KaTeX 展示公式超宽时横向滚动兜底，不撑破阅读列（移动窄栏/右栏同开时
+   尤其明显；滚动条随 colorScheme 明暗）。 */
+.md .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+.md a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.md blockquote {
+  margin: 0 0 10px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: 0 6px 6px 0;
+  color: var(--fg-dim);
+}
+.md blockquote > :last-child {
+  margin-bottom: 0;
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+/* 表格外框/横向滚动由 Markdown.tsx 的包裹层负责，这里只管表格内部：
+   Codex 式极简——去掉全网格与斑马纹，只留表头底色 + 行分隔横线。 */
+.md table {
+  border-collapse: collapse;
+  margin: 0;
+  width: 100%;
+  font-size: 13px;
+}
+.md th,
+.md td {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.md th {
+  background: var(--bg-soft);
+  font-weight: 600;
+}
+.md tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── notices / phase ─────────────────────────────────────────────────────── */
+.notice {
+  margin: 3px 0;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  padding: 5px 11px;
+  border-left: 2px solid var(--border);
+  /* Listings (/skill, /hooks, /mcp, /memory, /model) are multi-line with leading
+     spaces; preserve them so the output isn't crammed onto one line. Monospace
+     keeps the indented entries aligned, like the CLI. */
+  white-space: pre-wrap;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+.phase {
+  margin: 4px auto;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+/* highlight.js token 规则已迁 gaea/hljs-theme.css（跨板块共享：聊天线同用） */
+
+/* 滚动条走 index.css 全站单一真源（v4.271 收敛，本文件 10px 旧定义已删） */
+
+
+/* ── history drawer: click-to-resume rows with rename/delete actions ────────── */
+
+/* ── plan approval dock ─────────────────────────────────────────────────── */
+.plan-approval-dock {
+  position: fixed;
+  bottom: 176px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: 560px;
+  width: calc(100% - 32px);
+}
+
+@media (max-width: 1239px) {
+  .layout--workspace-open {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+  .workspace-pane {
+    display: none;
+  }
+  .layout--workspace-open > .plan-approval-dock {
+    right: 32px;
+    left: auto;
+    transform: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .layout > aside {
+    display: none !important;
+  }
+  .sidebar-resizer {
+    display: none;
+  }
+  .layout > .plan-approval-dock {
+    left: 16px;
+    right: 16px;
+    bottom: 176px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* Respect the OS reduced-motion preference: squash all animations and force
+   instant scrolling so the UI feels immediate rather than web-like. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── message entrance ───────────────────────────────────────────────────── */
+@keyframes anim-fade-in {
+  to { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BEM semantic message layer
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.msg {
+  user-select: text;
+  -webkit-user-select: text;
+  margin: 9px auto;
+}
+
+/* ── user message bubble ───────────────────────────────────────────────── */
+
+/* ── assistant message card ────────────────────────────────────────────── */
+
+/* ── reasoning panel ───────────────────────────────────────────────────── */
+.reasoning {
+  margin-bottom: 2px;
+}
+.reasoning__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--fg-faint);
+  border-radius: 5px;
+  -webkit-app-region: no-drag;
+  transition: color 120ms ease, background 120ms ease;
+}
+.reasoning__head:hover {
+  color: var(--fg);
+  background: var(--bg-elev);
+}
+.reasoning__head .reasoning__icon {
+  flex-shrink: 0;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+  opacity: 0.72;
+}
+.reasoning__head[data-running] .reasoning__icon {
+  color: var(--accent);
+  opacity: 1;
+}
+.reasoning__head .reasoning__label {
+  font-weight: 520;
+}
+.reasoning__head .reasoning__meta {
+  font-size: 11px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.reasoning__chevron {
+  flex: 0 0 auto;
+  transition: transform 0.2s;
+  opacity: 0.55;
+}
+.reasoning__chevron--open {
+  transform: rotate(90deg);
+}
+.reasoning__body {
+  overflow: hidden;
+  border-left: 2px solid var(--border);
+  margin-left: 5px;
+  padding-left: 12px;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  font-style: italic;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ── reasoning shimmer (active state) ─────────────────────────────────── */
+.reasoning__head[data-running] {
+  background: linear-gradient(
+    105deg,
+    var(--fg-faint) 0%,
+    var(--fg-faint) 38%,
+    var(--fg) 46%,
+    var(--fg) 54%,
+    var(--fg-faint) 62%,
+    var(--fg-faint) 100%
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer-sweep 5s linear infinite;
+}
+.reasoning__head[data-running]:hover {
+  animation-play-state: paused;
+  background: none;
+  color: var(--accent);
+}
+.reasoning__head[data-running] .reasoning__icon,
+.reasoning__head[data-running] .reasoning__meta {
+  color: var(--fg-faint);
+}
+.reasoning__head[data-running]:hover .reasoning__icon,
+.reasoning__head[data-running]:hover .reasoning__meta {
+  color: var(--accent);
+}
+
+
+/* ── button recipes (DESIGN.md §7) ───────────────────────────────────────── */
+
+
+/* Card recipe — matches DESIGN.md §7 */
+.card {
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-card);
+}
+
+/* ── inline code / code block (Kun patterns) ────────────────────────────── */
+
+/* ── dialog / modal (Kun pattern) ────────────────────────────────────────── */
+
+/* ── chip / pill button / secondary button recipes ──────────────────────── */
+.ds-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--ds-radius-pill);
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.ds-chip--accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-fg) 20%, transparent);
+}
+.ds-chip--muted {
+  background: var(--bg-soft);
+  color: var(--fg-dim);
+  border: 1px solid var(--border-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent);
+}
+
+/* ── badge (semantic label variants) ─────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--ds-radius-pill);
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.badge--muted {
+  background: var(--bg-soft);
+  color: var(--fg-dim);
+  border: 1px solid var(--border-soft);
+}
+
+
+/* ── focus ring ──────────────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: none;
+}
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  ring: 1px var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ── empty / loading state ────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 13px;
+}
+
+/* ── composer glow + body glaze ──────────────────────────────────────────── */
+.composer-glow {
+  position: relative;
+}
+.composer-glow::before {
+  content: "";
+  position: absolute;
+  inset: -12px -4px -16px -4px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 7%, transparent), transparent 28%),
+    radial-gradient(circle at right 14% bottom 18%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 24%);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+}
+.composer-glow:focus-within::before {
+  opacity: 0.75;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -2;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--fg) 2%, transparent), transparent 24%),
+    linear-gradient(120deg, color-mix(in srgb, var(--fg) 1.5%, transparent), transparent 35%, color-mix(in srgb, var(--fg) 1%, transparent) 72%, transparent);
+}
+
+/* ── command palette (Ctrl+K) ────────────────────────────────────────────── */
+@keyframes palette-in {
+  from {
+    transform: translateY(-12px) scale(0.97);
+    opacity: 0;
+  }
+}
+@keyframes palette-out {
+  to {
+    transform: translateY(-8px) scale(0.98);
+    opacity: 0;
+  }
+}
+.palette {
+  width: min(620px, 92vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--ds-shadow-dropdown);
+  overflow: hidden;
+  animation: palette-in 0.16s cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.palette[data-state="closing"] {
+  animation: palette-out var(--dur-base) var(--ease-out) both;
+}
+.palette__inputrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.palette__search-icon {
+  flex: none;
+}
+.palette__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+.palette__input::placeholder {
+  color: var(--fg-faint);
+}
+.palette__esc {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 6px;
+}
+.palette__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+.palette__empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 13px;
+}
+.palette__group + .palette__group {
+  margin-top: 6px;
+}
+.palette__group-title {
+  padding: 8px 12px 4px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.palette__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 6px;
+  padding: 4px 12px 8px;
+}
+.palette__chip {
+  --wails-draggable: no-drag;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.palette__chip:hover,
+.palette__chip--on {
+  background: var(--bg-soft);
+  border-color: var(--border-soft);
+  color: var(--fg);
+}
+.palette__chip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--bg-elev-2);
+  border-radius: 8px;
+}
+.palette__chip-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.palette__item {
+  --wails-draggable: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.palette__item:hover,
+.palette__item--on {
+  background: var(--bg-soft);
+}
+.palette__item-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--bg-elev-2);
+  border-radius: 8px;
+  color: var(--fg-dim);
+}
+.palette__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.palette__title {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette__item--on .palette__title {
+  color: var(--accent);
+}
+.palette__hint {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--fg-faint);
+}
+.palette__hint-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette__meta {
+  flex: none;
+  margin-left: auto;
+}
+.palette__badge {
+  flex: none;
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.palette__foot {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+.palette__foot kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  margin: 0 2px;
+}
+
+/* ── memory panel ────────────────────────────────────────────────────────── */
+.mem-card {
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+/* ── shared drawer panels ────────────────────────────────────────────────── */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  animation: anim-fade-in 0.18s ease forwards;
+}
+.drawer {
+  width: min(560px, 92vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--ds-shadow-panel);
+  animation: drawer-in 0.25s var(--ease-out);
+}
+@keyframes drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+}
+
+/* ── shared animation classes ──────────────────────────────────────────── */
+.anim-drawer-in {
+  animation: drawer-in var(--dur-base) var(--ease-out);
+}
+.anim-drawer-out {
+  animation: drawer-out var(--dur-fast) var(--ease-out) forwards;
+}
+.anim-menu-in {
+  animation: menu-in var(--dur-fast) ease;
+}
+
+/* ── tooltip ─────────────────────────────────────────────────────────────── */
+.tooltip {
+  position: relative;
+  cursor: help;
+}
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--ds-shadow-dropdown);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 100;
+}
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+/* -- ContextMenu ------------------------------------------------------------- */
+.context-menu__item:hover:not(:disabled),
+
+/* ── FactCard 容器：展开/折叠过渡动画 ───────────────────────────────── */
+.fact-card-wrapper {
+  /* 平滑过渡容器高度变化 */
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+.fact-card-wrapper:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+
+/* ── PWA standalone 模式下隐藏标题栏 ───────────────────────────────── */
+@media (display-mode: standalone) {
+}
+
+/* ── antd 布局壳适配：Layout 跟随 gaea 主题变量 ── */
+.gaea-app-layout.ant-layout {
+  background: var(--bg);
+  height: 100%;
+}
+.gaea-app-layout .ant-layout {
+  background: transparent;
+}
+
+/* ══ 通用办公重设计：清爽化覆写 ══
+   对话列加宽至 --maxw（min(1000px, 100%)）：右栏（工作台/产物预览）开启时
+   左对齐——与右栏满宽区域共用同一左缘；右栏折叠时回到居中（margin auto），
+   与输入框 Composer 根节点 mx-auto 同缘（否则折叠后输入框居中、正文靠左
+   错位）。仅办公板块生效——.v3-reading 的 74ch 居中窄栏保留给对话/小说板块。 */
+.gaea-app-layout .v3-reading {
+  max-width: var(--maxw);
+  margin-left: auto;
+  margin-right: auto;
+}
+/* 左对齐仅在右栏真实可见时生效：与 ≤1239px 的 workspace-pane display:none
+   网格覆写同断点（窄窗下类仍在而面板不可见，不左对齐）。 */
+@media (min-width: 1240px) {
+  .gaea-app-layout .layout--workspace-open .v3-reading,
+  .gaea-app-layout .layout--preview-open .v3-reading {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+
+
+.phase,
+.notice {
+  letter-spacing: 0.01em;
+}
+
+/* 输出流左对齐：阶段小标随正文列靠左（.phase 基础居中规则保留给进度计划板块） */
+.gaea-app-layout .phase {
+  margin-left: 0;
+  margin-right: 0;
+  text-align: left;
+}
+
+.composer-glow {
+  max-width: var(--maxw);
+  width: 100%;
+  /* 输入框与对话列同缘（2026-09-27 用户实锤「输入框没有居中」）：对话列居中
+     时 glow 也居中（此前缺 margin:auto——glow 贴左，与居中的 .v3-reading 错位）；
+     右栏开启时同样镜像 .v3-reading 的左对齐，保持正文与输入框同缘。 */
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (min-width: 1240px) {
+  .gaea-app-layout .layout--workspace-open .composer-glow,
+  .gaea-app-layout .layout--preview-open .composer-glow {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* ToolSheet：容器本身获得焦点只为键盘入口，不画焦点环（焦点环留给内部控件）。 */
+.tool-sheet-panel:focus,
+.tool-sheet-panel:focus-visible {
+  outline: none;
+}
+

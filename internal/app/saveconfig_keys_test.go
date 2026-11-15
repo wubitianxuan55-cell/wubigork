@@ -34,8 +34,6 @@ func TestSaveConfig_AllSyncedKeys(t *testing.T) {
 		{config.KeyImageModel, "flux", func(c *config.Config) bool { return c.ImageModel == "flux" }},
 		{config.KeyPortraitBackend, "herdsman", func(c *config.Config) bool { return c.PortraitBackend == "herdsman" }},
 		{config.KeyPortraitModel, "portrait-m", func(c *config.Config) bool { return c.PortraitModel == "portrait-m" }},
-		{config.KeySinImageBackend, "herdsman", func(c *config.Config) bool { return c.SinImageBackend == "herdsman" }},
-		{config.KeySinImageModel, "sin-img-m", func(c *config.Config) bool { return c.SinImageModel == "sin-img-m" }},
 		{config.KeyComfyUIPath, "C:/comfyui", func(c *config.Config) bool { return c.ComfyUIPath == "C:/comfyui" }},
 		{config.KeyComfyUIPythonPath, "C:/python/python.exe", func(c *config.Config) bool { return c.ComfyUIPythonPath == "C:/python/python.exe" }},
 		{config.KeyTianxuanPath, "C:/engines/tianxuan", func(c *config.Config) bool { return c.TianxuanPath == "C:/engines/tianxuan" }},
@@ -122,9 +120,6 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 	a := shelfTestApp(t)
 	// 预置非零值：任何「误加内存同步」都会被断言抓到。
 	a.cfg.GLMAPIKey = "old-glm"
-	a.cfg.FuncSinEngine = "old-sin-e"
-	a.cfg.FuncSinModel = "old-sin-m"
-	a.cfg.FuncSinEnabled = true
 	a.cfg.FuncVisionEngine = "old-vis-e"
 	a.cfg.FuncVisionModel = "old-vis-m"
 	a.cfg.FuncVisionEnabled = true
@@ -144,10 +139,7 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 	}{
 		{config.KeyGLMAPIKey, "sk-glm-2", func(c *config.Config) bool { return c.GLMAPIKey == "old-glm" }},
 		{config.KeyCustomEngineKeys, `{"e1":"k1"}`, func(c *config.Config) bool { return c.CustomEngineKeys == nil }},
-		{config.KeyFuncSinEngine, "sin-e-2", func(c *config.Config) bool { return c.FuncSinEngine == "old-sin-e" }},
-		{config.KeyFuncSinModel, "sin-m-2", func(c *config.Config) bool { return c.FuncSinModel == "old-sin-m" }},
-		{config.KeyFuncSinEnabled, "false", func(c *config.Config) bool { return c.FuncSinEnabled }},
-		// 办公识图绑定三键：与 sin 同契约——内存同步走 SetFeatureModel 专路，
+		// 办公识图绑定三键：内存同步走 SetFeatureModel 专路，
 		// SaveConfig 只落盘（内存不动 + 记「重启生效」Warn）。
 		{config.KeyFuncVisionEngine, "vis-e-2", func(c *config.Config) bool { return c.FuncVisionEngine == "old-vis-e" }},
 		{config.KeyFuncVisionModel, "vis-m-2", func(c *config.Config) bool { return c.FuncVisionModel == "old-vis-m" }},

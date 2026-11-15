@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 export interface GenuiScope {
-  scope: "chat" | "office";
+  scope: "chat" | "office" | "wenxue"; // wenxue：文学板块（办公拷贝壳，2026-11-15）
   /** 会话/话题稳定 id（隔离状态与面板）。 */
   sessionKey: string;
 }

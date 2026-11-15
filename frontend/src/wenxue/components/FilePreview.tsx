@@ -1,0 +1,761 @@
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Maximize2, Minimize2, Pencil, RefreshCw, X } from "../icons";
+import { app } from "../lib/bridge";
+import { t } from "../lib/i18n";
+import {
+  placeholderAspect,
+  shouldRenderLazyPage,
+} from "../lib/pageLazy";
+import type { PreviewResult } from "../lib/types";
+import { useLazyPdfPages } from "./useLazyPdfPages";
+import { DocxPreview } from "./DocxPreview";
+import { SandboxedHtml } from "./SandboxedHtml";
+import { Markdown } from "./Markdown";
+import { MdViewToggle, MindMapView } from "./MindMapView";
+import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
+import { PptxOutline } from "./PptxOutline";
+import { PptxEditPanel } from "./PptxEditPanel";
+import { JsonlPreview } from "./JsonlPreview";
+import { MarkdownToc } from "./MarkdownToc";
+import { extractMarkdownOutline } from "../lib/markdownOutline";
+import { registerEditorDraft, unregisterEditorDraft } from "../lib/editorDrafts";
+import { FileVersionStrip } from "./FileVersionStrip";
+import { XlsxPreview } from "./XlsxPreview";
+import { usePreviewProgress } from "../hooks/usePreviewProgress";
+import { useOfficeLive } from "../hooks/useOfficeLive";
+import { OfficeLiveBadge } from "./OfficeLiveBadge";
+import { useToast } from "./Toast";
+// 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
+// ErrorBoundary）或运行时挂载失败均回落纯 textarea，编辑能力永不丢失。
+const CodeEditorLazy = lazy(() =>
+  import("./CodeEditor").then((m) => ({ default: m.CodeEditor })),
+);
+
+class EditorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function formatSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// v4.29 化繁为简：头部按钮统一去边框（无边框 + 悬停浅底），图标优先；
+// 编辑/保存/取消等带状态语义的动作保留文字（编辑能力保留红线）。
+const HEAD_BTN =
+  "flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft";
+
+export function FilePreview({
+  relPath,
+  onClose,
+  onBackToFiles,
+  embedded = false,
+  maximized = false,
+  onToggleMaximize,
+  reloadSignal,
+}: {
+  relPath: string | null;
+  onClose: () => void;
+  onBackToFiles?: () => void;
+  /** 嵌入式渲染（v4.25 A3 右栏编辑器 tab）：默认 false 行为完全不变；
+   *  true 时隐藏头部文件名（tab 条已展示同名字样，280–720px 窄栏省宽），
+   *  预览/编辑/OCR/docx/xlsx 能力原样保留。 */
+  embedded?: boolean;
+  /** v4.30 预览两档占幅：true = 最大化（占满可用宽度，VS Code Toggle
+   *  Maximized Panel 式）。由 App 持有状态并传给头部按钮。 */
+  maximized?: boolean;
+  /** 最大化 ↔ 半幅 切换回调（App 接线；不传则不渲染按钮，行为完全不变）。 */
+  onToggleMaximize?: () => void;
+  /**
+   * U4 写后预览实时跟随：reloadSignal 递增（App 从 office 写类工具成功回执
+   * 派生，经 800ms 防抖合并连写，经 paneTabs reloadTicks 总线送进）→ 静默
+   * 重读文件内容。缺省（undefined，如弹窗/未接线调用方）行为完全不变。
+   */
+  reloadSignal?: number;
+}) {
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const ocrProgress = usePreviewProgress(relPath);
+  const toast = useToast();
+  // 波3 COM 实时编辑接线：喂入（office_* 工具卡 → officeLiveStore）+
+  // office_file_saved 保存跟随（引用计数单例，多实例挂载安全）。只在头部
+  // 加展示，不动滚动/刷新语义（reloadSignal 链路零改动）。
+  useOfficeLive();
+  // C5 工作区内联编辑：编辑态 / 草稿 / 脏标记 / 保存状态机 / 放弃确认
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [editMtimeMs, setEditMtimeMs] = useState(0);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const editorDraftOwner = useRef(Symbol("file-preview"));
+  // 大文件只读分页：按行对齐追加，已读内容不抽走。
+  const [pagedText, setPagedText] = useState<string | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageEOF, setPageEOF] = useState(false);
+  const [pageBusy, setPageBusy] = useState(false);
+  // M1 markdown 双视图（文档/导图）：偏好持久化，默认文档视图（既有行为不变）
+  const [mdView, setMdView] = useState<MdViewMode>(readMdViewPref);
+  // v4.28 B2 pptx 逐页预览：页图容器（大纲卡点页条目按 data-pptx-page 锚点滚动）
+  const pptxPagesRef = useRef<HTMLDivElement | null>(null);
+  // 换文件滚动回顶：外层滚动容器（markdown/text/image/html/error 共用）
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // v4.156 pptx 真编辑刀2：编辑面板打开时的初始页码（大纲卡「编辑此页」/
+  // 文本框条目回调）；null = 面板关闭。宿主形态与 DocxQueuePanel 同款右栏侧栏。
+  const [pptxEditSlide, setPptxEditSlide] = useState<number | null>(null);
+  // v4.33.0 C：pdf 逐页懒加载（对齐弹窗 FilePreviewModal v4.32 C，同一套
+  // lib/pageLazy 纯函数）。lazyPdf.src 记录所属 preview，preview 换载荷时在
+  // 渲染期重置（初始窗口 + 清空强制集合，React「props 变化时调整 state」模式，
+  // 避免 effect 时序上的旧集合闪烁）；mounted 单向只增不减（已挂载页不卸载，
+  // 杜绝滚动跳动），forced 收大纲跳转目标页。无 IntersectionObserver（jsdom/
+  // 旧环境）→ lazySupported() 为 false → pdf 分支全量渲染 = 既有行为。
+  // PDF 逐页懒加载四件套（FE1-01）：收敛在 useLazyPdfPages，消费方各留一行
+  //（本地 onLoad 回调名 handlePdfPageLoad 与弹窗同款，替换原 handlePageImgLoad）。
+  const pdfPages = preview?.kind === "pdf" ? preview.pages : undefined;
+  const pdfPageCount = pdfPages?.length ?? 0;
+  const { lazyPdf, lazyPdfPages, pdfPageAnchorRef, handlePdfPageLoad, scrollToPptxPage } = useLazyPdfPages(pptxPagesRef, preview, pdfPageCount);
+
+  useEffect(() => {
+    if (!relPath) { setPreview(null); return; }
+    let live = true;
+    setLoading(true);
+    setPreview(null);
+    setEditing(false);
+    setDraft("");
+    setDirty(false);
+    setEditMtimeMs(0);
+    setSaveState("idle");
+    setPagedText(null);
+    setPageOffset(0);
+    setPageEOF(false);
+    setPageBusy(false);
+    setPptxEditSlide(null); // 换文件时收起 pptx 编辑面板（面板归属旧文件）
+    // 换文件强制滚动回顶（主区/嵌入 tab/上一份下一份导航同一语义）：显式归零
+    // 替代此前「loading 收窄内容靠浏览器 clamp 隐式归零」的脆弱行为。原地内容
+    // 刷新（下方 reloadSignal effect）不走这里，滚动位保持 —— U4 语义不变。
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    app.Preview(relPath)
+      .then((r) => { if (live) setPreview(r); })
+      .catch(() => { if (live) setPreview({ path: relPath, name: relPath.split("/").pop() ?? relPath, ext: "", size: 0, kind: "error", body: "", dataUrl: "", error: "读取文件失败" }); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [relPath]);
+
+  // ── U4 写后预览实时跟随（reloadSignal 递增 → 静默重读）──────────────────
+  // 与上方初始加载 effect 的分工：初始加载换 relPath（可清 preview、进 loading、
+  // 重置编辑态）；本 effect 是同路径的内容更新（agent 写类工具落盘）——绝不
+  // 清 preview / 不进 loading / 不动编辑态，组件不重挂，滚动位由各渲染容器
+  // 自身保持（docx 由 DocxPreview 在重渲染前后保留 scrollTop）。
+  // 跳过条件：编辑中或有未保存草稿（绝不拿旧草稿覆盖 agent 刚写入的新内容，
+  // 也不打断输入；退出编辑后的下一次信号仍会跟随）；reloadSignal 为 undefined
+  // = 未接线调用方（弹窗/旧用例），行为与既有完全一致。
+  const reloadSeenRef = useRef<number | undefined>(undefined);
+  const [autoRefreshedAt, setAutoRefreshedAt] = useState(0);
+  useEffect(() => {
+    if (reloadSignal === undefined) return;
+    if (reloadSeenRef.current === undefined) {
+      reloadSeenRef.current = reloadSignal; // 挂载首值只登记（初始加载由上方 effect 负责）
+      return;
+    }
+    if (reloadSignal === reloadSeenRef.current) return;
+    reloadSeenRef.current = reloadSignal;
+    if (editing || dirty) return;
+    if (!relPath) return;
+    let live = true;
+    app.Preview(relPath)
+      .then((r) => {
+        if (!live || !r) return;
+        // 内容没变就不换载荷（避免 docx 全量重渲染闪烁），但刷新动作本身如实亮徽标
+        setPreview((prev) =>
+          prev && prev.kind === r.kind && prev.size === r.size &&
+          prev.body === r.body && prev.dataUrl === r.dataUrl ? prev : r,
+        );
+        setAutoRefreshedAt(Date.now());
+      })
+      .catch(() => { /* 静默跟随：文件可能已被改名/删除，不打扰用户 */ });
+    return () => { live = false; };
+  }, [relPath, reloadSignal, editing, dirty]);
+  // 「已自动刷新」轻量指示：短暂亮起后自动熄灭（不弹 toast 不抢焦点）
+  useEffect(() => {
+    if (!autoRefreshedAt) return;
+    const id = window.setTimeout(() => setAutoRefreshedAt(0), 2600);
+    return () => window.clearTimeout(id);
+  }, [autoRefreshedAt]);
+
+  // 可编辑 = 纯文本/markdown 预览且未截断（截断内容不完整，写回会丢数据）
+  const editable = preview !== null && !loading && !editing &&
+    (preview.kind === "markdown" || preview.kind === "text");
+  const markdownHeadings = useMemo(
+    () => preview?.kind === "markdown" ? extractMarkdownOutline(preview.body) : [],
+    [preview?.body, preview?.kind],
+  );
+
+  const startEdit = useCallback(async () => {
+    if (!preview) return;
+    if (!preview.truncated) {
+      setDraft(preview.body);
+      setEditMtimeMs(preview.mtimeMs ?? 0);
+      setDirty(false);
+      setSaveState("idle");
+      setEditing(true);
+      return;
+    }
+    let text = preview.body;
+    let mtimeMs = preview.mtimeMs ?? 0;
+    try {
+      const read = app.GaeaReadTextFile;
+      if (typeof read === "function" && relPath) {
+        const full = await read(relPath);
+        if (full.tooLarge || full.binary) {
+          toast.show(full.tooLarge ? "文件超过 5MB，请使用分页只读预览" : "二进制文件不能内联编辑", "warn");
+          return;
+        }
+        text = full.text;
+        mtimeMs = full.mtimeMs;
+      } else {
+        toast.show("当前后端不支持完整编辑读取，截断内容不能安全写回", "warn");
+        return;
+      }
+    } catch (error) {
+      toast.show(`读取编辑内容失败：${error instanceof Error ? error.message : String(error)}`, "warn");
+      return;
+    }
+    setDraft(text);
+    setEditMtimeMs(mtimeMs);
+    setDirty(false);
+    setSaveState("idle");
+    setEditing(true);
+  }, [preview, relPath, toast]);
+
+  // M2 导图画布编辑：override 传入画布序列化的规范大纲（导图保存条 / Ctrl+S），
+  // 其余走内联文本编辑的 draft。
+  const save = useCallback(async (override?: string) => {
+    if (!relPath) return;
+    setSaveState("saving");
+    try {
+      const content = override ?? draft;
+      const writer = app.GaeaWriteWorkspaceFile;
+      if (typeof writer === "function" && editMtimeMs > 0) {
+        const written = await writer(relPath, content, editMtimeMs);
+        setEditMtimeMs(written.mtimeMs);
+      } else {
+        await app.WriteFile(relPath, content);
+      }
+      setDirty(false);
+      setSaveState("saved");
+      toast.show("已保存到工作区", "info");
+      // 保存后刷新预览（内容回读），稍后复位状态机
+      const r = await app.Preview(relPath).catch(() => null);
+      if (r) setPreview(r);
+      window.setTimeout(() => setSaveState((s) => (s === "saving" ? s : "idle")), 0);
+    } catch (e) {
+      setSaveState("failed");
+      toast.show(`保存失败：${String(e)}`, "error");
+    }
+  }, [draft, editMtimeMs, relPath, toast]);
+
+  const cancelEdit = useCallback(() => {
+    if (!dirty) {
+      setEditing(false);
+      setConfirmDiscard(false);
+      return;
+    }
+    setConfirmDiscard(true);
+  }, [dirty]);
+
+  const discardAndExit = useCallback(() => {
+    setEditing(false);
+    setDraft("");
+    setDirty(false);
+    setSaveState("idle");
+    setConfirmDiscard(false);
+  }, []);
+
+  const switchMdView = useCallback((v: MdViewMode) => {
+    setMdView(v);
+    writeMdViewPref(v);
+  }, []);
+
+  useEffect(() => {
+    if (!relPath || !editing || !dirty) return;
+    const owner = editorDraftOwner.current;
+    registerEditorDraft(relPath, owner);
+    return () => unregisterEditorDraft(relPath, owner);
+  }, [dirty, editing, relPath]);
+
+  const loadNextPage = useCallback(async () => {
+    if (!relPath || pageBusy || pageEOF) return;
+    const readPage = app.GaeaReadFilePage;
+    if (typeof readPage !== "function") {
+      toast.show("当前后端不支持大文件分页读取", "warn");
+      return;
+    }
+    setPageBusy(true);
+    try {
+      const page = await readPage(relPath, pageOffset);
+      if (page.binary) {
+        toast.show("文件是二进制格式，不能按文本分页预览", "warn");
+        setPageEOF(true);
+        return;
+      }
+      setPagedText((prev) => (prev ?? "") + page.text);
+      setPageOffset(page.nextOffset);
+      setPageEOF(page.eof || page.nextOffset <= pageOffset);
+    } catch (error) {
+      toast.show(`分页读取失败：${error instanceof Error ? error.message : String(error)}`, "warn");
+    } finally {
+      setPageBusy(false);
+    }
+  }, [pageBusy, pageEOF, pageOffset, relPath, toast]);
+
+
+
+
+  // Ctrl/Cmd+S 保存
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (dirty) void save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, dirty, save]);
+
+  if (!relPath) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-fg-faint/40 text-xs gap-2">
+        <File size={26} className="opacity-30" />
+        <span>选择文件以预览</span>
+      </div>
+    );
+  }
+
+  const fileName = preview?.name ?? relPath.split("/").pop() ?? relPath;
+
+  return (
+    <div className="flex flex-col h-full text-[12px]">
+      {/* 文件标题栏 */}
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border-soft shrink-0">
+        {onBackToFiles && (
+          <button
+            className={HEAD_BTN}
+            onClick={onBackToFiles}
+            title="返回文件列表"
+          >
+            <FolderTree size={10} />
+            文件
+          </button>
+        )}
+        <FileText size={13} className="text-accent shrink-0" />
+        {embedded ? (
+          // 嵌入式：tab 条已展示文件名，头部留 flex 占位对齐右侧操作区
+          <span className="flex-1" />
+        ) : (
+          <span className="font-mono text-fg truncate flex-1 text-[12px]">{fileName}</span>
+        )}
+        {dirty && (
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title="有未保存的修改" />
+        )}
+        {preview && preview.size > 0 && (
+          <span className="text-fg-faint text-[10px] shrink-0">{formatSize(preview.size)}</span>
+        )}
+        {autoRefreshedAt > 0 && (
+          <span
+            data-testid="office-auto-refreshed"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-accent/30 bg-accent/10 text-accent text-[10px] shrink-0"
+            title={t("officeTurn.autoRefreshedTitle")}
+          >
+            <RefreshCw size={9} aria-hidden />
+            {t("officeTurn.autoRefreshed")}
+          </span>
+        )}
+        {/* 波3 COM 实时编辑胶囊：本文件=「此文件正在被 AI 实时编辑」；他文件=
+            正被编辑文档名+进度，点击打开那份的预览（U2 置前同入口）。 */}
+        <OfficeLiveBadge relPath={relPath} />
+        <button
+          className={HEAD_BTN}
+          onClick={() => app.RevealWorkspacePath(relPath).catch(() => {})}
+          title="在文件管理器中定位"
+          aria-label="在文件管理器中定位"
+        >
+          <FolderTree size={10} />
+        </button>
+        <button
+          className={HEAD_BTN}
+          onClick={() => app.OpenWorkspacePath(relPath).catch(() => {})}
+          title="在外部程序中打开"
+          aria-label="在外部程序中打开"
+        >
+          <ExternalLink size={10} />
+        </button>
+        {onToggleMaximize && (
+          <button
+            className={HEAD_BTN}
+            onClick={onToggleMaximize}
+            title={maximized ? "还原半幅（占当前宽度）" : "最大化预览（占满可用宽度）"}
+            aria-label={maximized ? "还原半幅" : "最大化预览"}
+          >
+            {maximized ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+          </button>
+        )}
+        {!loading && preview?.kind === "markdown" && !editing && (
+          <MdViewToggle value={mdView} onChange={switchMdView} />
+        )}
+        {editable && (
+          <button
+            className={HEAD_BTN + " text-accent"}
+            onClick={startEdit}
+            title="在预览中直接编辑文本文件（Ctrl+S 保存）"
+          >
+            <Pencil size={10} />
+            编辑
+          </button>
+        )}
+        {editing && (
+          <>
+            <button
+              className={HEAD_BTN}
+              onClick={() => void cancelEdit()}
+              title="取消编辑"
+            >
+              <X size={10} />
+              取消
+            </button>
+            <button
+              className="flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-accent text-accent-fg text-[10px] cursor-pointer hover:opacity-90 disabled:opacity-50"
+              onClick={() => void save()}
+              disabled={!dirty || saveState === "saving"}
+              title="保存（Ctrl+S）"
+            >
+              {saveState === "saving" ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+              {saveState === "saving" ? "保存中" : saveState === "failed" ? "重试" : "保存"}
+            </button>
+          </>
+        )}
+        <button
+          className="flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg rounded"
+          onClick={onClose}
+          title="关闭预览"
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* 6.1 可审计默认化：文件版本时间线一级入口（默认可见，三件套通用）——
+          AI 改动自动成版本点（证据链基线快照），点开逐版本预览/一键恢复。 */}
+      {relPath && !editing && (
+        <FileVersionStrip
+          relPath={relPath}
+          onRestored={() => {
+            if (editing || dirty || !relPath) return;
+            app.Preview(relPath)
+              .then((r) => { if (r) setPreview(r); })
+              .catch(() => { /* 目标可能已被移走，静默 */ });
+          }}
+        />
+      )}
+
+      {/* 预览内容 / 编辑区 */}
+      <div ref={scrollRef} className="relative flex-1 overflow-auto">
+        {editing ? (
+          <>
+            {confirmDiscard && (
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-soft bg-amber-500/10 text-[11px] text-amber-500 shrink-0">
+                <span className="flex-1">有未保存的修改，退出编辑将丢弃。</span>
+                <button
+                  type="button"
+                  className="px-2 py-0.5 rounded border border-amber-500/40 text-amber-500 hover:bg-amber-500/10 cursor-pointer"
+                  onClick={discardAndExit}
+                >
+                  放弃修改
+                </button>
+                <button
+                  type="button"
+                  className="px-2 py-0.5 rounded border border-border-soft text-fg-dim hover:bg-bg-soft cursor-pointer"
+                  onClick={() => setConfirmDiscard(false)}
+                >
+                  继续编辑
+                </button>
+              </div>
+            )}
+            {/* 3a：CodeMirror 语法高亮编辑器（React.lazy 懒加载 chunk；
+                加载失败时 ErrorBoundary 不适用——改由 key 重挂的 textarea 回落） */}
+            <Suspense
+              fallback={
+                <textarea
+                  className="w-full h-full bg-transparent text-fg text-[12px] p-3 font-mono leading-relaxed outline-none resize-none whitespace-pre"
+                  value={draft}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    setDirty(true);
+                    setSaveState("idle");
+                  }}
+                  spellCheck={false}
+                  aria-label="文本编辑"
+                />
+              }
+            >
+              <EditorBoundary
+                fallback={
+                  <textarea
+                    className="w-full h-full bg-transparent text-fg text-[12px] p-3 font-mono leading-relaxed outline-none resize-none whitespace-pre"
+                    value={draft}
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      setDirty(true);
+                      setSaveState("idle");
+                    }}
+                    spellCheck={false}
+                    aria-label="文本编辑"
+                  />
+                }
+              >
+                <CodeEditorLazy
+                  key={relPath}
+                  value={draft}
+                  path={relPath}
+                  onChange={(next) => {
+                    setDraft(next);
+                    setDirty(true);
+                    setSaveState("idle");
+                  }}
+                />
+              </EditorBoundary>
+            </Suspense>
+          </>
+        ) : (
+          <>
+        {loading && (
+          <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-2">
+            {ocrProgress ? (
+              <>
+                <Loader2 size={18} className="animate-spin text-accent" />
+                <span>
+                  OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页
+                  {ocrProgress.elapsedSec != null ? ` · 已用 ${ocrProgress.elapsedSec}s` : ""}…
+                </span>
+              </>
+            ) : (
+              <>
+                <Loader2 size={18} className="animate-spin text-accent" />
+                <span>加载中…</span>
+              </>
+            )}
+          </div>
+        )}
+        {!loading && preview?.kind === "image" && preview.dataUrl && (
+          <div className="flex items-center justify-center p-4 min-h-full">
+            <img src={preview.dataUrl} alt={fileName} className="max-w-full max-h-[62vh] object-contain rounded-lg shadow-sm" />
+          </div>
+        )}
+        {!loading && preview?.kind === "docx" && preview.dataUrl && (
+          <DocxPreview dataUrl={preview.dataUrl} fileName={fileName} relPath={relPath} />
+        )}
+        {!loading && preview?.kind === "xlsx" && (
+          <XlsxPreview body={preview.body} fileName={fileName} relPath={relPath} />
+        )}
+        {!loading && preview?.kind === "pdf" && (
+          // v4.28 B2 pptx：kind=pdf = soffice→PDF 的逐页缩略（pages 有值，
+          // 纵向铺页 + 大纲卡点页滚动）或整本 dataUrl 回退（pdftoppm 缺失时
+          // 交 WebView 内嵌查看器，无页锚点）。大纲卡在右侧叠放（hint/ext 判定）。
+          // v4.33.0 C：逐页路径改单向懒加载（对齐弹窗 v4.32 C）——初始窗口外
+          // 的页先渲染估计高度占位盒（PreviewPageThumb 无宽高），进视口
+          //（rootMargin 800px）才挂 <img> 自然撑开，已挂载页不卸载；data-pptx-page
+          // 锚点在每个页容器 figure 上保留（大纲滚动 + IO 目标键共用）；
+          // 无 IO 环境全量渲染（= 既有行为）。
+          <div className="flex h-full min-h-0">
+            <div ref={pptxPagesRef} className="flex-1 min-w-0 overflow-auto px-4 py-3" data-testid="pptx-pages">
+              {preview.pages && preview.pages.length > 0 ? (
+                preview.pages.map((p) => (
+                  <figure key={p.page} ref={pdfPageAnchorRef} data-pptx-page={p.page} className="mb-4">
+                    {!lazyPdfPages || shouldRenderLazyPage(p.page, lazyPdf.mounted, lazyPdf.forced) ? (
+                      <img
+                        src={p.dataUrl}
+                        alt={`第 ${p.page} 页`}
+                        className="w-full rounded-lg border border-border-soft shadow-sm bg-bg"
+                        onLoad={handlePdfPageLoad}
+                      />
+                    ) : (
+                      <div
+                        aria-hidden="true"
+                        className="w-full rounded-lg border border-border-soft bg-gradient-to-b from-bg-soft to-bg animate-pulse"
+                        style={{ aspectRatio: placeholderAspect(lazyPdf.aspect) }}
+                      />
+                    )}
+                    <figcaption className="mt-1 text-center text-[10px] text-fg-faint">第 {p.page} 页</figcaption>
+                  </figure>
+                ))
+              ) : preview.dataUrl ? (
+                <embed src={preview.dataUrl} type="application/pdf" title="PDF 预览" className="w-full h-full min-h-[60vh]" />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-2">
+                  <AlertCircle size={20} className="text-amber-500/60" />
+                  <span>无可渲染的页面内容，可让 AI 调用 summarize_file 获取内容摘要。</span>
+                </div>
+              )}
+            </div>
+            {(preview.hint === "outline" || preview.ext === ".pptx") && (
+              <PptxOutline
+                relPath={relPath}
+                fileName={fileName}
+                onPageSelect={scrollToPptxPage}
+                onEditSlide={setPptxEditSlide}
+              />
+            )}
+            {/* v4.156 刀2：pptx 编辑面板（右栏，与大纲卡同排）。应用成功用返回
+                的新 PreviewResult 刷新预览（写盘后预览缓存已自动失效）。 */}
+            {(preview.hint === "outline" || preview.ext === ".pptx") && pptxEditSlide !== null && (
+              <PptxEditPanel
+                relPath={relPath}
+                fileName={fileName}
+                initialSlide={pptxEditSlide}
+                onClose={() => setPptxEditSlide(null)}
+                onApplied={setPreview}
+              />
+            )}
+          </div>
+        )}
+        {!loading && preview?.kind === "markdown" && (
+          <>
+            {preview.truncated && (
+              <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                <span className="flex-1">
+                  预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容。
+                </span>
+                {pagedText === null ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy}
+                  >
+                    {pageBusy ? "读取中…" : "分页阅读"}
+                  </button>
+                ) : !pageEOF ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy}
+                  >
+                    {pageBusy ? "读取中…" : "加载下一页"}
+                  </button>
+                ) : null}
+              </div>
+            )}
+            {pagedText !== null ? (
+              <pre
+                data-testid="large-file-pages"
+                className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto"
+              >
+                {pagedText}
+              </pre>
+            ) : mdView === "mindmap" ? (
+              // M1 导图视图：内层自管平移/缩放，外层容器不再给 max-w 排版
+              <div className="h-full min-h-[420px]">
+                <MindMapView text={preview.body} title={fileName} onSave={(t) => void save(t)} />
+              </div>
+            ) : (
+              <div className="relative px-4 py-3 max-w-[860px] mx-auto">
+                {mdView === "doc" && (
+                  <MarkdownToc
+                    headings={markdownHeadings}
+                    scrollRef={scrollRef}
+                    contentKey={preview.body}
+                  />
+                )}
+                <Markdown text={preview.body} imageBasePath={relPath} />
+              </div>
+            )}
+          </>
+        )}
+        {!loading && preview?.kind === "text" && (() => {
+          const isJsonl = /\.(jsonl|ndjson)$/i.test(relPath ?? "");
+          return pagedText !== null ? (
+            <pre
+              data-testid="large-file-pages"
+              className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto"
+            >
+              {pagedText}
+            </pre>
+          ) : isJsonl ? (
+            <>
+              {preview.truncated && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                  <span className="flex-1">文件超过 2MB，当前 JSONL 预览只包含前 2MB。</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy || pageEOF}
+                  >
+                    {pageBusy ? "读取中…" : pageEOF ? "已到末尾" : "分页阅读"}
+                  </button>
+                </div>
+              )}
+              <JsonlPreview text={preview.body} />
+            </>
+          ) : (
+            <>
+              {preview.truncated && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                  <span className="flex-1">文件超过 2MB，当前只读预览已截断。</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-amber-500/35 bg-transparent px-2 py-0.5 cursor-pointer hover:bg-amber-500/10"
+                    onClick={() => void loadNextPage()}
+                    disabled={pageBusy || pageEOF}
+                  >
+                    {pageBusy ? "读取中…" : pageEOF ? "已到末尾" : "分页阅读"}
+                  </button>
+                </div>
+              )}
+              <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
+            </>
+          );
+        })()}
+        {!loading && preview?.kind === "html" && (
+          // 1c HTML 沙箱预览：独立 iframe（无同源+CSP），绝不注入宿主 DOM。
+          <div className="min-h-full px-4 py-3">
+            {preview.truncated && (
+              <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                预览已截断（文件过大），仅展示前部内容。
+              </div>
+            )}
+            <div className="h-[62vh] overflow-hidden rounded-lg border border-border-soft">
+              <SandboxedHtml html={preview.body} title={fileName} />
+            </div>
+          </div>
+        )}
+        {!loading && (preview?.kind === "unsupported" || preview?.kind === "error") && (
+          <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-3 p-4 text-center">
+            <AlertCircle size={22} className={preview.kind === "error" ? "text-err/60" : "text-amber-500/60"} />
+            <span className="text-fg-dim">{preview.error || "无法预览"}</span>
+            <button
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-accent text-bg text-[11px] font-medium cursor-pointer hover:opacity-90"
+              onClick={() => app.OpenWorkspacePath(relPath).catch(() => {})}
+            >
+              <ExternalLink size={11} />
+              在外部程序中打开
+            </button>
+          </div>
+        )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

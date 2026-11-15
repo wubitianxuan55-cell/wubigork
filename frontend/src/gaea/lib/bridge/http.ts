@@ -134,7 +134,7 @@ export function initBridge(): void {
   // useVoiceChat 的 App.VoiceStop），HTTP 桥接下这些门面不存在会抛
   // "Cannot read properties of undefined (reading 'VoiceStop')"。RPC 端点按方法名路由，
   // 与门面无关，故每门面挂同一 RPC 代理即可（方法名冲突时后注册者生效，方法与门面一一对应无冲突）。
-  const FACADES = ["CoreB", "OfficeB", "MemoryB", "CostB", "ModelB", "VoiceB", "ChatB", "NovelB", "ImageB", "CharlibB", "SinB"] as const;
+  const FACADES = ["CoreB", "OfficeB", "MemoryB", "CostB", "ModelB", "VoiceB", "ChatB", "NovelB", "ImageB", "CharlibB"] as const;
   for (const ns of FACADES) {
     if (!w.go.app[ns]) w.go.app[ns] = createAppProxy();
   }

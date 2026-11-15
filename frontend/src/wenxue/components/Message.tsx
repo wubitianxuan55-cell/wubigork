@@ -1,0 +1,433 @@
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, useEffect } from "react";
+import { Bot, ChevronDown, ChevronRight, Brain, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled } from "../icons";
+import { app } from "../lib/bridge";
+import { MemoMarkdown } from "./MemoMarkdown";
+import { useT } from "../lib/i18n";
+import { useCompact } from "../hooks/useCompact";
+import { useGSAPCollapse } from "../lib/useGSAPCollapse";
+import { displayReasoningText } from "../lib/reasoningDisplay";
+import { useNow } from "../lib/useNow";
+import { useTurnStartAt } from "../lib/store";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
+import { useToast } from "./Toast";
+import type { Item } from "../lib/store";
+import { DeliverableCards } from "./DeliverableCards";
+import { getCachedAttachmentDataURL } from '../../components/characterlib/usePortraitUrl';
+
+// v4.26 契约：store 的 assistant item 将追加可选字段 subagentRef?: string
+// （后端把子代理最终答复以普通 assistant 消息回投主回合时打标）。store.ts
+// 本线禁改，这里用交叉类型提前承接——字段缺省（undefined）时渲染行为与
+// 现状完全一致，后端/主代理接线后无需再改渲染层。
+type AssistantItem = Extract<Item, { kind: "assistant" }> & { subagentRef?: string };
+
+// 行内附件渲染：图片显示缩略图，文件显示图标
+function InlineAttachment({ path }: { path: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [isImage, setIsImage] = useState(false);
+  const t = useT();
+  useEffect(() => {
+    let live = true;
+    if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(path)) {
+      setIsImage(true);
+      getCachedAttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
+    } else {
+      setIsImage(false);
+    }
+    return () => { live = false; };
+  }, [path]);
+  const fileName = path.split("/").pop() ?? path;
+  if (isImage && dataUrl) {
+    return (
+      <button
+        type="button"
+        onClick={() => openPaneFileOrPreview(path)}
+        title={t("msg.clickPreview", { path })}
+        className="block p-0 border-0 bg-transparent cursor-pointer rounded-lg my-1"
+      >
+        <img src={dataUrl} alt={fileName} className="max-w-[240px] max-h-[180px] rounded-lg border border-border-soft object-cover hover:opacity-85 transition-opacity" loading="lazy" />
+      </button>
+    );
+  }
+  if (isImage) {
+    return (
+      <button type="button" onClick={() => openPaneFileOrPreview(path)} className="text-accent/60 text-[12px] italic cursor-pointer hover:text-accent">
+        [{fileName}]
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => openPaneFileOrPreview(path)}
+      title={t("msg.clickPreview", { path })}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-soft border border-border-soft text-fg-dim text-[11px] font-mono mx-0.5 cursor-pointer hover:border-accent/40 hover:text-fg transition-colors"
+    >
+      <FileText size={11} className="text-accent shrink-0" />
+      {fileName}
+    </button>
+  );
+}
+
+// ── UserMessage ───────────────────────────────────────────────────────────
+
+export const UserMessage = memo(function UserMessage({
+  text,
+  turn,
+  open,
+  onToggle,
+  onRewind,
+}: {
+  text: string;
+  turn?: number;
+  open?: boolean;
+  onToggle?: () => void;
+  onRewind?: (turn: number, scope: string) => void;
+}) {
+  const t = useT();
+  const compact = useCompact();
+  const canRewind = onRewind != null && turn != null;
+  const rewind = (scope: string) => onRewind?.(turn as number, scope);
+  // v4.516 回退菜单键盘体验收官：触发钮引用（Escape 焦点归还）+ 菜单行引用
+  // （视口空间测量）+ 菜单引用（打开自动聚焦首项）。
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // 菜单开向：上方空间不足（消息在滚动区顶部）时向下开，防 bottom-full 裁剪。
+  const [menuDown, setMenuDown] = useState(false);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const row = rowRef.current;
+    if (!row) return;
+    const scroller = row.closest(".transcript");
+    const rowTop = row.getBoundingClientRect().top;
+    const viewTop = scroller ? scroller.getBoundingClientRect().top : 0;
+    // 菜单约 6 项×29px+边距 ≈ 182px；上方可用空间不足则翻转（阈值留余量）。
+    setMenuDown(rowTop - viewTop < 200);
+  }, [open]);
+  // 打开即聚焦首项：方向键漫游立即可用（键盘打开场景直达；鼠标打开同受益）。
+  useEffect(() => {
+    if (open) menuRef.current?.querySelector<HTMLButtonElement>("button[role=menuitem]")?.focus();
+  }, [open]);
+  // 解析 @ 附件引用 → 分段渲染
+  const textParts = useMemo(() => {
+    const parts: { type: "text" | "attachment"; value: string }[] = [];
+    const re = /(@\.gaea\/attachments\/[^\s)]+)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parts.push({ type: "text", value: text.slice(last, m.index) });
+      parts.push({ type: "attachment", value: m[1].slice(1) });
+      last = re.lastIndex;
+    }
+    if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
+    return parts;
+  }, [text]);
+  // Kimi Work 同款：超长用户消息默认折叠（纯文本超过阈值只显示前几行），
+  // 避免长任务描述把对话撑爆；点击「展开/收起」切换。
+  const LONG_MSG_CHARS = 240;
+  const longText = textParts.some((p) => p.type === "text" && p.value.length > LONG_MSG_CHARS);
+  const [msgOpen, setMsgOpen] = useState(false);
+  // Codex web 式用户消息（2026-09-18）：右对齐柔和气泡（surface-container
+  // 高档位 + 细边框），替代此前的无气泡纯文本——裸文本与助手正文同权重，
+  // 扫读时用户/助手轮次边界不清晰。
+  return (
+    <div className="flex justify-end my-1.5 group" data-entrance={turn != null ? `u${turn}` : undefined}>
+      <div className={`flex items-start gap-2 max-w-[85%] ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
+        <div className="flex-1 min-w-0">
+          <div
+            className={`office-user-message ${compact ? "text-[13px]" : "text-[14px]"} text-fg leading-relaxed rounded-2xl rounded-br-md border border-border-soft bg-(color:--md-sys-color-surface-container-high)/60 px-3.5 py-2 w-fit max-w-full`}
+          >
+            {textParts.map((part, i) => {
+              if (part.type === "text") {
+                if (longText && !msgOpen) return <span key={i} className="line-clamp-3">{part.value}</span>;
+                return <span key={i}>{part.value}</span>;
+              }
+              return <InlineAttachment key={i} path={part.value} />;
+            })}
+            {longText && (
+              <button
+                type="button"
+                className="block mt-1 px-0 py-0.5 border-0 bg-transparent text-fg-faint/60 text-[10.5px] cursor-pointer hover:text-fg transition-colors"
+                onClick={() => setMsgOpen((v) => !v)}
+                title={msgOpen ? t("msg.collapseLongTitle") : t("msg.expandLongTitle")}
+              >
+                {msgOpen ? t("msg.collapseLong") : t("msg.expandLong")}
+                <ChevronDown size={10} className={`inline-block ml-0.5 -mt-px transition-transform duration-200 ${msgOpen ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+            )}
+          </div>
+          {canRewind && (
+            // v4.510 双修：①relative=回退下拉的定位锚——此前无定位祖先链一路
+            // 锚到滚动容器 .transcript 顶部（bottom-full 相对整个对话区），
+            // 菜单渲染在内容流顶端之外、任何滚动状态下都基本不可见；②rewind
+            // 类=Transcript 外点关闭守卫的选择器（closest(".rewind")）——此前
+            // 该类不存在于任何元素，点菜单项的 mousedown 先触发守卫关菜单，
+            // click 落在已卸载的按钮上，回退动作从未真正执行。
+            <div ref={rowRef} className="rewind relative flex justify-end mt-0.5">
+              <button
+                ref={triggerRef}
+                className={`opacity-0 group-hover:opacity-100 focus-visible:opacity-100 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10px] cursor-pointer hover:text-fg transition-opacity ${open ? "opacity-100" : ""}`}
+                onClick={onToggle}
+                title={t("rewind.label")}
+                aria-haspopup="menu"
+                aria-expanded={open}
+              >
+                <Rollback size={10} className="inline-block -mt-px mr-0.5" aria-hidden />
+                {t("msg.rewindText")}
+              </button>
+              {open && (
+                // v4.515 键盘可达（ARIA 菜单模式）：role=menu/menuitem + 方向键
+                // 漫游聚焦（roving focus）+ Home/End。v4.516：菜单内 Escape
+                // 就地关闭并归还焦点触发钮（stopPropagation 免 Transcript
+                // document 守卫重复处理；焦点在菜单外时仍由 document 守卫兜底）；
+                // 开向按视口空间翻转（menuDown）防顶部裁剪。
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  aria-label={t("rewind.label")}
+                  className={`absolute ${menuDown ? "top-full mt-1" : "bottom-full mb-1"} right-0 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg`}
+                  style={{boxShadow: "var(--ds-shadow-dropdown)"}}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      triggerRef.current?.focus();
+                      onToggle?.();
+                      return;
+                    }
+                    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[role=menuitem]"));
+                    if (items.length === 0) return;
+                    const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+                    const go = (next: number) => { e.preventDefault(); items[(next + items.length) % items.length].focus(); };
+                    if (e.key === "ArrowDown") go(idx + 1);
+                    else if (e.key === "ArrowUp") go(idx - 1);
+                    else if (e.key === "Home") go(0);
+                    else if (e.key === "End") go(items.length - 1);
+                  }}
+                >
+                  {(["both","conversation","code","fork","summ-from","summ-upto"] as const).map(scope => {
+                    const key = scope === "summ-from" ? "rewind.summFrom" as const : scope === "summ-upto" ? "rewind.summUpto" as const : `rewind.${scope}` as const;
+                    return (
+                    <button key={scope} role="menuitem" className="w-full text-left px-3 py-1.5 border-0 bg-transparent text-fg-dim text-[12px] cursor-pointer hover:bg-bg-soft hover:text-fg" onClick={() => rewind(scope)}>
+                      {t(key)}
+                    </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ── AssistantMessage ──────────────────────────────────────────────────────
+
+export const AssistantMessage = memo(function AssistantMessage({
+  item,
+  turnNo,
+  deliverTail,
+  deliverOmitPaths,
+  canRegenerate,
+  onRegenerateTurn,
+  onFeedback,
+}: {
+  item: AssistantItem;
+  onCollapse?: () => void;
+  /** 本条消息所属轮次（Transcript 的 0-based 用户消息序号）；轮外缺省。
+   *  原样下传 DeliverableCards 做登记表「本轮」条目匹配。 */
+  turnNo?: number;
+  /** 轮尾段才合并登记-only 交付卡（同轮去重）；缺省 true 保持独立渲染语义。 */
+  deliverTail?: boolean;
+  /** 轮尾登记合并卡排除的路径键集（同轮其它段正文已提及的文件，防双卡）。 */
+  deliverOmitPaths?: ReadonlySet<string>;
+  /** 可重新生成（v4.232：仅当前会话最后一条 assistant 且非运行中）。
+   *  回调按轮号重发（controller.regenerate），props 恒稳定以保 memo。 */
+  canRegenerate?: boolean;
+  onRegenerateTurn?: (turn: number) => void;
+  /** 回答反馈入口（v4.238）：传=显示 👍/👎（记忆事件 op=feedback 落库）。 */
+  onFeedback?: boolean;
+}) {
+  const t = useT();
+  const compact = useCompact();
+  const streaming = item.streaming ?? false;
+  // v4.350：仅流式中订阅全局时钟（已完成消息无条件订阅 = 长会话每秒 N 次无效
+  // 重渲染）；完成时刻把耗时定格进 ref（此前完成后 elapsed 持续增长，「思考
+  // Xs」三天后还在涨——WorkHeader 同款渲染期前值比较模式）。
+  const now = useNow(streaming);
+  const turnStartAt = useTurnStartAt();
+  const reasoningBodyRef = useRef<HTMLDivElement>(null);
+  const reasoningBodyId = useId();
+
+  const reasoningRunning = !!(streaming && !item.text && item.reasoning);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
+  useEffect(() => {
+    setReasoningOpen(false);
+  }, [item.id]);
+  useGSAPCollapse(reasoningBodyRef, reasoningOpen);
+  const toggleReasoning = useCallback(() => setReasoningOpen((v) => !v), []);
+  const handleRegenerate = useCallback(() => {
+    if (turnNo != null) onRegenerateTurn?.(turnNo);
+  }, [onRegenerateTurn, turnNo]);
+  // 回答反馈（v4.238）：一次有效（事件日志追加式，不可撤回），失败回退可重试。
+  const [rated, setRated] = useState<"up" | "down" | null>(null);
+  const toast = useToast();
+  const sendFeedback = useCallback((rating: "up" | "down") => {
+    if (rated) return;
+    setRated(rating); // 乐观锁钮：失败回退可重试
+    app
+      .MemoryFeedback(item.id, rating, item.text, "work")
+      .then(() => toast.show(rating === "up" ? t("msg.feedbackThanks") : t("msg.feedbackThanksDown"), "info"))
+      .catch((err: unknown) => {
+        setRated(null);
+        toast.show(`${t("msg.feedbackFailed")}: ${err instanceof Error ? err.message : String(err)}`, "error");
+      });
+  }, [rated, item.id, item.text, toast, t]);
+
+  const reasoningDisplay = displayReasoningText(item.reasoning ?? "", {
+    streaming: item.streaming ?? false,
+    truncateStreaming: true,
+  });
+  const reasoningPreview = reasoningRunning && !reasoningOpen
+    ? reasoningDisplay.split("\n").map((line) => line.trim()).filter(Boolean).at(-1) ?? ""
+    : "";
+  const reasoningLines = item.reasoning ? item.reasoning.split("\n").filter(l => l.trim()).length : 0;
+
+  // 流式耗时定格（v4.350）：完成边沿用 Date.now() 拍终值，此后不再随墙钟增长
+  const finalElapsedRef = useRef<number | null>(null);
+  const prevStreamingRef = useRef(false);
+  if (streaming && !prevStreamingRef.current) finalElapsedRef.current = null;
+  else if (!streaming && prevStreamingRef.current) {
+    finalElapsedRef.current = turnStartAt > 0
+      ? Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(turnStartAt / 1000))
+      : 0;
+  }
+  prevStreamingRef.current = streaming;
+
+  const liveElapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+  const elapsed = finalElapsedRef.current ?? liveElapsed;
+  const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`;
+
+  // 流式处理中的纯文本（不渲染 Markdown）
+  // v4.26：带 subagentRef 的 assistant 消息 = 子代理最终答复回投主回合，
+  // 加「子代理」小徽标区分来源（Codex "Report sub-agent activity on parent
+  // turns"）；ref 全文放 title。字段缺省不渲染，行为与现状一致。
+  const subagentRef = item.subagentRef;
+  return (
+    <div className="office-assistant-message group/msg flex justify-start my-2" data-entrance={item.id}>
+      <div className="flex-1 min-w-0">
+          {/* 子代理来源徽标 */}
+          {subagentRef && (
+            <div className="mb-1">
+              <span
+                data-testid="subagent-badge"
+                title={t("msg.subagentBadgeTitle", { ref: subagentRef })}
+                className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-1.5 py-px text-[10px] font-medium text-accent align-middle"
+              >
+                <Bot size={10} className="shrink-0" aria-hidden />
+                {t("msg.subagentBadge")}
+              </span>
+            </div>
+          )}
+          {/* 推理区 */}
+          {item.reasoning && (
+            <div className="mb-1.5">
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 w-full px-2.5 py-1 rounded-lg transition-colors ${
+                  reasoningOpen ? "bg-accent/[0.04]" : "hover:bg-(color:--md-sys-color-surface-container-high)"
+                } text-fg-faint text-[11px] cursor-pointer`}
+                data-running={reasoningRunning ? "" : undefined}
+                onClick={toggleReasoning}
+                aria-expanded={reasoningOpen}
+                aria-controls={reasoningBodyId}
+              >
+                <Brain size={12} className="flex-shrink-0" />
+                <span className="font-medium">{reasoningRunning ? t("msg.thinkingRunning") : t("msg.thinking")}</span>
+                <span className="reasoning__preview" title={reasoningPreview || undefined}>{reasoningPreview}</span>
+                <span className="reasoning__meta tabular-nums">
+                  {reasoningRunning
+                    ? elapsedStr
+                    : `${t(reasoningLines === 1 ? "reasoning.metaLineOne" : "reasoning.metaLines", { n: reasoningLines })} · ${elapsedStr}`}
+                </span>
+                <ChevronRight
+                  className={`transition-transform duration-200 ${reasoningOpen ? "rotate-90" : ""}`}
+                  size={11}
+                />
+              </button>
+              <div id={reasoningBodyId} ref={reasoningBodyRef} style={{ overflow: "hidden" }}>
+                <div className={`mt-1 px-2.5 py-1.5 border-l-2 border-accent/25 ml-1 text-fg-dim/80 text-[11px] leading-relaxed whitespace-pre-wrap ${
+                  compact ? "max-h-[160px] overflow-y-auto" : ""
+                }`}>
+                  {reasoningDisplay}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 正文区 */}
+          {item.text && (
+            <div className="min-w-0">
+              <MemoMarkdown text={item.text} streaming={streaming} genuiKey={item.id} />
+              {/* 流式光标：生成中闪烁的细光标（reduced-motion 下全局动画关停 → 静态） */}
+              {streaming && (
+                <span aria-hidden className="inline-block w-[2px] h-[1.05em] align-text-bottom ml-0.5 rounded-full bg-accent/80 animate-pulse" />
+              )}
+            </div>
+          )}
+          {/* 交付物附件卡片：正文中的文件引用 + 权威登记表本轮条目，渲染成可点击预览卡片 */}
+          {item.text && <DeliverableCards text={item.text} turnNo={turnNo} mergeRegistry={deliverTail} omitPaths={deliverOmitPaths} />}
+
+          {/* 其余消息操作浮在正文右上角，不占正文下方固定高度。复制与
+              单条回答“沉淀为技能”已按实弹反馈删除；会话级录制仍在输入卡。 */}
+          {item.text && !streaming && (
+            (canRegenerate && onRegenerateTurn && turnNo != null) || onFeedback
+          ) && (
+            <div className="relative h-0" data-testid="assistant-message-actions">
+              <div className={`pointer-events-none absolute right-0 top-0 z-10 flex -translate-y-full items-center gap-1 rounded-md bg-bg/90 px-1 py-0.5 transition-opacity duration-150 ${
+                rated ? "pointer-events-auto opacity-100" : "opacity-0 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
+              }`}>
+              {canRegenerate && onRegenerateTurn && turnNo != null && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                  onClick={handleRegenerate}
+                  title={t("msg.regenerate")}
+                >
+                  <RefreshCw size={11} />
+                  {t("msg.regenerate")}
+                </button>
+              )}
+              {onFeedback && (
+                <>
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 border-0 rounded bg-transparent text-[10.5px] cursor-pointer transition-colors disabled:cursor-default ${rated === "up" ? "text-ok" : "text-fg-faint/50 hover:text-fg"} ${rated !== null && rated !== "up" ? "opacity-40" : ""}`}
+                    disabled={rated !== null}
+                    onClick={() => sendFeedback("up")}
+                    title={rated === "up" ? t("msg.feedbackDone") : t("msg.feedbackUp")}
+                    aria-label={t("msg.feedbackUp")}
+                  >
+                    {rated === "up" ? <ThumbsUpFilled size={11} className="text-ok" /> : <ThumbsUp size={11} />}
+                  </button>
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 border-0 rounded bg-transparent text-[10.5px] cursor-pointer transition-colors disabled:cursor-default ${rated === "down" ? "text-err" : "text-fg-faint/50 hover:text-fg"} ${rated !== null && rated !== "down" ? "opacity-40" : ""}`}
+                    disabled={rated !== null}
+                    onClick={() => sendFeedback("down")}
+                    title={rated === "down" ? t("msg.feedbackDone") : t("msg.feedbackDown")}
+                    aria-label={t("msg.feedbackDown")}
+                  >
+                    {rated === "down" ? <ThumbsDownFilled size={11} className="text-err" /> : <ThumbsDown size={11} />}
+                  </button>
+                </>
+              )}
+              </div>
+            </div>
+          )}
+        </div>
+    </div>
+  );
+});

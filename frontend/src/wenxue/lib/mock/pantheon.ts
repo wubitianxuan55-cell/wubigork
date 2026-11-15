@@ -1,0 +1,848 @@
+import type { PantheonBindings } from '../bridge/pantheon'
+import type {
+  PantheonAgentStatus,
+  PantheonContribution,
+  PantheonEvaluationCaseCoverage,
+  PantheonEvaluationReport,
+  PantheonEvaluationRun,
+  PantheonEvaluationVariantSummary,
+  PantheonEvent,
+  PantheonSession,
+  PantheonSessionSummary,
+  PantheonStartRequest,
+  PantheonWorkspace,
+} from '../types/pantheon'
+
+const now = () => Date.now()
+
+function summary(session: PantheonSession): PantheonSessionSummary {
+  const issues = session.issues || []
+  return {
+    id: session.id,
+    title: session.title,
+    workspace: session.request.workspace,
+    status: session.status,
+    phase: session.phase,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    agentCount: session.participants.length,
+    verdictSummary: session.verdict?.recommendation,
+    issueCount: issues.length,
+    openIssueCount: issues.filter((issue) => issue.status === 'open').length,
+    dissentCount: issues.filter((issue) => issue.status === 'dissent').length,
+    error: session.error,
+  }
+}
+
+function exportSession(session: PantheonSession): string {
+  const verdict = session.verdict
+  return [
+    `# 众神殿议事录 · ${session.title}`,
+    '',
+    session.request.workspace ? `- 工作空间：${session.request.workspace}` : '',
+    session.request.untilConsensus
+      ? `- 讨论模式：不限轮次，至全员一致（上限 ${session.request.maxRounds || session.request.rounds} 轮）`
+      : `- 讨论轮数：${session.request.rounds}`,
+    `- ID：${session.id}`,
+    `- 状态：${session.status}`,
+    `- 议题：${session.request.topic}`,
+    '',
+    '## 讨论小结',
+    '',
+    verdict?.recommendation || '未形成自动小结。',
+    '',
+    verdict?.summary || '',
+    '',
+    ...(verdict?.risks || []).map((item) => `- 风险：${item}`),
+    '',
+    '> 本纪要是多轮讨论整理，不等同于用户确认。',
+  ].join('\n')
+}
+
+export function buildPantheon(): PantheonBindings {
+  let agents: PantheonAgentStatus[] = [
+    {
+      id: 'grok',
+      name: 'Grok',
+      kind: 'Gaea 办公席位 · xAI',
+      available: true,
+      version: 'grok-4 (mock)',
+      capabilities: [
+        'chairman', 'gaea-model', 'gaea-office-tools', 'read-only-tools',
+        'tool-trajectory', 'shared-image-summary', 'image-path-tools',
+      ],
+    },
+    {
+      id: 'codex', name: 'Codex', kind: 'OpenAI Codex CLI', available: true,
+      version: 'mock', capabilities: ['read-only', 'image-input', 'shared-image-summary'],
+    },
+    {
+      id: 'zcode', name: 'ZCode', kind: 'ZCode CLI', available: true,
+      version: 'mock', capabilities: ['plan-mode', 'image-input', 'shared-image-summary'],
+    },
+    {
+      id: 'dsh', name: 'DeepSeek Harness', kind: 'DSH headless', available: true,
+      version: 'mock', capabilities: ['read-only', 'shared-image-summary'],
+    },
+  ]
+  const workspaces: PantheonWorkspace[] = [
+    { path: 'C:/AI/wubigrok', name: 'wubigrok', current: true },
+    { path: 'C:/AI/gaea-research', name: 'gaea-research', current: false, recent: true },
+  ]
+  const sessions = new Map<string, PantheonSession>()
+
+  const evaluationReport = (minCases: number): PantheonEvaluationReport => {
+    const requiredVariants = ['single', 'independent_synthesis', 'roundtable', 'targeted_challenge']
+    const runs: PantheonEvaluationRun[] = [...sessions.values()].map((session) => {
+      const preset = session.request.preset || 'roundtable'
+      const agentCount = session.request.agentIds.length
+      const variant = preset === 'targeted_challenge'
+        ? 'targeted_challenge'
+        : preset === 'red_team'
+          ? 'red_team'
+          : agentCount <= 1
+            ? 'single'
+            : session.request.protocol === 'council'
+              ? 'council_relay'
+              : session.request.rounds <= 1
+                ? 'independent_synthesis'
+                : 'roundtable'
+      const discussion = session.contributions.filter(
+        (item) => item.phase === 'opening' || item.phase === 'discussion',
+      )
+      return {
+        sessionId: session.id,
+        caseKey: `case_mock_${session.request.topic.trim()}`,
+        title: session.title,
+        variant,
+        status: session.status,
+        protocol: session.request.protocol || 'independent',
+        preset,
+        agentIds: session.request.agentIds,
+        runtimeVersions: Object.fromEntries(
+          session.participants
+            .filter((participant) => participant.version)
+            .map((participant) => [participant.agentId, participant.version || '']),
+        ),
+        participantCount: session.participants.length,
+        versionedParticipants: session.participants.filter((participant) => participant.version).length,
+        expectedRounds: session.request.rounds,
+        actualRounds: session.currentRound || 0,
+        callCount: session.events.filter((event) => event.kind === 'agent_started').length,
+        retryCount: session.events.filter((event) => event.kind === 'agent_retry').length,
+        errorCount: session.events.filter((event) => event.kind === 'agent_error').length,
+        toolCallCount: session.events.filter((event) => event.kind === 'tool_started').length,
+        wallDurationMs: Math.max(0, session.updatedAt - session.createdAt),
+        agentDurationMs: session.events.reduce((sum, event) => sum + (event.durationMs || 0), 0),
+        gapCount: session.gaps?.length || 0,
+        discussionCount: discussion.length,
+        evidenceHandledCount: discussion.filter((item) => item.evidenceHandle).length,
+        unverifiedMentions: discussion.filter(
+          (item) => item.content.includes('未核验') || item.content.includes('未验证'),
+        ).length,
+        userNoteCount: session.contributions.filter((item) => item.agentId === 'user').length,
+        issueCount: session.issues?.length || 0,
+        resolvedIssueCount: session.issues?.filter((issue) => issue.status === 'resolved').length || 0,
+        dissentIssueCount: session.issues?.filter((issue) => issue.status === 'dissent').length || 0,
+        attestationCount: session.attestations?.length || 0,
+        unknownAttestations: session.attestations?.filter(
+          (attestation) => attestation.position === 'unknown',
+        ).length || 0,
+        verdictPartial: session.verdict?.partial || false,
+        verdictRevised: Boolean(session.verdict?.revisedFromSha256),
+        signOffDecision: session.signoff?.decision,
+        runModes: [...new Set(
+          session.contributions.map((item) => item.runMode).filter((value): value is string => Boolean(value)),
+        )],
+        createdAt: session.createdAt,
+      }
+    })
+    const caseMap = new Map<string, PantheonEvaluationCaseCoverage>()
+    for (const run of runs) {
+      const coverage = caseMap.get(run.caseKey) || {
+        key: run.caseKey,
+        title: run.title,
+        variants: [],
+        completedVariants: [],
+        missingVariants: [],
+      }
+      if (!coverage.variants.includes(run.variant)) coverage.variants.push(run.variant)
+      if (run.status === 'completed' && !coverage.completedVariants?.includes(run.variant)) {
+        coverage.completedVariants?.push(run.variant)
+      }
+      caseMap.set(run.caseKey, coverage)
+    }
+    for (const coverage of caseMap.values()) {
+      coverage.missingVariants = requiredVariants.filter(
+        (variant) => !coverage.completedVariants?.includes(variant),
+      )
+    }
+    const variantMap = new Map<string, PantheonEvaluationVariantSummary>()
+    for (const run of runs) {
+      const item = variantMap.get(run.variant) || {
+        variant: run.variant,
+        sessions: 0,
+        completedSessions: 0,
+        signedOffSessions: 0,
+        acceptedSessions: 0,
+      }
+      item.sessions++
+      if (run.status === 'completed') item.completedSessions++
+      if (run.signOffDecision) {
+        item.signedOffSessions++
+        if (run.signOffDecision === 'accepted') item.acceptedSessions++
+      }
+      variantMap.set(run.variant, item)
+    }
+    const cases = [...caseMap.values()]
+    const qualifiedCases = cases.filter(
+      (coverage) => (coverage.missingVariants?.length || 0) === 0,
+    ).length
+    return {
+      generatedAt: now(),
+      requiredCases: minCases,
+      caseCount: cases.length,
+      qualifiedCases,
+      requiredVariants,
+      unsupportedVariants: ['fixed_vote'],
+      gateReady: qualifiedCases >= minCases,
+      variants: [...variantMap.values()],
+      cases,
+      runs,
+      warnings: [
+        `有效对照仅 ${qualifiedCases}/${minCases} 个议题；每个议题须完成单席、独立多答、圆桌与定向质询。`,
+        'Token 与费用未入档，本报告不输出成本结论。',
+        '事实错误、关键反例、证据覆盖率与复用意願须另附人工评审。',
+      ],
+    }
+  }
+
+  const makeSession = (request: PantheonStartRequest): PantheonSession => {
+    const stamp = now()
+    const id = `pan_mock_${stamp}`
+    const participants = request.agentIds.map((agentID) => {
+      const agent = agents.find((item) => item.id === agentID)
+      return {
+        agentId: agentID,
+        name: agent?.name || agentID,
+        role: 'participant',
+        status: 'waiting',
+        version: agent?.version,
+      }
+    })
+    const events: PantheonEvent[] = [{
+      seq: 1,
+      sessionId: id,
+      phase: 'preparing',
+      kind: 'session_started',
+      text: '众神殿圆桌讨论开始',
+      at: stamp,
+    }]
+    return {
+      id,
+      title: request.title || request.topic.split('\n')[0].slice(0, 48),
+      status: 'running',
+      phase: 'preparing',
+      createdAt: stamp,
+      updatedAt: stamp,
+      request,
+      participants,
+      events,
+      contributions: [],
+    }
+  }
+
+  const addRoundEvents = (session: PantheonSession, round: number, phase: string) => {
+    const order = session.participants.map((participant) => participant.agentId)
+    const offset = (round - 1) % Math.max(order.length, 1)
+    const roundOrder = [...order.slice(offset), ...order.slice(0, offset)]
+    roundOrder.forEach((agentID, index) => {
+      if (session.events.some(
+        (event) => event.kind === 'agent_output'
+          && event.agentId === agentID
+          && event.round === round,
+      )) return
+      const participant = session.participants.find((item) => item.agentId === agentID)
+      if (!participant) return
+      {
+        const toolID = `${session.id}-${agentID}-r${round}-tool`
+        const toolName = agentID === 'grok'
+          ? 'semantic_search'
+          : agentID === 'zcode'
+            ? 'Glob'
+            : agentID === 'dsh'
+              ? 'pwsh'
+              : '命令'
+        const toolInput = agentID === 'grok'
+          ? '检索与议题相关的办公资料与知识条目'
+          : agentID === 'zcode'
+            ? '寻找与议题相关的项目文件'
+            : agentID === 'dsh'
+              ? '读取项目目录与关键配置'
+              : '检索相关代码与文档'
+        session.events.push({
+          seq: session.events.length + 1,
+          sessionId: session.id,
+          phase,
+          round,
+          agentId: agentID,
+          kind: 'tool_started',
+          text: `${participant.name} 正在使用 ${toolName}`,
+          toolId: toolID,
+          toolName,
+          toolStatus: 'started',
+          toolInput,
+          at: now(),
+        })
+        session.events.push({
+          seq: session.events.length + 1,
+          sessionId: session.id,
+          phase,
+          round,
+          agentId: agentID,
+          kind: 'tool_result',
+          text: `${participant.name} 已完成 ${toolName}`,
+          toolId: toolID,
+          toolName,
+          toolStatus: 'completed',
+          toolInput,
+          toolOutput: '已读取 3 个相关文件，未修改工作区。',
+          at: now(),
+          durationMs: 460 + index * 120,
+        })
+      }
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase,
+        round,
+        agentId: agentID,
+        kind: 'agent_output',
+        text: phase === 'opening'
+          ? `我的初步判断是先从可中止的垂直切片开始。主要依据是成本边界可控；当前最大的不确定是长期复用数据。\n协作请求：请补充失败条件和验证指标。\n置信度：${index === 0 ? '高' : '中'}。`
+          : '我吸收了前文对成本与失败边界的补充，建议先记录单 Agent 基线，再加入多席讨论，避免把形式收益误当成质量收益。\n保留意见：多轮讨论是否带来稳定增益仍需验证。',
+        at: now(),
+        durationMs: 1800 + index * 260,
+      })
+    })
+  }
+
+  const advance = (session: PantheonSession) => {
+    if (session.status !== 'running') return
+    const elapsed = now() - session.createdAt
+    if (elapsed < 500) return
+    if (elapsed < 1100) {
+      session.phase = 'opening'
+      session.currentRound = 1
+      addRoundEvents(session, 1, 'opening')
+      session.participants.forEach((participant, index) => {
+        participant.status = index === 0 ? 'running' : 'waiting'
+      })
+      return
+    }
+    if (elapsed < 1700) {
+      addRoundEvents(session, 1, 'opening')
+      session.phase = 'discussion'
+      session.currentRound = 2
+      addRoundEvents(session, 2, 'discussion')
+      session.participants.forEach((participant) => { participant.status = 'finished' })
+      return
+    }
+    if (elapsed < 2200) {
+      session.phase = 'synthesis'
+      session.participants.forEach((participant) => {
+        participant.status = participant.agentId === session.request.chairmanAgentId ? 'running' : 'finished'
+      })
+      return
+    }
+    const totalRounds = session.request.untilConsensus
+      ? 2
+      : Math.max(2, Math.min(20, session.request.rounds || 2))
+    const contributions: PantheonContribution[] = []
+    const order = session.participants.map((participant) => participant.agentId)
+    for (let round = 1; round <= totalRounds; round++) {
+      const offset = (round - 1) % Math.max(order.length, 1)
+      const roundOrder = [...order.slice(offset), ...order.slice(0, offset)]
+      roundOrder.forEach((agentID, index) => {
+        const participant = session.participants.find((item) => item.agentId === agentID)
+        if (!participant) return
+        const targetContributionId = `${session.id}-${order[0]}-round-1`
+        contributions.push({
+          id: `${session.id}-${agentID}-round-${round}`,
+          phase: round === 1 ? 'opening' : 'discussion',
+          round,
+          agentId: agentID,
+          agentName: participant.name,
+          content: round === 1
+            ? `我的理解：建议先用可中止的垂直切片验证方向。\n主要依据：改造成本与失败边界可控，但缺少长期复用数据。\n协作请求：请帮助补充失败条件和验证指标。\n置信度：${index === 0 ? '高' : '中'}。`
+            : '我吸收了前文的成本边界建议，补充一个验证策略：先记录单 Agent 基线，再加入多席讨论，避免把形式收益误当成质量收益。\n仍待验证：多轮讨论是否会带来可观增益。',
+          consensus: round > 1 ? 'yes' : undefined,
+          discussionAct: round === 1
+            ? 'claim'
+            : agentID === 'dsh'
+              ? 'challenge'
+              : 'reinforce',
+          targetContributionId: round > 1 && agentID === 'dsh' ? targetContributionId : undefined,
+          challengedClaim: round > 1 && agentID === 'dsh'
+            ? '两轮讨论一定优于单 Agent 直答'
+            : undefined,
+          createdAt: session.createdAt + 500 + round * 400 + index * 80,
+        })
+      })
+    }
+    const facilitator = session.participants.find(
+      (participant) => participant.agentId === session.request.chairmanAgentId,
+    ) || session.participants[0]
+    if (facilitator) {
+      contributions.push({
+        id: `${session.id}-${facilitator.agentId}-synthesis`,
+        phase: 'synthesis',
+        agentId: facilitator.agentId,
+        agentName: facilitator.name,
+        anonLabel: '协作汇总',
+        content: '各参与者都支持先做可中止的只读验证；主要分歧集中在验证周期和扩展条件。',
+        createdAt: now(),
+      })
+    }
+    session.contributions = contributions
+    if (session.request.untilConsensus) {
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: 'discussion',
+        round: 2,
+        kind: 'consensus',
+        text: '第 2 轮全员意见一致，提前进入协作汇总',
+        at: now(),
+      })
+    }
+    session.events.push(
+      {
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: 'completed',
+        kind: 'verdict',
+        text: '先做只读 MVP，通过接入门与产品门后再扩展。',
+        at: now(),
+      },
+      {
+        seq: session.events.length + 2,
+        sessionId: session.id,
+        phase: 'completed',
+        kind: 'completed',
+        text: '讨论小结已形成，等待用户确认',
+        at: now(),
+      },
+    )
+    session.status = 'completed'
+    session.phase = 'completed'
+    session.updatedAt = now()
+    session.verdict = {
+      summary: session.request.untilConsensus
+        ? '各参与者通过多轮补充论证，最终对当前综合方向达成一致。'
+        : '各参与者通过多轮补充论证，认可先做可中止的只读验证，同时对讨论顺序、验证周期和扩展条件保留了不同判断。',
+      recommendation: '先完成小范围只读试点，并记录单 Agent 与多席讨论的对照数据，再根据实际增益决定是否扩大。',
+      conditions: ['只开放 Codex / ZCode / DSH', '不授予工作区写入权限', '一席失败不阻塞其他 Agent'],
+      disagreements: session.request.untilConsensus
+        ? []
+        : ['验证周期是否应超过两轮仍缺少一致意见'],
+      risks: ['CLI 版本漂移', '多 Agent 调用成本高于单 Agent', '模型共识不等于事实正确'],
+      evidenceNotes: ['竞品验证了议事形态，但没有证明本项目用户会持续复用'],
+      proposedActions: [{
+        id: 'action-1',
+        action: '完成单 Agent 与四席同题对照',
+        rationale: '先验证讨论是否带来可观测增益',
+        dependsOn: ['冻结参与席模型版本'],
+        acceptanceEvidence: '10 组原始记录、耗时与用户接受结果',
+        suggestedOwner: '用户',
+        risk: '样本不足会放大随机差异',
+      }],
+      chairman: session.request.chairmanAgentId,
+      partial: false,
+      createdAt: now(),
+    }
+    if (session.request.preset === 'red_team') {
+      session.attestations = session.participants.map((participant, index) => ({
+        agentId: participant.agentId,
+        agentName: participant.name,
+        position: index === session.participants.length - 1 ? 'oppose' : 'support',
+        reason: index === session.participants.length - 1
+          ? '成本证据仍不足，反对直接扩大范围'
+          : '当前结论与已核验材料一致',
+        conditions: index === session.participants.length - 1
+          ? ['先完成同任务对照']
+          : undefined,
+        issueIds: index === session.participants.length - 1
+          ? [`${session.id}-issue-1`]
+          : undefined,
+        verdictSha256: 'mock-original',
+        createdAt: now(),
+      }))
+      session.verdict.revisedFromSha256 = 'mock-original'
+      session.verdict.revisionReason = '吸收成本证据缺口，保留有条件的只读试点建议'
+    }
+    session.issues = [{
+      id: `${session.id}-issue-1`,
+      round: 1,
+      agentId: 'zcode',
+      agentName: 'ZCode',
+      summary: '验证周期是否应先限定为两轮，缺少可对照的实测基线',
+      origin: 'residual',
+      claimAgentIds: ['codex'],
+      claimAgentNames: ['Codex'],
+      dissentAgentIds: ['zcode'],
+      dissentAgentNames: ['ZCode'],
+      counterpointIds: [`${session.id}-codex-round-1`],
+      evidence: '首轮讨论中的成本边界与失败条件记录',
+      flipCondition: '若两轮试点无法区分单席与多席收益，则延长到四轮',
+      verification: '第 2 轮补充单 Agent 与四席同题对照记录',
+      blocking: true,
+      disposition: '第 2 轮撤回',
+      resolutionEvidence: 'Codex 第 2 轮提供的单 Agent 基线方案',
+      lastSeenIn: 1,
+      status: 'resolved',
+      resolvedAt: now(),
+      resolvedIn: 2,
+    }]
+    if (!session.request.untilConsensus) {
+      session.issues.push({
+        id: `${session.id}-issue-2`,
+        round: 2,
+        agentId: 'dsh',
+        agentName: 'DeepSeek Harness',
+        summary: '多席讨论的稳定增益仍需与单 Agent 基线对照后确认',
+        origin: 'challenge',
+        targetContributionId: `${session.id}-${session.request.agentIds[0]}-round-1`,
+        challengedClaim: '多席讨论一定带来稳定增益',
+        claimAgentIds: ['grok', 'codex'],
+        claimAgentNames: ['Grok', 'Codex'],
+        dissentAgentIds: ['dsh'],
+        dissentAgentNames: ['DeepSeek Harness'],
+        counterpointIds: [`${session.id}-grok-round-2`, `${session.id}-codex-round-2`],
+        evidence: '当前缺少同任务、同材料的单 Agent 对照数据【未核验】',
+        responseVerdict: 'reject',
+        responseEvidence: '现有方向判断认为共享上下文有价值，但尚未提供对照数据',
+        responseAgentIds: [session.request.agentIds[0]],
+        responseAgentNames: [session.participants.find(
+          (participant) => participant.agentId === session.request.agentIds[0],
+        )?.name || session.request.agentIds[0]],
+        responseContributionIds: [`${session.id}-${session.request.agentIds[0]}-round-2`],
+        flipCondition: '出现至少 8 组同任务对照，且多席反例发现率显著更高',
+        verification: '用 10 组同题盲测记录反例数量、质量与调用成本',
+        blocking: true,
+        disposition: '讨论结束仍保留',
+        lastSeenIn: 2,
+        status: 'dissent',
+      })
+    }
+    session.verdict.issueReviews = [{
+      issueId: session.issues[0].id,
+      outcome: 'resolved',
+      reason: '提出者已用第 2 轮对照记录撤回，建议结案。',
+      evidence: session.issues[0].resolutionEvidence,
+    }]
+    if (!session.request.untilConsensus) {
+      session.verdict.issueReviews.push({
+        issueId: session.issues[1].id,
+        outcome: 'needs_verification',
+        reason: '当前只有方向判断，建议先完成单席与多席盲测。',
+        evidence: '尚无同任务对照数据',
+      })
+    }
+  }
+
+  return {
+    PantheonAgents: async () => agents,
+    PantheonWorkspaces: async () => structuredClone(workspaces),
+    PantheonPickWorkspace: async () => {
+      const picked: PantheonWorkspace = {
+        path: 'C:/AI/council-workspace',
+        name: 'council-workspace',
+        current: false,
+        recent: true,
+      }
+      if (!workspaces.some((workspace) => workspace.path === picked.path)) {
+        workspaces.push(picked)
+      }
+      return picked.path
+    },
+    PantheonList: async () => [...sessions.values()]
+      .map(summary)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+    PantheonEvaluation: async (minCases) => evaluationReport(minCases),
+    PantheonGet: async (id) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      advance(session)
+      return structuredClone(session)
+    },
+    PantheonStart: async (request) => {
+      const session = makeSession({
+        ...request,
+        workspace: request.workspace || workspaces[0]?.path,
+        readOnly: true,
+      })
+      sessions.set(session.id, session)
+      return structuredClone(session)
+    },
+    PantheonCancel: async (id) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      session.status = 'cancelled'
+      session.phase = 'cancelled'
+      session.error = '用户终止了本次议事'
+      session.updatedAt = now()
+    },
+    PantheonSkipAgent: async (id, agentId) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      const participant = session.participants.find((item) => item.agentId === agentId)
+      if (!participant || participant.status !== 'running') {
+        throw new Error('当前没有可跳过的 Agent 调用')
+      }
+      participant.status = 'skipped'
+      participant.finishedAt = now()
+      participant.error = '用户跳过当前调用'
+      session.updatedAt = now()
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId,
+        kind: 'agent_skipped',
+        text: `${participant.name} 当前调用已跳过，继续下一位 Agent`,
+        at: now(),
+      })
+    },
+    PantheonRetryAgent: async (id, agentId) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      const participant = session.participants.find((item) => item.agentId === agentId)
+      if (!participant || participant.status !== 'running') {
+        throw new Error('当前没有可重试的 Agent 调用')
+      }
+      participant.status = 'retrying'
+      participant.finishedAt = 0
+      participant.error = ''
+      session.updatedAt = now()
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId,
+        kind: 'agent_retry',
+        text: `${participant.name} 正在重新调用，保留此前发言`,
+        at: now(),
+      })
+    },
+    PantheonRestart: async (id) => {
+      const previous = sessions.get(id)
+      if (!previous) throw new Error('议事不存在')
+      if (previous.status === 'running') {
+        previous.status = 'cancelled'
+        previous.phase = 'cancelled'
+        previous.error = '用户重新开始本次议事'
+        previous.updatedAt = now()
+      }
+      const session = makeSession(structuredClone(previous.request))
+      sessions.set(session.id, session)
+      return structuredClone(session)
+    },
+    PantheonResume: async (id) => {
+      // mock 恢复：保留既有贡献，标记回运行态交给常规调度演示。
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status === 'running') throw new Error('讨论仍在进行，无需恢复')
+      if (session.status === 'completed') throw new Error('讨论已完成；续议请使用「基于小结续议」')
+      if ((session.contributions || []).length === 0) {
+        throw new Error('该场没有可续的历史发言；请使用「重开整场」')
+      }
+      session.status = 'running'
+      session.phase = 'preparing'
+      session.error = ''
+      session.updatedAt = now()
+      advance(session)
+      return structuredClone(session)
+    },
+    PantheonDelete: async (id) => {
+      if (!sessions.delete(id)) throw new Error('议事不存在')
+    },
+    PantheonExport: async (id) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      return exportSession(session)
+    },
+    PantheonOpenResult: async (id) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status === 'running' || session.status === 'waiting_input') throw new Error('讨论尚未结束，暂无结果文档')
+      session.resultPath = session.resultPath || `C:/AI/wubigrok/.gaea/pantheon/results/${id}.md`
+      return session.resultPath
+    },
+    PantheonSignOff: async (id, decision, note) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status === 'running') throw new Error('议事仍在运行')
+      session.signoff = { decision, note, at: now() }
+      session.updatedAt = now()
+      return structuredClone(session)
+    },
+    PantheonSetExecutable: async (id, path) => {
+      if (id === 'grok') {
+        throw new Error('Grok 由 Gaea 办公 AgentRunner 驱动，无需配置可执行路径')
+      }
+      agents = agents.map((agent) => agent.id === id
+        ? { ...agent, available: Boolean(path), executable: path, reason: path ? '' : '未配置路径' }
+        : agent)
+      return agents
+    },
+    // O-E：演示环境同样守"停下等人、答完不自动续跑、门只认显式处理"。
+    PantheonAskSeat: async (id, agentId, question, options) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'running') throw new Error('议事不在运行中，无法提问')
+      const at = now()
+      const questionId = `${session.id}-q${session.events.length + 1}`
+      session.status = 'waiting_input'
+      const participant = session.participants.find((item) => item.agentId === agentId)
+      if (participant) {
+        participant.status = 'needs_input'
+        participant.evidence = `向用户提问：${question}`
+      }
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId,
+        kind: 'question',
+        text: question,
+        question: { questionId, options, askedBy: agentId, at },
+        at,
+      })
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonAnswerSeat: async (id, questionId, body) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      const asked = session.events.find(
+        (event) => event.kind === 'question' && event.question?.questionId === questionId,
+      )
+      if (!asked || !asked.question) throw new Error('该提问不存在或已经回答')
+      const already = session.events.some(
+        (event) => event.kind === 'answer' && event.answer?.questionId === questionId,
+      )
+      if (already) throw new Error('该提问不存在或已经回答')
+      const at = now()
+      const askedBy = asked.question.askedBy
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId: askedBy,
+        kind: 'answer',
+        text: body,
+        answer: { questionId, body, by: 'user', at },
+        at,
+      })
+      const participant = session.participants.find((item) => item.agentId === askedBy)
+      if (participant && participant.status === 'needs_input') participant.status = 'waiting'
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonAddUserNote: async (id, content) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'running' && session.status !== 'waiting_input') {
+        throw new Error('讨论已结束，无法继续评论')
+      }
+      const at = now()
+      const contributionID = `${session.id}-user-${at}`
+      session.contributions.push({
+        id: contributionID,
+        phase: 'user_note',
+        round: session.currentRound,
+        agentId: 'user',
+        agentName: '用户',
+        content,
+        createdAt: at,
+      })
+      session.issues = [
+        ...(session.issues || []),
+        {
+          id: `${session.id}-issue-${(session.issues?.length || 0) + 1}`,
+          round: session.currentRound || 1,
+          agentId: 'user',
+          agentName: '用户',
+          summary: content.slice(0, 200),
+          origin: 'user',
+          targetContributionId: contributionID,
+          evidence: contributionID,
+          flipCondition: '用户补充新指令、材料或明确撤回该插话',
+          verification: '各席在后续发言中回应并说明如何纳入本轮判断',
+          blocking: true,
+          disposition: '等待各席回应',
+          lastSeenIn: session.currentRound || 1,
+          status: 'open',
+        },
+      ]
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        agentId: 'user',
+        kind: 'user_note',
+        text: content,
+        at,
+      })
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonOpenGate: async (id, reason) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (session.status !== 'running') throw new Error('只有进行中的议事才能开决策门')
+      const at = now()
+      const text = reason.trim() || '用户请求在轮次之间停一下'
+      session.status = 'waiting_input'
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        kind: 'gate',
+        text,
+        gate: { action: 'open', reason: text },
+        at,
+      })
+      session.updatedAt = at
+      return structuredClone(session)
+    },
+    PantheonResolveGate: async (id, action, reason) => {
+      const session = sessions.get(id)
+      if (!session) throw new Error('议事不存在')
+      if (action === 'dismiss' && !reason.trim()) throw new Error('放弃决策门必须写明理由')
+      const at = now()
+      session.events.push({
+        seq: session.events.length + 1,
+        sessionId: session.id,
+        phase: session.phase,
+        round: session.currentRound,
+        kind: 'gate',
+        text: action === 'dismiss' ? `放弃决策门：${reason}` : '放行决策门，议事继续',
+        gate: { action, reason },
+        at,
+      })
+      session.status = 'running'
+      session.error = ''
+      session.updatedAt = at
+      advance(session)
+      return structuredClone(session)
+    },
+  }
+}

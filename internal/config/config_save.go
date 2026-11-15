@@ -145,8 +145,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyImageModel:        func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
 	KeyPortraitBackend:   func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
 	KeyPortraitModel:     func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
-	KeySinImageBackend:   func(cf *configFile, v string) error { cf.SinImageBackend = v; return nil },
-	KeySinImageModel:     func(cf *configFile, v string) error { cf.SinImageModel = v; return nil },
+	KeyWenxueWorkspace:   func(cf *configFile, v string) error { cf.WenxueWorkspace = v; return nil },
 	KeyComfyUIPath:       func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
 	KeyComfyUIPythonPath: func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
 	KeyTianxuanPath:      func(cf *configFile, v string) error { cf.TianxuanPath = v; return nil },
@@ -290,16 +289,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	},
 	KeyFuncRoutineEngine: func(cf *configFile, v string) error { cf.FuncRoutineEngine = v; return nil },
 	KeyFuncRoutineModel:  func(cf *configFile, v string) error { cf.FuncRoutineModel = v; return nil },
-	KeyFuncSinEngine:     func(cf *configFile, v string) error { cf.FuncSinEngine = v; return nil },
-	KeyFuncSinModel:      func(cf *configFile, v string) error { cf.FuncSinModel = v; return nil },
-	KeyFuncSinEnabled: func(cf *configFile, v string) error {
-		b, err := parseBoolPtr(v)
-		if err != nil {
-			return err
-		}
-		cf.FuncSinEnabled = b
-		return nil
-	},
 	KeyFuncRoutineEnabled: func(cf *configFile, v string) error {
 		b, err := parseBoolPtr(v)
 		if err != nil {

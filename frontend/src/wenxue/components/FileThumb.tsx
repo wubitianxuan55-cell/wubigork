@@ -1,0 +1,128 @@
+import { memo, useEffect, useState } from "react";
+import { File, FileImage, FilePpt, FileSpreadsheet, FileText } from "../icons";
+import { app } from "../lib/bridge";
+import type { XlsxPreview } from "../lib/types";
+import { getCachedAttachmentDataURL } from '../../components/characterlib/usePortraitUrl';
+
+// 交付物图片扩展名：命中后优先渲染缩略图，其余回退类型图标。
+export const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
+
+export function FileTypeIcon({ ext, size }: { ext: string; size: number }) {
+  if (/\.(xlsx?|csv|et|ods)$/i.test(ext)) return <FileSpreadsheet size={size} />;
+  if (/\.(pptx?|dps|odp)$/i.test(ext)) return <FilePpt size={size} />;
+  if (IMAGE_EXT_RE.test(ext)) return <FileImage size={size} />;
+  if (/\.(docx?|pdf|md|markdown|txt|odt|rtf|wps|ofd|html?)$/i.test(ext)) return <FileText size={size} />;
+  return <File size={size} />;
+}
+
+// 迷你内容缩略图（P1，对标豆包 PPT 卡片 / AutoGPT MIME 插图）：产物列表里
+// 「看得见内容」比「看得见图标」更接近成果。
+// - xlsx/csv/et/ods → 渲染前 3 行 × 前 3 列的迷你表格（复用 GaeaPreview 结构化数据）
+// - md/txt → 渲染前几行文本摘要
+// - 图片 → 保持 dataURL 缩略图；其余回退类型图标；任何加载失败静默回退类型图标。
+export const FileThumb = memo(function FileThumb({
+  path,
+  ext,
+  imgClassName,
+}: {
+  path: string;
+  ext: string;
+  imgClassName?: string;
+}) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [grid, setGrid] = useState<string[][] | null>(null);
+  const [textLines, setTextLines] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setDataUrl(null);
+    setGrid(null);
+    setTextLines(null);
+    if (IMAGE_EXT_RE.test(ext)) {
+      getCachedAttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
+    } else if (/\.(xlsx?|csv|et|ods)$/i.test(ext)) {
+      // 复用 GaeaPreview 的结构化单元格 JSON：取首表前 4 行 × 前 4 列
+      // （首行通常是表头，渲染时用强调色区分）
+      app.Preview(path).then((p) => {
+        if (!live || p.kind !== "xlsx" || !p.body) return;
+        try {
+          const parsed = JSON.parse(p.body) as XlsxPreview;
+          const rows = parsed.sheets?.[0]?.rows ?? [];
+          const sample = rows.slice(0, 4).map((r) => r.slice(0, 4).map((c) => c.value ?? ""));
+          if (sample.length > 0) setGrid(sample);
+        } catch { /* 回退类型图标 */ }
+      }).catch(() => {});
+    } else if (/\.(md|markdown|txt|log|json|toml|yaml|yml|csv|tsv|docx|pdf)$/i.test(ext)) {
+      app.Preview(path).then((p) => {
+        if (!live || (p.kind !== "markdown" && p.kind !== "text" && p.kind !== "docx") || !p.body) return;
+        // 剥掉 Markdown 标记（# 标题、- 列表、| 表格、> 引用），只留可读文本
+        const lines = p.body
+          .split("\n")
+          .map((l) => l.replace(/^\s{0,3}#+\s+/, "").replace(/^\s*[-*+]\s+/, "").replace(/^\s*>\s?/, "").replace(/^\s*\|/, "").trim())
+          .filter(Boolean)
+          .slice(0, 3);
+        if (lines.length > 0) setTextLines(lines);
+      }).catch(() => {});
+    }
+    return () => { live = false; };
+  }, [path, ext]);
+
+  if (dataUrl) {
+    return (
+      <img
+        src={dataUrl}
+        alt=""
+        className={imgClassName ?? "w-10 h-8 object-cover rounded-[5px] border border-border-soft bg-bg"}
+      />
+    );
+  }
+  if (grid) {
+    return (
+      <div
+        className="grid gap-px p-0.5 overflow-hidden rounded-[5px] border border-border-soft bg-bg"
+        style={{
+          gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
+          width: "100%",
+          height: "100%",
+        }}
+        aria-label="表格内容缩略图"
+      >
+        {grid.map((row, ri) =>
+          row.map((cell, ci) => (
+            <span
+              key={`${ri}-${ci}`}
+              className="truncate text-[7px] leading-[1.15] px-0.5 py-px overflow-hidden"
+              style={{
+                color: ri === 0
+                  ? "var(--md-sys-color-text)"
+                  : "var(--md-sys-color-text-secondary)",
+                background: ri === 0
+                  ? "color-mix(in srgb, var(--gaea-glow) 16%, transparent)"
+                  : "color-mix(in srgb, var(--md-sys-color-outline-variant) 28%, transparent)",
+                fontWeight: ri === 0 ? 600 : 400,
+              }}
+              title={cell}
+            >
+              {cell || " "}
+            </span>
+          )),
+        )}
+      </div>
+    );
+  }
+  if (textLines) {
+    return (
+      <div
+        className="flex flex-col gap-0.5 p-1 overflow-hidden rounded-[5px] border border-border-soft bg-bg"
+        aria-label="文本内容缩略图"
+      >
+        {textLines.map((line, i) => (
+          <span key={i} className="truncate text-[7px] leading-[1.2] text-(color:--md-sys-color-text-secondary)">
+            {line}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  return <FileTypeIcon ext={ext} size={14} />;
+});

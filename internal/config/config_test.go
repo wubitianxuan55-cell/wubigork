@@ -236,44 +236,6 @@ func TestSave_RoutineBindingRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSaveLoad_SinBinding 原罪（闲庭·图文故事创作）功能级绑定往返：
-// func_sin_* 三键写盘后 Load 可读回，未配置时默认启用（与其余功能级绑定同语义）。
-func TestSaveLoad_SinBinding(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-
-	if !Load().GetFeatureModelEnabled("sin") {
-		t.Error("未配置时 sin 应默认启用")
-	}
-	if eng, model := Load().GetFeatureModel("sin"); eng != "" || model != "" {
-		t.Errorf("未绑定时 GetFeatureModel(sin) = (%q,%q), want 空（走全局）", eng, model)
-	}
-	if err := Save(KeyFuncSinEngine, "herdsman"); err != nil {
-		t.Fatalf("Save sin engine 失败: %s", err)
-	}
-	if err := Save(KeyFuncSinModel, "qwen3-8b"); err != nil {
-		t.Fatalf("Save sin model 失败: %s", err)
-	}
-	if err := Save(KeyFuncSinEnabled, "1"); err != nil {
-		t.Fatalf("Save sin enabled 失败: %s", err)
-	}
-	cfg := Load()
-	eng, model := cfg.GetFeatureModel("sin")
-	if eng != "herdsman" || model != "qwen3-8b" {
-		t.Errorf("GetFeatureModel(sin) = (%q,%q), want (herdsman,qwen3-8b)", eng, model)
-	}
-	if !cfg.GetFeatureModelEnabled("sin") {
-		t.Error("sin 保存为启用后应保持启用")
-	}
-	if err := Save(KeyFuncSinEnabled, "0"); err != nil {
-		t.Fatalf("Save sin disabled 失败: %s", err)
-	}
-	if Load().GetFeatureModelEnabled("sin") {
-		t.Error("保存 0 后 sin 应为停用")
-	}
-}
-
 // TestSaveLoad_VisionBinding 办公识图功能级绑定往返：func_vision_* 三键写盘
 // 后 Load 可读回，未配置时默认启用（与其余功能级绑定同语义）。
 func TestSaveLoad_VisionBinding(t *testing.T) {

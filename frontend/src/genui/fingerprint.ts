@@ -14,7 +14,7 @@ export function fingerprint(text: string): string {
  * 同一内容重放 → 同 key → 恢复状态；换内容 → 新 key → 干净起点。
  */
 export function genuiStateKey(
-  scope: "chat" | "office",
+  scope: "chat" | "office" | "wenxue",
   sessionKey: string,
   slot: string,
   content: string,
@@ -23,6 +23,6 @@ export function genuiStateKey(
 }
 
 /** 办公面板内容/交互 key（不绑定具体消息，面板原地更新）。 */
-export function genuiPanelKey(scope: "office", sessionKey: string, panelKey = "main"): string {
+export function genuiPanelKey(scope: "office" | "wenxue", sessionKey: string, panelKey = "main"): string {
   return `genui:${scope}:panel:${sessionKey}:${panelKey}`;
 }
