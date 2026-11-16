@@ -82,16 +82,16 @@ func (a *App) GetProjectInfo() map[string]interface{} {
 }
 
 // UpdateProjectMeta 更新当前项目可编辑元信息（标题/题材/文风/成人向档位）。
-// mature 取值白名单归一（""/sensual/explicit，非法值拒绝而不是静默洗白——
-// 档位挂错书是内容事故）。首个元信息更新绑定：此前 title/genre/style 均为
-// 建档即定格，v4.439.0 起书架/创作间可改。
+// mature 取值白名单归一（""/sensual/explicit/unrestricted，非法值拒绝而不是
+// 静默洗白——档位挂错书是内容事故）。首个元信息更新绑定：此前 title/genre/style
+// 均为建档即定格，v4.439.0 起书架/创作间可改。
 func (a *App) UpdateProjectMeta(title, genre, style, mature string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
 	}
 	if maturecraft.NormalizeLevel(mature) != mature {
-		return fmt.Errorf("成人向档位非法: %q（合法值：空/sensual/explicit）", mature)
+		return fmt.Errorf("成人向档位非法: %q（合法值：空/sensual/explicit/unrestricted）", mature)
 	}
 	pm.Meta.Title = strings.TrimSpace(title)
 	if pm.Meta.Title == "" {

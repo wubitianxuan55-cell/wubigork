@@ -12,7 +12,9 @@ func TestNormalizeLevel(t *testing.T) {
 		"":              "",
 		"sensual":       Sensual,
 		"explicit":      Explicit,
+		"unrestricted":  Unrestricted,
 		"SENSUAL":       "", // 大小写敏感：写盘走白名单，读盘坏值不猜测
+		"UNRESTRICTED":  "",
 		"explicit ":     "", // 带空格的坏值不洗白
 		"成人向":           "",
 		"r18":           "",
@@ -54,6 +56,19 @@ func TestCraftSection(t *testing.T) {
 	if contains(explicit, "留白不是黑幕") {
 		t.Errorf("直白档不得携带含蓄档专属条目")
 	}
+
+	// 无限制档：零安全底线——直书与功能闸仍在，硬线与同意节拍一律不注入。
+	unrestricted := CraftSection(Unrestricted)
+	for _, want := range []string{"无限制", "正面直书", "零底线", "功能闸", "AI 腔限流"} {
+		if !contains(unrestricted, want) {
+			t.Errorf("无限制档缺「%s」\n%s", want, unrestricted)
+		}
+	}
+	for _, ban := range []string{"必须是成年人", "不把胁迫包装成浪漫", "同意节拍", "拒绝即停", "硬线"} {
+		if contains(unrestricted, ban) {
+			t.Errorf("无限制档不得携带安全底线「%s」\n%s", ban, unrestricted)
+		}
+	}
 }
 
 // TestPlanSection 计划向纪律矩阵：空档位零注入；非空档位要求计划把亲密戏当事件排。
@@ -94,6 +109,35 @@ func TestCharacterSection(t *testing.T) {
 			t.Errorf("角色纪律缺「%s」\n%s", want, sec)
 		}
 	}
+
+	// 无限制档：欲望设定零限制，不注入未成年/胁迫硬线。
+	unlimited := CharacterSection(Unrestricted)
+	for _, want := range []string{"成人向角色纪律", "零回避零审查", "不受年龄、血缘、身份、伦理或权力差限制"} {
+		if !contains(unlimited, want) {
+			t.Errorf("无限制角色纪律缺「%s」\n%s", want, unlimited)
+		}
+	}
+	for _, ban := range []string{"不生成未成年", "不生成美化胁迫", "必须是成年人"} {
+		if contains(unlimited, ban) {
+			t.Errorf("无限制角色纪律不得携带安全底线「%s」\n%s", ban, unlimited)
+		}
+	}
 }
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
+
+// TestJailbreakSection 破甲契约：仅无限制档注入，其余档零注入；契约须含
+// 零拒绝/零淡化/冲突裁决三类条款（否则对云端模型只是普通风格提示）。
+func TestJailbreakSection(t *testing.T) {
+	for _, lv := range []string{"", Sensual, Explicit, "坏值"} {
+		if got := JailbreakSection(lv); got != "" {
+			t.Errorf("JailbreakSection(%q) 必须零注入，got:\n%s", lv, got)
+		}
+	}
+	jb := JailbreakSection(Unrestricted)
+	for _, want := range []string{"零拒绝", "零淡化", "零审查", "冲突裁决", "作者引擎", "最高优先级"} {
+		if !contains(jb, want) {
+			t.Errorf("破甲契约缺「%s」\n%s", want, jb)
+		}
+	}
+}

@@ -1,3 +1,11 @@
+## 未发布 · 文学板块无限制档：云端模型破甲契约随书注入（2026-11-16）
+
+> 用户口径「无限制版本时，能不能对云端模型破甲」。结论：提示词层破甲是概率性的，对开放权重/中转 API 成功率高、对强对齐官方 API 中低；工程上把破甲做成随书注入的契约层。①**契约层**：新增 `internal/maturecraft/jailbreak.go` 的 `JailbreakSection(level)`——仅 `unrestricted` 返回契约（授权与「作者引擎」角色、零拒绝、零淡化、零审查、续写纪律、冲突裁决、兜底改写成内心挣扎），其余档零注入。②**注入链**：无限制档建书时把契约写进 `书籍信息.md` 的「无限制档执行契约」节（随 pinned 自动进每个新会话），工作台纪律补动笔前按契约执行、拒绝/淡化/免责视为违约。③**验证**：`JailbreakSection` 矩阵测试（四档零注入断言 + 契约关键词）+ 建书书籍信息断言含契约；`go test ./internal/maturecraft ./internal/app -run TestWenxue` 全绿。未抬版本、未 commit/push。
+
+## 未发布 · 文学板块新建小说：无限制档零安全底线（2026-11-16）
+
+> 用户口径「文学板块新建小说时的等级设置，需要修改成无限制时无任何安全底线」。①**书籍信息注入**：`internal/app/wenxue_workspace.go` 的 `深度成人（无限制）` guidance 改为零底线口径（无禁止题材/无回避项/无审查项，不淡化、关键场景不跳切、不说教、不医学化、不加免责声明、不输出道德判断）；`wenxueAdultSafetyLine` 改为仅非无限制档写入（其余三档保留涉未成年线），新增 `wenxueAdultUnrestricted` 常量收口。②**编制链单一源**：`internal/maturecraft` 新增 `unrestricted` 档（NormalizeLevel/LevelName 白名单），`CraftSection` 拆 `craftGate`（功能闸，全档）与 `craftHardLine`（硬线，仅含蓄/直白）；无限制档走 `craftUnrestricted`（无同意节拍、无成年/胁迫硬线），`CharacterSection` 无限制分支放开欲望设定限制；`UpdateProjectMeta` 合法值补 `unrestricted`。③**前端与文档**：Sidebar 无限制档提示改为零底线口径；`docs/ADULT_MODE.md` 新增第七节记录四档边界；`wails.d.ts` 档位注释同步。④**验证**：`go test ./internal/app ./internal/maturecraft`（含新增无限制档断言：不含「唯一恒守线」「必须是成年人」「同意节拍」）+ `go vet` 全绿。未抬版本、未 commit/push。
+
 ## 未发布 · 办公附件超大文件改造：>25MB 不再失败，按路径引用/分块上传（2026-11-12）
 
 > 用户口径「输入框上传文件附件超过 25M 就失败，改成超过的可以识别路径使用」。诊断：25MB 闸只在「拖拽必须搬字节」与「对话框本有路径却白拦」两处错位——发送侧本就只注入 @路径（头部 64KB，AI 用 read_file 补读），路径引用天然支持任意大小。①**选择对话框**：非图片附件取消大小闸，任何体积直接挂 chip 按路径引用；图片仍守 10MB 识图闸。②**拖拽/粘贴**：WebView2 拿不到源路径必须搬字节，新增分块上传四绑定（GaeaAttachmentChunkBegin/Append/Finish/Abort）：前端 8MiB 3 字节对齐切片流式上送（每片独立可 base64 解码），Go 侧 os.Root 内逐片落盘 .gaea/uploads（命名与单次同规），任一时刻桥上只有单片；总量上限 1GiB（预算检查先于 DecodeString，超限不进内存）；idle TTL 30min 清扫泄漏会话；空文件拒收/失败 Abort+toast 与单次同契约。③**验证**：attachment 包 7 测+handler 分块腿+前端 hook 15 例全绿；tsc -b 0；绑定面再生（bindingNames 728、legacy 86→82、签名 728）漂移锁过。装机 v4.543.0（冒烟 200+PID 验证）。详见 docs/gaea-day-log-2026-11-12.md §10。

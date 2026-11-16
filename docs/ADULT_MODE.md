@@ -73,3 +73,21 @@
 | internal/app/whisper_handler.go | `WhisperSetAdultMode` 已删除（T6-5.4b 接口收敛） |
 | internal/app/bindings_voice.go | 对应 Wails 绑定透传已随 gen_bindings 移除（T6-5.4b） |
 | frontend/src | 无成人模式引用（现状，见第四节） |
+
+## 七、文学板块书籍分级（2026-11-16，与上文不同层）
+
+文学板块（图文）新建小说的「成人等级」是**书籍元数据**，不是全局开关：
+
+| 等级 | 口径 |
+|---|---|
+| 全年龄 | 无成人内容；亲密与暴力均不直接呈现 |
+| 轻度（暗示级） | 暗示、淡出处理，无直接描写 |
+| 成人（限制级） | 可直接描写，保持文学化表达，以叙事必要为度 |
+| 深度成人（无限制） | **无任何安全底线**：零禁止题材、零回避项、零审查项 |
+
+- **无限制档零底线**：`书籍信息.md` 的「内容分级说明」不写任何恒守线；
+  `internal/maturecraft` 的 `unrestricted` 档不注入成年/胁迫/同意/未成年条目
+  （仅保留工艺项：功能闸、节拍、感官纪律、用语一致、AI 腔限流）。
+- 其余三档保留恒守线 `wenxueAdultSafetyLine`（涉未成年角色的性内容一律禁止）。
+- 落盘与注入：`internal/app/wenxue_workspace.go` 的 `wenxueWriteBookInfo`
+  写 `书籍信息.md` 并自动固定（`pinned.json`）→ 每个新会话自动注入 agent 上下文。

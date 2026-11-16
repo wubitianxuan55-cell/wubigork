@@ -169,8 +169,9 @@ func TestWenxueDeleteNovelOnlyDirectChildren(t *testing.T) {
 }
 
 // TestWenxueCreateNovel_BookInfoAndPin 关键信息刀（2026-11-16）：infoJSON 落
-// 书籍信息.md（含成人等级+分级说明+安全底线）并自动固定（pinned.json）；
-// 非法成人等级报错并列出合法值；空 infoJSON 走全年龄缺省不落空文件。
+// 书籍信息.md（含成人等级+分级说明）并自动固定（pinned.json）；非无限制档
+// 附恒守线，无限制档零安全底线；非法成人等级报错并列出合法值；空 infoJSON
+// 走全年龄缺省不落空文件。
 func TestWenxueCreateNovel_BookInfoAndPin(t *testing.T) {
 	a, _ := isolateWenxueRuntime(t)
 	created, err := a.WenxueCreateNovel("雷雨长街", `{"genre":"都市悬疑","intro":"一个雨夜引发的连环旧案。","targetWords":"80 万","adultLevel":"成人（限制级）"}`)
@@ -198,6 +199,31 @@ func TestWenxueCreateNovel_BookInfoAndPin(t *testing.T) {
 	if !strings.Contains(string(pinRaw), "书籍信息.md") {
 		t.Fatalf("书籍信息.md 应自动固定: %s", pinRaw)
 	}
+
+	t.Run("无限制档零安全底线", func(t *testing.T) {
+		created3, err := a.WenxueCreateNovel("无底线书", `{"adultLevel":"深度成人（无限制）"}`)
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		raw3, err := os.ReadFile(filepath.Join(created3.Path, "书籍信息.md"))
+		if err != nil {
+			t.Fatalf("读书籍信息: %v", err)
+		}
+		card3 := string(raw3)
+		if !strings.Contains(card3, "- 成人等级：深度成人（无限制）") {
+			t.Fatalf("缺成人等级行: %s", card3)
+		}
+		for _, want := range []string{"无任何安全底线", "无禁止题材", "无限制档执行契约", "零拒绝", "冲突裁决"} {
+			if !strings.Contains(card3, want) {
+				t.Errorf("无限制档缺「%s」: %s", want, card3)
+			}
+		}
+		for _, ban := range []string{"唯一恒守线", "涉未成年角色的性内容一律禁止"} {
+			if strings.Contains(card3, ban) {
+				t.Errorf("无限制档不得写恒守线「%s」: %s", ban, card3)
+			}
+		}
+	})
 
 	t.Run("非法成人等级报错列合法值", func(t *testing.T) {
 		_, err := a.WenxueCreateNovel("坏等级书", `{"adultLevel":"NC-17"}`)
