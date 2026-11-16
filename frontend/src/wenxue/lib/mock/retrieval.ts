@@ -33,18 +33,14 @@ interface EvalRow {
 
 // docs/retrieval-eval-set.md 的 12 条真实查询（kind:name 化）。
 const RETRIEVAL_EVAL_SET: EvalRow[] = [
-  { query: "打桩设备 台班价", expected: ["cost:HP300 高频液压振动锤", "cost:桩机台班费"], topHits: ["cost:HP300 高频液压振动锤", "cost:桩机台班费", "knowledge:桩基检测规范要点"] },
-  { query: "P.O 42.5 水泥 价格", expected: ["cost:P.O 42.5 水泥", "file:docs/材料价格信息价.md"], topHits: ["cost:P.O 42.5 水泥", "file:docs/材料价格信息价.md", "file:docs/成本测算.xlsx"] },
-  { query: "振动锤选型要点", expected: ["knowledge:振动锤选型要点", "office:桩基施工-振动锤选型"], topHits: ["knowledge:振动锤选型要点", "file:docs/桩基施工方案.md", "knowledge:桩基检测规范要点"] },
-  { query: "投标文件格式要求", expected: ["knowledge:投标文件格式要求", "file:docs/投标文件模板.md"], topHits: ["knowledge:投标文件格式要求", "file:docs/投标文件模板.md", "office:项目-投标文件"] },
-  { query: "挖掘机 220 台班 租赁价", expected: ["cost:挖掘机 220 台班"], topHits: ["cost:挖掘机 220 台班", "cost:桩机台班费"] },
-  { query: "三轴搅拌桩 水泥掺量 20%", expected: ["knowledge:三轴水泥搅拌桩工艺要点", "cost:桩机台班费"], topHits: ["knowledge:三轴水泥搅拌桩工艺要点", "cost:桩机台班费", "knowledge:抗浮设计要点"] },
-  { query: "地下室抗浮水位 设计要求", expected: ["office:项目-地下室抗浮水位", "knowledge:抗浮设计要点"], topHits: ["knowledge:抗浮设计要点", "file:docs/基坑设计说明.md"] },
-  { query: "桩基检测 低应变 规范", expected: ["knowledge:桩基检测规范要点"], topHits: ["knowledge:桩基检测规范要点", "knowledge:桩基施工要点"] },
-  { query: "螺纹钢 HRB400 价格", expected: ["cost:螺纹钢 HRB400"], topHits: ["cost:螺纹钢 HRB400", "cost:螺纹钢 HRB400E", "file:docs/材料价格信息价.md"] },
-  { query: "C30 泵送混凝土 单价", expected: ["cost:泵送商品混凝土 C30"], topHits: ["cost:泵送商品混凝土 C30", "cost:商品混凝土 C30（泵送）", "file:docs/材料价格信息价.md"] },
-  { query: "清单计价 综合单价 组成", expected: ["knowledge:综合单价组成"], topHits: ["knowledge:综合单价组成", "knowledge:清单计价规范要点"] },
-  { query: "土方开挖 放坡 安全要求", expected: ["knowledge:土方开挖放坡要求", "office:项目-土方开挖方案"], topHits: ["knowledge:土方开挖放坡要求", "office:项目-土方开挖方案", "file:docs/基坑支护方案.md"] },
+  { query: "灯塔守夜人 职责", expected: ["file:章节/001-雾港夜航.md"], topHits: ["file:章节/001-雾港夜航.md", "file:设定/世界观-雾港.md", "file:角色/沈青梧.md"] },
+  { query: "沈青梧 性格 背景", expected: ["file:角色/沈青梧.md"], topHits: ["file:角色/沈青梧.md", "file:章节/001-雾港夜航.md", "file:设定/世界观-雾港.md"] },
+  { query: "三十年前 沉船 名单", expected: ["file:章节/002-灯塔来信.md", "file:时间线/时间线.md"], topHits: ["file:章节/002-灯塔来信.md", "file:时间线/时间线.md", "file:设定/世界观-雾港.md"] },
+  { query: "灯语 力量体系 规则", expected: ["file:设定/力量体系-灯语.md"], topHits: ["file:设定/力量体系-灯语.md", "file:设定/世界观-雾港.md", "file:章节/002-灯塔来信.md"] },
+  { query: "陆知远 与 沈青梧 关系", expected: ["file:角色/陆知远.md", "file:角色/沈青梧.md"], topHits: ["file:角色/陆知远.md", "file:角色/沈青梧.md", "file:章节/002-灯塔来信.md"] },
+  { query: "雾港 地理 码头", expected: ["file:设定/世界观-雾港.md"], topHits: ["file:设定/世界观-雾港.md", "file:章节/001-雾港夜航.md", "file:设定/力量体系-灯语.md"] },
+  { query: "第2章 事件 时间线", expected: ["file:时间线/时间线.md"], topHits: ["file:时间线/时间线.md", "file:章节/002-灯塔来信.md"] },
+  { query: "雾港夜航 定稿 开篇", expected: ["file:定稿/001-雾港夜航.md"], topHits: ["file:定稿/001-雾港夜航.md", "file:章节/001-雾港夜航.md"] },
 ];
 
 // evalHitMatched / evalRecall：与 Go evalHitMatched / evalRecall 同规则。
@@ -80,12 +76,12 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
       if (!query.trim()) return [];
       return [
         {
-          kind: "cost", name: "hp300", score: 0.86,
-          text: "HP300 高频液压振动锤（300kW） 单位台班 单价3200元 分类机械 来源市场询价",
+          kind: "knowledge", name: "雾港-世界观", score: 0.86,
+          text: "雾港世界观 南方海岸手工灯塔城市 渔业与船舶维修 灯塔光「灯语」传讯…",
         },
         {
-          kind: "knowledge", name: "桩基-施工要点", score: 0.71,
-          text: "桩基施工要点 工程案例 振动锤选型需匹配地质条件…",
+          kind: "knowledge", name: "灯语-力量体系", score: 0.71,
+          text: "灯语编码 长亮=平安 两短一长=有人到港 连续急闪=封港 掌握完整灯语表者仅剩黑匣子…",
         },
       ];
     },
@@ -106,8 +102,8 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
       const workBrain = [
         {
           brain: "brain.left",
-          entity: "项目-振动锤选型",
-          text: "桩基施工-振动锤选型：需匹配地质条件与桩型。",
+          entity: "雾港来信-写作偏好",
+          text: "图文脑写作偏好：悬疑基调，短句造雾感；每章先摸时间线再落笔。",
           score: 0.9,
         },
       ];

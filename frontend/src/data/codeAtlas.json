@@ -1910,8 +1910,8 @@
   "edges": 381,
   "generated": "2026-11-10",
   "packages": 143,
-  "srcLoc": 237931,
-  "testLoc": 183374
+  "srcLoc": 241308,
+  "testLoc": 186641
  },
  "nodes": [
   {
@@ -1929,8 +1929,8 @@
   {
    "id": "internal/app",
    "layer": "shell",
-   "srcLoc": 59725,
-   "testLoc": 49288
+   "srcLoc": 61933,
+   "testLoc": 51096
   },
   {
    "id": "internal/app/board",
@@ -1965,8 +1965,8 @@
   {
    "id": "internal/chat",
    "layer": "domain",
-   "srcLoc": 504,
-   "testLoc": 301
+   "srcLoc": 814,
+   "testLoc": 501
   },
   {
    "id": "internal/config",
@@ -1989,8 +1989,8 @@
   {
    "id": "internal/gaea/agent",
    "layer": "kernel-rt",
-   "srcLoc": 13222,
-   "testLoc": 12475
+   "srcLoc": 13335,
+   "testLoc": 12509
   },
   {
    "id": "internal/gaea/agent/budget",
@@ -2001,8 +2001,8 @@
   {
    "id": "internal/gaea/agent/cache",
    "layer": "kernel-rt",
-   "srcLoc": 196,
-   "testLoc": 194
+   "srcLoc": 236,
+   "testLoc": 231
   },
   {
    "id": "internal/gaea/agent/render",
@@ -2013,7 +2013,7 @@
   {
    "id": "internal/gaea/agent/session",
    "layer": "kernel-rt",
-   "srcLoc": 2685,
+   "srcLoc": 2687,
    "testLoc": 3290
   },
   {
@@ -2067,8 +2067,8 @@
   {
    "id": "internal/gaea/boot",
    "layer": "kernel-rt",
-   "srcLoc": 1579,
-   "testLoc": 1841
+   "srcLoc": 1638,
+   "testLoc": 2066
   },
   {
    "id": "internal/gaea/browser",
@@ -2097,8 +2097,8 @@
   {
    "id": "internal/gaea/config",
    "layer": "kernel-lib",
-   "srcLoc": 2989,
-   "testLoc": 2660
+   "srcLoc": 3029,
+   "testLoc": 2721
   },
   {
    "id": "internal/gaea/context",
@@ -2169,7 +2169,7 @@
   {
    "id": "internal/gaea/event",
    "layer": "kernel-rt",
-   "srcLoc": 449,
+   "srcLoc": 463,
    "testLoc": 253
   },
   {
@@ -2307,8 +2307,8 @@
   {
    "id": "internal/gaea/proc",
    "layer": "kernel-lib",
-   "srcLoc": 171,
-   "testLoc": 166
+   "srcLoc": 213,
+   "testLoc": 204
   },
   {
    "id": "internal/gaea/provider",
@@ -2397,14 +2397,14 @@
   {
    "id": "internal/gaea/tool",
    "layer": "kernel-rt",
-   "srcLoc": 1677,
+   "srcLoc": 1692,
    "testLoc": 1509
   },
   {
    "id": "internal/gaea/tool/builtin",
    "layer": "kernel-rt",
-   "srcLoc": 12300,
-   "testLoc": 8466
+   "srcLoc": 12477,
+   "testLoc": 8753
   },
   {
    "id": "internal/gaea/trajectory",
@@ -2463,8 +2463,8 @@
   {
    "id": "internal/maturecraft",
    "layer": "domain",
-   "srcLoc": 147,
-   "testLoc": 100
+   "srcLoc": 219,
+   "testLoc": 144
   },
   {
    "id": "internal/modelengine",
@@ -2577,8 +2577,8 @@
   {
    "id": "internal/pantheon",
    "layer": "pantheon",
-   "srcLoc": 11510,
-   "testLoc": 8831
+   "srcLoc": 11795,
+   "testLoc": 9364
   },
   {
    "id": "internal/project",

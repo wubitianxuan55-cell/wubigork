@@ -93,7 +93,8 @@ func wenxueExtraTools(a *App) []tool.Tool {
 // wxWorkSpaceTool 图文装配空间适配器：只改写 SpaceTag，Execute 原样委托。
 // image_gen 在 spacetags 名表是 play 域（办公/通用语义不动），图文（work
 // 空间）装配期会被物理过滤——众神殿媒体根分档裁决「图文会话生成图锚小说
-// 目录」的意图落空（2026-11-16 实测：面板 42 件无 image_gen）。本适配器仅在
+// 目录」的意图落空（2026-11-16 实测：装配面缺 image_gen；件数不写数字，
+// 装配面以 census 守卫测试为准）。本适配器仅在
 // 图文装配单点把实例标成 work；gaeaExtraTools 原样（办公 play 语义不变）。
 type wxWorkSpaceTool struct{ tool.Tool }
 
@@ -186,6 +187,23 @@ func wenxueIsUnderFinalDir(root, rel string) bool {
 	rel = strings.TrimSuffix(rel, "/") + "/"
 	for _, cand := range wenxueDirCandidates(root, "final") {
 		if strings.HasPrefix(rel, cand+"/") || rel == cand+"/" {
+			return true
+		}
+	}
+	return false
+}
+
+// wenxueIsUnderCandidateDir 候选稿域（<章节目录>/候选/）判据——chapter_write
+// 对称定稿域闸（2026-11-17 审查批3）：否则 overwrite=true 可覆写候选文件，
+// 绕过 wenxue_candidate_write 的 overwrite 闸。
+func wenxueIsUnderCandidateDir(root, rel string) bool {
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	if rel == "" {
+		return false
+	}
+	rel = strings.TrimSuffix(rel, "/") + "/"
+	for _, cand := range wenxueDirCandidates(root, "chapters") {
+		if strings.HasPrefix(rel, cand+"/候选/") {
 			return true
 		}
 	}
@@ -333,7 +351,7 @@ func wenxueReadBody(root, rel string) (string, os.FileInfo, error) {
 		return "", nil, fmt.Errorf("非法工作区相对路径: %s", rel)
 	}
 	if builtin.SessionDirFenceRule(abs) {
-		return "", nil, builtin.SessionDirDenied("wenxue_read", rel)
+		return "", nil, builtin.SessionDirDenied("图文读族工具", rel)
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
@@ -493,6 +511,9 @@ func wenxueChapterWriteTool() *wenxueTool {
 				num := in.Number
 				title := strings.TrimSpace(in.Title)
 				if title == "" {
+					if num <= 0 {
+						return "", fmt.Errorf("path 缺省时需提供 number 或 title（否则章节文件无法命名）")
+					}
 					title = "未命名"
 				}
 				// 同章号已有文件→沿用其文件名（保住原命名）；否则生成 序号-标题.md
@@ -517,6 +538,9 @@ func wenxueChapterWriteTool() *wenxueTool {
 			}
 			if wenxueIsUnderFinalDir(root, rel) {
 				return "", fmt.Errorf("定稿目录（%s）请用 wenxue_final_write——章节工具不写定稿，防草稿入库", wenxueFindDir(root, "final"))
+			}
+			if wenxueIsUnderCandidateDir(root, rel) {
+				return "", fmt.Errorf("候选稿域（章节/候选/）请用 wenxue_candidate_write——章节工具不写候选，防绕过候选 overwrite 闸")
 			}
 			if ext := strings.ToLower(filepath.Ext(abs)); ext != ".md" && ext != ".markdown" && ext != ".txt" {
 				return "", fmt.Errorf("章节正文仅支持 md/markdown/txt，收到 %s", ext)
@@ -579,7 +603,7 @@ func wenxueCandidateDir(root, chapterPath string) (string, error) {
 func wenxueCandidateWriteTool() *wenxueTool {
 	return &wenxueTool{
 		name:     "wenxue_candidate_write",
-		desc:     "把同章候选稿写入 章节/候选/<章名>/ 下，供 A/B/C 方案比较；不覆盖正文、不写定稿。label 建议 A/B/C 或简短方案名。",
+		desc:     "把同章候选稿写入 章节/候选/<章名>/ 下，供 A/B/C 方案比较；目标章须已在章节清单（新章先 wenxue_chapter_write 落正文占位）；不覆盖正文、不写定稿。label 建议 A/B/C 或简短方案名。",
 		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"目标章节相对路径（优先）"},"number":{"type":"integer","description":"章号（path 缺省时按号定位）"},"label":{"type":"string","description":"候选标签，如 A / B / 冷雨版"},"content":{"type":"string","description":"候选稿全文"},"overwrite":{"type":"boolean","description":"同名候选已存在时允许覆盖，缺省 false"}},"required":["label","content"],"additionalProperties":false}`,
 		readOnly: false,
 		run: func(args json.RawMessage) (string, error) {
@@ -1507,6 +1531,10 @@ func wenxueFinalWriteTool() *wenxueTool {
 				dir := wenxueEnsureDir(root, "final")
 				title := strings.TrimSpace(in.Title)
 				if title == "" {
+					num0 := in.Number
+					if num0 <= 0 {
+						return "", fmt.Errorf("path 缺省时需提供 number 或 title（否则定稿文件无法命名）")
+					}
 					title = "未命名"
 				}
 				num := in.Number

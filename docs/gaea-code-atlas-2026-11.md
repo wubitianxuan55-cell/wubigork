@@ -2,7 +2,7 @@
 
 > 由 `go run scripts/code_atlas_doc.go` 从 `go list -json ./...` + 文件盘点单源生成（module `github.com/gaea/gaea`，go 1.26）。§1–§6 为机械段勿手改；§7 接缝导读与 §8 再生成说明随认知更新改模板重导。统计口径：Go 源码=GoFiles+CgoFiles 行数（非测试），测试=Test/XTestGoFiles；前端=ts/tsx/css 行数。`node_modules` 内杂包已滤。
 
-> 全仓 143 个 Go 包 · 源码 237,931 行 · 测试 183,374 行（测试/源码 0.77）。
+> 全仓 143 个 Go 包 · 源码 241,308 行 · 测试 186,641 行（测试/源码 0.77）。
 
 ## 1. 分层总览
 
@@ -17,15 +17,15 @@
 | 层 | 包数 | 源码 LOC | 测试 LOC |
 |---|---:|---:|---:|
 | 入口 | 1 | 124 | 44 |
-| 壳层·板块装配 | 2 | 60,144 | 49,459 |
-| 内核·装配执行 | 22 | 46,940 | 39,725 |
-| 内核·共享库 | 54 | 45,352 | 35,766 |
+| 壳层·板块装配 | 2 | 62,352 | 51,267 |
+| 内核·装配执行 | 22 | 47,360 | 40,308 |
+| 内核·共享库 | 54 | 45,434 | 35,865 |
 | 办公域 | 14 | 8,463 | 3,729 |
 | 引擎域 | 8 | 15,675 | 15,572 |
-| 众神殿 | 1 | 11,510 | 8,831 |
-| 领域库 | 31 | 45,576 | 29,931 |
+| 众神殿 | 1 | 11,795 | 9,364 |
+| 领域库 | 31 | 45,958 | 30,175 |
 | scripts 工具带 | 10 | 4,147 | 317 |
-| **合计** | **143** | **237,931** | **183,374** |
+| **合计** | **143** | **241,308** | **186,641** |
 
 层间依赖边矩阵（行=引用方 → 列=被引方，共 381 条内部边）：
 
@@ -52,33 +52,33 @@
 | 包 | 层 | 源码 LOC | 测试 LOC | 被引 | 内部出边 |
 |---|---|---:|---:|---:|---:|
 | `(main)` | 入口 | 124 | 44 | 0 | 2 |
-| `internal/app` | 壳层·板块装配 | 59,725 | 49,288 | 1 | 97 |
+| `internal/app` | 壳层·板块装配 | 61,933 | 51,096 | 1 | 97 |
 | `internal/app/board` | 壳层·板块装配 | 419 | 171 | 1 | 0 |
-| `internal/gaea/agent` | 内核·装配执行 | 13,222 | 12,475 | 3 | 20 |
-| `internal/gaea/tool/builtin` | 内核·装配执行 | 12,300 | 8,466 | 3 | 28 |
+| `internal/gaea/agent` | 内核·装配执行 | 13,335 | 12,509 | 3 | 20 |
+| `internal/gaea/tool/builtin` | 内核·装配执行 | 12,477 | 8,753 | 3 | 28 |
 | `internal/gaea/control` | 内核·装配执行 | 4,669 | 4,149 | 2 | 23 |
 | `internal/gaea/contextview` | 内核·装配执行 | 3,129 | 2,002 | 1 | 2 |
-| `internal/gaea/agent/session` | 内核·装配执行 | 2,685 | 3,290 | 8 | 4 |
-| `internal/gaea/tool` | 内核·装配执行 | 1,677 | 1,509 | 12 | 2 |
-| `internal/gaea/boot` | 内核·装配执行 | 1,579 | 1,841 | 1 | 28 |
+| `internal/gaea/agent/session` | 内核·装配执行 | 2,687 | 3,290 | 8 | 4 |
+| `internal/gaea/tool` | 内核·装配执行 | 1,692 | 1,509 | 12 | 2 |
+| `internal/gaea/boot` | 内核·装配执行 | 1,638 | 2,066 | 1 | 28 |
 | `internal/gaea/plugin` | 内核·装配执行 | 1,562 | 748 | 2 | 3 |
 | `internal/gaea/evidence` | 内核·装配执行 | 1,107 | 1,036 | 4 | 0 |
 | `internal/gaea/hook` | 内核·装配执行 | 935 | 825 | 2 | 3 |
 | `internal/gaea/context` | 内核·装配执行 | 824 | 957 | 3 | 2 |
 | `internal/gaea/permission` | 内核·装配执行 | 556 | 835 | 3 | 1 |
-| `internal/gaea/event` | 内核·装配执行 | 449 | 253 | 8 | 2 |
+| `internal/gaea/event` | 内核·装配执行 | 463 | 253 | 8 | 2 |
 | `internal/gaea/agent/render` | 内核·装配执行 | 400 | 121 | 1 | 3 |
 | `internal/gaea/agent/textutils` | 内核·装配执行 | 379 | 113 | 2 | 0 |
 | `internal/gaea/command` | 内核·装配执行 | 296 | 455 | 2 | 2 |
 | `internal/gaea/sandbox` | 内核·装配执行 | 279 | 211 | 3 | 1 |
 | `internal/gaea/agent/toolguard` | 内核·装配执行 | 260 | — | 1 | 0 |
+| `internal/gaea/agent/cache` | 内核·装配执行 | 236 | 231 | 1 | 1 |
 | `internal/gaea/agent/testutil` | 内核·装配执行 | 199 | 56 | 0 | 1 |
-| `internal/gaea/agent/cache` | 内核·装配执行 | 196 | 194 | 1 | 1 |
 | `internal/gaea/agent/budget` | 内核·装配执行 | 138 | 80 | 1 | 1 |
 | `internal/gaea/spaces` | 内核·装配执行 | 99 | 109 | 7 | 0 |
 | `internal/gaea/workcost` | 内核·共享库 | 5,714 | 3,426 | 2 | 1 |
 | `internal/gaea/memory` | 内核·共享库 | 5,355 | 5,024 | 5 | 5 |
-| `internal/gaea/config` | 内核·共享库 | 2,989 | 2,660 | 9 | 5 |
+| `internal/gaea/config` | 内核·共享库 | 3,029 | 2,721 | 9 | 5 |
 | `internal/gaea/browser` | 内核·共享库 | 2,255 | 1,520 | 2 | 1 |
 | `internal/gaea/cost` | 内核·共享库 | 2,203 | 2,103 | 8 | 2 |
 | `internal/gaea/skill` | 内核·共享库 | 1,784 | 1,730 | 3 | 5 |
@@ -116,6 +116,7 @@
 | `internal/gaea/fileutil/encoding` | 内核·共享库 | 245 | — | 4 | 0 |
 | `internal/gaea/archive` | 内核·共享库 | 242 | 221 | 2 | 0 |
 | `internal/gaea/pins` | 内核·共享库 | 213 | 117 | 2 | 2 |
+| `internal/gaea/proc` | 内核·共享库 | 213 | 204 | 10 | 0 |
 | `internal/gaea/billing` | 内核·共享库 | 200 | 382 | 1 | 1 |
 | `internal/gaea/factbase` | 内核·共享库 | 195 | 100 | 1 | 1 |
 | `internal/gaea/fileindex` | 内核·共享库 | 188 | 64 | 1 | 3 |
@@ -123,7 +124,6 @@
 | `internal/gaea/outputstyle` | 内核·共享库 | 180 | 94 | 1 | 1 |
 | `internal/gaea/search` | 内核·共享库 | 177 | 107 | 2 | 0 |
 | `internal/gaea/filefilter` | 内核·共享库 | 173 | 70 | 2 | 1 |
-| `internal/gaea/proc` | 内核·共享库 | 171 | 166 | 10 | 0 |
 | `internal/gaea/fileutil` | 内核·共享库 | 136 | 278 | 20 | 0 |
 | `internal/gaea/spill` | 内核·共享库 | 128 | 99 | 2 | 0 |
 | `internal/gaea/secure` | 内核·共享库 | 114 | 53 | 3 | 0 |
@@ -152,7 +152,7 @@
 | `internal/voice/native` | 引擎域 | 595 | 368 | 3 | 0 |
 | `internal/voice` | 引擎域 | 308 | 289 | 1 | 1 |
 | `internal/ocr` | 引擎域 | 265 | 146 | 1 | 1 |
-| `internal/pantheon` | 众神殿 | 11,510 | 8,831 | 2 | 2 |
+| `internal/pantheon` | 众神殿 | 11,795 | 9,364 | 2 | 2 |
 | `internal/whisper` | 领域库 | 18,039 | 7,628 | 4 | 5 |
 | `internal/schedule` | 领域库 | 5,188 | 5,450 | 3 | 1 |
 | `internal/docmd` | 领域库 | 3,617 | 3,171 | 8 | 1 |
@@ -162,9 +162,9 @@
 | `internal/config` | 领域库 | 1,902 | 1,204 | 6 | 2 |
 | `internal/project` | 领域库 | 1,703 | 1,013 | 2 | 4 |
 | `internal/characterlib` | 领域库 | 1,610 | 1,093 | 3 | 4 |
+| `internal/chat` | 领域库 | 814 | 501 | 1 | 0 |
 | `internal/whisper/db` | 领域库 | 683 | 167 | 2 | 0 |
 | `internal/auth` | 领域库 | 660 | 842 | 2 | 3 |
-| `internal/chat` | 领域库 | 504 | 301 | 1 | 0 |
 | `internal/core` | 领域库 | 482 | 137 | 2 | 3 |
 | `internal/httpbridge` | 领域库 | 444 | 290 | 2 | 0 |
 | `internal/netclient` | 领域库 | 402 | 687 | 14 | 1 |
@@ -177,12 +177,12 @@
 | `internal/scene` | 领域库 | 279 | 141 | 1 | 2 |
 | `internal/skilldistill` | 领域库 | 275 | 323 | 1 | 0 |
 | `internal/screen` | 领域库 | 242 | 122 | 2 | 0 |
+| `internal/maturecraft` | 领域库 | 219 | 144 | 1 | 0 |
 | `internal/style` | 领域库 | 218 | 159 | 0 | 3 |
 | `internal/netclient/sysproxy` | 领域库 | 208 | 50 | 1 | 0 |
 | `internal/skill` | 领域库 | 191 | 170 | 1 | 0 |
 | `internal/routesuggest` | 领域库 | 184 | 171 | 1 | 0 |
 | `internal/taskinbox` | 领域库 | 181 | 324 | 1 | 0 |
-| `internal/maturecraft` | 领域库 | 147 | 100 | 1 | 0 |
 | `internal/skillstats` | 领域库 | 83 | 103 | 1 | 0 |
 | `scripts/voice_v2/ws_probe` | scripts 工具带 | 1,402 | — | 0 | 2 |
 | `scripts/gen_bindings` | scripts 工具带 | 1,174 | 130 | 0 | 0 |
@@ -222,8 +222,8 @@
 - `internal/gaea/agent/render` → internal/gaea/agent/textutils, internal/gaea/event, internal/gaea/provider
 - `internal/gaea/command` → internal/gaea/frontmatter, internal/gaea/tool
 - `internal/gaea/sandbox` → internal/gaea/proc
-- `internal/gaea/agent/testutil` → internal/gaea/provider
 - `internal/gaea/agent/cache` → internal/gaea/provider
+- `internal/gaea/agent/testutil` → internal/gaea/provider
 - `internal/gaea/agent/budget` → internal/gaea/provider
 
 ### 内核·共享库
@@ -321,60 +321,60 @@
 
 | 文件 | 包 | LOC |
 |---|---|---:|
-| `internal/pantheon/manager.go` | `internal/pantheon` | 3,416 |
-| `internal/app/wenxue_workspace.go` | `internal/app` | 1,760 |
+| `internal/pantheon/manager.go` | `internal/pantheon` | 3,521 |
+| `internal/app/wenxue_workspace.go` | `internal/app` | 2,013 |
+| `internal/app/wenxue_tools.go` | `internal/app` | 1,630 |
 | `internal/app/whisper_handler.go` | `internal/app` | 1,604 |
+| `internal/app/chat_service.go` | `internal/app` | 1,574 |
 | `internal/gaea/agent/task.go` | `internal/gaea/agent` | 1,556 |
 | `internal/app/office_com_tools.go` | `internal/app` | 1,477 |
 | `internal/voice/realtime/pipeline.go` | `internal/voice/realtime` | 1,464 |
 | `internal/gaea/contextview/fold.go` | `internal/gaea/contextview` | 1,311 |
 | `internal/gaea/tasks/tasks.go` | `internal/gaea/tasks` | 1,258 |
 | `internal/office/xlsxedit/apply_one.go` | `internal/office/xlsxedit` | 1,256 |
-| `internal/app/gaea_ui_extra.go` | `internal/app` | 1,245 |
+| `internal/app/gaea_ui_extra.go` | `internal/app` | 1,251 |
 | `internal/gaea/costimport/costimport.go` | `internal/gaea/costimport` | 1,233 |
+| `internal/gaea/config/config.go` | `internal/gaea/config` | 1,192 |
 | `scripts/gen_bindings/main.go` | `scripts/gen_bindings` | 1,174 |
-| `internal/gaea/config/config.go` | `internal/gaea/config` | 1,168 |
 | `internal/whisper/orchestrator.go` | `internal/whisper` | 1,168 |
 | `internal/gaea/agent/agent.go` | `internal/gaea/agent` | 1,158 |
 | `internal/channels/weixin/clawbot.go` | `internal/channels/weixin` | 1,139 |
-| `internal/app/wenxue_tools.go` | `internal/app` | 1,126 |
+| `internal/gaea/boot/boot.go` | `internal/gaea/boot` | 1,120 |
 | `internal/app/image_handler.go` | `internal/app` | 1,118 |
 | `internal/gaea/control/controller.go` | `internal/gaea/control` | 1,101 |
 | `internal/gaea/cost/cost.go` | `internal/gaea/cost` | 1,090 |
 | `internal/ai/image_comfyui.go` | `internal/ai` | 1,078 |
-| `internal/gaea/boot/boot.go` | `internal/gaea/boot` | 1,069 |
 | `internal/office/omml/latex.go` | `internal/office/omml` | 1,039 |
-| `internal/app/chat_service.go` | `internal/app` | 1,038 |
 | `internal/pantheon/runner.go` | `internal/pantheon` | 1,023 |
 | `internal/gaea/agent/subagent_store.go` | `internal/gaea/agent` | 978 |
 | `internal/app/characterlib_gen_handler.go` | `internal/app` | 975 |
 | `internal/gaea/agent/compact.go` | `internal/gaea/agent` | 974 |
-| `internal/app/gaea_handler.go` | `internal/app` | 964 |
-| `internal/app/app.go` | `internal/app` | 934 |
+| `internal/app/gaea_handler.go` | `internal/app` | 969 |
+| `internal/app/memory_hub.go` | `internal/app` | 960 |
 
 ## 6. 前端 src 地图（ts/tsx 计数；.test.* 单列）
 
 | 目录 | 源文件 | 源码 LOC | 测试文件 | 测试 LOC |
 |---|---:|---:|---:|---:|
-| `gaea` | 430 | 107,308 | 246 | 35,080 |
-| `wenxue` | 359 | 83,579 | 5 | 507 |
-| `pages` | 74 | 44,847 | 31 | 8,596 |
-| `components` | 99 | 25,423 | 57 | 7,328 |
+| `gaea` | 432 | 107,840 | 247 | 35,288 |
+| `wenxue` | 347 | 81,972 | 10 | 837 |
+| `pages` | 76 | 45,215 | 33 | 8,738 |
+| `components` | 104 | 26,075 | 62 | 7,544 |
 | `schedule` | 96 | 23,019 | 81 | 16,325 |
 | `(顶层)` | 8 | 9,408 | 7 | 585 |
 | `voice` | 10 | 5,034 | 5 | 1,134 |
 | `genui` | 14 | 3,738 | 5 | 573 |
 | `api` | 6 | 1,944 | 2 | 174 |
 | `data` | 15 | 1,782 | 1 | 35 |
-| `hooks` | 9 | 1,600 | 2 | 204 |
+| `hooks` | 10 | 1,687 | 3 | 267 |
 | `layouts` | 2 | 742 | 2 | 111 |
-| `utils` | 18 | 625 | 11 | 467 |
+| `utils` | 19 | 694 | 12 | 515 |
 | `v3` | 1 | 553 | — | — |
-| `types` | 2 | 512 | — | — |
+| `types` | 3 | 520 | — | — |
 | `boards` | 4 | 500 | 2 | 418 |
 | `stores` | 1 | 443 | 2 | 267 |
+| `lib` | 5 | 333 | 3 | 179 |
 | `test` | 2 | 226 | — | — |
-| `lib` | 4 | 186 | 2 | 120 |
 
 boards/ 细目：
 

@@ -275,3 +275,17 @@ func TestWenxueWriteFence(t *testing.T) {
 	// 正常路径不误伤：写常规目录成功。
 	mustRun(t, wenxueTimelineAppendTool(), `{"text":"开局遇袭"}`)
 }
+
+// TestWenxueChapterWriteGuards 章节写入双闸（2026-11-17 审查批3）：
+// 候选域对称闸（防 overwrite 绕过 candidate overwrite 闸）+000-未命名闸。
+func TestWenxueChapterWriteGuards(t *testing.T) {
+	_ = wenxueToolsTestRoot(t)
+	if _, err := wenxueChapterWriteTool().Execute(t.Context(), json.RawMessage(
+		`{"path":"章节/候选/001-雾港夜航/A.md","content":"候选"}`)); err == nil || !strings.Contains(err.Error(), "候选稿域") {
+		t.Fatalf("chapter_write 写候选域应被拒，got %v", err)
+	}
+	if _, err := wenxueChapterWriteTool().Execute(t.Context(), json.RawMessage(
+		`{"content":"正文"}`)); err == nil || !strings.Contains(err.Error(), "无法命名") {
+		t.Fatalf("path 缺省且无号无题应显式报错（不再落 000-未命名.md），got %v", err)
+	}
+}

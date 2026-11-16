@@ -18,6 +18,7 @@ import type { FilePickResult } from "../../types";
 import { mockFileBodies } from "./state";
 import { opsMethods } from "./methods_ops";
 import { webSearchMethods } from "./methods_websearch";
+import { wenxueSampleFile, wenxueSampleListDir } from "../wenxue-sample";
 import type { OfficeMethods } from "./types";
 
 const mockWorkspaceUploads = new Map<string, string>();
@@ -25,6 +26,12 @@ const mockWorkspaceUploads = new Map<string, string>();
 export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   Pick<OfficeMethods, "PinnedMaterials"> = {
   async ListDir(rel: string) {
+    // ?mock=wenxue 样例工作空间（审查批3 刀C 兑现 mock.ts 场景承诺）：
+    // 雾港来信五目录样例，四个 Hub/文件树在浏览器走查下有真实内容。
+    if (mockScenario() === "wenxue") {
+      const sample = wenxueSampleListDir(rel);
+      if (sample) return sample;
+    }
     // A tiny fake tree so the @ menu is navigable in browser dev.
     if (rel === "" || rel === "./") {
       return [
@@ -111,6 +118,20 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     return [];
   },
   async GaeaReadTextFile(rel: string) {
+    // ?mock=wenxue 样例正文路由（先于 Preview 委托）。
+    if (mockScenario() === "wenxue") {
+      const body = wenxueSampleFile(rel);
+      if (body !== undefined) {
+        return {
+          path: rel,
+          text: body,
+          size: body.length,
+          mtimeMs: 0,
+          encoding: "utf-8" as const,
+          eol: "lf" as const,
+        };
+      }
+    }
     const preview = await this.Preview?.(rel);
     if (!preview) throw new Error(`mock preview unavailable: ${rel}`);
     return {

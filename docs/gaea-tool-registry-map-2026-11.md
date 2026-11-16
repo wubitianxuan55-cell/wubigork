@@ -1,6 +1,6 @@
 # gaea 工具面注册表地图（P0）
 
-> 2026-11-09 众神殿 pan_1794234593182 裁决 action-1 交付物。唯一注册表（`boot.Build` 单一 `tool.Registry`）全部 reg.Add 行的契约清单：来源 / 空间 / 副作用 / 证据档 / 验收谓词。本文件由 `go run scripts/registry_map_doc.go` 从 `internal/gaea/tool.RegistryMap` 单源生成，勿手改；防漂移守卫见 `tool/registrymap_test.go`、`boot/registrymap_census_test.go`、`app/registrymap_extra_test.go`。
+> 2026-11-09 众神殿 pan_1794234593182 裁决 action-1 交付物。唯一注册表（`boot.Build` 单一 `tool.Registry`）全部 reg.Add 行的契约清单：来源 / 空间 / 副作用 / 证据档 / 验收谓词。本文件由 `go run scripts/registry_map_doc.go` 从 `internal/gaea/tool.RegistryMap` 单源生成，勿手改；防漂移守卫见 `tool/registrymap_test.go`、`boot/registrymap_census_test.go`、`app/registrymap_extra_test.go`、`go run scripts/registry_map_doc.go -check`（发版门缝刀 2026-11-17）。
 
 /mcp__ 前缀是 prompt 旁路（controller_submit.go → input.MCPPrompt 取回 prompt 文本走 runTurnWithRaw），不进工具注册表、不构成第五工具面。
 
@@ -99,6 +99,8 @@
 | `wait` | builtin-domain | work | read | none | 等待结果与 job 终态一致 |
 | `web_fetch` | builtin-workspace | work | read | none | 抓取内容与源一致（mode=auto 正文主提取判据不足回退整页/full 整页；注明 URL+时间） |
 | `web_search` | builtin-domain | work | read | none | 结果注明来源 URL+检索时间 |
+| `wenxue_candidate_promote` | extra-app | work | write | none | 候选提升前自动归档当前正文；只写章节目录，不写定稿 |
+| `wenxue_candidate_write` | extra-app | work | write | none | 候选落章节/候选/<章名>/；不改正文/定稿；同名默认拒 |
 | `wenxue_chapter_list` | extra-app | work | read | none | 清单与约定章节目录实况一致（章号/标题/字数） |
 | `wenxue_chapter_read` | extra-app | work | read | none | 内容与目标章一致；附上一章结尾衔接段 |
 | `wenxue_chapter_write` | extra-app | work | write | none | 落盘内容与回执一致；overwrite=false 已存在即拒（宁拒不误改）；仅 md/markdown/txt |

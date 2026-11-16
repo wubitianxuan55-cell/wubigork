@@ -171,7 +171,7 @@ export function WenxueHome({
                       className={`wx-home-work-cover wx-home-work-cover--v${variant}`}
                       aria-hidden
                     >
-                      <span className="wx-home-work-cover__mark">gaea · 文学</span>
+                      <span className="wx-home-work-cover__mark">文学</span>
                       <strong>{visibleName}</strong>
                       <span className="wx-home-work-cover__foot">长篇小说</span>
                     </span>

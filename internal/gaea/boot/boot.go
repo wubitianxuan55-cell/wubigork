@@ -585,7 +585,12 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		runSkill = &skillUseCountTool{Tool: runSkill, onUse: opts.OnSkillUse}
 	}
 	addGated(reg, opts.ToolFilter, runSkill)
-	addGated(reg, opts.ToolFilter, skill.NewInstallSkillTool(skillStore, nil))
+	// install_skill 靠活读 store 生效；静态 allowlist 引擎（SkillFilter!=nil）
+	// 里新装技能永不可见不可 run（run_skill 走构建期快照集）——不装，免噪音
+	// （2026-11-17 审查批3；办公双 nil 保持注册=现状逐字节红线）。
+	if opts.SkillFilter == nil {
+		addGated(reg, opts.ToolFilter, skill.NewInstallSkillTool(skillStore, nil))
+	}
 	// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
 	for _, st := range cache.BuiltinSpawnTemplates() {
 		cache.RegisterSpawnTemplate(st)
