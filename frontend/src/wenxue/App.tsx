@@ -60,6 +60,7 @@ import { useToolStats } from "./hooks/useToolStats";
 import { useSidebar } from "./hooks/useSidebar";
 import CompactContext from "./hooks/useCompact";
 import { readWorkbenchValue, writeWorkbenchValue } from "./lib/workbenchStorage";
+import { wenxueHomePrivacyPref } from "./lib/homePrivacyPref";
 
 import {
   SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
@@ -92,6 +93,14 @@ import { useAppKeyboard } from "./app/useAppKeyboard";
 
 export default function App() {
   const toast = useToast();
+  const [homePrivacy, setHomePrivacy] = useState(() => wenxueHomePrivacyPref.load());
+  const toggleHomePrivacy = useCallback(() => {
+    setHomePrivacy((current) => {
+      const next = !current;
+      wenxueHomePrivacyPref.save(next);
+      return next;
+    });
+  }, []);
   // 2.5e /context 居中弹层（dsh 同名能力）。ctxModalRef 非空 = 查看该子代理。
   const [ctxModalOpen, setCtxModalOpen] = useState(false);
   const [ctxModalRef, setCtxModalRef] = useState<string | null>(null);
@@ -680,6 +689,7 @@ export default function App() {
         style={layoutStyle}
       >
         <Sidebar
+          privacyMode={homePrivacy}
           collapsed={sidebarCollapsed}
           toggleSidebar={toggleSidebar}
           running={state.running}
@@ -708,11 +718,11 @@ export default function App() {
           SIDEBAR_MAX_WIDTH={SIDEBAR_MAX_WIDTH}
         />
 
-        <section className={`chat-pane v3-zone office-chat-active${showWenxueHome && currentProject ? " wx-home-chat" : ""}`}>
+        <section className={`chat-pane v3-zone office-chat-active${showWenxueHome && currentProject ? " wx-home-chat" : ""}${homePrivacy ? " is-private" : ""}`}>
           <header className="office-topbar flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
             <div className="office-topbar__primary">
               <div className="flex items-center gap-2 min-w-0">
-                {cwd && (<button className="office-workspace-switch toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{cwdName}</span><ChevronDown size={11} /></button>)}
+                {cwd && (<button className="office-workspace-switch toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{homePrivacy && currentProject ? "私密作品" : cwdName}</span><ChevronDown size={11} /></button>)}
               </div>
             </div>
             <ChatTabs
@@ -835,6 +845,8 @@ export default function App() {
                           onInsertPrompt={(prompt) => useComposerInsertStore.getState().requestText(prompt)}
                           onSwitchTab={(tab) => setChatTab(tab)}
                           onOpenLibrary={() => { void openNovelLibrary(); }}
+                          privateMode={homePrivacy}
+                          onTogglePrivacy={toggleHomePrivacy}
                         />
                       </Suspense>
                     )}

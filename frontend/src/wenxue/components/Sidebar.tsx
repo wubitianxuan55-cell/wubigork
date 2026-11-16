@@ -29,6 +29,8 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import type { SubagentThreadStatus } from "./SubagentThread";
 
 export interface SidebarProps {
+  /** 首页隐身模式：只遮显示面，不影响真实路径、会话和项目数据。 */
+  privacyMode?: boolean;
   collapsed: boolean;
   toggleSidebar: () => void;
   running: boolean;
@@ -104,6 +106,7 @@ function subagentThreadStatus(r: SubagentRunView): SubagentThreadStatus {
 }
 
 interface SessionRowUI {
+  privacyMode: boolean;
   running: boolean;
   deleteConfirm: string | null;
   setDeleteConfirm: Dispatch<SetStateAction<string | null>>;
@@ -155,7 +158,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
           <button
             className="office-project-row no-drag"
             onClick={() => ui.onSelectGroup(row.g)}
-            title={row.g.path}
+            title={ui.privacyMode ? "私密作品" : row.g.path}
             aria-expanded={row.open}
           >
             <span
@@ -277,14 +280,14 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             className="office-session-main"
             onClick={() => void ui.onResumeSessionInProject(s.path, projectPath)}
             disabled={ui.running || s.current}
-            title={s.path}
+            title={ui.privacyMode ? "私密会话" : s.path}
           >
             <MessageSquare
               size={13}
               className={`office-session-icon ${s.current ? "text-accent" : "text-fg-faint/60"}`}
             />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              {ui.renameTarget === s.path ? (
+              {ui.renameTarget === s.path && !ui.privacyMode ? (
                 <input
                   className="w-full bg-bg border border-accent rounded px-1 py-0 text-fg text-[12.5px] outline-none"
                   value={ui.renameDraft}
@@ -305,7 +308,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                         s.current ? "text-accent" : "text-fg-dim"
                       }`}
                       onDoubleClick={e => {
-                        if (s.current) return;
+                        if (s.current || ui.privacyMode) return;
                         e.stopPropagation();
                         ui.setRenameTarget(s.path);
                         ui.setRenameDraft(sessionTitle(s, ""));
@@ -446,7 +449,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-[1.35] text-fg-dim">
-                {r.task || t("sidebar.subagentsUntitled")}
+                {ui.privacyMode ? "私密子任务" : (r.task || t("sidebar.subagentsUntitled"))}
               </span>
               <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10.5px] leading-snug text-fg-faint/70">
                 <span className={r.status === "running" ? "text-accent" : ""}>{statusLabel}</span>
@@ -528,6 +531,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 }
 
 export function Sidebar({
+  privacyMode = false,
   collapsed,
   toggleSidebar,
   running,
@@ -663,20 +667,41 @@ export function Sidebar({
     });
   };
 
+  // 隐私模式只替换渲染快照中的可见文字；path/会话动作仍使用真实对象。
+  const displayedProjectGroups = useMemo(() => {
+    if (!privacyMode) return projectGroups;
+    return projectGroups.map((group, groupIndex) => ({
+      ...group,
+      name: group.current
+        ? "私密作品"
+        : `私密作品 ${String(groupIndex + 1).padStart(2, "0")}`,
+      sessions: group.sessions.map((session, sessionIndex) => ({
+        ...session,
+        title: "",
+        preview: `私密会话 ${sessionIndex + 1}`,
+      })),
+      archived: group.archived.map((session, sessionIndex) => ({
+        ...session,
+        title: "",
+        preview: `归档会话 ${sessionIndex + 1}`,
+      })),
+    }));
+  }, [privacyMode, projectGroups]);
+
   const currentSession = useMemo(() => {
-    for (const g of projectGroups) {
+    for (const g of displayedProjectGroups) {
       if (g.current) return g.sessions.find((s) => s.current);
     }
     return undefined;
-  }, [projectGroups]);
+  }, [displayedProjectGroups]);
   const currentProject = useMemo(
-    () => projectGroups.find((g) => g.current),
-    [projectGroups],
+    () => displayedProjectGroups.find((g) => g.current),
+    [displayedProjectGroups],
   );
   const searching = debouncedQuery.trim().length > 0;
   const filteredGroups = useMemo(
-    () => filterProjectGroups(projectGroups, debouncedQuery),
-    [projectGroups, debouncedQuery],
+    () => filterProjectGroups(displayedProjectGroups, debouncedQuery),
+    [displayedProjectGroups, debouncedQuery],
   );
 
   const openNovelDialog = useCallback(() => {
@@ -827,6 +852,7 @@ export function Sidebar({
   }, []);
 
   const ui: SessionRowUI = {
+    privacyMode,
     running,
     deleteConfirm,
     setDeleteConfirm,
@@ -883,7 +909,7 @@ export function Sidebar({
                 <span className="office-sidebar__brand-mode">文学</span>
               </span>
               {currentProject && (
-                <span className="office-sidebar__workspace-name" title={currentProject.path}>
+                <span className="office-sidebar__workspace-name" title={privacyMode ? "私密作品" : currentProject.path}>
                   {currentProject.name}
                 </span>
               )}
@@ -1002,10 +1028,10 @@ export function Sidebar({
         {collapsed && currentSession && (
           <button
             className="office-sidebar__current sidebar-current-chip flex items-center justify-center cursor-pointer transition-colors no-drag"
-            title={sessionTitle(currentSession, "")}
+            title={privacyMode ? "私密会话" : sessionTitle(currentSession, "")}
             type="button"
           >
-            {(currentSession.title || currentSession.preview || "?").charAt(0).toUpperCase()}
+            {privacyMode ? "隐" : (currentSession.title || currentSession.preview || "?").charAt(0).toUpperCase()}
           </button>
         )}
 

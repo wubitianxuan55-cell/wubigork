@@ -39,6 +39,10 @@ export const CHAT_VIEW_TAB_IDS: ChatTabId[] = [
   // 图文板块专属（2026-11-16 设定批）：设定文档+时间线查看/编辑/AI 生成，
   // 与 agent 的 write_file/时间线工具同源。
   "settings",
+  // 图文板块专属（2026-11-16 记忆面板恢复批）：图文脑记忆管理，与 agent 的
+  // 记忆五件工具同源（wenxue-brain 独立 DB）。漏白名单 = tab 被当子代理
+  // tab 吃掉、内容回落 chat（useSubagentTabs 白名单老坑）。
+  "memory",
 ];
 
 const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [

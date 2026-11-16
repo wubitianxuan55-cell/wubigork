@@ -90,6 +90,8 @@ function renderHome(overrides: Partial<Parameters<typeof WenxueHome>[0]> = {}) {
     onInsertPrompt: vi.fn(),
     onSwitchTab: vi.fn(),
     onOpenLibrary: vi.fn(),
+    privateMode: false,
+    onTogglePrivacy: vi.fn(),
     ...overrides,
   };
   return { props, ...render(<WenxueHome {...props} />) };
@@ -98,6 +100,7 @@ function renderHome(overrides: Partial<Parameters<typeof WenxueHome>[0]> = {}) {
 describe("WenxueHome", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("没有作品时展示书斋建档首页，主 CTA 创建第一部小说", () => {
@@ -148,5 +151,20 @@ describe("WenxueHome", () => {
     expect(props.onResumeSession).toHaveBeenCalledWith(current.sessions[0].path, current.path);
     fireEvent.click(screen.getByRole("button", { name: /作品书架/ }));
     expect(props.onOpenLibrary).toHaveBeenCalled();
+  });
+
+  it("首页隐私模式隐藏书名、章节、会话内容和路径", async () => {
+    const current = project();
+    const { props } = renderHome({ projects: [current], currentProject: current, privateMode: true });
+    expect(document.body.textContent).not.toContain(current.path);
+    expect(document.body.textContent).not.toContain(current.name);
+    expect(screen.getByText("作品已隐身")).toBeTruthy();
+    expect(await screen.findByText("章节内容已隐藏")).toBeTruthy();
+    expect(screen.getAllByText("会话内容已隐藏").length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain("雨夜证词");
+    expect(document.body.textContent).not.toContain("林晚");
+    expect(document.body.textContent).not.toContain("世界观");
+    fireEvent.click(screen.getByRole("button", { name: /已隐身/ }));
+    expect(props.onTogglePrivacy).toHaveBeenCalled();
   });
 });

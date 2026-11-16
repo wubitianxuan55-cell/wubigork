@@ -1,3 +1,13 @@
+## 编程板块外部浏览器入口（2026-11-16）
+
+- `ProgrammingPage` 工具栏新增常驻「外部浏览器打开」按钮：运行中直接打开当前带
+  访问令牌的 DSH Web 地址；未运行时先执行现有隔离预检与启动流程，成功拿到地址后
+  再交给系统默认浏览器，启动失败仍停留原页显示原因。
+- 验证：`ProgrammingPage.test.tsx` 4/4 绿；改动面 ESLint 0；页面与测试隔离
+  `tsc` 0。全量 `tsc -b` 被工作树既有未提交
+  `frontend/src/wenxue/components/WenxueMemoryPanel.test.tsx` 的 TS6133 未使用导入
+  阻断，与本改动无关。未 Wails/未装机/未提交。
+
 ## 文学首页双态重设计（2026-11-16）
 
 - **调研**：Dabble Projects Dashboard（书斋=书架，封面卡+最近修改）、Ulysses
@@ -41,6 +51,20 @@
   （可选面）」节（image_gen 锚小说目录+未配后端如实告知不硬凑）。
 - 装机 12:08 INSTALL OK（PID 46524 > 构建时刻）。skills 测试绿（filter/extras/
   dynamic acceptance）。
+
+## 实弹修：记忆 tab 打不开（2026-11-16）
+
+- 用户实测记忆 tab 打不开。CDP 真机走查（GAEA_WEBVIEW_DEBUG=1:9333，主窗按
+  url 精确过滤）定罪：**useSubagentTabs.handleChatTabSelect 的视图 tab 白名单
+  CHAT_VIEW_TAB_IDS 漏 "memory"**——不在名单的 id 被当子代理 tab 吃掉
+  （setChatTab("chat")），内容回落 chat。这是该白名单的已知老坑复犯（v4.542
+  刀3/5 注释在案：洞察/编队入列时踩过同一坑）。
+- 修=ChatTabs.tsx 白名单补 "memory"（含坑册注释）；装机 12:37 INSTALL OK
+  （重挂壳过验：角色 hub ✓ → 记忆 tab ✓ panel 挂载渲染图文脑 facts/scopes，
+  零控制台错误）。
+- 附：坑=CDP 走查 /json/list 需按 url 精确过滤主窗（dsh.wails.localhost 编程
+  板是独立 target）；python heredoc 修 Go 源码反斜杠路径时 	 会被转义成 TAB
+  （用 chr(92) 显式拼接）。
 
 ## 新建小说关键信息+成人等级（2026-11-16）
 

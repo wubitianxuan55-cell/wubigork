@@ -125,4 +125,24 @@ describe("Wenxue Sidebar novel workspaces", () => {
 
     await waitFor(() => expect(props.onDeleteNovel).toHaveBeenCalledWith(currentNovel.path));
   });
+
+  it("隐私模式遮罩作品名、会话名和路径提示", () => {
+    const privateNovel: ProjectGroup = {
+      ...currentNovel,
+      sessions: [{
+        path: "C:\\AI\\tuwen\\长夜灯火\\.gaea\\sessions\\one.jsonl",
+        preview: "必须保密的情节",
+        turns: 3,
+        modTime: Date.now() - 60_000,
+        current: true,
+      }],
+    };
+    renderSidebar({ projectGroups: [privateNovel], privacyMode: true });
+
+    expect(screen.getAllByText("私密作品").length).toBeGreaterThan(0);
+    expect(screen.getByText("私密会话 1")).toBeTruthy();
+    expect(screen.queryByText("长夜灯火")).toBeNull();
+    expect(screen.queryByText("必须保密的情节")).toBeNull();
+    expect(screen.queryByTitle(privateNovel.path)).toBeNull();
+  });
 });

@@ -142,6 +142,12 @@
   cursor: pointer;
 }
 
+.wx-root .wx-home-privacy.is-active {
+  border-color: var(--wx-accent-line);
+  color: var(--accent);
+  background: var(--wx-accent-wash);
+}
+
 .wx-root .wx-home-cover-stage {
   position: relative;
   min-height: 170px;
@@ -491,6 +497,10 @@
 .wx-root .gaea-app-layout .chat-pane.wx-home-chat .office-composer-toolbar {
   min-height: 36px !important;
   padding-block: 3px !important;
+}
+
+.wx-root .gaea-app-layout .chat-pane.is-private .office-composer-toolbar .office-toolbar-workspace {
+  display: none !important;
 }
 
 .wx-root .wx-home-project-tile__copy {

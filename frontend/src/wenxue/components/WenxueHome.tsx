@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight, BookOpen, Clock, FileText, ListTree, MessageSquare,
-  Plus, RefreshCw, ScrollText, Sparkles, Users,
+  Plus, RefreshCw, ScrollText, Shield, Sparkles, Users,
 } from "../icons";
 import type { Icon } from "../icons";
 import { app } from "../lib/bridge";
@@ -77,11 +77,14 @@ function ProjectCover({
   name,
   variant,
   featured = false,
+  privateMode = false,
 }: {
   name: string;
   variant: number;
   featured?: boolean;
+  privateMode?: boolean;
 }) {
+  const visibleName = privateMode ? "私密作品" : shortName(name, featured ? 12 : 9);
   return (
     <span
       className={`wx-home-cover wx-home-cover--v${variant}${featured ? " is-featured" : ""}`}
@@ -89,9 +92,30 @@ function ProjectCover({
     >
       <span className="wx-home-cover__rule" />
       <span className="wx-home-cover__mark">gaea · 文学</span>
-      <strong>{shortName(name, featured ? 12 : 9)}</strong>
+      <strong>{visibleName}</strong>
       <span className="wx-home-cover__foot">长篇小说工作空间</span>
     </span>
+  );
+}
+
+function PrivacyButton({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`wx-hub-action wx-home-privacy${enabled ? " is-active" : ""}`}
+      aria-pressed={enabled}
+      onClick={onToggle}
+      title={enabled ? "关闭首页隐身模式" : "隐藏书名、会话摘要和最新章节"}
+    >
+      <Shield size={13} aria-hidden />
+      <span>{enabled ? "已隐身" : "首页隐私"}</span>
+    </button>
   );
 }
 
@@ -99,6 +123,8 @@ function LibraryHome({
   projects,
   recentSessions,
   loaded,
+  privateMode,
+  onTogglePrivacy,
   onOpenProject,
   onCreateNovel,
   onResumeSession,
@@ -107,6 +133,8 @@ function LibraryHome({
   projects: ProjectGroup[];
   recentSessions: SessionMeta[];
   loaded: boolean;
+  privateMode: boolean;
+  onTogglePrivacy: () => void;
   onOpenProject: (path: string) => Promise<string>;
   onCreateNovel: () => void;
   onResumeSession: (path: string, projectPath: string) => void;
@@ -174,7 +202,7 @@ function LibraryHome({
                   disabled={!!opening}
                 >
                   <BookOpen size={13} aria-hidden />
-                  <span>{opening === featured.path ? "正在打开…" : `继续《${featured.name}》`}</span>
+                  <span>{opening === featured.path ? "正在打开…" : privateMode ? "继续最近作品" : `继续《${featured.name}》`}</span>
                 </button>
               )}
               {projects.length > 0 && (
@@ -183,6 +211,7 @@ function LibraryHome({
                   <span>全部历史</span>
                 </button>
               )}
+              <PrivacyButton enabled={privateMode} onToggle={onTogglePrivacy} />
             </div>
             {error && <div className="wx-home-inline-error" role="alert">{error}</div>}
           </div>
@@ -194,13 +223,14 @@ function LibraryHome({
                   name={featured.name}
                   variant={coverVariant(featured.name)}
                   featured
+                  privateMode={privateMode}
                 />
                 {sortedProjects.slice(1, 3).map((project, index) => (
                   <span
                     key={project.path}
                     className={`wx-home-cover-stack-item is-${index + 1}`}
                   >
-                    <ProjectCover name={project.name} variant={coverVariant(project.name)} />
+                    <ProjectCover name={project.name} variant={coverVariant(project.name)} privateMode={privateMode} />
                   </span>
                 ))}
               </>
@@ -229,9 +259,8 @@ function LibraryHome({
               </div>
               <div className="wx-home-shelf__grid">
                 {sortedProjects.map((project, index) => {
-                  const sessions = [...project.sessions].sort((a, b) => b.modTime - a.modTime);
-                  const latest = sessions.find((session) => session.turns > 0) ?? sessions[0];
                   const isFeatured = index === 0;
+                  const visibleName = privateMode ? `作品 · ${String(index + 1).padStart(2, "0")}` : project.name;
                   return (
                     <button
                       key={project.path}
@@ -244,14 +273,15 @@ function LibraryHome({
                         name={project.name}
                         variant={coverVariant(project.name)}
                         featured={isFeatured}
+                        privateMode={privateMode}
                       />
                       <span className="wx-home-project-tile__copy">
-                        <span className="wx-home-project-tile__title">{project.name}</span>
+                        <span className="wx-home-project-tile__title">{visibleName}</span>
                         <span className="wx-home-project-tile__meta">
                           {project.sessions.length} 个会话 · {relativeTime(projectModified(project))}
                         </span>
                         <span className="wx-home-project-tile__session">
-                          {latest ? sessionTitle(latest, "尚未开始写作") : "还没有会话"}
+                          {privateMode ? "会话内容已隐藏" : "最近写作记录已收起"}
                         </span>
                         <span className="wx-home-project-tile__open">
                           {opening === project.path ? "正在打开…" : "进入作品"}
@@ -290,8 +320,8 @@ function LibraryHome({
                         >
                           <span className="wx-home-session-row__mark" aria-hidden><MessageSquare size={10} /></span>
                           <span className="wx-home-session-row__copy">
-                            <strong>{sessionTitle(session, session.path.split(/[/\\]/).pop() ?? "会话")}</strong>
-                            <small>{project?.name ?? "未知作品"} · {relativeTime(session.modTime)}</small>
+                            <strong>{privateMode ? "会话内容已隐藏" : project ? `继续《${project.name}》` : "写作会话"}</strong>
+                            <small>{privateMode ? "隐私模式" : "最近写作"} · {relativeTime(session.modTime)}</small>
                           </span>
                         </button>
                       );
@@ -345,6 +375,8 @@ function ProjectHome({
   project,
   currentSessionPath,
   quickActions,
+  privateMode,
+  onTogglePrivacy,
   onInsertPrompt,
   onNewSession,
   onResumeSession,
@@ -354,6 +386,8 @@ function ProjectHome({
   project: ProjectGroup;
   currentSessionPath?: string;
   quickActions: WenxueHomeQuickAction[];
+  privateMode: boolean;
+  onTogglePrivacy: () => void;
   onInsertPrompt: (prompt: string) => void;
   onNewSession: () => void;
   onResumeSession: (path: string, projectPath: string) => void;
@@ -428,11 +462,13 @@ function ProjectHome({
   const lastWritten = sessions.find((session) => session.turns > 0);
   const continueAction = quickActions.find((action) => action.key === "chapter-continue");
   const outlineAction = quickActions.find((action) => action.key === "outline-push");
-  const latestLabel = snapshot.latestChapter
-    ? snapshot.latestChapter.number > 0
-      ? `第 ${snapshot.latestChapter.number} 章 · ${snapshot.latestChapter.title}`
-      : snapshot.latestChapter.title
-    : "章节尚未建立";
+  const latestLabel = privateMode
+    ? "章节内容已隐藏"
+    : snapshot.latestChapter
+      ? snapshot.latestChapter.number > 0
+        ? `第 ${snapshot.latestChapter.number} 章 · ${snapshot.latestChapter.title}`
+        : snapshot.latestChapter.title
+      : "章节尚未建立";
 
   return (
     <section className="wx-hub wx-home wx-home--project" data-testid="wenxue-home-project">
@@ -440,7 +476,7 @@ function ProjectHome({
         <header className="wx-home-hero wx-home-hero--project">
           <div className="wx-home-hero__copy">
             <div className="wx-home-kicker">作品控制台 · {relativeTime(projectModified(project))}编辑</div>
-            <h1>{project.name}</h1>
+            <h1>{privateMode ? "作品已隐身" : project.name}</h1>
             <p>{loading ? "正在读取作品结构…" : latestLabel}</p>
             <div className="wx-home-hero__actions">
               <button
@@ -466,6 +502,7 @@ function ProjectHome({
                 <BookOpen size={13} aria-hidden />
                 <span>作品书架</span>
               </button>
+              <PrivacyButton enabled={privateMode} onToggle={onTogglePrivacy} />
             </div>
             {error && (
               <div className="wx-home-inline-error" role="alert">
@@ -475,7 +512,7 @@ function ProjectHome({
             )}
           </div>
           <div className="wx-home-project__cover" aria-hidden>
-            <ProjectCover name={project.name} variant={variant} featured />
+            <ProjectCover name={project.name} variant={variant} featured privateMode={privateMode} />
             <span className="wx-home-project__spine" />
           </div>
         </header>
@@ -579,7 +616,7 @@ function ProjectHome({
                   <span className="wx-home-library-map__icon"><Users size={15} aria-hidden /></span>
                   <span>
                     <strong>角色人物志</strong>
-                    <small>{snapshot.characterNames.join("、") || "尚无角色卡"}</small>
+                    <small>{privateMode ? "人物名单已隐藏" : (snapshot.characterNames.join("、") || "尚无角色卡")}</small>
                   </span>
                   <span>{snapshot.characters}</span>
                 </button>
@@ -595,7 +632,7 @@ function ProjectHome({
                   <span className="wx-home-library-map__icon"><ScrollText size={15} aria-hidden /></span>
                   <span>
                     <strong>世界设定志</strong>
-                    <small>{snapshot.settingNames.join("、") || "尚无设定文档"}</small>
+                    <small>{privateMode ? "设定目录已隐藏" : (snapshot.settingNames.join("、") || "尚无设定文档")}</small>
                   </span>
                   <span>{snapshot.settings}</span>
                 </button>
@@ -620,7 +657,7 @@ function ProjectHome({
                     >
                       <span className="wx-home-session-row__mark" aria-hidden><MessageSquare size={10} /></span>
                       <span className="wx-home-session-row__copy">
-                        <strong>{sessionTitle(session, session.path.split(/[/\\]/).pop() ?? "会话")}</strong>
+                        <strong>{privateMode ? "会话内容已隐藏" : sessionTitle(session, session.path.split(/[/\\]/).pop() ?? "会话")}</strong>
                         <small>{session.turns} 轮 · {relativeTime(session.modTime)}</small>
                       </span>
                     </button>
@@ -638,7 +675,7 @@ function ProjectHome({
             <section className="wx-hub-paper wx-home-side-card wx-home-project-note">
               <span className="wx-home-section-kicker">当前作品</span>
               <strong>{project.sessions.length} 个会话</strong>
-              <p title={project.path}>{project.path}</p>
+              <p>正文、人物、设定与会话仅保存在本机作品库。</p>
             </section>
           </aside>
         </div>
@@ -662,6 +699,8 @@ export function WenxueHome({
   onInsertPrompt,
   onSwitchTab,
   onOpenLibrary,
+  privateMode,
+  onTogglePrivacy,
 }: {
   projects: ProjectGroup[];
   currentProject?: ProjectGroup;
@@ -677,6 +716,8 @@ export function WenxueHome({
   onInsertPrompt: (prompt: string) => void;
   onSwitchTab: (tab: "characters" | "reading" | "settings") => void;
   onOpenLibrary: () => void;
+  privateMode: boolean;
+  onTogglePrivacy: () => void;
 }) {
   if (currentProject) {
     return (
@@ -684,6 +725,8 @@ export function WenxueHome({
         project={currentProject}
         currentSessionPath={currentSessionPath}
         quickActions={quickActions}
+        privateMode={privateMode}
+        onTogglePrivacy={onTogglePrivacy}
         onInsertPrompt={onInsertPrompt}
         onNewSession={onNewSession}
         onResumeSession={onResumeSession}
@@ -697,6 +740,8 @@ export function WenxueHome({
       projects={projects}
       recentSessions={recentSessions}
       loaded={projectsLoaded}
+      privateMode={privateMode}
+      onTogglePrivacy={onTogglePrivacy}
       onOpenProject={onOpenProject}
       onCreateNovel={onCreateNovel}
       onResumeSession={onResumeSession}
