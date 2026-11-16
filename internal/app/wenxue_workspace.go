@@ -551,6 +551,13 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	// 域约定，阅读标签页与 wenxue_final_* 工具共享，2026-11-15 阅读刀）。
 	_ = os.MkdirAll(filepath.Join(abs, ".gaea"), 0o755)
 	_ = os.MkdirAll(filepath.Join(abs, "定稿"), 0o755)
+	// 小说域技能播种（2026-11-17 审查批5 刀2）：novel-agents/novel-deslop/
+	// novel-review 三件进书 .gaea/skills（store 发现链首根）——只补缺失文件
+	// 幂等、用户改动保留；在切书重建前落盘，新控制器 store 快照即可见
+	// （run_skill 派发契约的 read_file 伴随件随目录就位）。
+	if n := wenxueSeedBookSkills(abs); n > 0 {
+		slog.Info("图文书技能播种", "book", abs, "files", n)
+	}
 	wenxuePersistWorkspace(abs)
 	// 释放图文文件树监视（旧根句柄），树重开时按新根重建。
 	wenxueCloseFileTreeWatch()

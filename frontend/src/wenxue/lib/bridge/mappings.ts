@@ -14,7 +14,10 @@ export const gaeaToGaea = {
   Approve: "WenxueApprove",
   AnswerQuestion: "WenxueAnswer",
   NewSession: "WenxueNewSession",
-  Reload: "GaeaReload",
+  // 能力面板刷新=热重载图文引擎（2026-11-17 审查批5 刀3：原指 GaeaReload
+  // ——wenxue 面板上刷新的是办公引擎，跨板块误操作）。返回形状同款
+  // （GaeaReloadResult）。
+  Reload: "WenxueReload",
   CaptureSkill: "GaeaCaptureSkill",
   SkillDraftFromSession: "GaeaSkillDraftFromSession",
   SkillDraftSave: "GaeaSkillDraftSave",

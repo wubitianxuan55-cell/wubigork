@@ -199,6 +199,9 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		Model: "gaea",
 		// 身份覆写：图文人格（见 wenxueSystemPrompt）。
 		SystemPrompt: sysPrompt,
+		// 账目标签分列（2026-11-17 审查批5 刀1）：wx 全部 provider（主 agent+
+		// 子代理）用量标 "wenxue"，与办公 "gaea" 桶分列（PerFeature 分桶）。
+		Feature: "wenxue",
 		EmitSubagentText: func(ref, text string) {
 			a.emit(wenxueSubagentTextChannel, map[string]interface{}{
 				"kind": "subagent_text", "text": text, "subagentRef": ref,

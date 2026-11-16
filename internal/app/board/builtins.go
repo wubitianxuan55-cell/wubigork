@@ -171,7 +171,12 @@ var builtinManifests = []Manifest{
 		MenuOrder: 2, InMenu: Bool(true),
 		Space:        SpaceWork, // 工位·文学工作台（图文，工作空间限 tuwen 根）
 		FeatureModel: "wenxue",
-		Bindings:     []string{"WenxueB", "OfficeB", "MemoryB", "CostB"},
+		// 绑定门面声明（2026-11-17 审查批5 刀3 修正）：MemoryB/CostB 在 wenxue
+		// UI 零消费（调查实证 130 短名里 0 调用），摘出纸面口径。注意本字段
+		// 运行时无消费者（bindings_manifest 生成物无条件挂 11 门面，前端代理
+		// 按方法名扫全门面）——桥面真实边界=mappings.ts 的映射目标；办公域
+		// 专属件在 wenxue UI 的真实消费为零（45/234 全为共享底座+导出链）。
+		Bindings: []string{"WenxueB", "OfficeB"},
 	},
 	{
 		// 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：本机系统资源 +

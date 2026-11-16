@@ -231,13 +231,13 @@ export function FilePreview({
     setSaveState("saving");
     try {
       const content = override ?? draft;
-      const writer = app.GaeaWriteWorkspaceFile;
-      if (typeof writer === "function" && editMtimeMs > 0) {
-        const written = await writer(relPath, content, editMtimeMs);
-        setEditMtimeMs(written.mtimeMs);
-      } else {
-        await app.WriteFile(relPath, content);
-      }
+      // 保存统一走工作空间 CAS 写（WenxueWriteWorkspaceFile，锚小说目录）：
+      // expectedMtimeMs=0 = 无 CAS 直写（workbench.WriteText 语义）——原
+      // fallback app.WriteFile 按 gaeaCwd（办公工作区）解析相对路径，无基线
+      // 保存会把书稿写进办公工作区同相对路径（跨板块误写，2026-11-17 审查
+      // 批5 刀3 根修）。
+      const written = await app.GaeaWriteWorkspaceFile(relPath, content, Math.max(0, editMtimeMs));
+      setEditMtimeMs(written.mtimeMs);
       setDirty(false);
       setSaveState("saved");
       toast.show("已保存到工作区", "info");

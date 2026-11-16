@@ -10,12 +10,13 @@
 //
 // 文学树注（2026-11-15）：本份按 wenxue 拷贝自己的 facets+mappings 现算
 // （案A 刀1 后聊天流认领集=图文独立引擎 Wenxue* 面，Gaea 系会话态名全部
-// 落 legacy），与 gaea 树清单口径不同属预期。再生=用本树 facets/mappings 重跑同算法。
+// 落 legacy），与 gaea 树清单口径不同属预期。再生=用本树 facets/mappings 重跑同算法
+// （2026-11-17 审查批5 起由 .tmp/wenxue-analysis/relegacy_b5.mjs 现算）。
 //
 // 消费方：frontend/src/wenxue/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 226 名 = Go 导出 817 − 认领且 Go 存在 591。
+// 共 216 名 = Go 导出 689 − 认领且 Go 存在 473。
 export const legacyBindings = [
   "AddCustomEngine",
   "BrainSearch",
@@ -124,6 +125,7 @@ export const legacyBindings = [
   "GaeaReadFile",
   "GaeaReadFilePage",
   "GaeaReadTextFile",
+  "GaeaReload",
   "GaeaRemember",
   "GaeaRenameSession",
   "GaeaRenameWorkspacePath",
@@ -161,6 +163,7 @@ export const legacyBindings = [
   "GaeaUnpinMaterial",
   "GaeaUpdateFact",
   "GaeaUsageOverview",
+  "GaeaWenxueMemoryBrowse", // gaea 桥消费（记忆中枢），wenxue 桥不消费
   "GaeaWorkspaceUploadAbort",
   "GaeaWorkspaceUploadAppend",
   "GaeaWorkspaceUploadBegin",
@@ -184,10 +187,10 @@ export const legacyBindings = [
   "GetModelCallStats",
   "GetModelMonitor",
   "GetModelRoute",
+  "GetNovelsDir",
   "GetOfficeLocal",
   "GetOfflineMode",
   "GetOpencodeGoKeyStatus",
-  "GetNovelsDir",
   "GetProjectInfo",
   "GetSensitiveLocal",
   "HerdsmanLaunchPresets",
@@ -228,10 +231,7 @@ export const legacyBindings = [
   "UpdateProjectMeta",
   "VisionRoute",
   "WenxuePermLevel",
-  "WenxueReload",
   "WhirlEngineStart",
   "WhirlEngineStatus",
   "WhirlEngineStop",
-  "GaeaWenxueMemoryBrowse", // gaea 桥消费（记忆中枢），wenxue 桥不消费
 ] as const;
-

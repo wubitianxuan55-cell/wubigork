@@ -142,3 +142,35 @@ func TestBridge_Stream_StrataThinkingAndBudget(t *testing.T) {
 		t.Errorf("MaxTokens = %d, want 8192（显式大预算不应被改写）", mc2.gotReq.MaxTokens)
 	}
 }
+
+// TestBridge_FactoryFeatureOverride 账目标签覆盖（2026-11-17 审查批5 刀1）：
+// Extra["feature"] 覆盖缺省判定——图文引擎 Build 传 opts.Feature="wenxue"
+// 后 wx 全部 provider 用量落 "wenxue" 桶（PerFeature 分列）；无覆盖时缺省
+// 判定逐字节不变（主 agent "gaea"/显式引擎 "office"）。
+func TestBridge_FactoryFeatureOverride(t *testing.T) {
+	SetClient(&mockClient{chunks: []ai.SSEChunk{{Done: true}}})
+	t.Cleanup(func() { SetClient(nil) })
+	featureOf := func(extra map[string]any, engine string) string {
+		p, err := provider.NewLLM("wubigrok", provider.Config{Name: "t", Engine: engine, Extra: extra})
+		if err != nil {
+			t.Fatalf("NewLLM: %v", err)
+		}
+		bp, ok := p.(*Provider)
+		if !ok {
+			t.Fatalf("应为 *Provider，got %T", p)
+		}
+		return bp.feature
+	}
+	if got := featureOf(map[string]any{"feature": "wenxue"}, ""); got != "wenxue" {
+		t.Fatalf("Extra feature 覆盖失效: %q", got)
+	}
+	if got := featureOf(nil, ""); got != "gaea" {
+		t.Fatalf("缺省主 agent 标签漂移: %q", got)
+	}
+	if got := featureOf(nil, "herdsman"); got != "office" {
+		t.Fatalf("显式引擎缺省标签漂移: %q", got)
+	}
+	if got := featureOf(map[string]any{"feature": "   "}, ""); got != "gaea" {
+		t.Fatalf("空白覆盖应回缺省判定: %q", got)
+	}
+}

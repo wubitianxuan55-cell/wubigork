@@ -91,6 +91,11 @@ type Options struct {
 	// （workspace 本身恒可读，与该参数无关；拾取文件走 ReadPathAllowed
 	// 回调）。空 = 原行为逐字节。
 	ReadRoots []string
+	// Feature 账目标签（2026-11-17 审查批5）：非空时注入 provider.Config.Extra
+	// ["feature"]，bridge 工厂以此覆盖缺省 "gaea"/"office" 判定——图文引擎传
+	// "wenxue"，用量记账 PerFeature 分桶随标签分列（此前 wx 主 agent 用量全落
+	// "gaea" 桶）。空 = 现状逐字节（办公/CLI/TUI 不受影响）。
+	Feature string
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
 	ExtraTools []tool.Tool
@@ -257,7 +262,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	if cfg.Agent.Effort != "" {
 		entry.Effort = cfg.Agent.Effort
 	}
-	execProv, err := NewProvider(entry)
+	execProv, err := newProviderWithFeature(entry, opts.Feature)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +432,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			if e := cfg.Agent.SubagentEffortVal(); e != "" {
 				subEntry.Effort = e
 			}
-			if subProv, err := NewProvider(subEntry); err == nil {
+			if subProv, err := newProviderWithFeature(subEntry, opts.Feature); err == nil {
 				taskTool.SetSubagentProvider(subProv, subEntry.Price, subEntry.ContextWindow)
 				// 子代理模型显式命名时快照身份跟着换（实际选中的条目）。
 				taskTool.SetSubagentIdentity(subEntry.Model, subEntry.Effort)
@@ -524,7 +529,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		prov, price, ctxWin := execProv, entry.Price, entry.ContextWindow
 		if modelRef := subagentModelRef(cfg, sk); modelRef != "" {
 			if me, ok := cfg.ResolveModel(modelRef); ok {
-				if p, err := NewProvider(me); err == nil {
+				if p, err := newProviderWithFeature(me, opts.Feature); err == nil {
 					prov, price, ctxWin = p, me.Price, me.ContextWindow
 				}
 			}
@@ -913,8 +918,25 @@ func hardAskSetFromList(names []string) map[string]bool {
 // and an empty kind defaults to provider.DefaultLLMKind ("wubigrok" — today's
 // bridge provider, keeping unconfigured behaviour unchanged). Exported so custom
 // assemblers (e.g. the ACP per-session factory) can reuse it without going
-// through the full Build.
+// through the full Build. 账目 feature 标签不覆盖（bridge 工厂缺省 "gaea"/
+// "office" 判定）。
 func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
+	return newProviderWithFeature(e, "")
+}
+
+// newProviderWithFeature 同 NewProvider，非空 feature 注入 provider.Config
+// .Extra["feature"]——bridge 工厂以此覆盖账目标签（2026-11-17 审查批5 刀1：
+// 图文引擎 Build 传 opts.Feature="wenxue"，用量记账 PerFeature 分桶分列；
+// 空=缺省判定，办公逐字节不变）。
+func newProviderWithFeature(e *config.ProviderEntry, feature string) (provider.LLMProvider, error) {
+	extra := map[string]any{
+		"api_key_env": e.APIKeyEnv,
+		"thinking":    e.Thinking,
+		"effort":      e.Effort,
+	}
+	if f := strings.TrimSpace(feature); f != "" {
+		extra["feature"] = f
+	}
 	return provider.NewLLM(e.Kind, provider.Config{
 		Name:    e.Name,
 		BaseURL: e.BaseURL,
@@ -923,11 +945,7 @@ func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
 		// Pass the key's env var so auth failures can name where to fix it, plus
 		// provider-kind-specific knobs (the anthropic provider reads thinking/effort;
 		// the openai one ignores them).
-		Extra: map[string]any{
-			"api_key_env": e.APIKeyEnv,
-			"thinking":    e.Thinking,
-			"effort":      e.Effort,
-		},
+		Extra: extra,
 	})
 }
 

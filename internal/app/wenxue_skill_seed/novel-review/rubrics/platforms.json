@@ -1,0 +1,35 @@
+{
+  "id": "platforms",
+  "name": "平台档位",
+  "source": "重推导自 oh-story-claudecode skills/story-review/references/rubrics/{fanqie,qidian,zhihu}.md（MIT）",
+  "note": "平台档位为 advisory（不 blocking）：命中 FAIL 只升级 severity 与结论档，不自动改稿。",
+  "platforms": {
+    "fanqie": {
+      "name": "番茄小说",
+      "emphasis": "快节奏、强情绪、短段落、高信息密度",
+      "overrides": [
+        { "id": "opening_freshness", "fail": "前 3 段纯描写/背景介绍（无冲突、悬念、钩子）", "severity": "S2" },
+        { "id": "hook_expectation", "fail": "连续 3 章结尾无翻页动力（悬念/反转/新信息）", "severity": "S2" },
+        { "id": "emotion_curve", "fail": "连续 2000 字情绪平直（无起伏）", "severity": "S2" },
+        { "id": "format_readability", "fail": "大段落、慢节奏、低信息密度", "severity": "S3" },
+        { "id": "genre_match", "fail": "偏离标签类型超过 3 章", "severity": "S2" }
+      ]
+    },
+    "qidian": {
+      "name": "起点中文网",
+      "emphasis": "设定体系、升级逻辑、世界观自洽、长线期待",
+      "overrides": [
+        { "id": "setting_consistency", "fail": "与既有规则/体系冲突且未提供证据", "severity": "S1" },
+        { "id": "plot_loop", "fail": "升级/成长反馈缺失，读者看不到进展", "severity": "S2" }
+      ]
+    },
+    "zhihu": {
+      "name": "知乎盐言故事",
+      "emphasis": "开局即钩子、强反转、密集情绪、第一人称代入",
+      "overrides": [
+        { "id": "opening_freshness", "fail": "首屏未进入事件（铺垫超过 2 段）", "severity": "S2" },
+        { "id": "climax_build", "fail": "反转无铺垫或反转后无兑现", "severity": "S2" }
+      ]
+    }
+  }
+}
