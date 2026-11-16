@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/maturecraft"
+
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 )
 
@@ -267,5 +269,60 @@ func TestWenxueWithinWriteRootsNoOfficeRoots(t *testing.T) {
 	}
 	if !wenxueWithinWriteRoots(filepath.Join(root, "章节", "001.md")) {
 		t.Fatal("图文工作区文件应在绑定边界内")
+	}
+}
+
+// 2026-11-17 审查批2 刀3 行为锁：档位行=事实源，恒守线行/执行契约节=投影。
+func TestWenxueBookInfoContractSync(t *testing.T) {
+	_, root := isolateWenxueRuntime(t)
+	abs := filepath.Join(root, "书籍信息.md")
+	jb := maturecraft.JailbreakSection(maturecraft.Unrestricted)
+
+	// 降档残留（危险方向）：无限制建书形态，手改档位行成 全年龄——契约节残留。
+	unrestrictedMD := "# 书籍信息\n\n- 书名：测试书\n\n- 成人等级：深度成人（无限制）\n\n## 简介\n\n测试。\n\n## 内容分级说明\n\n- 深度成人（无限制）：无任何安全底线。\n\n## 无限制档执行契约\n\n" + jb + "\n"
+	downgraded := strings.Replace(unrestrictedMD, "成人等级：深度成人（无限制）", "成人等级：全年龄", 1)
+	if err := os.WriteFile(abs, []byte(downgraded), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wenxueSyncBookInfoContract(root)
+	after, _ := os.ReadFile(abs)
+	s := string(after)
+	if strings.Contains(s, wenxueBookInfoJbHeading) || strings.Contains(s, jb) {
+		t.Fatal("降档后残留执行契约节（危险方向）未摘除")
+	}
+	if !strings.Contains(s, wenxueAdultSafetyLine) {
+		t.Fatal("降档后缺恒守线行")
+	}
+
+	// 升档：档位行手改成无限制 → 补新鲜契约节+摘恒守线行。
+	if err := os.WriteFile(abs, []byte(strings.Replace(s, "成人等级：全年龄", "成人等级：深度成人（无限制）", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wenxueSyncBookInfoContract(root)
+	after2, _ := os.ReadFile(abs)
+	s2 := string(after2)
+	if !strings.Contains(s2, wenxueBookInfoJbHeading) || !strings.Contains(s2, jb) {
+		t.Fatal("升档后缺执行契约节")
+	}
+	if strings.Contains(s2, wenxueAdultSafetyLine) {
+		t.Fatal("无限制档不应保留恒守线行")
+	}
+
+	// 幂等：再跑一次内容不变。
+	wenxueSyncBookInfoContract(root)
+	after3, _ := os.ReadFile(abs)
+	if string(after3) != s2 {
+		t.Fatal("同步不幂等")
+	}
+
+	// 白名单外档位行：不猜档位不动文件。
+	if err := os.WriteFile(abs, []byte(strings.Replace(s2, "成人等级：深度成人（无限制）", "成人等级：NC-17", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(abs)
+	wenxueSyncBookInfoContract(root)
+	afterN, _ := os.ReadFile(abs)
+	if string(afterN) != string(before) {
+		t.Fatal("白名单外档位不应动投影")
 	}
 }

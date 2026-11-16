@@ -69,6 +69,29 @@ func TestReadFileSessionFence(t *testing.T) {
 	}
 }
 
+// TestWriteFenceInConfine 写侧对称面（2026-11-17 审查批2 刀2）：confine 是
+// 全部写族 builtin（write_file/edit_file/multi_edit/edit_lines/move_file/
+// replace）的公共约束原语——会话件写入在 unconfined（roots 空）时同样拒，
+// 与工作区边界正交。
+func TestWriteFenceInConfine(t *testing.T) {
+	sessions := filepath.Join(t.TempDir(), ".gaea", "sessions", "s1.gaea.jsonl")
+	err := confine(nil, sessions)
+	if err == nil || !strings.Contains(err.Error(), "SESSION_DENIED") {
+		t.Fatalf("confine 对会话件写入应拒（unconfined 同拒），got %v", err)
+	}
+	var f *tool.Failure
+	if !errors.As(err, &f) || f.Code != tool.CodeDenied {
+		t.Fatalf("拒绝应为 CodeDenied Failure，got %v", err)
+	}
+	// 集成：write_file 直写会话件被拒。
+	wf := writeFile{}
+	if _, err := wf.Execute(context.Background(), mustArgs(t, map[string]any{
+		"path": sessions, "content": "污染",
+	})); err == nil || !strings.Contains(err.Error(), "SESSION_DENIED") {
+		t.Fatalf("write_file 写会话件应被围栏拒绝，got %v", err)
+	}
+}
+
 // TestGrepSessionFenceSkips grep 显式 root 指进 sessions 时逐件跳过并记账。
 func TestGrepSessionFenceSkips(t *testing.T) {
 	dir := t.TempDir()

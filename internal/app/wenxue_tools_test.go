@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
@@ -249,4 +250,28 @@ func TestWenxueBaseToolsImageGenWorkTagged(t *testing.T) {
 	if officeTag != "play" {
 		t.Fatalf("办公 image_gen 空间标签 = %q, want play（办公语义不变红线）", officeTag)
 	}
+}
+
+// TestWenxueWriteFence 写侧会话件围栏（2026-11-17 审查批2 刀2）：写族自由
+// path 参数不得落 .gaea/sessions/（读侧 wenxueReadBody 围栏的对称面）。
+func TestWenxueWriteFence(t *testing.T) {
+	root := wenxueToolsTestRoot(t)
+	if err := os.MkdirAll(filepath.Join(root, ".gaea", "sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := wenxueChapterWriteTool().Execute(t.Context(), json.RawMessage(
+		`{"path":".gaea/sessions/evil.md","content":"污染"}`)); err == nil || !strings.Contains(err.Error(), "SESSION_DENIED") {
+		t.Fatalf("chapter_write 写会话件应被围栏拒绝，got %v", err)
+	}
+	if _, err := wenxueTimelineAppendTool().Execute(t.Context(), json.RawMessage(
+		`{"text":"测试事件","file":".gaea/sessions/evil.jsonl"}`)); err == nil || !strings.Contains(err.Error(), "SESSION_DENIED") {
+		t.Fatalf("timeline_append 追加会话件应被围栏拒绝，got %v", err)
+	}
+	if _, err := wenxueCharacterWriteTool().Execute(t.Context(), json.RawMessage(
+		`{"name":"测试","content":"测试卡","path":".gaea/sessions/evil.md"}`)); err == nil || !strings.Contains(err.Error(), "SESSION_DENIED") {
+		t.Fatalf("character_write 写会话件应被围栏拒绝，got %v", err)
+	}
+	// 正常路径不误伤：写常规目录成功。
+	mustRun(t, wenxueTimelineAppendTool(), `{"text":"开局遇袭"}`)
 }

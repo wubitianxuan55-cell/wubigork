@@ -354,6 +354,16 @@ func wenxueRevision(body string) string {
 	return fmt.Sprintf("%x", sum[:])
 }
 
+// wenxueWriteFence 写侧会话件围栏（2026-11-17 审查批2 刀2，读侧 wenxueReadBody
+// 同源对称面）：写族自由 path 参数不得落 .gaea/sessions/ 内部事件流。
+// 候选/提升两工具路径由章节清单派生（有界）不过此闸。
+func wenxueWriteFence(toolName, abs string) error {
+	if builtin.SessionDirFenceRule(abs) {
+		return builtin.SessionDirDeniedWrite(toolName, abs)
+	}
+	return nil
+}
+
 func wenxueLocateChapter(root, rawPath string, number int) (wenxueChapterMeta, string, error) {
 	rel := filepath.ToSlash(strings.TrimSpace(rawPath))
 	for _, c := range wenxueListChapters(root) {
@@ -501,6 +511,9 @@ func wenxueChapterWriteTool() *wenxueTool {
 			abs, err := wspath.ResolveRelWithin(root, rel)
 			if err != nil {
 				return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+			}
+			if ferr := wenxueWriteFence("wenxue_chapter_write", abs); ferr != nil {
+				return "", ferr
 			}
 			if wenxueIsUnderFinalDir(root, rel) {
 				return "", fmt.Errorf("定稿目录（%s）请用 wenxue_final_write——章节工具不写定稿，防草稿入库", wenxueFindDir(root, "final"))
@@ -854,6 +867,9 @@ func wenxueCharacterWriteTool() *wenxueTool {
 			abs, err := wspath.ResolveRelWithin(root, rel)
 			if err != nil {
 				return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+			}
+			if ferr := wenxueWriteFence("wenxue_character_write", abs); ferr != nil {
+				return "", ferr
 			}
 			if info, err := os.Stat(abs); err == nil && !in.Overwrite {
 				return "", fmt.Errorf("角色卡已存在（%s，%d 字节）；确认覆盖请传 overwrite=true", rel, info.Size())
@@ -1260,6 +1276,9 @@ func wenxueTimelineAppendTool() *wenxueTool {
 			abs, err := wspath.ResolveRelWithin(root, rel)
 			if err != nil {
 				return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+			}
+			if ferr := wenxueWriteFence("wenxue_timeline_append", abs); ferr != nil {
+				return "", ferr
 			}
 			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 				return "", err

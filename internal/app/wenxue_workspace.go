@@ -338,6 +338,142 @@ func (a *App) wenxueWriteBookInfo(name string, info WenxueNovelInfo) error {
 	return nil
 }
 
+// ── 书籍信息契约投影同步（2026-11-17 审查批2 刀3）─────────────────
+// 「- 成人等级：X」行是唯一事实源；内容分级说明里的恒守线行与
+// 「## 无限制档执行契约」节是它的投影。文件头明示可直接编辑——手改档位后
+// 投影残留两形态：降档残留契约节（危险方向：非无限制书继续吃零底线指令）、
+// 升档缺契约节（旧书永远拿不到破甲契约）。引擎构建时幂等校正，只动投影
+// 不动用户内容（书名/题材/简介/用户追加节全保留）。
+
+const wenxueBookInfoJbHeading = "## 无限制档执行契约"
+
+// wenxueAdultLevelFromInfo 解析书籍信息.md 的成人等级行。白名单内返回原值；
+// 缺行或白名单外返回 ""（不可判=不动投影，不猜档位）。
+func wenxueAdultLevelFromInfo(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "- 成人等级：") {
+			continue
+		}
+		v := strings.TrimSpace(strings.TrimPrefix(line, "- 成人等级："))
+		for _, lv := range wenxueAdultLevels {
+			if v == lv {
+				return v
+			}
+		}
+		return ""
+	}
+	return ""
+}
+
+// wenxueSyncBookInfoContract 契约投影一致性校正（幂等；档位行不可判即不动）。
+func wenxueSyncBookInfoContract(root string) {
+	abs, err := wspath.ResolveRelWithin(root, "书籍信息.md")
+	if err != nil {
+		return
+	}
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		return // 缺档不代建（建书流程负责生成）
+	}
+	text := string(raw)
+	level := wenxueAdultLevelFromInfo(text)
+	if level == "" {
+		return
+	}
+	out := wenxueEnsureJbContract(text, level == wenxueAdultUnrestricted)
+	out = wenxueEnsureSafetyLine(out, level)
+	if out != text {
+		slog.Info("图文书籍信息契约投影同步", "level", level)
+		if err := os.WriteFile(abs, []byte(out), 0o644); err != nil {
+			slog.Warn("书籍信息契约同步写回失败", "error", err)
+		}
+	}
+}
+
+// wenxueEnsureJbContract 执行契约节按档位归位：无限制档=摘旧节重写新鲜契约
+// （契约文本是 Go 常量，随版本升级同步）；非无限制档=摘残留节（危险方向）。
+func wenxueEnsureJbContract(text string, unrestricted bool) string {
+	lines := strings.Split(text, "\n")
+	start := -1
+	for i, ln := range lines {
+		if strings.TrimSpace(ln) == wenxueBookInfoJbHeading {
+			start = i
+			break
+		}
+	}
+	if start >= 0 {
+		// 摘节：heading 到下一个 "## " 节头或文件尾。
+		end := len(lines)
+		for j := start + 1; j < len(lines); j++ {
+			if strings.HasPrefix(strings.TrimSpace(lines[j]), "## ") {
+				end = j
+				break
+			}
+		}
+		kept := append([]string{}, lines[:start]...)
+		kept = append(kept, lines[end:]...)
+		text = strings.TrimRight(strings.Join(kept, "\n"), "\n") + "\n"
+		if !unrestricted {
+			return text
+		}
+	} else if !unrestricted {
+		return text
+	}
+	jb := maturecraft.JailbreakSection(maturecraft.Unrestricted)
+	if jb == "" {
+		return text
+	}
+	return strings.TrimRight(text, "\n") + "\n\n" + wenxueBookInfoJbHeading + "\n\n" + jb + "\n"
+}
+
+// wenxueEnsureSafetyLine 恒守线行按档位归位：无限制档摘行；其余档确保恒守线
+// 行在「内容分级说明」节尾（节缺失则追加文件尾）。
+func wenxueEnsureSafetyLine(text string, level string) string {
+	if level == wenxueAdultUnrestricted {
+		kept := make([]string, 0, 32)
+		for _, ln := range strings.Split(text, "\n") {
+			if strings.Contains(ln, wenxueAdultSafetyLine) {
+				continue
+			}
+			kept = append(kept, ln)
+		}
+		return strings.Join(kept, "\n")
+	}
+	if strings.Contains(text, wenxueAdultSafetyLine) {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	secStart := -1
+	for i, ln := range lines {
+		if strings.TrimSpace(ln) == "## 内容分级说明" {
+			secStart = i
+			break
+		}
+	}
+	if secStart < 0 {
+		return strings.TrimRight(text, "\n") + "\n- " + wenxueAdultSafetyLine + "\n"
+	}
+	end := len(lines)
+	for j := secStart + 1; j < len(lines); j++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[j]), "## ") {
+			end = j
+			break
+		}
+	}
+	insertAt := end
+	for j := end - 1; j > secStart; j-- {
+		if strings.TrimSpace(lines[j]) != "" {
+			insertAt = j + 1
+			break
+		}
+	}
+	out := append([]string{}, lines[:insertAt]...)
+	out = append(out, "- "+wenxueAdultSafetyLine)
+	out = append(out, lines[insertAt:]...)
+	return strings.Join(out, "\n")
+}
+
 // WenxueDeleteNovel 删除 tuwen 根下的一部小说及其整个工作空间。
 // 仅接受根目录的直接子目录；删除当前小说时先切回根目录，避免后续会话写入
 // 已删除路径。

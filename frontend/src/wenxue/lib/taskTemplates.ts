@@ -1,4 +1,3 @@
-import { app } from "./bridge";
 import type { TaskTemplate } from "./types";
 
 // 内置任务模板兜底（2026-11-15 刀4 小说化）：后端命令库为空或加载失败时
@@ -71,21 +70,16 @@ export const FALLBACK_TEMPLATES: TaskTemplate[] = [
   },
 ];
 
-export function resolveTemplates(remote: TaskTemplate[] | null | undefined): TaskTemplate[] {
-  return remote && remote.length > 0 ? remote : FALLBACK_TEMPLATES;
-}
-
 let templatesCache: TaskTemplate[] | null = null;
 
-/** 拉取任务模板（带缓存）：远端成功 → 缓存；失败/空 → 内置模板。 */
+/** 拉取任务模板（带缓存）：图文单源=内置九条写作模板。远端通道有意不取——
+ * mappings 的 TaskTemplates→GaeaTaskTemplates 是 OfficeB 绑定，返回的周报/
+ * 成本测算/文档转换等办公模板文案指挥图文引擎已物理不装的工具（cost 系列、
+ * xlsx/format_convert/pptx 全在 wenxue_tool_policy deny 名单），remote 优先
+ * 语义会把它们顶到命令面板（2026-11-17 审查批2 刀1 收口；办公树 loadTemplates
+ * 仍走远端，属预期的分树差异）。 */
 export async function loadTemplates(): Promise<TaskTemplate[]> {
-  if (templatesCache) return templatesCache;
-  try {
-    const ts = await app.TaskTemplates();
-    templatesCache = resolveTemplates(ts);
-  } catch {
-    templatesCache = FALLBACK_TEMPLATES;
-  }
+  if (!templatesCache) templatesCache = FALLBACK_TEMPLATES;
   return templatesCache;
 }
 

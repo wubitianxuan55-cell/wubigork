@@ -60,6 +60,12 @@ func realRoots(roots []string) []string {
 // 解析成长名，Within 误判 outside）；解析失败退回原形——不确定即拒
 // （fail-closed），绝不因解析不了而放行。
 func confine(roots []string, target string) error {
+	// 会话件围栏写侧对称面（2026-11-17 审查批2 刀2；读侧 readfile.go:113/
+	// grep.go:193 同源）：.gaea/sessions/ 是引擎内部事件流，写族 builtin
+	// 一律不得落盘/改写——与边界 confine 正交（unconfined 模板实例同样拒）。
+	if SessionDirFenceRule(target) {
+		return SessionDirDeniedWrite("写族工具", target)
+	}
 	if len(roots) == 0 {
 		return nil
 	}

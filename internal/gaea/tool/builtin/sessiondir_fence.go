@@ -46,3 +46,17 @@ func SessionDirDenied(toolName, p string) error {
 		NextAction:  "会话历史走 @会话/session_search；诊断原始件用 bash head/tail 分页",
 	}
 }
+
+// SessionDirDeniedWrite 写侧对称拒绝（2026-11-17 审查批2 刀2，读侧
+// SessionDirDenied 同源）：.gaea/sessions/ 是引擎内部事件流（只读资产），
+// agent 不得借写族自由 path 参数落盘/改写——写改即污染会话历史。
+func SessionDirDeniedWrite(toolName, p string) error {
+	return &tool.Failure{
+		Code: tool.CodeDenied,
+		Err: fmt.Errorf("SESSION_DENIED: 会话件围栏拒绝 %s 写入 %s。"+
+			".gaea/sessions/ 下是引擎内部事件流（写改即污染会话历史）。"+
+			"事实沉淀用 remember；历史内容引用走 @会话/session_search；正文与笔记落工作空间常规目录。", toolName, p),
+		EffectState: tool.EffectNone,
+		NextAction:  "事实沉淀用 remember；历史引用走 @会话/session_search",
+	}
+}

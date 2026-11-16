@@ -182,6 +182,10 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 	// 工作空间锚：当前小说目录（未选书=图文根本身，会话被 NewSession 拒绝，
 	// 引擎仍可构建保证 Meta/面板可用）。
 	ws := wenxueWorkspace()
+	// 书籍信息契约投影同步（2026-11-17 审查批2 刀3）：档位行=事实源，
+	// 恒守线行/执行契约节=投影；建书/切书/热重载重建都经此处幂等校正，
+	// 会话注入（pinned）发生在 Build 之后，吃到的是校正后的文件。
+	wenxueSyncBookInfoContract(ws)
 	// 板块身份（2026-11-16 图文身份分板）：图文装配自己的身份提示词，不再
 	// 吃办公 system_prompt（本机实锤：办公人格=土壤修复工程助手，图文会话
 	// 开场自称「土壤修复办公专用AI助手」）。配置双键自定义（wenxue_system_
