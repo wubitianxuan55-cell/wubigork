@@ -78,12 +78,15 @@ export function ChangesPanel({
   // changes 仅在 items 为空时作合并层兼容回退（历史恢复场景）。
   const hasItems = items.length > 0;
   const writeChanges = useMemo(
-    () => (hasItems ? buildSessionChanges(items, WRITE_ONLY_TOOL_NAMES) : changes),
-    [hasItems, items, changes],
+    // cwd 实参必须传：去重键按归一化绝对形态合成（2026-11-17 审查批4 自
+    // wenxue 回种 0b1f4c62），缺 cwd 时「正文提及相对路径 vs 工具参数绝对
+    // 路径」合不了——同文件多写法在变更面板仍记成多条。
+    () => (hasItems ? buildSessionChanges(items, WRITE_ONLY_TOOL_NAMES, cwd) : changes),
+    [hasItems, items, changes, cwd],
   );
   const editChanges = useMemo(
-    () => (hasItems ? buildSessionChanges(items, EDIT_TOOL_NAMES) : []),
-    [hasItems, items],
+    () => (hasItems ? buildSessionChanges(items, EDIT_TOOL_NAMES, cwd) : []),
+    [hasItems, items, cwd],
   );
   const readChanges = useMemo(() => (hasItems ? buildSessionReads(items) : []), [hasItems, items]);
   const mergedChanges = useMemo(() => (hasItems ? [] : changes), [hasItems, changes]);

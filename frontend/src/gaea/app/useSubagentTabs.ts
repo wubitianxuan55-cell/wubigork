@@ -2,7 +2,7 @@
 // 从 App.tsx 按原执行顺序迁出：会话切换复位、打开/关闭 tab、subscribeSubagentRuns
 // 单轮询同步、以及任务卡多候选 taskPickCandidates（App 层的点击瞬间候选快照）。
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatTabId } from "../components/ChatTabs";
+import { CHAT_VIEW_TAB_IDS, type ChatTabId } from "../components/ChatTabs";
 import type { SubagentThreadStatus } from "../components/SubagentThread";
 import { subscribeSubagentRuns } from "../lib/subagentRunsStore";
 import type { SubagentRunView } from "../lib/types";
@@ -112,14 +112,12 @@ export function useSubagentTabs({ currentSessionKey, currentSessionPath, setChat
     });
   }, [subagentRuns]);
   const handleChatTabSelect = useCallback((id: string) => {
-    // v4.542 刀3/5：视图 tab 扩到六枚（洞察/编队入列）——白名单漏新 id 会把
-    // 它们当子代理会话 tab 吃掉（真机走查定罪：tab 选中但内容回落 chat）。
-    if (
-      id === "chat" || id === "trajectory" || id === "context" || id === "memory"
-      || id === "insights" || id === "fleet"
-    ) {
+    // 视图 tab id 单源白名单（CHAT_VIEW_TAB_IDS，2026-11-17 审查批4 自 wenxue
+    // 回种）：白名单漏新 id 会把它们当子代理会话 tab 吃掉（真机走查定罪：
+    // tab 选中但内容回落 chat）——新增主区 tab 只改 ChatTabs 一处。
+    if ((CHAT_VIEW_TAB_IDS as string[]).includes(id)) {
       setSubagentTabId(null);
-      setChatTab(id);
+      setChatTab(id as ChatTabId);
     } else {
       setSubagentTabId(id);
       setChatTab("chat");

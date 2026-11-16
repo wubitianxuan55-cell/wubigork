@@ -10,6 +10,12 @@ import { BarChart3, Blocks, Brain, ListTree, MessageSquare, PieChart } from "../
 // 洞察页；会话级四 tab 之后的第一个跨会话视图）。
 export type ChatTabId = "chat" | "trajectory" | "context" | "memory" | "insights" | "fleet";
 
+/** 视图 tab id 单源（useSubagentTabs 白名单/App 持久化校验共用）：
+ *  漏新 id 的后果=被当成子代理会话 tab 吃掉（2026-11-05/2026-11-15 两次真机
+ *  定罪；2026-11-17 审查批4 自 wenxue 树回种单源——此前本树 handleChatTabSelect
+ *  仍是硬编码内联名单，是下一次「第四犯」的火种）。 */
+export const CHAT_VIEW_TAB_IDS: ChatTabId[] = ["chat", "trajectory", "context", "memory", "insights", "fleet"];
+
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
   id: string;

@@ -1,9 +1,82 @@
 import { describe, it, expect } from "vitest";
 import {
-  extractChangedPaths, extractDeliverablePaths, buildSessionChanges, WRITE_TOOL_NAMES,
-  EDIT_TOOL_NAMES, WRITE_ONLY_TOOL_NAMES, buildSessionReads, categoryOf,
+  extractChangedPaths, extractDeliverablePaths, buildSessionChanges, deliverableDedupKey,
+  WRITE_TOOL_NAMES, EDIT_TOOL_NAMES, WRITE_ONLY_TOOL_NAMES, buildSessionReads, categoryOf,
 } from "./changes";
 import type { Item } from "./store";
+
+// 2026-11-17 审查批4 行为锁（自 wenxue 回种 0b1f4c62）：交付路径去重键归一化
+// ——同一文件以绝对/相对、正/反斜杠、大小写、./ 前缀等不同写法出现时必须
+// 收敛为一个键、一条面板条目、计数累加；展示 path 保留首次原始写法。
+describe("deliverableDedupKey（gaea 回种）", () => {
+  const cwd = "C:\\新工作\\2630合并沧州";
+
+  it("同一文件的多种写法收敛为一个键", () => {
+    const keys = new Set([
+      deliverableDedupKey("交互文件/大纲.md", cwd),
+      deliverableDedupKey("C:\\新工作\\2630合并沧州\\交互文件\\大纲.md", cwd),
+      deliverableDedupKey("C:/新工作/2630合并沧州/交互文件/大纲.md", cwd),
+      deliverableDedupKey("./交互文件/大纲.md", cwd),
+      deliverableDedupKey(".\\交互文件\\大纲.md", cwd),
+      deliverableDedupKey("交互文件\\大纲.md", cwd),
+    ]);
+    expect(keys.size).toBe(1);
+  });
+
+  it("大小写不敏感（Windows 文件系统）", () => {
+    expect(deliverableDedupKey("C:/新工作/书/交互文件/X.md", cwd)).toBe(
+      deliverableDedupKey("c:/新工作/书/交互文件/x.md", cwd),
+    );
+  });
+
+  it("工作区外的绝对路径保持独立且仍归一化", () => {
+    const a = deliverableDedupKey("D:\\其他\\a.md", "C:/新工作/书");
+    const b = deliverableDedupKey("d:/其他/a.md", "C:\\新工作\\书");
+    expect(a).toBe(b);
+    expect(a).not.toBe(deliverableDedupKey("a.md", "C:/新工作/书"));
+  });
+
+  it("无 cwd 时退化为分隔符+大小写归一", () => {
+    expect(deliverableDedupKey("交互文件\\X.md")).toBe(deliverableDedupKey("交互文件/x.md"));
+    expect(deliverableDedupKey("交互文件/x.md")).not.toBe(
+      deliverableDedupKey("C:/新工作/书/交互文件/x.md"),
+    );
+  });
+
+  it("工作区根本身与空路径", () => {
+    expect(deliverableDedupKey("C:\\新工作\\2630合并沧州", cwd)).toBe("");
+    expect(deliverableDedupKey("  交互文件/x.md  ", cwd)).toBe(deliverableDedupKey("交互文件/x.md", cwd));
+  });
+});
+
+describe("buildSessionChanges 归一化合并（gaea 回种）", () => {
+  const cwd = "C:\\新工作\\2630合并沧州";
+  const tool = (id: string, args: Record<string, unknown>): Item => ({
+    kind: "tool", id, name: "write_file", args: JSON.stringify(args), readOnly: false, status: "done",
+  });
+
+  it("同一文件多种写法合并且计数累加，展示保留首次写法", () => {
+    const items: Item[] = [
+      tool("t1", { path: "交互文件/大纲.md", content: "v1" }),
+      { kind: "assistant", id: "a1", text: "已写入 C:\\新工作\\2630合并沧州\\交互文件\\大纲.md", reasoning: "", streaming: false },
+      tool("t2", { path: "C:/新工作/2630合并沧州/交互文件/大纲.md", content: "v2" }),
+      { kind: "user", id: "u1", text: "再改一版" },
+      tool("t3", { path: "./交互文件/大纲.md", content: "v3" }),
+    ];
+    const changes = buildSessionChanges(items, undefined, cwd);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].count).toBe(3);
+    expect(changes[0].path).toBe("交互文件/大纲.md"); // 首次原始写法
+  });
+
+  it("不同文件不误合并", () => {
+    const items: Item[] = [
+      tool("t1", { path: "交互文件/大纲.md", content: "v1" }),
+      tool("t2", { path: "交互文件/细纲.md", content: "v2" }),
+    ];
+    expect(buildSessionChanges(items, undefined, cwd)).toHaveLength(2);
+  });
+});
 
 describe("extractChangedPaths", () => {
   it("提取顶层单路径字段", () => {

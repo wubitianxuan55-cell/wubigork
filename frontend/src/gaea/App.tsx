@@ -34,7 +34,7 @@ const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
-import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
+import { CHAT_VIEW_TAB_IDS, ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { Insights } from "./components/context/Insights";
 import { Fleet } from "./components/context/Fleet";
@@ -99,7 +99,8 @@ export default function App() {
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
-      return saved === "trajectory" || saved === "context" || saved === "memory" || saved === "insights" || saved === "fleet" ? saved : "chat";
+      // 持久化校验走 CHAT_VIEW_TAB_IDS 单源（2026-11-17 审查批4 自 wenxue 回种）。
+      return saved != null && (CHAT_VIEW_TAB_IDS as string[]).includes(saved) ? saved as ChatTabId : "chat";
     } catch { return "chat"; }
   });
   useEffect(() => {
