@@ -326,3 +326,40 @@ func TestWenxueBookInfoContractSync(t *testing.T) {
 		t.Fatal("白名单外档位不应动投影")
 	}
 }
+
+// TestWenxueResolvePreviewPathWhitelist 预览绝对分支白名单（2026-11-17 审查
+// 批10，证据驱动）：真实消费方两类——对话框拾取附件（isPickedFile，与 agent
+// 读侧 ReadPathAllowed 同单源）+读根白名单（工作区内绝对形态含证据链基线
+// 快照）；盘面任意文件拒绝（与 AttachmentDataURL 收口对齐）；相对穿越拒绝
+// （既有）；ListDir 绝对分支摘除后诚实拒绝。
+func TestWenxueResolvePreviewPathWhitelist(t *testing.T) {
+	a, root := isolateWenxueRuntime(t)
+
+	// 工作区内绝对形态：✓（读根白名单含工作区；预览存在性检查在 Preview 层）。
+	inWs := filepath.Join(root, "章节", "001.md")
+	if p, _ := a.wenxueResolvePreviewPath(inWs); p == "" {
+		t.Fatal("工作区内绝对路径应放行")
+	}
+
+	// 工作区外非拾取：✗（返回空路径=前端「文件不存在」降级）。
+	outside := filepath.Join(filepath.Dir(root), "外部.md")
+	if p, _ := a.wenxueResolvePreviewPath(outside); p != "" {
+		t.Fatalf("工作区外非拾取应拒绝，got %q", p)
+	}
+
+	// 拾取登记：✓（同单源）。
+	registerPickedFile(outside)
+	if p, _ := a.wenxueResolvePreviewPath(outside); p == "" {
+		t.Fatal("拾取登记文件应放行")
+	}
+
+	// 相对穿越：✗（既有行为保持）。
+	if p, _ := a.wenxueResolvePreviewPath("../../../outside.md"); p != "" {
+		t.Fatal("相对穿越应拒绝")
+	}
+
+	// ListDir 绝对形态：分支摘除后诚实拒绝（不再枚举任意目录）。
+	if _, err := wenxueListDirEntries(filepath.Join(filepath.Dir(root), "Windows")); err == nil {
+		t.Fatal("ListDir 绝对路径应拒绝（死防线已摘）")
+	}
+}

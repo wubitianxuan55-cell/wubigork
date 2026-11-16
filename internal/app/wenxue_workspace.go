@@ -1262,7 +1262,7 @@ func (a *App) WenxueMaterials(limit int) []FileSearchHit {
 
 // WenxueOpenWorkspacePath/WenxueRevealWorkspacePath 在文件管理器中打开/定位。
 func (a *App) WenxueOpenWorkspacePath(rel string) error {
-	path, _ := wenxueResolvePreviewPath(rel)
+	path, _ := a.wenxueResolvePreviewPath(rel)
 	return exec.Command("explorer", path).Start()
 }
 
@@ -1320,7 +1320,7 @@ func (a *App) WenxuePinnedMaterials() []FileSearchHit {
 
 // WenxuePreview 读取工作区相对路径并返回结构化预览。
 func (a *App) WenxuePreview(rel string) PreviewResult {
-	path, displayRel := wenxueResolvePreviewPath(rel)
+	path, displayRel := a.wenxueResolvePreviewPath(rel)
 	info, err := os.Stat(path)
 	if err != nil {
 		return PreviewResult{Path: displayRel, Kind: "error", Error: "文件不存在"}
@@ -1550,7 +1550,7 @@ func (a *App) WenxueRenameWorkspacePath(rel, name string) (workbench.MutationRes
 }
 
 func (a *App) WenxueRevealWorkspacePath(rel string) error {
-	path, _ := wenxueResolvePreviewPath(rel)
+	path, _ := a.wenxueResolvePreviewPath(rel)
 	return exec.Command("explorer", "/select,", path).Start()
 }
 
@@ -1858,26 +1858,23 @@ func wenxueGitWorkspace() string {
 }
 
 // wenxueListDirEntries 列出目录条目。rel 为空 = 工作区根；相对路径 Join 工作区根
-// （拒 .. 穿越——2026-09-20 审计：全盘目录枚举原语，与其他读口的收口对齐；
-// 前端四个调用方 FileTree/useComposerMenus/deliverablesTurn/
-// VerifyArtifactsThumbs 全部传工作区相对路径，零误伤）；绝对路径 Clean 后
-// 直接使用（保留——口径对齐 wenxueResolvePreviewPath 的 IsAbs 分支，含正斜杠写法
-// 的 Windows 盘符路径，与前端 ToSlash 口径互通）。错误带 GAEADIR_* 码透传。
+// （拒 .. 穿越——2026-09-20 审计：全盘目录枚举原语，与其他读口的收口对齐）。
+// 绝对路径分支摘除（2026-11-17 审查批10，证据驱动）：前端全部列举调用方
+// （FileTree/useComposerMenus/deliverablesTurn/VerifyArtifactsThumbs/三 Hub）
+// 均传工作区相对路径、PickWorkspace 已哑桩——零消费方的死防线，删后绝对
+// 形态经 ResolveRelWithin 诚实拒绝（路径越出工作区）。错误带 GAEADIR_* 码透传。
 func wenxueListDirEntries(rel string) ([]DirEntry, error) {
 	root := wenxueWorkspace()
 	dir := root
 	if rel != "" {
-		if filepath.IsAbs(rel) {
-			dir = filepath.Clean(rel)
-		} else {
-			// 审计 2026-10-02 AP5-09：相对分支改调唯一原语（原为手写
-			// Clean + `..` 前缀/片段判据，第五份同族实现）。
-			p, err := wspath.ResolveRelWithin(root, rel)
-			if err != nil {
-				return nil, listDirError(errCodeDirRead, "路径越出工作区: %s", rel)
-			}
-			dir = p
+		// 审计 2026-10-02 AP5-09：相对分支改调唯一原语（原为手写
+		// Clean + `..` 前缀/片段判据，第五份同族实现）。绝对形态同样由
+		// 原语拒绝（IsAbs → ErrPathAbsolute → 越界错误）。
+		p, err := wspath.ResolveRelWithin(root, rel)
+		if err != nil {
+			return nil, listDirError(errCodeDirRead, "路径越出工作区: %s", rel)
 		}
+		dir = p
 	}
 	info, err := osStat(dir)
 	if err != nil {
@@ -1941,14 +1938,22 @@ func wenxueResolveAgainstWorkspace(p string) string {
 // wenxueResolvePreviewPath 把工作区相对路径解析为绝对路径并返回展示用相对路径；
 // 裸文件名（无目录分隔符）直接找不到时，在常见输出目录里查找同名文件，
 // 使“输出文件：成本测算.xlsx”这类纯文件名引用也能直接预览。
-func wenxueResolvePreviewPath(rel string) (path, displayRel string) {
+func (a *App) wenxueResolvePreviewPath(rel string) (path, displayRel string) {
 	root := wenxueWorkspace()
 	if filepath.IsAbs(rel) {
-		return filepath.Clean(rel), rel
+		cleaned := filepath.Clean(rel)
+		// 绝对分支白名单化（2026-11-17 审查批10，证据驱动）：真实消费方两类
+		// ——对话框拾取附件（isPickedFile 登记，与 agent 读侧 ReadPathAllowed
+		// 同单源）+证据链基线快照/工作区内绝对形态（随读根白名单，含
+		// DataRoot/Pictures 腿）。其余任意盘符直读与 AttachmentDataURL 收口
+		// 对齐（拒绝）。原注释「附件/素材预览有合法绝对路径用途」系办公
+		// fork 残留（办公 allow_write 场景图文已拆除）。
+		if !a.wenxueWithinReadRoots(cleaned) && !isPickedFile(cleaned) {
+			return "", rel
+		}
+		return cleaned, rel
 	}
-	// 相对路径拒 .. 穿越（2026-09-19 审计 P1：Join(root, rel) 此前直通；
-	// 绝对路径分支保留——附件/素材预览有合法绝对路径用途，文件大小由各
-	// 分支封顶）。
+	// 相对路径拒 .. 穿越（2026-09-19 审计 P1：Join(root, rel) 此前直通）。
 	//
 	// 审计 2026-10-02 AP5-09 修复：原实现「拒 ..」分支返回的是
 	// filepath.Join(root, cleanRel)（= 工作区**外**的逃逸路径），只是赌

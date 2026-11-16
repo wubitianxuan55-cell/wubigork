@@ -39,7 +39,7 @@ type ChangeRecord struct {
 	Space         string `json:"space"` // 恒 "work"（play 不落证据链，红线）
 	Turn          int    `json:"turn"`
 	Tool          string `json:"tool"`   // edit_file / write_file / move_file / xlsx_apply …
-	Target        string `json:"target"` // 工作区相对路径 / 单元格引用
+	Target        string `json:"target"` // 解析后的绝对路径（write 工具 resolveIn 后落库；2026-11-17 审查批10 修正失真注释——原注「工作区相对路径」与实际不符）/ 单元格引用
 	BeforeSummary string `json:"beforeSummary"`
 	AfterSummary  string `json:"afterSummary"`
 	// BaselinePath 是写盘前整文件基线快照（绝对路径，Verifier 通道 B 视觉 diff

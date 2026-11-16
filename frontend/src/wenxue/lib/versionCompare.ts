@@ -1,7 +1,8 @@
 // versionCompare — 产物版本间对比数据层（A1 交付验收闭环，调研 A#4/O#2）。
 //
-// 数据源：证据链基线快照（JournalChangeRecord.baselinePath，工作区相对路径，
-// 与预览/回滚同源）与当前文件本体。
+// 数据源：证据链基线快照（JournalChangeRecord.baselinePath，绝对路径——
+// 2026-11-17 审查批10 修正失真注释，原注「工作区相对路径」与实际不符；
+// 预览链白名单含工作区根，书内快照可读）与当前文件本体。
 //   - 文本类文件经 ReadFile 读全文 → diffLines 行级差异；
 //   - .docx 经 Preview 拿原始文件 dataUrl → JSZip+DOMParser 提取段落序列
 //     （复用 docxText 套路）→ 段级 LCS diff（docxTextDiff）；
