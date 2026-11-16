@@ -37,7 +37,7 @@ func buildBrief(req StartRequest, files *transcript) string {
 	// 以本场为准，已闭合结论不必重新论证。
 	if req.ParentSessionID != "" {
 		b.WriteString("\n\n【续议承接】\n")
-		b.WriteString("本场是基于上一场同题议事的续议：材料里附上一场的共享历史论点（立场卡节选，最新发言优先）。若你的引擎侧会话承接了上一场讨论，那段完整历史可直接引用，无需向用户复述；本场议题以上方【议题】为准，不要把上一场的议题误当成本场议题——上一场已闭合的结论直接承接，只有点名异议时才重新论证。")
+		b.WriteString("本场是基于上一场同题议事的续议：材料里附上一场的共享历史论点（立场卡节选，最新发言优先）；父场发言全文已按贡献 ID 归档在本场材料路径下，需要论证细节时用文件读取回读原文。若你的引擎侧会话承接了上一场讨论，那段完整历史可直接引用，无需向用户复述；本场议题以上方【议题】为准，不要把上一场的议题误当成本场议题——上一场已闭合的结论直接承接，只有点名异议时才重新论证。")
 	}
 	for index, evidence := range req.Evidence {
 		name := strings.TrimSpace(evidence.Name)

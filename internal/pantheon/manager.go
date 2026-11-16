@@ -2145,13 +2145,44 @@ func (m *Manager) seatWorkDirFor(session *Session, agentID string) (string, erro
 
 // seatReadPaths 归档发言全文路径白名单：grok 席需要引用往轮论证细节时按路径
 // 自读（2026-11-03 论证文件化）；会话历史形态下往轮已逐字在场，路径仅作补充。
+// 续议（ParentSessionID 非空）时父场贡献全文一并归档进本场 transcript——
+// 立场卡只有 700 字符节选，指针「全文见父会话贡献 ID」要能落地：grok 等带
+// 文件读取的席位可回读父场论证全文；CLI 席引擎续接降级新建时同款兜底。
 func (m *Manager) seatReadPaths(session *Session, images []string) []string {
 	readPaths := make([]string, 0, len(images)+len(session.Contributions))
 	readPaths = append(readPaths, images...)
 	if t := m.transcriptFor(session); t != nil {
 		readPaths = append(readPaths, t.archiveContributions(session.Contributions)...)
+		if parent := m.seatParentContributions(session); parent != nil {
+			readPaths = append(readPaths, t.archiveContributions(parent)...)
+		}
 	}
 	return readPaths
+}
+
+// seatParentContributions 取父场可归档贡献（续议承接，2026-11-16）。父会话
+// 不可读时返回 nil——立场卡节选仍是基线，全文回读只是增强，不阻塞议事、
+// 不告警刷屏。汇总贡献不入白名单（与 parentStanceEvidence 同口径）。
+func (m *Manager) seatParentContributions(session *Session) []Contribution {
+	parentID := strings.TrimSpace(session.Request.ParentSessionID)
+	if parentID == "" {
+		return nil
+	}
+	parent, err := m.store.get(parentID)
+	if err != nil {
+		return nil
+	}
+	out := make([]Contribution, 0, len(parent.Contributions))
+	for _, c := range parent.Contributions {
+		if c.Phase == PhaseSynthesis || strings.TrimSpace(c.Content) == "" {
+			continue
+		}
+		out = append(out, c)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // seatHistorySeeded 报告该席位是否走 A5③ 会话历史形态：适配器接线了

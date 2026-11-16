@@ -1,6 +1,7 @@
 package pantheon
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -96,7 +97,7 @@ func TestParentEngineSessionFor(t *testing.T) {
 
 func TestFollowUpBriefCarriesContinuityNote(t *testing.T) {
 	with := buildBrief(StartRequest{Topic: "续议", ParentSessionID: "pan_parent"}, nil)
-	for _, want := range []string{"【续议承接】", "续议", "以上方【议题】为准"} {
+	for _, want := range []string{"【续议承接】", "续议", "以上方【议题】为准", "全文已按贡献 ID 归档"} {
 		if !strings.Contains(with, want) {
 			t.Fatalf("continuity brief misses %q:\n%s", want, with)
 		}
@@ -104,6 +105,80 @@ func TestFollowUpBriefCarriesContinuityNote(t *testing.T) {
 	plain := buildBrief(StartRequest{Topic: "新一场"}, nil)
 	if strings.Contains(plain, "【续议承接】") {
 		t.Fatalf("plain session must not carry continuity note:\n%s", plain)
+	}
+}
+
+// 续议全文回读（2026-11-16 补缺口）：父场贡献全文归档进本场 transcript 并进
+// readPaths 白名单——立场卡只有节选，grok 等带文件读取的席位按路径回读父场
+// 论证全文；非续议会话不得混入父场路径。
+func TestSeatReadPathsArchivesParentContributions(t *testing.T) {
+	runner := defaultFakeRunner()
+	m := newTestManager(t, runner, fakeAdapter("alpha"), fakeAdapter("beta"))
+	defer m.Close()
+
+	parent, err := m.Start(StartRequest{
+		Topic: "父场", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parentDone := waitSessionSettled(t, m, parent.ID)
+	var parentContribution *Contribution
+	for i := range parentDone.Contributions {
+		c := parentDone.Contributions[i]
+		if c.Phase == PhaseOpening && strings.TrimSpace(c.Content) != "" {
+			parentContribution = &parentDone.Contributions[i]
+			break
+		}
+	}
+	if parentContribution == nil {
+		t.Fatal("parent session has no archivable contribution")
+	}
+
+	follow, err := m.Start(StartRequest{
+		Topic: "续议回读", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha",
+		Rounds: 1, Protocol: ProtocolIndependent, ParentSessionID: parent.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	followLive, err := m.Get(follow.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := m.seatReadPaths(followLive, nil)
+	found := false
+	for _, path := range paths {
+		if strings.Contains(path, parentContribution.ID) {
+			found = true
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("parent contribution archived but unreadable: %v", err)
+			}
+			if !strings.Contains(string(data), parentContribution.Content) {
+				t.Fatalf("archived parent content mismatch:\n%.200s", data)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("parent contribution file must enter follow-up read paths: %v", paths)
+	}
+
+	plain, err := m.Start(StartRequest{
+		Topic: "普通一场", AgentIDs: []string{"alpha", "beta"}, ChairmanAgentID: "alpha", Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plainLive, err := m.Get(plain.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plainPaths := m.seatReadPaths(plainLive, nil)
+	for _, path := range plainPaths {
+		if strings.Contains(path, parentContribution.ID) {
+			t.Fatalf("non-follow-up session must not inherit parent paths: %v", plainPaths)
+		}
 	}
 }
 
