@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { SearchCard } from './SearchCard'
 import { parseChatSearchSummary } from './searchCardModel'
@@ -90,5 +90,29 @@ describe('SearchCard', () => {
     expect(parsed?.references).toHaveLength(2)
     expect(parseChatSearchSummary('bad')).toBeNull()
     expect(parseChatSearchSummary({})).toBeNull()
+  })
+})
+
+// D 批：查看全部来源入口（有来源且传入回调才出现，载荷=全量 references+queries）
+describe('SearchCard 查看全部来源入口（D 批）', () => {
+  const summaryWithRefs = {
+    state: 'ok', queries: ['q1'], searches: 2, rounds: 1, sources: 6,
+    elapsed_ms: 1200, degraded_reason: '',
+    references: [
+      { title: 'A', url: 'https://a.example.com/1' },
+      { title: 'B', url: 'https://b.example.com/2' },
+    ],
+  }
+  it('有来源+回调：按钮出现，点击载荷为全量 references+queries', () => {
+    const onOpenSources = vi.fn()
+    render(<SearchCard value={summaryWithRefs} onOpenSources={onOpenSources} />)
+    fireEvent.click(screen.getByText('查看全部来源（2）'))
+    expect(onOpenSources).toHaveBeenCalledTimes(1)
+    expect(onOpenSources.mock.calls[0][0].map((r: { title: string }) => r.title)).toEqual(['A', 'B'])
+    expect(onOpenSources.mock.calls[0][1]).toEqual(['q1'])
+  })
+  it('无回调（旧调用方）：按钮不出现，零行为变化', () => {
+    render(<SearchCard value={summaryWithRefs} />)
+    expect(screen.queryByText('查看全部来源（2）')).toBeNull()
   })
 })

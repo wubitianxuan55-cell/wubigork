@@ -1,5 +1,6 @@
 import React from 'react'
 import { DownOutlined, GlobalOutlined, LinkOutlined } from '@ant-design/icons'
+import { C } from '../../utils/theme'
 import { parseChatSearchSummary } from './searchCardModel'
 import type { ChatSearchReference, ChatSearchSummary } from './searchCardModel'
 
@@ -59,7 +60,7 @@ function metaText(summary: ChatSearchSummary): string {
   return parts.length > 0 ? parts.join(' · ') : '未取得可用来源'
 }
 
-export const SearchCard: React.FC<{ value: unknown }> = ({ value }) => {
+export const SearchCard: React.FC<{ value: unknown; onOpenSources?: (refs: ChatSearchReference[], queries: string[]) => void }> = ({ value, onOpenSources }) => {
   const summary = parseChatSearchSummary(value)
   if (!summary || summary.state === 'not_requested') return null
 
@@ -115,6 +116,23 @@ export const SearchCard: React.FC<{ value: unknown }> = ({ value }) => {
         )}
         {summary.references.length > validReferences.length && (
           <p className="chat-search-more">仅展示前 {validReferences.length} 个有效来源</p>
+        )}
+        {/* D 批：全量来源面板入口（chat-demo 搜索汇总条→右栏面板交互子集；
+            正文角标不可复刻——搜索协议无 in-text 引用位置） */}
+        {onOpenSources && summary.references.length > 0 && (
+          <button type="button" className="chat-search-open-panel"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              onOpenSources(summary.references, summary.queries)
+            }}
+            style={{
+              marginTop: 8, border: 'none', background: 'transparent', cursor: 'pointer',
+              color: C('color-primary'), fontSize: 11.5, padding: '2px 0',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}>
+            查看全部来源（{summary.references.length}）
+          </button>
         )}
       </div>
     </details>

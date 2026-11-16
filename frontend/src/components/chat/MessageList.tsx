@@ -22,6 +22,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatRow } from './ChatRow'
 import { buildVisiblePath, buildVersions } from '../../pages/chat/branches'
+import type { ChatSearchReference } from './searchCardModel'
+
 import type { ChatMsg } from '../../pages/chat/types'
 
 export interface MessageListProps {
@@ -52,6 +54,8 @@ export interface MessageListProps {
   onRegenerate?: (msgKey: string) => void
   /** A 批分支流锚点：编辑/重生成的乐观行插入该 db 行 key 之后并截断旧链 */
   branchAnchorKey?: string | null
+  /** D 批：打开全量搜索来源面板（SearchCard「查看全部来源」入口） */
+  onOpenSources?: (refs: ChatSearchReference[], queries: string[]) => void
 }
 
 /** 消息数超过该阈值后启用尾部窗口渲染（≤ 阈值全量渲染，行为与原实现一致）。 */
@@ -69,7 +73,7 @@ const MemoChatRow = React.memo(ChatRow)
 export const MessageList: React.FC<MessageListProps> = ({
   messages, streamKey, streamText, streamReasoning, streamStatus, mode, companionName,
   copiedId, speakingId, onCopy, onSpeak, onRetry,
-  onSelectVersion, onEditSubmit, onRegenerate, branchAnchorKey,
+  onSelectVersion, onEditSubmit, onRegenerate, branchAnchorKey, onOpenSources,
   hasOlder, loadingOlder, onLoadOlder, prepend,
 }) => {
   // ── A 批分支树：可见路径（叶子回溯 + 分支锚点插入）与兄弟版本表。
@@ -82,9 +86,9 @@ export const MessageList: React.FC<MessageListProps> = ({
   // ── 稳定回调桥：ChatPage 侧 handleCopy/handleSpeak 每次渲染都是新引用、
   // handleRetry 依赖 messages 数组，直接透传会让行 memo 全部失效。经 latest-ref
   // 转发为恒稳引用（useCallback 空依赖），行内调用时再取最新实现。
-  const cbsRef = useRef({ onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate })
+  const cbsRef = useRef({ onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources })
   useEffect(() => {
-    cbsRef.current = { onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate }
+    cbsRef.current = { onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources }
   })
   const stableOnCopy = useCallback((content: string, id: string) => { cbsRef.current.onCopy(content, id) }, [])
   const stableOnSpeak = useCallback((content: string, id: string) => { cbsRef.current.onSpeak(content, id) }, [])
@@ -92,6 +96,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const stableOnSelectVersion = useCallback((msgId: number) => { cbsRef.current.onSelectVersion?.(msgId) }, [])
   const stableOnEditSubmit = useCallback((msgKey: string, text: string) => { cbsRef.current.onEditSubmit?.(msgKey, text) }, [])
   const stableOnRegenerate = useCallback((msgKey: string) => { cbsRef.current.onRegenerate?.(msgKey) }, [])
+  const stableOnOpenSources = useCallback((refs: ChatSearchReference[], queries: string[]) => { cbsRef.current.onOpenSources?.(refs, queries) }, [])
 
   // ── 尾部窗口状态：以消息集合首键（anchor）对齐——集合被整体替换（切话题/
   // 清空/重试移除首条）时重置窗口，避免旧会话扩载出的窗口尺寸泄漏到新会话。
@@ -171,6 +176,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             onSelectVersion={stableOnSelectVersion}
             onEditSubmit={stableOnEditSubmit}
             onRegenerate={stableOnRegenerate}
+            onOpenSources={stableOnOpenSources}
             busy={streamKey !== null}
             onCopy={stableOnCopy}
             onSpeak={stableOnSpeak}

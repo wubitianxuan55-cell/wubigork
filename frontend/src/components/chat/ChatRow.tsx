@@ -24,6 +24,7 @@ import { useThrottledStreamText } from '../../hooks/useThrottledStreamText'
 import { navigateToModelCenter } from '../../pages/chat/utils'
 import { btOf, dbIdOf, type MsgVersions } from '../../pages/chat/branches'
 import { BranchSwitcher } from './BranchSwitcher'
+import type { ChatSearchReference } from './searchCardModel'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */
@@ -54,6 +55,8 @@ export interface ChatRowProps {
   onEditSubmit?: (msgKey: string, text: string) => void
   /** A 批重新生成：某 db 回答行下挂新版本 */
   onRegenerate?: (msgKey: string) => void
+  /** D 批：打开全量搜索来源面板（SearchCard「查看全部来源」入口） */
+  onOpenSources?: (refs: ChatSearchReference[], queries: string[]) => void
   /** 会话级流式占线（切版本/编辑/重生成禁用，DeepSeek busy 同款语义） */
   busy?: boolean
 }
@@ -61,7 +64,7 @@ export interface ChatRowProps {
 export const ChatRow: React.FC<ChatRowProps> = ({
   msg, text, streamStatus, streamReasoning, isStreaming, newGroup, mode, companionName,
   copied, speaking, onCopy, onSpeak, onRetry,
-  versions, onSelectVersion, onEditSubmit, onRegenerate, busy,
+  versions, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources, busy,
 }) => {
   const display = useThrottledStreamText(text, isStreaming)
   // C1（chat-demo 配方）：流式行按渲染耗时自适应节流 display 更新——与下方
@@ -220,7 +223,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({
           )}
         </div>
       )}
-      {!msg.error && !msg.streaming && <SearchCard value={msg.extra?.search} />}
+      {!msg.error && !msg.streaming && <SearchCard value={msg.extra?.search} onOpenSources={onOpenSources} />}
       {msg.content && !msg.streaming && (
         <div className={`chat-msg-actions${msg.extra?.answered_by != null ? ' has-metrics' : ''}`}>
           <Tooltip title={copied ? '已复制' : '复制'}>

@@ -27,6 +27,7 @@ import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
 const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
 import VoiceConsoleV2 from '../components/chat/VoiceConsoleV2'
+import { SearchPanel, type SourcePanelData } from '../components/chat/SearchPanel'
 import {
   STREAM_INACTIVITY_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS,
   CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS,
@@ -240,6 +241,10 @@ const ChatPage: React.FC = () => {
   // 终态 reload 后清零（reloadActiveTopic 内置）。
   const [branchAnchor, setBranchAnchor] = useState<string | null>(null)
 
+  // D 批来源面板：单入口开合；切话题/新建即关（chat-demo 同款纪律）。
+  const [sourcePanel, setSourcePanel] = useState<SourcePanelData | null>(null)
+  const closeSourcePanel = useCallback(() => setSourcePanel(null), [])
+
   const handleEditSubmit = useCallback((msgKey: string, text: string) => {
     const row = messages.find(m => m.key === msgKey)
     if (!row || sending) return
@@ -381,19 +386,21 @@ const ChatPage: React.FC = () => {
   // 选择话题 → 中止上一话题的模拟打字流 + 加载消息 + 恢复人格元数据
   const selectTopic = useCallback(async (id: string) => {
     closeVoiceConsole()
+    closeSourcePanel()
     // T6-3.3：切话题即中止上一话题的模拟打字流（避免过期 setStreamText 继续跑）
     cancelTyping()
     rearm()
     await selectTopicData(id)
     inputRef.current?.focus?.()
-  }, [cancelTyping, closeVoiceConsole, selectTopicData, rearm])
+  }, [cancelTyping, closeVoiceConsole, closeSourcePanel, selectTopicData, rearm])
 
   const handleCreate = useCallback(async () => {
     closeVoiceConsole()
+    closeSourcePanel()
     rearm()
     await createTopic()
     inputRef.current?.focus?.()
-  }, [closeVoiceConsole, createTopic, rearm])
+  }, [closeVoiceConsole, closeSourcePanel, createTopic, rearm])
 
   const handleDelete = useCallback(async (id: string) => {
     if (id === activeIdRef.current) closeVoiceConsole()
@@ -700,6 +707,7 @@ const ChatPage: React.FC = () => {
                       onEditSubmit={handleEditSubmit}
                       onRegenerate={handleRegenerate}
                       branchAnchorKey={branchAnchor}
+                      onOpenSources={(refs, queries) => setSourcePanel({ refs, queries })}
                     />
                   </GenuiActionProvider>
                 </GenuiScopeProvider>
@@ -711,6 +719,9 @@ const ChatPage: React.FC = () => {
                 <DownOutlined /> 回到底部
               </button>
             )}
+
+            {/* D 批：搜索来源抽屉（覆盖式浮层，不挤消息布局） */}
+            <SearchPanel data={sourcePanel} onClose={closeSourcePanel} />
 
             {/* 输入岛 */}
             <ChatComposer
