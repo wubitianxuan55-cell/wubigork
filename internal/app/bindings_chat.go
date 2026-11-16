@@ -13,6 +13,7 @@ type ChatB struct{ a *App }
 func (b *ChatB) BrainSearch(query string, brains string) (string, error) { return b.a.BrainSearch(query, brains) }
 func (b *ChatB) Chat(systemPrompt string, userPrompt string) (string, error) { return b.a.Chat(systemPrompt, userPrompt) }
 func (b *ChatB) ChatAppendMessages(topicID string, messages []ChatMessageInput) error { return b.a.ChatAppendMessages(topicID, messages) }
+func (b *ChatB) ChatContinue(topicID string, assistantMsgID int64) (string, error) { return b.a.ChatContinue(topicID, assistantMsgID) }
 func (b *ChatB) ChatGeneral(userMsg string) (map[string]interface{}, error) { return b.a.ChatGeneral(userMsg) }
 func (b *ChatB) ChatImportTopic(title string, mode string, messages []ChatMessageInput) (chat.Topic, error) { return b.a.ChatImportTopic(title, mode, messages) }
 func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) { return b.a.ChatMessagesList(topicID) }

@@ -218,6 +218,22 @@ func (s *Store) UpdateMessageExtra(id int64, extra string) error {
 	return nil
 }
 
+// UpdateMessageContent 覆盖指定消息正文（续写拼接用：新文本 = 原文 + 续写段，
+// extra 不动——stopped/answered_by 等标记保持）。消息不存在时返回错误。
+func (s *Store) UpdateMessageContent(id int64, content string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	res, err := s.db.Exec("UPDATE chat_messages SET content = ? WHERE id = ?", content, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("消息不存在: %d", id)
+	}
+	return nil
+}
+
 // GetMessage 按消息 id 读取单条消息（不存在时返回错误）。
 func (s *Store) GetMessage(id int64) (Message, error) {
 	if s == nil || s.db == nil {

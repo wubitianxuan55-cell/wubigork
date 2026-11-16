@@ -317,6 +317,7 @@ export const GAEA_METHOD_FACETS = {
   ChatStreamPlainAt: "work",
   ChatRegenerate: "work",
   ChatSelectVersion: "work",
+  ChatContinue: "work",
   // P1-5：对话流取消（ChatB 门面，work/play 共用通道）。
   ChatStreamCancel: "work",
   ChatTopicClear: "work",

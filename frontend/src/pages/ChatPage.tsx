@@ -7,6 +7,7 @@ import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { b64ToBytes } from '../gaea/lib/bytes'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { copyToClipboard } from '../gaea/lib/clipboard'
 import { useFollowScroll } from '../utils/followScroll'
 import { useBoardActive } from '../lib/boardActive'
@@ -33,7 +34,7 @@ import {
   CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS,
 } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
-import { btOf } from './chat/branches'
+import { btOf, dbIdOf } from './chat/branches'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
 import '../chat-workspace.css'
@@ -289,6 +290,81 @@ const ChatPage: React.FC = () => {
       .then(() => reloadActiveTopic())
       .catch((err: unknown) => message.error(`切换版本失败：${err instanceof Error ? err.message : String(err)}`))
   }, [activeIdRef, reloadActiveTopic])
+
+  // A 批续写：已停止回答行 prefill 续写（chat-demo continueReply 子集）。
+  // 独立事件订阅（协议复用 chat-stream:<runID>）：delta 限流拼进原行，
+  // 终态以 db 权威 reload（Go 侧已拼接落库、extra.stopped 保留）。
+  const [contBusy, setContBusy] = useState(false)
+  const handleContinue = useCallback((msgKey: string) => {
+    const row = messages.find(m => m.key === msgKey)
+    const id = row ? dbIdOf(row.key) : null
+    const topicId = activeIdRef.current
+    if (!row || id === null || !topicId || contBusy || sending) return
+    setContBusy(true)
+    void (async () => {
+      let settled = false
+      let unsub: (() => void) | null = null
+      let buf = ''
+      let firstChunk = true
+      let inactivity: ReturnType<typeof setTimeout> | null = null
+      let hard: ReturnType<typeof setTimeout> | null = null
+      const clearTimers = () => {
+        if (inactivity !== null) clearTimeout(inactivity)
+        if (hard !== null) clearTimeout(hard)
+        inactivity = null; hard = null
+      }
+      const finish = () => {
+        if (settled) return
+        settled = true
+        clearTimers()
+        if (unsub !== null) { const f = unsub; unsub = null; f() }
+        setContBusy(false)
+      }
+      try {
+        const runID = await app.ChatContinue(topicId, id)
+        if (settled) return
+        const armInactivity = () => {
+          if (inactivity !== null) clearTimeout(inactivity)
+          inactivity = setTimeout(() => {
+            void app.ChatStreamCancel(runID).catch(() => {})
+            finish()
+            void reloadActiveTopic()
+          }, STREAM_INACTIVITY_TIMEOUT_MS)
+        }
+        unsub = EventsOn(`chat-stream:${runID}`, (payload: { type?: string; content?: string; error?: string }) => {
+          if (settled) return
+          const p = payload || {}
+          if (p.type === 'delta') {
+            armInactivity()
+            buf += p.content || ''
+            if (buf) {
+              const chunk = buf
+              buf = ''
+              const sep = firstChunk ? '\n\n' : ''
+              firstChunk = false
+              setMessages(prev => prev.map(m => m.key === msgKey ? { ...m, content: m.content + sep + chunk } : m))
+            }
+          } else if (p.type === 'done' || p.type === 'cancelled') {
+            finish()
+            void reloadActiveTopic()
+          } else if (p.type === 'error') {
+            finish()
+            message.error(`续写失败：${p.error || '未知错误'}`)
+            void reloadActiveTopic()
+          }
+        })
+        armInactivity()
+        hard = setTimeout(() => {
+          void app.ChatStreamCancel(runID).catch(() => {})
+          finish()
+          void reloadActiveTopic()
+        }, STREAM_HARD_TIMEOUT_MS)
+      } catch (err: unknown) {
+        message.error(`续写失败：${err instanceof Error ? err.message : String(err)}`)
+        setContBusy(false)
+      }
+    })()
+  }, [messages, contBusy, sending, activeIdRef, reloadActiveTopic])
 
   // ── 语音台（V2 唯一；V1 whisper 链已退役 2026-11-05 用户拍板） ──
   useEffect(() => {
@@ -708,6 +784,8 @@ const ChatPage: React.FC = () => {
                       onRegenerate={handleRegenerate}
                       branchAnchorKey={branchAnchor}
                       onOpenSources={(refs, queries) => setSourcePanel({ refs, queries })}
+                      onContinue={handleContinue}
+                      extraBusy={contBusy}
                     />
                   </GenuiActionProvider>
                 </GenuiScopeProvider>

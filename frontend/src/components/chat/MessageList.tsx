@@ -56,6 +56,10 @@ export interface MessageListProps {
   branchAnchorKey?: string | null
   /** D 批：打开全量搜索来源面板（SearchCard「查看全部来源」入口） */
   onOpenSources?: (refs: ChatSearchReference[], queries: string[]) => void
+  /** A 批续写：对已停止回答行发起 prefill 续写 */
+  onContinue?: (msgKey: string) => void
+  /** A 批续写占线（续写流期间行级 busy，与 streamKey 并列） */
+  extraBusy?: boolean
 }
 
 /** 消息数超过该阈值后启用尾部窗口渲染（≤ 阈值全量渲染，行为与原实现一致）。 */
@@ -74,6 +78,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   messages, streamKey, streamText, streamReasoning, streamStatus, mode, companionName,
   copiedId, speakingId, onCopy, onSpeak, onRetry,
   onSelectVersion, onEditSubmit, onRegenerate, branchAnchorKey, onOpenSources,
+  onContinue, extraBusy,
   hasOlder, loadingOlder, onLoadOlder, prepend,
 }) => {
   // ── A 批分支树：可见路径（叶子回溯 + 分支锚点插入）与兄弟版本表。
@@ -86,9 +91,9 @@ export const MessageList: React.FC<MessageListProps> = ({
   // ── 稳定回调桥：ChatPage 侧 handleCopy/handleSpeak 每次渲染都是新引用、
   // handleRetry 依赖 messages 数组，直接透传会让行 memo 全部失效。经 latest-ref
   // 转发为恒稳引用（useCallback 空依赖），行内调用时再取最新实现。
-  const cbsRef = useRef({ onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources })
+  const cbsRef = useRef({ onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources, onContinue })
   useEffect(() => {
-    cbsRef.current = { onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources }
+    cbsRef.current = { onCopy, onSpeak, onRetry, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources, onContinue }
   })
   const stableOnCopy = useCallback((content: string, id: string) => { cbsRef.current.onCopy(content, id) }, [])
   const stableOnSpeak = useCallback((content: string, id: string) => { cbsRef.current.onSpeak(content, id) }, [])
@@ -97,6 +102,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const stableOnEditSubmit = useCallback((msgKey: string, text: string) => { cbsRef.current.onEditSubmit?.(msgKey, text) }, [])
   const stableOnRegenerate = useCallback((msgKey: string) => { cbsRef.current.onRegenerate?.(msgKey) }, [])
   const stableOnOpenSources = useCallback((refs: ChatSearchReference[], queries: string[]) => { cbsRef.current.onOpenSources?.(refs, queries) }, [])
+  const stableOnContinue = useCallback((msgKey: string) => { cbsRef.current.onContinue?.(msgKey) }, [])
 
   // ── 尾部窗口状态：以消息集合首键（anchor）对齐——集合被整体替换（切话题/
   // 清空/重试移除首条）时重置窗口，避免旧会话扩载出的窗口尺寸泄漏到新会话。
@@ -158,6 +164,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     <div ref={flowRef} className={`chat-flow v3-reading${virtualized ? ' chat-flow-cv' : ''}`}>
       {shown.map((msg, idx) => {
         const isStreaming = !!msg.streaming && msg.key === streamKey
+        const busy = streamKey !== null || !!extraBusy
         const prev = visible[startIdx + idx - 1]
         return (
           <MemoChatRow
@@ -177,7 +184,8 @@ export const MessageList: React.FC<MessageListProps> = ({
             onEditSubmit={stableOnEditSubmit}
             onRegenerate={stableOnRegenerate}
             onOpenSources={stableOnOpenSources}
-            busy={streamKey !== null}
+            onContinue={stableOnContinue}
+            busy={busy}
             onCopy={stableOnCopy}
             onSpeak={stableOnSpeak}
             onRetry={stableOnRetry}

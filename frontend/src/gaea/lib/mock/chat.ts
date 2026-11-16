@@ -24,7 +24,7 @@ type ChatMethods = Pick<
   | "ChatTopicCreate" | "ChatTopicDelete" | "ChatTopicRename" | "ChatTopicSetMode"
   | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain" | "ChatStreamPersona" | "ChatStreamCancel"
   // A 批消息分支树（docs/gaea-chat-branch-tree-design-2026-11.md）。
-  | "ChatStreamPlainAt" | "ChatRegenerate" | "ChatSelectVersion"
+  | "ChatStreamPlainAt" | "ChatRegenerate" | "ChatSelectVersion" | "ChatContinue"
   | "ChatTopicClear" | "ChatTopicExportMarkdown"
 >;
 
@@ -505,6 +505,10 @@ export function buildChat(s: MakeMockState): ChatMethods {
     },
     async ChatSelectVersion(_topicID: string, _msgID: number) {
       // A 批版本切换 mock：no-op（mock 无消息树可切，真实实现改父行 bt.c）。
+    },
+    async ChatContinue(_topicID: string, _assistantMsgID: number) {
+      // A 批续写 mock：返回 runID 形状（真实实现 = assistant prefill 续写拼接原行）。
+      return "mock-continue-run";
     },
     async ChatStreamCancel(_runID: string) {
       // P1-5 取消面（批 46 NOT_MOCKED 收尾刀）：Go 对未知 runID 返回 false

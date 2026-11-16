@@ -451,6 +451,197 @@ func (a *App) plainChatPathMessages(topicID string, anchorID int64, includeAncho
 	return out
 }
 
+// chatMessagesWithinBudget 路径 → 请求消息（角色过滤 + 从新到旧吃字符预算，
+// plainChatHistoryMessages 同款口径；A 批续写装配共用）。
+func chatMessagesWithinBudget(path []chat.Message) []ai.ChatMessage {
+	out := make([]ai.ChatMessage, 0, len(path))
+	budget := plainChatHistoryMaxChars
+	for i := len(path) - 1; i >= 0; i-- {
+		m := path[i]
+		if (m.Role != "user" && m.Role != "assistant") || strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		n := len([]rune(m.Content))
+		if n > budget {
+			break
+		}
+		budget -= n
+		out = append([]ai.ChatMessage{{Role: m.Role, Content: m.Content}}, out...)
+	}
+	return out
+}
+
+// extraFlagTrue extra JSON 顶层布尔键读取（A 批续写准入：extra.stopped）。
+func extraFlagTrue(extra string, key string) bool {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(extra), &m); err != nil {
+		return false
+	}
+	raw, ok := m[key]
+	if !ok {
+		return false
+	}
+	var v bool
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	return v
+}
+
+// ChatContinue A 批续写（chat-demo continueReply 语义子集）：对「已停止」的
+// 回答行以 assistant prefill 续写，新文本拼接进原行（不新开分支/消息）。
+// 准入（服务端兜底）：行存在、本话题、role=assistant、extra.stopped=true。
+// 引擎兼容性：OpenAI 兼容接口普遍接受末条 assistant 为续写前缀（llama-server
+// 实证支持）；个别引擎可能整段重答——用户实弹验收项，调研台账记档。
+func (a *App) ChatContinue(topicID string, assistantMsgID int64) (string, error) {
+	if topicID == "" {
+		return "", fmt.Errorf("话题 ID 不能为空")
+	}
+	if a.clientRef() == nil {
+		return "", fmt.Errorf("AI 客户端未初始化")
+	}
+	if a.chatStore == nil {
+		return "", fmt.Errorf("chat store 未初始化")
+	}
+	if assistantMsgID <= 0 {
+		return "", fmt.Errorf("消息 ID 无效")
+	}
+	m, err := a.chatStore.GetMessage(assistantMsgID)
+	if err != nil {
+		return "", err
+	}
+	if m.TopicID != topicID {
+		return "", fmt.Errorf("消息不在话题内")
+	}
+	if m.Role != "assistant" {
+		return "", fmt.Errorf("续写锚须为回答行")
+	}
+	if !extraFlagTrue(m.Extra, "stopped") {
+		return "", fmt.Errorf("该回答不是已停止状态，无法续写")
+	}
+	if strings.TrimSpace(m.Content) == "" {
+		return "", fmt.Errorf("该回答无正文，无法续写")
+	}
+	eng, model, source, err := a.resolveChatModelRoute()
+	if err != nil {
+		return "", err
+	}
+	runID := newChatStreamRunID()
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	streamCtx, cancel := context.WithCancel(parent)
+	a.chatStreamRegister(runID, cancel)
+	go a.runChatContinue(streamCtx, runID, topicID, assistantMsgID, m.Content, eng, model, source)
+	return runID, nil
+}
+
+// runChatContinue 续写流：可见路径取问题与历史，末条 assistant 为 prefill；
+// 新文本拼接进原行落库（取消也保留已收部分，P1-5 同款语义）。
+func (a *App) runChatContinue(ctx context.Context, runID, topicID string, assistantMsgID int64, original, eng, model, source string) {
+	defer a.chatStreamUnregister(runID)
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("chat continue panic", "panic", r)
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": "续写异常"})
+		}
+	}()
+	slog.Info("chat continue", "engine", eng, "topicID", topicID, "assistantMsgID", assistantMsgID)
+
+	// 可见路径定位：assistant 行与其前的提问行（历史=路径上该轮之前的部分）
+	msgs, err := a.chatStore.ListMessages(topicID)
+	if err != nil {
+		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": "续写历史装载失败: " + err.Error()})
+		return
+	}
+	path := chat.VisiblePath(msgs)
+	idx := -1
+	for i := range path {
+		if path[i].ID == assistantMsgID {
+			idx = i
+			break
+		}
+	}
+	if idx <= 0 || path[idx-1].Role != "user" {
+		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": "续写锚不在可见路径上"})
+		return
+	}
+	question := path[idx-1]
+	reqMsgs := make([]ai.ChatMessage, 0, 4)
+	reqMsgs = append(reqMsgs, ai.ChatMessage{Role: "system", Content: chatPlainSystemPrompt})
+	reqMsgs = append(reqMsgs, chatMessagesWithinBudget(path[:idx-1])...)
+	reqMsgs = append(reqMsgs,
+		ai.ChatMessage{Role: "user", Content: question.Content},
+		ai.ChatMessage{Role: "assistant", Content: original},
+	)
+
+	var reply strings.Builder
+	mf := &markupDeltaFilter{} // 与 plain 同款：工具标记不落用户面
+	chunks, cancel, err := a.clientRef().ChatStreamMessages(ctx, model, reqMsgs,
+		ai.ChatSimpleOptions{
+			EngineID: eng, Feature: "chat", DisableThinking: true,
+			DisableFailover: source == "feature",
+		}, nil)
+	if err != nil {
+		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error(), "code": classifyChatStreamError(err.Error())})
+		return
+	}
+	defer cancel()
+	for chunk := range chunks {
+		if chunk.Error != "" {
+			if ctx.Err() != nil {
+				break // 取消打断：已收部分走下方保留落库
+			}
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error, "code": classifyChatStreamError(chunk.Error)})
+			return
+		}
+		if chunk.Done {
+			break
+		}
+		if chunk.Content != "" {
+			if safe := mf.feed(chunk.Content); safe != "" {
+				reply.WriteString(safe)
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": safe})
+			}
+		}
+	}
+	if rest := mf.flush(); rest != "" {
+		reply.WriteString(rest)
+		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "delta", "content": rest})
+	}
+	cancelled := ctx.Err() != nil
+	continuation := strings.TrimRight(reply.String(), "")
+	if strings.TrimSpace(continuation) == "" {
+		if cancelled {
+			a.emit("chat-stream:"+runID, map[string]interface{}{
+				"type": "cancelled", "reply": "", "continued": assistantMsgID, "topicID": topicID,
+			})
+			return
+		}
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type": "error", "error": "续写未生成内容（引擎可能不支持续写前缀）", "code": "empty_reply",
+		})
+		return
+	}
+	merged := original + "\n\n" + continuation
+	if err := a.chatStore.UpdateMessageContent(assistantMsgID, merged); err != nil {
+		slog.Error("chat continue 落库失败", "runID", runID, "assistantMsgID", assistantMsgID, "error", err)
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type": "error", "error": "续写完成但保存失败: " + err.Error(), "code": "persistence",
+		})
+		return
+	}
+	finalType := "done"
+	if cancelled {
+		finalType = "cancelled"
+	}
+	a.emit("chat-stream:"+runID, map[string]interface{}{
+		"type": finalType, "reply": continuation, "continued": assistantMsgID,
+		"topicID": topicID,
+	})
+}
+
 // plainChatRequestMessages plain 聊天完整请求消息：system + 话题历史 + 当前 user。
 func (a *App) plainChatRequestMessages(topicID, userMessage string) []ai.ChatMessage {
 	msgs := make([]ai.ChatMessage, 0, plainChatHistoryMaxMessages+2)
@@ -696,6 +887,10 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	persistedExtra := map[string]interface{}{"answered_by": answeredBy}
 	if reasoningStr != "" {
 		persistedExtra["reasoning"] = reasoningStr
+	}
+	// A 批续写准入标记：取消轮落库打 stopped（FE 凭此出「继续生成」入口）
+	if cancelled {
+		persistedExtra["stopped"] = true
 	}
 	searchSummary := summarizeChatSearchRuns(searchRuns, searchRounds)
 	if toolMode {
@@ -1127,11 +1322,15 @@ func (a *App) ChatTopicsList() ([]chat.Topic, error) {
 	return topics, nil
 }
 
+// chatTopicSeq 话题 id 同毫秒防撞序（狂点新建两个话题同 ms 创建时
+// UnixMilli 相同 → UNIQUE 炸第二条；测试期实测逮到，生产同样可触）。
+var chatTopicSeq atomic.Uint64
+
 func (a *App) ChatTopicCreate(title, mode string) (chat.Topic, error) {
 	if a.chatStore == nil {
 		return chat.Topic{}, fmt.Errorf("chat store 未初始化")
 	}
-	id := fmt.Sprintf("t_%d", time.Now().UnixMilli())
+	id := fmt.Sprintf("t_%d_%03d", time.Now().UnixMilli(), chatTopicSeq.Add(1)%1000)
 	if err := a.chatStore.CreateTopic(id, title, mode); err != nil {
 		return chat.Topic{}, err
 	}

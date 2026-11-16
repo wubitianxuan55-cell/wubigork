@@ -57,6 +57,8 @@ export interface ChatRowProps {
   onRegenerate?: (msgKey: string) => void
   /** D 批：打开全量搜索来源面板（SearchCard「查看全部来源」入口） */
   onOpenSources?: (refs: ChatSearchReference[], queries: string[]) => void
+  /** A 批续写：对已停止回答行发起 prefill 续写 */
+  onContinue?: (msgKey: string) => void
   /** 会话级流式占线（切版本/编辑/重生成禁用，DeepSeek busy 同款语义） */
   busy?: boolean
 }
@@ -64,7 +66,7 @@ export interface ChatRowProps {
 export const ChatRow: React.FC<ChatRowProps> = ({
   msg, text, streamStatus, streamReasoning, isStreaming, newGroup, mode, companionName,
   copied, speaking, onCopy, onSpeak, onRetry,
-  versions, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources, busy,
+  versions, onSelectVersion, onEditSubmit, onRegenerate, onOpenSources, onContinue, busy,
 }) => {
   const display = useThrottledStreamText(text, isStreaming)
   // C1（chat-demo 配方）：流式行按渲染耗时自适应节流 display 更新——与下方
@@ -82,6 +84,9 @@ export const ChatRow: React.FC<ChatRowProps> = ({
     && !!onEditSubmit && !busy && !isStreaming
   const canRegenerate = msg.role === 'assistant' && rowDbId !== null && (rowBt?.p ?? 0) > 0
     && !!onRegenerate && !busy && !isStreaming
+  // A 批续写准入：已停止落库行（Go cancelled 轮打 extra.stopped）+ 非占线
+  const canContinue = msg.role === 'assistant' && rowDbId !== null && !msg.error
+    && msg.extra?.stopped === true && !!onContinue && !busy && !isStreaming
   const submitEdit = () => {
     const t = editDraft.trim()
     if (!t || !canEdit) return
@@ -242,6 +247,13 @@ export const ChatRow: React.FC<ChatRowProps> = ({
               <Button type="text" size="small" aria-label="重新生成" icon={<ReloadOutlined />}
                 onClick={() => onRegenerate?.(msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
             </Tooltip>
+          )}
+          {/* A 批续写：已停止回答行 prefill 续写（chat-demo continueReply 子集） */}
+          {canContinue && (
+            <Button size="small" onClick={() => onContinue?.(msg.key)}
+              style={{ fontSize: 11.5, height: 22, borderRadius: 7, padding: '0 8px' }}>
+              继续生成
+            </Button>
           )}
           {!msg.error && msg.extra?.answered_by != null && (
             <button

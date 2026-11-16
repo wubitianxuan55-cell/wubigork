@@ -30,6 +30,7 @@ export const bindingNames = [
   "CharacterSyncProject",
   "Chat",
   "ChatAppendMessages",
+  "ChatContinue",
   "ChatGeneral",
   "ChatImportTopic",
   "ChatMessagesList",
