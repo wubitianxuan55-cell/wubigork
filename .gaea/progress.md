@@ -13,6 +13,7 @@
   （1m27.9s，bindings 未跳过）→ `gaea_install.ps1 -Launch` INSTALL OK：gaea.exe
   SHA256 `CF65EEF89F04…` + 三 DLL 与 build/bin 一致；新 PID 42032（11:15:03）>
   构建时刻 11:14:54；旧壳 49276 已杀。另：工具面板 `genui_validate` 归组任务与
+  协作（44 件全有名有组，实测装配面 34+boot 直注册 10）。
 - **实弹修：选书不开会话四 tab 全空**（用户实测）——根因=`WenxueEngineInit`
   只挂在 Send/NewSession 入口，板挂载从不初始化 → ctrl=nil → `WenxueMeta.ready
   =false` → 主区挂 Skeleton 挡住角色/阅读/设定/记忆四 tab。修=板挂即初始化
@@ -20,7 +21,6 @@
   照旧）+绑定认领四处（mappings/bridge 接口/spaceBindings work 面/legacy 清单
   摘名+mock 空转）。装机 11:30 INSTALL OK（新 PID 46160 > 构建时刻 11:30:48，
   exe 新哈希）。
-  协作（44 件全有名有组，实测装配面 34+boot 直注册 10）。
 
 ## 文学角色 / 阅读 / 设定三标签页重设计（2026-11-16）
 
