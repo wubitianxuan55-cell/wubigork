@@ -35,11 +35,19 @@ import (
 var wx = &wenxueRuntime{wire: newGaeaEventForwarder()}
 
 type wenxueRuntime struct {
-	mu   sync.Mutex
-	ctrl *control.Controller
-	wire *gaeaEventForwarder
-	// followUp 子代理追问执行器（OnFollowUpReady 交给这里；语义同办公 ga.followUp）。
-	followUp gaeaAgent.SubagentFollowUpRunner
+	mu sync.Mutex
+	// reloadMu 序列化重建（2026-11-16 实弹死锁根修）：构建阶段绝不持 mu——
+	// boot.Build 会同步回调 OnFollowUpReady，其写锁家族与 wx.mu 交叉时同
+	// goroutine 重入 sync.Mutex 即永久挂死（此前切书/热重载整板块冻结）。
+	// 重建串行化还保证「后交换者不会 Close 掉先交换者的现役控制器」。
+	reloadMu sync.Mutex
+	ctrl     *control.Controller
+	wire     *gaeaEventForwarder
+	// followUp 子代理追问执行器（OnFollowUpReady 交给这里；语义同办公
+	// ga.followUp+followUpMu：构建回调写入与追问读取各持独立锁，不得复用
+	// mu——Build 位点回调与 mu 上的重建互斥是死锁源）。
+	followUp   gaeaAgent.SubagentFollowUpRunner
+	followUpMu sync.Mutex
 }
 
 // wenxueCtrl 返回当前图文控制器（未初始化返回 nil）。
@@ -168,9 +176,11 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 			})
 		},
 		OnFollowUpReady: func(runner gaeaAgent.SubagentFollowUpRunner) {
-			wx.mu.Lock()
+			// 独立 followUpMu（办公 ga 同款）：Build 位点同步回调，写锁不得
+			// 复用 wx.mu——重建持 wx.mu 跨 Build 时会自死锁（2026-11-16）。
+			wx.followUpMu.Lock()
 			wx.followUp = runner
-			wx.mu.Unlock()
+			wx.followUpMu.Unlock()
 		},
 		// OnNodeRunnerReady 不挂：DAG 文件流水线是办公域（图文右栏无该面）。
 		OnSkillUse:      recordSkillUse,
@@ -247,25 +257,31 @@ func (a *App) wenxueResumeLastSession(ctrl *control.Controller) {
 	slog.Info("图文引擎已自动恢复最近会话", "path", infos[0].Path, "messages", len(loaded.Messages))
 }
 
-// wenxueReloadIfInit 图文引擎已初始化时按当前配置重建（办公设置变更后跟随）。
-// 独立加锁，不持 ga.mu 调用（boot 读全局 loader，与 ga.mu 无死锁面）。
+// wenxueReloadIfInit 图文引擎已初始化时按当前配置重建（办公设置变更/切书后
+// 跟随）。reloadMu 串行化整段（并发重建会把现役控制器 Close 掉）；构建阶段
+// 不持 wx.mu——boot.Build 同步回调 OnFollowUpReady（独立 followUpMu 写入），
+// 持 wx.mu 跨 Build 即同 goroutine 重入自死锁（2026-11-16 实弹：切书/热重载
+// 整板块冻结，点击无响应）。独立加锁，不持 ga.mu 调用（boot 读全局 loader
+// 闭包内部会取 ga.mu，与 ga.mu 无死锁面）。
 func (a *App) wenxueReloadIfInit() {
+	wx.reloadMu.Lock()
+	defer wx.reloadMu.Unlock()
 	wx.mu.Lock()
 	initialized := wx.ctrl != nil
 	wx.mu.Unlock()
 	if !initialized {
 		return
 	}
-	wx.mu.Lock()
-	defer wx.mu.Unlock()
 	newCtrl, err := a.wenxueBuildController()
 	if err != nil {
 		slog.Warn("图文引擎跟随重建失败（保持旧引擎）", "error", err)
 		return
 	}
+	wx.mu.Lock()
 	old := wx.ctrl
 	wx.ctrl = newCtrl
 	wx.wire.reset() // 配置重建=会话面重置，seq 归零防断号
+	wx.mu.Unlock()
 	if old != nil {
 		old.Close()
 	}
@@ -273,8 +289,11 @@ func (a *App) wenxueReloadIfInit() {
 }
 
 // WenxueReload 热加载图文引擎（对齐 GaeaReload 语义）：重读持久化配置并重建。
-// 未初始化时先完成初始化。失败保持旧引擎。
+// 未初始化时先完成初始化。失败保持旧引擎。reloadMu 串行化 + 构建不持 wx.mu
+// （同 wenxueReloadIfInit 死锁根修，2026-11-16）。
 func (a *App) WenxueReload() (GaeaReloadResult, error) {
+	wx.reloadMu.Lock()
+	defer wx.reloadMu.Unlock()
 	wx.mu.Lock()
 	initialized := wx.ctrl != nil
 	wx.mu.Unlock()
@@ -292,15 +311,15 @@ func (a *App) WenxueReload() (GaeaReloadResult, error) {
 	ga.cfg = cfg
 	ga.mu.Unlock()
 
-	wx.mu.Lock()
-	defer wx.mu.Unlock()
 	newCtrl, err := a.wenxueBuildController()
 	if err != nil {
 		return GaeaReloadResult{}, err
 	}
+	wx.mu.Lock()
 	old := wx.ctrl
 	wx.ctrl = newCtrl
 	wx.wire.reset()
+	wx.mu.Unlock()
 	if old != nil {
 		old.Close()
 	}

@@ -638,8 +638,12 @@ func (a *App) WenxueResyncEvents(afterSeq int) GaeaResyncResult {
 // （ref 全局唯一），空间自描述与办公同配置口径。
 func (a *App) WenxueSubagentFollowUp(sessionPath, ref, prompt string) (string, error) {
 	_ = sessionPath // transcript 目录随 controller 解析；ref 全局唯一无需路由
-	wx.mu.Lock()
+	// runner 与 ctrl 各持独立锁（followUpMu/wx.mu）：构建回调写 runner 用
+	// followUpMu（2026-11-16 死锁根修），不得与 wx.mu 交叉持有。
+	wx.followUpMu.Lock()
 	runner := wx.followUp
+	wx.followUpMu.Unlock()
+	wx.mu.Lock()
 	running := wx.ctrl != nil && wx.ctrl.Running()
 	wx.mu.Unlock()
 	if runner == nil {
