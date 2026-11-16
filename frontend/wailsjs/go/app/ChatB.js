@@ -14,8 +14,20 @@ export function ChatAppendMessages(arg1, arg2) {
   return window['go']['app']['ChatB']['ChatAppendMessages'](arg1, arg2);
 }
 
+export function ChatContinue(arg1, arg2) {
+  return window['go']['app']['ChatB']['ChatContinue'](arg1, arg2);
+}
+
+export function ChatExportHistory() {
+  return window['go']['app']['ChatB']['ChatExportHistory']();
+}
+
 export function ChatGeneral(arg1) {
   return window['go']['app']['ChatB']['ChatGeneral'](arg1);
+}
+
+export function ChatImportHistory(arg1) {
+  return window['go']['app']['ChatB']['ChatImportHistory'](arg1);
 }
 
 export function ChatImportTopic(arg1, arg2, arg3) {
@@ -28,6 +40,14 @@ export function ChatMessagesList(arg1) {
 
 export function ChatMessagesPage(arg1, arg2, arg3) {
   return window['go']['app']['ChatB']['ChatMessagesPage'](arg1, arg2, arg3);
+}
+
+export function ChatRegenerate(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['ChatB']['ChatRegenerate'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function ChatSelectVersion(arg1, arg2) {
+  return window['go']['app']['ChatB']['ChatSelectVersion'](arg1, arg2);
 }
 
 export function ChatSend(arg1, arg2, arg3, arg4, arg5, arg6) {
@@ -44,6 +64,10 @@ export function ChatStreamPersona(arg1, arg2, arg3, arg4, arg5, arg6) {
 
 export function ChatStreamPlain(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['ChatB']['ChatStreamPlain'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function ChatStreamPlainAt(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['app']['ChatB']['ChatStreamPlainAt'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function ChatTopicClear(arg1) {

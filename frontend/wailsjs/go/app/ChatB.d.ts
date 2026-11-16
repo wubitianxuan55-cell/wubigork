@@ -9,13 +9,23 @@ export function Chat(arg1:string,arg2:string):Promise<string>;
 
 export function ChatAppendMessages(arg1:string,arg2:Array<app.ChatMessageInput>):Promise<void>;
 
+export function ChatContinue(arg1:string,arg2:number):Promise<string>;
+
+export function ChatExportHistory():Promise<string>;
+
 export function ChatGeneral(arg1:string):Promise<Record<string, any>>;
+
+export function ChatImportHistory(arg1:string):Promise<number>;
 
 export function ChatImportTopic(arg1:string,arg2:string,arg3:Array<app.ChatMessageInput>):Promise<chat.Topic>;
 
 export function ChatMessagesList(arg1:string):Promise<Array<chat.Message>>;
 
 export function ChatMessagesPage(arg1:string,arg2:number,arg3:number):Promise<app.ChatMessagesPageResult>;
+
+export function ChatRegenerate(arg1:string,arg2:number,arg3:boolean,arg4:boolean,arg5:boolean):Promise<string>;
+
+export function ChatSelectVersion(arg1:string,arg2:number):Promise<void>;
 
 export function ChatSend(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:boolean):Promise<Record<string, any>>;
 
@@ -24,6 +34,8 @@ export function ChatStreamCancel(arg1:string):Promise<boolean>;
 export function ChatStreamPersona(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:boolean):Promise<string>;
 
 export function ChatStreamPlain(arg1:string,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<string>;
+
+export function ChatStreamPlainAt(arg1:string,arg2:number,arg3:string,arg4:boolean,arg5:boolean,arg6:boolean):Promise<string>;
 
 export function ChatTopicClear(arg1:string):Promise<void>;
 
