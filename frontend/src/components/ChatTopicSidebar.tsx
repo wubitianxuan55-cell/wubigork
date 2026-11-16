@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import { filterChatTopics } from '../utils/chatTopics'
+import { groupChatTopics } from '../utils/chatTopicGroups'
 import { relativeTime } from '../gaea/lib/time'
 
 export interface Topic {
@@ -69,6 +70,10 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   // v4.350：过滤 memo 化；行 hover 高亮（删除钮显隐）改纯 CSS——此前
   // hoveredId state 使鼠标每扫过一行就全列表重渲染。
   const visibleTopics = useMemo(() => filterChatTopics(topics, query), [topics, query])
+  // G1 时间分组（chat-demo sessionGroups 对齐）：今天/昨天/7天/30天/按月。
+  // 分钟级重算代价低（纯函数），跨天过期由下次任意渲染自然修正（与 DeepSeek
+  // 半夜定时器不同：分组标签只受 updatedAt 影响，过期只差标签新鲜度，可接受）。
+  const groups = useMemo(() => groupChatTopics(visibleTopics, Date.now()), [visibleTopics])
 
   return (
     <div className={`chat-topic-sidebar v3-panel${collapsed ? ' is-collapsed' : ''}`}>
@@ -177,7 +182,17 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
               </div>
             ) : (
               <div>
-                {visibleTopics.map((topic) => {
+                {groups.map((group) => (
+                  <div key={group.key}>
+                    <div className="chat-topic-group-head" aria-hidden="true"
+                      style={{
+                        padding: '8px 8px 4px', fontSize: 10.5, fontWeight: 600,
+                        letterSpacing: 0.5, color: C('color-text-secondary'), opacity: 0.75,
+                        userSelect: 'none',
+                      }}>
+                      {group.label}
+                    </div>
+                    {group.topics.map((topic) => {
               const active = topic.id === activeId
               return (
                 <div
@@ -292,6 +307,8 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                 </div>
               )
                 })}
+                  </div>
+                ))}
               </div>
             )}
           </div>

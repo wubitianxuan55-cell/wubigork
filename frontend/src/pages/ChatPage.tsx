@@ -76,7 +76,14 @@ const ChatPage: React.FC = () => {
     hasOlder, loadingOlder, loadOlder, prepend,
   } = topicsApi
 
-  const [input, setInput] = useState('')
+  // G2 草稿按会话保留（chat-demo drafts.ts 语义对齐）：input 由「按话题键的
+  // 草稿表」派生——切会话互不覆盖，流式 setInput('') 落在发送话题（activeIdRef
+  // 当时值）。内存态不持久化（与会话列表同生命周期，重开应用按现状）。
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const input = drafts[activeId ?? ''] ?? ''
+  const setInput = useCallback((v: string) => {
+    setDrafts(prev => ({ ...prev, [activeIdRef.current ?? '']: v }))
+  }, [activeIdRef])
   const [activePersonality, setActivePersonality] = useState<string>(() => loadPersonality())
   // 联网开关：默认关 + localStorage 持久化（2026-11-11 根治「重挂载静默回开」：
   // 旧 useState(true) 无持久化，切话题/重挂载后按钮状态与实际请求脱节，
@@ -392,6 +399,13 @@ const ChatPage: React.FC = () => {
     if (id === activeIdRef.current) closeVoiceConsole()
     rearm()
     await deleteTopic(id)
+    // G2：删除会话连带丢弃其草稿
+    setDrafts(prev => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
     inputRef.current?.focus?.()
   }, [activeIdRef, closeVoiceConsole, deleteTopic, rearm])
 

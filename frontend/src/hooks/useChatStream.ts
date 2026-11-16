@@ -45,7 +45,8 @@ interface ChatStreamPayload {
 export interface UseChatStreamOptions {
   updateMessage: (key: string, patch: Partial<ChatMsg>) => void
   setMessages: React.Dispatch<React.SetStateAction<ChatMsg[]>>
-  setInput: React.Dispatch<React.SetStateAction<string>>
+  // G2：草稿表派生后，ChatPage 的 setInput 收窄为值语义（hook 内仅 setInput('') 清空）
+  setInput: (v: string) => void
   setEmotion: (v: string) => void
   setAff: (v: number) => void
   setAro: (v: number) => void
