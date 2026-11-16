@@ -4705,3 +4705,9 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - **v4.89 ~ v4.82** 上下文页与工具链：成本费率 hover、/context 弹层、Git 面板最小集、文件三态折叠、HTML 沙箱预览、工具结果缩略卡、上下文趋势跳转
 - **v4.81 ~ v4.60** 早期面板期：上下文/文件/任务线（活动行级增量、任务页、记忆界面、子代理会话/并行/流式/追问闭环、办公板块交付验收 A2、better-sidebar pane 化）
 
+
+## v4.544.0 发版（2026-11-17 凌晨）
+
+- **抬号三处同步** 4.543.0→4.544.0（sync-version.ps1：app_info.go/wails.json/versioninfo.rc）；**CHANGELOG 折段**=新增 v4.544.0 段（文学板块系统性审查十批收官+质检/文风族开工，单段详述+详见 releases/v4.544.0.md）+两段文学未发布段（无限制档/破甲契约）随版折入并修正过期尾注；releases/v4.544.0.md 详版说明入库。
+- 装机 exe 8B588FA7AC71…冒烟 200（PID 10148）；提交 ad9d11cf 已推 origin（ahead 清零）。功能包 gaea-wenxue-v6（4.543.0 快照）留档不变。
+- **CHANGELOG 折段欠账余量**：v4.530~v4.543 旧版段仍缺（发版门欠账按 docs 台账继续挂）。
