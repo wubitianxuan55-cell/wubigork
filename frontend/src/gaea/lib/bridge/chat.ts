@@ -38,6 +38,9 @@ export interface ChatBindings {
   ChatSelectVersion(topicID: string, msgID: number): Promise<void>;
   // A 批续写：对「已停止」回答行以 assistant prefill 续写，新文本拼接原行。
   ChatContinue(topicID: string, assistantMsgID: number): Promise<string>;
+  // E 档历史备份：全量导出 ZIP（返回落盘路径）；导入原子替换（返回话题数）。
+  ChatExportHistory(): Promise<string>;
+  ChatImportHistory(srcPath: string): Promise<number>;
   // 角色对话真实流式入口：与 plain 共用 chat-stream:<runID> 事件协议。
   ChatStreamPersona(topicID: string, message: string, mode: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
   // P1-5：取消进行中的对话流（已生成部分落库并以 cancelled 收尾；未知 runID 返 false）。

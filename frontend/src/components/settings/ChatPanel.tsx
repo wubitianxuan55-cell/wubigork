@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Input, Radio, Select, Typography, message } from 'antd'
-import { TeamOutlined, SmileOutlined, AudioOutlined } from '@ant-design/icons'
+import { Button, Input, Modal, Radio, Select, Typography, message } from 'antd'
+import { TeamOutlined, SmileOutlined, AudioOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import { applyVoiceSettings, getVoiceSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
@@ -234,7 +234,74 @@ const ChatPanel: React.FC = () => {
           </div>
         </div>
       </SettingsSection>
+
+      <ChatDataSection />
     </>
+  )
+}
+
+/** ChatDataSection — E 档数据管理：历史 ZIP 导出/导入（导入前自动备份、
+ *  原子替换；成功后广播 gaea-chat-history-replaced 让聊天页即时刷新）。 */
+const ChatDataSection: React.FC = () => {
+  const [busy, setBusy] = useState<'export' | 'import' | null>(null)
+
+  const handleExport = async () => {
+    setBusy('export')
+    try {
+      const path = await app.ChatExportHistory()
+      message.success(`已导出聊天历史：${path}`)
+    } catch (err: unknown) {
+      message.error(`导出失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleImport = async () => {
+    try {
+      const picked = await app.PickFiles('ZIP|*.zip')
+      const path = picked?.[0]?.path
+      if (!path) return
+      Modal.confirm({
+        title: '导入将覆盖全部本地会话',
+        content: '导入前会自动导出一份当前历史作为备份。确定继续？',
+        okText: '导入并覆盖',
+        cancelText: '取消',
+        onOk: async () => {
+          setBusy('import')
+          try {
+            const n = await app.ChatImportHistory(path)
+            message.success(`已导入 ${n} 个会话`)
+            window.dispatchEvent(new CustomEvent('gaea-chat-history-replaced'))
+          } catch (err: unknown) {
+            message.error(`导入失败（原数据未动）：${err instanceof Error ? err.message : String(err)}`)
+          } finally {
+            setBusy(null)
+          }
+        },
+      })
+    } catch (err: unknown) {
+      message.error(`选择文件失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  return (
+    <SettingsSection
+      icon={<span style={{ fontSize: 15 }}><DatabaseOutlined /></span>}
+      title="数据管理"
+      desc="聊天历史打包备份与恢复（ZIP，含会话与消息原文）"
+      instant
+    >
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Button size="small" loading={busy === 'export'} onClick={handleExport}
+          style={{ borderRadius: 8 }}>导出全部历史</Button>
+        <Button size="small" danger loading={busy === 'import'} onClick={handleImport}
+          style={{ borderRadius: 8 }}>从 ZIP 导入</Button>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 8 }}>
+        导入会覆盖现有全部会话；导入前自动备份当前历史到导出目录。
+      </div>
+    </SettingsSection>
   )
 }
 

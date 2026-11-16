@@ -34,6 +34,7 @@ import {
   CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS,
 } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
+import { sortByUpdatedAtDesc } from '../utils/chatTopics'
 import { btOf, dbIdOf } from './chat/branches'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
@@ -508,6 +509,22 @@ const ChatPage: React.FC = () => {
     closeVoiceConsole()
     if (mode === 'plain') void switchMode(activePersonality)
   }, [activePersonality, closeVoiceConsole, mode, switchMode])
+
+  // E 档：设置面板导入替换历史后刷新（topics + 当前话题消息）
+  useEffect(() => {
+    const onReplaced = () => {
+      invalidateLoads()
+      void (async () => {
+        const list = (await app.ChatTopicsList().catch(() => [])) || []
+        const sorted = sortByUpdatedAtDesc(list, (t) => toUpdatedAt(t))
+        setTopics(sorted)
+        const active = activeIdRef.current
+        if (active) await topicsApi.loadTopic(active, sorted)
+      })()
+    }
+    window.addEventListener('gaea-chat-history-replaced', onReplaced)
+    return () => window.removeEventListener('gaea-chat-history-replaced', onReplaced)
+  }, [invalidateLoads, topicsApi])
 
   // 角色库切换人格 → 聊天板块联动
   useEffect(() => {

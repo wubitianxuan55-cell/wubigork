@@ -318,6 +318,9 @@ export const GAEA_METHOD_FACETS = {
   ChatRegenerate: "work",
   ChatSelectVersion: "work",
   ChatContinue: "work",
+  // E 档历史备份对（设置面板数据管理段入口）。
+  ChatExportHistory: "work",
+  ChatImportHistory: "work",
   // P1-5：对话流取消（ChatB 门面，work/play 共用通道）。
   ChatStreamCancel: "work",
   ChatTopicClear: "work",
