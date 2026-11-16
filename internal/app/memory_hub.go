@@ -76,6 +76,7 @@ type MemoryHubOverview struct {
 	OfficeCount    int `json:"officeCount"`
 	CostCount      int `json:"costCount"`
 	WhisperCount   int `json:"whisperCount"`
+	WenxueCount    int `json:"wenxueCount"`
 	PinnedCount    int `json:"pinnedCount"` // 项目资料：工作区固定常用文件数
 	// 数据库存档（v4.479）：本设备聊天会话总数（活跃+归档）与上传附件总数，
 	// 作用域 = 当前 + 最近工作区（GaeaDatabaseOverview 同口径）。
@@ -236,6 +237,70 @@ func (a *App) GaeaWhisperExportArchive(dir string) (int, error) {
 	return n, nil
 }
 
+// ── 图文脑（wenxue-brain，2026-11-16 记忆左右脑批新建的独立库）─────────
+//
+// 记忆中枢只读浏览：物理隔离不动（读写面仍只在图文引擎记忆五件工具，boot
+// MemoryUserDir=wenxue-brain 独立 DB），中枢同右脑轻语「只读」先例做跨书
+// 全览。MemoryUserDir 不可得（dir 空）=「无图文脑」，Available=false。
+
+// WenxueMemoryFactView 图文脑记忆事实只读视图。
+type WenxueMemoryFactView struct {
+	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type"`
+	Body        string `json:"body"`
+	Space       string `json:"space,omitempty"`     // S1 空间归属（work/play）
+	UpdatedAt   string `json:"updatedAt,omitempty"` // 最近写入（RFC3339）
+	LastUsedAt  string `json:"lastUsedAt,omitempty"`
+	Pinned      bool   `json:"pinned,omitempty"`
+	Invalid     bool   `json:"invalid,omitempty"` // 9.3 失效标记（原文保留可查）
+}
+
+// WenxueMemoryBrowseView 图文脑记忆只读浏览回执。
+type WenxueMemoryBrowseView struct {
+	Available bool                   `json:"available"`
+	StoreDir  string                 `json:"storeDir"`
+	Count     int                    `json:"count"`
+	Facts     []WenxueMemoryFactView `json:"facts"`
+}
+
+// hubWenxueBrainStore 图文脑 facts 存储（跨书全览：List 不过滤项目）。
+func (a *App) hubWenxueBrainStore() memory.Store {
+	dir := wenxueBrainDir()
+	if dir == "" {
+		return memory.Store{}
+	}
+	return memory.SQLiteStoreFor(db.GetDatabase(dir), dir, "")
+}
+
+// GaeaWenxueMemoryBrowse 图文脑记忆只读浏览（中枢图文库数据面）。
+func (a *App) GaeaWenxueMemoryBrowse() WenxueMemoryBrowseView {
+	view := WenxueMemoryBrowseView{Facts: []WenxueMemoryFactView{}}
+	dir := wenxueBrainDir()
+	if dir == "" {
+		return view
+	}
+	view.Available = true
+	view.StoreDir = dir
+	for _, m := range a.hubWenxueBrainStore().List() {
+		view.Facts = append(view.Facts, WenxueMemoryFactView{
+			Name:        m.Name,
+			Title:       m.Title,
+			Description: m.Description,
+			Type:        string(m.Type),
+			Body:        m.Body,
+			Space:       m.Space,
+			UpdatedAt:   fmtTimeOrEmpty(m.UpdatedAt),
+			LastUsedAt:  fmtTimeOrEmpty(m.LastUsedAt),
+			Pinned:      m.Pinned,
+			Invalid:     !m.InvalidAt.IsZero(),
+		})
+	}
+	view.Count = len(view.Facts)
+	return view
+}
+
 // GaeaMemoryHubOverview 返回记忆中枢聚合总览：各库条目数 + 最近更新时间。
 func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	ov := MemoryHubOverview{}
@@ -257,6 +322,9 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	}
 	ov.CostCount = len(costList)
 	ov.WhisperCount = len(whisperdb.LoadFactsFromDB(a.whisperDataRoot))
+	if wenxueBrainDir() != "" {
+		ov.WenxueCount = len(a.hubWenxueBrainStore().List())
+	}
 	ov.PinnedCount = hubPinnedCount()
 	// 数据库存档计数（v4.479）：跨工作区走查会话/附件目录，只 stat 不读内容。
 	for _, root := range databaseRoots() {

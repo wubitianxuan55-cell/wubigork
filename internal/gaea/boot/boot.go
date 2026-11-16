@@ -264,7 +264,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 2026-11-15 刀2：read_skill 实例化注册（替换内置全局同名件——Registry.Add
 	// 同名覆盖语义）。resolver 走 sysprompt 产出的过滤闭包：双引擎（办公+图文）
 	// 各持各的技能面，不再经全局 WireReadSkillResolver 串仓。
-	reg.Add(builtin.NewReadSkillWithResolver(sp.readSkill))
+	addGated(reg, opts.ToolFilter, builtin.NewReadSkillWithResolver(sp.readSkill))
 	// Always construct a host, even with no plugins configured, so the controller's
 	// host pointer is stable for the session and `/mcp add` can hot-add into it.
 	// V10.22: plugins + LSP assembled in plugins.go
@@ -399,22 +399,22 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			}
 		}
 	}
-	reg.Add(taskTool)
+	addGated(reg, opts.ToolFilter, taskTool)
 	// interrupt_agent（2026-10 P0-A，dsh 控制面蒸馏）：模型面中断——在跑/排队
 	// 子代理经 subRuns 句柄取消，后台任务转发 jobs.Kill。已入 subagentMetaTools
 	// （子代理不见此工具，中断权只属父代理）。
-	reg.Add(agent.NewInterruptTool())
+	addGated(reg, opts.ToolFilter, agent.NewInterruptTool())
 	// subagent_list（2026-10 P1-D）：模型面枚举当前会话子代理运行（lazy store
 	// 跟随会话路径），为 interrupt_agent / continue_from 提供 ref 入口。
-	reg.Add(agent.NewSubagentListTool(subagentStore))
+	addGated(reg, opts.ToolFilter, agent.NewSubagentListTool(subagentStore))
 	// read_subagent_result（2026-10 B2）：模型面按 ref 分页取回子代理最终
 	// 回答——聚合没送达/结果滚出上下文时不必重跑（省一次推理费）。
-	reg.Add(agent.NewReadSubagentResultTool(subagentStore))
+	addGated(reg, opts.ToolFilter, agent.NewReadSubagentResultTool(subagentStore))
 	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
 	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。
 	if gdb := db.GetDatabase(memUserDir); gdb != nil {
-		reg.Add(sessionquery.NewSearchTool(gdb, orDefault(opts.SessionDir, config.SessionDir())))
+		addGated(reg, opts.ToolFilter, sessionquery.NewSearchTool(gdb, orDefault(opts.SessionDir, config.SessionDir())))
 	}
 	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
 	// （此前 WithTranscripts 只有测试调用，真机子代理 tab 无数据可显示）。
@@ -443,16 +443,16 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// The `remember` tool lets the model persist durable facts to the project's
 	// auto-memory store; `forget` prunes ones that turn out wrong. The saved index
 	// loads into the prefix on the next session.
-	reg.Add(memory.NewRememberTool(mem.Store, memory.NewProfileStore(db.GetDatabase(memUserDir))))
-	reg.Add(memory.NewForgetTool(mem.Store))
-	reg.Add(memory.NewPromoteSessionFactsTool())
-	reg.Add(memory.NewMemoryGetTool(mem.Store))
+	addGated(reg, opts.ToolFilter, memory.NewRememberTool(mem.Store, memory.NewProfileStore(db.GetDatabase(memUserDir))))
+	addGated(reg, opts.ToolFilter, memory.NewForgetTool(mem.Store))
+	addGated(reg, opts.ToolFilter, memory.NewPromoteSessionFactsTool())
+	addGated(reg, opts.ToolFilter, memory.NewMemoryGetTool(mem.Store))
 
 	// The `ask` tool puts structured multiple-choice questions to the user. It
 	// reaches them through the Asker on the call context, which interactive
 	// frontends wire to the controller (EnableInteractiveApproval); a headless run
 	// has none, so ask resolves to "decide for yourself".
-	reg.Add(agent.NewAskTool())
+	addGated(reg, opts.ToolFilter, agent.NewAskTool())
 
 	// The `request_permission` tool lets the model explicitly request a
 	// permission rule ("Tool" / "Tool(subject)") when it lacks one, surfacing a
@@ -461,14 +461,14 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 会话级元工具（shared 语义），不经 spacetags 装配过滤——work/play 两空间
 	// 均可见；批准授予的是规则，真实调用仍走正常权限闸门。headless 运行无
 	// PermissionRequester，工具返回非交互降级结果，不阻塞自治。
-	reg.Add(agent.NewRequestPermissionTool())
+	addGated(reg, opts.ToolFilter, agent.NewRequestPermissionTool())
 
 	// exit_plan_mode 计划审批门（v4.414，dsh plan-mode 蒸馏取道不取器）：恒
 	// 注册（工具目录跨模式切换稳定），计划模式（/plan on）下把 markdown 计划
 	// 提交 ask 通道审批；非计划模式调用如实报错。与 ask 同路径直接注册（会话
 	// 级元工具，work/play 均可见）；子代理经 SubagentMetaTools 排除。headless
 	// 无 Asker 时诚实拒绝（执行闸必须人来开，不仿 ask 的自选降级）。
-	reg.Add(agent.NewExitPlanModeTool())
+	addGated(reg, opts.ToolFilter, agent.NewExitPlanModeTool())
 
 	// Skill tools: run_skill / install_skill are the ONLY skill entry points —
 	// 子代理入口收敛为 task + run_skill 两级（v4.61 用户拍板，对标 Codex 的
@@ -549,15 +549,15 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		// 不计——宁少勿扰）。装饰器只包 Execute，其余方法原样转发。
 		runSkill = &skillUseCountTool{Tool: runSkill, onUse: opts.OnSkillUse}
 	}
-	reg.Add(runSkill)
-	reg.Add(skill.NewInstallSkillTool(skillStore, nil))
+	addGated(reg, opts.ToolFilter, runSkill)
+	addGated(reg, opts.ToolFilter, skill.NewInstallSkillTool(skillStore, nil))
 	// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
 	for _, st := range cache.BuiltinSpawnTemplates() {
 		cache.RegisterSpawnTemplate(st)
 	}
 	// 大文件分块摘要工具：需要注入会话 provider，故在 boot 处注册
 	// （对标千问 500 页超长文 / WPS 整本书 / 豆包分段摘要）。
-	reg.Add(largefile.NewSummarizeToolAt(execProv, cwd))
+	addGated(reg, opts.ToolFilter, largefile.NewSummarizeToolAt(execProv, cwd))
 
 	compiler.SetRegistry(reg)
 
@@ -674,7 +674,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			Render:      func(args []string) string { return cmd.Render(args) },
 		})
 	}
-	reg.Add(command.NewSlashCommandTool(slashEntries))
+	addGated(reg, opts.ToolFilter, command.NewSlashCommandTool(slashEntries))
 
 	// 前端注入的工具（如桌面端 image_gen）追加到注册表。S1.3-B：按装配空间
 	// 物理过滤（work=办公/编辑/检索域、play=生图/轻语/小说/角色域、shared
@@ -894,6 +894,17 @@ func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
 // toolAllowed 是 ToolFilter 的 nil 安全包装（nil = 恒允许，现状逐字节）。
 func toolAllowed(filter func(name string) bool, name string) bool {
 	return filter == nil || filter(name)
+}
+
+// addGated 按板块装配闸注册模型面工具（2026-11-16 图文瘦身刀）。
+// ToolFilter 此前只过 addBuiltins/plugins/ExtraTools 三处，boot 直注册的会话
+// 级元工具（task/ask/记忆族/子代理管理族/request_permission/exit_plan_mode/
+// summarize_file/slash_command 等）绕过板块名单——本 helper 把闸扩到全部模型
+// 面注册点：filter 空=全放行（办公逐字节现状），非空时名单内物理不装。
+func addGated(reg *tool.Registry, filter func(name string) bool, t tool.Tool) {
+	if t != nil && toolAllowed(filter, t.Name()) {
+		reg.Add(t)
+	}
 }
 
 // addBuiltins adds enabled built-in tools to reg. An empty list means all of

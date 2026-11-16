@@ -8,9 +8,9 @@ package app
 //   章节/|chapters/、角色/|characters/、时间线/|timeline/、设定/|worldview/。
 // 路径安全：全部写读经 wspath.ResolveRelWithin（工作区内解析，拒 .. 穿越）；
 // 写侧带 overwrite 显式闸（缺省 false，已存在即拒——宁拒不误改）。
-// 契约行：RegistryMap 十二行（extra-app/work——刀3 原九件+定稿刀三件；
-// 2026-11-15 众神殿首刀收口批改口径归一），装配面守卫=wenxue_surface_probe_test.go
-// census 三例。
+// 契约行：RegistryMap 十三行（extra-app/work——刀3 原九件+定稿刀三件+角色库
+// 导入刀一件；2026-11-15 众神殿首刀收口批改口径归一），装配面守卫=
+// wenxue_surface_probe_test.go census 三例。
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 )
@@ -60,9 +61,10 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueChapterListTool(),
 		wenxueChapterReadTool(),
 		wenxueChapterWriteTool(),
-		wenxueCharacterListTool(),
+		wenxueCharacterListTool(a),
 		wenxueCharacterReadTool(),
 		wenxueCharacterWriteTool(),
+		wenxueCharacterImportTool(a),
 		wenxueTimelineReadTool(),
 		wenxueTimelineAppendTool(),
 		wenxueStatsTool(),
@@ -72,13 +74,30 @@ func wenxueExtraTools(a *App) []tool.Tool {
 	}
 }
 
+// wxWorkSpaceTool 图文装配空间适配器：只改写 SpaceTag，Execute 原样委托。
+// image_gen 在 spacetags 名表是 play 域（办公/通用语义不动），图文（work
+// 空间）装配期会被物理过滤——众神殿媒体根分档裁决「图文会话生成图锚小说
+// 目录」的意图落空（2026-11-16 实测：面板 42 件无 image_gen）。本适配器仅在
+// 图文装配单点把实例标成 work；gaeaExtraTools 原样（办公 play 语义不变）。
+type wxWorkSpaceTool struct{ tool.Tool }
+
+func (t wxWorkSpaceTool) SpaceTag() string { return "work" }
+
 // wenxueBaseTools 图文引擎通用 extra 工具单点（= gaeaExtraTools 媒体根分档版，
 // 2026-11-15 众神殿首刀，pan_1794754879290 裁决）：image_gen/ocr 媒体根注入
 // wenxueWorkspace——图文会话生成图与 OCR 相对路径锚当前小说目录，不再落办公
 // 工作区；vision 不动（builtin-workspace 随 Build Cwd 注入，本就正确）。
+// image_gen 经 wxWorkSpaceTool 标 work 过空间闸（见上）。
 // 办公装配走 gaeaExtraTools 原样（nil 缝=gaeaCwd 现状逐字节，红线）。
 func wenxueBaseTools(a *App) []tool.Tool {
-	return extraToolsWithMediaRoot(a, wenxueWorkspace)
+	tools := extraToolsWithMediaRoot(a, wenxueWorkspace)
+	for i, t := range tools {
+		if t.Name() == "image_gen" {
+			tools[i] = wxWorkSpaceTool{Tool: t}
+			break
+		}
+	}
+	return tools
 }
 
 // ── 目录约定与共享 helper ────────────────────────────────────────
@@ -537,16 +556,43 @@ func wenxueListCharacters(root string) []map[string]any {
 	return out
 }
 
-func wenxueCharacterListTool() *wenxueTool {
+func wenxueCharacterListTool(a *App) *wenxueTool {
 	return &wenxueTool{
 		name:     "wenxue_character_list",
-		desc:     "列出角色卡清单（名字/字数/摘要）。写新章前用它确认出场人物。",
+		desc:     "列出角色卡清单（名字/字数/摘要）+ 角色库同名命中（charlib_hits，可经 wenxue_character_import 全字段导入）。写新章前用它确认出场人物。",
 		schema:   `{"type":"object","additionalProperties":false}`,
 		readOnly: true,
 		run: func(args json.RawMessage) (string, error) {
 			root := wenxueWorkspace()
 			cards := wenxueListCharacters(root)
-			return wenxueJSON(map[string]any{"dir": wenxueFindDir(root, "characters"), "count": len(cards), "characters": cards})
+			res := map[string]any{"dir": wenxueFindDir(root, "characters"), "count": len(cards), "characters": cards}
+			// 库内同名命中（2026-11-16 导入刀）：提示 agent 库里有现成角色，
+			// 不要只拿名字凭空造人。库未初始化/查询失败不拦清单——附带错误字段。
+			if a != nil && a.charLib != nil {
+				cardNames := map[string]bool{}
+				for _, c := range cards {
+					if n, _ := c["name"].(string); n != "" {
+						cardNames[strings.ToLower(strings.TrimSpace(n))] = true
+					}
+				}
+				items, _, err := a.charLib.List("", "", false, 500, 0)
+				if err != nil {
+					res["charlib_error"] = err.Error()
+				} else {
+					hits := []map[string]any{}
+					for i := range items {
+						c := &items[i]
+						if cardNames[strings.ToLower(strings.TrimSpace(c.Name))] {
+							hits = append(hits, map[string]any{"name": c.Name, "id": c.ID, "kind": c.Kind})
+						}
+					}
+					res["charlib_hits"] = hits
+					if len(hits) > 0 {
+						res["charlib_hint"] = "以上角色在角色库有完整档案，建卡/补卡用 wenxue_character_import 全字段导入，不要只按名字重写"
+					}
+				}
+			}
+			return wenxueJSON(res)
 		},
 	}
 }
@@ -590,7 +636,7 @@ func wenxueCharacterReadTool() *wenxueTool {
 func wenxueCharacterWriteTool() *wenxueTool {
 	return &wenxueTool{
 		name:     "wenxue_character_write",
-		desc:     "建/更新角色卡（全量正文）。overwrite=false 时已存在即拒。写后回执带卡面字数。",
+		desc:     "建/更新角色卡（全量正文）。建新角色前先用 wenxue_character_import 查角色库——同名命中即全字段导入再本地化，未命中才从零撰写，不要只拿名字凭空造人。overwrite=false 时已存在即拒。写后回执带卡面字数。",
 		schema:   `{"type":"object","properties":{"name":{"type":"string","description":"角色名（卡文件名与首行标题）"},"content":{"type":"string","description":"角色卡全文（建议分 设定/外貌/性格/口头禅/关系/当前状态 小节）"},"path":{"type":"string","description":"可选：自定义卡文件相对路径"},"overwrite":{"type":"boolean","description":"允许覆盖已存在卡，缺省 false"}},"required":["name","content"],"additionalProperties":false}`,
 		readOnly: false,
 		run: func(args json.RawMessage) (string, error) {
@@ -632,6 +678,219 @@ func wenxueCharacterWriteTool() *wenxueTool {
 			return wenxueJSON(map[string]any{
 				"path": rel, "name": name, "words": wenxueCountWords(content),
 				"hint": "章节推进后记得更新「当前状态」小节（再次调用本工具 overwrite=true）",
+			})
+		},
+	}
+}
+
+// ── 角色库导入（2026-11-16）────────────────────────────────────
+//
+// 角色工具此前与角色库零关联：agent 只能拿用户口述的名字凭空造人，库内
+// 定位/背景/外貌/性格/动机/台词样例全丢。本刀补 wenxue_character_import——
+// 库卡全字段映射六节落盘（卡面契约与前端 WenxueCharacterHub.cardFromLibraryChar
+// 同源：设定←定位/标签/背景/动机，外貌←外貌/身材，性格←性格/弧线，
+// 口头禅←台词样例，关系留白，当前状态←状态/备注），设定节末记来源 id。
+// 同步语义=单向一次性快照：卡面「当前状态」随章节演进、库侧档案独立维护，
+// 双向自动合并必打架——库侧更新要进卡须显式重导入（overwrite=true 整卡
+// 覆盖，「当前状态」演进内容会丢，工具回执已提示）。库只读不回写（红线）。
+
+// wenxueRoleTypeZh / wenxueCharStatusZh 库字段中文化（与前端 ROLE_TYPE_ZH /
+// STATUS_ZH 同源对齐，改两处同批）。
+var wenxueRoleTypeZh = map[string]string{
+	"protagonist": "主角", "antagonist": "反派", "supporting": "配角", "minor": "龙套",
+}
+
+var wenxueCharStatusZh = map[string]string{
+	"Alive": "存活", "Dead": "死亡", "Missing": "失踪", "Transformed": "转变",
+}
+
+func wenxueZhOf(m map[string]string, key string) string {
+	if key == "" {
+		return ""
+	}
+	if v, ok := m[key]; ok {
+		return v
+	}
+	return key // 未知枚举如实透传（前端同口径 ?? c.roleType）
+}
+
+// wenxueCardFromLibraryChar 库卡 → 六节角色卡 md（与前端 cardFromLibraryChar
+// 逐节同源；追加「来源」行记库 id，供对账与显式重导入）。
+func wenxueCardFromLibraryChar(c *characterlib.Character) string {
+	meta := []string{wenxueZhOf(wenxueRoleTypeZh, c.RoleType), c.Gender, c.Age}
+	kept := meta[:0]
+	for _, s := range meta {
+		if strings.TrimSpace(s) != "" {
+			kept = append(kept, strings.TrimSpace(s))
+		}
+	}
+	setting := []string{}
+	if len(kept) > 0 {
+		setting = append(setting, "定位："+strings.Join(kept, " · "))
+	}
+	if len(c.Tags) > 0 {
+		setting = append(setting, "标签："+strings.Join(c.Tags, "、"))
+	}
+	if strings.TrimSpace(c.Background) != "" {
+		setting = append(setting, c.Background)
+	}
+	if strings.TrimSpace(c.Motivation) != "" {
+		setting = append(setting, "动机："+c.Motivation)
+	}
+	setting = append(setting, "来源：角色库（id "+c.ID+"，单向快照不自动同步）")
+	personality := []string{}
+	if strings.TrimSpace(c.Personality) != "" {
+		personality = append(personality, c.Personality)
+	}
+	if strings.TrimSpace(c.Arc) != "" {
+		personality = append(personality, "弧线："+c.Arc)
+	}
+	status := []string{}
+	if zh := wenxueZhOf(wenxueCharStatusZh, c.Status); zh != "" {
+		status = append(status, "状态："+zh)
+	}
+	if strings.TrimSpace(c.Notes) != "" {
+		status = append(status, c.Notes)
+	}
+	samples := make([]string, 0, len(c.DialogueSamples))
+	for _, s := range c.DialogueSamples {
+		if strings.TrimSpace(s) != "" {
+			samples = append(samples, "- "+strings.TrimSpace(s))
+		}
+	}
+	section := func(title, body string) string { return "## " + title + "\n\n" + body }
+	bodyOf := func(lines []string, fallback string) string {
+		filled := make([]string, 0, len(lines))
+		for _, l := range lines {
+			if t := strings.TrimSpace(l); t != "" {
+				filled = append(filled, t)
+			}
+		}
+		if len(filled) == 0 {
+			return fallback
+		}
+		return strings.Join(filled, "\n")
+	}
+	samplesBody := "（待补）"
+	if len(samples) > 0 {
+		samplesBody = strings.Join(samples, "\n")
+	}
+	parts := []string{
+		"# " + c.Name,
+		section("设定", bodyOf(setting, "（待补）")),
+		section("外貌", bodyOf([]string{c.Appearance, c.Figure}, "（待补）")),
+		section("性格", bodyOf(personality, "（待补）")),
+		section("口头禅", samplesBody),
+		section("关系", "（留待书中发展）"),
+		section("当前状态", bodyOf(status, "（待补）")),
+	}
+	return strings.Join(parts, "\n\n") + "\n"
+}
+
+// wenxueCharlibByID / wenxueCharlibByName 角色库精确取卡（import 数据面）。
+// name 路径：List LIKE 粗筛后整名唯一匹配；零同名带近似提示，多同名要求 id。
+func (a *App) wenxueCharlibByID(id string) (*characterlib.Character, error) {
+	if a == nil || a.charLib == nil {
+		return nil, fmt.Errorf("角色库未初始化")
+	}
+	c, err := a.charLib.Get(strings.TrimSpace(id))
+	if err != nil {
+		return nil, fmt.Errorf("角色库读取失败: %w", err)
+	}
+	if c == nil {
+		return nil, fmt.Errorf("角色库无 id=%s 的角色", strings.TrimSpace(id))
+	}
+	return c, nil
+}
+
+func (a *App) wenxueCharlibByName(name string) (*characterlib.Character, error) {
+	if a == nil || a.charLib == nil {
+		return nil, fmt.Errorf("角色库未初始化")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("name 不能为空")
+	}
+	items, _, err := a.charLib.List(name, "", false, 50, 0)
+	if err != nil {
+		return nil, fmt.Errorf("角色库查询失败: %w", err)
+	}
+	var exact []characterlib.Character
+	for i := range items {
+		if strings.EqualFold(strings.TrimSpace(items[i].Name), name) {
+			exact = append(exact, items[i])
+		}
+	}
+	switch len(exact) {
+	case 1:
+		return &exact[0], nil
+	case 0:
+		if len(items) == 0 {
+			return nil, fmt.Errorf("角色库无「%s」——先在角色面板建库卡，或用 wenxue_character_write 从零撰写", name)
+		}
+		near := make([]string, 0, min(len(items), 5))
+		for i, c := range items {
+			if i >= 5 {
+				break
+			}
+			near = append(near, c.Name)
+		}
+		return nil, fmt.Errorf("角色库无同名「%s」，近似命中：%s——可改传 id 精确导入", name, strings.Join(near, "、"))
+	default:
+		ids := make([]string, 0, len(exact))
+		for _, c := range exact {
+			ids = append(ids, c.ID)
+		}
+		return nil, fmt.Errorf("角色库命中多张同名卡（id: %s）——请传 id 精确导入", strings.Join(ids, "、"))
+	}
+}
+
+func wenxueCharacterImportTool(a *App) *wenxueTool {
+	return &wenxueTool{
+		name:     "wenxue_character_import",
+		desc:     "从角色库导入角色为工作空间角色卡（全字段落卡：定位/标签/背景/动机/外貌/性格/弧线/台词样例/状态→六节，设定节记来源 id；库只读不回写）。建新角色前先用本工具查库——同名命中即导入再本地化，未命中才用 wenxue_character_write 从零撰写。",
+		schema:   `{"type":"object","properties":{"name":{"type":"string","description":"按名查角色库（须唯一同名命中）"},"id":{"type":"string","description":"角色库精确 id（与 name 二选一，优先级更高）"},"overwrite":{"type":"boolean","description":"允许覆盖已存在卡，缺省 false"}},"additionalProperties":false}`,
+		readOnly: false,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				Name      string `json:"name"`
+				ID        string `json:"id"`
+				Overwrite bool   `json:"overwrite"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			var (
+				c   *characterlib.Character
+				err error
+			)
+			if strings.TrimSpace(in.ID) != "" {
+				c, err = a.wenxueCharlibByID(in.ID)
+			} else {
+				c, err = a.wenxueCharlibByName(in.Name)
+			}
+			if err != nil {
+				return "", err
+			}
+			root := wenxueWorkspace()
+			rel := wenxueEnsureDir(root, "characters") + "/" + sanitizeFileName(c.Name) + ".md"
+			abs, err := wspath.ResolveRelWithin(root, rel)
+			if err != nil {
+				return "", fmt.Errorf("非法工作区相对路径: %s", rel)
+			}
+			if info, err := os.Stat(abs); err == nil && !in.Overwrite {
+				return "", fmt.Errorf("角色卡已存在（%s，%d 字节）；确认整卡覆盖请传 overwrite=true（「当前状态」章节演进内容会丢）", rel, info.Size())
+			}
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				return "", err
+			}
+			content := wenxueCardFromLibraryChar(c)
+			if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+				return "", err
+			}
+			return wenxueJSON(map[string]any{
+				"path": rel, "name": c.Name, "words": wenxueCountWords(content), "source_id": c.ID,
+				"hint": "单向快照：此后卡面随剧情演进、库侧档案独立；库侧有更新时再次本工具 overwrite=true 可整卡刷新（当前状态会丢，慎用）",
 			})
 		},
 	}

@@ -443,6 +443,8 @@ export function GaeaVerifyRecord(arg1:string):Promise<evidence.Verdict>;
 
 export function GaeaVersion():Promise<string>;
 
+export function GaeaWenxueMemoryBrowse():Promise<app.WenxueMemoryBrowseView>;
+
 export function GaeaWorkspaceSearch(arg1:string,arg2:number):Promise<Array<app.WorkspaceSearchHit>>;
 
 export function GaeaWorkspaceUploadAbort(arg1:string):Promise<void>;

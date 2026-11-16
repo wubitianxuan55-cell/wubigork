@@ -29,6 +29,7 @@ import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
 const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
+const WenxueMemoryPanel = lazy(() => import("./components/WenxueMemoryPanel").then(m => ({ default: m.WenxueMemoryPanel })));
 const WenxueSettingsHub = lazy(() => import("./components/WenxueSettingsHub").then(m => ({ default: m.WenxueSettingsHub })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
@@ -835,6 +836,11 @@ export default function App() {
                     {chatTab === "reading" && (
                       <Suspense fallback={null}>
                         <WenxueReadingHub />
+                      </Suspense>
+                    )}
+                    {chatTab === "memory" && (
+                      <Suspense fallback={null}>
+                        <WenxueMemoryPanel />
                       </Suspense>
                     )}
                     {chatTab === "settings" && (

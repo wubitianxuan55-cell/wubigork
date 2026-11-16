@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
 
 func wenxueToolsTestRoot(t *testing.T) string {
@@ -72,7 +74,7 @@ func TestWenxueCharacterWriteAutoTitle(t *testing.T) {
 		t.Fatal("overwrite=false 对已存在角色卡应拒绝")
 	}
 	// 清单可见 + 名称取自首行标题
-	list := mustRun(t, wenxueCharacterListTool(), `{}`)
+	list := mustRun(t, wenxueCharacterListTool(nil), `{}`)
 	if !wenxueContains(list, `"name":"林晚"`) {
 		t.Fatalf("角色清单缺林晚: %s", list)
 	}
@@ -165,4 +167,28 @@ func wenxueContains(s, sub string) bool {
 		}
 		return false
 	})()
+}
+
+// TestWenxueBaseToolsImageGenWorkTagged 图文生图面回归（2026-11-16）：媒体根
+// 分档裁决的 image_gen 此前被 work 空间闸静默过滤（play 名表），wxWorkSpaceTool
+// 适配后图文装配面在场；办公 gaeaExtraTools 原样 play 语义不变（红线）。
+func TestWenxueBaseToolsImageGenWorkTagged(t *testing.T) {
+	_ = wenxueToolsTestRoot(t)
+	var wxTag, officeTag string
+	for _, tl := range wenxueBaseTools(&App{}) {
+		if tl.Name() == "image_gen" {
+			wxTag = builtin.SpaceTagOf(tl)
+		}
+	}
+	for _, tl := range gaeaExtraTools(&App{}) {
+		if tl.Name() == "image_gen" {
+			officeTag = builtin.SpaceTagOf(tl)
+		}
+	}
+	if wxTag != "work" {
+		t.Fatalf("图文 image_gen 空间标签 = %q, want work（生图面应装配）", wxTag)
+	}
+	if officeTag != "play" {
+		t.Fatalf("办公 image_gen 空间标签 = %q, want play（办公语义不变红线）", officeTag)
+	}
 }

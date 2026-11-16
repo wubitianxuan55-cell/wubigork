@@ -38,6 +38,7 @@ const TOOL_DESC: Record<string, string> = {
   pdf: "PDF 文档技能——读取/合并/拆分/水印/表单/OCR",
   pptx: "演示文稿技能——把内容做成 .pptx 幻灯片",
   ocr: "本地 OCR 模型——提取图片/扫描件中的精确文字",
+  image_gen: "生图——文生图/改图（需配置图像后端；产出锚当前小说目录）",
   semantic_search: "本地 bge-m3——跨库语义检索(成本/知识/办公记忆)",
   routine_llm: "通用文本兜底——纯文本摘要/归一化/抽取/改写，本地/免费优先",
   translate_text: "本地翻译——优先 Hunyuan-MT / Hy-MT 翻译模型，未安装时回退办公模型",
@@ -45,15 +46,19 @@ const TOOL_DESC: Record<string, string> = {
   wenxue_chapter_list: "章节清单——章号/标题/字数/修改时间（按约定目录）",
   wenxue_chapter_read: "读一章正文+上一章结尾衔接段",
   wenxue_chapter_write: "写/建一章（overwrite 显式闸；回执带字数差与前后章）",
-  wenxue_character_list: "角色卡清单——名字/字数/摘要",
+  wenxue_character_list: "角色卡清单——名字/字数/摘要+角色库同名命中",
   wenxue_character_read: "读角色卡全文",
   wenxue_character_write: "建/更新角色卡（已存在即拒，自动补一级标题）",
+  wenxue_character_import: "从角色库导入角色为工作空间卡（全字段落卡，库只读不回写）",
   wenxue_timeline_read: "时间线事件全量（章节序，可按起始章过滤）",
   wenxue_timeline_append: "追加时间线事件（章节锚+一句话，缺文件自动建）",
   wenxue_stats: "工作空间统计快照——总字数/章均/角色卡/设定/时间线",
   wenxue_final_list: "定稿章节清单（发布稿域，非草稿）",
   wenxue_final_read: "读一章定稿全文（审校/前情/风格参考）",
   wenxue_final_write: "定稿入库（仅定稿目录；用户明确「定稿」时才用）",
+  grep: "工作空间内容搜索（正则/文件过滤）",
+  session_search: "跨会话检索——按关键词搜过往会话正文",
+  recall_archived: "召回已归档会话（历史取材）",
 }
 
 interface Section {
@@ -62,14 +67,15 @@ interface Section {
 }
 
 const RAW_SECTIONS: Section[] = [
-  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats", "wenxue_final_list", "wenxue_final_read", "wenxue_final_write"] },
-  { title: "文件与命令", items: ["read_file", "write_file", "ls", "bash", "bash_output", "wait", "kill_shell"] },
+  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_character_import", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats", "wenxue_final_list", "wenxue_final_read", "wenxue_final_write"] },
+  { title: "文件与命令", items: ["read_file", "write_file", "ls", "grep", "bash", "bash_output", "wait", "kill_shell"] },
   { title: "网络", items: ["web_search", "web_fetch"] },
   { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task"] },
   { title: "记忆", items: ["remember", "forget", "memory_search", "memory_get", "promote_session_facts"] },
+  { title: "会话", items: ["session_search", "recall_archived"] },
   { title: "技能", items: ["read_skill", "run_skill", "install_skill", "slash_command"] },
   { title: "文档技能", items: ["docx", "xlsx", "pdf", "pptx"] },
-  { title: "本地专业模型", items: ["vision", "ocr", "semantic_search", "translate_text"] },
+  { title: "本地专业模型", items: ["vision", "ocr", "image_gen", "semantic_search", "translate_text"] },
   { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm"] },
 ]
 

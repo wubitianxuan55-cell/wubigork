@@ -13,10 +13,10 @@ import (
 )
 
 // wenxueAssembledFaces 按图文引擎装配谓词（space=work + wenxueToolFilter）分
-// 拣 keep/deny 两面（与 boot.Build 装配期过滤同构；wx ExtraTools=gaea 通用+
-// wenxue 专属两单点）。
+// 拣 keep/deny 两面（与 boot.Build 装配期过滤同构；wx ExtraTools=wenxueBase
+// Tools（媒体根分档+image_gen work 适配）+wenxue 专属两单点）。
 func wenxueAssembledFaces() (map[string]bool, []string) {
-	all := append(tool.Builtins(), gaeaExtraTools(&App{})...)
+	all := append(tool.Builtins(), wenxueBaseTools(&App{})...)
 	all = append(all, wenxueExtraTools(&App{})...)
 	keep := map[string]bool{}
 	var denied []string
@@ -40,6 +40,7 @@ func TestWenxueSurfaceKeepsExclusiveFamily(t *testing.T) {
 	for _, n := range []string{
 		"wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write",
 		"wenxue_character_list", "wenxue_character_read", "wenxue_character_write",
+		"wenxue_character_import",
 		"wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats",
 		"wenxue_final_list", "wenxue_final_read", "wenxue_final_write",
 	} {
@@ -71,12 +72,26 @@ func TestWenxueSurfaceDeniesFactAndOfficeFamilies(t *testing.T) {
 			t.Fatalf("办公域工具 %s 应被图文引擎拒绝装配（census 守卫）", n)
 		}
 	}
+	// 图文瘦身刀（2026-11-16）装配面抽查：编辑族/大文件件/办公侧栏。
+	// （boot 直注册的 summarize_file/子代理管理三件/会话元工具两件不在此
+	// census 枚举面——它们由 boot.addGated 过闸，单测见 wenxue_tool_policy_test
+	// 与 boot.boot_toolgate_test。）
+	for _, n := range []string{
+		"edit_file(filter)", "edit_lines(filter)", "multi_edit(filter)",
+		"replace(filter)", "move_file(filter)", "read_spill(filter)",
+		"sidebar_open(filter)",
+	} {
+		if !denySet[n] {
+			t.Fatalf("瘦身刀工具 %s 应被图文引擎拒绝装配（census 守卫）", n)
+		}
+	}
 }
 
 func TestWenxueSurfaceKeepsGenericBaseAndMedia(t *testing.T) {
 	keep, _ := wenxueAssembledFaces()
-	// 技能入口（read_skill 实例化替换同名 builtin，装配面同名在场）与媒体底座。
-	for _, n := range []string{"read_skill", "ocr", "vision", "web_search", "write_file"} {
+	// 技能入口（read_skill 实例化替换同名 builtin，装配面同名在场）、媒体底座
+	// 与 image_gen（wxWorkSpaceTool work 适配——媒体根分档裁决的生图面）。
+	for _, n := range []string{"read_skill", "ocr", "vision", "web_search", "write_file", "image_gen"} {
 		if !keep[n] {
 			t.Fatalf("通用底座工具 %s 应装配进图文引擎", n)
 		}

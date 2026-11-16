@@ -25,6 +25,7 @@ import type {
   WeixinAssistantView,
   WeixinReminderConfigView,
   WeixinReminderView,
+  WenxueMemoryBrowseView,
   WhisperAnchorReplayView,
   WhisperAnchorView,
   WhisperEpisodeReplayView,
@@ -89,6 +90,8 @@ export interface MemoryBindings {
   // DeleteUpload 删除上传文件（护栏：路径必须落在白名单工作区的 .gaea/uploads 内）。
   DeleteUpload(path: string): Promise<void>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
+  // WenxueMemoryBrowse 图文脑记忆只读浏览（记忆中枢图文库；只读，读写仍只在图文引擎）。
+  WenxueMemoryBrowse(): Promise<WenxueMemoryBrowseView>;
   // ── v4.3 会客厅：关系图谱 + 主动关心 ──
   // WhisperGraphSubgraph 返回指定人格关系图谱中以 entity 为中心、hops 跳内子图。
   WhisperGraphSubgraph(personalityId: string, entity: string, hops: number): Promise<WhisperSubgraph>;

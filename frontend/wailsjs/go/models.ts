@@ -2859,6 +2859,7 @@ export namespace app {
 	    officeCount: number;
 	    costCount: number;
 	    whisperCount: number;
+	    wenxueCount: number;
 	    pinnedCount: number;
 	    sessionCount: number;
 	    uploadCount: number;
@@ -2875,6 +2876,7 @@ export namespace app {
 	        this.officeCount = source["officeCount"];
 	        this.costCount = source["costCount"];
 	        this.whisperCount = source["whisperCount"];
+	        this.wenxueCount = source["wenxueCount"];
 	        this.pinnedCount = source["pinnedCount"];
 	        this.sessionCount = source["sessionCount"];
 	        this.uploadCount = source["uploadCount"];
@@ -4694,6 +4696,73 @@ export namespace app {
 	        this.cache_hit_tokens = source["cache_hit_tokens"];
 	        this.cache_miss_tokens = source["cache_miss_tokens"];
 	        this.cache_hit_rate = source["cache_hit_rate"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class WenxueMemoryFactView {
+	    name: string;
+	    title?: string;
+	    description?: string;
+	    type: string;
+	    body: string;
+	    space?: string;
+	    updatedAt?: string;
+	    lastUsedAt?: string;
+	    pinned?: boolean;
+	    invalid?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WenxueMemoryFactView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.type = source["type"];
+	        this.body = source["body"];
+	        this.space = source["space"];
+	        this.updatedAt = source["updatedAt"];
+	        this.lastUsedAt = source["lastUsedAt"];
+	        this.pinned = source["pinned"];
+	        this.invalid = source["invalid"];
+	    }
+	}
+	export class WenxueMemoryBrowseView {
+	    available: boolean;
+	    storeDir: string;
+	    count: number;
+	    facts: WenxueMemoryFactView[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WenxueMemoryBrowseView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.storeDir = source["storeDir"];
+	        this.count = source["count"];
+	        this.facts = this.convertValues(source["facts"], WenxueMemoryFactView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

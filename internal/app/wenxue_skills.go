@@ -99,8 +99,11 @@ const wenxueWorkbenchBody = `# 图文工作台纪律（长篇小说创作）
 
 - wenxue_chapter_list / wenxue_chapter_read / wenxue_chapter_write：章节结构
   感知读写（序号/标题/字数/前后章衔接回执）。
-- wenxue_character_list / wenxue_character_read / wenxue_character_write：
-  角色卡读写。
+- wenxue_character_list / wenxue_character_read / wenxue_character_write /
+  wenxue_character_import：角色卡读写与角色库导入。建新角色前必须先
+  wenxue_character_import 查角色库——同名命中即全字段导入再本地化（库卡带
+  定位/背景/外貌/性格/动机/台词样例，不要只拿名字凭空造人），未命中才从
+  零写；list 回执的 charlib_hits 就是可导入命中。
 - wenxue_timeline_read / wenxue_timeline_append：时间线条目读/追加。
 - wenxue_final_list / wenxue_final_read / wenxue_final_write：定稿域专用
   （发布稿读取/审校对照/入库；域隔离——章节工具写不进定稿目录）。

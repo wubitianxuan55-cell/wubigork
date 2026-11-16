@@ -235,6 +235,7 @@ func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { ret
 func (b *OfficeB) GaeaUploadsList(root string) []UploadFileRow { return b.a.GaeaUploadsList(root) }
 func (b *OfficeB) GaeaVerifyRecord(id string) (evidence.Verdict, error) { return b.a.GaeaVerifyRecord(id) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }
+func (b *OfficeB) GaeaWenxueMemoryBrowse() WenxueMemoryBrowseView { return b.a.GaeaWenxueMemoryBrowse() }
 func (b *OfficeB) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit { return b.a.GaeaWorkspaceSearch(query, limit) }
 func (b *OfficeB) GaeaWorkspaceUploadAbort(token string) error { return b.a.GaeaWorkspaceUploadAbort(token) }
 func (b *OfficeB) GaeaWorkspaceUploadAppend(token string, base64Chunk string) error { return b.a.GaeaWorkspaceUploadAppend(token, base64Chunk) }

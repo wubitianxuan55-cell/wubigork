@@ -38,6 +38,9 @@ import (
 // ── 回合生命周期 ────────────────────────────────────────────────
 
 // WenxueSend 提交图文对话（异步，事件经 gaea-wenxue-event）。未初始化时自动初始化。
+// 每轮发送前过本地引擎预检（wenxue_engine_preflight.go）：引擎可能在任意
+// 两轮之间被空闲收割器停机，预检不限于首轮；预检失败转 error 事件，绝不
+// 静默落进 connection refused → 故障转移换引擎。
 func (a *App) WenxueSend(input string) {
 	wx.mu.Lock()
 	needBoot := wx.ctrl == nil
@@ -46,6 +49,10 @@ func (a *App) WenxueSend(input string) {
 		a.emit(wenxueEventChannel, map[string]interface{}{"kind": "phase", "text": "正在启动图文引擎"})
 	}
 	if err := a.WenxueEngineInit(); err != nil {
+		a.emit(wenxueEventChannel, map[string]interface{}{"kind": "error", "text": err.Error()})
+		return
+	}
+	if err := a.wenxuePreflight(); err != nil {
 		a.emit(wenxueEventChannel, map[string]interface{}{"kind": "error", "text": err.Error()})
 		return
 	}
@@ -446,11 +453,12 @@ func (a *App) WenxueCapabilities() CapabilitiesView {
 // ── 记忆面板（ctrl 锚定记忆库，随图文 Cwd=小说目录天然隔离）────────
 
 // WenxueMemory 返回图文会话记忆面板数据（体与办公 GaeaMemory 同构）。
+// facts 挂图文脑（2026-11-16 面板恢复批修正：本绑定曾读 hubOfficeStore=混源
+// 遗留，与 docs/scopes 的 ctrl 锚（图文脑）不同源；现全部锚 wenxue-brain）。
 func (a *App) WenxueMemory() MemoryView {
 	view := MemoryView{Docs: []MemoryDoc{}, Facts: []MemoryFact{}, Scopes: []MemoryScope{}}
-	store := a.hubOfficeStore()
-	view.Available = gaeaConfig.MemoryUserDir() != ""
-	for _, f := range store.List() {
+	view.Available = wenxueBrainDir() != ""
+	for _, f := range a.hubWenxueBrainStore().List() {
 		view.Facts = append(view.Facts, MemoryFact{
 			Name: f.Name, Title: f.Title, Description: f.Description,
 			Type: string(f.Type), Body: f.Body,

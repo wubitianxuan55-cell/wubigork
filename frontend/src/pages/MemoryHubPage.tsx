@@ -37,6 +37,9 @@ const KnowledgePanel = React.lazy(() =>
 const ProfileLibrary = React.lazy(() =>
   import("../gaea/components/memoryhub/ProfileLibrary").then((m) => ({ default: m.ProfileLibrary })),
 );
+const WenxueMemoryLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/WenxueMemoryLibrary").then((m) => ({ default: m.WenxueMemoryLibrary })),
+);
 const OfficeMemoryLibrary = React.lazy(() =>
   import("../gaea/components/memoryhub/OfficeMemoryLibrary").then((m) => ({ default: m.OfficeMemoryLibrary })),
 );
@@ -62,13 +65,14 @@ const FilePreviewModal = React.lazy(() =>
   import("../gaea/components/FilePreviewModal").then((m) => ({ default: m.FilePreviewModal })),
 );
 
-type LibraryKey = "knowledge" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife" | "database";
+type LibraryKey = "knowledge" | "profile" | "office" | "wenxue" | "materials" | "whisper" | "graph" | "digitallife" | "database";
 
 // 各库霓虹色（与 3D 图谱/领域色同源；仅用于识别，不承担主题语义）
 const LIB_COLORS: Record<LibraryKey, string> = {
   knowledge: DOMAIN_COLORS.knowledge,
   profile: DOMAIN_COLORS.profile,
   office: DOMAIN_COLORS.office,
+  wenxue: DOMAIN_COLORS.wenxue,
   materials: DOMAIN_COLORS.material,
   whisper: DOMAIN_COLORS.whisper,
   graph: "#22d3ee", // hex-exempt：图谱入口识别色
@@ -88,6 +92,7 @@ const LIBRARIES: LibraryDef[] = [
   { key: "knowledge", label: "知识库", icon: <BookOpen size={14} />, hint: "规范 / 案例 / 经验条目", en: "KNOWLEDGE" },
   { key: "profile", label: "用户画像", icon: <Brain size={14} />, hint: "跨板块共享画像", en: "PROFILE" },
   { key: "office", label: "办公记忆", icon: <FileText size={14} />, hint: "跨会话办公事实", en: "OFFICE" },
+  { key: "wenxue", label: "图文记忆", icon: <BookOpen size={14} />, hint: "图文脑小说事实 · 只读", en: "WENXUE" },
   { key: "materials", label: "项目资料", icon: <Pin size={14} />, hint: "固定常用文件", en: "MATERIALS" },
   { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 13 }} />, hint: "轻语人格记忆 · 只读", en: "WHISPER" },
   { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 13 }} />, hint: "3D 关系图谱", en: "GRAPH" },
@@ -309,20 +314,21 @@ function MemoryHubPage() {
   };
 
   const counts: Partial<Record<LibraryKey, number | "—" | "…">> = overviewError
-    ? { knowledge: "—", profile: "—", office: "—", materials: "—", whisper: "—", database: "—" }
+    ? { knowledge: "—", profile: "—", office: "—", wenxue: "—", materials: "—", whisper: "—", database: "—" }
     : overview
     ? {
         knowledge: overview.knowledgeCount,
         profile: overview.profileCount,
         office: overview.officeCount,
+        wenxue: overview.wenxueCount,
         materials: overview.pinnedCount,
         whisper: overview.whisperCount,
         database: overview.sessionCount,
       }
-    : { knowledge: "…", profile: "…", office: "…", materials: "…", whisper: "…", database: "…" };
+    : { knowledge: "…", profile: "…", office: "…", wenxue: "…", materials: "…", whisper: "…", database: "…" };
 
   const totalOverview = overview
-    ? overview.knowledgeCount + overview.profileCount + overview.officeCount + overview.pinnedCount + overview.whisperCount + overview.costCount
+    ? overview.knowledgeCount + overview.profileCount + overview.officeCount + overview.wenxueCount + overview.pinnedCount + overview.whisperCount + overview.costCount
     : null;
   // 星图上的真实节点数优先（它包含成本等未单列库的域），失败时回退总览。
   const visualTotal = graphNodes.length || totalOverview;
@@ -946,6 +952,7 @@ function MemoryHubPage() {
                 )}
                 {active === "profile" && <ProfileLibrary />}
                 {active === "office" && <OfficeMemoryLibrary />}
+                {active === "wenxue" && <WenxueMemoryLibrary />}
                 {active === "materials" && <MaterialsLibrary />}
                 {active === "whisper" && <WhisperMemoryLibrary />}
                 {active === "digitallife" && <DigitalLifeLibrary />}

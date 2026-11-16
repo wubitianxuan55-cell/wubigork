@@ -365,6 +365,7 @@ export const bindingNames = [
   "GaeaUsageOverview",
   "GaeaVerifyRecord",
   "GaeaVersion",
+  "GaeaWenxueMemoryBrowse",
   "GaeaWhisperAnchorReplay",
   "GaeaWhisperAnchors",
   "GaeaWhisperCausalExplain",

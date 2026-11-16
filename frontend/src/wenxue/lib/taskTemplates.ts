@@ -39,7 +39,7 @@ export const FALLBACK_TEMPLATES: TaskTemplate[] = [
     title: "角色卡建立",
     description: "建/更新角色卡：设定/外貌/性格/口头禅/关系/当前状态",
     prompt:
-      "为指定角色建卡或更新（用 wenxue_character_list 先查重）：按「设定 / 外貌 / 性格 / 口头禅 / 关系 / 当前状态」六节撰写，口头禅与句式要独特，当前状态必须与最新章节一致；有关系变动的章节要同步更新其他相关角色卡的「关系」节。",
+      "为指定角色建卡或更新（先用 wenxue_character_import 查角色库：同名命中即全字段导入再本地化，未命中才从零写；再用 wenxue_character_list 查工作空间查重）：按「设定 / 外貌 / 性格 / 口头禅 / 关系 / 当前状态」六节撰写，口头禅与句式要独特，当前状态必须与最新章节一致；有关系变动的章节要同步更新其他相关角色卡的「关系」节。",
   },
   {
     name: "timeline-tidy",

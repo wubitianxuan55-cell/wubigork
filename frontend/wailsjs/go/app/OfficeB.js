@@ -862,6 +862,10 @@ export function GaeaVersion() {
   return window['go']['app']['OfficeB']['GaeaVersion']();
 }
 
+export function GaeaWenxueMemoryBrowse() {
+  return window['go']['app']['OfficeB']['GaeaWenxueMemoryBrowse']();
+}
+
 export function GaeaWorkspaceSearch(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaWorkspaceSearch'](arg1, arg2);
 }

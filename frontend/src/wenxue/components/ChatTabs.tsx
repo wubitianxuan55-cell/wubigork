@@ -1,5 +1,5 @@
 import type React from "react";
-import { BarChart3, BookOpen, ListTree, MessageSquare, PieChart, ScrollText, Users } from "../icons";
+import { BarChart3, BookOpen, Brain, ListTree, MessageSquare, PieChart, ScrollText, Users } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
 // [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
@@ -14,7 +14,7 @@ import { BarChart3, BookOpen, ListTree, MessageSquare, PieChart, ScrollText, Use
 // 2026-11-16 设定批：「编队」退役（办公域文件流水线看板，图文无 DAG 面）；
 // 新增「设定」——世界观/时间线/规则等设定文档查看/编辑/AI 生成，与
 // write_file+时间线工具同源（设定|worldview|设定集 + 时间线|timeline 目录）。
-export type ChatTabId = "chat" | "trajectory" | "context" | "insights" | "characters" | "reading" | "settings";
+export type ChatTabId = "chat" | "trajectory" | "context" | "insights" | "characters" | "reading" | "settings" | "memory";
 
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
@@ -49,6 +49,7 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "characters", label: "角色", icon: Users },
   { id: "reading", label: "阅读", icon: BookOpen },
   { id: "settings", label: "设定", icon: ScrollText },
+  { id: "memory", label: "记忆", icon: Brain },
 ];
 
 export function ChatTabs({ active, onChange, tabs, labelOverrides, className, extraTabs, onCloseExtra }: {

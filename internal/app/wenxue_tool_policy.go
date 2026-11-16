@@ -8,9 +8,11 @@ package app
 // （前端是兜底展示面，这里是引擎侧唯一事实面）；改名单两处同批。
 //
 // 语义：精确名整名匹配；带 "_" 结尾的条目按前缀匹配（browser_ 族）。
-// 过滤发生在 boot.Build 装配期（Options.ToolFilter 缝，addBuiltins/plugins/
-// ExtraTools 三处），物理摘除而非运行时拦截；办公引擎不传 ToolFilter，
-// 逐字节现状（办公零影响红线）。
+// 过滤发生在 boot.Build 装配期（Options.ToolFilter 缝）。2026-11-16 图文瘦身
+// 刀：ToolFilter 语义从「addBuiltins/plugins/ExtraTools 三处」扩为「全部模型
+// 面注册点」（boot 直注册的会话级元工具/大文件件/子代理管理件同样过闸，见
+// boot.addGated）——被摘的 13 件见名单末段「图文瘦身刀」。物理摘除而非运行时
+// 拦截；办公引擎不传 ToolFilter，逐字节现状（办公零影响红线）。
 
 // wenxueDeniedTools 图文引擎不装配的办公域工具（family 级）。
 var wenxueDeniedTools = []string{
@@ -43,6 +45,19 @@ var wenxueDeniedTools = []string{
 	"fact_add", "fact_list", "fact_clear",
 	// 浏览器自动化族（前缀匹配）
 	"browser_",
+
+	// ── 图文瘦身刀（2026-11-16）：写作闭环外的面板杂音，13 件 ──
+	// 编辑族五件：章节/角色卡修订走 chapter/character_write 整卡覆写，
+	// 精确行级/多点编辑是开发域手感（read+write 覆盖兜底）。
+	"edit_file", "edit_lines", "multi_edit", "replace", "move_file",
+	// 大文件两件：章节体量远低于落盘/分块摘要阈值，read_file 分页已覆盖。
+	"read_spill", "summarize_file",
+	// 办公侧栏 UI 面：图文无消费。
+	"sidebar_open",
+	// 会话元工具：图文交互审批链已覆盖权限面，无计划审批面板流程。
+	"request_permission", "exit_plan_mode",
+	// 子代理管理三件：管理面在会话 UI tab；agent 侧保留 task 派发。
+	"interrupt_agent", "subagent_list", "read_subagent_result",
 }
 
 // wenxueToolFilter 报告工具是否允许装配进图文引擎（boot.Options.ToolFilter 缝）。

@@ -14,6 +14,7 @@ export const DOMAIN_COLORS: Record<string, string> = {
   profile: "#a78bfa", // violet
   office: "#34d399", // emerald
   whisper: "#f472b6", // pink：聊天/情节记忆
+  wenxue: "#f59e0b", // amber-ish：图文脑（小说创作事实，独立库只读）
   material: "#38bdf8", // sky：项目资料（固定常用文件）
   database: "#2dd4bf", // teal：数据库存档（本设备聊天记录/上传文件）
   cost: "#fbbf24", // amber：成本条目

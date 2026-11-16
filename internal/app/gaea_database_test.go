@@ -181,6 +181,9 @@ func TestDedupeRoots(t *testing.T) {
 func TestMemoryHubOverviewDatabaseCounts(t *testing.T) {
 	withDatabaseWorkspace(t)
 	t.Cleanup(func() { _ = db.CloseDatabase(gaeaConfig.MemoryUserDir()) })
+	// 2026-11-16 图文库接入：总览会开图文脑池（MemoryUserDir/wenxue-brain），
+	// 不关则 TempDir 严格 RemoveAll 在句柄延迟释放下误报（db 目录清理先例）。
+	t.Cleanup(func() { _ = db.CloseDatabase(filepath.Join(gaeaConfig.MemoryUserDir(), "wenxue-brain")) })
 
 	root := t.TempDir()
 	t.Cleanup(func() { _ = whisperdb.CloseDatabase(root) })

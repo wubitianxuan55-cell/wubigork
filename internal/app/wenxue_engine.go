@@ -49,11 +49,20 @@ func wenxueCtrl() *control.Controller {
 	return wx.ctrl
 }
 
+// wenxueBrainDirOverride 测试缝（非空=顶替 MemoryUserDir 推导，防测试误写
+// 真实图文脑——os.UserConfigDir 在 Windows 读 %AppData%，不受 USERPROFILE
+// 重定向影响）。生产恒空。
+var wenxueBrainDirOverride string
+
 // wenxueBrainDir 图文记忆脑目录（2026-11-16 记忆左右脑批）：
 // <MemoryUserDir>/wenxue-brain——与办公默认脑物理隔离（独立 docs/画像/
-// auto-memory DB）。基目录不可得（os.UserConfigDir 失败）返回空=不 scope，
-// 回退默认脑（宁共享不建野目录）。
+// remember 画像表/会话检索/引用消毒全随目录；DB 路径随目录推导分池）。
+// 基目录不可得（os.UserConfigDir 失败）返回空=不 scope，回退默认脑
+// （宁共享不建野目录）。
 func wenxueBrainDir() string {
+	if wenxueBrainDirOverride != "" {
+		return wenxueBrainDirOverride
+	}
 	base := gaeaConfig.MemoryUserDir()
 	if base == "" {
 		return ""

@@ -175,3 +175,9 @@ export interface SkillStatView {
   ok: number;
   lastAt: number;
 }
+
+// WenxueMemoryFactView 图文脑记忆事实只读视图（记忆中枢图文库，2026-11-16）。
+export type WenxueMemoryFactView = WireShape<AppModels.WenxueMemoryFactView>;
+
+// WenxueMemoryBrowseView 图文脑记忆只读浏览回执（Available=false=无图文脑）。
+export type WenxueMemoryBrowseView = WireShape<AppModels.WenxueMemoryBrowseView>;

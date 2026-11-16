@@ -27,6 +27,10 @@ type managedIdleTarget struct {
 	registered func() bool // true=gaea 本会话拉起的实例
 	probe      func() bool // true=引擎在运行
 	stop       func()      // 幂等停止（复用引擎卡的停止语义）
+	// lease 非空时：返回 true = 保护期内（图文租约 wenxueIdleLease，见
+	// wenxue_engine_preflight.go），本轮不得收割——图文回合间隔长，全局
+	// 阈值之外再给图文碰过的托管引擎一段保活窗口。
+	lease func(now time.Time) bool
 }
 
 // startManagedEngineIdleReaper 启动空闲巡检循环（ctx 随 app 生命周期）。
@@ -67,6 +71,8 @@ func (a *App) reapIdleManagedEngines() {
 }
 
 // managedIdleTargets 生产目标表（Strata 8091 / Llama 8124 / ComfyUI 8188；天璇已退役）。
+// llama/strata/whirl 挂图文租约谓词（wenxue_engine_preflight.go）；ComfyUI
+// 是生图链，图文 LLM 回合不碰，无租约。
 func (a *App) managedIdleTargets() []managedIdleTarget {
 	return []managedIdleTarget{
 		{
@@ -76,7 +82,8 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 				_, ok := llamaProbe()
 				return ok
 			},
-			stop: func() { a.Qwen35EngineStop() },
+			stop:  func() { a.Qwen35EngineStop() },
+			lease: func(now time.Time) bool { return wenxueLeaseAlive("llama", now) },
 		},
 		{
 			id:         "strata",
@@ -85,7 +92,8 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 				_, ok := strataProbe()
 				return ok
 			},
-			stop: func() { _ = a.StrataEngineStop() },
+			stop:  func() { _ = a.StrataEngineStop() },
+			lease: func(now time.Time) bool { return wenxueLeaseAlive("strata", now) },
 		},
 		{
 			id:         "whirl",
@@ -94,7 +102,8 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 				_, ok := whirlProbe()
 				return ok
 			},
-			stop: func() { _ = a.WhirlEngineStop() },
+			stop:  func() { _ = a.WhirlEngineStop() },
+			lease: func(now time.Time) bool { return wenxueLeaseAlive("whirl", now) },
 		},
 		{
 			id:         "comfyui",
@@ -106,11 +115,13 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 }
 
 // reapManagedEngineIdleOnce 单轮判定（now/idle/targets 注入便于测试）：
-// 返回本轮被收割的引擎 id。四道闸逐个过：
+// 返回本轮被收割的引擎 id。五道闸逐个过：
 //  1. gaea 本会话拉起（proc registered）——外部实例不代管；
 //  2. 有使用记录（lastActivity 非零——零值说明本会话从未经手，别碰）；
 //  3. 空闲超阈值；
-//  4. 探活确认在运行（不在运行无需动作；探活失败也不算「可停」——可能是
+//  4. 图文租约未过期则跳过（wenxueIdleLease 保护窗口，两闸语义：
+//     全局空闲阈值照常判定 + 租约未满不收割）；
+//  5. 探活确认在运行（不在运行无需动作；探活失败也不算「可停」——可能是
 //     冷启动中，下一轮再看）。
 func (a *App) reapManagedEngineIdleOnce(now time.Time, idle time.Duration, targets []managedIdleTarget) []string {
 	var stopped []string
@@ -123,6 +134,9 @@ func (a *App) reapManagedEngineIdleOnce(now time.Time, idle time.Duration, targe
 			continue
 		}
 		if idleUsed := now.Sub(last); idleUsed < idle {
+			continue
+		}
+		if t.lease != nil && t.lease(now) {
 			continue
 		}
 		if !t.probe() {

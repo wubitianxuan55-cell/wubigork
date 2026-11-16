@@ -56,21 +56,35 @@ func TestWenxueToolFilterDeniesBrowserPrefixFamily(t *testing.T) {
 func TestWenxueToolFilterAllowsGenericBase(t *testing.T) {
 	allowed := []string{
 		// 通用底座（图文会话保留面）
-		"read_file", "write_file", "edit_file", "edit_lines", "multi_edit",
-		"move_file", "replace", "grep", "ls",
+		"read_file", "write_file", "grep", "ls",
 		"bash", "bash_output", "kill_shell", "wait",
-		"web_fetch", "web_search", "vision", "ocr",
+		"web_fetch", "web_search", "vision", "ocr", "image_gen",
 		"translate_text", "routine_llm",
-		// 会话级元工具（build-internal 直加面，不过滤）
+		// 会话级元工具保留面（2026-11-16 瘦身刀起过闸，名单内摘、保留面在此）
 		"task", "ask", "todo_write", "complete_step",
 		"remember", "forget", "promote_session_facts", "memory_get", "memory_search",
 		"run_skill", "read_skill", "install_skill", "slash_command",
-		"session_search", "summarize_file", "request_permission", "exit_plan_mode",
-		"interrupt_agent", "subagent_list", "read_subagent_result",
+		"session_search", "recall_archived", "genui_validate",
 	}
 	for _, n := range allowed {
 		if !wenxueToolFilter(n) {
 			t.Fatalf("通用工具 %s 不应被图文引擎拒绝装配", n)
+		}
+	}
+}
+
+func TestWenxueToolFilterDeniesSlimmedFamily(t *testing.T) {
+	// 2026-11-16 图文瘦身刀 13 件：编辑族五件/大文件两件/办公侧栏/会话元工具
+	// 两件/子代理管理三件（管理面在 UI tab，agent 侧保留 task）。写作闭环外
+	// 的面板杂音，物理不装——boot 直注册件经 boot.addGated 同闸生效。
+	for _, n := range []string{
+		"edit_file", "edit_lines", "multi_edit", "replace", "move_file",
+		"read_spill", "summarize_file", "sidebar_open",
+		"request_permission", "exit_plan_mode",
+		"interrupt_agent", "subagent_list", "read_subagent_result",
+	} {
+		if wenxueToolFilter(n) {
+			t.Fatalf("瘦身刀工具 %s 应被图文引擎拒绝装配", n)
 		}
 	}
 }

@@ -43,6 +43,7 @@ type MemoryMethods = Pick<
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
   | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryEvalRun" | "MemoryBrief" | "SetMemoryBrief"
+  | "WenxueMemoryBrowse"
   | "MemoryMorningBrief"
 >;
 
@@ -190,7 +191,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     // ── 记忆中枢 Mock ────────────────────────────────────────
     async MemoryHubOverview() {
-      return { knowledgeCount: 6, profileCount: 4, officeCount: 5, costCount: 3, whisperCount: 5, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
+      return { knowledgeCount: 6, profileCount: 4, officeCount: 5, costCount: 3, whisperCount: 5, wenxueCount: 6, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
     },
     // ── 数据库存档 mock（v4.479）：浏览器开发态无设备存档，空态/no-op。──
     async DatabaseOverview() {
@@ -561,5 +562,10 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       // mock: no-op——无真实 whisper 库可打包，返回导出条目数 0。
       return 0;
     },
+    // WenxueMemoryBrowse mock：图文脑独立库，mock 环境无图文引擎 → 诚实空态。
+    async WenxueMemoryBrowse() {
+      return { available: false, storeDir: "", count: 0, facts: [] };
+    },
   };
 }
+

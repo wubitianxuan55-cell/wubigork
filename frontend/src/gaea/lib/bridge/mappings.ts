@@ -207,6 +207,7 @@ export const gaeaToGaea = {
   ProfileDelete: "GaeaProfileDelete",
   ProfileConflicts: "GaeaProfileConflicts",
   WhisperMemories: "GaeaWhisperMemories",
+  WenxueMemoryBrowse: "GaeaWenxueMemoryBrowse",
   WhisperGraphSubgraph: "GaeaWhisperGraphSubgraph",
   WhisperProactiveNow: "GaeaWhisperProactiveNow",
   WhisperProactiveConfig: "GaeaWhisperProactiveConfig",
