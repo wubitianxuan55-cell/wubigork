@@ -2,7 +2,7 @@ package app
 
 // wenxue_surface_probe_test.go — 图文引擎装配面 census 守卫（2026-11-15 众神殿
 // 首刀收口批；原一次性打印探针在裁剪拍板落地后转正为断言守卫）。
-// 钉死三件事：① wenxue_* 十二件全装配；② fact_*（交付事实库除名）与办公域
+// 钉死三件事：① wenxue_* 十五件全装配；② fact_*（交付事实库除名）与办公域
 // 全族物理不装；③ 通用底座媒体/技能入口在场。防"新增 builtin 静默流进图文"。
 
 import (
@@ -39,6 +39,7 @@ func TestWenxueSurfaceKeepsExclusiveFamily(t *testing.T) {
 	keep, _ := wenxueAssembledFaces()
 	for _, n := range []string{
 		"wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write",
+		"wenxue_candidate_write", "wenxue_candidate_promote",
 		"wenxue_character_list", "wenxue_character_read", "wenxue_character_write",
 		"wenxue_character_import",
 		"wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats",

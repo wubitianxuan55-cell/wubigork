@@ -2,7 +2,7 @@ import { app } from "./bridge";
 import type { TaskTemplate } from "./types";
 
 // 内置任务模板兜底（2026-11-15 刀4 小说化）：后端命令库为空或加载失败时
-// （首启/离线），命令面板仍有常用写作任务。图文板块模板=长篇小说创作八条，
+// （首启/离线），命令面板仍有常用写作任务。图文板块模板=长篇小说创作九条，
 // 与图文专属工具四族（wenxue_*）和内嵌技能（story-long-write/story-deslop/
 // wenxue-workbench）同源配套。
 export const FALLBACK_TEMPLATES: TaskTemplate[] = [
@@ -19,6 +19,13 @@ export const FALLBACK_TEMPLATES: TaskTemplate[] = [
     description: "衔接上一章续写：冲突推进 + 小高潮 + 章末钩子",
     prompt:
       "续写下一章：先用 wenxue_chapter_list 看进度、wenxue_chapter_read 读上一章结尾与相关角色卡当前状态、wenxue_timeline_read 梳理最近事件，然后续写约 2000-3000 字——每 2000 字至少一个小高潮，对话占比 35-45%，章末留钩子。写完回写时间线与角色状态。",
+  },
+  {
+    name: "chapter-candidates",
+    title: "候选稿比较",
+    description: "同一断点生成 A/B/C 三版走向，择优提升且自动归档原稿",
+    prompt:
+      "为当前章最后一个断点生成三版候选稿：先 wenxue_chapter_read 取当前章内容，再分别用 wenxue_candidate_write 写 A/B/C 三个走向（label=A/B/C，content=该版完整续段或整章候选）。三版必须在冲突选择、人物反应或章末钩子上明显不同，不要只换措辞。写完后用一段短表比较差异与推荐版本，等我明确选定；只有我确认采用后才调 wenxue_candidate_promote。",
   },
   {
     name: "outline-push",

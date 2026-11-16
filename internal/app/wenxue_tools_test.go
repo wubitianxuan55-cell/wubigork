@@ -63,6 +63,30 @@ func TestWenxueChapterWriteListReadFlow(t *testing.T) {
 	_ = root
 }
 
+func TestWenxueChapterWriteReportsCountRuleAndWorkspaceInvalidation(t *testing.T) {
+	root := wenxueToolsTestRoot(t)
+	out := mustRun(t, wenxueChapterWriteTool(), `{"number":1,"title":"口径","content":"雨夜。\n风停了。"}`)
+	var receipt struct {
+		Words         int    `json:"words"`
+		ContentChars  int    `json:"contentChars"`
+		WordCountRule string `json:"wordCountRule"`
+	}
+	if err := json.Unmarshal([]byte(out), &receipt); err != nil {
+		t.Fatalf("章节回执不是 JSON: %v\n%s", err, out)
+	}
+	if receipt.Words != 7 || receipt.ContentChars != 8 {
+		t.Fatalf("字数口径不符: words=%d contentChars=%d, want 7/8", receipt.Words, receipt.ContentChars)
+	}
+	if !wenxueContains(receipt.WordCountRule, "非空白") || !wenxueContains(receipt.WordCountRule, "contentChars") {
+		t.Fatalf("回执必须说明计数规则: %q", receipt.WordCountRule)
+	}
+
+	paths := wenxueChapterWriteTool().CachePaths(nil)
+	if len(paths) != 1 || filepath.Clean(paths[0]) != filepath.Clean(root) {
+		t.Fatalf("图文写工具应失效整本工作区缓存: %v (root=%s)", paths, root)
+	}
+}
+
 func TestWenxueCharacterWriteAutoTitle(t *testing.T) {
 	root := wenxueToolsTestRoot(t)
 	out := mustRun(t, wenxueCharacterWriteTool(), `{"name":"林晚","content":"设定：法医，32 岁。"}`)
@@ -155,6 +179,40 @@ func TestWenxueToolsRejectPathEscape(t *testing.T) {
 	}
 	if _, err := wenxueChapterReadTool().Execute(t.Context(), json.RawMessage(`{"path":"../../外部.md"}`)); err == nil {
 		t.Fatal("穿越路径读取应被拒绝")
+	}
+}
+
+func TestWenxueCandidateWriteAndPromote(t *testing.T) {
+	root := wenxueToolsTestRoot(t)
+	mustRun(t, wenxueChapterWriteTool(), `{"number":1,"title":"断点","content":"雨停在凌晨。"}`)
+
+	candidateOut := mustRun(t, wenxueCandidateWriteTool(), `{"number":1,"label":"A","content":"候选甲：他停在门前。"}`)
+	var candidate struct {
+		Path     string `json:"candidate"`
+		Revision string `json:"revision"`
+	}
+	if err := json.Unmarshal([]byte(candidateOut), &candidate); err != nil {
+		t.Fatal(err)
+	}
+	mustRun(t, wenxueCandidateWriteTool(), `{"number":1,"label":"B","content":"候选乙：他转身离开。"}`)
+	if !wenxueContains(candidate.Path, "章节/候选/001-断点/A.md") {
+		t.Fatalf("候选落点不符: %s", candidate.Path)
+	}
+	promoteOut := mustRun(t, wenxueCandidatePromoteTool(), `{"candidatePath":"`+candidate.Path+`","expectedRevision":"`+candidate.Revision+`"}`)
+	if !wenxueContains(promoteOut, "archivedPrevious") {
+		t.Fatalf("提升回执缺旧稿归档: %s", promoteOut)
+	}
+	chapterBody, _, err := wenxueReadBody(root, "章节/001-断点.md")
+	if err != nil || chapterBody != "候选甲：他停在门前。" {
+		t.Fatalf("提升后正文不符: %q err=%v", chapterBody, err)
+	}
+	archives, err := filepath.Glob(filepath.Join(root, "章节", "候选", "001-断点", "原稿-*.md"))
+	if err != nil || len(archives) != 1 {
+		t.Fatalf("旧正文应归档一份，got=%v err=%v", archives, err)
+	}
+	archived, err := os.ReadFile(archives[0])
+	if err != nil || !wenxueContains(string(archived), "雨停在凌晨。") {
+		t.Fatalf("归档旧稿内容不符: %q err=%v", archived, err)
 	}
 }
 

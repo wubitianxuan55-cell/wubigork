@@ -8,12 +8,13 @@ package app
 //   章节/|chapters/、角色/|characters/、时间线/|timeline/、设定/|worldview/。
 // 路径安全：全部写读经 wspath.ResolveRelWithin（工作区内解析，拒 .. 穿越）；
 // 写侧带 overwrite 显式闸（缺省 false，已存在即拒——宁拒不误改）。
-// 契约行：RegistryMap 十三行（extra-app/work——刀3 原九件+定稿刀三件+角色库
-// 导入刀一件；2026-11-15 众神殿首刀收口批改口径归一），装配面守卫=
+// 契约行：RegistryMap 十五行（extra-app/work——刀3 原九件+定稿刀三件+角色库
+// 导入刀一件+候选稿两件；2026-11-15 众神殿首刀收口批改口径归一），装配面守卫=
 // wenxue_surface_probe_test.go census 三例。
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -50,6 +52,17 @@ func (t *wenxueTool) ReadOnly() bool { return t.readOnly }
 func (t *wenxueTool) SpaceTag() string {
 	return "work" // 图文板块 work 锚（与其余 work 工具同空间装配语义）
 }
+func (t *wenxueTool) CachePaths(json.RawMessage) []string {
+	if t.readOnly {
+		return nil
+	}
+	if root := strings.TrimSpace(wenxueWorkspace()); root != "" {
+		// 图文写族可能同时改动章节/角色/时间线；按整本工作区失效最稳妥，
+		// 且每回合缓存规模很小。
+		return []string{root}
+	}
+	return nil
+}
 func (t *wenxueTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
 	return t.run(args)
 }
@@ -61,6 +74,8 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueChapterListTool(),
 		wenxueChapterReadTool(),
 		wenxueChapterWriteTool(),
+		wenxueCandidateWriteTool(),
+		wenxueCandidatePromoteTool(),
 		wenxueCharacterListTool(a),
 		wenxueCharacterReadTool(),
 		wenxueCharacterWriteTool(),
@@ -157,6 +172,8 @@ func wenxueCountWords(s string) int {
 	}
 	return n
 }
+
+const wenxueWordCountRule = "字数=Unicode 非空白字符数（rune；按写入文件全文，标题若在 content 中则计入；含标点，不含空格/换行/制表符）；contentChars=全文含空白的 Unicode 字符数"
 
 // wenxueIsUnderFinalDir 报告 rel 是否落在定稿域目录内（域隔离判据：章节
 // 工具不写定稿、定稿工具只写定稿——草稿/定稿分离由工具域强制）。
@@ -326,6 +343,22 @@ func wenxueReadBody(root, rel string) (string, os.FileInfo, error) {
 	return string(b), info, nil
 }
 
+func wenxueRevision(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func wenxueLocateChapter(root, rawPath string, number int) (wenxueChapterMeta, string, error) {
+	rel := filepath.ToSlash(strings.TrimSpace(rawPath))
+	for _, c := range wenxueListChapters(root) {
+		if (rel != "" && c.Path == rel) || (rel == "" && number > 0 && c.Number == number) {
+			body, _, err := wenxueReadBody(root, c.Path)
+			return c, body, err
+		}
+	}
+	return wenxueChapterMeta{}, "", fmt.Errorf("未定位到章节（path=%q number=%d）；先用 wenxue_chapter_list 查看清单", rawPath, number)
+}
+
 // ── 章节族 ──────────────────────────────────────────────────────
 
 func wenxueChapterListTool() *wenxueTool {
@@ -344,10 +377,11 @@ func wenxueChapterListTool() *wenxueTool {
 				total += c.Words
 			}
 			out := map[string]any{
-				"dir":        wenxueFindDir(root, "chapters"),
-				"count":      len(chapters),
-				"totalWords": total,
-				"chapters":   chapters,
+				"dir":           wenxueFindDir(root, "chapters"),
+				"count":         len(chapters),
+				"totalWords":    total,
+				"chapters":      chapters,
+				"wordCountRule": wenxueWordCountRule,
 			}
 			if w := wenxueChapterWarnings(chapters, fellBack); len(w) > 0 {
 				out["warnings"] = w // 仅告警非空时携带（低影响契约）
@@ -504,7 +538,160 @@ func wenxueChapterWriteTool() *wenxueTool {
 			return wenxueJSON(map[string]any{
 				"saved": meta, "words": meta.Words, "prevWords": prevWords,
 				"delta": meta.Words - prevWords, "prev": prev, "next": next,
+				"contentChars": utf8.RuneCountInString(in.Content), "wordCountRule": wenxueWordCountRule,
 				"hint": "回写配套：更新相关角色卡「当前状态」与时间线事件（wenxue_character_write / wenxue_timeline_append）",
+			})
+		},
+	}
+}
+
+func wenxueCandidateDir(root, chapterPath string) (string, error) {
+	if wenxueIsUnderFinalDir(root, chapterPath) {
+		return "", fmt.Errorf("候选稿只服务章节草稿，不能基于定稿目录生成")
+	}
+	stem := strings.TrimSuffix(filepath.Base(chapterPath), filepath.Ext(chapterPath))
+	rel := filepath.ToSlash(filepath.Join(filepath.Dir(chapterPath), "候选", stem))
+	if _, err := wspath.ResolveRelWithin(root, rel); err != nil {
+		return "", err
+	}
+	return rel, nil
+}
+
+func wenxueCandidateWriteTool() *wenxueTool {
+	return &wenxueTool{
+		name:     "wenxue_candidate_write",
+		desc:     "把同章候选稿写入 章节/候选/<章名>/ 下，供 A/B/C 方案比较；不覆盖正文、不写定稿。label 建议 A/B/C 或简短方案名。",
+		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"目标章节相对路径（优先）"},"number":{"type":"integer","description":"章号（path 缺省时按号定位）"},"label":{"type":"string","description":"候选标签，如 A / B / 冷雨版"},"content":{"type":"string","description":"候选稿全文"},"overwrite":{"type":"boolean","description":"同名候选已存在时允许覆盖，缺省 false"}},"required":["label","content"],"additionalProperties":false}`,
+		readOnly: false,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				Path      string `json:"path"`
+				Number    int    `json:"number"`
+				Label     string `json:"label"`
+				Content   string `json:"content"`
+				Overwrite bool   `json:"overwrite"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			label := strings.TrimSpace(in.Label)
+			if label == "" || strings.TrimSpace(in.Content) == "" {
+				return "", fmt.Errorf("label 与 content 都必须非空")
+			}
+			root := wenxueWorkspace()
+			chapter, _, err := wenxueLocateChapter(root, in.Path, in.Number)
+			if err != nil {
+				return "", err
+			}
+			dir, err := wenxueCandidateDir(root, chapter.Path)
+			if err != nil {
+				return "", err
+			}
+			rel := dir + "/" + sanitizeFileName(label) + ".md"
+			abs, err := wspath.ResolveRelWithin(root, rel)
+			if err != nil {
+				return "", err
+			}
+			if info, err := os.Stat(abs); err == nil && !in.Overwrite {
+				return "", fmt.Errorf("候选已存在（%d 字节，%s）；换 label 或传 overwrite=true", info.Size(), info.ModTime().Format("15:04:05"))
+			}
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				return "", err
+			}
+			if err := os.WriteFile(abs, []byte(in.Content), 0o644); err != nil {
+				return "", err
+			}
+			return wenxueJSON(map[string]any{
+				"chapter": chapter.Path, "candidate": filepath.ToSlash(rel), "label": label,
+				"words": wenxueCountWords(in.Content), "contentChars": utf8.RuneCountInString(in.Content),
+				"revision": wenxueRevision(in.Content), "wordCountRule": wenxueWordCountRule,
+				"hint": "候选稿不会自动进入正文；用户选定后用 wenxue_candidate_promote 提升",
+			})
+		},
+	}
+}
+
+func wenxueCandidatePromoteTool() *wenxueTool {
+	return &wenxueTool{
+		name:     "wenxue_candidate_promote",
+		desc:     "把章节目录下的候选稿提升为正文：先自动归档当前正文到同章候选目录，再写入选定候选。不会写定稿。",
+		schema:   `{"type":"object","properties":{"candidatePath":{"type":"string","description":"wenxue_candidate_write 返回的候选路径"},"expectedRevision":{"type":"string","description":"可选：候选稿 revision；与当前候选不一致时拒绝"}},"required":["candidatePath"],"additionalProperties":false}`,
+		readOnly: false,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				CandidatePath    string `json:"candidatePath"`
+				ExpectedRevision string `json:"expectedRevision"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			root := wenxueWorkspace()
+			candidateRel := filepath.ToSlash(strings.TrimSpace(in.CandidatePath))
+			if candidateRel == "" || wenxueIsUnderFinalDir(root, candidateRel) {
+				return "", fmt.Errorf("candidatePath 必须位于章节草稿的候选目录")
+			}
+			ext := strings.ToLower(filepath.Ext(candidateRel))
+			if ext != ".md" && ext != ".markdown" && ext != ".txt" {
+				return "", fmt.Errorf("候选稿仅支持 md/markdown/txt，收到 %s", ext)
+			}
+			_, err := wspath.ResolveRelWithin(root, candidateRel)
+			if err != nil {
+				return "", fmt.Errorf("非法候选路径: %s", candidateRel)
+			}
+			candidateStem := filepath.Base(filepath.Dir(candidateRel))
+			var chapter wenxueChapterMeta
+			for _, c := range wenxueListChapters(root) {
+				if strings.TrimSuffix(filepath.Base(c.Path), filepath.Ext(c.Path)) == candidateStem {
+					chapter = c
+					break
+				}
+			}
+			if chapter.Path == "" {
+				return "", fmt.Errorf("候选路径无法关联章节（期望 <章节目录>/候选/<章名>/<候选>.md）")
+			}
+			dir, err := wenxueCandidateDir(root, chapter.Path)
+			if err != nil {
+				return "", err
+			}
+			if !strings.HasPrefix(candidateRel, dir+"/") {
+				return "", fmt.Errorf("candidatePath 必须位于 %s/ 下", dir)
+			}
+			candidateBody, _, err := wenxueReadBody(root, candidateRel)
+			if err != nil {
+				return "", err
+			}
+			candidateRevision := wenxueRevision(candidateBody)
+			if in.ExpectedRevision != "" && in.ExpectedRevision != candidateRevision {
+				return "", fmt.Errorf("REVISION_CONFLICT：候选稿在读取后已变化，请重新确认")
+			}
+			currentBody, _, err := wenxueReadBody(root, chapter.Path)
+			if err != nil {
+				return "", err
+			}
+			archiveRel := fmt.Sprintf("%s/原稿-%s-%s.md", dir, time.Now().Format("20060102-150405"), randomSuffix(3))
+			archiveAbs, err := wspath.ResolveRelWithin(root, archiveRel)
+			if err != nil {
+				return "", err
+			}
+			if err := os.MkdirAll(filepath.Dir(archiveAbs), 0o755); err != nil {
+				return "", err
+			}
+			if err := os.WriteFile(archiveAbs, []byte(currentBody), 0o644); err != nil {
+				return "", err
+			}
+			chapterAbs, err := wspath.ResolveRelWithin(root, chapter.Path)
+			if err != nil {
+				return "", err
+			}
+			if err := os.WriteFile(chapterAbs, []byte(candidateBody), 0o644); err != nil {
+				return "", err
+			}
+			saved, _ := wenxueParseChapterFile(root, chapter.Path)
+			return wenxueJSON(map[string]any{
+				"saved": saved, "candidate": candidateRel, "archivedPrevious": filepath.ToSlash(archiveRel),
+				"previousRevision": wenxueRevision(currentBody), "revision": wenxueRevision(candidateBody),
+				"wordCountRule": wenxueWordCountRule,
+				"hint":          "候选已提升为正文，旧稿已归档为候选；定稿目录未改动",
 			})
 		},
 	}
@@ -565,7 +752,7 @@ func wenxueCharacterListTool(a *App) *wenxueTool {
 		run: func(args json.RawMessage) (string, error) {
 			root := wenxueWorkspace()
 			cards := wenxueListCharacters(root)
-			res := map[string]any{"dir": wenxueFindDir(root, "characters"), "count": len(cards), "characters": cards}
+			res := map[string]any{"dir": wenxueFindDir(root, "characters"), "count": len(cards), "characters": cards, "wordCountRule": wenxueWordCountRule}
 			// 库内同名命中（2026-11-16 导入刀）：提示 agent 库里有现成角色，
 			// 不要只拿名字凭空造人。库未初始化/查询失败不拦清单——附带错误字段。
 			if a != nil && a.charLib != nil {
@@ -628,7 +815,7 @@ func wenxueCharacterReadTool() *wenxueTool {
 			if err != nil {
 				return "", err
 			}
-			return wenxueJSON(map[string]any{"path": rel, "content": body, "words": wenxueCountWords(body)})
+			return wenxueJSON(map[string]any{"path": rel, "content": body, "words": wenxueCountWords(body), "contentChars": utf8.RuneCountInString(body), "wordCountRule": wenxueWordCountRule})
 		},
 	}
 }
@@ -677,6 +864,7 @@ func wenxueCharacterWriteTool() *wenxueTool {
 			}
 			return wenxueJSON(map[string]any{
 				"path": rel, "name": name, "words": wenxueCountWords(content),
+				"contentChars": utf8.RuneCountInString(content), "wordCountRule": wenxueWordCountRule,
 				"hint": "章节推进后记得更新「当前状态」小节（再次调用本工具 overwrite=true）",
 			})
 		},
@@ -890,6 +1078,7 @@ func wenxueCharacterImportTool(a *App) *wenxueTool {
 			}
 			return wenxueJSON(map[string]any{
 				"path": rel, "name": c.Name, "words": wenxueCountWords(content), "source_id": c.ID,
+				"contentChars": utf8.RuneCountInString(content), "wordCountRule": wenxueWordCountRule,
 				"hint": "单向快照：此后卡面随剧情演进、库侧档案独立；库侧有更新时再次本工具 overwrite=true 可整卡刷新（当前状态会丢，慎用）",
 			})
 		},
@@ -1154,6 +1343,7 @@ func wenxueStatsTool() *wenxueTool {
 				"timelineEvents": len(timeline),
 				"lastModified":   lastMod,
 				"generatedAt":    time.Now().Format(time.RFC3339),
+				"wordCountRule":  wenxueWordCountRule,
 			})
 		},
 	}
@@ -1208,10 +1398,11 @@ func wenxueFinalListTool() *wenxueTool {
 				total += c.Words
 			}
 			return wenxueJSON(map[string]any{
-				"dir":        wenxueFindDir(root, "final"),
-				"count":      len(chapters),
-				"totalWords": total,
-				"chapters":   chapters,
+				"dir":           wenxueFindDir(root, "final"),
+				"count":         len(chapters),
+				"totalWords":    total,
+				"chapters":      chapters,
+				"wordCountRule": wenxueWordCountRule,
 			})
 		},
 	}
@@ -1329,8 +1520,9 @@ func wenxueFinalWriteTool() *wenxueTool {
 			meta, _ := wenxueParseChapterFile(root, rel)
 			return wenxueJSON(map[string]any{
 				"saved": meta, "words": meta.Words, "prevWords": prevWords,
-				"delta": meta.Words - prevWords,
-				"hint":  "定稿已入库：阅读标签页刷新即见；阅读 tab 与 wenxue_final_list/read 共享此目录",
+				"delta":        meta.Words - prevWords,
+				"contentChars": utf8.RuneCountInString(in.Content), "wordCountRule": wenxueWordCountRule,
+				"hint": "定稿已入库：阅读标签页刷新即见；阅读 tab 与 wenxue_final_list/read 共享此目录",
 			})
 		},
 	}

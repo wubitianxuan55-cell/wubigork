@@ -46,6 +46,8 @@ const TOOL_DESC: Record<string, string> = {
   wenxue_chapter_list: "章节清单——章号/标题/字数/修改时间（按约定目录）",
   wenxue_chapter_read: "读一章正文+上一章结尾衔接段",
   wenxue_chapter_write: "写/建一章（overwrite 显式闸；回执带字数差与前后章）",
+  wenxue_candidate_write: "写 A/B/C 同章候选稿到章节/候选/，不改正文与定稿",
+  wenxue_candidate_promote: "候选提升为正文；当前正文先自动归档",
   wenxue_character_list: "角色卡清单——名字/字数/摘要+角色库同名命中",
   wenxue_character_read: "读角色卡全文",
   wenxue_character_write: "建/更新角色卡（已存在即拒，自动补一级标题）",
@@ -68,7 +70,7 @@ interface Section {
 }
 
 const RAW_SECTIONS: Section[] = [
-  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_character_import", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats", "wenxue_final_list", "wenxue_final_read", "wenxue_final_write"] },
+  { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_candidate_write", "wenxue_candidate_promote", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_character_import", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats", "wenxue_final_list", "wenxue_final_read", "wenxue_final_write"] },
   { title: "文件与命令", items: ["read_file", "write_file", "ls", "grep", "bash", "bash_output", "wait", "kill_shell"] },
   { title: "网络", items: ["web_search", "web_fetch"] },
   { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task", "genui_validate"] },
