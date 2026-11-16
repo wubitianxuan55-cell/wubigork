@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 700 名（原生变参 19 名已收窄标注）。
+// 共 703 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -639,6 +639,7 @@ export const bindingSignatures = {
   WenxueGitWorktrees: { argc: 0, variadic: false, params: "" },
   WenxueHistory: { argc: 0, variadic: false, params: "" },
   WenxueJobs: { argc: 0, variadic: false, params: "" },
+  WenxueJournalList: { argc: 1, variadic: false, params: "limit int" },
   WenxueListDir: { argc: 1, variadic: false, params: "rel string" },
   WenxueListDirBatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
   WenxueListProjectSessions: { argc: 0, variadic: false, params: "" },
@@ -677,6 +678,7 @@ export const bindingSignatures = {
   WenxueRetryMCPServer: { argc: 1, variadic: false, params: "name string" },
   WenxueRevealWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
   WenxueRewind: { argc: 2, variadic: false, params: "turn int, scope string" },
+  WenxueRollbackRecord: { argc: 1, variadic: false, params: "id string" },
   WenxueRunning: { argc: 0, variadic: false, params: "" },
   WenxueSaveAttachmentFile: { argc: 2, variadic: false, params: "fileName string, base64Data string" },
   WenxueSaveDoc: { argc: 2, variadic: false, params: "path string, body string" },
@@ -696,6 +698,7 @@ export const bindingSignatures = {
   WenxueUnarchiveSession: { argc: 1, variadic: false, params: "path string" },
   WenxueUnpinMaterial: { argc: 1, variadic: false, params: "rel string" },
   WenxueUpdateFact: { argc: 2, variadic: false, params: "name string, body string" },
+  WenxueVerifyRecord: { argc: 1, variadic: false, params: "id string" },
   WenxueWorkspaceUploadAbort: { argc: 1, variadic: false, params: "token string" },
   WenxueWorkspaceUploadAppend: { argc: 2, variadic: false, params: "token string, base64Chunk string" },
   WenxueWorkspaceUploadBegin: { argc: 2, variadic: false, params: "dir string, relativePath string" },
@@ -721,5 +724,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 700。
-export const bindingSignatureCount = 700;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 703。
+export const bindingSignatureCount = 703;

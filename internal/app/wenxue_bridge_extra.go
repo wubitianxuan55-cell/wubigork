@@ -18,8 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/util"
@@ -120,4 +124,83 @@ func (a *App) WenxueSkillDraftFromSession() (SkillRecordResult, error) {
 		Replay:  replay,
 		Preview: skill.RenderSkillFile(draft.Name, draft.Description, renderSkillDraftBody(draft)),
 	}, nil
+}
+
+// ── 证据链读侧三件（2026-11-17 审查批7 刀A）────────────────────────
+// 写侧本就按书目录落盘（boot.go JournalDir=opts.Cwd/.gaea/work/journal），
+// 读侧此前只有办公版（gaeaCwd 锚办公工作区）——图文 UI 的版本时间线/回滚
+// 读错账本（恒空/错位）。三件换锚 wenxueWorkspace()，核心逻辑经
+// verifyRecordAt/rollbackRecordAt 参数化复用（办公版委托同一实现，逐字节
+// 行为保持）。
+
+// wenxueJournalStore 图文账本（书工作空间 .gaea/work/journal）。
+func wenxueJournalStore() *evidence.JournalStore {
+	st, err := evidence.OpenJournal(filepath.Join(wenxueWorkspace(), ".gaea", "work", "journal"))
+	if err != nil {
+		return nil
+	}
+	return st
+}
+
+// WenxueJournalList 图文证据卡最近列表（同 GaeaJournalList，换根）。
+func (a *App) WenxueJournalList(limit int) []evidence.ChangeRecord {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	dir := filepath.Join(wenxueWorkspace(), ".gaea", "work", "journal")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return []evidence.ChangeRecord{}
+	}
+	st, err := evidence.OpenJournal(dir)
+	if err != nil {
+		return []evidence.ChangeRecord{}
+	}
+	var all []evidence.ChangeRecord
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".jsonl" {
+			continue
+		}
+		recs, err := st.List(e.Name()[:len(e.Name())-len(".jsonl")])
+		if err != nil {
+			continue
+		}
+		all = append(all, recs...)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].At > all[j].At })
+	if len(all) > limit {
+		all = all[:limit]
+	}
+	return all
+}
+
+// WenxueVerifyRecord 图文证据卡复核（同 GaeaVerifyRecord，账本与根换锚书目录；
+// xlsx 重算/视觉产物目录随 cwd 锚书工作区）。
+func (a *App) WenxueVerifyRecord(id string) (evidence.Verdict, error) {
+	st := wenxueJournalStore()
+	if st == nil {
+		return evidence.Verdict{}, fmt.Errorf("Journal 不可用")
+	}
+	rec, ok := st.FindByID(id)
+	if !ok {
+		return evidence.Verdict{}, fmt.Errorf("证据卡 %s 不存在", id)
+	}
+	return verifyRecordAt(st, rec, id, wenxueWorkspace())
+}
+
+// WenxueRollbackRecord 图文证据卡回滚（同 GaeaRollbackRecord，账本与根换锚
+// 书目录；恢复前快照落书侧基线同目录）。
+func (a *App) WenxueRollbackRecord(id string) error {
+	st := wenxueJournalStore()
+	if st == nil {
+		return fmt.Errorf("Journal 不可用")
+	}
+	rec, ok := st.FindByID(id)
+	if !ok {
+		return fmt.Errorf("证据卡 %s 不存在", id)
+	}
+	return rollbackRecordAt(st, rec, wenxueWorkspace())
 }

@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 	"github.com/gaea/gaea/internal/gaea/workbench"
 )
@@ -57,6 +58,7 @@ func (b *WenxueB) WenxueGitUnstage(paths []string) error { return b.a.WenxueGitU
 func (b *WenxueB) WenxueGitWorktrees() ([]GitWorktree, error) { return b.a.WenxueGitWorktrees() }
 func (b *WenxueB) WenxueHistory() []HistoryMessage { return b.a.WenxueHistory() }
 func (b *WenxueB) WenxueJobs() []JobView { return b.a.WenxueJobs() }
+func (b *WenxueB) WenxueJournalList(limit int) []evidence.ChangeRecord { return b.a.WenxueJournalList(limit) }
 func (b *WenxueB) WenxueListDir(rel string) ([]DirEntry, error) { return b.a.WenxueListDir(rel) }
 func (b *WenxueB) WenxueListDirBatch(paths []string, exclude []string) []workbench.Level { return b.a.WenxueListDirBatch(paths, exclude) }
 func (b *WenxueB) WenxueListProjectSessions() []ProjectGroup { return b.a.WenxueListProjectSessions() }
@@ -95,6 +97,7 @@ func (b *WenxueB) WenxueResyncEvents(afterSeq int) GaeaResyncResult { return b.a
 func (b *WenxueB) WenxueRetryMCPServer(name string) error { return b.a.WenxueRetryMCPServer(name) }
 func (b *WenxueB) WenxueRevealWorkspacePath(rel string) error { return b.a.WenxueRevealWorkspacePath(rel) }
 func (b *WenxueB) WenxueRewind(turn int, scope string) error { return b.a.WenxueRewind(turn, scope) }
+func (b *WenxueB) WenxueRollbackRecord(id string) error { return b.a.WenxueRollbackRecord(id) }
 func (b *WenxueB) WenxueRunning() bool { return b.a.WenxueRunning() }
 func (b *WenxueB) WenxueSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.WenxueSaveAttachmentFile(fileName, base64Data) }
 func (b *WenxueB) WenxueSaveDoc(path string, body string) (string, error) { return b.a.WenxueSaveDoc(path, body) }
@@ -114,6 +117,7 @@ func (b *WenxueB) WenxueTrajectory(sessionPath string) (trajectory.Trajectory, e
 func (b *WenxueB) WenxueUnarchiveSession(path string) (string, error) { return b.a.WenxueUnarchiveSession(path) }
 func (b *WenxueB) WenxueUnpinMaterial(rel string) []FileSearchHit { return b.a.WenxueUnpinMaterial(rel) }
 func (b *WenxueB) WenxueUpdateFact(name string, body string) (string, error) { return b.a.WenxueUpdateFact(name, body) }
+func (b *WenxueB) WenxueVerifyRecord(id string) (evidence.Verdict, error) { return b.a.WenxueVerifyRecord(id) }
 func (b *WenxueB) WenxueWorkspaceUploadAbort(token string) error { return b.a.WenxueWorkspaceUploadAbort(token) }
 func (b *WenxueB) WenxueWorkspaceUploadAppend(token string, base64Chunk string) error { return b.a.WenxueWorkspaceUploadAppend(token, base64Chunk) }
 func (b *WenxueB) WenxueWorkspaceUploadBegin(dir string, relativePath string) (string, error) { return b.a.WenxueWorkspaceUploadBegin(dir, relativePath) }

@@ -178,6 +178,10 @@ export function WenxueJobs() {
   return window['go']['app']['WenxueB']['WenxueJobs']();
 }
 
+export function WenxueJournalList(arg1) {
+  return window['go']['app']['WenxueB']['WenxueJournalList'](arg1);
+}
+
 export function WenxueListDir(arg1) {
   return window['go']['app']['WenxueB']['WenxueListDir'](arg1);
 }
@@ -330,6 +334,10 @@ export function WenxueRewind(arg1, arg2) {
   return window['go']['app']['WenxueB']['WenxueRewind'](arg1, arg2);
 }
 
+export function WenxueRollbackRecord(arg1) {
+  return window['go']['app']['WenxueB']['WenxueRollbackRecord'](arg1);
+}
+
 export function WenxueRunning() {
   return window['go']['app']['WenxueB']['WenxueRunning']();
 }
@@ -404,6 +412,10 @@ export function WenxueUnpinMaterial(arg1) {
 
 export function WenxueUpdateFact(arg1, arg2) {
   return window['go']['app']['WenxueB']['WenxueUpdateFact'](arg1, arg2);
+}
+
+export function WenxueVerifyRecord(arg1) {
+  return window['go']['app']['WenxueB']['WenxueVerifyRecord'](arg1);
 }
 
 export function WenxueWorkspaceUploadAbort(arg1) {

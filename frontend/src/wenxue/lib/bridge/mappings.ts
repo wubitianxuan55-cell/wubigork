@@ -252,7 +252,10 @@ export const gaeaToGaea = {
   ContextNodeDetail: "WenxueContextNodeDetail",
   ContextSurface: "WenxueContextSurface",
   ContextCommands: "WenxueContextCommands",
-  GaeaJournalList: "GaeaJournalList",
+  // 证据链读侧三件换锚书工作区账本（2026-11-17 审查批7 刀A：写侧
+  // boot.JournalDir 本就按 opts.Cwd=书目录落盘，读侧此前只有办公版——
+  // 版本时间线/回滚读错账本）。
+  GaeaJournalList: "WenxueJournalList",
   GaeaGitStatus: "WenxueGitStatus",
   GaeaGitDiff: "WenxueGitDiff",
   GaeaGitStage: "WenxueGitStage",
@@ -264,8 +267,8 @@ export const gaeaToGaea = {
   GaeaGitGraph: "WenxueGitGraph",
   GaeaGitCommitDetail: "WenxueGitCommitDetail",
   GaeaSubagentContextView: "WenxueSubagentContextView",
-  VerifyRecord: "GaeaVerifyRecord",
-  RollbackRecord: "GaeaRollbackRecord",
+  VerifyRecord: "WenxueVerifyRecord",
+  RollbackRecord: "WenxueRollbackRecord",
   PriceFetches: "GaeaPriceFetches",
   PriceFetchApply: "GaeaPriceFetchApply",
   PriceFetchIgnore: "GaeaPriceFetchIgnore",

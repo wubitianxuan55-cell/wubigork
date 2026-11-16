@@ -40,6 +40,14 @@ import { DocxOutline } from "./DocxOutline";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+// 图文树降级只读（2026-11-17 审查批7 刀B）：OfficeEditText/DocxApplyEdit/
+// DocxAcceptChanges 按 gaeaCwd()（办公工作区）解析相对路径——对书工作区的
+// docx 必错（编辑写错位/修订处理错文件）。渲染不受影响（dataUrl prop 来自
+// WenxuePreview，锚书目录）——本树摘 AI 编辑链入口（框选工具栏/修订接受
+// 拒绝/修改队列执行），只读渲染+大纲+引用到对话保留。办公树 DocxPreview
+// 不受影响（gaea 树独立副本）。
+const DOCX_EDIT_ENABLED = false;
+
 function dataUrlToBlob(dataUrl: string): Blob {
   const comma = dataUrl.indexOf(",");
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
@@ -251,8 +259,9 @@ export function DocxPreview({
     return () => window.removeEventListener("keydown", onKey);
   }, [selected, proposal]);
 
-  // 选中文本 → 弹出编辑工具栏
+  // 选中文本 → 弹出编辑工具栏（图文树降级只读：不弹）
   const handleMouseUp = useCallback(() => {
+    if (!DOCX_EDIT_ENABLED) return;
     const sel = window.getSelection();
     const text = sel?.toString().trim();
     if (!text || !rootRef.current?.contains(sel?.anchorNode ?? null)) return;
@@ -329,6 +338,10 @@ export function DocxPreview({
 
   const flattenRevisions = useCallback(
     async (accept: boolean) => {
+      if (!DOCX_EDIT_ENABLED) {
+        toast.show("图文板块 docx 为只读预览（编辑链按办公工作区解析，对书稿不可用）", "warn");
+        return;
+      }
       setFlattening(true);
       setActionError("");
       try {
@@ -346,7 +359,7 @@ export function DocxPreview({
         setFlattening(false);
       }
     },
-    [relPath, markUpdated],
+    [relPath, markUpdated, toast],
   );
 
   const toggleOutline = useCallback(() => {
@@ -408,6 +421,10 @@ export function DocxPreview({
   // 每条「再定位 → OfficeEditText 生成 → DocxApplyEdit 写回 → 自动接受」。
   const runQueueItems = useCallback(
     async (items: readonly DocxQueueItem[]) => {
+      if (!DOCX_EDIT_ENABLED) {
+        toast.show("图文板块 docx 为只读预览（编辑链按办公工作区解析，对书稿不可用）", "warn");
+        return;
+      }
       // 与单条框选即改互斥：两边都会写同一份文档，并行会互相打乱摘录定位。
       if (queueRunning || generating || applying) return;
       const plan = runnableItems(items);
@@ -564,7 +581,7 @@ export function DocxPreview({
               {t("docxQueue.toggle")}
               {queueStatsNow.pending > 0 && <span className="opacity-70">{queueStatsNow.pending}</span>}
             </button>
-            {hasRevisions && !selected && (
+            {DOCX_EDIT_ENABLED && hasRevisions && !selected && (
               <>
               <button
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-accent/30 bg-accent/10 text-accent text-[10px] cursor-pointer hover:bg-accent/20 disabled:opacity-50 transition-colors"
@@ -586,7 +603,7 @@ export function DocxPreview({
               </button>
               </>
             )}
-            {!hasRevisions && (
+            {!hasRevisions && DOCX_EDIT_ENABLED && (
               <span className="inline-flex items-center gap-1 text-accent/80">
                 <Wand2 size={10} />
                 选中文字即可 AI 编辑
@@ -641,7 +658,7 @@ export function DocxPreview({
         </div>
       )}
 
-      {selected && (
+      {DOCX_EDIT_ENABLED && selected && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-[min(760px,94%)] rounded-xl border border-border bg-bg-elev-2 shadow-[0_16px_48px_rgba(0,0,0,0.4)] overflow-hidden">
           {!proposal ? (
             <>

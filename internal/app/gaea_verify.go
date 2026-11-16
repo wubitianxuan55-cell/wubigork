@@ -37,10 +37,17 @@ func journalStore() *evidence.JournalStore {
 // 既有合法能力，证据卡必须还能复核/回滚那些目标。返回值改为 (string, error)：
 // 越界不再静默指向工作区外，调用方如实回报。
 func resolveTarget(rel string) (string, error) {
+	return resolveTargetAt(gaeaCwd(), rel)
+}
+
+// resolveTargetAt 同 resolveTarget，根由调用方指定（2026-11-17 审查批7：
+// Journal 读侧三件图文版 Wenxue* 换锚书工作区——写侧 boot.JournalDir 本就按
+// opts.Cwd=书目录落盘，读侧此前只有办公版=时间线/回滚读错账本）。
+func resolveTargetAt(root, rel string) (string, error) {
 	if filepath.IsAbs(rel) {
 		return rel, nil
 	}
-	p, err := wspath.ResolveRelWithin(gaeaCwd(), rel)
+	p, err := wspath.ResolveRelWithin(root, rel)
 	if err != nil {
 		return "", fmt.Errorf("非法工作区相对路径: %s", rel)
 	}
@@ -172,7 +179,14 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	if !ok {
 		return evidence.Verdict{}, fmt.Errorf("证据卡 %s 不存在", id)
 	}
-	target, terr := resolveTarget(rec.Target)
+	return verifyRecordAt(st, rec, id, gaeaCwd())
+}
+
+// verifyRecordAt 复核核心（2026-11-17 审查批7 自 GaeaVerifyRecord 参数化抽
+// 出：cwd 显式传入——办公版传 gaeaCwd()，图文版传 wenxueWorkspace()；正文
+// 逐字节保留，仅三处 gaeaCwd()→cwd 与 resolveTarget→resolveTargetAt）。
+func verifyRecordAt(st *evidence.JournalStore, rec evidence.ChangeRecord, id string, cwd string) (evidence.Verdict, error) {
+	target, terr := resolveTargetAt(cwd, rec.Target)
 	if terr != nil {
 		return evidence.Verdict{}, fmt.Errorf("证据卡目标路径非法：%w", terr)
 	}
@@ -183,7 +197,7 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	case "xlsx_apply":
 		if _, err := os.Stat(target); err != nil {
 			v.ChannelA = "fail: 目标文件不存在"
-		} else if rep, err := xlsxedit.Recalc(target, gaeaCwd()); err != nil {
+		} else if rep, err := xlsxedit.Recalc(target, cwd); err != nil {
 			v.ChannelA = "fail: 公式重算失败 " + err.Error()
 		} else if rep.TotalErrors > 0 {
 			v.ChannelA = fmt.Sprintf("fail: 重算发现 %d 处公式错误", rep.TotalErrors)
@@ -252,7 +266,7 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	verifyArtifacts := ""
 	if rec.BaselinePath != "" && v.ChannelA != "fail" {
 		if _, err := os.Stat(rec.BaselinePath); err == nil {
-			verifyDir := filepath.Join(gaeaCwd(), ".gaea", "work", "journal", "verify", id)
+			verifyDir := filepath.Join(cwd, ".gaea", "work", "journal", "verify", id)
 			_ = os.MkdirAll(verifyDir, 0o755)
 			msg, _, ratio, pages := runVisualDiff(rec.BaselinePath, target, verifyDir)
 			v.ChannelB = msg
@@ -271,7 +285,7 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	} else if v.ChannelA != "fail" && firstReviewRenderable(target) {
 		// P2 条件视觉首渲：无基线（首次生成等）不再是无视觉复核——单侧渲染
 		// 抽样，覆盖页数/跳过原因透明落账（备忘 :42-48 形状继承）。
-		verifyDir := filepath.Join(gaeaCwd(), ".gaea", "work", "journal", "verify", id)
+		verifyDir := filepath.Join(cwd, ".gaea", "work", "journal", "verify", id)
 		_ = os.MkdirAll(verifyDir, 0o755)
 		msg, reviewed, total, skipped := runFirstRenderReview(target, verifyDir)
 		if reviewed > 0 {
@@ -324,23 +338,30 @@ func (a *App) GaeaRollbackRecord(id string) error {
 	if !ok {
 		return fmt.Errorf("证据卡 %s 不存在", id)
 	}
-	return rollbackRecord(st, rec)
+	return rollbackRecordAt(st, rec, gaeaCwd())
 }
 
-// rollbackRecord 回滚核心（GaeaRollbackRecord 拆出的可测内部函数，签名/绑定
-// 面不变）。v4.32 收 v4.28 B1 欠账：恢复写盘前先把目标当前内容快照（落原
-// 基线同目录，命名/权限沿用 evidence.StageBaselineTo），恢复动作因此自身
-// 成为带基线的完整证据卡——时间线里可「再恢复」=撤销恢复。快照是尽力而为：
-// 目标不存在/不可读或快照写失败都照常恢复（新卡 BaselinePath 留空，行为与
-// 无快照时一致）——恢复是主意图，不得因快照失败而失败。
+// rollbackRecord 办公回滚核心（签名/绑定面不变；2026-11-17 审查批7 参数化
+// 委托 rollbackRecordAt，cwd=gaeaCwd()）。
 func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error {
+	return rollbackRecordAt(st, rec, gaeaCwd())
+}
+
+// rollbackRecordAt 回滚核心（2026-11-17 审查批7 自 rollbackRecord 参数化抽
+// 出：cwd 显式传入——resolveTargetAt 按根解析目标）。v4.32 收 v4.28 B1 欠
+// 账：恢复写盘前先把目标当前内容快照（落原基线同目录，命名/权限沿用
+// evidence.StageBaselineTo），恢复动作因此自身成为带基线的完整证据卡——
+// 时间线里可「再恢复」=撤销恢复。快照是尽力而为：目标不存在/不可读或快照
+// 写失败都照常恢复（新卡 BaselinePath 留空，行为与无快照时一致）——恢复是
+// 主意图，不得因快照失败而失败。
+func rollbackRecordAt(st *evidence.JournalStore, rec evidence.ChangeRecord, cwd string) error {
 	if rec.BaselinePath == "" {
 		return fmt.Errorf("该证据卡无基线快照，无法回滚")
 	}
 	if _, err := os.Stat(rec.BaselinePath); err != nil {
 		return fmt.Errorf("基线快照缺失：%v", err)
 	}
-	target, terr := resolveTarget(rec.Target)
+	target, terr := resolveTargetAt(cwd, rec.Target)
 	if terr != nil {
 		return fmt.Errorf("证据卡目标路径非法：%w", terr)
 	}

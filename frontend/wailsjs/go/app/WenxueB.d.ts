@@ -5,6 +5,7 @@ import {trajectory} from '../models';
 import {event} from '../models';
 import {contextview} from '../models';
 import {workbench} from '../models';
+import {evidence} from '../models';
 
 export function WenxueAddMCPServer(arg1:app.MCPServerInput):Promise<number>;
 
@@ -94,6 +95,8 @@ export function WenxueHistory():Promise<Array<app.HistoryMessage>>;
 
 export function WenxueJobs():Promise<Array<app.JobView>>;
 
+export function WenxueJournalList(arg1:number):Promise<Array<evidence.ChangeRecord>>;
+
 export function WenxueListDir(arg1:string):Promise<Array<app.DirEntry>>;
 
 export function WenxueListDirBatch(arg1:Array<string>,arg2:Array<string>):Promise<Array<workbench.Level>>;
@@ -170,6 +173,8 @@ export function WenxueRevealWorkspacePath(arg1:string):Promise<void>;
 
 export function WenxueRewind(arg1:number,arg2:string):Promise<void>;
 
+export function WenxueRollbackRecord(arg1:string):Promise<void>;
+
 export function WenxueRunning():Promise<boolean>;
 
 export function WenxueSaveAttachmentFile(arg1:string,arg2:string):Promise<string>;
@@ -207,6 +212,8 @@ export function WenxueUnarchiveSession(arg1:string):Promise<string>;
 export function WenxueUnpinMaterial(arg1:string):Promise<Array<app.FileSearchHit>>;
 
 export function WenxueUpdateFact(arg1:string,arg2:string):Promise<string>;
+
+export function WenxueVerifyRecord(arg1:string):Promise<evidence.Verdict>;
 
 export function WenxueWorkspaceUploadAbort(arg1:string):Promise<void>;
 
