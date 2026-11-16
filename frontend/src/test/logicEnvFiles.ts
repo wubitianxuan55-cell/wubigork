@@ -36,6 +36,7 @@ export const LOGIC_ENV_TEST_FILES: string[] = [
   'src/gaea/lib/domainColors.test.ts',
   'src/gaea/lib/eventSync.test.ts',
   'src/wenxue/lib/changes.test.ts',
+  'src/wenxue/App.wiring.test.ts',
   'src/wenxue/lib/disabledDomains.test.ts',
   'src/gaea/lib/fileBadge.test.ts',
   'src/gaea/lib/fileLinks.test.ts',
