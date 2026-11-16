@@ -152,17 +152,21 @@ GenUI 组件渲染（35 种节点）、人格系统、语音房间 VoiceConsoleV
 - 它的 mdast 手写渲染器整体替换（我们 react-markdown 管线够用，只偷 2.4 的逐条防御配方）
 - Rspack/oxlint 工具链、SSE 手写解码器整体替换（我们 Go 侧已有；前端 `useChatStream` 的 EventSource/reader 若有分片 CR 边界坑可回来对照 `sse.ts:38` 的「结尾 CR 等下一段」处理）
 
-## 5. 建议批次（拍板池）→ 2026-11-16 落地状态
+## 5. 建议批次（拍板池）→ 2026-11-16 落地状态（第二轮续）
 
 | 批 | 内容 | 状态 |
 |---|---|---|
-| A 消息树 | 分支版本树+编辑提问/重生成/版本切换 | ✅ 1f419b9d（设计 docs/gaea-chat-branch-tree-design-2026-11.md；续写 continue 挂拍板） |
-| B 生命周期 | 错误分类 code+重命名停自动命名+stopped 核对 | ✅ bb8b9e39（stopped 三项核对=现状已对齐不动） |
-| C 渲染配方 | 节流+codeIndented+mermaid 双态 | ✅ 0dd5b263（公式保上次成功/表格补列对照跳过，软换行挂拍板） |
-| D 搜索引用 | 角标+右栏三件套 | 挂拍板（依赖搜索协议结构化来源） |
-| E 备份 | ZIP 导入导出 | 挂拍板 |
-| F 语音轻形态 | oneshot 输入框语音+频谱 | 挂拍板 |
-| G 杂项 | 时间分组/草稿保留/anchored.ts | 挂拍板 |
+| A 消息树 | 分支版本树+编辑提问/重生成/版本切换 | ✅ 1f419b9d（设计 docs/gaea-chat-branch-tree-design-2026-11.md） |
+| B 生命周期 | 错误分类 code+重命名停自动命名+stopped 核对 | ✅ bb8b9e39 |
+| C 渲染配方 | 节流+codeIndented+mermaid 双态 | ✅ 0dd5b263 |
+| **续写 continue** | 已停止行 prefill 续写拼接原行 | ✅ 9836c883（准入收窄=已停止轮；引擎 prefill 兼容性待实弹） |
+| D 搜索引用 | 来源面板两件套（正文角标挂起：协议无 in-text 位置） | ✅ 6550996d |
+| E 备份 | 历史 ZIP 导入导出（gaea_chat_history v1，原子替换+pre-import 自动备份） | ✅ db84badb |
+| G 杂项 | 时间分组+草稿按会话保留 | ✅ 1f627beb |
+| F 语音轻形态 | oneshot 输入框语音+频谱 | 挂起：native whisper 引擎按需拉起接线深+发版门须真麦烟测（repo 红线），待拍板 |
+| 二轮装机 | 79ee880C1B5EABEE PID 29240 冒烟 200；FE 全量 4362/4362 | ✅ 2026-11-16 |
+
+顺带修复：ChatTopicCreate 同毫秒连建两话题 UNIQUE 撞键（id 加原子序后缀）——续写测试实测逮到的生产可触 bug。
 
 ## 6. 首轮报告勘误
 
