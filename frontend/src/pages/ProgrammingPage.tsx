@@ -361,9 +361,25 @@ export default function ProgrammingPage() {
       const next = await refreshStatus()
       if (!next.running || !next.owned || !next.url.includes('token=')) {
         setError('DSH Web 已启动，但 gaea 尚未取得可用访问入口。')
+        return
       }
     } catch (cause) {
       setError(errText(cause) || 'DSH Web 启动失败')
+    } finally {
+      setBusy(false)
+    }
+  }, [refreshStatus])
+
+  const openInBrowser = useCallback(async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const url = await app.OpenProgrammingWebExternal()
+      if (!url) throw new Error('DSH Web 未返回可打开的地址')
+      await refreshStatus()
+      openExternal(url)
+    } catch (cause) {
+      setError(errText(cause) || '外部浏览器打开失败')
     } finally {
       setBusy(false)
     }
@@ -430,23 +446,23 @@ export default function ProgrammingPage() {
         </div>
         <div className="programming-toolbar-actions">
           <Tag bordered={false}>{DSH_VERSION}</Tag>
+          <Button
+            size="small"
+            icon={<GlobalOutlined />}
+            loading={busy || status?.starting}
+            title="未运行时将先启动；打开后可关闭 gaea，编程工作台会继续运行"
+            onClick={() => void openInBrowser()}
+          >
+            外部浏览器打开
+          </Button>
           {live && (
-            <>
-              <Button
-                size="small"
-                icon={<ReloadOutlined />}
-                onClick={() => setFrameKey((key) => key + 1)}
-              >
-                刷新
-              </Button>
-              <Button
-                size="small"
-                icon={<GlobalOutlined />}
-                onClick={() => openExternal(status?.url || DSH_LOCAL_URL)}
-              >
-                浏览器打开
-              </Button>
-            </>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={() => setFrameKey((key) => key + 1)}
+            >
+              刷新
+            </Button>
           )}
           {status?.owned ? (
             <Button size="small" danger icon={<StopOutlined />} loading={busy} onClick={() => void stop()}>

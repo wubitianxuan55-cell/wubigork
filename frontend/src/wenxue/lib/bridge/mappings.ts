@@ -133,6 +133,12 @@ export const gaeaToGaea = {
   MorningPreload: "GaeaMorningPreload",
   SetMorningPreload: "GaeaSetMorningPreload",
   MemorySuggestions: "WenxueMemorySuggestions",
+  WenxueMemoryPin: "WenxueMemoryPin",
+  WenxueMemoryArchive: "WenxueMemoryArchive",
+  WenxueMemoryArchivedList: "WenxueMemoryArchivedList",
+  WenxueMemoryUnarchive: "WenxueMemoryUnarchive",
+  WenxueMemoryInvalidate: "WenxueMemoryInvalidate",
+  WenxueMemoryRestoreInvalidate: "WenxueMemoryRestoreInvalidate",
   LogFrontendError: "GaeaLogFrontendError",
   AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",
   // v4.377 建议制：待确认建议忽略 + 自动做梦直写清污。

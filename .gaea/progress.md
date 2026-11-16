@@ -1,3 +1,20 @@
+## 编程外部浏览器持久会话修复（2026-11-16）
+
+- 用户实测关闭 gaea 后外部浏览器里的 DSH 工作台同时断开。根因：DSH node 进程
+  位于带 `KILL_ON_JOB_CLOSE` 的 Windows Job Object，gaea 退出即整树回收；同时旧
+  stdout/stderr 走 gaea 持有的匿名管道，父进程退出也可能诱发管道断开。
+- 修：外部浏览器入口改调新绑定 `OpenProgrammingWebExternal`；启动后保存 PID/令牌
+  到 `C:\AI\dsh\home\.gaea-web-session.json`，用 `proc.ReleaseTracked` 清除 Job
+  的关闭即杀位并关闭句柄；node 的 stdout/stderr 改为直接继承日志文件。再次启动
+  gaea 可按状态文件重新接管，停止按钮对重接管会话走 `taskkill /T` 的 PID 树回收。
+- 验证：proc Job 释放存活、日志令牌原位脱敏、持久会话接管、外部启动持久化四组
+  定向绿；真实 DSH 启停 11.09s 通过；独立测试进程启动 DSH→退出→新进程重接管→
+  停止回收 11.82s 通过；ProgrammingPage + spaceBindings 14/14、Gaea 定向 `tsc` 0。
+- 干净工作树 `e23bd5b9` + 本刀未提交补丁构建：Vite 36.35s、Wails 51.33s
+  （bindings 未跳过）；payload 四件冒烟 `/api/health 200`；exe SHA256
+  `71F53995D630E3BB2358DCC9F2A090FA7233B2A1F9A4EA4F980002184C092B3A`；
+  已装机并启动 PID 54840（12:58:05 > 构建 12:57:42）。并行未收口的文穴改动未入包。
+
 ## 编程板块外部浏览器入口（2026-11-16）
 
 - `ProgrammingPage` 工具栏新增常驻「外部浏览器打开」按钮：运行中直接打开当前带
@@ -51,6 +68,23 @@
   （可选面）」节（image_gen 锚小说目录+未配后端如实告知不硬凑）。
 - 装机 12:08 INSTALL OK（PID 46524 > 构建时刻）。skills 测试绿（filter/extras/
   dynamic acceptance）。
+
+## 图文记忆面板优化批（2026-11-16，用户问「是否需要优化」拍板做）
+
+- **机制补齐**：图文脑生命周期管理面从零到有——新绑定六件 `WenxueMemoryPin/
+  Archive/ArchivedList/Unarchive/Invalidate/RestoreInvalidate`（经
+  hubWenxueBrainStore 直达图文脑，与办公脑同机制 5.3/9.3：固化免疫衰减、归档
+  软删可恢复、失效标记退出注入面原文保留）；`MemoryFact` 增 invalid/updatedAt
+  可选字段（office 不设置零影响）；WenxueMemory 回执带全量生命周期态。
+- **UI 对齐三 Hub**：面板重写上 `WenxueHubFrame`（tone=memory 新增）——书脑
+  masthead+概览三 metric（事实/固化/归档）+刷新 action；类型筛选 chips；事实
+  卡操作行=固化toggle/编辑/失效(恢复注入)/归档/删除；归档折叠区（恢复钮）；
+  排序=固化优先+最近写入；文案去行话（「做梦/晨报为办公板块机制」如实标注）。
+- **绑定面**：facade 六件+签名 689 再生+bindingNames 双份（gaea+wenxue 桥各自
+  快照）+legacy 双份再 generations+spaceBindings work 面+wenxue mock 六件。
+- **验证**：Go 3 组绿、tsc 0、vitest 32 绿；装机 13:06 INSTALL OK（PID 52940 >
+  构建 13:06:39）。坑=wenxue 桥自带 bindingNames/legacyBindings 快照对（与 gaea
+  桥分开维护），Go 增绑定后两份都要再生，否则 wenxue drift 残差报红。
 
 ## 实弹修：记忆 tab 打不开（2026-11-16）
 

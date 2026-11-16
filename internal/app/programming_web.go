@@ -12,11 +12,11 @@ package app
 // DSH, and exposes that URL to the embedded ProgrammingPage iframe.
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -29,6 +29,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
@@ -50,14 +51,22 @@ var (
 	programmingWebStartedAt    time.Time
 	programmingWebToken        string
 	programmingWebStarting     bool
-	programmingWebLogWriteMu   sync.Mutex
+	programmingWebDetached     bool
 	programmingWebTokenPattern = regexp.MustCompile(`https?://[^\s]+\?token=([A-Za-z0-9._~-]+)`)
 )
 
 var (
-	programmingWebPortOpenFn = programmingWebPortOpen
-	programmingWebPIDAliveFn = programmingWebPIDAlive
+	programmingWebPortOpenFn       = programmingWebPortOpen
+	programmingWebPIDAliveFn       = programmingWebPIDAlive
+	programmingWebReleaseTrackedFn = proc.ReleaseTracked
 )
+
+type programmingWebSession struct {
+	PID       int       `json:"pid"`
+	Token     string    `json:"token"`
+	Root      string    `json:"root"`
+	StartedAt time.Time `json:"started_at"`
+}
 
 func programmingWebRoot() string {
 	if v := strings.TrimSpace(os.Getenv("GAEA_DSH_ROOT")); v != "" {
@@ -95,6 +104,10 @@ func programmingWebLogPath(root string) string {
 	return filepath.Join(programmingWebHome(root), "dsh-web.log")
 }
 
+func programmingWebSessionPath(root string) string {
+	return filepath.Join(programmingWebHome(root), ".gaea-web-session.json")
+}
+
 func programmingWebPortOpen() bool {
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", programmingWebPort), 350*time.Millisecond)
 	if err != nil {
@@ -130,7 +143,7 @@ func programmingWebPIDProbe(pid int) *exec.Cmd {
 }
 
 func programmingWebOwnedLocked() bool {
-	return programmingWebCmd != nil && programmingWebPID > 0 && programmingWebPIDAliveFn(programmingWebPID)
+	return programmingWebPID > 0 && programmingWebPIDAliveFn(programmingWebPID)
 }
 
 func programmingWebURL(token string) string {
@@ -138,6 +151,68 @@ func programmingWebURL(token string) string {
 		return programmingWebBaseURL + "/"
 	}
 	return programmingWebBaseURL + "/?token=" + token
+}
+
+func loadProgrammingWebSession(path string) (programmingWebSession, bool, error) {
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return programmingWebSession{}, false, nil
+	}
+	if err != nil {
+		return programmingWebSession{}, false, err
+	}
+	var session programmingWebSession
+	if err := json.Unmarshal(raw, &session); err != nil {
+		return programmingWebSession{}, false, err
+	}
+	return session, true, nil
+}
+
+func saveProgrammingWebSession(path string, session programmingWebSession) error {
+	raw, err := json.Marshal(session)
+	if err != nil {
+		return err
+	}
+	return fileutil.AtomicWrite(path, raw, 0o600)
+}
+
+func clearProgrammingWebSession(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("清理 DSH Web 持久会话失败", "path", path, "error", err)
+	}
+}
+
+// adoptProgrammingWebSession reconnects a detached DSH Web process left by a
+// previous gaea instance. The token is stored with the PID so the embedded page
+// and the stop button remain usable after reopening gaea.
+func adoptProgrammingWebSession() {
+	root := programmingWebRoot()
+	session, ok, err := loadProgrammingWebSession(programmingWebSessionPath(root))
+	if err != nil {
+		slog.Warn("读取 DSH Web 持久会话失败", "error", err)
+		return
+	}
+	if !ok {
+		return
+	}
+	if filepath.Clean(session.Root) != filepath.Clean(root) ||
+		session.PID <= 0 || strings.TrimSpace(session.Token) == "" {
+		return
+	}
+	if !programmingWebPortOpenFn() || !programmingWebPIDAliveFn(session.PID) {
+		clearProgrammingWebSession(programmingWebSessionPath(root))
+		return
+	}
+
+	programmingWebMu.Lock()
+	defer programmingWebMu.Unlock()
+	if programmingWebCmd != nil || programmingWebPID != 0 || programmingWebStarting {
+		return
+	}
+	programmingWebPID = session.PID
+	programmingWebStartedAt = session.StartedAt
+	programmingWebToken = session.Token
+	programmingWebDetached = true
 }
 
 func programmingWebDshVersion(root string) string {
@@ -182,12 +257,14 @@ func programmingWebWithin(child, root string) bool {
 // GetProgrammingWebStatus reports liveness and returns the tokenized iframe URL
 // only for the process owned by this gaea instance.
 func (a *App) GetProgrammingWebStatus() map[string]interface{} {
+	adoptProgrammingWebSession()
 	programmingWebMu.Lock()
 	pid := programmingWebPID
 	token := programmingWebToken
 	started := programmingWebStartedAt
 	starting := programmingWebStarting
 	owned := programmingWebOwnedLocked()
+	detached := programmingWebDetached
 	programmingWebMu.Unlock()
 
 	running := programmingWebPortOpenFn()
@@ -217,6 +294,7 @@ func (a *App) GetProgrammingWebStatus() map[string]interface{} {
 		"version":  programmingWebDshVersion(root),
 		"log":      programmingWebLogPath(root),
 		"uptime_s": uptime,
+		"detached": detached,
 	}
 }
 
@@ -290,43 +368,61 @@ func extractProgrammingWebToken(line string) string {
 	return match[1]
 }
 
-func writeProgrammingWebLog(logFile *os.File, line, token string) {
-	if logFile == nil || line == "" {
-		return
+func readProgrammingWebTokenFromLog(path string, offset int64) string {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
 	}
-	safe := line
-	if token != "" {
-		safe = strings.ReplaceAll(safe, token, "<redacted>")
+	if offset < 0 || offset > int64(len(raw)) {
+		offset = 0
 	}
-	programmingWebLogWriteMu.Lock()
-	_, _ = io.WriteString(logFile, safe)
-	programmingWebLogWriteMu.Unlock()
+	raw = raw[offset:]
+	match := programmingWebTokenPattern.FindSubmatch(raw)
+	if len(match) < 2 {
+		return ""
+	}
+	return string(match[1])
 }
 
-func scanProgrammingWebOutput(r io.Reader, logFile *os.File, tokenCh chan<- string, onToken func(string)) {
-	reader := bufio.NewReader(r)
-	for {
-		line, err := reader.ReadString('\n')
-		if line != "" {
-			token := extractProgrammingWebToken(line)
-			writeProgrammingWebLog(logFile, line, token)
-			if token != "" {
-				onToken(token)
-				select {
-				case tokenCh <- token:
-				default:
-				}
-			}
-		}
-		if err != nil {
-			return
-		}
+func redactProgrammingWebLogToken(path, token string) {
+	if token == "" {
+		return
 	}
+	raw, err := os.ReadFile(path)
+	if err != nil || !bytes.Contains(raw, []byte(token)) {
+		return
+	}
+	replacement := []byte("<redacted>")
+	if len(token) < len(replacement) {
+		replacement = bytes.Repeat([]byte("*"), len(token))
+	} else {
+		replacement = append(replacement, bytes.Repeat([]byte("*"), len(token)-len(replacement))...)
+	}
+	redacted := bytes.ReplaceAll(raw, []byte(token), replacement)
+	if len(redacted) != len(raw) {
+		return
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+	_, _ = f.WriteAt(redacted, 0)
+}
+
+func captureProgrammingWebToken(path string, offset int64) string {
+	token := readProgrammingWebTokenFromLog(path, offset)
+	if token == "" {
+		return ""
+	}
+	redactProgrammingWebLogToken(path, token)
+	return token
 }
 
 // StartProgrammingWeb starts the isolated DSH Web. It is idempotent while the
 // owned process or an in-progress start is active.
 func (a *App) StartProgrammingWeb() error {
+	adoptProgrammingWebSession()
 	programmingWebMu.Lock()
 	if programmingWebStarting || programmingWebOwnedLocked() {
 		programmingWebMu.Unlock()
@@ -366,6 +462,12 @@ func (a *App) StartProgrammingWeb() error {
 	if err != nil {
 		return fmt.Errorf("打开 DSH Web 日志失败: %w", err)
 	}
+	logInfo, err := logFile.Stat()
+	if err != nil {
+		_ = logFile.Close()
+		return fmt.Errorf("读取 DSH Web 日志位置失败: %w", err)
+	}
+	logOffset := logInfo.Size()
 
 	cmd := exec.Command(
 		nodePath,
@@ -380,23 +482,18 @@ func (a *App) StartProgrammingWeb() error {
 	cmd.Dir = root
 	cmd.Env = programmingWebEnv(root)
 	proc.HideWindow(cmd)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = logFile.Close()
-		return fmt.Errorf("接管 DSH Web stdout 失败: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		_ = logFile.Close()
-		return fmt.Errorf("接管 DSH Web stderr 失败: %w", err)
-	}
+	// Direct file handles (not os/exec pipes) are inherited by node. They keep
+	// working after gaea exits, so a detached external-browser session cannot die
+	// from a broken stdout/stderr pipe.
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 
 	job, err := proc.StartTracked(cmd)
 	if err != nil {
 		_ = logFile.Close()
 		return fmt.Errorf("启动 DSH Web 失败: %w", err)
 	}
+	_ = logFile.Close()
 	pid := cmd.Process.Pid
 
 	programmingWebMu.Lock()
@@ -405,43 +502,32 @@ func (a *App) StartProgrammingWeb() error {
 	programmingWebPID = pid
 	programmingWebStartedAt = time.Now()
 	programmingWebToken = ""
+	programmingWebDetached = false
 	programmingWebMu.Unlock()
 
-	tokenCh := make(chan string, 1)
 	waitCh := make(chan error, 1)
-	var scanners sync.WaitGroup
-	scanners.Add(2)
-
-	onToken := func(token string) {
-		programmingWebMu.Lock()
-		if programmingWebCmd == cmd {
-			programmingWebToken = token
-		}
-		programmingWebMu.Unlock()
-	}
-	go func() {
-		defer scanners.Done()
-		scanProgrammingWebOutput(stdout, logFile, tokenCh, onToken)
-	}()
-	go func() {
-		defer scanners.Done()
-		scanProgrammingWebOutput(stderr, logFile, tokenCh, onToken)
-	}()
 	go func() {
 		waitErr := cmd.Wait()
-		scanners.Wait()
-		proc.KillTracked(cmd, job)
-		_ = logFile.Close()
+		_ = captureProgrammingWebToken(logPath, logOffset)
 
 		programmingWebMu.Lock()
+		trackedJob := programmingWebJob
+		detached := programmingWebDetached
 		if programmingWebCmd == cmd {
 			programmingWebCmd = nil
 			programmingWebJob = 0
 			programmingWebPID = 0
 			programmingWebStartedAt = time.Time{}
 			programmingWebToken = ""
+			programmingWebDetached = false
 		}
 		programmingWebMu.Unlock()
+		if detached {
+			proc.KillTree(cmd)
+		} else {
+			proc.KillTracked(cmd, trackedJob)
+		}
+		clearProgrammingWebSession(programmingWebSessionPath(root))
 		waitCh <- waitErr
 	}()
 
@@ -452,12 +538,15 @@ func (a *App) StartProgrammingWeb() error {
 	sawToken := false
 	for {
 		select {
-		case token := <-tokenCh:
-			sawToken = token != ""
-			if sawToken && programmingWebPortOpenFn() {
-				return nil
-			}
 		case <-readyTick.C:
+			if token := captureProgrammingWebToken(logPath, logOffset); token != "" {
+				programmingWebMu.Lock()
+				if programmingWebCmd == cmd {
+					programmingWebToken = token
+				}
+				programmingWebMu.Unlock()
+				sawToken = true
+			}
 			if sawToken && programmingWebPortOpenFn() {
 				return nil
 			}
@@ -467,13 +556,68 @@ func (a *App) StartProgrammingWeb() error {
 			}
 			return fmt.Errorf("DSH Web 启动失败（pid=%d）：%w；日志：%s", pid, waitErr, logPath)
 		case <-timer.C:
+			_ = captureProgrammingWebToken(logPath, logOffset)
+			programmingWebMu.Lock()
+			if programmingWebCmd == cmd {
+				programmingWebJob = 0
+			}
+			programmingWebMu.Unlock()
 			proc.KillTracked(cmd, job)
 			return fmt.Errorf("DSH Web 已在 %s 内启动但未取得可用令牌（pid=%d）；日志：%s", programmingWebReadyTimeout, pid, logPath)
 		}
 	}
 }
 
-// StopProgrammingWeb stops only the gaea-owned process tree.
+// OpenProgrammingWebExternal promotes the owned DSH Web to a persistent
+// external-browser session and returns its tokenized URL. The session survives
+// gaea, is recorded for re-adoption, and remains stoppable from the page.
+func (a *App) OpenProgrammingWebExternal() (string, error) {
+	if err := a.StartProgrammingWeb(); err != nil {
+		return "", err
+	}
+	root := programmingWebRoot()
+
+	programmingWebMu.Lock()
+	cmd := programmingWebCmd
+	job := programmingWebJob
+	pid := programmingWebPID
+	token := programmingWebToken
+	started := programmingWebStartedAt
+	programmingWebMu.Unlock()
+	if pid <= 0 || strings.TrimSpace(token) == "" {
+		return "", errors.New("DSH Web 尚未取得可用访问令牌")
+	}
+
+	sessionPath := programmingWebSessionPath(root)
+	if err := saveProgrammingWebSession(sessionPath, programmingWebSession{
+		PID:       pid,
+		Token:     token,
+		Root:      root,
+		StartedAt: started,
+	}); err != nil {
+		return "", fmt.Errorf("保存 DSH Web 持久会话失败: %w", err)
+	}
+
+	if job != 0 {
+		if err := programmingWebReleaseTrackedFn(cmd, job); err != nil {
+			clearProgrammingWebSession(sessionPath)
+			return "", fmt.Errorf("释放 DSH Web 关闭回收锁失败: %w", err)
+		}
+	}
+
+	programmingWebMu.Lock()
+	if programmingWebPID == pid {
+		if job != 0 && programmingWebJob == job {
+			programmingWebJob = 0
+		}
+		programmingWebDetached = true
+	}
+	programmingWebMu.Unlock()
+	return programmingWebURL(token), nil
+}
+
+// StopProgrammingWeb stops only the gaea-owned process tree, including a
+// detached session re-adopted after a gaea restart.
 func (a *App) StopProgrammingWeb() error {
 	programmingWebMu.Lock()
 	cmd := programmingWebCmd
@@ -481,13 +625,31 @@ func (a *App) StopProgrammingWeb() error {
 	pid := programmingWebPID
 	programmingWebMu.Unlock()
 
-	if cmd == nil || pid <= 0 {
+	if pid <= 0 {
 		if programmingWebPortOpenFn() {
 			return fmt.Errorf("端口 %d 有非 gaea 实例在运行，为避免误杀请从对应启动器关闭", programmingWebPort)
 		}
 		return nil
 	}
-	proc.KillTracked(cmd, job)
+	if cmd == nil {
+		proc.KillTreePID(pid)
+		programmingWebMu.Lock()
+		if programmingWebCmd == nil && programmingWebPID == pid {
+			programmingWebPID = 0
+			programmingWebStartedAt = time.Time{}
+			programmingWebToken = ""
+			programmingWebDetached = false
+		}
+		programmingWebMu.Unlock()
+	} else {
+		programmingWebMu.Lock()
+		if programmingWebCmd == cmd {
+			programmingWebJob = 0
+		}
+		programmingWebMu.Unlock()
+		proc.KillTracked(cmd, job)
+	}
+	clearProgrammingWebSession(programmingWebSessionPath(programmingWebRoot()))
 	return nil
 }
 

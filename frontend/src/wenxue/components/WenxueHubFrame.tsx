@@ -31,7 +31,7 @@ export function WenxueHubFrame({
   actions,
   children,
 }: {
-  tone: "characters" | "reading" | "settings";
+  tone: "characters" | "reading" | "settings" | "memory";
   eyebrow: string;
   title: string;
   description: string;

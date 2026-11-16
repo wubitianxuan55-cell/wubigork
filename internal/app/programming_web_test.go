@@ -1,12 +1,27 @@
 package app
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func resetProgrammingWebTestState(t *testing.T) {
+	t.Helper()
+	programmingWebMu.Lock()
+	programmingWebCmd = nil
+	programmingWebJob = 0
+	programmingWebPID = 0
+	programmingWebStartedAt = time.Time{}
+	programmingWebToken = ""
+	programmingWebStarting = false
+	programmingWebDetached = false
+	programmingWebMu.Unlock()
+}
 
 func TestExtractProgrammingWebToken(t *testing.T) {
 	line := "\x1b[?25h(node:1) warning\ndsh web: http://127.0.0.1:3091/?token=Abc_123-test\n"
@@ -22,6 +37,117 @@ func TestProgrammingWebTailLines(t *testing.T) {
 	got := programmingWebTailLines("one\r\ntwo\nthree\n", 2)
 	if len(got) != 2 || got[0] != "two" || got[1] != "three" {
 		t.Fatalf("tail = %#v", got)
+	}
+}
+
+func TestProgrammingWebLogRedactsTokenInPlace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dsh-web.log")
+	token := "Abc_123-test-token"
+	if err := os.WriteFile(path, []byte("start\ndsh web: http://dsh.wails.localhost:3091/?token="+token+"\nnext\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := captureProgrammingWebToken(path, 0); got != token {
+		t.Fatalf("captured token = %q, want %q", got, token)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if strings.Contains(text, token) || !strings.Contains(text, "?token=<redacted>") {
+		t.Fatalf("token not redacted: %q", text)
+	}
+	if len(raw) != len("start\ndsh web: http://dsh.wails.localhost:3091/?token="+token+"\nnext\n") {
+		t.Fatalf("in-place redaction changed log length: %d", len(raw))
+	}
+}
+
+func TestProgrammingWebAdoptsDetachedSession(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "dsh")
+	t.Setenv("GAEA_DSH_ROOT", root)
+	started := time.Now().Add(-45 * time.Second).Truncate(time.Second)
+	if err := saveProgrammingWebSession(programmingWebSessionPath(root), programmingWebSession{
+		PID:       4242,
+		Token:     "persisted-token",
+		Root:      root,
+		StartedAt: started,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resetProgrammingWebTestState(t)
+	t.Cleanup(func() { resetProgrammingWebTestState(t) })
+	oldPortOpen := programmingWebPortOpenFn
+	oldAlive := programmingWebPIDAliveFn
+	programmingWebPortOpenFn = func() bool { return true }
+	programmingWebPIDAliveFn = func(pid int) bool { return pid == 4242 }
+	t.Cleanup(func() {
+		programmingWebPortOpenFn = oldPortOpen
+		programmingWebPIDAliveFn = oldAlive
+	})
+
+	status := (&App{}).GetProgrammingWebStatus()
+	if status["owned"] != true || status["running"] != true || status["detached"] != true {
+		t.Fatalf("detached session not adopted: %+v", status)
+	}
+	if got := status["url"]; got != programmingWebBaseURL+"/?token=persisted-token" {
+		t.Fatalf("adopted url = %v", got)
+	}
+	if uptime, _ := status["uptime_s"].(int64); uptime < 40 {
+		t.Fatalf("adopted uptime = %d, want >= 40", uptime)
+	}
+}
+
+func TestOpenProgrammingWebExternalPersistsSession(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "dsh")
+	t.Setenv("GAEA_DSH_ROOT", root)
+	resetProgrammingWebTestState(t)
+	t.Cleanup(func() { resetProgrammingWebTestState(t) })
+	oldPortOpen := programmingWebPortOpenFn
+	oldAlive := programmingWebPIDAliveFn
+	oldRelease := programmingWebReleaseTrackedFn
+	programmingWebPortOpenFn = func() bool { return true }
+	programmingWebPIDAliveFn = func(pid int) bool { return pid == 5151 }
+	released := false
+	programmingWebReleaseTrackedFn = func(_ *exec.Cmd, job uintptr) error {
+		if job != 77 {
+			t.Fatalf("release job = %d, want 77", job)
+		}
+		released = true
+		return nil
+	}
+	t.Cleanup(func() {
+		programmingWebPortOpenFn = oldPortOpen
+		programmingWebPIDAliveFn = oldAlive
+		programmingWebReleaseTrackedFn = oldRelease
+	})
+
+	started := time.Now().Add(-time.Minute).Truncate(time.Second)
+	programmingWebMu.Lock()
+	programmingWebCmd = exec.Command("cmd")
+	programmingWebJob = 77
+	programmingWebPID = 5151
+	programmingWebStartedAt = started
+	programmingWebToken = "external-token"
+	programmingWebMu.Unlock()
+
+	url, err := (&App{}).OpenProgrammingWebExternal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if url != programmingWebBaseURL+"/?token=external-token" || !released {
+		t.Fatalf("url=%q released=%v", url, released)
+	}
+	session, ok, err := loadProgrammingWebSession(programmingWebSessionPath(root))
+	if err != nil || !ok {
+		t.Fatalf("session load ok=%v err=%v", ok, err)
+	}
+	if session.PID != 5151 || session.Token != "external-token" || session.Root != root {
+		t.Fatalf("session = %+v", session)
+	}
+	programmingWebMu.Lock()
+	defer programmingWebMu.Unlock()
+	if programmingWebJob != 0 || !programmingWebDetached {
+		t.Fatalf("job=%d detached=%v", programmingWebJob, programmingWebDetached)
 	}
 }
 
@@ -110,6 +236,62 @@ func TestProgrammingWebLiveStart(t *testing.T) {
 		if strings.Contains(line, "?token=") && !strings.Contains(line, "?token=<redacted>") {
 			t.Fatalf("log leaked the launch token: %q", line)
 		}
+	}
+}
+
+func TestProgrammingWebExternalHelper(t *testing.T) {
+	if os.Getenv("GAEA_DSH_EXTERNAL_HELPER") != "1" {
+		t.Skip("external-session helper")
+	}
+	a := &App{}
+	if err := a.StartProgrammingWeb(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	url, err := a.OpenProgrammingWebExternal()
+	if err != nil {
+		t.Fatalf("open external failed: %v", err)
+	}
+	if !strings.Contains(url, "token=") {
+		t.Fatalf("tokenized url expected: %q", url)
+	}
+	fmt.Println("external DSH Web ready")
+}
+
+// The helper test process exits without stopping DSH Web. The parent then
+// verifies the detached service, token and PID survived and can be re-adopted.
+func TestProgrammingWebExternalSurvivesOwnerExit(t *testing.T) {
+	if os.Getenv("GAEA_DSH_LIVE_TEST") != "1" {
+		t.Skip("set GAEA_DSH_LIVE_TEST=1 to start the isolated local DSH Web")
+	}
+	resetProgrammingWebTestState(t)
+	t.Cleanup(func() { resetProgrammingWebTestState(t) })
+	if programmingWebPortOpenFn() {
+		t.Fatalf("port %d must be free before the live test", programmingWebPort)
+	}
+
+	helper := exec.Command(os.Args[0], "-test.run=^TestProgrammingWebExternalHelper$", "-test.v")
+	helper.Env = append(os.Environ(), "GAEA_DSH_EXTERNAL_HELPER=1")
+	out, err := helper.CombinedOutput()
+	if err != nil {
+		t.Fatalf("external helper failed: %v\n%s", err, out)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for !programmingWebPortOpenFn() && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	status := (&App{}).GetProgrammingWebStatus()
+	if status["running"] != true || status["owned"] != true || status["detached"] != true {
+		t.Fatalf("detached DSH Web was not re-adopted: %+v\n%s", status, out)
+	}
+	if err := (&App{}).StopProgrammingWeb(); err != nil {
+		t.Fatalf("stop adopted DSH Web: %v", err)
+	}
+	for time.Now().Before(deadline) && programmingWebPortOpenFn() {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if programmingWebPortOpenFn() {
+		t.Fatalf("port %d still open after stop", programmingWebPort)
 	}
 }
 

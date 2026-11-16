@@ -380,6 +380,7 @@ export interface CoreBindings {
   // ── 编程板块：隔离 DSH Web 进程与内嵌入口 ─────────────────────
   GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
   StartProgrammingWeb(): Promise<void>;
+  OpenProgrammingWebExternal(): Promise<string>;
   StopProgrammingWeb(): Promise<void>;
   GetProgrammingWebPreflight(): Promise<ProgrammingWebPreflight>;
   ProgrammingWebLogTail(n?: number): Promise<ProgrammingWebLogTail>;

@@ -9,6 +9,7 @@ export interface ProgrammingWebStatus {
   version: string
   log: string
   uptime_s: number
+  detached?: boolean
 }
 
 export interface ProgrammingWebPreflight {

@@ -2803,6 +2803,8 @@ export namespace app {
 	    sourceSession?: string;
 	    sourceMessage?: string;
 	    pinned?: boolean;
+	    invalid?: boolean;
+	    updatedAt?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MemoryFact(source);
@@ -2819,6 +2821,8 @@ export namespace app {
 	        this.sourceSession = source["sourceSession"];
 	        this.sourceMessage = source["sourceMessage"];
 	        this.pinned = source["pinned"];
+	        this.invalid = source["invalid"];
+	        this.updatedAt = source["updatedAt"];
 	    }
 	}
 	export class MemoryGraphView {
@@ -4717,6 +4721,26 @@ export namespace app {
 		}
 	}
 	
+	export class WenxueMemoryArchivedView {
+	    name: string;
+	    title?: string;
+	    type: string;
+	    body: string;
+	    archivedAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WenxueMemoryArchivedView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.type = source["type"];
+	        this.body = source["body"];
+	        this.archivedAt = source["archivedAt"];
+	    }
+	}
 	export class WenxueMemoryFactView {
 	    name: string;
 	    title?: string;

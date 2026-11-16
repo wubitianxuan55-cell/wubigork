@@ -175,3 +175,6 @@ export interface SkillStatView {
   ok: number;
   lastAt: number;
 }
+
+// WenxueMemoryArchivedView 图文脑归档条目只读视图（记忆面板归档区）。
+export type WenxueMemoryArchivedView = WireShape<AppModels.WenxueMemoryArchivedView>;

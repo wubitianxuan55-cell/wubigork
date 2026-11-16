@@ -106,7 +106,19 @@ export function WenxueMaterials(arg1:number):Promise<Array<app.FileSearchHit>>;
 
 export function WenxueMemory():Promise<app.MemoryView>;
 
+export function WenxueMemoryArchive(arg1:string):Promise<void>;
+
+export function WenxueMemoryArchivedList():Promise<Array<app.WenxueMemoryArchivedView>>;
+
+export function WenxueMemoryInvalidate(arg1:string,arg2:string):Promise<void>;
+
+export function WenxueMemoryPin(arg1:string,arg2:boolean):Promise<void>;
+
+export function WenxueMemoryRestoreInvalidate(arg1:string):Promise<void>;
+
 export function WenxueMemorySuggestions():Promise<app.MemorySuggestionsView>;
+
+export function WenxueMemoryUnarchive(arg1:string):Promise<void>;
 
 export function WenxueMeta():Promise<app.Meta>;
 

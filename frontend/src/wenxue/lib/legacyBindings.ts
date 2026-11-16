@@ -232,4 +232,6 @@ export const legacyBindings = [
   "WhirlEngineStart",
   "WhirlEngineStatus",
   "WhirlEngineStop",
+  "GaeaWenxueMemoryBrowse", // gaea 桥消费（记忆中枢），wenxue 桥不消费
 ] as const;
+

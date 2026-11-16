@@ -202,8 +202,32 @@ export function WenxueMemory() {
   return window['go']['app']['WenxueB']['WenxueMemory']();
 }
 
+export function WenxueMemoryArchive(arg1) {
+  return window['go']['app']['WenxueB']['WenxueMemoryArchive'](arg1);
+}
+
+export function WenxueMemoryArchivedList() {
+  return window['go']['app']['WenxueB']['WenxueMemoryArchivedList']();
+}
+
+export function WenxueMemoryInvalidate(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxueMemoryInvalidate'](arg1, arg2);
+}
+
+export function WenxueMemoryPin(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxueMemoryPin'](arg1, arg2);
+}
+
+export function WenxueMemoryRestoreInvalidate(arg1) {
+  return window['go']['app']['WenxueB']['WenxueMemoryRestoreInvalidate'](arg1);
+}
+
 export function WenxueMemorySuggestions() {
   return window['go']['app']['WenxueB']['WenxueMemorySuggestions']();
+}
+
+export function WenxueMemoryUnarchive(arg1) {
+  return window['go']['app']['WenxueB']['WenxueMemoryUnarchive'](arg1);
 }
 
 export function WenxueMeta() {

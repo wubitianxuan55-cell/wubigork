@@ -603,6 +603,7 @@ export const bindingSignatures = {
   NovelStyleDigestGet: { argc: 0, variadic: false, params: "" },
   NovelTechniqueSearch: { argc: 1, variadic: false, params: "query string" },
   OpenImageSaveDir: { argc: 0, variadic: false, params: "" },
+  OpenProgrammingWebExternal: { argc: 0, variadic: false, params: "" },
   OpenNovelImagesDir: { argc: 0, variadic: false, params: "" },
   OpenProject: { argc: 1, variadic: false, params: "dir string" },
   PantheonAddUserNote: { argc: 2, variadic: false, params: "id string, content string" },

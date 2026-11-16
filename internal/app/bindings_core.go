@@ -40,6 +40,7 @@ func (b *CoreB) ListProjects() ([]ProjectCard, error) { return b.a.ListProjects(
 func (b *CoreB) ListSkills() []map[string]interface{} { return b.a.ListSkills() }
 func (b *CoreB) Login() error { return b.a.Login() }
 func (b *CoreB) Logout() error { return b.a.Logout() }
+func (b *CoreB) OpenProgrammingWebExternal() (string, error) { return b.a.OpenProgrammingWebExternal() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
 func (b *CoreB) ProgrammingWebLogTail(n int) map[string]interface{} { return b.a.ProgrammingWebLogTail(n) }
 func (b *CoreB) QuantSuitability(model string) (string, error) { return b.a.QuantSuitability(model) }

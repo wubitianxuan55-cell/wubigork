@@ -118,6 +118,10 @@ export function Logout() {
   return window['go']['app']['CoreB']['Logout']();
 }
 
+export function OpenProgrammingWebExternal() {
+  return window['go']['app']['CoreB']['OpenProgrammingWebExternal']();
+}
+
 export function OpenProject(arg1) {
   return window['go']['app']['CoreB']['OpenProject'](arg1);
 }

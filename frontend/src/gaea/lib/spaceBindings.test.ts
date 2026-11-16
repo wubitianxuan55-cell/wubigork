@@ -107,6 +107,7 @@ describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
     expect(independent.sort()).toEqual([
       "GetProgrammingWebPreflight",
       "GetProgrammingWebStatus",
+      "OpenProgrammingWebExternal",
       "ProgrammingWebLogTail",
       "StartProgrammingWeb",
       "StopProgrammingWeb",

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ProgrammingPage, {
   DSH_INSTALL_COMMAND,
   DSH_LOCAL_URL,
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   status: vi.fn(),
   preflight: vi.fn(),
   start: vi.fn(),
+  openSession: vi.fn(),
   stop: vi.fn(),
   logs: vi.fn(),
   openExternal: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('../gaea/lib/bridge', () => ({
     GetProgrammingWebStatus: mocks.status,
     GetProgrammingWebPreflight: mocks.preflight,
     StartProgrammingWeb: mocks.start,
+    OpenProgrammingWebExternal: mocks.openSession,
     StopProgrammingWeb: mocks.stop,
     ProgrammingWebLogTail: mocks.logs,
   },
@@ -79,6 +81,7 @@ const ready: ProgrammingWebPreflight = {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.stop.mockResolvedValue(undefined)
+  mocks.openSession.mockResolvedValue(running.url)
   mocks.logs.mockResolvedValue({ exists: false, path: '', lines: [], error: '' })
 })
 
@@ -93,6 +96,9 @@ describe('ProgrammingPage', () => {
     const frame = await screen.findByTitle('DeepSeek Harness Web') as HTMLIFrameElement
     expect(frame.src).toBe(running.url)
     expect(screen.getByText(`运行中 · ${DSH_VERSION}`)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /外部浏览器打开/ }))
+    await waitFor(() => expect(mocks.openSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.openExternal).toHaveBeenCalledWith(running.url))
   })
 
   it('空闲时自动启动隔离 DSH Web，再切换为内嵌页面', async () => {
@@ -121,6 +127,7 @@ describe('ProgrammingPage', () => {
     render(<ProgrammingPage />)
 
     expect(await screen.findByText(/适配目标为 0\.2\.2-rc\.1/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /外部浏览器打开/ })).toBeTruthy()
     const install = screen.getByRole('link', { name: /打开官方网页版安装说明/ })
     expect(install.getAttribute('href')).toBe(DSH_REPO_URL)
     fireEvent.click(install)

@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 682 名（原生变参 19 名已收窄标注）。
+// 共 689 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -497,6 +497,7 @@ export const bindingSignatures = {
   Login: { argc: 0, variadic: false, params: "" },
   Logout: { argc: 0, variadic: false, params: "" },
   OpenImageSaveDir: { argc: 0, variadic: false, params: "" },
+  OpenProgrammingWebExternal: { argc: 0, variadic: false, params: "" },
   OpenProject: { argc: 1, variadic: false, params: "dir string" },
   PantheonAddUserNote: { argc: 2, variadic: false, params: "id string, content string" },
   PantheonAgents: { argc: 0, variadic: false, params: "" },
@@ -638,7 +639,13 @@ export const bindingSignatures = {
   WenxueListWorkspaces: { argc: 0, variadic: false, params: "" },
   WenxueMaterials: { argc: 1, variadic: false, params: "limit int" },
   WenxueMemory: { argc: 0, variadic: false, params: "" },
+  WenxueMemoryArchive: { argc: 1, variadic: false, params: "name string" },
+  WenxueMemoryArchivedList: { argc: 0, variadic: false, params: "" },
+  WenxueMemoryInvalidate: { argc: 2, variadic: false, params: "name string, reason string" },
+  WenxueMemoryPin: { argc: 2, variadic: false, params: "name string, pinned bool" },
+  WenxueMemoryRestoreInvalidate: { argc: 1, variadic: false, params: "name string" },
   WenxueMemorySuggestions: { argc: 0, variadic: false, params: "" },
+  WenxueMemoryUnarchive: { argc: 1, variadic: false, params: "name string" },
   WenxueMeta: { argc: 0, variadic: false, params: "" },
   WenxueNewSession: { argc: 0, variadic: false, params: "" },
   WenxueOpenWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
@@ -703,5 +710,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 682。
-export const bindingSignatureCount = 682;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 689。
+export const bindingSignatureCount = 689;

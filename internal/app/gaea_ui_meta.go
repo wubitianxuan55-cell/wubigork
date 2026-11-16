@@ -314,6 +314,8 @@ type MemoryFact struct {
 	SourceSession string `json:"sourceSession,omitempty"` // 沉淀来源会话
 	SourceMessage string `json:"sourceMessage,omitempty"` // 沉淀来源消息/轮次
 	Pinned        bool   `json:"pinned,omitempty"`        // 固化（5.3 三态生命周期：免疫衰减/豁免清理）
+	Invalid       bool   `json:"invalid,omitempty"`       // 9.3 失效标记（原文保留，注入面排除）——图文脑面板消费
+	UpdatedAt     string `json:"updatedAt,omitempty"`     // 最近写入（RFC3339）
 }
 
 // MemoryScope 是一个可写快捷添加目标。

@@ -3,6 +3,7 @@
 package proc
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -16,9 +17,26 @@ func KillTree(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
-		_ = cmd.Process.Kill() // not a group leader (Setpgid wasn't set) — at least kill the child
+	KillTreePID(cmd.Process.Pid)
+	_ = cmd.Process.Kill()
+}
+
+// KillTreePID terminates a persistent process group by PID.
+func KillTreePID(pid int) {
+	if pid <= 0 {
+		return
 	}
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+		if p, findErr := os.FindProcess(pid); findErr == nil {
+			_ = p.Kill()
+		}
+	}
+}
+
+// ReleaseTracked is a no-op off Windows: independent process groups already
+// survive their parent. KillTreePID remains available for re-adopted sessions.
+func ReleaseTracked(*exec.Cmd, uintptr) error {
+	return nil
 }
 
 // SetProcessGroupKill makes cmd start in its own process group so KillTree can

@@ -62,6 +62,8 @@ export function Login():Promise<void>;
 
 export function Logout():Promise<void>;
 
+export function OpenProgrammingWebExternal():Promise<string>;
+
 export function OpenProject(arg1:string):Promise<Record<string, any>>;
 
 export function ProgrammingWebLogTail(arg1:number):Promise<Record<string, any>>;

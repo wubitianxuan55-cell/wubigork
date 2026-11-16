@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 // A launcher (cmd.exe) that spawns a long-lived grandchild (ping) which inherits
@@ -89,5 +91,41 @@ func TestStartTrackedResumesSuspendedChild(t *testing.T) {
 		}
 	case <-time.After(8 * time.Second):
 		t.Fatal("cmd.Wait blocked — StartTracked left the child suspended")
+	}
+}
+
+// ReleaseTracked closes the kill-on-close Job Object while the child keeps
+// running. This is the process primitive behind persistent external-browser
+// sessions.
+func TestReleaseTrackedKeepsProcessAlive(t *testing.T) {
+	cmd := exec.Command("cmd", "/c", "ping", "-n", "30", "127.0.0.1")
+	HideWindow(cmd)
+	job, err := StartTracked(cmd)
+	if err != nil {
+		t.Fatalf("StartTracked: %v", err)
+	}
+	if job == 0 {
+		t.Fatal("StartTracked returned 0 — job object not created")
+	}
+	pid := uint32(cmd.Process.Pid)
+	t.Cleanup(func() {
+		KillTreePID(int(pid))
+		_ = cmd.Wait()
+	})
+
+	if err := ReleaseTracked(cmd, job); err != nil {
+		t.Fatalf("ReleaseTracked: %v", err)
+	}
+	h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, pid)
+	if err != nil {
+		t.Fatalf("OpenProcess: %v", err)
+	}
+	defer func() { _ = windows.CloseHandle(h) }()
+	event, err := windows.WaitForSingleObject(h, 300)
+	if err != nil {
+		t.Fatalf("WaitForSingleObject: %v", err)
+	}
+	if event != uint32(windows.WAIT_TIMEOUT) {
+		t.Fatalf("process exited after ReleaseTracked: event=%#x", event)
 	}
 }

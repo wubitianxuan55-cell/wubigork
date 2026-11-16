@@ -496,6 +496,7 @@ export const bindingSignatures = {
   Login: { argc: 0, variadic: false, params: "" },
   Logout: { argc: 0, variadic: false, params: "" },
   OpenImageSaveDir: { argc: 0, variadic: false, params: "" },
+  OpenProgrammingWebExternal: { argc: 0, variadic: false, params: "" },
   OpenProject: { argc: 1, variadic: false, params: "dir string" },
   PantheonAddUserNote: { argc: 2, variadic: false, params: "id string, content string" },
   PantheonAgents: { argc: 0, variadic: false, params: "" },

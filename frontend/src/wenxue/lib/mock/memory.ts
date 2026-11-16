@@ -24,6 +24,7 @@ type MemoryMethods = Pick<
   | "MemoryUnarchiveBatch" | "MemorySetRetentionDays"
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
   | "SetMemoryEnabled" | "MemorySuggestions" | "MorningPreload" | "SetMorningPreload"
+  | "WenxueMemoryPin" | "WenxueMemoryArchive" | "WenxueMemoryArchivedList" | "WenxueMemoryUnarchive" | "WenxueMemoryInvalidate" | "WenxueMemoryRestoreInvalidate"
   | "AcceptMemorySuggestion" | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
   | "SetDreamMode" | "DismissMemorySuggestion" | "DreamPurgePreview" | "DreamPurge"
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
@@ -439,5 +440,14 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       // mock: no-op——无真实 whisper 库可打包，返回导出条目数 0。
       return 0;
     },
+    async WenxueMemoryPin(_name: string, _pinned: boolean) {},
+    async WenxueMemoryArchive(_name: string) {},
+    async WenxueMemoryArchivedList() {
+      return [];
+    },
+    async WenxueMemoryUnarchive(_name: string) {},
+    async WenxueMemoryInvalidate(_name: string, _reason: string) {},
+    async WenxueMemoryRestoreInvalidate(_name: string) {},
+
   };
 }

@@ -25,10 +25,20 @@ func KillTree(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	kill := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cmd.Process.Pid))
+	KillTreePID(cmd.Process.Pid)
+	_ = cmd.Process.Kill()
+}
+
+// KillTreePID terminates a process tree by PID. It is used for a persistent
+// child that was released from its Job Object and later re-adopted by a new
+// gaea instance, where no *exec.Cmd handle survived.
+func KillTreePID(pid int) {
+	if pid <= 0 {
+		return
+	}
+	kill := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
 	HideWindow(kill)
 	_ = kill.Run()
-	_ = cmd.Process.Kill()
 }
 
 // StartTracked starts cmd inside a new Job Object whose KILL_ON_JOB_CLOSE flag
@@ -51,6 +61,38 @@ func StartTracked(cmd *exec.Cmd) (uintptr, error) {
 	}
 	defer resumeProcess(uint32(cmd.Process.Pid))
 	return assignJob(cmd), nil
+}
+
+// ReleaseTracked clears KILL_ON_JOB_CLOSE and closes the Job Object handle so
+// the process tree can outlive gaea. The caller must retain the PID for explicit
+// stopping and re-adoption (for example, the external-browser DSH session).
+func ReleaseTracked(_ *exec.Cmd, job uintptr) error {
+	if job == 0 {
+		return nil
+	}
+	h := windows.Handle(job)
+	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
+	var returned uint32
+	if err := windows.QueryInformationJobObject(
+		h,
+		windows.JobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&info)),
+		uint32(unsafe.Sizeof(info)),
+		&returned,
+	); err != nil {
+		return err
+	}
+	info.BasicLimitInformation.LimitFlags &^= windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	if _, err := windows.SetInformationJobObject(
+		h,
+		windows.JobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&info)),
+		uint32(unsafe.Sizeof(info)),
+	); err != nil {
+		return err
+	}
+	_ = windows.CloseHandle(h)
+	return nil
 }
 
 func assignJob(cmd *exec.Cmd) uintptr {

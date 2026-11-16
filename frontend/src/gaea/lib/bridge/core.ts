@@ -380,6 +380,9 @@ export interface CoreBindings {
   // ── 编程板块：隔离 DSH Web 进程与内嵌入口 ─────────────────────
   GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
   StartProgrammingWeb(): Promise<void>;
+  // OpenProgrammingWebExternal 将 DSH Web 提升为可跨 gaea 存活的持久会话，
+  // 返回带访问令牌的地址供系统默认浏览器打开。
+  OpenProgrammingWebExternal(): Promise<string>;
   StopProgrammingWeb(): Promise<void>;
   GetProgrammingWebPreflight(): Promise<ProgrammingWebPreflight>;
   ProgrammingWebLogTail(n?: number): Promise<ProgrammingWebLogTail>;

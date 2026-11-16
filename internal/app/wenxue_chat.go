@@ -466,6 +466,8 @@ func (a *App) WenxueMemory() MemoryView {
 			SourceSession: f.SourceSession,
 			SourceMessage: f.SourceMessage,
 			Pinned:        f.Pinned,
+			Invalid:       !f.InvalidAt.IsZero(),
+			UpdatedAt:     fmtTimeOrEmpty(f.UpdatedAt),
 		})
 	}
 	if c := wenxueCtrl(); c != nil {
@@ -523,6 +525,65 @@ func (a *App) WenxueSaveDoc(path, body string) (string, error) {
 		return c.SaveDoc(path, body)
 	}
 	return "", nil
+}
+
+// ── 图文脑生命周期（2026-11-16 面板优化批）──────────────────────
+// 固化/归档/失效恢复与办公脑同机制（5.3/9.3），经 hubWenxueBrainStore 直达
+// 图文脑；全部只影响 wenxue-brain，办公零接触。
+
+// WenxueMemoryPin 图文脑固化/解固（免疫衰减归档、注入排序加权）。
+func (a *App) WenxueMemoryPin(name string, pinned bool) error {
+	if pinned {
+		return a.hubWenxueBrainStore().Pin(name)
+	}
+	return a.hubWenxueBrainStore().Unpin(name)
+}
+
+// WenxueMemoryArchive 归档一条事实（软删：退出注入面，原文保留可恢复）。
+func (a *App) WenxueMemoryArchive(name string) error {
+	_, err := a.hubWenxueBrainStore().Archive(name)
+	return err
+}
+
+// WenxueMemoryArchivedView 归档条目只读视图。
+type WenxueMemoryArchivedView struct {
+	Name       string `json:"name"`
+	Title      string `json:"title,omitempty"`
+	Type       string `json:"type"`
+	Body       string `json:"body"`
+	ArchivedAt string `json:"archivedAt,omitempty"`
+}
+
+// WenxueMemoryArchivedList 图文脑归档清单（跨书全览，时间倒序由后端保证）。
+func (a *App) WenxueMemoryArchivedList() []WenxueMemoryArchivedView {
+	out := []WenxueMemoryArchivedView{}
+	dir := wenxueBrainDir()
+	if dir == "" {
+		return out
+	}
+	for _, m := range a.hubWenxueBrainStore().ListArchived() {
+		out = append(out, WenxueMemoryArchivedView{
+			Name: m.Name, Title: m.Title, Type: string(m.Type), Body: m.Body,
+			ArchivedAt: fmtTimeOrEmpty(m.ArchivedAt),
+		})
+	}
+	return out
+}
+
+// WenxueMemoryUnarchive 恢复归档事实（重新参与注入）。
+func (a *App) WenxueMemoryUnarchive(name string) error {
+	return a.hubWenxueBrainStore().Unarchive(name)
+}
+
+// WenxueMemoryInvalidate 失效标记（9.3）：该事实已被新事实推翻——退出注入
+// 面，原文保留可查可恢复。
+func (a *App) WenxueMemoryInvalidate(name, reason string) error {
+	return a.hubWenxueBrainStore().Invalidate(name, reason)
+}
+
+// WenxueMemoryRestoreInvalidate 失效恢复（清标记，重新参与注入）。
+func (a *App) WenxueMemoryRestoreInvalidate(name string) error {
+	return a.hubWenxueBrainStore().RestoreInvalidate(name)
 }
 
 // WenxueMemorySuggestions 图文记忆建议卡（诚实空态）：图文引擎不跑自动做梦

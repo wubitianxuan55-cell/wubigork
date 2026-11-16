@@ -27,6 +27,7 @@ export const GAEA_METHOD_FACETS = {
   // 编程板块：隔离 DSH Web 进程管理仅由 independent 入口消费。
   GetProgrammingWebPreflight: "independent",
   GetProgrammingWebStatus: "independent",
+  OpenProgrammingWebExternal: "independent",
   ProgrammingWebLogTail: "independent",
   StartProgrammingWeb: "independent",
   StopProgrammingWeb: "independent",

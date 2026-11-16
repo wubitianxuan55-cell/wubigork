@@ -36,7 +36,8 @@ type CoreMethods = Pick<
   | "Version" | "CheckUpdate" | "ApplyUpdate" | "OpenDownloadPage" | "SaveWindowState"
   | "LogFrontendError"
   | "GetProgrammingWebPreflight" | "GetProgrammingWebStatus"
-  | "StartProgrammingWeb" | "StopProgrammingWeb" | "ProgrammingWebLogTail"
+  | "StartProgrammingWeb" | "OpenProgrammingWebExternal"
+  | "StopProgrammingWeb" | "ProgrammingWebLogTail"
   // v4.171 批次一 legacy 直调转正（CoreB 门面）：应用信息/板块清单/功能级模型读。
   | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
   // 批次二 legacy 直调转正（CoreB 门面）：配置读写/统计/技能/全量导出。
@@ -805,6 +806,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async StartProgrammingWeb() {
       throw new Error("浏览器开发 mock 不启动本机 DSH 进程");
+    },
+    async OpenProgrammingWebExternal() {
+      return "http://dsh.wails.localhost:3091/?token=mock-external";
     },
     async StopProgrammingWeb() {
       // no-op
