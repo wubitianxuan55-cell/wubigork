@@ -65,7 +65,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         current: path === s.cwd,
       }));
     },
-    async WenxueCreateNovel(name: string) {
+    async WenxueCreateNovel(name: string, _infoJson: string) {
       // 浏览器 mock：把新小说目录塞进走查态工作空间集并切换（真机由 WenxueB 落盘）。
       const clean = name.trim();
       const p = tuwenRoot + "/" + clean;

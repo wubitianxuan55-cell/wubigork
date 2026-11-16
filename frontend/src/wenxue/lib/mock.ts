@@ -13,6 +13,8 @@
 //                     AnswerQuestion 后继续收尾（提问卡离线可开发）
 //   ?mock=compaction  压缩卡流程：compaction_started → compaction_done → 继续
 //   ?mock=demo        默认：完整 mock 数据（等同于不传参数）
+//   ?mock=wenxue      文学已选作品：雾港来信 + 角色/定稿/设定/时间线样例
+//   ?mock=library     文学有书未选：三本作品书架 + 最近会话
 //   ?platform=darwin|windows|linux 覆盖平台检测
 //
 // 缓存安全: 纯前端 mock，不触及 Go 内核。

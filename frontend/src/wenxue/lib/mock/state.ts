@@ -53,9 +53,16 @@ export function createMockState(): MakeMockState {
   const freshMock = scenario === "fresh";
   const runningMock = scenario === "running";
   const wenxueMock = scenario === "wenxue";
-  const cwd = wenxueMock ? "C:/AI/tuwen/雾港来信" : "~/projects/gaea"; // mutable so PickWorkspace is visible in dev
+  const libraryMock = scenario === "library";
+  const cwd = wenxueMock
+    ? "C:/AI/tuwen/雾港来信"
+    : libraryMock
+      ? "C:/AI/tuwen"
+      : "~/projects/gaea"; // mutable so PickWorkspace is visible in dev
   const workspaces = wenxueMock
     ? [cwd, "C:/AI/tuwen"]
+    : libraryMock
+      ? ["C:/AI/tuwen/雾港来信", "C:/AI/tuwen/长夜灯塔", "C:/AI/tuwen/候鸟档案", "C:/AI/tuwen"]
     : freshMock
       ? []
       : ["~/projects/gaea", "~/projects/blade", "~/projects/deepseek-forge", "~/projects/cc-switch-light", "~/projects/SuperRig"];
@@ -111,7 +118,40 @@ export function createMockState(): MakeMockState {
     { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, interrupted: false },
   ];
   // 侧边栏「项目」分组 mock：当前工作区 + 两个历史项目。
-  const projectGroupsMock: ProjectGroup[] = wenxueMock ? [
+  const libraryProjectGroups: ProjectGroup[] = libraryMock ? [
+    {
+      path: "C:/AI/tuwen/雾港来信",
+      name: "雾港来信",
+      current: false,
+      sessions: [
+        { path: "C:/AI/tuwen/雾港来信/.gaea/sessions/mock-lib-a.jsonl", preview: "梳理第三幕的人物与时间线", turns: 7, modTime: t0 - 18 * 60_000, current: false },
+        { path: "C:/AI/tuwen/雾港来信/.gaea/sessions/mock-lib-b.jsonl", preview: "雨夜追查的证物逻辑", turns: 4, modTime: t0 - 22 * 60 * 60_000, current: false },
+      ],
+      archived: [],
+      modTime: t0 - 18 * 60_000,
+    },
+    {
+      path: "C:/AI/tuwen/长夜灯塔",
+      name: "长夜灯塔",
+      current: false,
+      sessions: [
+        { path: "C:/AI/tuwen/长夜灯塔/.gaea/sessions/mock-lib-c.jsonl", preview: "海上风暴后的第一封信", turns: 12, modTime: t0 - 3 * day, current: false },
+      ],
+      archived: [],
+      modTime: t0 - 3 * day,
+    },
+    {
+      path: "C:/AI/tuwen/候鸟档案",
+      name: "候鸟档案",
+      current: false,
+      sessions: [
+        { path: "C:/AI/tuwen/候鸟档案/.gaea/sessions/mock-lib-d.jsonl", preview: "迁徙季的城市观察", turns: 5, modTime: t0 - 9 * day, current: false },
+      ],
+      archived: [],
+      modTime: t0 - 9 * day,
+    },
+  ] : [];
+  const projectGroupsMock: ProjectGroup[] = libraryMock ? libraryProjectGroups : wenxueMock ? [
     {
       path: cwd,
       name: "雾港来信",

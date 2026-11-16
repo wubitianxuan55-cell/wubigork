@@ -42,7 +42,7 @@ export function WenxueContextSurface(arg1:number,arg2:string):Promise<contextvie
 
 export function WenxueContextView(arg1:string):Promise<contextview.ContextTimeline>;
 
-export function WenxueCreateNovel(arg1:string):Promise<app.WorkspaceView>;
+export function WenxueCreateNovel(arg1:string,arg2:string):Promise<app.WorkspaceView>;
 
 export function WenxueCreateWorkspaceFile(arg1:string,arg2:string):Promise<workbench.MutationResult>;
 

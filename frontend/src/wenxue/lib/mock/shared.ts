@@ -208,7 +208,7 @@ export function delay(ms: number): Promise<void> {
 // calm（v4.123 走查发现）：无 running 子代理/无自动置前触发源的安静场景——
 // 办公冷挂载时 demo 恒有 running 子代理会触发「子代理任务自动置前」
 // （openTasksAuto→closeFilePreview）顶掉打开中的文件预览，走查预览链路用 calm。
-export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction" | "calm" | "wenxue";
+export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction" | "calm" | "wenxue" | "library";
 
 export function mockScenario(): MockScenario {
   if (typeof window === "undefined") return "demo";
@@ -220,6 +220,7 @@ export function mockScenario(): MockScenario {
   if (value === "compaction" || value === "compress") return "compaction";
   if (value === "calm" || value === "quiet") return "calm";
   if (value === "wenxue" || value === "literary" || value === "novel") return "wenxue";
+  if (value === "library" || value === "shelf") return "library";
   return "demo";
 }
 

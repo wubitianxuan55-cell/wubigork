@@ -6,7 +6,9 @@ import type { Meta, ProjectGroup, SessionMeta, WorkspaceView } from "../types";
 
 export interface WenxueExtraBindings {
   /** 新建小说工作空间：C:\AI\tuwen\<name>，创建成功后自动切换为当前工作空间。 */
-  WenxueCreateNovel(name: string): Promise<WorkspaceView>;
+  // WenxueCreateNovel 建书 + 关键信息（infoJson={genre,intro,targetWords,adultLevel}，
+  // 空串=全年龄缺省）：落 书籍信息.md 并自动固定注入新会话。
+  WenxueCreateNovel(name: string, infoJson: string): Promise<WorkspaceView>;
   /** 删除 tuwen 根下的一部小说及其整个工作空间。 */
   WenxueDeleteNovel(path: string): Promise<void>;
   /** 当前小说工作空间列表（只含 tuwen 根下一级目录）。 */

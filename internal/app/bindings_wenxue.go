@@ -13,99 +13,203 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type WenxueB struct{ a *App }
 
-func (b *WenxueB) WenxueAgentNetwork(sessionPath string) (trajectory.AgentNetwork, error) { return b.a.WenxueAgentNetwork(sessionPath) }
+func (b *WenxueB) WenxueAgentNetwork(sessionPath string) (trajectory.AgentNetwork, error) {
+	return b.a.WenxueAgentNetwork(sessionPath)
+}
 func (b *WenxueB) WenxueAnswer(id string, answers []event.AskAnswer) { b.a.WenxueAnswer(id, answers) }
-func (b *WenxueB) WenxueApprove(id string, decision string) { b.a.WenxueApprove(id, decision) }
-func (b *WenxueB) WenxueArchiveSession(path string) error { return b.a.WenxueArchiveSession(path) }
-func (b *WenxueB) WenxueAttachmentChunkBegin(fileName string) (string, error) { return b.a.WenxueAttachmentChunkBegin(fileName) }
-func (b *WenxueB) WenxueAttachmentDataURL(path string) (string, error) { return b.a.WenxueAttachmentDataURL(path) }
-func (b *WenxueB) WenxueBalance() BalanceInfo { return b.a.WenxueBalance() }
-func (b *WenxueB) WenxueCancel() { b.a.WenxueCancel() }
+func (b *WenxueB) WenxueApprove(id string, decision string)          { b.a.WenxueApprove(id, decision) }
+func (b *WenxueB) WenxueArchiveSession(path string) error            { return b.a.WenxueArchiveSession(path) }
+func (b *WenxueB) WenxueAttachmentChunkBegin(fileName string) (string, error) {
+	return b.a.WenxueAttachmentChunkBegin(fileName)
+}
+func (b *WenxueB) WenxueAttachmentDataURL(path string) (string, error) {
+	return b.a.WenxueAttachmentDataURL(path)
+}
+func (b *WenxueB) WenxueBalance() BalanceInfo           { return b.a.WenxueBalance() }
+func (b *WenxueB) WenxueCancel()                        { b.a.WenxueCancel() }
 func (b *WenxueB) WenxueCapabilities() CapabilitiesView { return b.a.WenxueCapabilities() }
-func (b *WenxueB) WenxueChangeFactType(name string, typ string) (string, error) { return b.a.WenxueChangeFactType(name, typ) }
+func (b *WenxueB) WenxueChangeFactType(name string, typ string) (string, error) {
+	return b.a.WenxueChangeFactType(name, typ)
+}
 func (b *WenxueB) WenxueCommands() []CommandInfo { return b.a.WenxueCommands() }
-func (b *WenxueB) WenxueContext() ContextInfo { return b.a.WenxueContext() }
-func (b *WenxueB) WenxueContextCommands(beforeSeq int64, limit int, sessionPath string) (contextview.CommandPage, error) { return b.a.WenxueContextCommands(beforeSeq, limit, sessionPath) }
-func (b *WenxueB) WenxueContextDna(seqs []int64, sessionPath string) ([]contextview.DnaSample, error) { return b.a.WenxueContextDna(seqs, sessionPath) }
-func (b *WenxueB) WenxueContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) { return b.a.WenxueContextInsights(rangeKey, includeArchived) }
-func (b *WenxueB) WenxueContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.WenxueContextNodeDetail(seq, sessionPath) }
-func (b *WenxueB) WenxueContextSurface(seq int64, sessionPath string) (contextview.SurfaceSnapshot, error) { return b.a.WenxueContextSurface(seq, sessionPath) }
-func (b *WenxueB) WenxueContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.WenxueContextView(sessionPath) }
-func (b *WenxueB) WenxueCreateNovel(name string) (WorkspaceView, error) { return b.a.WenxueCreateNovel(name) }
-func (b *WenxueB) WenxueCreateWorkspaceFile(parent string, name string) (workbench.MutationResult, error) { return b.a.WenxueCreateWorkspaceFile(parent, name) }
-func (b *WenxueB) WenxueCreateWorkspaceFolder(parent string, name string) (workbench.MutationResult, error) { return b.a.WenxueCreateWorkspaceFolder(parent, name) }
-func (b *WenxueB) WenxueDeleteNovel(path string) error { return b.a.WenxueDeleteNovel(path) }
+func (b *WenxueB) WenxueContext() ContextInfo    { return b.a.WenxueContext() }
+func (b *WenxueB) WenxueContextCommands(beforeSeq int64, limit int, sessionPath string) (contextview.CommandPage, error) {
+	return b.a.WenxueContextCommands(beforeSeq, limit, sessionPath)
+}
+func (b *WenxueB) WenxueContextDna(seqs []int64, sessionPath string) ([]contextview.DnaSample, error) {
+	return b.a.WenxueContextDna(seqs, sessionPath)
+}
+func (b *WenxueB) WenxueContextInsights(rangeKey string, includeArchived bool) (contextview.ContextInsights, error) {
+	return b.a.WenxueContextInsights(rangeKey, includeArchived)
+}
+func (b *WenxueB) WenxueContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) {
+	return b.a.WenxueContextNodeDetail(seq, sessionPath)
+}
+func (b *WenxueB) WenxueContextSurface(seq int64, sessionPath string) (contextview.SurfaceSnapshot, error) {
+	return b.a.WenxueContextSurface(seq, sessionPath)
+}
+func (b *WenxueB) WenxueContextView(sessionPath string) (contextview.ContextTimeline, error) {
+	return b.a.WenxueContextView(sessionPath)
+}
+func (b *WenxueB) WenxueCreateNovel(name string, infoJSON string) (WorkspaceView, error) {
+	return b.a.WenxueCreateNovel(name, infoJSON)
+}
+func (b *WenxueB) WenxueCreateWorkspaceFile(parent string, name string) (workbench.MutationResult, error) {
+	return b.a.WenxueCreateWorkspaceFile(parent, name)
+}
+func (b *WenxueB) WenxueCreateWorkspaceFolder(parent string, name string) (workbench.MutationResult, error) {
+	return b.a.WenxueCreateWorkspaceFolder(parent, name)
+}
+func (b *WenxueB) WenxueDeleteNovel(path string) error   { return b.a.WenxueDeleteNovel(path) }
 func (b *WenxueB) WenxueDeleteSession(path string) error { return b.a.WenxueDeleteSession(path) }
-func (b *WenxueB) WenxueDeleteWorkspacePaths(paths []string) error { return b.a.WenxueDeleteWorkspacePaths(paths) }
+func (b *WenxueB) WenxueDeleteWorkspacePaths(paths []string) error {
+	return b.a.WenxueDeleteWorkspacePaths(paths)
+}
 func (b *WenxueB) WenxueEngineInit() error { return b.a.WenxueEngineInit() }
-func (b *WenxueB) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) { return b.a.WenxueExportDeliverable(in) }
-func (b *WenxueB) WenxueFamilyEvents(sessionPath string) (trajectory.FamilyEventStream, error) { return b.a.WenxueFamilyEvents(sessionPath) }
-func (b *WenxueB) WenxueFileSearch(query string, limit int, exclude []string) []FileSearchHit { return b.a.WenxueFileSearch(query, limit, exclude) }
-func (b *WenxueB) WenxueFileTreeWatch(paths []string, exclude []string) error { return b.a.WenxueFileTreeWatch(paths, exclude) }
+func (b *WenxueB) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) {
+	return b.a.WenxueExportDeliverable(in)
+}
+func (b *WenxueB) WenxueFamilyEvents(sessionPath string) (trajectory.FamilyEventStream, error) {
+	return b.a.WenxueFamilyEvents(sessionPath)
+}
+func (b *WenxueB) WenxueFileSearch(query string, limit int, exclude []string) []FileSearchHit {
+	return b.a.WenxueFileSearch(query, limit, exclude)
+}
+func (b *WenxueB) WenxueFileTreeWatch(paths []string, exclude []string) error {
+	return b.a.WenxueFileTreeWatch(paths, exclude)
+}
 func (b *WenxueB) WenxueForget(name string) error { return b.a.WenxueForget(name) }
-func (b *WenxueB) WenxueFork(turn int) error { return b.a.WenxueFork(turn) }
-func (b *WenxueB) WenxueGitCommit(message string) (string, error) { return b.a.WenxueGitCommit(message) }
-func (b *WenxueB) WenxueGitCommitDetail(hash string) (GitCommitDetail, error) { return b.a.WenxueGitCommitDetail(hash) }
-func (b *WenxueB) WenxueGitDiff(path string, staged bool) (string, error) { return b.a.WenxueGitDiff(path, staged) }
+func (b *WenxueB) WenxueFork(turn int) error      { return b.a.WenxueFork(turn) }
+func (b *WenxueB) WenxueGitCommit(message string) (string, error) {
+	return b.a.WenxueGitCommit(message)
+}
+func (b *WenxueB) WenxueGitCommitDetail(hash string) (GitCommitDetail, error) {
+	return b.a.WenxueGitCommitDetail(hash)
+}
+func (b *WenxueB) WenxueGitDiff(path string, staged bool) (string, error) {
+	return b.a.WenxueGitDiff(path, staged)
+}
 func (b *WenxueB) WenxueGitDiscard(path string) error { return b.a.WenxueGitDiscard(path) }
-func (b *WenxueB) WenxueGitGraph(skip int, limit int, branch string) (GitGraphPage, error) { return b.a.WenxueGitGraph(skip, limit, branch) }
+func (b *WenxueB) WenxueGitGraph(skip int, limit int, branch string) (GitGraphPage, error) {
+	return b.a.WenxueGitGraph(skip, limit, branch)
+}
 func (b *WenxueB) WenxueGitLog(limit int) ([]GitCommitInfo, error) { return b.a.WenxueGitLog(limit) }
-func (b *WenxueB) WenxueGitStage(paths []string) error { return b.a.WenxueGitStage(paths) }
-func (b *WenxueB) WenxueGitStatus() GitStatus { return b.a.WenxueGitStatus() }
-func (b *WenxueB) WenxueGitUnstage(paths []string) error { return b.a.WenxueGitUnstage(paths) }
-func (b *WenxueB) WenxueGitWorktrees() ([]GitWorktree, error) { return b.a.WenxueGitWorktrees() }
-func (b *WenxueB) WenxueHistory() []HistoryMessage { return b.a.WenxueHistory() }
-func (b *WenxueB) WenxueJobs() []JobView { return b.a.WenxueJobs() }
-func (b *WenxueB) WenxueListDir(rel string) ([]DirEntry, error) { return b.a.WenxueListDir(rel) }
-func (b *WenxueB) WenxueListDirBatch(paths []string, exclude []string) []workbench.Level { return b.a.WenxueListDirBatch(paths, exclude) }
+func (b *WenxueB) WenxueGitStage(paths []string) error             { return b.a.WenxueGitStage(paths) }
+func (b *WenxueB) WenxueGitStatus() GitStatus                      { return b.a.WenxueGitStatus() }
+func (b *WenxueB) WenxueGitUnstage(paths []string) error           { return b.a.WenxueGitUnstage(paths) }
+func (b *WenxueB) WenxueGitWorktrees() ([]GitWorktree, error)      { return b.a.WenxueGitWorktrees() }
+func (b *WenxueB) WenxueHistory() []HistoryMessage                 { return b.a.WenxueHistory() }
+func (b *WenxueB) WenxueJobs() []JobView                           { return b.a.WenxueJobs() }
+func (b *WenxueB) WenxueListDir(rel string) ([]DirEntry, error)    { return b.a.WenxueListDir(rel) }
+func (b *WenxueB) WenxueListDirBatch(paths []string, exclude []string) []workbench.Level {
+	return b.a.WenxueListDirBatch(paths, exclude)
+}
 func (b *WenxueB) WenxueListProjectSessions() []ProjectGroup { return b.a.WenxueListProjectSessions() }
-func (b *WenxueB) WenxueListSessions() []SessionMeta { return b.a.WenxueListSessions() }
-func (b *WenxueB) WenxueListWorkspaces() []WorkspaceView { return b.a.WenxueListWorkspaces() }
+func (b *WenxueB) WenxueListSessions() []SessionMeta         { return b.a.WenxueListSessions() }
+func (b *WenxueB) WenxueListWorkspaces() []WorkspaceView     { return b.a.WenxueListWorkspaces() }
 func (b *WenxueB) WenxueMaterials(limit int) []FileSearchHit { return b.a.WenxueMaterials(limit) }
-func (b *WenxueB) WenxueMemory() MemoryView { return b.a.WenxueMemory() }
-func (b *WenxueB) WenxueMemorySuggestions() MemorySuggestionsView { return b.a.WenxueMemorySuggestions() }
-func (b *WenxueB) WenxueMeta() Meta { return b.a.WenxueMeta() }
-func (b *WenxueB) WenxueNewSession() error { return b.a.WenxueNewSession() }
+func (b *WenxueB) WenxueMemory() MemoryView                  { return b.a.WenxueMemory() }
+func (b *WenxueB) WenxueMemorySuggestions() MemorySuggestionsView {
+	return b.a.WenxueMemorySuggestions()
+}
+func (b *WenxueB) WenxueMeta() Meta                         { return b.a.WenxueMeta() }
+func (b *WenxueB) WenxueNewSession() error                  { return b.a.WenxueNewSession() }
 func (b *WenxueB) WenxueOpenWorkspacePath(rel string) error { return b.a.WenxueOpenWorkspacePath(rel) }
-func (b *WenxueB) WenxuePermLevel() string { return b.a.WenxuePermLevel() }
-func (b *WenxueB) WenxuePickWorkspace() string { return b.a.WenxuePickWorkspace() }
-func (b *WenxueB) WenxuePickWorkspaceUploadFiles(dir string) ([]workbench.UploadResult, error) { return b.a.WenxuePickWorkspaceUploadFiles(dir) }
-func (b *WenxueB) WenxuePickWorkspaceUploadFolder(dir string) ([]workbench.UploadResult, error) { return b.a.WenxuePickWorkspaceUploadFolder(dir) }
+func (b *WenxueB) WenxuePermLevel() string                  { return b.a.WenxuePermLevel() }
+func (b *WenxueB) WenxuePickWorkspace() string              { return b.a.WenxuePickWorkspace() }
+func (b *WenxueB) WenxuePickWorkspaceUploadFiles(dir string) ([]workbench.UploadResult, error) {
+	return b.a.WenxuePickWorkspaceUploadFiles(dir)
+}
+func (b *WenxueB) WenxuePickWorkspaceUploadFolder(dir string) ([]workbench.UploadResult, error) {
+	return b.a.WenxuePickWorkspaceUploadFolder(dir)
+}
 func (b *WenxueB) WenxuePinMaterial(rel string) []FileSearchHit { return b.a.WenxuePinMaterial(rel) }
-func (b *WenxueB) WenxuePinSession(path string, pinned bool) error { return b.a.WenxuePinSession(path, pinned) }
+func (b *WenxueB) WenxuePinSession(path string, pinned bool) error {
+	return b.a.WenxuePinSession(path, pinned)
+}
 func (b *WenxueB) WenxuePinnedMaterials() []FileSearchHit { return b.a.WenxuePinnedMaterials() }
 func (b *WenxueB) WenxuePreview(rel string) PreviewResult { return b.a.WenxuePreview(rel) }
-func (b *WenxueB) WenxueReadFile(rel string) FilePreview { return b.a.WenxueReadFile(rel) }
-func (b *WenxueB) WenxueReadFilePage(rel string, offset int64) (workbench.TextPage, error) { return b.a.WenxueReadFilePage(rel, offset) }
-func (b *WenxueB) WenxueReadTextFile(rel string) (workbench.TextFile, error) { return b.a.WenxueReadTextFile(rel) }
+func (b *WenxueB) WenxueReadFile(rel string) FilePreview  { return b.a.WenxueReadFile(rel) }
+func (b *WenxueB) WenxueReadFilePage(rel string, offset int64) (workbench.TextPage, error) {
+	return b.a.WenxueReadFilePage(rel, offset)
+}
+func (b *WenxueB) WenxueReadTextFile(rel string) (workbench.TextFile, error) {
+	return b.a.WenxueReadTextFile(rel)
+}
 func (b *WenxueB) WenxueReload() (GaeaReloadResult, error) { return b.a.WenxueReload() }
-func (b *WenxueB) WenxueRemember(scope string, note string) (string, error) { return b.a.WenxueRemember(scope, note) }
-func (b *WenxueB) WenxueRenameSession(path string, title string) error { return b.a.WenxueRenameSession(path, title) }
-func (b *WenxueB) WenxueRenameWorkspacePath(rel string, name string) (workbench.MutationResult, error) { return b.a.WenxueRenameWorkspacePath(rel, name) }
-func (b *WenxueB) WenxueResumeSession(path string) ([]HistoryMessage, error) { return b.a.WenxueResumeSession(path) }
-func (b *WenxueB) WenxueResyncEvents(afterSeq int) GaeaResyncResult { return b.a.WenxueResyncEvents(afterSeq) }
-func (b *WenxueB) WenxueRevealWorkspacePath(rel string) error { return b.a.WenxueRevealWorkspacePath(rel) }
+func (b *WenxueB) WenxueRemember(scope string, note string) (string, error) {
+	return b.a.WenxueRemember(scope, note)
+}
+func (b *WenxueB) WenxueRenameSession(path string, title string) error {
+	return b.a.WenxueRenameSession(path, title)
+}
+func (b *WenxueB) WenxueRenameWorkspacePath(rel string, name string) (workbench.MutationResult, error) {
+	return b.a.WenxueRenameWorkspacePath(rel, name)
+}
+func (b *WenxueB) WenxueResumeSession(path string) ([]HistoryMessage, error) {
+	return b.a.WenxueResumeSession(path)
+}
+func (b *WenxueB) WenxueResyncEvents(afterSeq int) GaeaResyncResult {
+	return b.a.WenxueResyncEvents(afterSeq)
+}
+func (b *WenxueB) WenxueRevealWorkspacePath(rel string) error {
+	return b.a.WenxueRevealWorkspacePath(rel)
+}
 func (b *WenxueB) WenxueRewind(turn int, scope string) error { return b.a.WenxueRewind(turn, scope) }
-func (b *WenxueB) WenxueRunning() bool { return b.a.WenxueRunning() }
-func (b *WenxueB) WenxueSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.WenxueSaveAttachmentFile(fileName, base64Data) }
-func (b *WenxueB) WenxueSaveDoc(path string, body string) (string, error) { return b.a.WenxueSaveDoc(path, body) }
-func (b *WenxueB) WenxueSavePastedImage(dataURL string) (string, error) { return b.a.WenxueSavePastedImage(dataURL) }
-func (b *WenxueB) WenxueSaveWorkspacePathAs(rel string) (string, error) { return b.a.WenxueSaveWorkspacePathAs(rel) }
-func (b *WenxueB) WenxueSaveWorkspacePathsAs(paths []string) (string, error) { return b.a.WenxueSaveWorkspacePathsAs(paths) }
-func (b *WenxueB) WenxueSend(input string) { b.a.WenxueSend(input) }
-func (b *WenxueB) WenxueSetPermLevel(level string) error { return b.a.WenxueSetPermLevel(level) }
+func (b *WenxueB) WenxueRunning() bool                       { return b.a.WenxueRunning() }
+func (b *WenxueB) WenxueSaveAttachmentFile(fileName string, base64Data string) (string, error) {
+	return b.a.WenxueSaveAttachmentFile(fileName, base64Data)
+}
+func (b *WenxueB) WenxueSaveDoc(path string, body string) (string, error) {
+	return b.a.WenxueSaveDoc(path, body)
+}
+func (b *WenxueB) WenxueSavePastedImage(dataURL string) (string, error) {
+	return b.a.WenxueSavePastedImage(dataURL)
+}
+func (b *WenxueB) WenxueSaveWorkspacePathAs(rel string) (string, error) {
+	return b.a.WenxueSaveWorkspacePathAs(rel)
+}
+func (b *WenxueB) WenxueSaveWorkspacePathsAs(paths []string) (string, error) {
+	return b.a.WenxueSaveWorkspacePathsAs(paths)
+}
+func (b *WenxueB) WenxueSend(input string)                      { b.a.WenxueSend(input) }
+func (b *WenxueB) WenxueSetPermLevel(level string) error        { return b.a.WenxueSetPermLevel(level) }
 func (b *WenxueB) WenxueSlashArgs(input string) SlashArgsResult { return b.a.WenxueSlashArgs(input) }
-func (b *WenxueB) WenxueSteer(input string) { b.a.WenxueSteer(input) }
-func (b *WenxueB) WenxueSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) { return b.a.WenxueSubagentContextView(sessionPath, ref) }
-func (b *WenxueB) WenxueSubagentFollowUp(sessionPath string, ref string, prompt string) (string, error) { return b.a.WenxueSubagentFollowUp(sessionPath, ref, prompt) }
+func (b *WenxueB) WenxueSteer(input string)                     { b.a.WenxueSteer(input) }
+func (b *WenxueB) WenxueSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) {
+	return b.a.WenxueSubagentContextView(sessionPath, ref)
+}
+func (b *WenxueB) WenxueSubagentFollowUp(sessionPath string, ref string, prompt string) (string, error) {
+	return b.a.WenxueSubagentFollowUp(sessionPath, ref, prompt)
+}
 func (b *WenxueB) WenxueSwitchWorkspace(path string) string { return b.a.WenxueSwitchWorkspace(path) }
-func (b *WenxueB) WenxueTrajectory(sessionPath string) (trajectory.Trajectory, error) { return b.a.WenxueTrajectory(sessionPath) }
-func (b *WenxueB) WenxueUnarchiveSession(path string) (string, error) { return b.a.WenxueUnarchiveSession(path) }
-func (b *WenxueB) WenxueUnpinMaterial(rel string) []FileSearchHit { return b.a.WenxueUnpinMaterial(rel) }
-func (b *WenxueB) WenxueUpdateFact(name string, body string) (string, error) { return b.a.WenxueUpdateFact(name, body) }
-func (b *WenxueB) WenxueWorkspaceUploadAbort(token string) error { return b.a.WenxueWorkspaceUploadAbort(token) }
-func (b *WenxueB) WenxueWorkspaceUploadAppend(token string, base64Chunk string) error { return b.a.WenxueWorkspaceUploadAppend(token, base64Chunk) }
-func (b *WenxueB) WenxueWorkspaceUploadBegin(dir string, relativePath string) (string, error) { return b.a.WenxueWorkspaceUploadBegin(dir, relativePath) }
-func (b *WenxueB) WenxueWorkspaceUploadFinish(token string) (workbench.UploadResult, error) { return b.a.WenxueWorkspaceUploadFinish(token) }
-func (b *WenxueB) WenxueWriteWorkspaceFile(rel string, content string, expectedMtimeMs int64) (workbench.WriteResult, error) { return b.a.WenxueWriteWorkspaceFile(rel, content, expectedMtimeMs) }
-func (b *WenxueB) WenxueZipDeliverables(paths []string) (ZipDeliverableResult, error) { return b.a.WenxueZipDeliverables(paths) }
+func (b *WenxueB) WenxueTrajectory(sessionPath string) (trajectory.Trajectory, error) {
+	return b.a.WenxueTrajectory(sessionPath)
+}
+func (b *WenxueB) WenxueUnarchiveSession(path string) (string, error) {
+	return b.a.WenxueUnarchiveSession(path)
+}
+func (b *WenxueB) WenxueUnpinMaterial(rel string) []FileSearchHit {
+	return b.a.WenxueUnpinMaterial(rel)
+}
+func (b *WenxueB) WenxueUpdateFact(name string, body string) (string, error) {
+	return b.a.WenxueUpdateFact(name, body)
+}
+func (b *WenxueB) WenxueWorkspaceUploadAbort(token string) error {
+	return b.a.WenxueWorkspaceUploadAbort(token)
+}
+func (b *WenxueB) WenxueWorkspaceUploadAppend(token string, base64Chunk string) error {
+	return b.a.WenxueWorkspaceUploadAppend(token, base64Chunk)
+}
+func (b *WenxueB) WenxueWorkspaceUploadBegin(dir string, relativePath string) (string, error) {
+	return b.a.WenxueWorkspaceUploadBegin(dir, relativePath)
+}
+func (b *WenxueB) WenxueWorkspaceUploadFinish(token string) (workbench.UploadResult, error) {
+	return b.a.WenxueWorkspaceUploadFinish(token)
+}
+func (b *WenxueB) WenxueWriteWorkspaceFile(rel string, content string, expectedMtimeMs int64) (workbench.WriteResult, error) {
+	return b.a.WenxueWriteWorkspaceFile(rel, content, expectedMtimeMs)
+}
+func (b *WenxueB) WenxueZipDeliverables(paths []string) (ZipDeliverableResult, error) {
+	return b.a.WenxueZipDeliverables(paths)
+}

@@ -20,7 +20,7 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
     running: false,
     jobs: [],
     newSessionAndReset: vi.fn(),
-    onCreateNovel: vi.fn(async (name: string): Promise<WorkspaceView> => ({
+    onCreateNovel: vi.fn(async (name: string, _infoJson: string): Promise<WorkspaceView> => ({
       path: `C:\\AI\\tuwen\\${name}`,
       name,
       current: true,
@@ -72,7 +72,7 @@ describe("Wenxue Sidebar novel workspaces", () => {
     fireEvent.change(screen.getByLabelText("小说名字"), { target: { value: "星河旧梦" } });
     fireEvent.click(screen.getByRole("button", { name: "创建并进入" }));
 
-    await waitFor(() => expect(props.onCreateNovel).toHaveBeenCalledWith("星河旧梦"));
+    await waitFor(() => expect(props.onCreateNovel).toHaveBeenCalledWith("星河旧梦", expect.any(String)));
   });
 
   it("switches to another novel workspace from the left list", async () => {

@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -37,7 +38,7 @@ func isolateWenxueRuntime(t *testing.T) (*App, string) {
 func TestWenxueCreateNovelStaysUnderTuwenRoot(t *testing.T) {
 	a, root := isolateWenxueRuntime(t)
 
-	created, err := a.WenxueCreateNovel("长夜灯火")
+	created, err := a.WenxueCreateNovel("长夜灯火", "")
 	if err != nil {
 		t.Fatalf("WenxueCreateNovel: %v", err)
 	}
@@ -54,14 +55,14 @@ func TestWenxueCreateNovelStaysUnderTuwenRoot(t *testing.T) {
 		t.Fatalf("WenxueListWorkspaces = %+v, want the current novel only", list)
 	}
 
-	if _, err := a.WenxueCreateNovel("长夜灯火"); err == nil {
+	if _, err := a.WenxueCreateNovel("长夜灯火", ""); err == nil {
 		t.Fatal("duplicate novel name should fail")
 	}
-	if _, err := a.WenxueCreateNovel(`..\逃逸`); err == nil {
+	if _, err := a.WenxueCreateNovel(`..\逃逸`, ""); err == nil {
 		t.Fatal("path-like novel name should fail")
 	}
 	for _, bad := range []string{".隐藏", "CON", "NUL.md", "星夜."} {
-		if _, err := a.WenxueCreateNovel(bad); err == nil {
+		if _, err := a.WenxueCreateNovel(bad, ""); err == nil {
 			t.Fatalf("invalid Windows directory name %q should fail", bad)
 		}
 	}
@@ -124,11 +125,11 @@ func TestWenxueProjectGroupsOnlyContainNovelDirectories(t *testing.T) {
 func TestWenxueDeleteNovelOnlyDirectChildren(t *testing.T) {
 	a, root := isolateWenxueRuntime(t)
 
-	first, err := a.WenxueCreateNovel("旧城来信")
+	first, err := a.WenxueCreateNovel("旧城来信", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := a.WenxueCreateNovel("长夜灯火")
+	second, err := a.WenxueCreateNovel("长夜灯火", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,4 +166,56 @@ func TestWenxueDeleteNovelOnlyDirectChildren(t *testing.T) {
 	if got := wenxueWorkspace(); got != root {
 		t.Fatalf("current workspace after deleting current novel = %q, want root %q", got, root)
 	}
+}
+
+// TestWenxueCreateNovel_BookInfoAndPin 关键信息刀（2026-11-16）：infoJSON 落
+// 书籍信息.md（含成人等级+分级说明+安全底线）并自动固定（pinned.json）；
+// 非法成人等级报错并列出合法值；空 infoJSON 走全年龄缺省不落空文件。
+func TestWenxueCreateNovel_BookInfoAndPin(t *testing.T) {
+	a, _ := isolateWenxueRuntime(t)
+	created, err := a.WenxueCreateNovel("雷雨长街", `{"genre":"都市悬疑","intro":"一个雨夜引发的连环旧案。","targetWords":"80 万","adultLevel":"成人（限制级）"}`)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(created.Path, "书籍信息.md"))
+	if err != nil {
+		t.Fatalf("书籍信息.md 缺失: %v", err)
+	}
+	card := string(raw)
+	for _, want := range []string{
+		"# 书籍信息", "- 书名：雷雨长街", "- 题材：都市悬疑", "- 目标字数：80 万",
+		"- 成人等级：成人（限制级）", "## 简介", "一个雨夜引发的连环旧案。",
+		"可直接描写成人内容与暴力", "唯一恒守线：涉未成年角色的性内容一律禁止",
+	} {
+		if !strings.Contains(card, want) {
+			t.Errorf("书籍信息缺 %q", want)
+		}
+	}
+	pinRaw, err := os.ReadFile(filepath.Join(created.Path, ".gaea", "pinned.json"))
+	if err != nil {
+		t.Fatalf("pinned.json 缺失: %v", err)
+	}
+	if !strings.Contains(string(pinRaw), "书籍信息.md") {
+		t.Fatalf("书籍信息.md 应自动固定: %s", pinRaw)
+	}
+
+	t.Run("非法成人等级报错列合法值", func(t *testing.T) {
+		_, err := a.WenxueCreateNovel("坏等级书", `{"adultLevel":"NC-17"}`)
+		if err == nil || !strings.Contains(err.Error(), "成人等级必须是") {
+			t.Fatalf("err = %v, want 白名单报错", err)
+		}
+	})
+	t.Run("空信息缺省全年龄", func(t *testing.T) {
+		created2, err := a.WenxueCreateNovel("无信息书", "")
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		raw2, err := os.ReadFile(filepath.Join(created2.Path, "书籍信息.md"))
+		if err != nil {
+			t.Fatalf("读书籍信息: %v", err)
+		}
+		if !strings.Contains(string(raw2), "- 成人等级：全年龄") {
+			t.Fatalf("空等级应缺省全年龄: %s", raw2)
+		}
+	})
 }

@@ -243,7 +243,7 @@ const wenxueDirectories: Record<string, string[]> = {
 };
 
 export function buildOffice(s: MakeMockState): OfficeMethods {
-  if (s.scenario !== "wenxue") {
+  if (s.scenario !== "wenxue" && s.scenario !== "library") {
     return { ...officeMethods, ...xlsxMethods } as OfficeMethods;
   }
   return {

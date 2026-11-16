@@ -18,13 +18,18 @@ export function useSessionManager(
   const [newSessionDone, setNewSessionDone] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
+  const [projectGroupsLoaded, setProjectGroupsLoaded] = useState(false);
   // 缓存全量列表，loadMore 不再重复请求
   const allSessionsRef = useRef<SessionMeta[]>([]);
 
   const refreshProjectGroups = useCallback(async () => {
-    const groups = await listProjectSessions();
-    setProjectGroups(groups);
-    return groups;
+    try {
+      const groups = await listProjectSessions();
+      setProjectGroups(groups);
+      return groups;
+    } finally {
+      setProjectGroupsLoaded(true);
+    }
   }, [listProjectSessions]);
 
   const errText = useCallback((e: unknown) => (e instanceof Error ? e.message : String(e)), []);
@@ -102,7 +107,7 @@ export function useSessionManager(
     sidebarSessions, sidebarQuery, setSidebarQuery,
     newSessionDone, refreshSessions, startNewSession, loadMore,
     hasMore,
-    projectGroups, refreshProjectGroups,
+    projectGroups, projectGroupsLoaded, refreshProjectGroups,
     handleResumeSession, handleDeleteSession, handleRenameSession,
   };
 }

@@ -74,8 +74,8 @@ export function WenxueContextView(arg1) {
   return window['go']['app']['WenxueB']['WenxueContextView'](arg1);
 }
 
-export function WenxueCreateNovel(arg1) {
-  return window['go']['app']['WenxueB']['WenxueCreateNovel'](arg1);
+export function WenxueCreateNovel(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxueCreateNovel'](arg1, arg2);
 }
 
 export function WenxueCreateWorkspaceFile(arg1, arg2) {

@@ -1,12 +1,22 @@
 import type { Dispatch, KeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { List, type RowComponentProps } from "react-window";
-import { Input, Modal } from "antd";
+import {Input, Modal, Select } from "antd";
 import {
   Plus, Blocks, BookOpen, MessageSquare, Search,
   PanelLeftClose, PanelLeftOpen, Loader2, ChevronDown,
   Pin, Inbox, Rollback, X, Clock, Trash2,
 } from "../icons";
+
+// 新建小说·成人等级白名单（与 Go wenxueAdultLevels 同源：存储值=展示值）。
+const ADULT_LEVELS = ["全年龄", "轻度（暗示级）", "成人（限制级）", "深度成人（无限制）"] as const;
+
+const ADULT_LEVEL_HINT: Record<string, string> = {
+  "全年龄": "无成人内容；情感与冲突克制处理。",
+  "轻度（暗示级）": "亲密与暴力以暗示、淡出处理，无直接描写。",
+  "成人（限制级）": "可直接描写，保持文学化表达与叙事必要。",
+  "深度成人（无限制）": "无任何限制；尺度、题材、表现手法完全跟随剧情需要。",
+};
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
@@ -25,7 +35,7 @@ export interface SidebarProps {
   jobs: JobView[];
   newSessionAndReset: () => void;
   /** 左栏唯一的新小说入口：后端创建 tuwen/<name> 并自动切换。 */
-  onCreateNovel: (name: string) => Promise<WorkspaceView>;
+  onCreateNovel: (name: string, infoJson: string) => Promise<WorkspaceView>;
   /** 切换左栏选中的小说工作空间。 */
   onSelectNovelWorkspace: (path: string) => Promise<string>;
   /** 删除一部小说及其完整工作空间。 */
@@ -552,6 +562,10 @@ export function Sidebar({
   const [renameDraft, setRenameDraft] = useState("");
   const [novelDialogOpen, setNovelDialogOpen] = useState(false);
   const [novelName, setNovelName] = useState("");
+  const [novelGenre, setNovelGenre] = useState("");
+  const [novelIntro, setNovelIntro] = useState("");
+  const [novelTargetWords, setNovelTargetWords] = useState("");
+  const [novelAdultLevel, setNovelAdultLevel] = useState("全年龄");
   const [novelBusy, setNovelBusy] = useState(false);
   const [novelError, setNovelError] = useState("");
   const [deleteNovelTarget, setDeleteNovelTarget] = useState<ProjectGroup | null>(null);
@@ -684,9 +698,19 @@ export function Sidebar({
     setNovelBusy(true);
     setNovelError("");
     try {
-      await onCreateNovel(name);
+      const info = {
+        genre: novelGenre.trim(),
+        intro: novelIntro.trim(),
+        targetWords: novelTargetWords.trim(),
+        adultLevel: novelAdultLevel,
+      };
+      await onCreateNovel(name, JSON.stringify(info));
       setNovelDialogOpen(false);
       setNovelName("");
+      setNovelGenre("");
+      setNovelIntro("");
+      setNovelTargetWords("");
+      setNovelAdultLevel("全年龄");
     } catch (err) {
       setNovelError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1024,9 +1048,26 @@ export function Sidebar({
             spellCheck={false}
             aria-label="小说名字"
           />
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[12px] font-medium text-fg" htmlFor="wenxue-novel-genre">题材</label>
+              <Input id="wenxue-novel-genre" value={novelGenre} onChange={(e) => setNovelGenre(e.target.value)} placeholder="如：都市悬疑" aria-label="题材" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-fg" htmlFor="wenxue-novel-words">目标字数</label>
+              <Input id="wenxue-novel-words" value={novelTargetWords} onChange={(e) => setNovelTargetWords(e.target.value)} placeholder="如：80 万" aria-label="目标字数" />
+            </div>
+          </div>
+          <label className="mt-3 block text-[12px] font-medium text-fg" htmlFor="wenxue-novel-intro">简介</label>
+          <Input.TextArea id="wenxue-novel-intro" value={novelIntro} onChange={(e) => setNovelIntro(e.target.value)} placeholder="一句话简介（注入每个会话，agent 开场即知这本书写什么）" autoSize={{ minRows: 2, maxRows: 4 }} maxLength={500} aria-label="简介" />
+          <label className="mt-3 block text-[12px] font-medium text-fg" htmlFor="wenxue-novel-adult">
+            成人等级<span className="text-fg-faint">（注入每个会话，agent 据此校准尺度）</span>
+          </label>
+          <Select id="wenxue-novel-adult" value={novelAdultLevel} onChange={(v) => setNovelAdultLevel(v)} options={ADULT_LEVELS.map((lv) => ({ value: lv, label: lv }))} aria-label="成人等级" />
+          <div className="mt-1 text-[10.5px] leading-relaxed text-fg-faint">{ADULT_LEVEL_HINT[novelAdultLevel]}</div>
           <div className="mt-2 text-[11px] leading-relaxed text-fg-faint">
-            将按小说名字在 <span className="font-mono text-fg-dim">C:\\AI\\tuwen</span> 下创建独立文件夹，
-            并自动切换为当前工作空间。
+            将按小说名字在 <span className="font-mono text-fg-dim">C:\AI	uwen</span> 下创建独立文件夹，
+            并自动切换为当前工作空间。关键信息落 <span className="font-mono text-fg-dim">书籍信息.md</span> 并自动固定注入。
           </div>
           {novelError && (
             <div className="mt-2 text-[11px] text-err" role="alert">{novelError}</div>

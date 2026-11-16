@@ -203,12 +203,69 @@ func wenxueValidateNovelName(name string) error {
 	return nil
 }
 
+// ── 新建小说关键信息（2026-11-16）───────────────────────────────
+//
+// 书籍级内容分级元数据：建书时填写、落 书籍信息.md、自动固定（pinned.json）
+// 注入每个新会话——agent 据此校准题材与尺度。与 ADULT_MODE.md（轻语陪伴域的
+// 成人模式决策：默认开启、无开关）口径不同层：这里是书籍元数据，不是全局
+// 开关。深度成人档=无任何限制；唯一恒守线=涉未成年一条（其余零限制）。
+
+// wenxueAdultLevels 成人等级白名单（存储值=展示值，agent 直读中文）。
+var wenxueAdultLevels = []string{
+	"全年龄",
+	"轻度（暗示级）",
+	"成人（限制级）",
+	"深度成人（无限制）",
+}
+
+// wenxueAdultLevelGuidance 各等级的写作校准说明（落 书籍信息.md 供 agent 读）。
+var wenxueAdultLevelGuidance = map[string]string{
+	"全年龄":       "无成人内容；情感与冲突克制处理，亲密与暴力均不直接呈现。",
+	"轻度（暗示级）":   "情感冲突可直白铺陈；亲密与暴力以暗示、淡出处理，无直接描写。",
+	"成人（限制级）":   "可直接描写成人内容与暴力，保持文学化表达，以叙事必要为度。",
+	"深度成人（无限制）": "无任何限制；尺度、题材、表现手法完全跟随剧情需要。",
+}
+
+const wenxueAdultSafetyLine = "唯一恒守线：涉未成年角色的性内容一律禁止。" // 用户确认的唯一保留项
+
+// WenxueNovelInfo 新建小说关键信息（infoJSON 反序列化目标）。
+type WenxueNovelInfo struct {
+	Genre       string `json:"genre"`       // 题材（如 都市奇幻 / 历史架空）
+	Intro       string `json:"intro"`       // 一句话简介
+	TargetWords string `json:"targetWords"` // 目标字数（自由文本，如 80 万）
+	AdultLevel  string `json:"adultLevel"`  // 成人等级（白名单值，空=全年龄）
+}
+
 // WenxueCreateNovel 新建小说工作空间：tuwen 根/<name>（已存在即报错），
-// 创建成功后自动切换为当前工作空间。
-func (a *App) WenxueCreateNovel(name string) (WorkspaceView, error) {
+// 创建成功后自动切换为当前工作空间。infoJSON 非空时解析关键信息并落
+// 书籍信息.md + 自动固定（每个新会话自动注入）；成人等级白名单校验
+// （空=全年龄；非法值报错并列出合法值）。
+func (a *App) WenxueCreateNovel(name string, infoJSON string) (WorkspaceView, error) {
 	n := strings.TrimSpace(name)
 	if err := wenxueValidateNovelName(n); err != nil {
 		return WorkspaceView{}, err
+	}
+	var info WenxueNovelInfo
+	infoJSON = strings.TrimSpace(infoJSON)
+	if infoJSON != "" {
+		if err := json.Unmarshal([]byte(infoJSON), &info); err != nil {
+			return WorkspaceView{}, fmt.Errorf("书籍信息解析失败: %w", err)
+		}
+	}
+	info.AdultLevel = strings.TrimSpace(info.AdultLevel)
+	if info.AdultLevel == "" {
+		info.AdultLevel = "全年龄"
+	}
+	valid := false
+	for _, lv := range wenxueAdultLevels {
+		if info.AdultLevel == lv {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return WorkspaceView{}, fmt.Errorf("成人等级必须是：%s（当前值：%s）",
+			strings.Join(wenxueAdultLevels, "／"), info.AdultLevel)
 	}
 	root := wenxueWorkspaceRoot()
 	_ = os.MkdirAll(root, 0o755)
@@ -219,13 +276,53 @@ func (a *App) WenxueCreateNovel(name string) (WorkspaceView, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return WorkspaceView{}, fmt.Errorf("创建工作空间失败: %w", err)
 	}
-	slog.Info("图文新建小说工作空间", "dir", dir)
+	slog.Info("图文新建小说工作空间", "dir", dir, "adult_level", info.AdultLevel)
 	// 定稿目录脚手架（发布稿域，阅读刀约定；WenxueSwitchWorkspace 亦兜底）。
 	_ = os.MkdirAll(filepath.Join(dir, "定稿"), 0o755)
 	if got := a.WenxueSwitchWorkspace(dir); got != dir {
 		return WorkspaceView{}, errors.New("工作空间切换失败")
 	}
+	// 关键信息落盘 + 自动固定（切换已完成，wenxueWorkspace() 即新书目录）：
+	// 每个新会话系统提示词自动注入，agent 开场即知题材与尺度。
+	if err := a.wenxueWriteBookInfo(n, info); err != nil {
+		slog.Warn("书籍信息落盘失败（创建继续）", "error", err)
+	}
 	return WorkspaceView{Path: dir, Name: n, Current: true}, nil
+}
+
+// wenxueWriteBookInfo 书籍信息.md 落盘 + 自动固定进 pinned.json。
+func (a *App) wenxueWriteBookInfo(name string, info WenxueNovelInfo) error {
+	guidance := wenxueAdultLevelGuidance[info.AdultLevel]
+	var b strings.Builder
+	b.WriteString("# 书籍信息\n\n")
+	b.WriteString("> 本文件由新建小说流程自动生成，会话启动时自动注入；可直接编辑，改动随下次会话生效。\n\n")
+	b.WriteString("- 书名：" + name + "\n")
+	if s := strings.TrimSpace(info.Genre); s != "" {
+		b.WriteString("- 题材：" + s + "\n")
+	}
+	if s := strings.TrimSpace(info.TargetWords); s != "" {
+		b.WriteString("- 目标字数：" + s + "\n")
+	}
+	b.WriteString("- 成人等级：" + info.AdultLevel + "\n\n")
+	b.WriteString("## 简介\n\n")
+	if s := strings.TrimSpace(info.Intro); s != "" {
+		b.WriteString(s + "\n")
+	} else {
+		b.WriteString("（未填写）\n")
+	}
+	b.WriteString("\n## 内容分级说明\n\n")
+	b.WriteString("- " + info.AdultLevel + "：" + guidance + "\n")
+	b.WriteString("- " + wenxueAdultSafetyLine + "\n")
+	rel := filepath.ToSlash(filepath.Join("", "书籍信息.md"))
+	abs, err := wspath.ResolveRelWithin(wenxueWorkspace(), rel)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(abs, []byte(b.String()), 0o644); err != nil {
+		return err
+	}
+	a.WenxuePinMaterial(rel) // 自动固定：新会话自动注入（失败不阻断建书）
+	return nil
 }
 
 // WenxueDeleteNovel 删除 tuwen 根下的一部小说及其整个工作空间。

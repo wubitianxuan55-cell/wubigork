@@ -31,6 +31,7 @@ const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").
 const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
 const WenxueMemoryPanel = lazy(() => import("./components/WenxueMemoryPanel").then(m => ({ default: m.WenxueMemoryPanel })));
 const WenxueSettingsHub = lazy(() => import("./components/WenxueSettingsHub").then(m => ({ default: m.WenxueSettingsHub })));
+const WenxueHome = lazy(() => import("./components/WenxueHome").then(m => ({ default: m.WenxueHome })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
@@ -139,7 +140,7 @@ export default function App() {
   // 记忆 tab 已退役（2026-11-16 记忆左右脑批）：memView 视图快照不再进 UI，
   // setMemView 仅为 useSessionHandlers 契约保留。
   const [, setMemView] = useState<MemoryView | null>(null);
-  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
+  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups, projectGroupsLoaded } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { await startNewSession(); }, [startNewSession]);
   // GenUI action 宿主：运行中 → steer（注入当前回合），空闲 → send（短展示文案 +
   // 完整信封原文走 SubmitDisplay raw）。paylod 紧凑化防超长。
@@ -271,6 +272,10 @@ export default function App() {
   // （"/memory" 已随记忆 tab 退役摘除——2026-11-16 记忆左右脑批。）
   const cwd = state.meta?.cwd;
   const cwdName = cwd ? cwd.split(/[/\\]/).filter(Boolean).pop() || cwd : "";
+  const currentProject = useMemo(
+    () => projectGroups.find((group) => group.current),
+    [projectGroups],
+  );
 
   const handleSend = useCallback(
     (displayText: string, submitText = displayText) => {
@@ -312,7 +317,7 @@ export default function App() {
   const {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
     confirmDeleteCurrent, switchFolder, resumeSessionInProject,
-    resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
+    recentSessions, resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
   } = useSessionHandlers({
     t, toast, refreshSessions, deleteSession, newSessionAndReset, pickWorkspace,
     switchWorkspace, handleResumeSession, handleDeleteSession, handleRenameSession,
@@ -321,8 +326,8 @@ export default function App() {
     closeFilePreview, setWorkspacePanel,
   });
 
-  const createNovelWorkspace = useCallback(async (name: string): Promise<WorkspaceView> => {
-    const ws = await app.WenxueCreateNovel(name);
+  const createNovelWorkspace = useCallback(async (name: string, infoJson: string): Promise<WorkspaceView> => {
+    const ws = await app.WenxueCreateNovel(name, infoJson);
     closeFilePreview();
     setWorkspacePanel(false);
     await newSessionAndReset();
@@ -342,6 +347,12 @@ export default function App() {
     await refreshSessions();
     return picked;
   }, [switchFolder, refreshSessions]);
+
+  const openNovelLibrary = useCallback(async () => {
+    const parent = currentProject?.path.replace(/[\\/][^\\/]+$/, "");
+    if (!parent || parent === currentProject?.path) return;
+    await selectNovelWorkspace(parent);
+  }, [currentProject?.path, selectNovelWorkspace]);
 
   const deleteNovelWorkspace = useCallback(async (path: string): Promise<void> => {
     await app.WenxueDeleteNovel(path);
@@ -635,12 +646,20 @@ export default function App() {
     [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
   const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
-  const showOfficeComposer = chatTab === "chat" && !activeSubagent;
-  const showCenteredComposer =
-    showOfficeComposer
-    && state.items.length === 0
-    && !state.running
-    && state.meta?.ready === true;
+  const showOfficeComposer = chatTab === "chat" && !activeSubagent && !!currentProject;
+  const showWenxueHome = chatTab === "chat" && !activeSubagent && state.items.length === 0;
+  const homeQuickActions = useMemo(
+    () => quickActions.map(({ key, label, Icon, template }) => ({
+      key,
+      label,
+      Icon,
+      prompt: template.prompt,
+    })),
+    [quickActions],
+  );
+  const requestNewNovel = useCallback(() => {
+    window.dispatchEvent(new Event("wenxue:new-novel-requested"));
+  }, []);
 
   return (
     <>
@@ -689,7 +708,7 @@ export default function App() {
           SIDEBAR_MAX_WIDTH={SIDEBAR_MAX_WIDTH}
         />
 
-        <section className={`chat-pane v3-zone ${showCenteredComposer ? "office-chat-empty" : "office-chat-active"}`}>
+        <section className={`chat-pane v3-zone office-chat-active${showWenxueHome && currentProject ? " wx-home-chat" : ""}`}>
           <header className="office-topbar flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
             <div className="office-topbar__primary">
               <div className="flex items-center gap-2 min-w-0">
@@ -797,7 +816,29 @@ export default function App() {
                   />
                 ) : (
                   <>
-                    {chatTab === "chat" && (
+                    {chatTab === "chat" && showWenxueHome && (
+                      <Suspense fallback={null}>
+                        <WenxueHome
+                          projects={projectGroups}
+                          currentProject={currentProject}
+                          projectsLoaded={projectGroupsLoaded}
+                          recentSessions={recentSessions}
+                          currentSessionPath={currentSessionPath ?? undefined}
+                          quickActions={homeQuickActions}
+                          onOpenProject={selectNovelWorkspace}
+                          onCreateNovel={requestNewNovel}
+                          onOpenHistory={() => { void openHistory(); }}
+                          onResumeSession={(path, projectPath) => {
+                            void resumeSessionInProject(path, projectPath);
+                          }}
+                          onNewSession={() => { void newSessionAndReset(); }}
+                          onInsertPrompt={(prompt) => useComposerInsertStore.getState().requestText(prompt)}
+                          onSwitchTab={(tab) => setChatTab(tab)}
+                          onOpenLibrary={() => { void openNovelLibrary(); }}
+                        />
+                      </Suspense>
+                    )}
+                    {chatTab === "chat" && !showWenxueHome && (
                       <GenuiScopeProvider scope={{ scope: "wenxue", sessionKey: currentSessionKey }}>
                         <GenuiActionProvider onAction={genuiActionHandler}>
                           <Transcript onPrompt={send} running={state.running} onRewind={rewind} onRegenerate={regenerate} onFeedback onScrollToTurnReady={setScrollToTurn} />
@@ -871,7 +912,7 @@ export default function App() {
                 方便）——会话级登记表驱动，消息流正文卡保留（不抽卡）。
                 新建会话空首页不挂载：避免沿用上一会话登记缓存，出现无主
                 「交互文件」面板。进入实际会话内容后才显示。 */}
-            {showOfficeComposer && !showCenteredComposer && (
+            {showOfficeComposer && (
               <DeliverablesDock items={sessionDeliverables} />
             )}
             <CompactContext.Provider value={compactMode}>
@@ -890,31 +931,6 @@ export default function App() {
                 todos={todos}
                 onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
-            )}
-            {showOfficeComposer && showCenteredComposer && (
-              <>
-                <div className="office-empty-heading">
-                  <p className="office-empty-welcome">
-                    <Sparkles size={13} aria-hidden />
-                    <span>{t("office.welcomeLine")}</span>
-                  </p>
-                  <h1>{t("office.emptyTitle")}</h1>
-                </div>
-                <div className="office-quick-actions" role="group" aria-label={t("office.quickActions")}>
-                  {quickActions.map(({ key, label, Icon, template }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className="office-quick-action"
-                      onClick={() => useComposerInsertStore.getState().requestText(template.prompt)}
-                      title={template.description || template.prompt}
-                    >
-                      <Icon size={15} aria-hidden />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
             )}
             {showOfficeComposer && (
             <div className="office-composer-stack">

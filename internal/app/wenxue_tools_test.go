@@ -139,7 +139,7 @@ func TestWenxueFinalDomainIsolation(t *testing.T) {
 func TestWenxueCreateNovelScaffoldsFinalDir(t *testing.T) {
 	wenxueToolsTestRoot(t)
 	a := &App{}
-	if _, err := a.WenxueCreateNovel("脚手架书"); err != nil {
+	if _, err := a.WenxueCreateNovel("脚手架书", ""); err != nil {
 		t.Fatalf("建书: %v", err)
 	}
 	root := wenxueWorkspace()

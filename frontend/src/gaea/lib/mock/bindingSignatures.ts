@@ -606,7 +606,7 @@ export const bindingSignatures = {
   WenxueContextNodeDetail: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueContextSurface: { argc: 2, variadic: true, params: "seq int64, sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueContextView: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
-  WenxueCreateNovel: { argc: 1, variadic: false, params: "name string" },
+  WenxueCreateNovel: { argc: 2, variadic: false, params: "name string, infoJSON string" },
   WenxueCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
   WenxueCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },
   WenxueDeleteNovel: { argc: 1, variadic: false, params: "path string" },
