@@ -132,6 +132,12 @@ type Options struct {
 	// 热重载复用首载快照的 UserDir/DB，全链跟随。空值 = config.MemoryUserDir()
 	// 现状逐字节（办公引擎不传）。
 	MemoryUserDir string
+	// SystemPrompt 是板块身份提示词覆写（2026-11-16 图文身份分板）：非空时
+	// 顶替 cfg.ResolveSystemPrompt() 作为 L1 基底（部署级 prefix/suffix、语言
+	// 策略、记忆、技能索引等装配块照常叠加）。板块引擎传自己的身份（图文走
+	// cfg.ResolveWenxueSystemPrompt()），不再吃办公 system_prompt。空 = 现状
+	// 逐字节（办公/CLI/TUI 不传）。
+	SystemPrompt string
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -264,7 +270,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir, opts.SystemPrompt)
 	if err != nil {
 		return nil, err
 	}

@@ -664,12 +664,18 @@ func (c *Config) BashMode() string {
 // AgentConfig configures the harness loop. SubagentModel is the optional default
 // for runAs=subagent skills; SubagentModels overrides it per skill name.
 type AgentConfig struct {
-	SystemPrompt     string            `toml:"system_prompt"`
-	SystemPromptFile string            `toml:"system_prompt_file"`
-	MaxSteps         int               `toml:"max_steps"` // tool-call rounds per turn; 0 = unlimited
-	Temperature      float64           `toml:"temperature"`
-	SubagentModel    string            `toml:"subagent_model"`
-	SubagentModels   map[string]string `toml:"subagent_models"`
+	SystemPrompt     string `toml:"system_prompt"`
+	SystemPromptFile string `toml:"system_prompt_file"`
+	// WenxueSystemPrompt / WenxueSystemPromptFile 是图文板块身份提示词
+	// （2026-11-16 图文身份分板）：图文引擎经 boot.Options.SystemPrompt 装配
+	// 自己的身份，不再吃办公的 system_prompt（双键先例与办公一致——文件键
+	// 优先，空 = DefaultWenxueSystemPrompt 代码默认）。
+	WenxueSystemPrompt     string            `toml:"wenxue_system_prompt"`
+	WenxueSystemPromptFile string            `toml:"wenxue_system_prompt_file"`
+	MaxSteps               int               `toml:"max_steps"` // tool-call rounds per turn; 0 = unlimited
+	Temperature            float64           `toml:"temperature"`
+	SubagentModel          string            `toml:"subagent_model"`
+	SubagentModels         map[string]string `toml:"subagent_models"`
 	// SubagentTemperature overrides Temperature for task-tool sub-agents.
 	// 0 means "use Temperature". Negative means "use Temperature".
 	SubagentTemperature float64 `toml:"subagent_temperature"`
@@ -1132,6 +1138,24 @@ func (c *Config) ResolveSystemPrompt() (string, error) {
 		return DefaultSystemPrompt, nil
 	}
 	return c.Agent.SystemPrompt, nil
+}
+
+// ResolveWenxueSystemPrompt returns the wenxue board identity prompt, reading
+// wenxue_system_prompt_file if set. Empty keys fall back to the board default
+// (DefaultWenxueSystemPrompt) — the wenxue engine must never inherit the office
+// persona through the shared config (2026-11-16 图文身份分板).
+func (c *Config) ResolveWenxueSystemPrompt() (string, error) {
+	if c.Agent.WenxueSystemPromptFile != "" {
+		b, err := os.ReadFile(c.Agent.WenxueSystemPromptFile)
+		if err != nil {
+			return "", fmt.Errorf("wenxue_system_prompt_file: %w", err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	if strings.TrimSpace(c.Agent.WenxueSystemPrompt) == "" {
+		return DefaultWenxueSystemPrompt, nil
+	}
+	return c.Agent.WenxueSystemPrompt, nil
 }
 
 // Validate checks that the selected model's provider is usable.

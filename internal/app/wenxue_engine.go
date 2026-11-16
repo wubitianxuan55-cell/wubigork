@@ -78,6 +78,17 @@ func wenxueBrainDir() string {
 	return filepath.Join(base, "wenxue-brain")
 }
 
+// wenxueSystemPrompt 解析图文板块身份提示词：配置文件键优先（wenxue_system_
+// prompt_file，读失败硬报错——用户显式配置的档位缺档不许静默吞），其次
+// wenxue_system_prompt，双空 = 代码默认 DefaultWenxueSystemPrompt。ga.cfg
+// 未就绪（测试/早期构建）恒不回落办公人格，直接用板块默认。
+func wenxueSystemPrompt() (string, error) {
+	if ga.cfg == nil {
+		return gaeaConfig.DefaultWenxueSystemPrompt, nil
+	}
+	return ga.cfg.ResolveWenxueSystemPrompt()
+}
+
 // 图文事件通道：主对话流 + 子代理流式增量（与办公通道物理分线）。
 const (
 	wenxueEventChannel        = "gaea-wenxue-event"
@@ -168,8 +179,19 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 	// 工作空间锚：当前小说目录（未选书=图文根本身，会话被 NewSession 拒绝，
 	// 引擎仍可构建保证 Meta/面板可用）。
 	ws := wenxueWorkspace()
+	// 板块身份（2026-11-16 图文身份分板）：图文装配自己的身份提示词，不再
+	// 吃办公 system_prompt（本机实锤：办公人格=土壤修复工程助手，图文会话
+	// 开场自称「土壤修复办公专用AI助手」）。配置双键自定义（wenxue_system_
+	// prompt / wenxue_system_prompt_file，文件键优先），空 = 代码默认
+	// DefaultWenxueSystemPrompt。
+	sysPrompt, err := wenxueSystemPrompt()
+	if err != nil {
+		return nil, err
+	}
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
 		Model: "gaea",
+		// 身份覆写：图文人格（见 wenxueSystemPrompt）。
+		SystemPrompt: sysPrompt,
 		EmitSubagentText: func(ref, text string) {
 			a.emit(wenxueSubagentTextChannel, map[string]interface{}{
 				"kind": "subagent_text", "text": text, "subagentRef": ref,

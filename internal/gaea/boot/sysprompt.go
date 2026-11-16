@@ -48,10 +48,18 @@ type syspromptOut struct {
 // 同步收口（同 filter），经 syspromptOut.readSkill 交 boot 注册实例化工具
 // （替换全局 builtin 同名件——双引擎下全局 WireReadSkillResolver 后建者覆盖
 // 会跨引擎串仓，实例化是刀2 的结构性修复）。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string) (*syspromptOut, error) {
-	sysPrompt, err := cfg.ResolveSystemPrompt()
-	if err != nil {
-		return nil, err
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string, systemPromptOverride string) (*syspromptOut, error) {
+	// 板块身份覆写（2026-11-16 图文身份分板）：非空顶替全局配置解析——图文
+	// 引擎传自己的身份，不再吃办公 system_prompt。空 = 现状逐字节。
+	var sysPrompt string
+	if s := strings.TrimSpace(systemPromptOverride); s != "" {
+		sysPrompt = s
+	} else {
+		var err error
+		sysPrompt, err = cfg.ResolveSystemPrompt()
+		if err != nil {
+			return nil, err
+		}
 	}
 	// 部署级提示词首拼接（刀14，dsh-context promptPrefix 蒸馏）：非空时置于
 	// 所有会话系统提示词最前（outputstyle/语言策略/记忆/技能索引之前）。

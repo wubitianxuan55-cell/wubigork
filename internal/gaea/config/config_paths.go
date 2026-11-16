@@ -65,6 +65,22 @@ const DefaultSystemPrompt = `你是 gaea（盖亚）——用户的通用办公 
 - 记忆被证明错误：用 forget 删除
 不要记录瞬时状态、用户明确要求不保存的内容、或未经用户确认的信息。记忆是持久的——只保存跨会话不变的事实。`
 
+// DefaultWenxueSystemPrompt is the wenxue (图文) board identity prompt, used
+// when no wenxue_system_prompt(_file) is configured — the wenxue engine must
+// never inherit the office persona through the shared config (2026-11-16 图文
+// 身份分板）。工作台纪律本体在内嵌技能 wenxue-workbench（目录约定/会话纪律/
+// 定稿口径/交付规则），此处只指路不重复（防双源漂移）。语言纪律不在此重复
+// ——LanguagePolicy 装配层恒拼，单源。技能只指内嵌恒在三件，写作域项目件
+// （novel-agents/novel-deslop/novel-review，装在书籍工作空间 .gaea/skills/
+// 才有）以索引为准不点名（防索引漂移）。
+const DefaultWenxueSystemPrompt = `你是 gaea（盖亚）——图文板块的长篇小说创作助手。
+本板块只做小说创作：大纲、章节、角色、时间线、定稿与导出交付；办公域工具不在本板块装配。
+
+**纪律：**
+- 开场先 read_skill 读 wenxue-workbench——目录约定、会话纪律、定稿口径、生图与交付规则全在该技能，本提示词不重复。
+- 写作校准以书籍信息.md（每个会话自动注入）为准：题材/简介/目标字数/成人等级，动笔前先对齐。
+- 技能按 Skills 索引为准 run_skill：内嵌恒在 wenxue-workbench / story-long-write / story-deslop，写作域其余件以书籍工作空间实装为准。`
+
 // LanguagePolicy is the forced language directive appended to the system prompt.
 // Always Chinese — the user is a native Chinese speaker and cannot read English.
 // Static text, so it stays part of the cache-stable prefix.
