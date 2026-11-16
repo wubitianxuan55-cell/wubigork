@@ -2,7 +2,13 @@
 
 - 本日五批+三标签页重设计已提交：`666f239d`（三标签页重设计，另一执行体批次代提交）、
   `7e0dffde`（图文五批：本地引擎预检+租约/角色库导入/工具瘦身 55→43/记忆中枢接入
-  九库/记忆面板恢复+生图面）。打包见下方追加。
+  九库/记忆面板恢复+生图面）。
+- **功能包** `releases/gaea-wenxue-v3-20261116-7e0dffde/`：独立干净工作树
+  （detached @7e0dffde，junction node_modules）Vite 44.65s + `wails build -s
+  -ldflags "-s -w" -trimpath`（bindings 未跳过；坑=工作树 wails 需主树
+  build/bin DLL 入 PATH 否则 0xc0000135）；payload 四件+zip/tar+SHA256SUMS+
+  PACKAGE-INFO 入库（zip/tar 本体留盘）；冒烟 `/api/health 200` 过、冒烟进程
+  已回收；工作树已回收；exe SHA256 `c9c8eab8…`。
 
 ## 文学角色 / 阅读 / 设定三标签页重设计（2026-11-16）
 
