@@ -289,3 +289,91 @@ func TestWenxueChapterWriteGuards(t *testing.T) {
 		t.Fatalf("path 缺省且无号无题应显式报错（不再落 000-未命名.md），got %v", err)
 	}
 }
+
+// TestWenxueQualityCheck 质检族（2026-11-17 审查批8 开工）：五组确定性体检
+// 全链——跳号/重号/未编号、角色卡缺节与自由格式、时间线未锚、设定空文档/
+// 无标题、孤儿候选；空工作区=groups 空（体检通过）。
+func TestWenxueQualityCheck(t *testing.T) {
+	root := wenxueToolsTestRoot(t)
+	write := func(rel, body string) {
+		t.Helper()
+		abs := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 章节：001 → 003（跳号）、005 两个（重号）、序章（未编号）。
+	write("章节/001-开篇.md", "# 第一章 开篇\n\n雨夜。")
+	write("章节/003-追查.md", "# 第三章 追查\n\n清晨。")
+	write("章节/005-初见.md", "# 第五章 初见\n\n黄昏。")
+	write("章节/005-重逢.md", "# 第五章 重逢\n\n入夜。")
+	write("章节/序章.md", "# 序章\n\n之前。")
+	// 角色卡：缺节卡 + 自由格式卡。
+	write("角色/沈青梧.md", "# 沈青梧\n\n## 设定\n\n守夜人。\n\n## 外貌\n\n短发。\n")
+	write("角色/自由卡.md", "# 自由卡\n\n随手记的一段人物小传，没有节结构。\n")
+	// 时间线：一锚一未锚。
+	write("时间线/时间线.md", "# 时间线\n\n- 第1章 · 沈青梧抵达雾港。\n- 遇袭（未锚）。\n")
+	// 设定：空文档 + 无标题。
+	write("设定/空文档.md", "")
+	write("设定/无标题.md", "随手写的设定片段，没有一级标题。")
+	// 孤儿候选：stem 不在章节清单。
+	write("章节/候选/不存在章/A.md", "候选内容")
+
+	out := mustRun(t, wenxueQualityCheckTool(), `{}`)
+	var resp struct {
+		Ok     bool `json:"ok"`
+		Groups []struct {
+			Name     string `json:"name"`
+			Severity string `json:"severity"`
+			Count    int    `json:"count"`
+			Items    []struct {
+				Path    string `json:"path"`
+				Message string `json:"message"`
+			} `json:"items"`
+		} `json:"groups"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		t.Fatalf("回执解析: %v\n%s", err, out)
+	}
+	if !resp.Ok {
+		t.Fatal("ok 应为 true")
+	}
+	groupMsg := func(gName string) []string {
+		for _, g := range resp.Groups {
+			if g.Name == gName {
+				var msgs []string
+				for _, it := range g.Items {
+					msgs = append(msgs, it.Message)
+				}
+				return msgs
+			}
+		}
+		return nil
+	}
+	if g := groupMsg("章节编号"); len(g) < 3 {
+		t.Fatalf("章节编号应报跳号/重号/未编号 ≥3 条，got %v（回执 %s）", g, out)
+	}
+	if g := groupMsg("角色卡"); len(g) != 2 {
+		t.Fatalf("角色卡应报缺节+自由格式 2 条，got %v", g)
+	}
+	if g := groupMsg("时间线"); len(g) != 1 {
+		t.Fatalf("时间线应报未锚 1 条，got %v", g)
+	}
+	if g := groupMsg("设定"); len(g) != 2 {
+		t.Fatalf("设定应报空文档+无标题 2 条，got %v", g)
+	}
+	if g := groupMsg("孤儿候选"); len(g) != 1 {
+		t.Fatalf("孤儿候选应报 1 条，got %v", g)
+	}
+
+	// 空工作区：全绿=groups 空。
+	emptyRoot := t.TempDir()
+	t.Setenv("GAEA_TUWEN_ROOT", emptyRoot)
+	out2 := mustRun(t, wenxueQualityCheckTool(), `{}`)
+	if strings.Contains(out2, `"name"`) {
+		t.Fatalf("空工作区体检应全绿（groups 空），got %s", out2)
+	}
+}

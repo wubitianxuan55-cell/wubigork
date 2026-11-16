@@ -43,6 +43,7 @@ func TestWenxueSurfaceKeepsExclusiveFamily(t *testing.T) {
 		"wenxue_character_list", "wenxue_character_read", "wenxue_character_write",
 		"wenxue_character_import",
 		"wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats",
+		"wenxue_quality_check",
 		"wenxue_final_list", "wenxue_final_read", "wenxue_final_write",
 	} {
 		if !keep[n] {

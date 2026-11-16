@@ -84,6 +84,7 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueTimelineReadTool(),
 		wenxueTimelineAppendTool(),
 		wenxueStatsTool(),
+		wenxueQualityCheckTool(),
 		wenxueFinalListTool(),
 		wenxueFinalReadTool(),
 		wenxueFinalWriteTool(),
@@ -1626,4 +1627,193 @@ func sanitizeFileName(name string) string {
 		out = "未命名"
 	}
 	return out
+}
+
+// ── 质检族（2026-11-17 审查批8 开工，原挂池项）────────────────────────
+// 全书确定性体检（零 LLM）：按图文 md 工作区约定全新自建——不背 novelgate
+// 的 JSON 项目数据模型（随小说板退役删除），LLM 评审归 novel-review 技能
+// （分工与技能文档一致）。分组回执仅非空携带（窄告警口径），items 封顶。
+
+// wenxueQualityItem 单条发现（path=工作区相对路径或文件:行）。
+type wenxueQualityItem struct {
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
+}
+
+// wenxueQualityGroup 分组发现集（仅非空携带进回执）。
+type wenxueQualityGroup struct {
+	Name     string              `json:"name"`
+	Severity string              `json:"severity"` // warn | info
+	Count    int                 `json:"count"`
+	Items    []wenxueQualityItem `json:"items"`
+}
+
+// wenxueQualityItemCap 单组回执封顶（窄告警口径：全量在文件里，回执给信号）。
+const wenxueQualityItemCap = 8
+
+// wenxueCardSections 角色卡六节骨架（与 character 卡契约/前端 hub 同源）。
+var wenxueCardSections = []string{"设定", "外貌", "性格", "口头禅", "关系", "当前状态"}
+
+// wenxueQualityCheckTool 全书确定性体检。
+func wenxueQualityCheckTool() *wenxueTool {
+	const name = "wenxue_quality_check"
+	return &wenxueTool{
+		name:     name,
+		desc:     "全书确定性体检（零 LLM）：章节编号连续性（跳号/重号/未编号）、角色卡六节完整性、时间线未锚与中文序号行、设定空文档/无标题、孤儿候选目录；分组回执仅非空携带，items 封顶 8。LLM 评审归 novel-review 技能。",
+		schema:   `{"type":"object","properties":{},"additionalProperties":false}`,
+		readOnly: true,
+		run: func(args json.RawMessage) (string, error) {
+			root := wenxueWorkspace()
+			var groups []wenxueQualityGroup
+			add := func(gName, severity string, items []wenxueQualityItem) {
+				if len(items) == 0 {
+					return
+				}
+				g := wenxueQualityGroup{Name: gName, Severity: severity, Count: len(items), Items: items}
+				if len(g.Items) > wenxueQualityItemCap {
+					g.Items = g.Items[:wenxueQualityItemCap]
+				}
+				groups = append(groups, g)
+			}
+
+			// 1) 章节编号：跳号/重号/未编号（清单按章号升序对照）。
+			chapters := wenxueListChapters(root)
+			{
+				var items []wenxueQualityItem
+				seen := map[int]string{}
+				prev := 0
+				for _, c := range chapters {
+					if c.Number == 0 {
+						items = append(items, wenxueQualityItem{Path: c.Path, Message: "未编号章（文件名无前导序号）"})
+						continue
+					}
+					if first, dup := seen[c.Number]; dup {
+						items = append(items, wenxueQualityItem{Path: c.Path, Message: fmt.Sprintf("章号 %d 重号（与 %s）", c.Number, first)})
+						continue
+					}
+					seen[c.Number] = c.Path
+					if prev > 0 && c.Number > prev+1 {
+						items = append(items, wenxueQualityItem{Path: c.Path, Message: fmt.Sprintf("章号跳号：%d 之后直接 %d（缺 %d-%d）", prev, c.Number, prev+1, c.Number-1)})
+					}
+					prev = c.Number
+				}
+				add("章节编号", "warn", items)
+			}
+
+			// 2) 角色卡：六节骨架缺节（全无节头=自由格式卡，info 如实）。
+			{
+				var items []wenxueQualityItem
+				for _, m := range wenxueListCharacters(root) {
+					p, _ := m["path"].(string)
+					if p == "" {
+						continue
+					}
+					body, _, err := wenxueReadBody(root, p)
+					if err != nil {
+						continue
+					}
+					has := map[string]bool{}
+					anySection := false
+					for _, line := range strings.Split(body, "\n") {
+						t := strings.TrimSpace(line)
+						if !strings.HasPrefix(t, "## ") {
+							continue
+						}
+						anySection = true
+						has[strings.TrimSpace(strings.TrimPrefix(t, "## "))] = true
+					}
+					if !anySection {
+						items = append(items, wenxueQualityItem{Path: p, Message: "自由格式卡（无节结构，hub 按原文回退展示）"})
+						continue
+					}
+					var missing []string
+					for _, sec := range wenxueCardSections {
+						if !has[sec] {
+							missing = append(missing, sec)
+						}
+					}
+					if len(missing) > 0 {
+						items = append(items, wenxueQualityItem{Path: p, Message: "缺节：" + strings.Join(missing, "、")})
+					}
+				}
+				add("角色卡", "warn", items)
+			}
+
+			// 3) 时间线：未锚/中文序号行（机器不可排序；回写纪律=阿拉伯数字）。
+			{
+				var items []wenxueQualityItem
+				for _, e := range wenxueTimelineEntries(root) {
+					if e.Chapter == 0 {
+						items = append(items, wenxueQualityItem{
+							Path:    fmt.Sprintf("%s:%d", e.File, e.Line),
+							Message: "未锚/中文序号事件行（第N章锚缺失或中文数字不可解析）",
+						})
+					}
+				}
+				add("时间线", "warn", items)
+			}
+
+			// 4) 设定：空文档/无一级标题。
+			{
+				var items []wenxueQualityItem
+				dir := wenxueFindDir(root, "settings")
+				if dir != "" {
+					if abs, err := wspath.ResolveRelWithin(root, dir); err == nil {
+						entries, _ := os.ReadDir(abs)
+						for _, e := range entries {
+							if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+								continue
+							}
+							rel := filepath.ToSlash(filepath.Join(dir, e.Name()))
+							body, _, err := wenxueReadBody(root, rel)
+							if err != nil {
+								continue
+							}
+							if strings.TrimSpace(body) == "" {
+								items = append(items, wenxueQualityItem{Path: rel, Message: "空文档"})
+							} else if !strings.Contains(body, "\n# ") && !strings.HasPrefix(body, "# ") {
+								items = append(items, wenxueQualityItem{Path: rel, Message: "无一级标题（大纲/渲染按首行标题兜底）"})
+							}
+						}
+					}
+				}
+				add("设定", "info", items)
+			}
+
+			// 5) 孤儿候选：章节/候选/<stem>/ 的 stem 不在任何章节清单里。
+			{
+				var items []wenxueQualityItem
+				stems := map[string]bool{}
+				for _, c := range chapters {
+					stems[strings.TrimSuffix(filepath.Base(c.Path), filepath.Ext(c.Path))] = true
+				}
+				for _, dir := range wenxueDirCandidates(root, "chapters") {
+					candRel := filepath.ToSlash(filepath.Join(dir, "候选"))
+					abs, err := wspath.ResolveRelWithin(root, candRel)
+					if err != nil {
+						continue
+					}
+					entries, _ := os.ReadDir(abs)
+					for _, e := range entries {
+						if !e.IsDir() {
+							continue
+						}
+						if !stems[e.Name()] {
+							items = append(items, wenxueQualityItem{
+								Path:    filepath.ToSlash(filepath.Join(candRel, e.Name())),
+								Message: "孤儿候选目录（对应章不在章节清单）",
+							})
+						}
+					}
+				}
+				add("孤儿候选", "warn", items)
+			}
+
+			checked := map[string]int{
+				"chapters": len(chapters), "characters": len(wenxueListCharacters(root)),
+				"timeline": len(wenxueTimelineEntries(root)),
+			}
+			return wenxueJSON(map[string]any{"ok": true, "checked": checked, "groups": groups})
+		},
+	}
 }
