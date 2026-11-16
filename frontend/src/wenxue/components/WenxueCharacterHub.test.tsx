@@ -66,6 +66,19 @@ describe("WenxueCharacterHub", () => {
     expect(screen.getByText(/wenxue_character_write/)).toBeTruthy();
   });
 
+  it("自动选中首卡并显示资料完整度，可按待补状态筛选", async () => {
+    render(<WenxueCharacterHub />);
+    await waitFor(() => screen.getByTestId("wenxue-char-card-林晚"));
+    const detail = await screen.findByTestId("wenxue-char-detail");
+    expect(detail.textContent).toContain("法医，32 岁。");
+    expect(screen.getByText("资料完整度")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "待补 2" }));
+    expect(screen.getByTestId("wenxue-char-card-林晚")).toBeTruthy();
+    expect(screen.getByTestId("wenxue-char-card-陆则")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "已完善 0" }));
+    expect(screen.getByText(/当前筛选没有角色/)).toBeTruthy();
+  });
+
   it("点卡进阅读态（结构化六节渲染），编辑态保存走 CAS 写", async () => {
     render(<WenxueCharacterHub />);
     await waitFor(() => screen.getByTestId("wenxue-char-card-林晚"));

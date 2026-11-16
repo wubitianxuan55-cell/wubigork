@@ -47,4 +47,14 @@ describe("WenxueReadingHub", () => {
     fireEvent.click(screen.getByText("上一章").closest("button") as HTMLButtonElement);
     await waitFor(() => expect(screen.getByText("雨夜。巷口的路灯忽明忽暗。")).toBeTruthy());
   });
+
+  it("支持字号调整和沉浸专注模式", async () => {
+    render(<WenxueReadingHub />);
+    await waitFor(() => screen.getByTestId("wenxue-reading-item-1"));
+    fireEvent.click(screen.getByLabelText("放大正文字号"));
+    expect(screen.getByTitle("当前 18px")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /专注阅读/ }));
+    expect(screen.getByRole("button", { name: /退出专注/ })).toBeTruthy();
+    expect(document.querySelector('[data-testid="wenxue-reading-hub"]')?.className).toContain("is-focus");
+  });
 });

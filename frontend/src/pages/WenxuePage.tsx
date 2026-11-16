@@ -7,6 +7,7 @@ import '../wenxue/wenxue-ui.css'
 import '../wenxue/wenxue-conversation.css'
 import '../wenxue/wenxue-lingxi-skin.css'
 import '../wenxue/wenxue-sidebar.css'
+import '../wenxue/wenxue-hubs.css'
 
 // 文学板块（2026-11-15）：办公板块的完整前端拷贝（frontend/src/wenxue/），全共享
 // 引擎与会话流（同一批 OfficeB 等绑定），仅 UI 层独立——4 个皮肤 css 拷贝件经

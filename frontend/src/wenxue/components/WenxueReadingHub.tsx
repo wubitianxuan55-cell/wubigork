@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, ChevronRight, RefreshCw } from "../icons";
+import type { CSSProperties, UIEvent } from "react";
+import {
+  BookOpen, ChevronRight, Clock, FileText, ListTree, Maximize2,
+  Minimize2, RefreshCw, Search,
+} from "../icons";
 import { app } from "../lib/bridge";
+import { subscribe } from "../../events";
 import { Markdown } from "./Markdown";
+import { WenxueHubEmpty, WenxueHubFrame } from "./WenxueHubFrame";
+import {
+  countWords, markdownHeadings, readingMinutes, withoutLeadingH1,
+} from "./wenxueHubUtils";
 
-// WenxueReadingHub — 图文板块「阅读」标签页（2026-11-15 阅读刀）。
-// 数据面=小说工作空间定稿目录（定稿|final|finalized，只放发布稿不放草稿），
-// 与 agent 的 wenxue_final_list/read/write 专属工具共享同一数据源：agent
-// 入库（wenxue_final_write）→ 点刷新即见；目录导航 + 阅读窗（Markdown 渲染，
-// 本地相对图片按章节路径解析）。与「角色」tab 同款移植纪律：形态新写、
-// 数据层锚工作空间文件。
+// WenxueReadingHub — 文学板块「阅读」标签页。
+// 数据面仍是工作空间「定稿」目录，不新增持久化格式。UI 从原来的双栏文件
+// 浏览器升级为阅读室：章节目录、书页正文、章内导航与阅读偏好三层分工。
+// agent 通过 wenxue_final_write 入库后，gaea-wenxue-filetree 通道会触发重载。
 
 interface ReadingChapter {
   path: string;
@@ -20,17 +27,16 @@ interface ReadingChapter {
 
 const DIR_CANDIDATES = ["定稿", "final", "finalized"];
 
-function countWords(s: string): number {
-  let n = 0;
-  for (const ch of s) if (!/\s/.test(ch)) n++;
-  return n;
-}
-
 function parseChapterName(name: string): { number: number; title: string } {
   const stem = name.replace(/\.(md|markdown|txt)$/i, "");
   const m = stem.match(/^(\d+)[-_\s.：:]*(.*)$/);
   if (m) return { number: parseInt(m[1], 10), title: m[2].trim() || stem };
   return { number: 0, title: stem };
+}
+
+function chapterLabel(chapter: ReadingChapter): string {
+  if (chapter.number > 0) return `第${chapter.number}章`;
+  return chapter.title.includes("序") ? "序" : "章";
 }
 
 export function WenxueReadingHub() {
@@ -40,12 +46,21 @@ export function WenxueReadingHub() {
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [reading, setReading] = useState(false);
+  const [error, setError] = useState("");
+  const [bookTitle, setBookTitle] = useState("当前作品");
+  const [tocQuery, setTocQuery] = useState("");
+  const [focusMode, setFocusMode] = useState(false);
+  const [fontSize, setFontSize] = useState(17);
+  const [scrollPct, setScrollPct] = useState(0);
   const loadToken = useRef(0);
   const readToken = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const paperRef = useRef<HTMLElement>(null);
 
   const load = useCallback(async () => {
     const token = ++loadToken.current;
     setLoading(true);
+    setError("");
     try {
       const rootEntries = await app.ListDir("");
       let dir = "";
@@ -71,147 +86,428 @@ export function WenxueReadingHub() {
         const { number, title } = parseChapterName(e.name);
         rows.push({ path: rel, name: e.name, number, title, words: countWords(tf.text) });
       }
-      rows.sort((a, b) => (a.number !== b.number ? a.number - b.number : a.name.localeCompare(b.name, "zh-Hans-CN")));
+      rows.sort((a, b) => (a.number !== b.number
+        ? a.number - b.number
+        : a.name.localeCompare(b.name, "zh-Hans-CN")));
       if (token !== loadToken.current) return;
       setChapters(rows);
       setSelected((cur) => (rows.some((r) => r.path === cur) ? cur : rows[0]?.path ?? ""));
-    } catch {
-      if (token === loadToken.current) { setChapters([]); setSelected(""); }
+    } catch (err) {
+      if (token === loadToken.current) {
+        setChapters([]);
+        setSelected("");
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       if (token === loadToken.current) setLoading(false);
     }
   }, []);
 
-  // 选中章节正文加载
-  useEffect(() => {
-    if (!selected) { setBody(""); return; }
+  const readChapter = useCallback(async (path: string) => {
     const token = ++readToken.current;
     setReading(true);
-    app.GaeaReadTextFile(selected)
-      .then((tf) => { if (token === readToken.current) setBody(tf.text); })
-      .catch(() => { if (token === readToken.current) setBody("（读取失败）"); })
-      .finally(() => { if (token === readToken.current) setReading(false); });
-  }, [selected]);
+    setError("");
+    try {
+      const tf = await app.GaeaReadTextFile(path);
+      if (token === readToken.current) setBody(tf.text);
+    } catch (err) {
+      if (token === readToken.current) {
+        setBody("");
+        setError(err instanceof Error ? err.message : "章节读取失败");
+      }
+    } finally {
+      if (token === readToken.current) setReading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selected) {
+      setBody("");
+      return;
+    }
+    void readChapter(selected);
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+      setScrollPct(0);
+    });
+  }, [readChapter, selected]);
 
   useEffect(() => { void load(); }, [load]);
-  // 切书刷新（与文件树/角色 tab 同款事件）
+
   useEffect(() => {
     const handler = () => { void load(); };
     window.addEventListener("wenxue:workspace-changed", handler);
     return () => window.removeEventListener("wenxue:workspace-changed", handler);
   }, [load]);
 
+  useEffect(() => {
+    return subscribe("gaea-wenxue-filetree", (payload) => {
+      const paths = (payload as { paths?: unknown } | null)?.paths;
+      if (!Array.isArray(paths)) return;
+      const hit = paths.some((p) =>
+        typeof p === "string"
+        && DIR_CANDIDATES.some((dir) => p.replaceAll("\\", "/").startsWith(`${dir}/`)),
+      );
+      if (hit) void load();
+    });
+  }, [load]);
+
+  useEffect(() => {
+    let live = true;
+    const meta = (app as typeof app & { WenxueMeta?: () => Promise<{ cwd?: string }> }).WenxueMeta;
+    if (typeof meta === "function") {
+      void meta()
+        .then((value) => {
+          const name = value?.cwd?.split(/[\\/]/).filter(Boolean).pop();
+          if (live && name) setBookTitle(name);
+        })
+        .catch(() => {});
+    }
+    return () => { live = false; };
+  }, []);
+
   const idx = chapters.findIndex((c) => c.path === selected);
   const current = idx >= 0 ? chapters[idx] : undefined;
-  const totalWords = useMemo(() => chapters.reduce((s, c) => s + c.words, 0), [chapters]);
+  const totalWords = useMemo(() => chapters.reduce((sum, c) => sum + c.words, 0), [chapters]);
+  const displayBody = useMemo(() => withoutLeadingH1(body), [body]);
+  const headings = useMemo(
+    () => markdownHeadings(displayBody).filter((h) => h.level <= 3),
+    [displayBody],
+  );
+  const filteredChapters = useMemo(() => {
+    const q = tocQuery.trim().toLowerCase();
+    if (!q) return chapters;
+    return chapters.filter((c) => `${c.number} ${c.title} ${c.name}`.toLowerCase().includes(q));
+  }, [chapters, tocQuery]);
+  const bookProgress = chapters.length === 0
+    ? 0
+    : Math.round(((Math.max(0, idx) + (current ? 1 : 0)) / chapters.length) * 100);
 
   const jump = (delta: number) => {
     const next = chapters[idx + delta];
     if (next) setSelected(next.path);
   };
 
-  return (
-    <div className="h-full flex min-h-0" data-testid="wenxue-reading-hub">
-      {/* 目录导航 */}
-      <div
-        className="w-60 shrink-0 flex flex-col border-r overflow-hidden"
-        style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
-      >
-        <div className="px-3 py-2 border-b flex items-center justify-between gap-1" style={{ borderColor: "var(--md-sys-color-outline-variant)" }}>
-          <span className="text-[11px] font-semibold text-fg-dim flex items-center gap-1.5">
-            <BookOpen size={12} aria-hidden className="text-accent" /> 定稿目录
-            <span className="text-fg-faint font-normal">（{chapters.length} 章 · {totalWords} 字）</span>
-          </span>
-          <button
-            type="button"
-            className="flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
-            onClick={() => void load()}
-            title="刷新（agent wenxue_final_write 入库后同步）"
-          >
-            <RefreshCw size={10} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto py-1">
-          {loading ? (
-            <div className="py-8 text-center text-fg-faint text-[12px]">读取定稿目录中…</div>
-          ) : chapters.length === 0 ? (
-            <div className="px-3 py-8 text-center text-fg-faint text-[11px] leading-relaxed">
-              定稿目录为空。
-              <br />
-              让 agent 用 wenxue_final_write 入库发布稿，
-              <br />
-              或从「章节」目录把定稿文本放入「定稿」文件夹。
-            </div>
-          ) : (
-            chapters.map((c) => {
-              const active = c.path === selected;
-              return (
-                <button
-                  key={c.path}
-                  type="button"
-                  role="button"
-                  data-testid={`wenxue-reading-item-${c.number || c.name}`}
-                  aria-selected={active}
-                  className={`w-full text-left px-3 py-1.5 border-0 bg-transparent cursor-pointer text-[12px] transition-colors ${active ? "text-accent bg-bg-soft" : "text-fg-dim hover:text-fg hover:bg-bg-soft"}`}
-                  onClick={() => setSelected(c.path)}
-                >
-                  <span className="block truncate">
-                    {c.number > 0 ? `${c.number}. ` : ""}{c.title}
-                  </span>
-                  <span className="block text-[10px] text-fg-faint">{c.words} 字</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    const max = el.scrollHeight - el.clientHeight;
+    const next = max > 0 ? Math.min(100, Math.max(0, Math.round((el.scrollTop / max) * 100))) : 0;
+    setScrollPct((prev) => (Math.abs(prev - next) >= 1 ? next : prev));
+  };
 
-      {/* 阅读窗 */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {current ? (
-          <>
+  const jumpToHeading = (headingIndex: number) => {
+    const nodes = paperRef.current?.querySelectorAll<HTMLElement>(
+      ".wx-reading-prose .md h1, .wx-reading-prose .md h2, .wx-reading-prose .md h3",
+    );
+    nodes?.[headingIndex]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <WenxueHubFrame
+      tone="reading"
+      eyebrow="书稿阅览"
+      title="沉浸阅读室"
+      description="把定稿铺成一本书来读：先看全书进度与章节结构，再专注于正文。"
+      metrics={[
+        { label: "定稿", value: chapters.length, hint: chapters.length ? "章" : "待入库" },
+        { label: "全书", value: totalWords.toLocaleString("zh-CN"), hint: "字" },
+        { label: "进度", value: `${bookProgress}%`, hint: current ? "已到当前章" : "暂无章节" },
+      ]}
+      actions={[
+        {
+          key: "refresh",
+          label: "同步定稿",
+          icon: RefreshCw,
+          onClick: () => void load(),
+          title: "刷新（agent 的 wenxue_final_write 入库后同步）",
+        },
+        {
+          key: "focus",
+          label: focusMode ? "退出专注" : "专注阅读",
+          icon: focusMode ? Minimize2 : Maximize2,
+          onClick: () => setFocusMode((value) => !value),
+          primary: focusMode,
+          title: "隐藏目录与侧栏，只保留书页正文",
+        },
+      ]}
+    >
+      <div className={`wx-reading${focusMode ? " is-focus" : ""}`} data-testid="wenxue-reading-hub">
+        <div className="wx-reading__workspace">
+          <aside className="wx-reading__toc" aria-label="定稿目录">
+            <div className="wx-reading__book">
+              <span className="wx-reading__book-mark" aria-hidden>书</span>
+              <div className="wx-reading__book-copy">
+                <p>定稿目录 · 当前作品 {chapters.length} 章</p>
+                <h2 title={bookTitle}>{bookTitle}</h2>
+              </div>
+            </div>
+
+            <div className="wx-reading__toc-tools">
+              <div className="wx-hub-search">
+                <Search size={12} aria-hidden />
+                <input
+                  value={tocQuery}
+                  onChange={(event) => setTocQuery(event.target.value)}
+                  placeholder="查找章节…"
+                  aria-label="查找章节"
+                />
+                <button
+                  type="button"
+                  className="wx-hub-search__action"
+                  onClick={() => void load()}
+                  title="刷新定稿目录"
+                  aria-label="刷新定稿目录"
+                >
+                  <RefreshCw size={11} />
+                </button>
+              </div>
+            </div>
+
             <div
-              className="flex items-center justify-between gap-2 px-5 py-2 border-b"
-              style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
+              className="wx-reading__chapters"
+              role="listbox"
+              aria-label="章节目录"
             >
+              {loading ? (
+                <div className="px-2 py-8 text-center text-[11px] text-fg-faint">读取定稿目录中…</div>
+              ) : filteredChapters.length === 0 ? (
+                <div className="px-3 py-8 text-center text-[10.5px] leading-relaxed text-fg-faint">
+                  {chapters.length === 0 ? "定稿目录暂时为空。" : "没有匹配的章节。"}
+                </div>
+              ) : (
+                filteredChapters.map((chapter) => {
+                  const active = chapter.path === selected;
+                  return (
+                    <button
+                      key={chapter.path}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      data-testid={`wenxue-reading-item-${chapter.number || chapter.name}`}
+                      className="wx-reading__chapter"
+                      onClick={() => setSelected(chapter.path)}
+                    >
+                      <span className="wx-reading__chapter-no">{chapterLabel(chapter)}</span>
+                      <span className="wx-reading__chapter-title">{chapter.title}</span>
+                      <span className="wx-reading__chapter-words">{chapter.words}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="wx-reading__toc-foot">
+              {current
+                ? `当前第 ${idx + 1} / ${chapters.length} 篇 · 全书约 ${readingMinutes(totalWords)} 分钟`
+                : "定稿入库后，目录与阅读进度会自动出现。"}
+            </div>
+          </aside>
+
+          <main className="wx-reading__main">
+            {error && (
+              <div className="wx-reading__error" role="alert">
+                读取失败：{error}
+                <button type="button" className="wx-hub-icon-btn ml-2" onClick={() => selected && void readChapter(selected)}>
+                  重试
+                </button>
+              </div>
+            )}
+
+            {current ? (
+              <>
+                <div className="wx-reading__topline">
+                  <button
+                    type="button"
+                    className="wx-hub-icon-btn"
+                    onClick={() => jump(-1)}
+                    disabled={idx <= 0}
+                    title="上一章"
+                    aria-label="上一章"
+                  >
+                    <ChevronRight size={12} style={{ transform: "rotate(180deg)" }} />
+                  </button>
+                  <div className="wx-reading__topline-copy">
+                    <p>{bookTitle} · {chapterLabel(current)}</p>
+                    <h2>{current.title}</h2>
+                  </div>
+                  <div className="wx-reading__toolgroup" aria-label="阅读字号">
+                    <button
+                      type="button"
+                      onClick={() => setFontSize((value) => Math.max(15, value - 1))}
+                      title="缩小正文字号"
+                      aria-label="缩小正文字号"
+                    >
+                      A−
+                    </button>
+                    <button type="button" aria-pressed="true" title={`当前 ${fontSize}px`}>
+                      {fontSize}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFontSize((value) => Math.min(22, value + 1))}
+                      title="放大正文字号"
+                      aria-label="放大正文字号"
+                    >
+                      A+
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="wx-hub-icon-btn"
+                    onClick={() => jump(1)}
+                    disabled={idx < 0 || idx >= chapters.length - 1}
+                    title="下一章"
+                    aria-label="下一章"
+                  >
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+                <div className="wx-reading__progress" aria-hidden>
+                  <div className="wx-reading__progress-fill" style={{ width: `${scrollPct}%` }} />
+                </div>
+                <div className="wx-reading__scroll" ref={scrollRef} onScroll={handleScroll}>
+                  <article className="wx-reading__paper" ref={paperRef}>
+                    <header className="wx-reading__chapter-head">
+                      <span>{chapterLabel(current)}</span>
+                      <h1>{current.title}</h1>
+                      <p>
+                        {current.words.toLocaleString("zh-CN")} 字
+                        <span aria-hidden> · </span>
+                        约 {readingMinutes(current.words)} 分钟
+                        <span aria-hidden> · </span>
+                        章内进度 {scrollPct}%
+                      </p>
+                    </header>
+                    <div
+                      className="wx-reading-prose"
+                      style={{
+                        "--wx-reading-size": `${fontSize}px`,
+                        "--wx-reading-leading": "2.02",
+                      } as CSSProperties}
+                    >
+                      {reading ? (
+                        <div className="py-12 text-center text-[11px] text-fg-faint">正在铺开书页…</div>
+                      ) : (
+                        <Markdown text={displayBody} imageBasePath={current.path} />
+                      )}
+                    </div>
+                  </article>
+                </div>
+              </>
+            ) : (
+              <WenxueHubEmpty
+                icon={BookOpen}
+                title={loading ? "正在检查定稿" : dirRel ? "定稿目录尚无章节" : "这部作品还没有定稿"}
+                description={
+                  loading
+                    ? "正在读取当前小说的定稿目录。"
+                    : dirRel
+                      ? "把发布稿放进「定稿」目录，或让 agent 用 wenxue_final_write 入库。落盘后这里会自动同步。"
+                      : "先在章节里完成正文，再把发布稿放进「定稿」目录。阅读室只收定稿，不混入草稿。"
+                }
+                action={(
+                  <button type="button" className="wx-hub-action is-primary" onClick={() => void load()}>
+                    <RefreshCw size={13} aria-hidden />
+                    <span>重新检查定稿</span>
+                  </button>
+                )}
+              />
+            )}
+          </main>
+
+          <aside className="wx-reading__aux" aria-label="阅读辅助">
+            {current ? (
+              <>
+                <section className="wx-hub-paper wx-reading__aux-card">
+                  <h3>本章信息</h3>
+                  <div className="wx-reading__aux-stats">
+                    <div className="wx-reading__aux-stat">
+                      <span>字数</span>
+                      <strong>{current.words.toLocaleString("zh-CN")}</strong>
+                    </div>
+                    <div className="wx-reading__aux-stat">
+                      <span>阅读</span>
+                      <strong>{readingMinutes(current.words)} 分</strong>
+                    </div>
+                    <div className="wx-reading__aux-stat">
+                      <span>章序</span>
+                      <strong>{idx + 1}/{chapters.length}</strong>
+                    </div>
+                    <div className="wx-reading__aux-stat">
+                      <span>小节</span>
+                      <strong>{headings.length}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="wx-hub-paper wx-reading__aux-card">
+                  <h3><ListTree size={11} className="mr-1 inline" aria-hidden />章内导航</h3>
+                  {headings.length > 0 ? (
+                    <div className="wx-reading__outline">
+                      {headings.map((heading, headingIndex) => (
+                        <button
+                          key={`${heading.title}-${headingIndex}`}
+                          type="button"
+                          style={{ "--wx-outline-level": heading.level } as CSSProperties}
+                          onClick={() => jumpToHeading(headingIndex)}
+                          title={heading.title}
+                        >
+                          {heading.title}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[10px] leading-relaxed text-fg-faint">
+                      本章没有小标题。连续正文更适合沉浸在书中阅读。
+                    </p>
+                  )}
+                </section>
+
+                <section className="wx-hub-paper wx-reading__aux-card">
+                  <h3>阅读节奏</h3>
+                  <p className="mt-2 text-[10px] leading-relaxed text-fg-faint">
+                    正文字号 {fontSize}px，行距 2.02。建议每 {Math.max(1, Math.round(readingMinutes(current.words) / 2))} 分钟停一次，检查节奏与信息密度。
+                  </p>
+                  <div className="mt-2 flex items-center gap-1.5 text-[9.5px] text-fg-faint">
+                    <Clock size={10} aria-hidden />
+                    <span>滚动进度 {scrollPct}%</span>
+                    <FileText size={10} className="ml-auto" aria-hidden />
+                    <span>{bookProgress}% 全书</span>
+                  </div>
+                </section>
+              </>
+            ) : (
+              <section className="wx-hub-paper wx-reading__aux-card">
+                <h3>阅读提示</h3>
+                <p className="mt-2 text-[10px] leading-relaxed text-fg-faint">
+                  定稿只承载发布版本。章节草稿、设定和角色卡保留在各自目录，阅读时不会被未定稿内容打断。
+                </p>
+              </section>
+            )}
+
+            <div className="wx-reading__navline">
               <button
                 type="button"
-                className="flex items-center gap-1 px-2 py-1 rounded border-0 bg-transparent text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft disabled:opacity-40"
+                className="wx-hub-icon-btn"
                 onClick={() => jump(-1)}
                 disabled={idx <= 0}
               >
-                <span aria-hidden style={{ transform: "rotate(180deg)", display: "inline-flex" }}><ChevronRight size={12} /></span> 上一章
+                <ChevronRight size={11} style={{ transform: "rotate(180deg)" }} aria-hidden />
+                上一章
               </button>
-              <span className="text-[12px] font-medium text-fg truncate">
-                {current.number > 0 ? `第${current.number}章 ` : ""}{current.title}
-                <span className="ml-2 text-[10px] text-fg-faint">{current.words} 字</span>
-              </span>
               <button
                 type="button"
-                className="flex items-center gap-1 px-2 py-1 rounded border-0 bg-transparent text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft disabled:opacity-40"
+                className="wx-hub-icon-btn"
                 onClick={() => jump(1)}
                 disabled={idx < 0 || idx >= chapters.length - 1}
               >
-                下一章 <ChevronRight size={12} />
+                下一章
+                <ChevronRight size={11} aria-hidden />
               </button>
             </div>
-            <div className="flex-1 overflow-auto px-8 py-6">
-              <div className="max-w-[760px] mx-auto reading-prose">
-                {reading ? (
-                  <div className="py-10 text-center text-fg-faint text-[12px]">加载中…</div>
-                ) : (
-                  <Markdown text={body} imageBasePath={current.path} />
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-fg-faint text-[12px] gap-2">
-            <BookOpen size={28} aria-hidden className="opacity-40" />
-            {loading ? "加载中…" : dirRel ? "定稿目录暂无章节——从「章节」目录把发布稿放入「定稿」文件夹，或让 agent 用 wenxue_final_write 入库。" : "当前小说尚无定稿目录。"}
-          </div>
-        )}
+          </aside>
+        </div>
       </div>
-    </div>
+    </WenxueHubFrame>
   );
 }

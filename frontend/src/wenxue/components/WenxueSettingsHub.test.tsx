@@ -60,6 +60,18 @@ describe("WenxueSettingsHub", () => {
     expect(screen.getByText(/wenxue_timeline_append/)).toBeTruthy();
   });
 
+  it("自动展示首篇设定，分类筛选和时间线警示可交互", async () => {
+    render(<WenxueSettingsHub />);
+    await waitFor(() => screen.getByTestId("wenxue-settings-doc-世界观"));
+    expect(screen.getByTestId("wenxue-settings-doc").textContent).toContain("待补");
+    fireEvent.click(screen.getByRole("button", { name: "规则 1" }));
+    expect(screen.getByTestId("wenxue-settings-doc-规则")).toBeTruthy();
+    expect(screen.queryByTestId("wenxue-settings-doc-世界观")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "全部 3" }));
+    fireEvent.click(screen.getByTestId("wenxue-settings-doc-时间线"));
+    expect((await screen.findByTestId("wenxue-settings-timeline")).textContent).toContain("2 条事件无法按章号定位");
+  });
+
   it("设定文档：轻渲染阅读态 + 编辑态 CAS 保存", async () => {
     render(<WenxueSettingsHub />);
     await waitFor(() => screen.getByTestId("wenxue-settings-doc-世界观"));

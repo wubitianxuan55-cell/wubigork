@@ -52,8 +52,13 @@ export function createMockState(): MakeMockState {
   const scenario = mockScenario();
   const freshMock = scenario === "fresh";
   const runningMock = scenario === "running";
-  const cwd = "~/projects/gaea"; // mutable so PickWorkspace is visible in dev
-  const workspaces = freshMock ? [] : ["~/projects/gaea", "~/projects/blade", "~/projects/deepseek-forge", "~/projects/cc-switch-light", "~/projects/SuperRig"];
+  const wenxueMock = scenario === "wenxue";
+  const cwd = wenxueMock ? "C:/AI/tuwen/雾港来信" : "~/projects/gaea"; // mutable so PickWorkspace is visible in dev
+  const workspaces = wenxueMock
+    ? [cwd, "C:/AI/tuwen"]
+    : freshMock
+      ? []
+      : ["~/projects/gaea", "~/projects/blade", "~/projects/deepseek-forge", "~/projects/cc-switch-light", "~/projects/SuperRig"];
   const day = 86_400_000;
   const t0 = Date.now();
   // Mutable so MCP add/remove/retry are observable in browser dev.
@@ -84,7 +89,16 @@ export function createMockState(): MakeMockState {
   // Mutable so delete/rename are observable in browser dev.
   // interrupted=true 表示上次运行中断未完成（T5-4）；d.jsonl 刻意标记中断，供浏览器
   // 联调「未完成」徽标与恢复摘要注入。
-  const sessions: SessionMeta[] = freshMock ? [] : [
+  const sessions: SessionMeta[] = wenxueMock ? [
+    {
+      path: `${cwd}/.gaea/sessions/mock-wenxue-current.jsonl`,
+      preview: "梳理第三幕的人物与时间线",
+      turns: 7,
+      modTime: t0 - 18 * 60_000,
+      current: true,
+      interrupted: false,
+    },
+  ] : freshMock ? [] : [
     // current 挂在 c.jsonl：a.jsonl 的季度报告演示回放要能通过「切走再切回」
     // 触发 ResumeSession 到达（点击当前会话不会重新 resume，见 T5-4 语义）。
     { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: false, interrupted: false },
@@ -97,7 +111,16 @@ export function createMockState(): MakeMockState {
     { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, interrupted: false },
   ];
   // 侧边栏「项目」分组 mock：当前工作区 + 两个历史项目。
-  const projectGroupsMock: ProjectGroup[] = freshMock ? [] : [
+  const projectGroupsMock: ProjectGroup[] = wenxueMock ? [
+    {
+      path: cwd,
+      name: "雾港来信",
+      current: true,
+      sessions,
+      archived: [],
+      modTime: t0 - 18 * 60_000,
+    },
+  ] : freshMock ? [] : [
     {
       path: cwd,
       name: cwd.split("/").filter(Boolean).pop() ?? cwd,
