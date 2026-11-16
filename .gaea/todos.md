@@ -1,5 +1,6 @@
 # 任务进度
 
+| ✅ | **质检/文风工具实弹走查**（2026-11-17）：HTTP 桥（GAEA_HTTP_PORT+GAEA_HTTP_TOKEN 显式自动化路径）驱动 v4.544.0 装机壳真实引擎回合——GAEA_TUWEN_ROOT=fixture 书（001+003 跳号/缺节卡/未锚行/空+无标题/孤儿候选）+切书（**坑三连=Windows curl 中文 argv ANSI 化致 Stat 失败切书回落根（改 ASCII 名即通）/WebView2 实例共享浏览器进程吞端口参数（WEBVIEW2_USER_DATA_FOLDER 隔离）/CDP 9333 被用户壳 WebView2 占用（GAEA_WALK_PORT 桥替代+HTTP 桥替代 CDP）**）→真实回合 45s 双工具各调一次→tool_result 信封解嵌套断言：质检五组全中（跳号/缺节/未锚/空文档+无标题/孤儿候选，与 fixture 逐一对应）+文风双章对照（ch1 零对话 vs ch2 对话密集）——批8/批9 新工具实弹闭环 |
 > 最后更新: 2026-11-16
 
 | 状态 | 任务 |
