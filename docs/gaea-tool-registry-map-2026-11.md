@@ -113,6 +113,7 @@
 | `wenxue_final_write` | extra-app | work | write | none | 落盘内容与回执一致；仅定稿目录内（域隔离）；overwrite 显式闸 |
 | `wenxue_quality_check` | extra-app | work | read | none | 体检分组与文件实况一致（章节编号/角色卡缺节/时间线锚/设定空文档/孤儿候选；仅非空携带） |
 | `wenxue_stats` | extra-app | work | read | none | 统计快照与工作区实况一致（字数/文件计数/最近修改） |
+| `wenxue_style_report` | extra-app | work | read | none | 指标与文本实况一致（确定性口径）；基线差值=当前汇总−基线 |
 | `wenxue_timeline_append` | extra-app | work | write | none | 追加行落盘（O_APPEND）；缺文件自动建；回执含落点 |
 | `wenxue_timeline_read` | extra-app | work | read | none | 事件清单与时间线文件实况一致（章节序） |
 | `write_file` | builtin-workspace | work | write | agent-write | 落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏） |

@@ -85,6 +85,7 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueTimelineAppendTool(),
 		wenxueStatsTool(),
 		wenxueQualityCheckTool(),
+		wenxueStyleReportTool(),
 		wenxueFinalListTool(),
 		wenxueFinalReadTool(),
 		wenxueFinalWriteTool(),
@@ -1814,6 +1815,259 @@ func wenxueQualityCheckTool() *wenxueTool {
 				"timeline": len(wenxueTimelineEntries(root)),
 			}
 			return wenxueJSON(map[string]any{"ok": true, "checked": checked, "groups": groups})
+		},
+	}
+}
+
+// ── 文风族（2026-11-17 审查批9 开工，挂池项）────────────────────────
+// 确定性指标报告路线（与质检族同哲学，零 LLM）：退役的 novelstyle
+// digest/fingerprint 与 project 模型深耦合不可廉价包装，本件按图文 md 约定
+// 重建——指标报告 + 书内基线快照差值（文风漂移检测的确定性形态）。
+// LLM 风格画像/评分归 novel-review 技能与后续拍板。
+
+// wenxueStyleStart 高频句首（AI 腔自查信号：同一句首两字连用过多）。
+type wenxueStyleStart struct {
+	Start string `json:"start"`
+	Count int    `json:"count"`
+}
+
+// wenxueStyleRow 单章指标行（确定性口径：字数=非空白 rune，同 wenxueCountWords）。
+type wenxueStyleRow struct {
+	Path           string  `json:"path"`
+	Number         int     `json:"number"`
+	Title          string  `json:"title"`
+	Chars          int     `json:"chars"`
+	Sentences      int     `json:"sentences"`
+	Paragraphs     int     `json:"paragraphs"`
+	AvgSentenceLen float64 `json:"avgSentenceLen"`
+	AvgParaLen     float64 `json:"avgParaLen"`
+	DialogueRatio  float64 `json:"dialogueRatio"`
+	ExclaimPer1k   float64 `json:"exclaimPer1k"`
+	QuestionPer1k  float64 `json:"questionPer1k"`
+}
+
+// wenxueStyleBaseline 书内基线快照（.gaea/style-baseline.json；对比=差值）。
+type wenxueStyleBaseline struct {
+	SavedAt        int64   `json:"savedAt"`
+	Chapters       int     `json:"chapters"`
+	AvgSentenceLen float64 `json:"avgSentenceLen"`
+	AvgParaLen     float64 `json:"avgParaLen"`
+	DialogueRatio  float64 `json:"dialogueRatio"`
+	ExclaimPer1k   float64 `json:"exclaimPer1k"`
+	QuestionPer1k  float64 `json:"questionPer1k"`
+}
+
+// wenxueStyleTopStarts 句首两字频次 TopN（N=5；排序稳定：频次降序+字典序）。
+func wenxueStyleTopStarts(starts map[string]int, n int) []wenxueStyleStart {
+	type kv struct {
+		k string
+		v int
+	}
+	arr := make([]kv, 0, len(starts))
+	for k, v := range starts {
+		arr = append(arr, kv{k, v})
+	}
+	sort.Slice(arr, func(i, j int) bool {
+		if arr[i].v != arr[j].v {
+			return arr[i].v > arr[j].v
+		}
+		return arr[i].k < arr[j].k
+	})
+	if len(arr) > n {
+		arr = arr[:n]
+	}
+	out := make([]wenxueStyleStart, 0, len(arr))
+	for _, e := range arr {
+		out = append(out, wenxueStyleStart{Start: e.k, Count: e.v})
+	}
+	return out
+}
+
+// wenxueStyleCompute 单篇正文确定性指标（title 行以 # 开头不计入正文段）。
+func wenxueStyleCompute(body string) (row wenxueStyleRow, starts map[string]int) {
+	starts = map[string]int{}
+	rowChars, rowSent, rowParas, dialParas, exclaim, question := 0, 0, 0, 0, 0, 0
+	sentLenSum := 0
+	for _, para := range strings.Split(body, "\n") {
+		t := strings.TrimSpace(para)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		rowParas++
+		if strings.ContainsAny(t, "「“") {
+			dialParas++
+		}
+		runes := []rune(t)
+		rowChars += len(runes)
+		for _, r := range runes {
+			switch r {
+			case '！', '!':
+				exclaim++
+			case '？', '?':
+				question++
+			}
+		}
+		// 句切分：。！？…（省略号按单句计）；句首两字频次。
+		cur := []rune{}
+		flush := func() {
+			s := strings.TrimFunc(string(cur), func(r rune) bool {
+				return unicode.IsSpace(r) || unicode.IsPunct(r)
+			})
+			if s != "" {
+				rowSent++
+				sentLenSum += len([]rune(s))
+				rs := []rune(s)
+				two := string(rs[:min(2, len(rs))])
+				starts[two]++
+			}
+			cur = cur[:0]
+		}
+		for _, r := range runes {
+			if r == '。' || r == '！' || r == '？' || r == '…' || r == '!' || r == '?' {
+				flush()
+			} else {
+				cur = append(cur, r)
+			}
+		}
+		flush()
+	}
+	if rowSent > 0 {
+		row.AvgSentenceLen = float64(sentLenSum) / float64(rowSent)
+	}
+	if rowParas > 0 {
+		row.AvgParaLen = float64(rowChars) / float64(rowParas)
+		row.DialogueRatio = float64(dialParas) / float64(rowParas)
+	}
+	if rowChars > 0 {
+		row.ExclaimPer1k = float64(exclaim) * 1000 / float64(rowChars)
+		row.QuestionPer1k = float64(question) * 1000 / float64(rowChars)
+	}
+	row.Sentences, row.Paragraphs = rowSent, rowParas
+	return row, starts
+}
+
+// wenxueStyleReportTool 文风指标报告（确定性；基线差值=漂移检测）。
+func wenxueStyleReportTool() *wenxueTool {
+	const name = "wenxue_style_report"
+	return &wenxueTool{
+		name:     name,
+		desc:     "文风确定性指标报告（零 LLM）：章均句长/段长/对话占比/叹问密度/高频句首（AI 腔自查）。save_baseline=true 把全书汇总指标存为书内基线（.gaea/style-baseline.json）；此后报告自动附与基线的差值（漂移检测）。LLM 风格评审归 novel-review。",
+		schema:   `{"type":"object","properties":{"number":{"type":"integer","description":"只报告指定章（缺省=全书各章+汇总）"},"save_baseline":{"type":"boolean","description":"把当前全书汇总指标存为书内基线（仅全书口径）"},"path":{"type":"string","description":"按路径指定单章（与 number 互斥，path 优先）"}},"additionalProperties":false}`,
+		readOnly: true,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				Number       int    `json:"number"`
+				SaveBaseline bool   `json:"save_baseline"`
+				Path         string `json:"path"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			root := wenxueWorkspace()
+			chapters := wenxueListChapters(root)
+			if len(chapters) == 0 {
+				return "", fmt.Errorf("章节清单为空——先用 wenxue_chapter_write 落正文")
+			}
+			pick := func(c wenxueChapterMeta) bool {
+				if strings.TrimSpace(in.Path) != "" {
+					return c.Path == strings.TrimSpace(in.Path)
+				}
+				if in.Number > 0 {
+					return c.Number == in.Number
+				}
+				return true
+			}
+			rows := make([]wenxueStyleRow, 0, len(chapters))
+			agg := struct {
+				chars, sent, paras, dial int
+				sentLenSum               int
+				exclaim, question        int
+				starts                   map[string]int
+			}{starts: map[string]int{}}
+			for _, c := range chapters {
+				if !pick(c) {
+					continue
+				}
+				body, _, err := wenxueReadBody(root, c.Path)
+				if err != nil {
+					continue
+				}
+				row, starts := wenxueStyleCompute(body)
+				row.Path, row.Number, row.Title = c.Path, c.Number, c.Title
+				row.Chars = wenxueCountWords(body)
+				rows = append(rows, row)
+				agg.chars += row.Chars
+				agg.sent += row.Sentences
+				agg.paras += row.Paragraphs
+				agg.sentLenSum += int(row.AvgSentenceLen * float64(row.Sentences))
+				agg.dial += int(row.DialogueRatio * float64(row.Paragraphs))
+				agg.exclaim += int(row.ExclaimPer1k * float64(row.Chars) / 1000)
+				agg.question += int(row.QuestionPer1k * float64(row.Chars) / 1000)
+				for k, v := range starts {
+					agg.starts[k] += v
+				}
+			}
+			if len(rows) == 0 {
+				return "", fmt.Errorf("未定位到章节（number=%d path=%q）；先用 wenxue_chapter_list 查看清单", in.Number, in.Path)
+			}
+			summary := wenxueStyleBaseline{
+				Chapters: len(rows),
+			}
+			if agg.sent > 0 {
+				summary.AvgSentenceLen = float64(agg.sentLenSum) / float64(agg.sent)
+			}
+			if agg.paras > 0 {
+				summary.AvgParaLen = float64(agg.chars) / float64(agg.paras)
+				summary.DialogueRatio = float64(agg.dial) / float64(agg.paras)
+			}
+			if agg.chars > 0 {
+				summary.ExclaimPer1k = float64(agg.exclaim) * 1000 / float64(agg.chars)
+				summary.QuestionPer1k = float64(agg.question) * 1000 / float64(agg.chars)
+			}
+			scopeAll := strings.TrimSpace(in.Path) == "" && in.Number <= 0
+
+			resp := map[string]any{"ok": true, "scope": map[string]bool{"all": scopeAll}, "summary": summary, "chapters": rows}
+			// 单章口径附句首 Top5（全书口径行数多，Top5 只给汇总）。
+			if !scopeAll {
+				resp["topStarts"] = wenxueStyleTopStarts(agg.starts, 5)
+			} else {
+				resp["topStarts"] = wenxueStyleTopStarts(agg.starts, 10)
+			}
+
+			basePath, berr := wspath.ResolveRelWithin(root, filepath.ToSlash(filepath.Join(".gaea", "style-baseline.json")))
+			if berr == nil {
+				if in.SaveBaseline {
+					if !scopeAll {
+						return "", fmt.Errorf("save_baseline 仅支持全书口径（当前为单章报告）")
+					}
+					if err := os.MkdirAll(filepath.Dir(basePath), 0o755); err != nil {
+						return "", fmt.Errorf("基线目录创建失败: %w", err)
+					}
+					body, jerr := wenxueJSON(summary)
+					if jerr != nil {
+						return "", fmt.Errorf("基线序列化失败: %w", jerr)
+					}
+					if werr := os.WriteFile(basePath, []byte(body), 0o644); werr != nil {
+						return "", fmt.Errorf("基线落盘失败: %w", werr)
+					}
+					resp["baselineSaved"] = filepath.ToSlash(filepath.Join(".gaea", "style-baseline.json"))
+				}
+				if raw, rerr := os.ReadFile(basePath); rerr == nil && !in.SaveBaseline {
+					var base wenxueStyleBaseline
+					if jerr := json.Unmarshal(raw, &base); jerr == nil && base.Chapters > 0 {
+						resp["baseline"] = map[string]any{
+							"savedAt":        base.SavedAt,
+							"chapters":       base.Chapters,
+							"avgSentenceLen": summary.AvgSentenceLen - base.AvgSentenceLen,
+							"avgParaLen":     summary.AvgParaLen - base.AvgParaLen,
+							"dialogueRatio":  summary.DialogueRatio - base.DialogueRatio,
+							"exclaimPer1k":   summary.ExclaimPer1k - base.ExclaimPer1k,
+							"questionPer1k":  summary.QuestionPer1k - base.QuestionPer1k,
+						}
+					}
+				}
+			}
+			return wenxueJSON(resp)
 		},
 	}
 }

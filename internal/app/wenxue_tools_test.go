@@ -377,3 +377,92 @@ func TestWenxueQualityCheck(t *testing.T) {
 		t.Fatalf("空工作区体检应全绿（groups 空），got %s", out2)
 	}
 }
+
+// TestWenxueStyleReport 文风族（2026-11-17 审查批9 开工）：确定性指标全链——
+// 双章对照（对话占比差异）+基线保存与差值回附+单章口径 topStarts。
+func TestWenxueStyleReport(t *testing.T) {
+	root := wenxueToolsTestRoot(t)
+	write := func(rel, body string) {
+		t.Helper()
+		abs := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 001：长句、无对话、带叹号；002：对话密集、短句。
+	write("章节/001-长句.md", "# 第一章 长句\n\n他沿着长街一路向北走过了三座桥两道巷还在雨里站了很久很久才终于想起了那年冬天她说过的话。\n\n夜色像一张巨大的网把这个城市所有没有说完的话都收进了看不见的口袋里沉甸甸地压在每一个赶路人的肩上。\n")
+	write("章节/002-对话.md", "# 第二章 对话\n\n「你到底去不去？」\n\n「去。」\n\n「什么时候动身？」\n\n「明早就走！」\n\n「那你到底想清楚了没有？路上小心。」\n")
+
+	// 全书口径：两行 + 各指标在位。
+	out := mustRun(t, wenxueStyleReportTool(), `{}`)
+	var resp struct {
+		Ok       bool `json:"ok"`
+		Chapters []struct {
+			Path          string  `json:"path"`
+			Number        int     `json:"number"`
+			DialogueRatio float64 `json:"dialogueRatio"`
+			AvgSentenceLen float64 `json:"avgSentenceLen"`
+		} `json:"chapters"`
+		Summary struct {
+			Chapters       int     `json:"chapters"`
+			AvgSentenceLen float64 `json:"avgSentenceLen"`
+			DialogueRatio  float64 `json:"dialogueRatio"`
+		} `json:"summary"`
+		BaselineSaved string                 `json:"baselineSaved"`
+		Baseline      map[string]interface{} `json:"baseline"`
+		TopStarts     []struct {
+			Start string `json:"start"`
+			Count int    `json:"count"`
+		} `json:"topStarts"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		t.Fatalf("回执解析: %v\n%s", err, out)
+	}
+	if !resp.Ok || len(resp.Chapters) != 2 || resp.Summary.Chapters != 2 {
+		t.Fatalf("全书口径应两章，got %s", out)
+	}
+	byNum := map[int]float64{}
+	for _, c := range resp.Chapters {
+		byNum[c.Number] = c.DialogueRatio
+	}
+	if !(byNum[2] > byNum[1]) {
+		t.Fatalf("对话密集章占比应更高：ch1=%v ch2=%v", byNum[1], byNum[2])
+	}
+
+	// 存基线：文件落书 .gaea/style-baseline.json。
+	outSave := mustRun(t, wenxueStyleReportTool(), `{"save_baseline":true}`)
+	if err := json.Unmarshal([]byte(outSave), &resp); err != nil {
+		t.Fatalf("存基线回执解析: %v", err)
+	}
+	if resp.BaselineSaved == "" {
+		t.Fatalf("baselineSaved 应非空: %s", outSave)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".gaea", "style-baseline.json")); err != nil {
+		t.Fatalf("基线文件未落盘: %v", err)
+	}
+
+	// 再跑（不存）：自动附基线差值（同内容→差值≈0 字段在即可）。
+	outCmp := mustRun(t, wenxueStyleReportTool(), `{}`)
+	if err := json.Unmarshal([]byte(outCmp), &resp); err != nil {
+		t.Fatalf("对比回执解析: %v", err)
+	}
+	if resp.Baseline == nil {
+		t.Fatalf("应自动附 baseline 差值: %s", outCmp)
+	}
+
+	// 单章口径：chapters 一行 + topStarts 在位。
+	outOne := mustRun(t, wenxueStyleReportTool(), `{"number":2}`)
+	var resp2 struct {
+		Chapters  []json.RawMessage `json:"chapters"`
+		TopStarts []json.RawMessage `json:"topStarts"`
+	}
+	if err := json.Unmarshal([]byte(outOne), &resp2); err != nil {
+		t.Fatalf("单章回执解析: %v", err)
+	}
+	if len(resp2.Chapters) != 1 || len(resp2.TopStarts) == 0 {
+		t.Fatalf("单章口径应一行+topStarts，got %s", outOne)
+	}
+}
