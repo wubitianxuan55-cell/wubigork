@@ -4,6 +4,10 @@ import type { ChatMsg } from './types'
 
 // A 批分支树纯函数测试（Go internal/chat/branches_test.go 同构镜像）。
 
+function feRow(key: string, role: 'user' | 'assistant', content: string, streaming = false): ChatMsg {
+  return { key, role, content, createdAt: '', ...(streaming ? { streaming: true } : {}) }
+}
+
 function dbRow(id: number, role: 'user' | 'assistant', content: string, bt?: { p: number; c: number }): ChatMsg {
   return {
     key: `db_${id}`, role, content, createdAt: '2026-01-01T00:00:00Z',
@@ -30,7 +34,7 @@ describe('branches 基础', () => {
 describe('buildVisiblePath', () => {
   it('线形话题直通（无 bt 行 + 本地行追加尾）', () => {
     const msgs = [dbRow(1, 'user', 'a'), dbRow(2, 'assistant', 'b'),
-      { key: 'new_x', role: 'assistant', content: 'c', createdAt: '', streaming: true }]
+      feRow('new_x', 'assistant', 'c', true)]
     // db 行直通 + 本地行追加尾（路径含流式行，ids() 对本地行返回 null 属预期）
     expect(buildVisiblePath(msgs).map(m => m.key)).toEqual(['db_1', 'db_2', 'new_x'])
   })
@@ -73,7 +77,7 @@ describe('buildVisiblePath', () => {
       dbRow(1, 'user', 'q1', { p: 0, c: 10 }),
       dbRow(10, 'assistant', 'a1a', { p: 1, c: 0 }),
       dbRow(11, 'assistant', 'a1b', { p: 1, c: 0 }),
-      { key: 'new_am', role: 'assistant', content: '', createdAt: '', streaming: true },
+      feRow('new_am', 'assistant', '', true),
     ]
     const path = buildVisiblePath(msgs, 'db_1')
     expect(path.map(m => m.key)).toEqual(['db_1', 'new_am'])

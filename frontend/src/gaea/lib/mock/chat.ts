@@ -23,6 +23,8 @@ type ChatMethods = Pick<
   // 批次二 legacy 直调转正（ChatB 门面）：话题管理 + 发送 + 导出。
   | "ChatTopicCreate" | "ChatTopicDelete" | "ChatTopicRename" | "ChatTopicSetMode"
   | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain" | "ChatStreamPersona" | "ChatStreamCancel"
+  // A 批消息分支树（docs/gaea-chat-branch-tree-design-2026-11.md）。
+  | "ChatStreamPlainAt" | "ChatRegenerate" | "ChatSelectVersion"
   | "ChatTopicClear" | "ChatTopicExportMarkdown"
 >;
 
@@ -491,6 +493,18 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async ChatStreamPersona(_topicID: string, _message: string, _mode: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
       // mock: 浏览器演示由页面脚本模拟事件，这里只返回 runID 形状。
       return "mock-persona-run";
+    },
+    async ChatStreamPlainAt(_topicID: string, _parentMsgID: number, _message: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
+      // A 批编辑提问 mock：与 ChatStreamPlain 同语义（纯文本通道空串返回，
+      // 浏览器演示由页面脚本模拟事件）。真实实现 = parent 下挂新分支落库。
+      return "";
+    },
+    async ChatRegenerate(_topicID: string, _questionMsgID: number, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
+      // A 批重新生成 mock：返回 runID 形状（真实实现 = 问题下挂新 assistant 版本）。
+      return "mock-regen-run";
+    },
+    async ChatSelectVersion(_topicID: string, _msgID: number) {
+      // A 批版本切换 mock：no-op（mock 无消息树可切，真实实现改父行 bt.c）。
     },
     async ChatStreamCancel(_runID: string) {
       // P1-5 取消面（批 46 NOT_MOCKED 收尾刀）：Go 对未知 runID 返回 false

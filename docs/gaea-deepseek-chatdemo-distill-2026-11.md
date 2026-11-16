@@ -152,17 +152,17 @@ GenUI 组件渲染（35 种节点）、人格系统、语音房间 VoiceConsoleV
 - 它的 mdast 手写渲染器整体替换（我们 react-markdown 管线够用，只偷 2.4 的逐条防御配方）
 - Rspack/oxlint 工具链、SSE 手写解码器整体替换（我们 Go 侧已有；前端 `useChatStream` 的 EventSource/reader 若有分片 CR 边界坑可回来对照 `sse.ts:38` 的「结尾 CR 等下一段」处理）
 
-## 5. 建议批次（拍板池）
+## 5. 建议批次（拍板池）→ 2026-11-16 落地状态
 
-| 批 | 内容 | 量级 |
+| 批 | 内容 | 状态 |
 |---|---|---|
-| A 消息树 | 1.1 分支版本树 + 1.2 续写 + 编辑提问/重生成接入 BranchSwitcher | 大刀（数据结构升级 + ChatPage/ChatRow 改造） |
-| B 生命周期 | 1.3 错误分类/settleInterrupted/停止语义 + 手动重命名停自动命名 | 中刀 |
-| C 渲染配方 | 2.2 节流 + 2.4 LLM 防御逐条对照（挑缺的：流中公式保上次成功/codeIndented/表格补列） | 小刀池 |
-| D 搜索引用 | 2.5 三件套（依赖我们搜索协议回传结构化来源；现有 SearchCard 升级） | 中刀 |
-| E 备份 | 2.6 ZIP 导入导出（Go 侧做 zip，前端只管 UI + 原子导入语义） | 中刀 |
-| F 语音轻形态 | 2.7 输入框 oneshot 语音输入 + 频谱（VoiceConsoleV2 旁挂） | 小刀 |
-| G 杂项 | 时间分组侧栏 / 草稿按会话保留 / anchored.ts 定位配方按需 | 小刀 |
+| A 消息树 | 分支版本树+编辑提问/重生成/版本切换 | ✅ 1f419b9d（设计 docs/gaea-chat-branch-tree-design-2026-11.md；续写 continue 挂拍板） |
+| B 生命周期 | 错误分类 code+重命名停自动命名+stopped 核对 | ✅ bb8b9e39（stopped 三项核对=现状已对齐不动） |
+| C 渲染配方 | 节流+codeIndented+mermaid 双态 | ✅ 0dd5b263（公式保上次成功/表格补列对照跳过，软换行挂拍板） |
+| D 搜索引用 | 角标+右栏三件套 | 挂拍板（依赖搜索协议结构化来源） |
+| E 备份 | ZIP 导入导出 | 挂拍板 |
+| F 语音轻形态 | oneshot 输入框语音+频谱 | 挂拍板 |
+| G 杂项 | 时间分组/草稿保留/anchored.ts | 挂拍板 |
 
 ## 6. 首轮报告勘误
 

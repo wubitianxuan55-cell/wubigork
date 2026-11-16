@@ -13,6 +13,7 @@ function errorRow(extra?: Record<string, unknown>): ChatMsg {
 
 const baseProps = {
   text: '',
+  isStreaming: false,
   newGroup: false,
   mode: 'plain',
   companionName: '伴侣',

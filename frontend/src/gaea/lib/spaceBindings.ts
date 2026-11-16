@@ -312,6 +312,11 @@ export const GAEA_METHOD_FACETS = {
   ChatSend: "work",
   ChatStreamPlain: "work",
   ChatStreamPersona: "work",
+  // A 批消息分支树（docs/gaea-chat-branch-tree-design-2026-11.md）：聊天板块
+  // 分支三件套，随 plain 流同域。
+  ChatStreamPlainAt: "work",
+  ChatRegenerate: "work",
+  ChatSelectVersion: "work",
   // P1-5：对话流取消（ChatB 门面，work/play 共用通道）。
   ChatStreamCancel: "work",
   ChatTopicClear: "work",

@@ -21,7 +21,7 @@
 // 流式尾巴（最后一条消息）恒在渲染窗口内，吸底行为零改动。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatRow } from './ChatRow'
-import { buildVisiblePath, buildVersions, type MsgVersions } from '../../pages/chat/branches'
+import { buildVisiblePath, buildVersions } from '../../pages/chat/branches'
 import type { ChatMsg } from '../../pages/chat/types'
 
 export interface MessageListProps {
