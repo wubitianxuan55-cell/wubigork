@@ -8,9 +8,12 @@ import { C } from '../utils/theme'
 import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathText'
 import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence, extractFence } from '../genui/markdownFence'
 import { useGenuiScope } from '../genui/scope'
+import remarkDisableCodeIndented from './chat/remarkDisableCodeIndented'
 import { ChatCodeBlock } from './ChatCodeBlock'
 
-/** ChatMarkdown — 聊天消息 Markdown 渲染（老栈 M3 令牌样式，供 ChatPage 使用） */
+/** ChatMarkdown — 聊天消息 Markdown 渲染（老栈 M3 令牌样式，供 ChatPage 使用）
+ *  C 批蒸馏（docs/gaea-deepseek-chatdemo-distill-2026-11.md §2.4）：
+ *  remarkDisableCodeIndented —— 前导空格列表不再被误判为代码块（LLM 输出防御）。 */
 const ChatMarkdown: React.FC<{ text: string; genuiKey?: string }> = memo(function ChatMarkdown({ text, genuiKey }) {
   const genuiScope = useGenuiScope()
   const fenceKeyFor =
@@ -23,7 +26,7 @@ const ChatMarkdown: React.FC<{ text: string; genuiKey?: string }> = memo(functio
   return (
     <div style={{ fontSize: 14, lineHeight: 1.75, wordBreak: 'break-word' }}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkDisableCodeIndented, remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={chatMarkdownComponents(fenceKeyFor)}
       >
@@ -45,7 +48,8 @@ return {
       return <GenuiMarkdownFence code={text} stateKey={fenceKeyFor?.(text)} />
     }
     if (isBlock) {
-      return <ChatCodeBlock language={lang} text={text} />
+      // C3：mermaid 围栏走图表/源码双态（ChatMermaid 渐进容错）
+      return <ChatCodeBlock language={lang} text={text} mermaid={lang === 'mermaid'} />
     }
     return (
       <code style={{

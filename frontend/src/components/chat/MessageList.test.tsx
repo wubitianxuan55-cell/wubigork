@@ -138,7 +138,7 @@ describe('MessageList 行 memo（无关更新时旧行零重渲染）', () => {
     expect(screen.getByText('新追加回复')).toBeTruthy()
   })
 
-  it('流式 chunk：仅流式行重渲染，其余行保持一次；终态落定后正常收尾', () => {
+  it('流式 chunk：仅流式行重渲染，其余行保持一次；终态落定后正常收尾', async () => {
     const base = makeMessages(3)
     const msgs: ChatMsg[] = [
       ...base,
@@ -152,7 +152,8 @@ describe('MessageList 行 memo（无关更新时旧行零重渲染）', () => {
     expect(countOf('k0')).toBe(1)
     expect(countOf('k2')).toBe(1)
     expect(countOf('kS')).toBe(3) // 初始 + 两个 chunk
-    expect(screen.getByText('你好')).toBeTruthy()
+    // C1 节流（chat-demo 配方）：流式 display 经自适应节流放行，断言走 findBy 等定时器收口
+    expect(await screen.findByText('你好')).toBeTruthy()
     // done：终态替换流式行对象（streaming=false + 最终内容），streamKey 复位
     const done: ChatMsg[] = [
       ...base,

@@ -20,6 +20,7 @@ import type { ChatMsg } from '../../pages/chat/types'
 import { useGenuiScope } from '../../genui/scope'
 import { buildMarkdownGenuiOverrides } from './genuiAdapter'
 import { findStableCut } from '../../gaea/lib/markdownCut'
+import { useThrottledStreamText } from '../../hooks/useThrottledStreamText'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */
@@ -49,7 +50,10 @@ export const ChatRow: React.FC<ChatRowProps> = ({
   msg, text, streamStatus, streamReasoning, isStreaming, newGroup, mode, companionName,
   copied, speaking, onCopy, onSpeak, onRetry,
 }) => {
-  const display = text
+  const display = useThrottledStreamText(text, isStreaming)
+  // C1（chat-demo 配方）：流式行按渲染耗时自适应节流 display 更新——与下方
+  // findStableCut 分段互补，重尾段（长表格/代码块）高频 reparse 被压到 ≤2s 一帧；
+  // 流结束 enable=false 直通最新全文，终帧不延迟。非流式行（含 user 行）零影响。
   const [metricsOpen, setMetricsOpen] = React.useState(true)
   // v4.368 流式分段渲染：把累积文本切成「稳定段（段落边界，不再变化）+ 增长尾段」，
   // 稳定段字符串不变时其 MarkdownContent 子树被 memo 跳过——每 chunk 实际重解析的

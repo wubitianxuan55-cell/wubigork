@@ -47,10 +47,11 @@ import { useGenuiScope } from "../../genui/scope";
 import { useGenuiPanelStore } from "../lib/genuiPanel";
 import { ensureKatexCss, hasMathContent, normalizeMath } from "../lib/mathText";
 import { resolveMarkdownImagePath } from "../lib/markdownImage";
+import { ensureMermaid, mermaidTheme } from "../lib/mermaidRender";
 
 // ── Mermaid 图表渲染（agent 生成的流程图/架构图/思维导图等）─────────────
-
-let mermaidInitedTheme: string | null = null;
+// mermaidTheme / ensureMermaid 单源于 lib/mermaidRender.ts（C 批蒸馏：聊天线
+// ChatMermaid 与本组件共用同一 mermaid 模块缓存与 initialize 路径）。
 
 // 已自动导出过的 Mermaid 代码（按内容哈希去重，避免历史消息滚动重复生成）。
 const autoExportedCodes = new Set<string>();
@@ -81,35 +82,6 @@ function standaloneHtmlFromSvg(svg: string): string {
 ${svg}
 </body>
 </html>`;
-}
-
-function mermaidTheme(): "default" | "dark" {
-  // v4.350：跟应用主题而非操作系统——App.tsx 把实际明暗挂在 <html data-hl>；
-  // 此前读 prefers-color-scheme，应用选亮色而 OS 为暗色时深底图表嵌进浅色文档。
-  if (typeof document !== "undefined" && document.documentElement.dataset.hl) {
-    return document.documentElement.dataset.hl === "dark" ? "dark" : "default";
-  }
-  if (typeof window === "undefined" || !window.matchMedia) return "default";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
-}
-
-// P4-H1：mermaid 由静态 import 改为运行时动态 import——只在首次实际渲染图表时
-// 才加载模块（Vite 将 mermaid.core 拆为独立 async chunk，不再进入页面急切包）。
-// 初始化配置对象与原本一致（startOnLoad/theme/securityLevel/fontFamily 原样保留）。
-let mermaidMod: typeof import("mermaid") | null = null;
-
-async function ensureMermaid(theme: "default" | "dark") {
-  if (mermaidInitedTheme === theme && mermaidMod) return mermaidMod.default;
-  mermaidMod = mermaidMod ?? (await import("mermaid"));
-  const mm = mermaidMod.default;
-  mm.initialize({
-    startOnLoad: false,
-    theme,
-    securityLevel: "strict",
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-  });
-  mermaidInitedTheme = theme;
-  return mm;
 }
 
 const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { code: string; autoExport?: boolean }) {
