@@ -2,9 +2,11 @@
 // 续刀，自 controller.ts 原位搬移，零逻辑改动）：useSessionActions（newSession/
 // listSessions/listProjectSessions/fetchSessionStats/resumeSession/archiveSession/
 // unarchiveSession/pinSession/deleteSession/renameSession/refreshMeta 十一件，
-// useCallback 依赖数组逐字保留——loadItemsFoldedFirst/refreshFactBase 两个跨族
-// 依赖由 useController 显式注入；fetchSessionStats 为域内件，被 resumeSession
-// 消费的同时对外导出）。useStore/ensureEventsBound/useController 主体见 controller.ts。
+// useCallback 依赖数组逐字保留——loadItemsFoldedFirst 跨族依赖由 useController
+// 显式注入；fetchSessionStats 为域内件，被 resumeSession 消费的同时对外导出）。
+// refreshFactBase 跨族依赖摘除（2026-11-17 审查批6：factBase 链退役，见
+// controller_actions_memory.ts 头注）。useStore/ensureEventsBound/useController
+// 主体见 controller.ts。
 import { useCallback } from "react";
 import { app } from "../bridge";
 import { resetEventSync } from "../eventSync";
@@ -12,18 +14,17 @@ import type { Action } from "./controller_state";
 import type { HistoryMessage, ProjectGroup, SessionMeta } from "../types";
 import { failWrite, logBridgeError } from "./controller_actions_memory";
 
-export function useSessionActions(dispatch: (a: Action) => void, loadItemsFoldedFirst: () => Promise<void>, refreshFactBase: () => void) {
+export function useSessionActions(dispatch: (a: Action) => void, loadItemsFoldedFirst: () => Promise<void>) {
   const newSession = useCallback(async () => {
     try {
       await app.NewSession();
       dispatch({ type: "reset" });
       resetEventSync(); // v4.26：新会话事件 seq 从 1 重新单调递增，补拉防线基线归零
-      refreshFactBase();
     } catch (err) {
       // 新建失败不重置界面（后端会话未切换），给出可见提示。
       failWrite(dispatch, "新建会话", err);
     }
-  }, [dispatch, refreshFactBase]);
+  }, [dispatch]);
   const listSessions = useCallback((): Promise<SessionMeta[]> =>
     app.ListSessions().catch((err) => { logBridgeError("listSessions", err); return [] as SessionMeta[]; }), []);
   const listProjectSessions = useCallback((): Promise<ProjectGroup[]> =>
@@ -50,8 +51,7 @@ export function useSessionActions(dispatch: (a: Action) => void, loadItemsFolded
     // 恢复后回填会话级派生统计（成本/用量历史，评审缺陷 11 根治）
     void fetchSessionStats(path);
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("resumeSession ContextUsage", err));
-    refreshFactBase();
-  }, [dispatch, loadItemsFoldedFirst, refreshFactBase, fetchSessionStats]);
+  }, [dispatch, loadItemsFoldedFirst, fetchSessionStats]);
   const archiveSession = useCallback((path: string) => app.ArchiveSession(path).catch((err) => failWrite(dispatch, "归档会话", err)), [dispatch]);
   const unarchiveSession = useCallback((path: string): Promise<string> => app.UnarchiveSession(path).catch((err) => { failWrite(dispatch, "取消归档", err); return ""; }), [dispatch]);
   const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch((err) => failWrite(dispatch, "更新固定状态", err)), [dispatch]);

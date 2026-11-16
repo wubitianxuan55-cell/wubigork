@@ -1,9 +1,10 @@
 // controller_actions_memory.ts — 记忆/画像族动作 hook（批 36 FE3-11 hook 分域
 // 首刀，自 controller.ts 原位搬移，零逻辑改动）：logBridgeError/errText/failWrite
 // 桥接错误三助手 + useMemoryActions（fetchMemory/remember/forget/saveDoc/
-// updateFact/changeFactType/clearFactBase/promoteFactBase 八件，useCallback
-// 依赖数组逐字保留——clearFactBase 的跨族依赖 refreshFactBase 由 useController
-// 显式注入）。useStore/ensureEventsBound/useController 主体见 controller.ts。
+// updateFact/changeFactType 六件）。useStore/ensureEventsBound/useController
+// 主体见 controller.ts。
+// factBase 三件摘除（2026-11-17 审查批6）：wenxue UI 零渲染且读的是办公引擎
+// 事实库（跨板块误读源）——clearFactBase/promoteFactBase/refreshFactBase 整链退役。
 import { useCallback } from "react";
 import { app } from "../bridge";
 import type { Action } from "./controller_state";
@@ -31,8 +32,8 @@ export function failWrite(dispatch: (a: Action) => void, what: string, err: unkn
   dispatch({ type: "event", e: { kind: "notice", level: "warn", text: `${what}失败：${errText(err)}，请重试` } });
 }
 
-// useMemoryActions：记忆/画像族八件（跨族依赖 refreshFactBase 注入）。
-export function useMemoryActions(dispatch: (a: Action) => void, refreshFactBase: () => void) {
+// useMemoryActions：记忆/画像族六件。
+export function useMemoryActions(dispatch: (a: Action) => void) {
   const fetchMemory = useCallback((): Promise<MemoryView> => app.Memory().catch((err) => {
     logBridgeError("fetchMemory", err);
     return { docs: [], facts: [], scopes: [], storeDir: "", available: false } as MemoryView;
@@ -42,13 +43,5 @@ export function useMemoryActions(dispatch: (a: Action) => void, refreshFactBase:
   const saveDoc = useCallback(async (path: string, body: string) => { await app.SaveDoc(path, body).catch((err) => failWrite(dispatch, "保存文档", err)); }, [dispatch]);
   const updateFact = useCallback(async (name: string, body: string) => { await app.UpdateFact(name, body).catch((err) => failWrite(dispatch, "更新画像", err)); }, [dispatch]);
   const changeFactType = useCallback(async (name: string, typ: string) => { await app.ChangeFactType(name, typ).catch((err) => failWrite(dispatch, "修改画像类型", err)); }, [dispatch]);
-  const clearFactBase = useCallback(async () => {
-    await app.FactBaseClear().catch((err) => failWrite(dispatch, "清空事实库", err));
-    refreshFactBase();
-  }, [dispatch, refreshFactBase]);
-  const promoteFactBase = useCallback(async (): Promise<number> => {
-    const n = await app.FactBasePromote().catch((err) => { failWrite(dispatch, "写入永久记忆", err); return 0; });
-    return n;
-  }, [dispatch]);
-  return { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase };
+  return { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType };
 }

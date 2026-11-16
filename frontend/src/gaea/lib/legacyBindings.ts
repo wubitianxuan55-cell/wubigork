@@ -11,7 +11,7 @@
 // 消费方：frontend/src/gaea/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 174 名 = Go 导出 695 − 认领且 Go 存在 521（facets 键 522，其中 mock-only 名无 Go 绑定不计）。
+// 共 179 名 = Go 导出 700 − 认领且 Go 存在 521（facets 键 522，其中 mock-only 名无 Go 绑定不计）。
 
 export const legacyBindings = [
   "AddCustomEngine",
@@ -83,6 +83,7 @@ export const legacyBindings = [
   "UpdateCustomEngine",
   "UpdateProjectMeta", // v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）
   "VisionRoute",
+  "WenxueAddMCPServer",
   "WenxueAgentNetwork",
   "WenxueAnswer",
   "WenxueApprove",
@@ -156,10 +157,12 @@ export const legacyBindings = [
   "WenxueReadTextFile",
   "WenxueReload",
   "WenxueRemember",
+  "WenxueRemoveMCPServer",
   "WenxueRenameSession",
   "WenxueRenameWorkspacePath",
   "WenxueResumeSession",
   "WenxueResyncEvents",
+  "WenxueRetryMCPServer",
   "WenxueRevealWorkspacePath",
   "WenxueRewind",
   "WenxueRunning",
@@ -169,7 +172,9 @@ export const legacyBindings = [
   "WenxueSaveWorkspacePathAs",
   "WenxueSaveWorkspacePathsAs",
   "WenxueSend",
+  "WenxueSetMCPServerEnabled",
   "WenxueSetPermLevel",
+  "WenxueSkillDraftFromSession",
   "WenxueSlashArgs",
   "WenxueSteer",
   "WenxueSubagentContextView",

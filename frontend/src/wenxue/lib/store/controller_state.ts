@@ -6,7 +6,7 @@
 // controller.ts——该文件以 `export *` 原路 re-export 本层，外部导入路径不变。
 import { parseTodos } from "../tools";
 import type {
-  BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView,
+  BalanceInfo, ContextInfo, HistoryMessage, JobView,
   Meta, SessionStatsView, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "../types";
@@ -26,7 +26,7 @@ export type Item =
 
 export interface ControllerState {
   items: Item[]; running: boolean; turnActive: boolean; approval?: WireApproval; ask?: WireAsk;
-  usage?: WireUsage; context: ContextInfo; meta?: Meta; balance?: BalanceInfo; jobs: JobView[]; factBase: FactBaseView;
+  usage?: WireUsage; context: ContextInfo; meta?: Meta; balance?: BalanceInfo; jobs: JobView[];
   currentAssistant?: string; pendingUser?: string; discardTurn?: boolean;
   lastAssistantIdx: number; // 最后一个 assistant 项的索引，避免流式 text/reasoning 事件中 O(n) 反向查找
   turnStartAt: number; turnTokens: number; seq: number;
@@ -46,7 +46,7 @@ export type Action =
   | { type: "event"; e: WireEvent } | { type: "user"; text: string } | { type: "unsend" }
   | { type: "localCancel" }
   | { type: "meta"; meta: Meta } | { type: "context"; context: ContextInfo }
-  | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] } | { type: "factbase"; factBase: FactBaseView }
+  | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] }
   | { type: "sessionStats"; stats?: SessionStatsView }
   | { type: "history"; messages: HistoryMessage[] }
   // v4.26 序号防线补拉：items 为后端 GaeaResyncEvents 折叠快照（原始 JSON，
@@ -451,7 +451,7 @@ export function reducer(s: ControllerState, a: Action): ControllerState {
       return { ...s, items: finalized, running: false, turnActive: false, currentAssistant: undefined, lastAssistantIdx: -1, approval: undefined, ask: undefined, perTurnUsage: null, seq: s.seq + 1 };
     }
     case "meta": return { ...s, meta: a.meta }; case "context": return { ...s, context: a.context };
-    case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs }; case "factbase": return { ...s, factBase: a.factBase };
+    case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs };
     case "sessionStats": return { ...s, sessionStats: a.stats };
     case "history": {
       const rebuilt = rebuildHistoryItems(a.messages);
@@ -500,7 +500,6 @@ export const initialState: ControllerState = {
   approval: undefined, ask: undefined, usage: undefined,
   context: { used: 0, window: 0 }, meta: undefined, balance: undefined,
   jobs: [], currentAssistant: undefined, pendingUser: undefined, discardTurn: false, lastAssistantIdx: -1,
-  factBase: { facts: [], markdown: "", count: 0, path: "" },
   turnStartAt: 0, turnTokens: 0, seq: 0, sessionTotal: 0, sessionNonce: 0, perTurnUsage: null, turnSteps: [],
   _dispatch: () => {},
 };

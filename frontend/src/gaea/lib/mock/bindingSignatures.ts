@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 695 名（原生变参 19 名已收窄标注）。
+// 共 700 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -595,6 +595,7 @@ export const bindingSignatures = {
   WeixinReminderDelete: { argc: 1, variadic: false, params: "id string" },
   WeixinReminderList: { argc: 0, variadic: false, params: "" },
   WeixinReminderSetConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
+  WenxueAddMCPServer: { argc: 1, variadic: false, params: "input MCPServerInput" },
   WenxueAgentNetwork: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueAnswer: { argc: 2, variadic: false, params: "id string, answers []event.AskAnswer" },
   WenxueApprove: { argc: 2, variadic: false, params: "id string, decision string" },
@@ -668,10 +669,12 @@ export const bindingSignatures = {
   WenxueReadTextFile: { argc: 1, variadic: false, params: "rel string" },
   WenxueReload: { argc: 0, variadic: false, params: "" },
   WenxueRemember: { argc: 2, variadic: false, params: "scope string, note string" },
+  WenxueRemoveMCPServer: { argc: 1, variadic: false, params: "name string" },
   WenxueRenameSession: { argc: 2, variadic: false, params: "path string, title string" },
   WenxueRenameWorkspacePath: { argc: 2, variadic: false, params: "rel string, name string" },
   WenxueResumeSession: { argc: 1, variadic: false, params: "path string" },
   WenxueResyncEvents: { argc: 1, variadic: false, params: "afterSeq int" },
+  WenxueRetryMCPServer: { argc: 1, variadic: false, params: "name string" },
   WenxueRevealWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
   WenxueRewind: { argc: 2, variadic: false, params: "turn int, scope string" },
   WenxueRunning: { argc: 0, variadic: false, params: "" },
@@ -681,7 +684,9 @@ export const bindingSignatures = {
   WenxueSaveWorkspacePathAs: { argc: 1, variadic: false, params: "rel string" },
   WenxueSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
   WenxueSend: { argc: 1, variadic: false, params: "input string" },
+  WenxueSetMCPServerEnabled: { argc: 2, variadic: false, params: "name string, enabled bool" },
   WenxueSetPermLevel: { argc: 1, variadic: false, params: "level string" },
+  WenxueSkillDraftFromSession: { argc: 0, variadic: false, params: "" },
   WenxueSlashArgs: { argc: 1, variadic: false, params: "input string" },
   WenxueSteer: { argc: 1, variadic: false, params: "input string" },
   WenxueSubagentContextView: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
@@ -716,5 +721,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 695。
-export const bindingSignatureCount = 695;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 700。
+export const bindingSignatureCount = 700;

@@ -19,7 +19,7 @@ export const gaeaToGaea = {
   // （GaeaReloadResult）。
   Reload: "WenxueReload",
   CaptureSkill: "GaeaCaptureSkill",
-  SkillDraftFromSession: "GaeaSkillDraftFromSession",
+  SkillDraftFromSession: "WenxueSkillDraftFromSession",
   SkillDraftSave: "GaeaSkillDraftSave",
   SkillDistillCandidates: "GaeaSkillDistillCandidates",
   SkillDistillDraft: "GaeaSkillDistillDraft",
@@ -60,10 +60,13 @@ export const gaeaToGaea = {
   Meta: "WenxueMeta",
   Commands: "WenxueCommands",
   Capabilities: "WenxueCapabilities",
-  AddMCPServer: "GaeaAddMCPServer",
-  RemoveMCPServer: "GaeaRemoveMCPServer",
-  RetryMCPServer: "GaeaRetryMCPServer",
-  SetMCPServerEnabled: "GaeaSetMCPServerEnabled",
+  // MCP 管理四件换锚图文引擎（2026-11-17 审查批6：原指 OfficeB/gaeaCtrl
+  // 注册表——wenxue 面板管的是办公引擎的 MCP；Wenxue* 版方法体同构换锚
+  // wenxueCtrl，见 wenxue_bridge_extra.go）。
+  AddMCPServer: "WenxueAddMCPServer",
+  RemoveMCPServer: "WenxueRemoveMCPServer",
+  RetryMCPServer: "WenxueRetryMCPServer",
+  SetMCPServerEnabled: "WenxueSetMCPServerEnabled",
   SlashArgs: "WenxueSlashArgs",
   ListDir: "WenxueListDir",
   GaeaListDirBatch: "WenxueListDirBatch",

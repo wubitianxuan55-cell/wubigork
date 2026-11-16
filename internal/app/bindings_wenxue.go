@@ -13,6 +13,7 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type WenxueB struct{ a *App }
 
+func (b *WenxueB) WenxueAddMCPServer(input MCPServerInput) (int, error) { return b.a.WenxueAddMCPServer(input) }
 func (b *WenxueB) WenxueAgentNetwork(sessionPath string) (trajectory.AgentNetwork, error) { return b.a.WenxueAgentNetwork(sessionPath) }
 func (b *WenxueB) WenxueAnswer(id string, answers []event.AskAnswer) { b.a.WenxueAnswer(id, answers) }
 func (b *WenxueB) WenxueApprove(id string, decision string) { b.a.WenxueApprove(id, decision) }
@@ -86,10 +87,12 @@ func (b *WenxueB) WenxueReadFilePage(rel string, offset int64) (workbench.TextPa
 func (b *WenxueB) WenxueReadTextFile(rel string) (workbench.TextFile, error) { return b.a.WenxueReadTextFile(rel) }
 func (b *WenxueB) WenxueReload() (GaeaReloadResult, error) { return b.a.WenxueReload() }
 func (b *WenxueB) WenxueRemember(scope string, note string) (string, error) { return b.a.WenxueRemember(scope, note) }
+func (b *WenxueB) WenxueRemoveMCPServer(name string) error { return b.a.WenxueRemoveMCPServer(name) }
 func (b *WenxueB) WenxueRenameSession(path string, title string) error { return b.a.WenxueRenameSession(path, title) }
 func (b *WenxueB) WenxueRenameWorkspacePath(rel string, name string) (workbench.MutationResult, error) { return b.a.WenxueRenameWorkspacePath(rel, name) }
 func (b *WenxueB) WenxueResumeSession(path string) ([]HistoryMessage, error) { return b.a.WenxueResumeSession(path) }
 func (b *WenxueB) WenxueResyncEvents(afterSeq int) GaeaResyncResult { return b.a.WenxueResyncEvents(afterSeq) }
+func (b *WenxueB) WenxueRetryMCPServer(name string) error { return b.a.WenxueRetryMCPServer(name) }
 func (b *WenxueB) WenxueRevealWorkspacePath(rel string) error { return b.a.WenxueRevealWorkspacePath(rel) }
 func (b *WenxueB) WenxueRewind(turn int, scope string) error { return b.a.WenxueRewind(turn, scope) }
 func (b *WenxueB) WenxueRunning() bool { return b.a.WenxueRunning() }
@@ -99,7 +102,9 @@ func (b *WenxueB) WenxueSavePastedImage(dataURL string) (string, error) { return
 func (b *WenxueB) WenxueSaveWorkspacePathAs(rel string) (string, error) { return b.a.WenxueSaveWorkspacePathAs(rel) }
 func (b *WenxueB) WenxueSaveWorkspacePathsAs(paths []string) (string, error) { return b.a.WenxueSaveWorkspacePathsAs(paths) }
 func (b *WenxueB) WenxueSend(input string) { b.a.WenxueSend(input) }
+func (b *WenxueB) WenxueSetMCPServerEnabled(name string, enabled bool) error { return b.a.WenxueSetMCPServerEnabled(name, enabled) }
 func (b *WenxueB) WenxueSetPermLevel(level string) error { return b.a.WenxueSetPermLevel(level) }
+func (b *WenxueB) WenxueSkillDraftFromSession() (SkillRecordResult, error) { return b.a.WenxueSkillDraftFromSession() }
 func (b *WenxueB) WenxueSlashArgs(input string) SlashArgsResult { return b.a.WenxueSlashArgs(input) }
 func (b *WenxueB) WenxueSteer(input string) { b.a.WenxueSteer(input) }
 func (b *WenxueB) WenxueSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) { return b.a.WenxueSubagentContextView(sessionPath, ref) }

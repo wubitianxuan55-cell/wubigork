@@ -86,9 +86,8 @@ export function useSessionLoaders(dispatch: (a: Action) => void, store: { getSta
     }).catch((err) => logBridgeError("reconcileFinalAnswer", err));
   }, [store, dispatch]);
 
-  const refreshFactBase = useCallback(() => {
-    app.FactBase().then(factBase => dispatch({ type: "factbase", factBase })).catch((err) => logBridgeError("refreshFactBase", err));
-  }, [dispatch]);
+  // factBase 摘除（2026-11-17 审查批6）：wenxue UI 零渲染（调查实证），且
+  // app.FactBase() 读的是办公引擎事实库——跨板块误读源，链路整体退役。
 
-  return { loadItemsFoldedFirst, loadSessionData, reconcileFinalAnswer, refreshFactBase };
+  return { loadItemsFoldedFirst, loadSessionData, reconcileFinalAnswer };
 }

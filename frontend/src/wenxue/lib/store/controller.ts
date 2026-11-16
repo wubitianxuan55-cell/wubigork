@@ -31,7 +31,6 @@ export { isFinalAnswerRendered } from "./controller_actions_load";
 // 注入的回调都是 store 单例上的稳定闭包，跨宿主语义一致。
 interface EventBindDeps {
   loadSessionData: () => Promise<void>;
-  refreshFactBase: () => void;
   reconcileFinalAnswer: () => void;
   store: typeof useStore;
   dispatch: (a: Action) => void;
@@ -51,7 +50,6 @@ function startFreshSessionOnBoot(deps: EventBindDeps): Promise<void> {
       await app.NewSession();
       deps.dispatch({ type: "reset" });
       resetEventSync();
-      deps.refreshFactBase();
     } catch (err) {
       startupSessionPromise = null;
       logBridgeError("boot NewSession", err);
@@ -65,7 +63,7 @@ function startFreshSessionOnBoot(deps: EventBindDeps): Promise<void> {
 function ensureEventsBound(deps: EventBindDeps): void {
   if (eventsBound) return;
   eventsBound = true;
-  const { dispatch, refreshFactBase, reconcileFinalAnswer } = deps;
+  const { dispatch, reconcileFinalAnswer } = deps;
   onEvent((e) => {
     // v4.26 事件序号防线：payload 带 seq（可选字段）时做缺口检测，命中缺口
     // 经注入的 fetcher（App.tsx 挂 app.GaeaResyncEvents）补拉后端折叠快照，
@@ -96,22 +94,19 @@ function ensureEventsBound(deps: EventBindDeps): void {
     }
     if (e.kind === "turn_done" || e.kind === "notice") {
       app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("Jobs", err));
-      refreshFactBase();
     }
-    if (e.kind === "tool_result" && e.tool?.name?.startsWith("fact_")) {
-      refreshFactBase();
-    }
+    // factbase 摘除（2026-11-17 审查批6）：原 turn_done/notice 与 tool_result
+    // fact_* 两处 refreshFactBase + onReady/init 各一处——wenxue UI 零渲染且
+    // app.FactBase() 读办公引擎事实库（跨板块误读源），整链退役。
   });
   onReady(() => {
     void startFreshSessionOnBoot(deps);
     app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("onReady Balance", err));
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("onReady Jobs", err));
-    refreshFactBase();
   });
   void startFreshSessionOnBoot(deps);
   app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));
   app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
-  refreshFactBase();
 }
 
 export function useController() {
@@ -119,13 +114,13 @@ export function useController() {
   const state = store(useShallow(s => s));
   const dispatch = store.getState()._dispatch;
 
-  const { loadItemsFoldedFirst, loadSessionData, reconcileFinalAnswer, refreshFactBase } = useSessionLoaders(dispatch, store);
+  const { loadItemsFoldedFirst, loadSessionData, reconcileFinalAnswer } = useSessionLoaders(dispatch, store);
 
   useEffect(() => {
     // v4.119 刀10：事件/就绪绑定提升为模块级恰好一次（见 ensureEventsBound）——
     // 进度计划板块的 AI 对话 pane 与本板块 GaeaApp 在 keepAlive 树下可能同时
     // 挂载，多订阅会让 text/reasoning 增量重复 dispatch（气泡翻倍）。
-    ensureEventsBound({ loadSessionData, refreshFactBase, reconcileFinalAnswer, store, dispatch });
+    ensureEventsBound({ loadSessionData, reconcileFinalAnswer, store, dispatch });
     // 看门狗：running=true 时每 30s 用后端真实状态校准一次，防止
     // turn_done 事件丢失导致界面永久卡在“执行中”。（每宿主各自运行：
     // 只读校准 + localCancel 幂等，多宿主共存无害。）
@@ -140,15 +135,15 @@ export function useController() {
       }).catch((err) => logBridgeError("watchdog GaeaRunning", err));
     }, 30000);
     return () => { window.clearInterval(watchdog); };
-  }, [loadSessionData, refreshFactBase, reconcileFinalAnswer, store, dispatch]);
+  }, [loadSessionData, reconcileFinalAnswer, store, dispatch]);
 
   const { send, steer, cancel, approve, answerQuestion, setPermLevel } = useTurnActions(dispatch, store);
-  const { newSession, listSessions, listProjectSessions, fetchSessionStats, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta } = useSessionActions(dispatch, loadItemsFoldedFirst, refreshFactBase);
-  const { pickWorkspace, switchWorkspace, setModel } = useWorkspaceActions(dispatch, refreshFactBase);
-  const { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase } = useMemoryActions(dispatch, refreshFactBase);
+  const { newSession, listSessions, listProjectSessions, fetchSessionStats, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta } = useSessionActions(dispatch, loadItemsFoldedFirst);
+  const { pickWorkspace, switchWorkspace, setModel } = useWorkspaceActions(dispatch);
+  const { fetchMemory, remember, forget, saveDoc, updateFact, changeFactType } = useMemoryActions(dispatch);
   const { rewind, regenerate } = useRewindActions(dispatch, loadItemsFoldedFirst, store, send);
 
-  return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats, regenerate };
+  return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, fetchSessionStats, regenerate };
 }
 
 // useItems 订阅 items 数组，与 useController 分离。

@@ -16,7 +16,7 @@
 // 消费方：frontend/src/wenxue/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 216 名 = Go 导出 689 − 认领且 Go 存在 473。
+// 共 221 名 = Go 导出 694 − 认领且 Go 存在 473。
 export const legacyBindings = [
   "AddCustomEngine",
   "BrainSearch",
@@ -26,6 +26,7 @@ export const legacyBindings = [
   "DeleteProject",
   "EngineUpdateCheck",
   "EngineUpdateStatus",
+  "GaeaAddMCPServer",
   "GaeaAgentNetwork",
   "GaeaAnswer",
   "GaeaApprove",
@@ -127,10 +128,12 @@ export const legacyBindings = [
   "GaeaReadTextFile",
   "GaeaReload",
   "GaeaRemember",
+  "GaeaRemoveMCPServer",
   "GaeaRenameSession",
   "GaeaRenameWorkspacePath",
   "GaeaResumeSession",
   "GaeaResyncEvents",
+  "GaeaRetryMCPServer",
   "GaeaRevealWorkspacePath",
   "GaeaRewind",
   "GaeaRunning",
@@ -151,8 +154,10 @@ export const legacyBindings = [
   "GaeaScheduleProjects",
   "GaeaScheduleSave",
   "GaeaSend",
+  "GaeaSetMCPServerEnabled",
   "GaeaSetPermLevel",
   "GaeaSetUsdCnyRate",
+  "GaeaSkillDraftFromSession",
   "GaeaSlashArgs",
   "GaeaSteer",
   "GaeaSubagentContextView",
