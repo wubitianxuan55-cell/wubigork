@@ -7,7 +7,6 @@
 | 工具 | 来源 | 空间 | 副作用 | 证据档 | 验收谓词 |
 |---|---|---|---|---|---|
 | `ask` | build-internal | shared | interactive | none | 用户答案回传当前席 |
-| `author_memory` | extra-app | play | read | none | 作者记忆读取一致（自声明 play：小说/角色域） |
 | `bash` | builtin-workspace | work | write | publish-guard | durable 写被发布边界拦截/隔离（P1b）；前台+后台双路径 |
 | `bash_output` | builtin-domain | work | read | none | 输出增量与 job 缓冲一致 |
 | `browser_click` | builtin-domain | work | interactive | none | 点击后页面快照反映变化（自声明 work） |
@@ -100,6 +99,19 @@
 | `wait` | builtin-domain | work | read | none | 等待结果与 job 终态一致 |
 | `web_fetch` | builtin-workspace | work | read | none | 抓取内容与源一致（mode=auto 正文主提取判据不足回退整页/full 整页；注明 URL+时间） |
 | `web_search` | builtin-domain | work | read | none | 结果注明来源 URL+检索时间 |
+| `wenxue_chapter_list` | extra-app | work | read | none | 清单与约定章节目录实况一致（章号/标题/字数） |
+| `wenxue_chapter_read` | extra-app | work | read | none | 内容与目标章一致；附上一章结尾衔接段 |
+| `wenxue_chapter_write` | extra-app | work | write | none | 落盘内容与回执一致；overwrite=false 已存在即拒（宁拒不误改）；仅 md/markdown/txt |
+| `wenxue_character_import` | extra-app | work | write | none | 库卡全字段映射六节落盘（设定节记来源 id）；库只读不回写；overwrite 显式闸 |
+| `wenxue_character_list` | extra-app | work | read | none | 清单与角色目录实况一致（名/字数/摘要） |
+| `wenxue_character_read` | extra-app | work | read | none | 内容与目标卡一致 |
+| `wenxue_character_write` | extra-app | work | write | none | 落盘内容与回执一致；已存在即拒（overwrite 显式）；自动补首行一级标题 |
+| `wenxue_final_list` | extra-app | work | read | none | 清单与定稿目录实况一致（发布稿域，非草稿） |
+| `wenxue_final_read` | extra-app | work | read | none | 内容与目标定稿一致 |
+| `wenxue_final_write` | extra-app | work | write | none | 落盘内容与回执一致；仅定稿目录内（域隔离）；overwrite 显式闸 |
+| `wenxue_stats` | extra-app | work | read | none | 统计快照与工作区实况一致（字数/文件计数/最近修改） |
+| `wenxue_timeline_append` | extra-app | work | write | none | 追加行落盘（O_APPEND）；缺文件自动建；回执含落点 |
+| `wenxue_timeline_read` | extra-app | work | read | none | 事件清单与时间线文件实况一致（章节序） |
 | `write_file` | builtin-workspace | work | write | agent-write | 落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏） |
 | `xlsx_apply` | extra-app | work | write | office-journal | 公式重算零错误+引用级声明比对（P1a 升 agent 工具） |
 | `xlsx_audit` | extra-app | work | read | none | 错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门） |
@@ -118,33 +130,3 @@
 | task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | dag_plan / task / todo_write |
 
 适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；若出现第五装配面（如按 `boot.go` 注释绕过 Build 的自定义装配器）则本清单失效，需重新盘点。
-
-## extra-app·wenxue：图文专属工具四族（2026-11-15 刀3）
-
-仅装配进图文独立引擎（`wenxueExtraTools`，`wenxue_engine.go` 的 wx Build）；
-办公引擎 `gaeaExtraTools` 不含 → 办公会话零出现。目录约定与工具用法详见
-图文内嵌技能 `wenxue-workbench`。契约行（RegistryMap 同批）：
-
-- `wenxue_chapter_list`：章节清单（章号/标题/字数），约定目录 章节/chapters/正文 宽容匹配。
-- `wenxue_chapter_read`：读一章+上一章结尾衔接段（path/number 双定位）。
-- `wenxue_chapter_write`：写/建一章（overwrite 显式闸；md/markdown/txt；回执带字数差与下一章提示）。
-- `wenxue_character_list`：角色卡清单（名/字数/摘要）。
-- `wenxue_character_read`：读角色卡全文。
-- `wenxue_character_write`：建/更新角色卡（已存在即拒；自动补首行一级标题）。
-- `wenxue_timeline_read`：时间线事件全量（章节序；sinceChapter 过滤）。
-- `wenxue_timeline_append`：追加事件行（O_APPEND；缺文件自动建）。
-- `wenxue_stats`：工作空间统计快照（总字数/章均字/角色卡数/设定面/时间线事件数/最近修改）。
-
-安全口径：全部路径经 `wspath.ResolveRelWithin`（拒 .. 穿越）；写族 overwrite=false 缺省拒已存在；
-Evidence=none（直写文件无快照链，回滚走 git 面或工作区快照面板）。
-
-### extra-app·wenxue：定稿族（2026-11-15 阅读刀）
-
-定稿目录（`定稿|final|finalized`）只放发布稿不放草稿，域隔离由工具强制：`wenxue_chapter_write`
-拒写定稿目录、`wenxue_final_write` 只允许写定稿目录。
-
-- `wenxue_final_list`：定稿章节清单（章号/标题/字数）。
-- `wenxue_final_read`：读定稿全文（审校对照/前情/风格参考）。
-- `wenxue_final_write`：写/更新定稿（用户明确「定稿/入库/发布稿」时才用；overwrite 显式闸）。
-
-阅读标签页（图文主区）据此目录生成导航与阅读窗，与三件共享同一目录。

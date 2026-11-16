@@ -81,7 +81,9 @@ func TestWenxueBootWriteRootsOverride(t *testing.T) {
 	if _, err := writer.Execute(context.Background(), args(filepath.Join(novel, "章节.md"))); err != nil {
 		t.Fatalf("写小说工作空间不得被拒: %v", err)
 	}
-	// 写办公 workspace_root（劫持形态）：必须被拒，且边界文案指向小说目录。
+	// 写办公 workspace_root（劫持形态）：必须被拒，且边界文案指向接管后的写入根。
+	// （read 侧边界由 agent 循环施加、直调 Execute 不经策略层——组合语义锁在
+	// boot 包 boot_roots_test.go：TestTakeoverPolicyComposition。）
 	if _, err := writer.Execute(context.Background(), args(filepath.Join(office, "越界.md"))); err == nil {
 		t.Fatal("写入办公 workspace_root 必须被拒")
 	} else if !strings.Contains(err.Error(), novel) {

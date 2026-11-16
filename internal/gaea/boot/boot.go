@@ -85,6 +85,12 @@ type Options struct {
 	// 整体接管（含 bash 沙箱与访问策略的写入根），不与 AllowWrite 合并——
 	// 接管者自己负责边界。空 = 原行为逐字节（办公/CLI/TUI 不受影响）。
 	WriteRoots []string
+	// ReadRoots 显式接管额外读边界（2026-11-16 同族审计）：默认
+	// cfg.ReadRootsAt(cwd) 含 cfg.Sandbox.WorkspaceRoot——办公持久化目录
+	// 会变成图文引擎的额外只读边界（跨板块数据可读）。非空即整体接管
+	// （workspace 本身恒可读，与该参数无关；拾取文件走 ReadPathAllowed
+	// 回调）。空 = 原行为逐字节。
+	ReadRoots []string
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
 	ExtraTools []tool.Tool
@@ -136,6 +142,22 @@ var (
 	sandboxWarnOnce sync.Once
 	bashWarnOnce    sync.Once
 )
+
+// resolveRoots 合成生效根（2026-11-16 图文 write_file 越界根修的纯函数面）：
+// Options.WriteRoots/ReadRoots 非空即整体接管（不与 AllowWrite/AllowRead
+// 合并——接管者自己负责边界），空走配置推导 WriteRootsAt/ReadRootsAt。
+// 单测在 boot_roots_test.go 锁组合语义。
+func resolveRoots(cfg *config.Config, cwd string, opts Options) (writeRoots, readRoots []string) {
+	writeRoots = cfg.WriteRootsAt(cwd)
+	if len(opts.WriteRoots) > 0 {
+		writeRoots = opts.WriteRoots
+	}
+	readRoots = cfg.ReadRootsAt(cwd)
+	if len(opts.ReadRoots) > 0 {
+		readRoots = opts.ReadRoots
+	}
+	return writeRoots, readRoots
+}
 
 func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	stderr := opts.Stderr
@@ -254,12 +276,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	skillStore := sp.store
 
 	reg := tool.NewRegistry()
-	writeRoots := cfg.WriteRootsAt(cwd)
-	if len(opts.WriteRoots) > 0 {
-		writeRoots = opts.WriteRoots
-	}
+	writeRoots, readRoots := resolveRoots(cfg, cwd, opts)
 	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: writeRoots, Network: cfg.Sandbox.Network, FailClosed: cfg.Sandbox.FailClosed}
-	accessPolicy := tool.NewPathAccessPolicy(cwd, cfg.ReadRootsAt(cwd), writeRoots, opts.ReadPathAllowed)
+	accessPolicy := tool.NewPathAccessPolicy(cwd, readRoots, writeRoots, opts.ReadPathAllowed)
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
 		sandboxWarnOnce.Do(func() {
 			_, _ = fmt.Fprintln(stderr, "warning: bash sandbox requested but unavailable on this platform; running bash unconfined")

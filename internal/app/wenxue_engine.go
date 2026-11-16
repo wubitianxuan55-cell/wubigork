@@ -186,8 +186,13 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		// cfg.Sandbox.WorkspaceRoot 是办公板块持久化的全局共享值（本机实锤
 		// workspace_root=D:\新工作\2630合并沧州），WriteRootsAt 让它优先于
 		// Cwd——图文会话写小说目录被拒。接管后 write_file/bash 只锚小说目录，
-		// 不吃办公配置；读侧不受影响（cwd 本就是读工作区）。
+		// 不吃办公配置。
 		WriteRoots: []string{ws},
+		// 额外读边界同步接管（2026-11-16 同族审计）：ReadRootsAt 含办公持久化
+		// 目录——不接管则图文代理可读整个办公工作区（跨板块数据泄漏）。
+		// workspace 本身恒可读，拾取文件走 ReadPathAllowed 回调，域规范走
+		// read_skill 按需加载。
+		ReadRoots: []string{ws},
 		// 办公域工具物理不装（ToolFilter，案A 拍板）；wenxue_* 专属四族只进
 		// 本引擎（办公 ExtraTools 不含——办公会话零出现）。space 装配过滤照常。
 		// 通用面走媒体根分档版（wenxueBaseTools）：image_gen/ocr 锚小说目录。

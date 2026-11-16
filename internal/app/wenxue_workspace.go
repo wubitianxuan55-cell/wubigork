@@ -418,9 +418,16 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	wenxuePersistWorkspace(abs)
 	// 释放图文文件树监视（旧根句柄），树重开时按新根重建。
 	wenxueCloseFileTreeWatch()
-	if c := wenxueCtrl(); c != nil && !c.Running() {
-		c.SetSessionDir(gaeaConfig.WorkspaceSessionDir(abs, ""))
+	// 切书重建引擎（2026-11-16 同族审计根修）：Cwd/WriteRoots/ReadRoots/
+	// 媒体根/读策略/系统提示词全部在构建期锚定 wenxueWorkspace()——旧逻辑只
+	// SetSessionDir，切书后这些锚继续指旧书：相对路径静默解析进旧书（跨书
+	// 错写）、新书写入被拒。回合运行中不重建（打断在途回合比旧锚更糟），
+	// 警告留痕，重载时机交给回合结束后的 Reload/NewSession。
+	if c := wenxueCtrl(); c != nil && c.Running() {
+		slog.Warn("图文回合运行中，切书保持旧引擎（写入/读取边界仍锚旧书）", "ws", abs)
+		return abs
 	}
+	a.wenxueReloadIfInit()
 	return abs
 }
 
