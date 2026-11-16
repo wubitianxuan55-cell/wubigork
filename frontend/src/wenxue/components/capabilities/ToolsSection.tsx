@@ -57,6 +57,7 @@ const TOOL_DESC: Record<string, string> = {
   wenxue_final_read: "读一章定稿全文（审校/前情/风格参考）",
   wenxue_final_write: "定稿入库（仅定稿目录；用户明确「定稿」时才用）",
   grep: "工作空间内容搜索（正则/文件过滤）",
+  genui_validate: "GenUI 块契约校验（回答即 UI 面板）",
   session_search: "跨会话检索——按关键词搜过往会话正文",
   recall_archived: "召回已归档会话（历史取材）",
 }
@@ -70,7 +71,7 @@ const RAW_SECTIONS: Section[] = [
   { title: "图文专属", items: ["wenxue_chapter_list", "wenxue_chapter_read", "wenxue_chapter_write", "wenxue_character_list", "wenxue_character_read", "wenxue_character_write", "wenxue_character_import", "wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats", "wenxue_final_list", "wenxue_final_read", "wenxue_final_write"] },
   { title: "文件与命令", items: ["read_file", "write_file", "ls", "grep", "bash", "bash_output", "wait", "kill_shell"] },
   { title: "网络", items: ["web_search", "web_fetch"] },
-  { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task"] },
+  { title: "任务与协作", items: ["todo_write", "complete_step", "ask", "task", "genui_validate"] },
   { title: "记忆", items: ["remember", "forget", "memory_search", "memory_get", "promote_session_facts"] },
   { title: "会话", items: ["session_search", "recall_archived"] },
   { title: "技能", items: ["read_skill", "run_skill", "install_skill", "slash_command"] },
