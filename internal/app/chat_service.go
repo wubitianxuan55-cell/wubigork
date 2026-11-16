@@ -413,6 +413,37 @@ func (a *App) plainChatRequestMessages(topicID, userMessage string) []ai.ChatMes
 	return msgs
 }
 
+// classifyChatStreamError —— B1 错误分类（chat-demo describe.ts 语义对齐，
+// docs/gaea-deepseek-chatdemo-distill-2026-11.md §1.3）：给 error 帧补结构化
+// code，前端按码出友好文案与动作按钮（如引擎不可达→跳模型中心）。
+// 引擎错误是无结构字符串，只能在 Go 侧按模式归类——chat-demo errors.ts 对
+// file_id 类 400 同款取舍（服务端无结构码时按文案模式归）。
+// 未命中返回 ""：前端回落原文展示，零行为变化。
+func classifyChatStreamError(msg string) string {
+	lower := strings.ToLower(msg)
+	switch {
+	case strings.Contains(msg, "消息保存失败"):
+		return "persistence"
+	case strings.Contains(msg, "本轮未生成可交付正文"):
+		return "empty_reply"
+	case containsAny(lower,
+		"connection refused", "connection reset", "dial tcp", "tls handshake",
+		"no such host", "连接失败", "无法连接", "引擎不可用"):
+		return "engine_unreachable"
+	case containsAny(lower, "http 401", "http 403", "鉴权", "api key", "invalid api key"):
+		return "auth"
+	case containsAny(lower, "http 429", "http 502", "http 503", "http 504", "繁忙", "busy", "overloaded"):
+		return "engine_busy"
+	case containsAny(lower, "timeout", "deadline exceeded", "超时"):
+		return "timeout"
+	case containsAny(lower, "context length", "context window", "上下文超", "上下文长度"):
+		return "context_overflow"
+	}
+	return ""
+}
+
+// containsAny 复用 main_brain.go 同名助手。
+
 func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool) {
 	defer a.chatStreamUnregister(runID)
 	defer func() {
@@ -482,7 +513,7 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": r})
 			})
 		if loopErr != nil && ctx.Err() == nil {
-			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": loopErr.Error()})
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": loopErr.Error(), "code": classifyChatStreamError(loopErr.Error())})
 			return
 		}
 		// 取消轮（loopErr 因 ctx 取消）同样以 res.Reply 为落库权威：工具循环已把
@@ -517,8 +548,8 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 					// 不再对用户裸奔 error「请求已取消」。
 					break
 				}
-				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
-				return
+			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error, "code": classifyChatStreamError(chunk.Error)})
+			return
 			}
 			if chunk.Done {
 				usage = chunk.Usage
@@ -568,12 +599,13 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 			})
 			return
 		}
-		a.emit("chat-stream:"+runID, map[string]interface{}{
-			"type":  "error",
-			"error": "本轮未生成可交付正文，请重试",
-		})
-		return
-	}
+	a.emit("chat-stream:"+runID, map[string]interface{}{
+		"type":  "error",
+		"error": "本轮未生成可交付正文，请重试",
+		"code":  "empty_reply",
+	})
+	return
+}
 	// answered_by 回显：费用按本次实际 token（流结束块 usage）经 EstimateCostCNY
 	// 估算，汇率取配置（与 GaeaGetUsdCnyRate 同源；非法值由 EstimateCostCNY 内
 	// 回退默认 7.2）；usage 不可达时 cost_cny=0（诚实，不虚报）。
@@ -621,6 +653,7 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 		a.emit("chat-stream:"+runID, map[string]interface{}{
 			"type":  "error",
 			"error": "回复生成完成但消息保存失败: " + err.Error(),
+			"code":  "persistence",
 		})
 		return
 	}
@@ -662,7 +695,7 @@ func (a *App) runChatStreamPersona(ctx context.Context, runID, topicID, userMess
 		},
 	)
 	if err != nil {
-		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
+		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error(), "code": classifyChatStreamError(err.Error())})
 		return
 	}
 
@@ -699,6 +732,7 @@ func (a *App) runChatStreamPersona(ctx context.Context, runID, topicID, userMess
 			a.emit("chat-stream:"+runID, map[string]interface{}{
 				"type":  "error",
 				"error": "回复生成完成但消息保存失败: " + err.Error(),
+				"code":  "persistence",
 			})
 			return
 		}

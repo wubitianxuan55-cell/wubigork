@@ -21,6 +21,7 @@ import { useGenuiScope } from '../../genui/scope'
 import { buildMarkdownGenuiOverrides } from './genuiAdapter'
 import { findStableCut } from '../../gaea/lib/markdownCut'
 import { useThrottledStreamText } from '../../hooks/useThrottledStreamText'
+import { navigateToModelCenter } from '../../pages/chat/utils'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */
@@ -110,12 +111,32 @@ export const ChatRow: React.FC<ChatRowProps> = ({
           <CloseCircleOutlined style={{ marginTop: 2, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             {display}
-            <div style={{ marginTop: 8 }}>
-              <Button size="small" icon={<ReloadOutlined />} onClick={() => onRetry(msg.key)}
-                style={{ fontSize: 12, height: 26, borderRadius: 8 }}>
-                重试
-              </Button>
-            </div>
+            {(() => {
+              // B1（chat-demo describe.ts 对齐）：结构化错误码 → 引导动作；
+              // 原始报错降级为小字详情保留排障线索。无码（旧消息/未分类）零变化。
+              const errorCode = typeof msg.extra?.error_code === 'string' ? msg.extra.error_code : ''
+              const errorDetail = typeof msg.extra?.error_detail === 'string' ? msg.extra.error_detail : ''
+              const needsModelCenter = errorCode === 'engine_unreachable' || errorCode === 'auth'
+              return (
+                <>
+                  {errorCode && errorDetail ? (
+                    <div style={{ marginTop: 4, fontSize: 11, color: C('color-text-secondary'), wordBreak: 'break-all' }}>{errorDetail}</div>
+                  ) : null}
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                    {needsModelCenter && (
+                      <Button size="small" onClick={() => navigateToModelCenter()}
+                        style={{ fontSize: 12, height: 26, borderRadius: 8 }}>
+                        打开模型中心
+                      </Button>
+                    )}
+                    <Button size="small" icon={<ReloadOutlined />} onClick={() => onRetry(msg.key)}
+                      style={{ fontSize: 12, height: 26, borderRadius: 8 }}>
+                      重试
+                    </Button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       ) : (

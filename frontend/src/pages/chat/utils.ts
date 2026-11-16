@@ -13,6 +13,11 @@ export function nowStr(): string { return new Date().toISOString() }
 export function navigateToCharacterLib(): void {
   window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
 }
+
+/** B1 错误分类动作：错误行「打开模型中心」与 ModelPanel 同款导航事件。 */
+export function navigateToModelCenter(): void {
+  window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'modelcenter' } }))
+}
 export function parseExtra(raw?: string): Record<string, unknown> | undefined {
   if (!raw) return undefined
   try { const o = JSON.parse(raw); return typeof o === 'object' && o ? o : undefined } catch (_) { return undefined }

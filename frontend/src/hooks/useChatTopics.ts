@@ -34,6 +34,11 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
   const initRef = useRef(false)
   // 话题载入序号：快速切换话题时丢弃过期响应，避免旧话题消息覆盖当前视图。
   const topicLoadSeqRef = useRef(0)
+  // B2（chat-demo 纪律，docs/gaea-deepseek-chatdemo-distill-2026-11.md §2.3）：
+  // 手动重命名过的话题不再自动命名——用户显式起的名字（含改回「新对话」）优先
+  // 于首问截断；此前仅靠 title === '新对话' 字符串判断，改回「新对话」会被覆盖。
+  // 会话级 Set 不持久化：重启后按标题现状判断，旧行为兜底。
+  const manuallyRenamedRef = useRef(new Set<string>())
 
   const resetPersonaMeta = useCallback(() => {
     setEmotion(''); setAff(0); setAro(0)
@@ -185,6 +190,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
       message.error(`重命名失败：${err instanceof Error ? err.message : String(err)}`)
       return
     }
+    manuallyRenamedRef.current.add(id)
     setTopics(prev => prev.map(t => t.id === id ? { ...t, title } : t))
   }, [])
 
@@ -205,7 +211,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
   // 自动命名 + 最近活跃置顶 + 侧栏预览同步（发送成功后的统一收尾）。
   const finalizeTopicAfterSend = useCallback(async (topicId: string, firstUserText: string) => {
     const topic = topicsRef.current.find(t => t.id === topicId)
-    const title = topic?.title === '新对话'
+    const title = topic?.title === '新对话' && !manuallyRenamedRef.current.has(topicId)
       ? autoTopicTitle(firstUserText)
       : undefined
     if (title) {

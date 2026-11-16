@@ -9,6 +9,7 @@ import {
   CHAT_ENGINE_START_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS, STREAM_INACTIVITY_TIMEOUT_MS,
 } from '../pages/chat/constants'
 import { nextMsgKey, nowStr } from '../pages/chat/utils'
+import { describeChatError } from '../pages/chat/chatErrors'
 import type { ChatMsg } from '../pages/chat/types'
 import type { AnsweredByInfo } from '../components/chat/AnsweredByLine'
 
@@ -19,6 +20,8 @@ interface ChatStreamPayload {
   reply?: string
   reasoning?: string
   error?: string
+  /** B1：错误结构化码（Go classifyChatStreamError），未命中缺省 → 前端回落原文 */
+  code?: string
   /** v4.15 可选：实际回答的引擎/模型/来源/费用；旧事件无此字段 → 静默跳过 */
   answered_by?: AnsweredByInfo
   /** 角色流完成帧附带的会话状态（plain 流不携带） */
@@ -340,7 +343,15 @@ export function useChatStream(opts: UseChatStreamOptions) {
                 } else if (p.type === 'error') {
                   cancelPendingDelta()
                   setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
-                  updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
+                  // B1（chat-demo describe.ts 语义对齐）：按结构化码出友好文案，
+                  // 原文入 extra.error_detail 保留排障线索；未命中码回落原文零变化。
+                  const described = describeChatError(p.code, p.error)
+                  updateMessage(am.key, {
+                    content: described.text,
+                    streaming: false,
+                    error: true,
+                    ...(p.code ? { extra: { error_code: p.code, error_detail: p.error || '' } } : {}),
+                  })
                   finish(false)
                 }
               })
