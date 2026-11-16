@@ -1,3 +1,147 @@
+## 提交与打包记档（2026-11-16）
+
+- 本日五批+三标签页重设计已提交：`666f239d`（三标签页重设计，另一执行体批次代提交）、
+  `7e0dffde`（图文五批：本地引擎预检+租约/角色库导入/工具瘦身 55→43/记忆中枢接入
+  九库/记忆面板恢复+生图面）。打包见下方追加。
+
+## 文学角色 / 阅读 / 设定三标签页重设计（2026-11-16）
+
+- **调研**：截图级对照 Novelcrafter Codex（人物 Progressions / Codex 条目 /
+  自动提及）、World Anvil（Wiki 分类 / 章序时间线 / 关系图）、Campfire
+  Character（人物档案 / 关系网 / 成长轨迹）、Readwise Reader（长文阅读 /
+  章内导航 / 阅读辅助）与 LegendKeeper（分类档案 / 时间线 / 可检索世界库）。
+  共同缺口：高水平工具都把角色、阅读、设定视作三种不同任务，而非同一套
+  “左文件树 + 右正文”。
+- **三 Hub 重设计**：共享 `WenxueHubFrame` 建立眉题/宋体标题/指标/动作的
+  档案室语言；角色=演员表 + 人物速写 + 六节正文 + 速览/当前状态/关系/完整度；
+  阅读=章节目录 + 书页正文 + 首字下沉 + 章内大纲 + 字号/专注阅读 + 实时滚动
+  进度；设定=分类索引 + 文档页 + 大纲 + 章序时间线（未锚事件聚合警示）。
+  数据面保持角色卡 / 定稿 / 设定 / 时间线 md 原契约，CAS、角色库只读导入、
+  Composer 联动与 filetree 自动重载全部保留。
+- **响应式修**：1440×920、1100×880、880×760 亮暗走查；修复窄窗人物档案
+  三栏挤压、设置标题逐字折行、时间线横向过窄、Hub body 被 Playwright
+  内部滚动撑高；880 自动收起阅读目录，保留正文；新增 `?mock=wenxue`
+  浏览器样例（《雾港来信》角色/定稿/设定/时间线，不触真实 tuwen）。
+- **门禁**：三角色 Hub 定向 **16/16**；`tsc -b` 0；改动面 ESLint 0 error /
+  0 warning；三 Hub 按钮可访问名 0 缺失、图片 alt 0 缺失、无横向溢出；
+  `npm run build` 43.10s 通过（Vite 仍输出既有 `ctx-*` CSS syntax warning，
+  与本批文件无交集）；未 Wails、未装机、未提交。
+
+## 图文记忆面板恢复 + 图文生图面修复（2026-11-16 收尾批）
+
+- **记忆面板恢复**（用户令「以上问题一起解决」）：新 `WenxueMemoryPanel`（精简
+  版——快捷添加 scope+note/事实搜索/编辑 UpdateFact/删除 Forget；**数据面全锚
+  图文脑**，做梦/晨报/建议办公机制如实标注不跑；旧 848 行办公脑面板不复活）；
+  ChatTabs 第八 tab「记忆」（Brain）；`WenxueMemory` Go 绑定去混源——facts 从
+  hubOfficeStore（办公脑）改挂 `hubWenxueBrainStore`（图文脑），Available 改锚
+  wenxueBrainDir。写侧五件本就经 wx 控制器落图文脑，零改动。
+- **图文生图面修复**：媒体根分档裁决的 image_gen 此前被 work 空间闸静默过滤
+  （spacetags 名表 play）——新 `wxWorkSpaceTool` 适配器（仅改 SpaceTag→work，
+  Execute 原样委托）在 wenxueBaseTools 单点包装；**办公 gaeaExtraTools 原样
+  play 语义不变（红线）**。工具面板 42→43（本地专业模型组补 image_gen）。
+- **测试**：census 装配面改用 wenxueBaseTools 枚举（更忠实 wx 装配）+image_gen
+  keep 断言；policy 放行面补 image_gen；`TestWenxueBaseToolsImageGenWorkTagged`
+  （图文=work/办公=play 双面红线）；`TestWenxueMemory_FactsFromWenxueBrain`
+  （去混源回归）。
+- **验证**：app 全包 110s 绿、tsc -b 0、vitest 188 绿；未提交未装机。
+
+## 图文记忆接入记忆中枢（2026-11-16）
+
+- **背景**：图文脑（wenxue-brain 独立 DB）不在记忆中枢八库聚合清单里；图文板块
+  「记忆」tab 已在记忆左右脑批退役（当时面板挂的是办公脑做梦/晨报/建议窗）——
+  模型侧记忆五件工具一直在工作，只是无 UI 可看（用户问「为什么看不见」）。
+- **接入（只读）**：`GaeaWenxueMemoryBrowse` 新绑定（MemoryB 门面）——图文脑
+  facts 跨书全览（`SQLiteStoreFor`+`List()` 不过滤项目），Available=false=无脑；
+  总览增 `WenxueCount`。**物理隔离不动**：读写面仍只在图文引擎记忆五件，中枢
+  同右脑聊天记忆「只读」先例。
+- **前端**：MemoryHubPage 九库新增「图文记忆」（amber 识别色 + WenxueMemory-
+  Library 只读组件：facts 表/搜索/失效标记徽标/空态文案）；绑定四件套再生
+  （bindingNames 682/-signatures-ts/wailsjs models 经 `wails generate module`，
+  坑=需 ucrt64+build/bin DLL 双 PATH 否则 0xc0000135）+gaea bridge mapping/
+  mock（wenxueCount 双 mock 同批）+spaceBindings work 面+drift 锁全过。
+- **测试**：`memory_hub_wenxue_test.go` 3 组（browse 回读/空脑可用态/总览计数）；
+  既有 TestMemoryHubOverviewDatabaseCounts 补图文脑池清理。坑两枚记档：
+  ① `os.UserConfigDir()` Windows 读 %AppData%——USERPROFILE 重定向不影响，
+  测试须走 `wenxueBrainDirOverride` 缝（本批新增，仿 officeStoreOverride 先例），
+  否则误写真实图文脑（本批实测写进去一条已精确清除，真实数据零污染）；
+  ② 记忆条目名须 kebab-case slug（中文名 slug 化为空报 "memory needs a name"）。
+- **验证**：app 全包 108s 绿、boot 包绿、go vet 0、tsc -b 0、vitest 188 绿
+  （memoryhub+wenxue+hub page）、绑定漂移 OK 682；真实脑核对=1 条用户事实
+  未动、测试残留 0；未提交未装机。
+
+## 图文工具瘦身刀（2026-11-16）
+
+- **背景**：面板 55 件里 17 件落「其他」组（静态分组不认识），编辑族/大文件
+  件/会话元工具在写作闭环外纯杂音；且每件工具 schema 都吃每轮 token。
+- **摘除 13 件（55→42）**：编辑族五件（edit_file/edit_lines/multi_edit/
+  replace/move_file——修订走 chapter/character_write 整卡覆写）、大文件两件
+  （read_spill/summarize_file——read_file 分页覆盖）、办公侧栏（sidebar_open）、
+  会话元工具两件（request_permission/exit_plan_mode——图文交互审批链已覆盖）、
+  子代理管理三件（interrupt_agent/subagent_list/read_subagent_result——管理面
+  在 UI tab，agent 侧保留 task 派发）。
+- **boot.addGated 新缝**：ToolFilter 语义从「addBuiltins/plugins/ExtraTools
+  三处」扩为「全部模型面注册点」——boot 直注册 17 处（task/ask/记忆四件/
+  read_skill/run_skill/install_skill/slash_command/session_search/request_
+  permission/exit_plan_mode/summarize_file/子代理管理三件/task/read_skill
+  resolver）全部过闸；filter 空=全放行，办公逐字节现状（红线）。单测
+  boot_toolgate_test.go 四态。
+- **前端同批**：disabledDomains +13（同源）；ToolsSection 静态表补 会话组
+  （session_search/recall_archived）/任务组补 task/文件组补 grep，灭「其他」
+  组——42 件全部有名有组（坑=TOOL_DESC 里 task 重复键 TS1117）。
+- **测试**：policy 测试翻面（13 件 放行→拒绝 新组）；census deny 抽查 7 件
+  装配面；boot 闸四态；app 全包 98s 绿、boot 包绿、tsc -b 0、图文 vitest 24 绿；
+  未提交未装机。
+
+## 图文角色库导入刀（2026-11-16）
+
+- **背景**：图文角色工具与角色库零关联——agent 只能拿用户口述的名字凭空造人，
+  库内定位/背景/外貌/性格/动机/台词样例全丢（用户点名「不要只要了一个名字」）；
+  唯一库通道是角色面板手动导入（全字段六节映射，一次性快照不回写）。
+- **`wenxue_character_import` 新工具**（仅图文引擎装配，RegistryMap 契约行第十
+  三行 extra-app/work）：id/name → charLib 精确取卡（name 走 List LIKE 粗筛+
+  整名唯一匹配；零同名带近似提示、多同名要求传 id）→ **全字段落卡**——卡面
+  契约与前端 `cardFromLibraryChar` 逐节同源（设定←定位/标签/背景/动机、外貌←
+  外貌/身材、性格←性格/弧线、口头禅←台词样例、关系留白、当前状态←状态/备注，
+  ROLE_TYPE_ZH/STATUS_ZH 两表同源对齐），设定节末记「来源：角色库（id …）」。
+  overwrite 显式闸同 write。**同步语义=单向一次性快照**（卡面当前状态随章节
+  演进、库侧档案独立，双向自动合并必打架；库侧更新要进卡须显式重导入，
+  回执提示当前状态会丢）。
+- **`wenxue_character_list` 增 `charlib_hits`**：库内与工作空间卡同名命中
+  （id/kind）+ charlib_hint 导入提示；库未初始化/查询失败不拦清单（附带
+  charlib_error）。
+- **纪律面同批**：write desc+workbench 技能补「建新角色前必须先查库，不要只
+  拿名字凭空造人」；任务模板 character-card 同口径；前端 ToolsSection 静态
+  表补 import 项；装配守卫 census 名单补 import。
+- **测试**：`wenxue_character_import_test.go` 6 组（全字段映射+节序/闸+按 id
+  重导入/查重错误四态/空字段占位/list 命中解析式断言/nil 库直通）；坑=
+  charlib db 目录走 os.TempDir 自管清理（t.TempDir 对 db 文件严格 RemoveAll，
+  Windows 句柄释放延迟必误报——同 characterlib newTestStore 先例）。
+- **验证**：`internal/app` 全包 108s 绿、go vet 0、tsc -b 0、图文前端 13 例绿；
+  未提交未装机。
+
+## 图文本地引擎预检 + 图文空闲租约（2026-11-16）
+
+- **背景**：图文引擎构建期只 `bridge.SetFeature` 注入，请求期 ai.Client 直连；绑定
+  本地托管引擎（llama/strata/whirl）在空闲收割后首包 connection refused →
+  `isTransferableChatError` 判可转移 → 故障转移悄悄换引擎。聊天板块有
+  `resolveChatModelRoute` 预检，图文此前没有。
+- **每轮预检**（新 `wenxue_engine_preflight.go`，不采用聊天板块函数——回落链不同）：
+  回落链 wenxue 绑定→gaea 绑定→全局活跃（与 wenxueBuildController 注入链同构），
+  模型空回落引擎默认档（对齐 ai.Client 动态解析）；llama=`llamaEnsure`+在途补等
+  （上限 `qwen35StartWait` 300s，覆盖他方 reason=starting 窗口），strata/whirl 各自
+  Start；冷启动先发「正在启动本地模型」phase（已在运行静默），失败转 error 事件
+  ——绝不静默落故障转移；`WenxueSend` 每轮发送前过闸（引擎可能在任意两轮间被
+  收割，不限于首轮；Steer 运行中插话不重复预检）；llama 裸 GGUF 路径只读归一
+  （不代写 chat 键域配置）。`wenxuePreflightFn` 进程缝供测试桩（同
+  `ensureChatBindingEngineFn` 先例）。
+- **图文空闲租约 10 分钟**（`wenxueIdleLease`）：收割器 `managedIdleTarget` 增第五道
+  闸 `lease`——llama/strata/whirl 挂 `wenxueLeaseAlive` 谓词，图文碰过的引擎在最后
+  一次图文使用满 10 分钟前不停机（全局阈值默认 5 分钟仍是硬底线，两闸同时过才
+  收割；comfyui 无租约）。图文创作轮间隔长，只吃全局阈值会反复杀引擎致每轮冷启动。
+- **测试**：`wenxue_engine_preflight_test.go` 8 组（回落链/默认档回落/只读归一/每轮
+  语义+租约/错误上下文/云端直通+离线守卫/派发错误/租约收割+目标表）；
+  `internal/app` 全包绿（112.3s）；Go vet 0；未提交未装机。
+
 ## 图文角色面板 v2 + 记忆左右脑 + 设定标签页 + 功能包（2026-11-16 深夜）
 
 - **角色面板 v2**（`12a00b4f`，装机 PID 8000）：master-detail 重设计——结构化六节
