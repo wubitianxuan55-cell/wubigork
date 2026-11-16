@@ -9,6 +9,11 @@
   build/bin DLL 入 PATH 否则 0xc0000135）；payload 四件+zip/tar+SHA256SUMS+
   PACKAGE-INFO 入库（zip/tar 本体留盘）；冒烟 `/api/health 200` 过、冒烟进程
   已回收；工作树已回收；exe SHA256 `c9c8eab8…`。
+- **装机**（2026-11-16 11:15）：主树 `wails build -s -ldflags "-s -w" -trimpath`
+  （1m27.9s，bindings 未跳过）→ `gaea_install.ps1 -Launch` INSTALL OK：gaea.exe
+  SHA256 `CF65EEF89F04…` + 三 DLL 与 build/bin 一致；新 PID 42032（11:15:03）>
+  构建时刻 11:14:54；旧壳 49276 已杀。另：工具面板 `genui_validate` 归组任务与
+  协作（44 件全有名有组，实测装配面 34+boot 直注册 10）。
 
 ## 文学角色 / 阅读 / 设定三标签页重设计（2026-11-16）
 
