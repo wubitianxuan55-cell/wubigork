@@ -1371,6 +1371,7 @@ export namespace app {
 	    readOnly: boolean;
 	    truncated: boolean;
 	    parentId: string;
+	    sources?: event.ToolSource[];
 	    subagentRef: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1394,8 +1395,27 @@ export namespace app {
 	        this.readOnly = source["readOnly"];
 	        this.truncated = source["truncated"];
 	        this.parentId = source["parentId"];
+	        this.sources = this.convertValues(source["sources"], event.ToolSource);
 	        this.subagentRef = source["subagentRef"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class GaeaResyncResult {
 	    seq: number;
@@ -7165,6 +7185,24 @@ export namespace event {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.questionId = source["questionId"];
 	        this.selected = source["selected"];
+	    }
+	}
+	export class ToolSource {
+	    title: string;
+	    url: string;
+	    snippet?: string;
+	    source?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.url = source["url"];
+	        this.snippet = source["snippet"];
+	        this.source = source["source"];
 	    }
 	}
 
