@@ -297,6 +297,10 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
   `sherpa-onnx-cxx-api.dll` 同目录；随后执行
   `scripts\smoke.ps1 -ExePath build\bin\gaea.exe`，`/api/health` 必须以 200 通过。
 - 本机应用控制策略会拦截 `.tmp` 下的 exe；冒烟必须在 `build\bin` 或正式安装路径执行。
+- 编程板块“外部浏览器打开”是跨 gaea 生命周期的持久会话：必须保存 PID/令牌、
+  释放 Job 的关闭即杀位，并让 DSH stdout/stderr 直接继承日志文件；下次启动按
+  会话状态重接管，停止时可按 PID 回收进程树。详见构建指南「编程板块与 Windows
+  子进程」。
 - 做“某提交的交付包”时，从该提交的独立干净工作树构建，严禁混入主工作树其他未提交
   业务改动；同时记录提交号、exe/DLL/ZIP/源码包 SHA256 与冒烟结果。
 - 装机按 `scripts\gaea_install.ps1`；exe + 三枚 DLL 同放 `C:\AI\gaea-app`，

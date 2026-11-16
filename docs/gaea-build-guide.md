@@ -47,6 +47,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gaea_install.ps1
   `DSH_AGENTS_HOME=C:\AI\dsh\home\agents`。
 - 浏览器侧 authority 固定为 `dsh.wails.localhost:3091`，否则 DSH 的
   `SameSite=Strict` Cookie 会被跨站 iframe 拒绝。
+- 外部浏览器模式是持久会话：点击入口后由 `OpenProgrammingWebExternal` 保存
+  PID/令牌，经 `proc.ReleaseTracked` 清除 Job 的 `KILL_ON_JOB_CLOSE` 并关闭句柄；
+  node 的 stdout/stderr 必须直接继承日志文件，不能使用只由 gaea 读取的
+  `StdoutPipe`。下次启动 gaea 从 `.gaea-web-session.json` 重接管；停止时无
+  `exec.Cmd` 的会话按 PID 调 `taskkill /T` 回收。
 - 启动任何可能带控制台的 Windows 子进程时必须使用
   `internal/gaea/proc.HideWindow`。裸 `syscall.SysProcAttr{HideWindow:true}`
   会先显示再隐藏，表现为周期性 cmd 黑窗。
