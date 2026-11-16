@@ -215,6 +215,9 @@ export interface PantheonContribution extends PantheonCallRef {
   chairAssignments?: PantheonChairAssignment[]
   /** E3 主席终局。 */
   chairDecision?: PantheonChairDecision
+  /** 主席轮间小结的议题对齐度判定（on-track / drift；空=未报）。 */
+  chairAlignment?: string
+  chairDriftNote?: string
   /** E1 宿主观察的工具证据。 */
   toolEvidence?: PantheonToolEvidence
   /** 只在 user_answer 贡献上：回答绑定的提问 ID。 */
@@ -248,11 +251,20 @@ export interface PantheonVerdict {
   evidenceNotes?: string[]
   issueReviews?: PantheonIssueReview[]
   proposedActions?: PantheonProposedAction[]
+  /** 成功标准逐条核对（议题声明了 SuccessCriteria 时才有）：防结论静默缩小范围。 */
+  coverage?: PantheonCriteriaCoverage[]
   revisedFromSha256?: string
   revisionReason?: string
   chairman: string
   partial: boolean
   createdAt: number
+}
+
+export interface PantheonCriteriaCoverage {
+  criterion: string
+  /** addressed（已回应）/ partial（部分回应）/ unaddressed（未回应）。 */
+  status: string
+  note?: string
 }
 
 export interface PantheonAttestation {

@@ -7819,6 +7819,8 @@ export namespace pantheon {
 	    responseVerdict?: string;
 	    chairAssignments?: ChairAssignment[];
 	    chairDecision?: ChairDecision;
+	    chairAlignment?: string;
+	    chairDriftNote?: string;
 	    toolEvidence?: ToolEvidence;
 	    questionId?: string;
 	    runMode?: string;
@@ -7860,6 +7862,8 @@ export namespace pantheon {
 	        this.responseVerdict = source["responseVerdict"];
 	        this.chairAssignments = this.convertValues(source["chairAssignments"], ChairAssignment);
 	        this.chairDecision = this.convertValues(source["chairDecision"], ChairDecision);
+	        this.chairAlignment = source["chairAlignment"];
+	        this.chairDriftNote = source["chairDriftNote"];
 	        this.toolEvidence = this.convertValues(source["toolEvidence"], ToolEvidence);
 	        this.questionId = source["questionId"];
 	        this.runMode = source["runMode"];
@@ -7885,6 +7889,22 @@ export namespace pantheon {
 		    }
 		    return a;
 		}
+	}
+	export class CriteriaCoverage {
+	    criterion: string;
+	    status: string;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CriteriaCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.criterion = source["criterion"];
+	        this.status = source["status"];
+	        this.note = source["note"];
+	    }
 	}
 	export class EvaluationCaseCoverage {
 	    key: string;
@@ -8478,6 +8498,7 @@ export namespace pantheon {
 	    evidenceNotes?: string[];
 	    issueReviews?: IssueReview[];
 	    proposedActions?: ProposedAction[];
+	    coverage?: CriteriaCoverage[];
 	    revisedFromSha256?: string;
 	    revisionReason?: string;
 	    chairman: string;
@@ -8498,6 +8519,7 @@ export namespace pantheon {
 	        this.evidenceNotes = source["evidenceNotes"];
 	        this.issueReviews = this.convertValues(source["issueReviews"], IssueReview);
 	        this.proposedActions = this.convertValues(source["proposedActions"], ProposedAction);
+	        this.coverage = this.convertValues(source["coverage"], CriteriaCoverage);
 	        this.revisedFromSha256 = source["revisedFromSha256"];
 	        this.revisionReason = source["revisionReason"];
 	        this.chairman = source["chairman"];

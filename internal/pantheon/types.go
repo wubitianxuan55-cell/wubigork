@@ -440,6 +440,11 @@ type Contribution struct {
 	// ChairDecision 是主席终局信号（第二次蒸馏 E3）。它只持久化主席说了
 	// 什么；宿主怎么停车由 manager 决定，不把「主席自评」写成会话事实。
 	ChairDecision *ChairDecision `json:"chairDecision,omitempty"`
+	// ChairAlignment 是主席轮间小结的议题对齐度判定（2026-11-16）：on-track /
+	// drift；空=主席未报，不作推断。宿主按连续 drift 注入拉回指令；判定词随
+	// 贡献持久化，重启/续跑与导出的口径一致。
+	ChairAlignment string `json:"chairAlignment,omitempty"`
+	ChairDriftNote string `json:"chairDriftNote,omitempty"`
 	// ToolEvidence 是宿主对本次调用实际工具事件的摘要（第二次蒸馏 E1），
 	// 不是模型自述。nil=该通道不上报工具轨迹；非 nil 零值=上报了、0 次。
 	ToolEvidence *ToolEvidence `json:"toolEvidence,omitempty"`
@@ -556,19 +561,31 @@ type VerdictRevision struct {
 }
 
 type Verdict struct {
-	Summary           string           `json:"summary"`
-	Recommendation    string           `json:"recommendation"`
-	Conditions        []string         `json:"conditions,omitempty"`
-	Disagreements     []string         `json:"disagreements,omitempty"`
-	Risks             []string         `json:"risks,omitempty"`
-	EvidenceNotes     []string         `json:"evidenceNotes,omitempty"`
-	IssueReviews      []IssueReview    `json:"issueReviews,omitempty"`
-	ProposedActions   []ProposedAction `json:"proposedActions,omitempty"`
-	RevisedFromSHA256 string           `json:"revisedFromSha256,omitempty"`
-	RevisionReason    string           `json:"revisionReason,omitempty"`
-	Chairman          string           `json:"chairman"`
-	Partial           bool             `json:"partial"`
-	CreatedAt         int64            `json:"createdAt"`
+	Summary         string           `json:"summary"`
+	Recommendation  string           `json:"recommendation"`
+	Conditions      []string         `json:"conditions,omitempty"`
+	Disagreements   []string         `json:"disagreements,omitempty"`
+	Risks           []string         `json:"risks,omitempty"`
+	EvidenceNotes   []string         `json:"evidenceNotes,omitempty"`
+	IssueReviews    []IssueReview    `json:"issueReviews,omitempty"`
+	ProposedActions []ProposedAction `json:"proposedActions,omitempty"`
+	// Coverage 是对议题成功标准的逐条核对（2026-11-16 覆盖面刀）：防结论
+	// 静默缩小范围——议题声明了 SuccessCriteria 时汇总必须逐条交代回应
+	// 情况，漏项不得静默。议题没声明标准时为空，不虚构判据。
+	Coverage          []CriteriaCoverage `json:"coverage,omitempty"`
+	RevisedFromSHA256 string             `json:"revisedFromSha256,omitempty"`
+	RevisionReason    string             `json:"revisionReason,omitempty"`
+	Chairman          string             `json:"chairman"`
+	Partial           bool               `json:"partial"`
+	CreatedAt         int64              `json:"createdAt"`
+}
+
+// CriteriaCoverage 是小结对一条成功标准的核对结果。Status 只取
+// addressed / partial / unaddressed；partial 与 unaddressed 必须带说明。
+type CriteriaCoverage struct {
+	Criterion string `json:"criterion"`
+	Status    string `json:"status"`
+	Note      string `json:"note,omitempty"`
 }
 
 type SignOff struct {

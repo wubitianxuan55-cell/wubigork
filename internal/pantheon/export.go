@@ -108,6 +108,7 @@ func ExportMarkdown(session *Session) string {
 		writeList(&b, "保留分歧", session.Verdict.Disagreements)
 		writeList(&b, "开放问题与风险", session.Verdict.Risks)
 		writeList(&b, "证据注记", session.Verdict.EvidenceNotes)
+		writeCriteriaCoverageMarkdown(&b, session.Verdict.Coverage)
 		writeProposedActionsMarkdown(&b, session.Verdict.ProposedActions)
 		writeAttestationsMarkdown(&b, session.Attestations, session.VerdictRevisions)
 		fmt.Fprintf(&b, "- 主持与汇总：%s\n\n", session.Verdict.Chairman)
@@ -576,6 +577,31 @@ func writeList(b *strings.Builder, title string, items []string) {
 		b.WriteString("- ")
 		b.WriteString(item)
 		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+// writeCriteriaCoverageMarkdown 渲染成功标准覆盖面核对（2026-11-16 覆盖面
+// 刀）：逐条列出回应情况，unaddressed/partial 前置标记，漏项在交付物里可见。
+func writeCriteriaCoverageMarkdown(b *strings.Builder, coverage []CriteriaCoverage) {
+	if len(coverage) == 0 {
+		return
+	}
+	b.WriteString("### 成功标准覆盖\n\n")
+	labels := map[string]string{
+		"addressed":   "已回应",
+		"partial":     "部分回应",
+		"unaddressed": "未回应",
+	}
+	for _, item := range coverage {
+		label := labels[item.Status]
+		if label == "" {
+			label = item.Status
+		}
+		fmt.Fprintf(b, "- **[%s]** %s\n", label, item.Criterion)
+		if item.Note != "" {
+			writeIssueAuditField(b, "说明", item.Note)
+		}
 	}
 	b.WriteString("\n")
 }

@@ -197,8 +197,13 @@ func TestModerationPromptCarriesLedgerRosterAndEnvelope(t *testing.T) {
 	if !strings.Contains(prompt, "codex（CODEX）") {
 		t.Fatalf("moderationPrompt 必须带席位 ID 名册（信封 agentId 不可猜）：%q", prompt)
 	}
-	if !strings.Contains(prompt, chairEnvelopeOpen) || !strings.Contains(prompt, "没有定向指令就不要输出信封") {
+	// 2026-11-16 议题对齐刀：alignment 必填进信封协议；无派工时只省略
+	// assignments，信封本体（含 alignment）仍须输出。
+	if !strings.Contains(prompt, chairEnvelopeOpen) || !strings.Contains(prompt, "没有定向指令就不要输出 assignments") {
 		t.Fatal("moderationPrompt 缺信封协议段")
+	}
+	if !strings.Contains(prompt, `"alignment"`) || !strings.Contains(prompt, "driftNote") {
+		t.Fatal("moderationPrompt 信封协议缺议题对齐度契约")
 	}
 	if !strings.Contains(prompt, "补充论证") == false && strings.Contains(prompt, "下轮必答") == false {
 		t.Fatal("moderationPrompt 结构不完整")

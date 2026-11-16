@@ -1428,10 +1428,23 @@ func (m *Manager) run(
 					assignments, visible, malformed := parseChairEnvelope(res.Text)
 					assignments, dropped := filterChairAssignments(assignments, order)
 					decision, decisionMalformed := parseChairDecision(res.Text)
+					alignment, alignmentMalformed := parseChairAlignment(res.Text)
 					if malformed {
 						m.addWarning(session, fmt.Sprintf("第 %d 轮主席信封解析失败，已降级为普通小结（原文见事件流）", round))
 					} else if decisionMalformed {
 						m.addWarning(session, fmt.Sprintf("第 %d 轮主席终局信号无法识别，按「继续」处理", round))
+					} else if alignmentMalformed {
+						m.addWarning(session, fmt.Sprintf("第 %d 轮主席议题对齐度无法识别，按「未判定」处理", round))
+					}
+					// 议题对齐刀（2026-11-16）：连续两轮 drift 即在主席小结末尾
+					// 追加宿主拉回指令——小结全文是下一轮全员议程，追加即达全员。
+					// 判定词持久化在贡献上，重启/续跑口径一致。
+					if alignment.Status == chairAlignmentDrift {
+						streak := consecutiveDriftRounds(session.Contributions) + 1
+						if streak >= chairDriftPullBackThreshold {
+							visible += chairPullBackNotice(round, streak, alignment.Note)
+							m.addWarning(session, fmt.Sprintf("第 %d 轮主席连续 %d 轮判定议题漂移，已向全员注入宿主拉回指令", round, streak))
+						}
 					}
 					if dropped > 0 {
 						m.addWarning(session, fmt.Sprintf("第 %d 轮主席信封有 %d 条派工指向非参会席位，已丢弃", round, dropped))
@@ -1456,6 +1469,8 @@ func (m *Manager) run(
 						Content:          visible,
 						ChairAssignments: assignments,
 						ChairDecision:    decisionPtr,
+						ChairAlignment:   alignment.Status,
+						ChairDriftNote:   alignment.Note,
 						ToolEvidence:     m.buildToolEvidence(session, res.CallRef, hasCapability(status, "tool-trajectory")),
 						RunMode:          m.adapter(status.ID).runMode,
 						CreatedAt:        time.Now().UnixMilli(),
@@ -2947,15 +2962,16 @@ func parseVerdict(raw, chairman string, _ time.Duration) *Verdict {
 	end := strings.LastIndex(trimmed, "}")
 	if start >= 0 && end > start {
 		var parsed struct {
-			Summary         string           `json:"summary"`
-			Recommendation  string           `json:"recommendation"`
-			Conditions      []string         `json:"conditions"`
-			Disagreements   []string         `json:"disagreements"`
-			Risks           []string         `json:"risks"`
-			EvidenceNotes   []string         `json:"evidenceNotes"`
-			IssueReviews    []IssueReview    `json:"issueReviews"`
-			ProposedActions []ProposedAction `json:"proposedActions"`
-			RevisionReason  string           `json:"revisionReason"`
+			Summary         string             `json:"summary"`
+			Recommendation  string             `json:"recommendation"`
+			Conditions      []string           `json:"conditions"`
+			Disagreements   []string           `json:"disagreements"`
+			Risks           []string           `json:"risks"`
+			EvidenceNotes   []string           `json:"evidenceNotes"`
+			IssueReviews    []IssueReview      `json:"issueReviews"`
+			ProposedActions []ProposedAction   `json:"proposedActions"`
+			Coverage        []CriteriaCoverage `json:"coverage"`
+			RevisionReason  string             `json:"revisionReason"`
 		}
 		if json.Unmarshal([]byte(trimmed[start:end+1]), &parsed) == nil {
 			if strings.TrimSpace(parsed.Recommendation) != "" || strings.TrimSpace(parsed.Summary) != "" {
@@ -2967,6 +2983,7 @@ func parseVerdict(raw, chairman string, _ time.Duration) *Verdict {
 					EvidenceNotes:   cleanStrings(parsed.EvidenceNotes),
 					IssueReviews:    cleanIssueReviews(parsed.IssueReviews),
 					ProposedActions: cleanProposedActions(parsed.ProposedActions),
+					Coverage:        cleanCriteriaCoverage(parsed.Coverage),
 					RevisionReason:  strings.TrimSpace(parsed.RevisionReason),
 					Chairman:        chairman, CreatedAt: time.Now().UnixMilli(),
 				}
@@ -2997,6 +3014,36 @@ func cleanProposedActions(actions []ProposedAction) []ProposedAction {
 			continue
 		}
 		out = append(out, action)
+	}
+	return out
+}
+
+// cleanCriteriaCoverage 清洗覆盖面核对条目：标准原文与状态必填，状态归一
+// 到 addressed/partial/unaddressed，无法识别的按 unaddressed 保守入账——
+// 覆盖面核对宁可报未回应也不静默丢失。
+func cleanCriteriaCoverage(coverage []CriteriaCoverage) []CriteriaCoverage {
+	out := make([]CriteriaCoverage, 0, len(coverage))
+	for _, item := range coverage {
+		item.Criterion = strings.TrimSpace(item.Criterion)
+		item.Note = strings.TrimSpace(item.Note)
+		switch strings.ToLower(strings.TrimSpace(item.Status)) {
+		case "addressed":
+			item.Status = "addressed"
+		case "partial":
+			item.Status = "partial"
+		default:
+			item.Status = "unaddressed"
+		}
+		if item.Criterion == "" {
+			continue
+		}
+		if item.Status != "addressed" && item.Note == "" {
+			item.Note = "汇总席未给出说明，视为未回应"
+		}
+		out = append(out, item)
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

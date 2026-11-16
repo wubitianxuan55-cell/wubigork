@@ -21,7 +21,22 @@ const (
 	chairAssignmentLimit = 8
 	// chairInstructionRunes 单条指令长度上限。
 	chairInstructionRunes = 200
+	// 议题对齐度（2026-11-16）：主席轮间小结对「本轮各席是否锚定议题核心
+	// 目标」的结构化判定。此前偏航判定只在最终汇总出现一次——轮次花完才
+	// 发现漂了；对齐度把它前移成每轮可观测信号。
+	chairAlignmentOnTrack = "on-track"
+	chairAlignmentDrift   = "drift"
+	// chairDriftPullBackThreshold 连续判定漂移达到该轮数，宿主向全员注入
+	// 拉回指令。1 轮可能是误判，不动；连续 2 轮才认定真漂移。
+	chairDriftPullBackThreshold = 2
 )
+
+// ChairAlignment 是信封里主席的议题对齐度判定。Status 空=主席未报（旧提示
+// 词或漏填），宿主不作任何推断——缺失不等于在轨。
+type ChairAlignment struct {
+	Status string `json:"status"`
+	Note   string `json:"note"`
+}
 
 // ChairAssignment 是信封里对单个席位的定向派工。
 type ChairAssignment struct {
@@ -47,6 +62,8 @@ const (
 type chairEnvelopePayload struct {
 	Decision    string            `json:"decision,omitempty"`
 	Detail      string            `json:"detail,omitempty"`
+	Alignment   string            `json:"alignment,omitempty"`
+	DriftNote   string            `json:"driftNote,omitempty"`
 	Assignments []ChairAssignment `json:"assignments"`
 }
 
@@ -138,6 +155,68 @@ func parseChairDecision(text string) (ChairDecision, bool) {
 	default:
 		return ChairDecision{Status: chairDecisionContinue}, true
 	}
+}
+
+// parseChairAlignment 解析主席小结信封里的议题对齐度判定。与
+// parseChairDecision 共用「最后一个完整信封」纪律；alignment 缺省=未判定
+// （返回空 Status，不算 malformed——旧小结与漏填都走这条，不制造告警噪音）；
+// 值无法识别时同样返回空 Status 并标 malformed，由调用方降级留痕。
+func parseChairAlignment(text string) (ChairAlignment, bool) {
+	payload, found := lastChairEnvelopePayload(text)
+	if !found {
+		return ChairAlignment{}, false
+	}
+	if strings.TrimSpace(payload) == "" {
+		return ChairAlignment{}, true
+	}
+	var decoded chairEnvelopePayload
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &decoded); err != nil {
+		return ChairAlignment{}, true
+	}
+	status := strings.ToLower(strings.TrimSpace(decoded.Alignment))
+	status = strings.ReplaceAll(status, "_", "-")
+	switch status {
+	case "":
+		return ChairAlignment{}, false
+	case chairAlignmentOnTrack:
+		return ChairAlignment{Status: chairAlignmentOnTrack}, false
+	case chairAlignmentDrift:
+		return ChairAlignment{Status: chairAlignmentDrift, Note: trimRunes(strings.TrimSpace(decoded.DriftNote), 200)}, false
+	default:
+		return ChairAlignment{}, true
+	}
+}
+
+// consecutiveDriftRounds 统计存档里「最新连续 drift 判定」的小结轮数（从
+// 最新主席小结往回数，遇到非 drift 小结即停）。入参是追加当前轮之前的
+// 贡献存档——当前轮是否 drift 由调用方自行 +1。判定缺失（主席未报）按
+// 保守处理：断开连击，不把「没说」当成「漂了」。
+func consecutiveDriftRounds(contributions []Contribution) int {
+	streak := 0
+	for i := len(contributions) - 1; i >= 0; i-- {
+		c := contributions[i]
+		if c.Phase != PhaseModeration {
+			continue
+		}
+		if c.ChairAlignment != chairAlignmentDrift {
+			break
+		}
+		streak++
+	}
+	return streak
+}
+
+// chairPullBackNotice 是宿主在连续漂移达到阈值时追加到主席小结可见文本
+// 末尾的拉回指令。小结全文会作为下一轮议程注入全员提示词，因此追加在这里
+// 即达全员，无需改动各提示词构造器；【宿主】署名保证不与主席原话混淆。
+func chairPullBackNotice(round, streak int, note string) string {
+	text := fmt.Sprintf("连续 %d 轮主席判定议题对齐度为「漂移」", streak)
+	if note != "" {
+		text += "：" + note
+	} else {
+		text += "。"
+	}
+	return fmt.Sprintf("\n\n【宿主拉回（第 %d 轮）】%s 下一轮全员发言的第一段必须先答「本轮论证如何推进议题核心目标」；与核心目标无关的展开一律移入遗留台账，不得另起炉灶。", round, text)
 }
 
 // filterChairAssignments 只保留能定位到参会席位的派工；定向到缺席/未知席位

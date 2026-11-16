@@ -337,6 +337,33 @@ func openingPrompt(
 			presetInstruction += `红队评审还要主动寻找最强反例、最坏条件和不可逆风险；汇总后所有有效席位将独立确认结论。`
 		}
 	}
+	// 开场说明按议事路径区分（2026-11-16 实弹：席位误把空讨论区当「前面
+	// 发言丢失」，公开追问为什么没人发言——但开场有三种路径，说明不能写
+	// 死一段）：
+	//   - 独立开场：开场轮并行作答、互不看同轮，名册序号≠发言时序；
+	//   - 互盲驳论：全部轮次并行，本轮任何同轮发言都看不到；
+	//   - 圆桌接力：真串行，首位就是第一位发言者（原口径准确，不改）；
+	//   - 单席会话：没有并行可言，同样保留原口径。
+	parallelOpening := total > 1 &&
+		(req.Protocol == ProtocolIndependent || req.Protocol == ProtocolBlindRebuttal)
+	historySection := discussionHistory(history, 1, files)
+	openingNote := ""
+	if len(history) == 0 && parallelOpening {
+		switch req.Protocol {
+		case ProtocolIndependent:
+			historySection = "你是并行开场的参与席位之一：目前还没有已经发表的讨论记录——这是「独立开场」并行机制的正常表现，不是发言丢失或加载失败。"
+			openingNote = `
+
+【独立开场说明】
+本场采用「独立开场」路径：开场轮全体席位同时并行作答、互相隔离，任何人面前都没有前序发言。提示词中的「第 N 位」只是名册序号，不代表发言时序，更不代表前面有席位发言丢失。【已发生的讨论】为空是并行机制的正常表现，不要在正文里追问或汇报「为什么前面没人发言」。你按自己的独立判断完成开场即可，不要猜测、引用或等待其他席位的观点——他们的开场陈词第 2 轮起才互相可见。`
+		case ProtocolBlindRebuttal:
+			historySection = "你是互盲开场的一员：目前还没有已经发表的讨论记录——这是「互盲驳论」并行机制的正常表现，不是发言丢失或加载失败。"
+			openingNote = `
+
+【互盲驳论说明】
+本场采用「互盲驳论」路径：全部轮次并行作答，本轮你看不到任何同轮席位的发言，它们也看不到你的。提示词中的「第 N 位」只是名册序号，不代表发言时序。【已发生的讨论】为空是互盲机制的正常表现，不要在正文里追问或汇报「为什么前面没人发言」。你按自己的独立判断完成开场即可，不要猜测、引用或等待其他席位的观点。`
+		}
+	}
 	return `你是众神殿圆桌讨论的参与者「` + agent.Name + `」。当前是第 1 轮开场陈述。
 你在本轮第 ` + fmt.Sprint(position) + ` 位发言，本轮共 ` + fmt.Sprint(total) + ` 位。
 ` + presetInstruction + `
@@ -350,7 +377,8 @@ func openingPrompt(
 ` + buildBrief(req, files) + `
 
 【已发生的讨论】
-` + discussionHistory(history, 1, files) + `
+` + historySection + `
+` + openingNote + `
 
 请用中文发言，结构如下：
 1. 我的理解：用几句话准确概括议题和约束。
@@ -675,9 +703,9 @@ func moderationPrompt(req StartRequest, facilitator AgentStatus, roundContributi
 %s
 %s
 如需对个别席位下发定向指令（例如某席须先复核某条台账、某席须补某项核验），在三段之后另起一行输出私有信封，宿主会剥除、用户不可见：
-<pantheon-chair>{"decision":"continue","assignments":[{"agentId":"席位ID","instruction":"一句话指令"}]}</pantheon-chair>
-信封规则：必须是输出的最后内容；agentId 用上方名册里的席位 ID；instruction 一句话；没有定向指令就不要输出信封；信封不计入 300 字限制。
-如需报告整场终局，在同一信封里加 "decision":"continue|completed|needs-input|blocked" 与一句 "detail"；completed / needs-input / blocked 必须带 detail，且终局时不再派工。completed 只是「主席建议收口」，宿主仍按分歧台账、全员一致与缺口裁决，不会越权停止。
+<pantheon-chair>{"decision":"continue","alignment":"on-track","driftNote":"","assignments":[{"agentId":"席位ID","instruction":"一句话指令"}]}</pantheon-chair>
+信封规则：必须是输出的最后内容；"alignment" 必填，判定本轮各席发言是否锚定议题核心目标——"on-track"=锚定；"drift"=多数发言漂入实现细节或离题，此时必须写 "driftNote" 一句话点名漂移点；"decision" 缺省即 continue；agentId 用上方名册里的席位 ID；instruction 一句话；没有定向指令就不要输出 assignments；信封不计入 300 字限制。
+如需报告整场终局，在同一信封里把 "decision" 改为 "continue|completed|needs-input|blocked" 并附一句 "detail"；completed / needs-input / blocked 必须带 detail，且终局时不再派工。completed 只是「主席建议收口」，宿主仍按分歧台账、全员一致与缺口裁决，不会越权停止。
 
 第 %d 轮发言：
 %s`, round, facilitator.Name, closeout, targeted, roster, ledger, receiptSection, round, formatDiscussionHistory(roundContributions, round, nil))
@@ -769,6 +797,25 @@ func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contribution
 （讨论记录按轮次分层：最后一轮为全文或完整尾部；上一轮为立场卡节选；更早轮次已归档为文件，只保留索引行与全文路径——整理时发现某条归档发言可能影响结论，先用文件读取工具按「全文见文件」路径核对原文，再写进小结。）`)
 	}
 
+	// 覆盖面刀（2026-11-16）：议题声明了成功标准时，汇总必须逐条核对回应
+	// 情况——「全员一致」判据防拖延不防仓促，缺的正是「结论是否覆盖议题
+	// 原问题域」的检查。没声明标准就不注入，不虚构判据。
+	criteria := strings.TrimSpace(req.SuccessCriteria)
+	coverageBullet := ""
+	coverageSchema := ""
+	if criteria != "" {
+		fmt.Fprintf(&b, "\n\n【成功标准逐条核对】\n议题声明了成功标准，小结必须逐条交代回应情况，结论不得比议题声明的问题域更窄：\n%s\n", criteria)
+		coverageBullet = "\n- coverage 必须逐条覆盖【成功标准逐条核对】列出的每一条标准（按行拆条，不得合并、不得省略）：status 只能取 addressed（讨论已实质回应）/ partial（部分回应）/ unaddressed（未回应）；partial 与 unaddressed 必须在 note 写明缺什么证据或为什么没回应，并指向最接近的贡献 ID——不得静默漏项。"
+		coverageSchema = `,
+  "coverage": [
+    {
+      "criterion": "成功标准原文（逐条，不得合并多条）",
+      "status": "addressed | partial | unaddressed",
+      "note": "partial/unaddressed 必填：缺什么、为什么、最接近的贡献 ID"
+    }
+  ]`
+	}
+
 	b.WriteString(`
 
 整理要求（2026-11-03 提炼式汇总——禁止流水账）：
@@ -782,7 +829,9 @@ func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contribution
 - issueReviews 必须逐条覆盖输入台账中的每个 issueId，不得遗漏或虚构 ID。每条只给审阅建议，不改变提出者是否撤回；outcome 只能是 resolved / retain / user_decision / needs_verification。
 - 主席建议 resolved 时，evidence 必须写明哪条证据支持撤回；提出者尚未撤回的条目，summary 仍须保留其异议身份。
 - proposedActions 只写签注后可审核的行动提案，不得声称已经执行；没有明确下一步时输出空数组。
-- 语言客观、协助；不做法庭式裁决叙事，但该裁决的分歧要给裁决建议。
+- 语言客观、协助；不做法庭式裁决叙事，但该裁决的分歧要给裁决建议。`)
+	b.WriteString(coverageBullet)
+	b.WriteString(`
 
 只输出一个 JSON 对象，不要 Markdown 围栏。字段：
 {
@@ -791,7 +840,9 @@ func synthesisPromptMode(req StartRequest, facilitator AgentStatus, contribution
   "conditions": ["适用条件"],
   "disagreements": ["仍存在且值得保留的分歧（含被淘汰方案及理由）"],
   "risks": ["开放问题、反例或待验证风险（各配验证路径）"],
-  "evidenceNotes": ["重要证据：支持/修正/推翻了哪一部分，证据等级与贡献 ID"],
+  "evidenceNotes": ["重要证据：支持/修正/推翻了哪一部分，证据等级与贡献 ID"]`)
+	b.WriteString(coverageSchema)
+	b.WriteString(`,
   "issueReviews": [
     {
       "issueId": "原样复制输入台账 ID",
