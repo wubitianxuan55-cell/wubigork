@@ -32,6 +32,7 @@ import {
   CHAT_ENGINE_START_TIMEOUT_MS, EMO_COLORS,
 } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
+import { btOf } from './chat/branches'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
 import '../chat-workspace.css'
@@ -208,6 +209,13 @@ const ChatPage: React.FC = () => {
   forceSearchRef.current = forceSearch
 
   // ── 流式发送（plain/persona 同一真实流协议，逻辑在 hook 内） ──
+  // A 批分支轮收口：终态后以 db 权威重载（回填 bt/兄弟版本/新行正式位次）。
+  const reloadActiveTopic = useCallback(async () => {
+    const id = activeIdRef.current
+    if (!id) return
+    await topicsApi.loadTopic(id, topicsApi.topicsRef.current)
+    setBranchAnchor(null)
+  }, [activeIdRef, topicsApi])
   const streamApi = useChatStream({
     updateMessage,
     setMessages,
@@ -216,8 +224,59 @@ const ChatPage: React.FC = () => {
     setAff,
     setAro,
     finalizeTopicAfterSend,
+    reloadAfterBranch: reloadActiveTopic,
   })
   const { sending, streamKey, streamText, streamReasoning, streamStatus, send, stop, cancelTyping } = streamApi
+
+  // ── A 批消息分支树（编辑提问/重新生成/版本切换） ──
+  // branchAnchor：分支流乐观行插入锚（db_<parentID>），流中视图挂 mid-tree；
+  // 终态 reload 后清零（reloadActiveTopic 内置）。
+  const [branchAnchor, setBranchAnchor] = useState<string | null>(null)
+
+  const handleEditSubmit = useCallback((msgKey: string, text: string) => {
+    const row = messages.find(m => m.key === msgKey)
+    if (!row || sending) return
+    const parent = btOf(row)?.p ?? 0
+    if (parent <= 0) {
+      message.warning('首条提问暂不支持编辑')
+      return
+    }
+    setBranchAnchor(`db_${parent}`)
+    void send({
+      text,
+      mode: modeRef.current,
+      active: activeIdRef.current,
+      search: searchEnabledRef.current,
+      thinking: thinkingRef.current,
+      force: forceSearchRef.current,
+      branchParentMsgID: parent,
+    })
+  }, [messages, sending, send, activeIdRef, modeRef, searchEnabledRef, thinkingRef, forceSearchRef])
+
+  const handleRegenerate = useCallback((msgKey: string) => {
+    const row = messages.find(m => m.key === msgKey)
+    if (!row || sending) return
+    const qid = btOf(row)?.p ?? 0
+    if (qid <= 0) return
+    setBranchAnchor(`db_${qid}`)
+    void send({
+      text: '',
+      mode: modeRef.current,
+      active: activeIdRef.current,
+      search: searchEnabledRef.current,
+      thinking: thinkingRef.current,
+      force: forceSearchRef.current,
+      branchRegenerateOf: qid,
+    })
+  }, [messages, sending, send, activeIdRef, modeRef, searchEnabledRef, thinkingRef, forceSearchRef])
+
+  const handleSelectVersion = useCallback((msgId: number) => {
+    const topicId = activeIdRef.current
+    if (!topicId) return
+    void app.ChatSelectVersion(topicId, msgId)
+      .then(() => reloadActiveTopic())
+      .catch((err: unknown) => message.error(`切换版本失败：${err instanceof Error ? err.message : String(err)}`))
+  }, [activeIdRef, reloadActiveTopic])
 
   // ── 语音台（V2 唯一；V1 whisper 链已退役 2026-11-05 用户拍板） ──
   useEffect(() => {
@@ -623,6 +682,10 @@ const ChatPage: React.FC = () => {
                       onCopy={handleCopy}
                       onSpeak={handleSpeak}
                       onRetry={handleRetry}
+                      onSelectVersion={handleSelectVersion}
+                      onEditSubmit={handleEditSubmit}
+                      onRegenerate={handleRegenerate}
+                      branchAnchorKey={branchAnchor}
                     />
                   </GenuiActionProvider>
                 </GenuiScopeProvider>

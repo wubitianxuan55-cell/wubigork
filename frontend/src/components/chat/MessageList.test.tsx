@@ -160,8 +160,10 @@ describe('MessageList 行 memo（无关更新时旧行零重渲染）', () => {
       { key: 'kS', role: 'assistant', content: '完整回复内容', createdAt: '2026-01-01T00:00:00Z' },
     ]
     view.rerender(<MessageList {...baseProps} messages={done} streamKey={null} streamText="" />)
-    expect(countOf('k0')).toBe(1)
-    expect(countOf('k2')).toBe(1)
+    // A 批：done 步 busy（会话级流式占线）翻 false——版本切换器/编辑/重生成解禁，
+    // 旧行各关联重渲染一次（+1），属正确语义；chunk 期间旧行仍零重渲染（上方断言）。
+    expect(countOf('k0')).toBe(2)
+    expect(countOf('k2')).toBe(2)
     expect(countOf('kS')).toBe(4)
     expect(screen.getByText('完整回复内容')).toBeTruthy()
   })

@@ -8,7 +8,7 @@ import { Button, Tooltip } from 'antd'
 import {
   CopyOutlined, CheckOutlined, SoundOutlined, BulbOutlined,
   ReloadOutlined, CloseCircleOutlined, BarChartOutlined, UpOutlined, DownOutlined,
-  GlobalOutlined,
+  GlobalOutlined, EditOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import ChatMarkdown from '../ChatMarkdown'
@@ -22,6 +22,8 @@ import { buildMarkdownGenuiOverrides } from './genuiAdapter'
 import { findStableCut } from '../../gaea/lib/markdownCut'
 import { useThrottledStreamText } from '../../hooks/useThrottledStreamText'
 import { navigateToModelCenter } from '../../pages/chat/utils'
+import { btOf, dbIdOf, type MsgVersions } from '../../pages/chat/branches'
+import { BranchSwitcher } from './BranchSwitcher'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */
@@ -45,17 +47,44 @@ export interface ChatRowProps {
   onCopy: (content: string, id: string) => void
   onSpeak: (content: string, id: string) => void
   onRetry: (msgKey: string) => void
+  /** A 批分支树：本行兄弟版本（无/单版本为 null，不渲染切换器） */
+  versions?: MsgVersions | null
+  onSelectVersion?: (msgId: number) => void
+  /** A 批编辑提问：提交某 db 用户行的新文本 */
+  onEditSubmit?: (msgKey: string, text: string) => void
+  /** A 批重新生成：某 db 回答行下挂新版本 */
+  onRegenerate?: (msgKey: string) => void
+  /** 会话级流式占线（切版本/编辑/重生成禁用，DeepSeek busy 同款语义） */
+  busy?: boolean
 }
 
 export const ChatRow: React.FC<ChatRowProps> = ({
   msg, text, streamStatus, streamReasoning, isStreaming, newGroup, mode, companionName,
   copied, speaking, onCopy, onSpeak, onRetry,
+  versions, onSelectVersion, onEditSubmit, onRegenerate, busy,
 }) => {
   const display = useThrottledStreamText(text, isStreaming)
   // C1（chat-demo 配方）：流式行按渲染耗时自适应节流 display 更新——与下方
   // findStableCut 分段互补，重尾段（长表格/代码块）高频 reparse 被压到 ≤2s 一帧；
   // 流结束 enable=false 直通最新全文，终帧不延迟。非流式行（含 user 行）零影响。
   const [metricsOpen, setMetricsOpen] = React.useState(true)
+  // A 批编辑提问行内编辑器（chat-demo UserMessage 同位）：仅 db 用户行可编辑
+  //（乐观/流式行未落库无兄弟语义）；首条提问（bt.p===0）v1 不支持——根无父行
+  // 存选择指针，见设计文档 §5。
+  const [editing, setEditing] = React.useState(false)
+  const [editDraft, setEditDraft] = React.useState('')
+  const rowDbId = dbIdOf(msg.key)
+  const rowBt = btOf(msg)
+  const canEdit = msg.role === 'user' && rowDbId !== null && (rowBt?.p ?? 0) > 0
+    && !!onEditSubmit && !busy && !isStreaming
+  const canRegenerate = msg.role === 'assistant' && rowDbId !== null && (rowBt?.p ?? 0) > 0
+    && !!onRegenerate && !busy && !isStreaming
+  const submitEdit = () => {
+    const t = editDraft.trim()
+    if (!t || !canEdit) return
+    onEditSubmit?.(msg.key, t)
+    setEditing(false)
+  }
   // v4.368 流式分段渲染：把累积文本切成「稳定段（段落边界，不再变化）+ 增长尾段」，
   // 稳定段字符串不变时其 MarkdownContent 子树被 memo 跳过——每 chunk 实际重解析的
   // 只有尾段（通常一段），消除原「每 chunk 全量 reparse」的 O(n²)。
@@ -68,13 +97,52 @@ export const ChatRow: React.FC<ChatRowProps> = ({
   if (msg.role === 'user') {
     return (
       <div className="chat-row chat-row-user">
-        <div className="chat-user-capsule">{display}</div>
+        {editing ? (
+          <div className="chat-edit-editor">
+            <textarea
+              aria-label="编辑提问"
+              autoFocus
+              rows={2}
+              value={editDraft}
+              disabled={busy}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return
+                if (e.key === 'Escape') { setEditing(false) }
+                else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit() }
+              }}
+              style={{
+                width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 52,
+                maxHeight: 202, padding: '8px 10px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.6,
+                background: 'var(--md-sys-color-surface-variant)', color: C('color-text'),
+                border: '1px solid var(--md-sys-color-outline-variant)', outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+              <Button size="small" onClick={() => setEditing(false)}
+                style={{ fontSize: 12, height: 26, borderRadius: 8 }}>取消</Button>
+              <Button size="small" type="primary" disabled={busy || !editDraft.trim()} onClick={submitEdit}
+                style={{ fontSize: 12, height: 26, borderRadius: 8 }}>发送</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="chat-user-capsule">{display}</div>
+        )}
         {msg.content && !msg.streaming && (
           <div className="chat-msg-actions">
             <Tooltip title={copied ? '已复制' : '复制'}>
               <Button type="text" size="small" aria-label={copied ? '已复制' : '复制'} icon={copied ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
                 onClick={() => onCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
             </Tooltip>
+            {canEdit && !editing && (
+              <Tooltip title="编辑提问">
+                <Button type="text" size="small" aria-label="编辑提问" icon={<EditOutlined />}
+                  onClick={() => { setEditDraft(msg.content); setEditing(true) }}
+                  style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
+              </Tooltip>
+            )}
+            <BranchSwitcher ids={versions?.ids ?? []} index={versions?.index ?? 0}
+              disabled={!!busy} onSelect={(id) => onSelectVersion?.(id)} />
           </div>
         )}
       </div>
@@ -165,6 +233,13 @@ export const ChatRow: React.FC<ChatRowProps> = ({
                 onClick={() => onSpeak(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
             </Tooltip>
           )}
+          {/* A 批重新生成：db 回答行下挂新版本（chat-demo regenerateReply 同位） */}
+          {canRegenerate && (
+            <Tooltip title="重新生成">
+              <Button type="text" size="small" aria-label="重新生成" icon={<ReloadOutlined />}
+                onClick={() => onRegenerate?.(msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
+            </Tooltip>
+          )}
           {!msg.error && msg.extra?.answered_by != null && (
             <button
               type="button"
@@ -177,6 +252,8 @@ export const ChatRow: React.FC<ChatRowProps> = ({
               {metricsOpen ? <UpOutlined aria-hidden /> : <DownOutlined aria-hidden />}
             </button>
           )}
+          <BranchSwitcher ids={versions?.ids ?? []} index={versions?.index ?? 0}
+            disabled={!!busy} onSelect={(id) => onSelectVersion?.(id)} />
         </div>
       )}
       {/* v4.15：消息级「由谁回答/为何/花了多少」回显——仅当 extra.answered_by 存在时渲染

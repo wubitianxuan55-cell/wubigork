@@ -282,7 +282,7 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 	}
 	streamCtx, cancel := context.WithCancel(parent)
 	a.chatStreamRegister(runID, cancel)
-	go a.runChatStreamPlain(streamCtx, runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch)
+	go a.runChatStreamPlain(streamCtx, runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch, 0, false)
 	return runID, nil
 }
 
@@ -368,6 +368,11 @@ func (a *App) plainChatHistoryMessages(topicID, userMessage string) []ai.ChatMes
 		slog.Warn("chat plain 历史装载失败（降级单轮）", "topicID", topicID, "error", err)
 		return nil
 	}
+	// A 批分支感知：树形话题（全部消息带 bt）历史只进可见路径——隐藏分支
+	// 不得混入上下文；线形话题（任一缺 bt）直通，旧行为零。
+	if !chat.BTNeeded(msgs) {
+		msgs = chat.VisiblePath(msgs)
+	}
 	for {
 		n := len(msgs)
 		if n == 0 {
@@ -401,6 +406,48 @@ func (a *App) plainChatHistoryMessages(topicID, userMessage string) []ai.ChatMes
 	if len(out) == 0 {
 		return nil
 	}
+	return out
+}
+
+// plainChatPathMessages A 批分支感知历史装载：可见路径上截到 anchor（includeAnchor
+// 决定是否含锚点），再按预算从新到旧装配。线形话题路径=seq 序——锚点截断
+// 使编辑提问/重生成只带「该分支位置之前」的上下文。
+func (a *App) plainChatPathMessages(topicID string, anchorID int64, includeAnchor bool, currentUser string) []ai.ChatMessage {
+	if a == nil || a.core == nil || a.core.chatStore == nil || strings.TrimSpace(topicID) == "" {
+		return nil
+	}
+	msgs, err := a.core.chatStore.ListMessages(topicID)
+	if err != nil {
+		slog.Warn("chat plain 分支历史装载失败（降级单轮）", "topicID", topicID, "error", err)
+		return nil
+	}
+	path := chat.VisiblePath(msgs)
+	cut := len(path)
+	for i := range path {
+		if path[i].ID == anchorID {
+			cut = i
+			if includeAnchor {
+				cut = i + 1
+			}
+			break
+		}
+	}
+	path = path[:cut]
+	out := make([]ai.ChatMessage, 0, len(path))
+	budget := plainChatHistoryMaxChars
+	for i := len(path) - 1; i >= 0; i-- {
+		m := path[i]
+		if (m.Role != "user" && m.Role != "assistant") || strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		n := len([]rune(m.Content))
+		if n > budget {
+			break
+		}
+		budget -= n
+		out = append([]ai.ChatMessage{{Role: m.Role, Content: m.Content}}, out...)
+	}
+	_ = currentUser // 当前 user 由 plainChatRequestMessages 同款尾部追加（调用方拼装）
 	return out
 }
 
@@ -444,7 +491,7 @@ func classifyChatStreamError(msg string) string {
 
 // containsAny 复用 main_brain.go 同名助手。
 
-func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool) {
+func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool, parentMsgID int64, regenerate bool) {
 	defer a.chatStreamUnregister(runID)
 	defer func() {
 		if r := recover(); r != nil {
@@ -471,7 +518,17 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	var searchRounds, searches int
 	// 多轮上下文（2026-11-11 根修）：system + 话题历史 + 当前 user——plain
 	// 此前每轮单发，下一轮不知道上一轮说了什么。
-	chatMessages := a.plainChatRequestMessages(topicID, userMessage)
+	// A 批分支感知：重生成=路径到问题前；编辑提问=路径含父（截到父）；
+	// 普通发送=现状（线形话题直通，树形话题可见路径）。
+	var chatMessages []ai.ChatMessage
+	switch {
+	case regenerate:
+		chatMessages = a.plainChatPathMessages(topicID, parentMsgID, false, userMessage)
+	case parentMsgID > 0:
+		chatMessages = a.plainChatPathMessages(topicID, parentMsgID, true, userMessage)
+	default:
+		chatMessages = a.plainChatRequestMessages(topicID, userMessage)
+	}
 	if toolMode {
 		res, loopErr := a.runBoundedSearchToolLoop(ctx, eng, model,
 			chatMessages,
@@ -590,7 +647,9 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 			// assistant 拒绝，走 AppendMessage 单条口，action-3）。
 			slog.Warn("chat stream plain 取消空轮不落库 assistant", "runID", runID, "topicID", topicID)
 			if a.chatStore != nil {
-				if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
+				// A 批：分支轮（编辑提问/重生成）取消空轮同样不伪造 assistant；
+				// user 行分支感知落库（重生成轮不落 user 行——问题行早已在库）。
+				if err := a.persistChatUserOnly(topicID, parentMsgID, regenerate, userMessage); err != nil {
 					slog.Error("chat stream plain 取消空轮用户行落库失败", "runID", runID, "topicID", topicID, "error", err)
 				}
 			}
@@ -648,7 +707,9 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	}
 	// T6-3.2 落库错误透传：delta 流不受影响，仅在最终落库失败时 emit error 终态
 	// 而非 done——前端可见失败（消息已生成但未持久化）。
-	if err := a.appendChatExchange(topicID, userMessage, replyStr, extra); err != nil {
+	// A 批：分支感知持久化分流（重生成只落 assistant/编辑提问挂 parent/普通发送
+	// 线形话题走 AppendExchange 现状）。
+	if err := a.persistChatPlainExchange(topicID, parentMsgID, regenerate, userMessage, replyStr, extra); err != nil {
 		slog.Error("chat stream plain 落库失败", "runID", runID, "topicID", topicID, "error", err)
 		a.emit("chat-stream:"+runID, map[string]interface{}{
 			"type":  "error",
@@ -798,6 +859,248 @@ func (a *App) appendChatExchange(topicID, userMsg, reply, extra string) error {
 		return err
 	}
 	return nil
+}
+
+// ── A 批分支感知持久化（docs/gaea-chat-branch-tree-design-2026-11.md §3）────
+
+// chatTopicNormalized 话题是否已完成分支规范化（全部消息带 bt）。
+func (a *App) chatTopicNormalized(topicID string) bool {
+	if a == nil || a.core == nil || a.core.chatStore == nil {
+		return false
+	}
+	msgs, err := a.core.chatStore.ListMessages(topicID)
+	if err != nil {
+		return false
+	}
+	return !chat.BTNeeded(msgs)
+}
+
+// ensureTopicNormalized 首次分支操作前的整话题规范化（幂等）。
+func (a *App) ensureTopicNormalized(topicID string) error {
+	if a == nil || a.core == nil || a.core.chatStore == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	return a.core.chatStore.NormalizeTopicBranches(topicID)
+}
+
+// chatTopicLeaf 当前可见路径叶消息 id（树形话题）；线形/空话题返回末条/0。
+func (a *App) chatTopicLeaf(topicID string) int64 {
+	if a == nil || a.core == nil || a.core.chatStore == nil {
+		return 0
+	}
+	msgs, err := a.core.chatStore.ListMessages(topicID)
+	if err != nil || len(msgs) == 0 {
+		return 0
+	}
+	path := chat.VisiblePath(msgs)
+	if len(path) == 0 {
+		return 0
+	}
+	return path[len(path)-1].ID
+}
+
+// appendChatUserRow 带 bt 落 user 单行。
+func (a *App) appendChatUserRow(topicID string, parentID int64, content string) (int64, error) {
+	extra, err := chat.MergeExtraBT("", chat.BT{P: parentID})
+	if err != nil {
+		return 0, err
+	}
+	m, err := a.chatStore.AppendMessage(topicID, "user", content, extra)
+	if err != nil {
+		return 0, err
+	}
+	return m.ID, nil
+}
+
+// appendChatAssistantRow 带 bt 落 assistant 单行（extra 与 bt 合并，保留
+// answered_by/reasoning/search 等既有键）。
+func (a *App) appendChatAssistantRow(topicID string, parentID int64, content, extra string) (int64, error) {
+	merged, err := chat.MergeExtraBT(extra, chat.BT{P: parentID})
+	if err != nil {
+		return 0, err
+	}
+	m, err := a.chatStore.AppendMessage(topicID, "assistant", content, merged)
+	if err != nil {
+		return 0, err
+	}
+	return m.ID, nil
+}
+
+// persistChatPlainExchange A 批持久化分流：
+//   - regenerate=true：只落 assistant 行挂 question（parentMsgID）下并选中，
+//     不落新 user 行（问题行早已在库）；
+//   - 其余：树形话题=在可见路径叶下挂 [user, assistant] 并选中（普通发送在
+//     已分支话题里继续树）；线形话题=AppendExchange 现状，零行为变化。
+func (a *App) persistChatPlainExchange(topicID string, parentMsgID int64, regenerate bool, userMsg, reply, extra string) error {
+	if a.chatStore == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	if regenerate {
+		aid, err := a.appendChatAssistantRow(topicID, parentMsgID, reply, extra)
+		if err != nil {
+			return err
+		}
+		return a.chatStore.SetSelectedChild(parentMsgID, aid)
+	}
+	if !a.chatTopicNormalized(topicID) {
+		return a.chatStore.AppendExchange(topicID, userMsg, reply, extra)
+	}
+	leaf := a.chatTopicLeaf(topicID)
+	if leaf == 0 {
+		return a.chatStore.AppendExchange(topicID, userMsg, reply, extra)
+	}
+	uid, err := a.appendChatUserRow(topicID, leaf, userMsg)
+	if err != nil {
+		return err
+	}
+	aid, err := a.appendChatAssistantRow(topicID, uid, reply, extra)
+	if err != nil {
+		return err
+	}
+	if err := a.chatStore.SetSelectedChild(leaf, uid); err != nil {
+		return err
+	}
+	// 助手行同样入选中链（下一轮叶回溯才落在新回答上）
+	return a.chatStore.SetSelectedChild(uid, aid)
+}
+
+// persistChatUserOnly 取消空轮 user 单行（分支感知）：重生成轮不落（问题行
+// 早已在库）；树形话题挂叶并选中；线形话题现状 AppendMessage。
+func (a *App) persistChatUserOnly(topicID string, parentMsgID int64, regenerate bool, userMsg string) error {
+	if a.chatStore == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	if regenerate {
+		return nil
+	}
+	if !a.chatTopicNormalized(topicID) {
+		_, err := a.chatStore.AppendMessage(topicID, "user", userMsg, "")
+		return err
+	}
+	leaf := a.chatTopicLeaf(topicID)
+	if leaf == 0 {
+		_, err := a.chatStore.AppendMessage(topicID, "user", userMsg, "")
+		return err
+	}
+	uid, err := a.appendChatUserRow(topicID, leaf, userMsg)
+	if err != nil {
+		return err
+	}
+	return a.chatStore.SetSelectedChild(leaf, uid)
+}
+
+// ChatStreamPlainAt A 批编辑提问：在 parentMsgID（须为 assistant 回答行）下挂
+// 新提问分支并发起流式。首次分支操作触发整话题规范化。
+// v1 不支持编辑首条提问（根无父行存选择指针，见设计文档 §5）。
+func (a *App) ChatStreamPlainAt(topicID string, parentMsgID int64, message string, searchEnabled, thinking, forceSearch bool) (string, error) {
+	if topicID == "" {
+		return "", fmt.Errorf("话题 ID 不能为空")
+	}
+	if strings.TrimSpace(message) == "" {
+		return "", fmt.Errorf("消息不能为空")
+	}
+	if a.clientRef() == nil {
+		return "", fmt.Errorf("AI 客户端未初始化")
+	}
+	if a.chatStore == nil {
+		return "", fmt.Errorf("chat store 未初始化")
+	}
+	if parentMsgID <= 0 {
+		return "", fmt.Errorf("编辑提问须指定父回答行")
+	}
+	pm, err := a.chatStore.GetMessage(parentMsgID)
+	if err != nil {
+		return "", err
+	}
+	if pm.TopicID != topicID {
+		return "", fmt.Errorf("父消息不在话题内")
+	}
+	if pm.Role != "assistant" {
+		return "", fmt.Errorf("编辑提问的父须为回答行")
+	}
+	if err := a.ensureTopicNormalized(topicID); err != nil {
+		return "", err
+	}
+	eng, model, source, err := a.resolveChatModelRoute()
+	if err != nil {
+		return "", err
+	}
+	runID := newChatStreamRunID()
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background() // 裸构造（测试桩）防御；生产 a.ctx 恒就绪
+	}
+	streamCtx, cancel := context.WithCancel(parent)
+	a.chatStreamRegister(runID, cancel)
+	go a.runChatStreamPlain(streamCtx, runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch, parentMsgID, false)
+	return runID, nil
+}
+
+// ChatRegenerate A 批重新生成：在问题行下挂新 assistant 版本（不落新 user 行）。
+func (a *App) ChatRegenerate(topicID string, questionMsgID int64, searchEnabled, thinking, forceSearch bool) (string, error) {
+	if topicID == "" {
+		return "", fmt.Errorf("话题 ID 不能为空")
+	}
+	if a.clientRef() == nil {
+		return "", fmt.Errorf("AI 客户端未初始化")
+	}
+	if a.chatStore == nil {
+		return "", fmt.Errorf("chat store 未初始化")
+	}
+	if questionMsgID <= 0 {
+		return "", fmt.Errorf("问题消息 ID 无效")
+	}
+	qm, err := a.chatStore.GetMessage(questionMsgID)
+	if err != nil {
+		return "", err
+	}
+	if qm.TopicID != topicID {
+		return "", fmt.Errorf("问题消息不在话题内")
+	}
+	if qm.Role != "user" {
+		return "", fmt.Errorf("重生成的锚须为提问行")
+	}
+	if strings.TrimSpace(qm.Content) == "" {
+		return "", fmt.Errorf("问题消息为空，无法重生成")
+	}
+	if err := a.ensureTopicNormalized(topicID); err != nil {
+		return "", err
+	}
+	eng, model, source, err := a.resolveChatModelRoute()
+	if err != nil {
+		return "", err
+	}
+	runID := newChatStreamRunID()
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	streamCtx, cancel := context.WithCancel(parent)
+	a.chatStreamRegister(runID, cancel)
+	go a.runChatStreamPlain(streamCtx, runID, topicID, qm.Content, eng, model, source, searchEnabled, thinking, forceSearch, questionMsgID, true)
+	return runID, nil
+}
+
+// ChatSelectVersion A 批版本切换：改父消息的选中子指针（bt.c）。
+func (a *App) ChatSelectVersion(topicID string, msgID int64) error {
+	if a.chatStore == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	m, err := a.chatStore.GetMessage(msgID)
+	if err != nil {
+		return err
+	}
+	if m.TopicID != topicID {
+		return fmt.Errorf("消息不在话题内")
+	}
+	bt, ok := chat.ParseBT(m.Extra)
+	if !ok {
+		return fmt.Errorf("话题未规范化，无版本可切")
+	}
+	if bt.P <= 0 {
+		return fmt.Errorf("首条消息无兄弟版本")
+	}
+	return a.chatStore.SetSelectedChild(bt.P, msgID)
 }
 
 // ── 话题 CRUD（统一会话存储）─────────────────────────────────

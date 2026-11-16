@@ -29,6 +29,13 @@ export interface ChatBindings {
   ChatImportTopic(title: string, mode: string, messages: Array<Record<string, unknown>>): Promise<Record<string, unknown>>;
   ChatSend(topicID: string, message: string, mode: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<Record<string, unknown>>;
   ChatStreamPlain(topicID: string, message: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
+  // A 批消息分支树（docs/gaea-chat-branch-tree-design-2026-11.md §3）：
+  // ChatStreamPlainAt 编辑提问——在 parentMsgID（须为 assistant 回答行）下挂新
+  // 提问分支并发起流式；ChatRegenerate 在问题行下挂新 assistant 版本（不落新
+  // user 行）；ChatSelectVersion 切换父消息的选中子指针（bt.c）。
+  ChatStreamPlainAt(topicID: string, parentMsgID: number, message: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
+  ChatRegenerate(topicID: string, questionMsgID: number, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
+  ChatSelectVersion(topicID: string, msgID: number): Promise<void>;
   // 角色对话真实流式入口：与 plain 共用 chat-stream:<runID> 事件协议。
   ChatStreamPersona(topicID: string, message: string, mode: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
   // P1-5：取消进行中的对话流（已生成部分落库并以 cancelled 收尾；未知 runID 返 false）。

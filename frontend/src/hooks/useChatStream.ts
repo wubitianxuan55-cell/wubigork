@@ -50,6 +50,8 @@ export interface UseChatStreamOptions {
   setAff: (v: number) => void
   setAro: (v: number) => void
   finalizeTopicAfterSend: (topicId: string, firstUserText: string) => Promise<void>
+  /** A 批分支轮（编辑提问/重生成）终态后重载话题（db 权威回填 bt/兄弟版本） */
+  reloadAfterBranch?: () => Promise<void>
 }
 
 export interface ChatSendParams {
@@ -60,6 +62,10 @@ export interface ChatSendParams {
   thinking: boolean
   force: boolean
   retryKey?: string
+  /** A 批编辑提问：挂到该 assistant 行（问题行的 bt.p）下新分支 */
+  branchParentMsgID?: number
+  /** A 批重生成：在该 question 行下挂新 assistant 版本（不落新 user 行） */
+  branchRegenerateOf?: number
 }
 
 function describeStreamStatus(payload: ChatStreamPayload): string {
@@ -90,8 +96,9 @@ function describeStreamStatus(payload: ChatStreamPayload): string {
 }
 
 export function useChatStream(opts: UseChatStreamOptions) {
-  const { updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend } = opts
+  const { updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend, reloadAfterBranch } = opts
   const [sending, setSending] = useState(false)
+  const logReloadErr = (err: unknown) => console.error('[chat] 分支轮重载失败', err)
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [streamText, setStreamText] = useState('')
   // 思考流实时面（2026-11-11）：reasoning 帧此前只进 reasoningAcc 缓冲、done 才整块
@@ -136,9 +143,10 @@ export function useChatStream(opts: UseChatStreamOptions) {
   const resetTyping = useCallback(() => { typingCancelRef.current = false }, [])
 
   const send = useCallback(async (params: ChatSendParams) => {
-    const { text, mode, active, search, thinking, force, retryKey } = params
+    const { text, mode, active, search, thinking, force, retryKey, branchParentMsgID, branchRegenerateOf } = params
     const trimmed = text.trim()
-    if (!trimmed || sending || !active) return
+    // A 批：重生成不带新文本（问题行早已在库），其余路径仍要求非空
+    if ((!trimmed && !branchRegenerateOf) || sending || !active) return
     // T6-3.3：新一轮发送复位模拟打字取消标志（旧循环已被切话题/卸载置 true）
     typingCancelRef.current = false
     activeRunIDRef.current = null
@@ -146,7 +154,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
     const um: ChatMsg = { key: nextMsgKey(), role: 'user', content: trimmed, createdAt: nowStr() }
     const am: ChatMsg = { key: nextMsgKey(), role: 'assistant', content: '', streaming: true, createdAt: nowStr() }
     setMessages(prev => {
-      if (!retryKey) return [...prev, um, am]
+      if (!retryKey) return [...prev, ...(branchRegenerateOf ? [] : [um]), am]
       // 重试：失败消息未落库，其前置用户消息同样未落库，一并移除保持与 DB 一致
       const errIdx = prev.findIndex(m => m.key === retryKey)
       const drop = new Set<string>([retryKey])
@@ -266,9 +274,13 @@ export function useChatStream(opts: UseChatStreamOptions) {
               }, STREAM_HARD_TIMEOUT_MS)
             }
           }
-          const opening = mode === 'plain'
-            ? app.ChatStreamPlain(active, trimmed, search, thinking, force)
-            : app.ChatStreamPersona(active, trimmed, mode, search, thinking, force)
+          const opening = branchRegenerateOf
+            ? app.ChatRegenerate(active, branchRegenerateOf, search, thinking, force)
+            : branchParentMsgID
+              ? app.ChatStreamPlainAt(active, branchParentMsgID, trimmed, search, thinking, force)
+              : mode === 'plain'
+                ? app.ChatStreamPlain(active, trimmed, search, thinking, force)
+                : app.ChatStreamPersona(active, trimmed, mode, search, thinking, force)
           opening
             .then((runID: string) => {
               activeRunIDRef.current = runID
@@ -370,10 +382,21 @@ export function useChatStream(opts: UseChatStreamOptions) {
               finish(false)
             })
         })
-        if (ok) await finalizeTopicAfterSend(active, trimmed)
+        const isBranch = branchParentMsgID !== undefined || branchRegenerateOf !== undefined
+        if (ok && !isBranch) await finalizeTopicAfterSend(active, trimmed)
+        if (isBranch) {
+          // A 批：分支轮终态后以 db 为权威重载（回填 bt/兄弟版本/新行正式位次）
+          try { await reloadAfterBranch?.() } catch (err: unknown) {
+            logReloadErr(err)
+          }
+        }
       } catch (err: unknown) {
         setStreamText(''); setStreamKey(null); setStreamStatus(''); resetStreamReasoning()
         updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
+        // A 批分支轮异常同样以 db 权威收口（乐观行撤销）
+        if (branchParentMsgID !== undefined || branchRegenerateOf !== undefined) {
+          try { await reloadAfterBranch?.() } catch (reloadErr: unknown) { logReloadErr(reloadErr) }
+        }
       } finally {
         cleanup()
         activeRunIDRef.current = null
@@ -382,7 +405,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
       }
       return
     }
-  }, [sending, updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend])
+  }, [sending, updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend, reloadAfterBranch])
 
   /** P1-5 停止生成：plain/persona 流均调后端取消，cancelled 帧收尾并保留部分回复。 */
   const stop = useCallback(() => {

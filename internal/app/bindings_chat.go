@@ -17,10 +17,13 @@ func (b *ChatB) ChatGeneral(userMsg string) (map[string]interface{}, error) { re
 func (b *ChatB) ChatImportTopic(title string, mode string, messages []ChatMessageInput) (chat.Topic, error) { return b.a.ChatImportTopic(title, mode, messages) }
 func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) { return b.a.ChatMessagesList(topicID) }
 func (b *ChatB) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) { return b.a.ChatMessagesPage(topicID, limit, beforeSeq) }
+func (b *ChatB) ChatRegenerate(topicID string, questionMsgID int64, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatRegenerate(topicID, questionMsgID, searchEnabled, thinking, forceSearch) }
+func (b *ChatB) ChatSelectVersion(topicID string, msgID int64) error { return b.a.ChatSelectVersion(topicID, msgID) }
 func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (map[string]interface{}, error) { return b.a.ChatSend(topicID, message, mode, searchEnabled, thinking, forceSearch) }
 func (b *ChatB) ChatStreamCancel(runID string) bool { return b.a.ChatStreamCancel(runID) }
 func (b *ChatB) ChatStreamPersona(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatStreamPersona(topicID, message, mode, searchEnabled, thinking, forceSearch) }
 func (b *ChatB) ChatStreamPlain(topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatStreamPlain(topicID, message, searchEnabled, thinking, forceSearch) }
+func (b *ChatB) ChatStreamPlainAt(topicID string, parentMsgID int64, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatStreamPlainAt(topicID, parentMsgID, message, searchEnabled, thinking, forceSearch) }
 func (b *ChatB) ChatTopicClear(id string) error { return b.a.ChatTopicClear(id) }
 func (b *ChatB) ChatTopicCreate(title string, mode string) (chat.Topic, error) { return b.a.ChatTopicCreate(title, mode) }
 func (b *ChatB) ChatTopicDelete(id string) error { return b.a.ChatTopicDelete(id) }
