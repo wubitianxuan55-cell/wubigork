@@ -410,11 +410,14 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 	// 材料快照先于历史论点注入：快照只钉用户设题材料，续议立场卡是派生
 	// 内容（全文已随父会话落盘），不入 manifest。
 	inputManifest := buildInputManifest(req)
+	// parent 保持作用域供席位构建时继承引擎会话（续议会话承接，2026-11-16）。
+	var parent *Session
 	if req.ParentSessionID != "" {
-		parent, err := m.store.get(req.ParentSessionID)
+		loaded, err := m.store.get(req.ParentSessionID)
 		if err != nil {
 			return nil, fmt.Errorf("续议的父会话不可用：%w", err)
 		}
+		parent = loaded
 		req.Evidence = append(req.Evidence, parentStanceEvidence(parent)...)
 	}
 	// ReadOnly 是会话级声明性标记（无逻辑消费，真实机制见 agentAdapter.runMode
@@ -463,6 +466,15 @@ func (m *Manager) Start(req StartRequest) (*Session, error) {
 		p := Participant{
 			AgentID: id, Name: status.Name, Role: "participant", Status: "waiting",
 			Version: status.Version,
+		}
+		// 续议会话承接（2026-11-16）：同席继承父场登记的引擎侧会话 ID——
+		// buildResume 席位（codex/DSH/zcode）首调即 resume 父场会话，引擎侧
+		// 上下文跨场保真，防丢上下文。会话过期/损坏走既有降级链：错误+零
+		// 输出即 dropEngineSessionWithoutOutput 丢弃，重试回落新建；grok 等
+		// 模型席无引擎会话，照旧立场卡承接。仅继承父场真实登记过的 ID——
+		// 换席、父场未上报都不虚构。
+		if parent != nil {
+			p.EngineSessionID = parentEngineSessionFor(parent, id)
 		}
 		if !status.Available {
 			p.Status = "unavailable"
@@ -1950,6 +1962,21 @@ func (m *Manager) seatEngineSession(session *Session, agentID string) string {
 	for i := range session.Participants {
 		if session.Participants[i].AgentID == agentID {
 			return strings.TrimSpace(session.Participants[i].EngineSessionID)
+		}
+	}
+	return ""
+}
+
+// parentEngineSessionFor 按席位 ID 查父会话登记的引擎侧会话 ID（续议承接，
+// 2026-11-16）。只认真实登记过的值：父场没上报（模型席/引擎不报）或续议
+// 换了席位，返回空＝照旧新建会话，不虚构承接。
+func parentEngineSessionFor(parent *Session, agentID string) string {
+	if parent == nil {
+		return ""
+	}
+	for i := range parent.Participants {
+		if parent.Participants[i].AgentID == agentID {
+			return strings.TrimSpace(parent.Participants[i].EngineSessionID)
 		}
 	}
 	return ""
