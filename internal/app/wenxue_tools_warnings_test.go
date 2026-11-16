@@ -153,3 +153,18 @@ func TestWenxueWorkbenchWritebackSentence(t *testing.T) {
 		}
 	}
 }
+
+func TestWenxueWorkbenchSessionReadDiscipline(t *testing.T) {
+	// 会话读取纪律（2026-11-16 实弹：agent read_file 生啃 .gaea/sessions 原始
+	// jsonl 撞 D1 输出预算截断——20 行 114KB；正规通道=@会话 引用/session_search）。
+	// 三子串钉死：点名原始件禁读 + 正规通道两件。
+	for _, sub := range []string{
+		"不要 read_file",
+		".gaea/sessions/",
+		"session_search",
+	} {
+		if !strings.Contains(wenxueWorkbenchBody, sub) {
+			t.Fatalf("workbench 会话读取纪律缺子串 %q", sub)
+		}
+	}
+}
