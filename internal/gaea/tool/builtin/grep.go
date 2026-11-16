@@ -154,8 +154,9 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 	walkSnap := newCursorSnap()
 	hashPrefix := true
 	var cursorConflict error
-	fenced := 0 // B1 凭据围栏跳过数（excluded：选择不看）
-	gaps := 0   // D5 跳过缺口（没看到：不可读文件/目录、超长行截断）——
+	fenced := 0     // B1 凭据围栏跳过数（excluded：选择不看）
+	sessionFed := 0 // 会话件围栏跳过数（.gaea/sessions/ 子树，excluded）
+	gaps := 0       // D5 跳过缺口（没看到：不可读文件/目录、超长行截断）——
 	// 「没看到」与「选择不看」（噪声/围栏/include/二进制）分开记账：缺口在
 	// 则本页覆盖是下界，续读指引不发（dsh-ops 蒸馏 D5，2026-11-10）。
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
@@ -184,6 +185,13 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		// B1 凭据围栏（dsh-ops 蒸馏）：凭据形态文件跳过不读，头部如实记账。
 		if _, hit := credentialFenceRule(path); hit {
 			fenced++
+			return nil
+		}
+		// 会话件围栏（2026-11-16 实弹）：.gaea/sessions/ 子树跳过不读（刀0
+		// 噪声跳过已覆盖工作区遍历常态；此处兜显式 root 指进 sessions 的形态），
+		// 头部如实记账。
+		if SessionDirFenceRule(path) {
+			sessionFed++
 			return nil
 		}
 		if p.Include != "" && !grepIncludeMatch(p.Include, root, path) {
@@ -236,7 +244,7 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 	// D5 取消诚实：被取消的部分扫描不得伪装成完整「无命中」——旧实现预取消
 	// ctx 走到 ``(no matches ...)`` 是假完备。
-	if total == 0 && fenced == 0 && gaps == 0 && !cancelled {
+	if total == 0 && fenced == 0 && sessionFed == 0 && gaps == 0 && !cancelled {
 		return fmt.Sprintf("(no matches for %q under %s)", p.Pattern, filepath.ToSlash(root)), nil
 	}
 	// 头部行：游标续页指引与围栏/缺口记账共用一行，前置。matchedTotal 语义
@@ -245,7 +253,7 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 	// complete=全树扫完且零缺口；partial=预算止步/有缺口/被取消，附原因。
 	var out strings.Builder
 	pageFull := total >= maxResults
-	if pageFull || p.Offset > 0 || fenced > 0 || gaps > 0 || cancelled {
+	if pageFull || p.Offset > 0 || fenced > 0 || sessionFed > 0 || gaps > 0 || cancelled {
 		scan := "complete"
 		if pageFull || gaps > 0 || cancelled {
 			scan = "partial"
@@ -266,6 +274,9 @@ func (g grepTool) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 		if fenced > 0 {
 			fmt.Fprintf(&out, " — credential-fence skipped %d file(s)", fenced)
+		}
+		if sessionFed > 0 {
+			fmt.Fprintf(&out, " — session-fence skipped %d file(s) (use @会话 or session_search)", sessionFed)
 		}
 		out.WriteByte('\n')
 	}

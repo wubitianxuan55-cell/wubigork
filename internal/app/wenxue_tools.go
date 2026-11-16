@@ -28,6 +28,7 @@ import (
 
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
@@ -323,11 +324,16 @@ func wenxueJSON(v any) (string, error) {
 	return string(b), nil
 }
 
-// wenxueReadBody 读工作区文件全文（非法路径/缺文件返回错误）。
+// wenxueReadBody 读工作区文件全文（非法路径/缺文件返回错误）。会话件围栏：
+// .gaea/sessions/ 子树结构化拒绝（历史会话走 @会话/session_search；同
+// builtin 会话件围栏 2026-11-16）。
 func wenxueReadBody(root, rel string) (string, os.FileInfo, error) {
 	abs, err := wspath.ResolveRelWithin(root, rel)
 	if err != nil {
 		return "", nil, fmt.Errorf("非法工作区相对路径: %s", rel)
+	}
+	if builtin.SessionDirFenceRule(abs) {
+		return "", nil, builtin.SessionDirDenied("wenxue_read", rel)
 	}
 	info, err := os.Stat(abs)
 	if err != nil {

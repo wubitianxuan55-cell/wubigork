@@ -168,3 +168,22 @@ func TestWenxueWorkbenchSessionReadDiscipline(t *testing.T) {
 		}
 	}
 }
+
+func TestWenxueReadBodySessionFence(t *testing.T) {
+	// 会话件围栏（机制层，2026-11-16 拍板「纪律引导不是强制，要分情况」）：
+	// wenxueReadBody 对 .gaea/sessions/ 子树结构化拒绝，wenxue_* 读族
+	// （chapter/final/character/timeline）经它统一吃到围栏。
+	t.Setenv("GAEA_TUWEN_ROOT", t.TempDir())
+	root := wenxueWorkspace()
+	sessions := filepath.Join(root, ".gaea", "sessions")
+	if err := os.MkdirAll(sessions, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sessions, "s.jsonl"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_, _, err := wenxueReadBody(root, ".gaea/sessions/s.jsonl")
+	if err == nil || !strings.Contains(err.Error(), "SESSION_DENIED") {
+		t.Fatalf("wenxueReadBody 应拒绝会话件，got %v", err)
+	}
+}

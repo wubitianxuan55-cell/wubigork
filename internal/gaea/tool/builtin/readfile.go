@@ -108,6 +108,12 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		return "", credentialDenied("read_file", p.Path, rule)
 	}
 
+	// 会话件围栏（2026-11-16 实弹）：.gaea/sessions/ 子树结构化拒绝——
+	// 历史会话走 @会话/session_search，生啃原始 jsonl 必撞 D1 输出预算。
+	if SessionDirFenceRule(p.Path) {
+		return "", SessionDirDenied("read_file", p.Path)
+	}
+
 	f, err := os.Open(p.Path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
