@@ -15,6 +15,12 @@ import (
 	"github.com/gaea/gaea/internal/pantheon"
 )
 
+// 2026-11-16 用户拍板（工具清单瘦身）：众神殿是通用议事板块，造价/日程是
+// 办公板块域工具，对非域议题只是 system prompt 里的选择噪音；域知识改走
+// read_skill 按需加载（规范知识技能化红线）。genui_validate 是聊天板块 GenUI
+// 渲染校验，与议事无关。删：cost_search/cost_indicators/cost_compose/
+// schedule_get/schedule_analyze/genui_validate（漂移锁测试同批改）。
+// cad_ask 保留：图纸评审类议题的唯一 DWG 读图通道，与 vision 同属读材料面。
 var pantheonGrokWorkspaceTools = []string{
 	"read_file",
 	"grep",
@@ -25,21 +31,15 @@ var pantheonGrokWorkspaceTools = []string{
 	// TestPantheonGrokT0ExcludesDocRender 钉死，不得未经 effect 隔离审计复入。
 	"cad_ask",
 	"vision",
-	"schedule_get",
-	"schedule_analyze",
 }
 
 var pantheonGrokOfficeReadTools = map[string]bool{
-	"cost_search":      true,
-	"cost_indicators":  true,
-	"cost_compose":     true,
 	"knowledge_search": true,
 	"memory_search":    true,
 	"fact_list":        true,
 	"web_search":       true,
 	"web_fetch":        true,
 	"read_skill":       true,
-	"genui_validate":   true,
 	"ocr":              true,
 }
 
@@ -93,7 +93,7 @@ func pantheonGrokSystemPrompt(toolNames []string) string {
 	names := append([]string(nil), toolNames...)
 	sort.Strings(names)
 	return `你是 Gaea 众神殿的 Grok 席位，由 Gaea 办公 AgentRunner 驱动，不是裸模型对话。
-你可以使用当前注册表中的 Gaea 办公只读工具核验工作空间、项目文档、造价库、知识库、记忆与日程信息。只在与当前议题直接相关时调用工具，并说明证据来自哪个工具或结果。
+你可以使用当前注册表中的 Gaea 只读工具核验工作空间、项目文档、知识库、记忆与本地事实，需要领域规范或数据口径时用 read_skill 按需加载。只在与当前议题直接相关时调用工具，并说明证据来自哪个工具或结果。
 禁止写文件、改配置、安装软件、启动副作用服务或读取凭证；不要声称执行了实际未发生的工具调用。模型内部推理不属于工具轨迹。
 
 当前可用工具：` + strings.Join(names, "、")

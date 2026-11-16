@@ -148,14 +148,17 @@ func TestPantheonGrokProbeAdvertisesOfficeTools(t *testing.T) {
 	}
 }
 
-// T0 精确集漂移锁（2026-11-08 众神殿结论第二步·最小切片）：议事 T0 两个名单
-// 与登记表逐字钉死——新增任何工具必须显式改本测试并过 effect 隔离审计，防止
-// 「顺手加一个」式的静默扩面。
+// T0 精确集漂移锁（2026-11-08 众神殿结论第二步·最小切片；2026-11-16 用户
+// 拍板瘦身）：议事 T0 两个名单与登记表逐字钉死——新增任何工具必须显式改本
+// 测试并过 effect 隔离审计，防止「顺手加一个」式的静默扩面。
+// 2026-11-16 删：cost_search/cost_indicators/cost_compose（造价域）、
+// schedule_get/schedule_analyze（日程域）——众神殿是通用议事板块，域工具
+// 对非域议题只是选择噪音，域知识走 read_skill 按需加载；genui_validate
+// （聊天板块 GenUI 校验）与议事无关。同时钉死不得回流。
 func TestPantheonGrokT0ExactSets(t *testing.T) {
 	wantWorkspace := map[string]bool{
 		"read_file": true, "grep": true, "ls": true,
 		"cad_ask": true, "vision": true,
-		"schedule_get": true, "schedule_analyze": true,
 	}
 	gotWorkspace := map[string]bool{}
 	for _, name := range pantheonGrokWorkspaceTools {
@@ -174,10 +177,9 @@ func TestPantheonGrokT0ExactSets(t *testing.T) {
 	}
 
 	wantOffice := map[string]bool{
-		"cost_search": true, "cost_indicators": true, "cost_compose": true,
 		"knowledge_search": true, "memory_search": true, "fact_list": true,
 		"web_search": true, "web_fetch": true, "read_skill": true,
-		"genui_validate": true, "ocr": true,
+		"ocr": true,
 	}
 	gotOffice := map[string]bool{}
 	for name := range pantheonGrokOfficeReadTools {
@@ -189,6 +191,32 @@ func TestPantheonGrokT0ExactSets(t *testing.T) {
 	for name := range wantOffice {
 		if !gotOffice[name] {
 			t.Fatalf("T0 办公只读名单缺 %q", name)
+		}
+	}
+}
+
+// 2026-11-16 瘦身回归锁：已删的域工具与聊天板块工具不得以任何路径
+// （工作区名单/办公只读名单/装配后注册表）回到议事席。
+func TestPantheonGrokT0ExcludesDomainTools(t *testing.T) {
+	removed := []string{
+		"cost_search", "cost_indicators", "cost_compose",
+		"schedule_get", "schedule_analyze", "genui_validate",
+	}
+	for _, name := range removed {
+		for _, list := range pantheonGrokWorkspaceTools {
+			if list == name {
+				t.Fatalf("已删工具 %q 不得回到工作区名单", name)
+			}
+		}
+		if pantheonGrokOfficeReadTools[name] {
+			t.Fatalf("已删工具 %q 不得回到办公只读名单", name)
+		}
+	}
+	seat := &pantheonGrokSeat{}
+	reg := seat.officeToolRegistry(t.TempDir())
+	for _, name := range removed {
+		if _, ok := reg.Get(name); ok {
+			t.Fatalf("装配后的注册表不得包含 %q", name)
 		}
 	}
 }
