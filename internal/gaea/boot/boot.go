@@ -78,6 +78,13 @@ type Options struct {
 	// 空 = 进程当前目录（CLI 原行为）。
 	Cwd        string
 	SessionDir string
+	// WriteRoots 显式接管写入根（2026-11-16 图文 write_file 越界 bug）：
+	// 默认走 cfg.WriteRootsAt(cwd)，而它让 cfg.Sandbox.WorkspaceRoot（办公
+	// 板块持久化的全局共享值）优先于 Cwd——图文引擎 Cwd=小说目录、配置里
+	// workspace_root=办公项目时，write_file 被错误限定到办公目录。非空即
+	// 整体接管（含 bash 沙箱与访问策略的写入根），不与 AllowWrite 合并——
+	// 接管者自己负责边界。空 = 原行为逐字节（办公/CLI/TUI 不受影响）。
+	WriteRoots []string
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
 	ExtraTools []tool.Tool
@@ -248,6 +255,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 
 	reg := tool.NewRegistry()
 	writeRoots := cfg.WriteRootsAt(cwd)
+	if len(opts.WriteRoots) > 0 {
+		writeRoots = opts.WriteRoots
+	}
 	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: writeRoots, Network: cfg.Sandbox.Network, FailClosed: cfg.Sandbox.FailClosed}
 	accessPolicy := tool.NewPathAccessPolicy(cwd, cfg.ReadRootsAt(cwd), writeRoots, opts.ReadPathAllowed)
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {

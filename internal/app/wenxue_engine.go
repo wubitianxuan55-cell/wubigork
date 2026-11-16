@@ -182,6 +182,12 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		// WenxueListSessions 读取端同口径）。
 		SessionDir: gaeaConfig.WorkspaceSessionDir(ws, ""),
 		Cwd:        ws,
+		// 写入根显式接管=小说工作空间（2026-11-16 write_file 越界 bug 根修）：
+		// cfg.Sandbox.WorkspaceRoot 是办公板块持久化的全局共享值（本机实锤
+		// workspace_root=D:\新工作\2630合并沧州），WriteRootsAt 让它优先于
+		// Cwd——图文会话写小说目录被拒。接管后 write_file/bash 只锚小说目录，
+		// 不吃办公配置；读侧不受影响（cwd 本就是读工作区）。
+		WriteRoots: []string{ws},
 		// 办公域工具物理不装（ToolFilter，案A 拍板）；wenxue_* 专属四族只进
 		// 本引擎（办公 ExtraTools 不含——办公会话零出现）。space 装配过滤照常。
 		// 通用面走媒体根分档版（wenxueBaseTools）：image_gen/ocr 锚小说目录。
