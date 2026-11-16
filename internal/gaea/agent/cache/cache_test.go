@@ -27,7 +27,6 @@ func TestBasicGetSet(t *testing.T) {
 
 func TestInvalidateOnWrite(t *testing.T) {
 	c := New(-1)
-	c.grace = 0
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "f.txt")
 	os.WriteFile(f, []byte("v1"), 0644)
@@ -44,7 +43,6 @@ func TestInvalidateOnWrite(t *testing.T) {
 
 func TestTOCTOUConcurrentGetSet(t *testing.T) {
 	c := New(-1)
-	c.grace = 0
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "f.txt")
 	os.WriteFile(f, []byte("initial"), 0644)
@@ -135,36 +133,47 @@ func TestOffsetKeys(t *testing.T) {
 	}
 }
 
-func TestGraceSkipsStat(t *testing.T) {
+func TestReadKeyDoesNotCollideWhenPathContainsSuffixLikeText(t *testing.T) {
+	root := t.TempDir()
+	f1 := filepath.Join(root, "a@5")
+	f2 := filepath.Join(root, "a")
+	for _, f := range []string{f1, f2} {
+		if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	c := New(-1)
-	c.grace = 5 * time.Second
+	c.Set(f1, 0, 0, "at-file")
+	c.Set(f2, 5, 0, "offset-five")
+	if got, ok := c.Get(f1, 0, 0); !ok || got != "at-file" {
+		t.Fatalf("a@5 entry was overwritten: %q %v", got, ok)
+	}
+	if got, ok := c.Get(f2, 5, 0); !ok || got != "offset-five" {
+		t.Fatalf("a offset=5 entry was overwritten: %q %v", got, ok)
+	}
+}
+
+func TestContentDigestCatchesSameMtimeWrite(t *testing.T) {
+	c := New(-1)
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "f.txt")
 	os.WriteFile(f, []byte("v1"), 0644)
 
 	c.Set(f, 0, 0, "v1")
+	info, err := os.Stat(f)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	time.Sleep(10 * time.Millisecond)
 	os.WriteFile(f, []byte("v2"), 0644)
-
-	val, ok := c.Get(f, 0, 0)
-	if !ok {
-		t.Fatal("cache miss within grace period")
-	}
-	if val != "v1" {
-		t.Fatalf("expected cached 'v1', got %q", val)
+	if err := os.Chtimes(f, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
 	}
 
-	// After grace expires, Stat should invalidate the stale entry.
-	c.mu.Lock()
-	for k := range c.items {
-		c.items[k].cached = time.Now().Add(-10 * time.Second)
-	}
-	c.mu.Unlock()
-
-	_, ok = c.Get(f, 0, 0)
+	_, ok := c.Get(f, 0, 0)
 	if ok {
-		t.Fatal("stale cache should be invalidated after grace")
+		t.Fatal("same-mtime content change must invalidate the cache")
 	}
 }
 
@@ -172,6 +181,9 @@ func TestGraceSkipsStat(t *testing.T) {
 // limit 是不同的页，旧键撞页会把缓存的 2000 行页错发给 limit=100 的调用。
 func TestCacheLimitDistinctPages(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "page.txt")
+	if err := os.WriteFile(f, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	c := New(0)
 	c.Set(f, 0, 100, "first-100-lines")
 	// 显式 limit=100 命中；缺省页（limit=0）与 limit=200 都是未命中。
@@ -189,5 +201,30 @@ func TestCacheLimitDistinctPages(t *testing.T) {
 	c.InvalidatePath(f)
 	if _, ok := c.Get(f, 0, 100); ok {
 		t.Fatal("失效后不得命中")
+	}
+}
+
+func TestInvalidateUnder(t *testing.T) {
+	root := t.TempDir()
+	f1 := filepath.Join(root, "章节", "001.md")
+	f2 := filepath.Join(root, "角色", "林晚.md")
+	for _, f := range []string{f1, f2} {
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(f, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := New(-1)
+	c.Set(f1, 0, 0, "chapter")
+	c.Set(f2, 0, 0, "character")
+
+	c.InvalidateUnder(root)
+	if _, ok := c.Get(f1, 0, 0); ok {
+		t.Fatal("章节缓存应随小说工作区写入失效")
+	}
+	if _, ok := c.Get(f2, 0, 0); ok {
+		t.Fatal("角色缓存应随小说工作区写入失效")
 	}
 }

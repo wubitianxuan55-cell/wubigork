@@ -38,7 +38,7 @@ const (
 func (readFile) Name() string { return "read_file" }
 
 func (readFile) Description() string {
-	return "Read a text file with optional line offset/limit. By default each line is prefixed with its 1-based number (e.g. `   42→...`). Set line_numbers=false to get raw text — useful when copying content for edit_file. Use `offset` and `limit` to page through large files."
+	return "Read a text file with optional line offset/limit. By default each line is prefixed with its absolute 1-based line number (e.g. `   42→...`). Use a non-negative offset for forward pagination, or a negative offset to start from the end (`offset=-30` returns lines from 30 lines before EOF); `limit` still caps returned lines. Set line_numbers=false for raw text."
 }
 
 func (readFile) Schema() json.RawMessage {
@@ -46,7 +46,7 @@ func (readFile) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "path":{"type":"string","description":"File path"},
-  "offset":{"type":"integer","description":"0-based line offset to start reading from (default 0)","minimum":0},
+  "offset":{"type":"integer","description":"0-based forward line offset (default 0). Negative values start that many lines before EOF, e.g. -30 reads the final 30-line window."},
   "limit":{"type":"integer","description":"Maximum lines to return (default 2000)","minimum":1},
   "line_numbers":{"type":"boolean","description":"Prefix each line with its 1-based line number (default true). Set false for raw text."}
 },
@@ -83,9 +83,6 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		return "", fmt.Errorf("path is required")
 	}
 	p.Path = resolveIn(r.workDir, p.Path)
-	if p.Offset < 0 {
-		p.Offset = 0
-	}
 	if p.Limit <= 0 {
 		p.Limit = readFileDefaultLimit
 	}
@@ -196,12 +193,10 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 	}
 
-	// Scan up to offset+limit+1 lines (the extra is just to know whether
-	// trimming a trailer is warranted). 1 MB per-line cap matches what other
-	// scanners in this package allow — well above any reasonable source line.
+	// 1 MB per-line cap matches what other scanners in this package allow —
+	// well above any reasonable source line.
 	scanner := bufio.NewScanner(src)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	upTo := p.Offset + p.Limit + 1
 
 	// Check for cancellation before potentially long scan
 	select {
@@ -211,40 +206,74 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 
 	var collected []string
-	lineNo := 0
-	for scanner.Scan() {
-		lineNo++
-		if lineNo > p.Offset && len(collected) < p.Limit {
-			collected = append(collected, scanner.Text())
+	startLine := p.Offset + 1
+	hasMore := false
+	if p.Offset < 0 {
+		tailLines := -p.Offset
+		if tailLines > readFileMaxLimit {
+			return "", fmt.Errorf("negative offset magnitude %d exceeds the supported %d-line tail window; use a smaller negative offset or page forward with a non-negative offset", tailLines, readFileMaxLimit)
 		}
-		if lineNo >= upTo {
-			// Keep counting to know how many more lines remain.
-			break
+		ring := make([]string, tailLines)
+		total := 0
+		for scanner.Scan() {
+			ring[total%tailLines] = scanner.Text()
+			total++
 		}
-	}
-	// Quick check for remaining lines without draining the entire file.
-	// (Avoids O(n) scan over huge files just to compute "more lines" count.)
-	hasMore := scanner.Scan()
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("read %s: %w", p.Path, err)
-	}
-
-	if lineNo == 0 && !hasMore {
-		return "(empty file)", nil
-	}
-	if len(collected) == 0 {
-		return fmt.Sprintf("(offset %d is past EOF — file has %d lines)", p.Offset, lineNo), nil
+		if err := scanner.Err(); err != nil {
+			return "", fmt.Errorf("read %s: %w", p.Path, err)
+		}
+		if total == 0 {
+			return "(empty file)", nil
+		}
+		start := total - tailLines
+		if start < 0 {
+			start = 0
+		}
+		n := total - start
+		if n > p.Limit {
+			n = p.Limit
+		}
+		collected = make([]string, 0, n)
+		for i := 0; i < n; i++ {
+			collected = append(collected, ring[(start+i)%tailLines])
+		}
+		startLine = start + 1
+		hasMore = start+n < total
+	} else {
+		// Scan up to offset+limit+1 lines (the extra tells us whether another
+		// line remains without draining large files).
+		upTo := p.Offset + p.Limit + 1
+		lineNo := 0
+		for scanner.Scan() {
+			lineNo++
+			if lineNo > p.Offset && len(collected) < p.Limit {
+				collected = append(collected, scanner.Text())
+			}
+			if lineNo >= upTo {
+				break
+			}
+		}
+		hasMore = scanner.Scan()
+		if err := scanner.Err(); err != nil {
+			return "", fmt.Errorf("read %s: %w", p.Path, err)
+		}
+		if lineNo == 0 && !hasMore {
+			return "(empty file)", nil
+		}
+		if len(collected) == 0 {
+			return fmt.Sprintf("(offset %d is past EOF — file has %d lines)", p.Offset, lineNo), nil
+		}
 	}
 
 	var b strings.Builder
 
 	if showLineNumbers {
 		// Right-align line numbers to the largest one we'll print, so the arrow
-		// "→" column lines up. Add 1 for the 1-based display.
-		maxShown := p.Offset + len(collected)
+		// "→" column lines up.
+		maxShown := startLine + len(collected) - 1
 		w := len(fmt.Sprint(maxShown))
 		for i, line := range collected {
-			fmt.Fprintf(&b, "%*d→%s\n", w, p.Offset+i+1, line)
+			fmt.Fprintf(&b, "%*d→%s\n", w, startLine+i, line)
 		}
 	} else {
 		// V10.5: raw text mode — no line numbers, useful for copying to edit_file
@@ -255,9 +284,8 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 
 	if hasMore {
-		// 两个分支文案历来相同（死 if/else，D1 顺手收敛为单写）。
 		fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
-			p.Offset+len(collected))
+			startLine-1+len(collected))
 	}
 	// A3 revision 尾标（dsh-ops 蒸馏）：模型经此取 expected_revision 做 CAS 写。
 	// marker 恒最后追加（hasMore 提示行之前的内容在两种截断形态下都可存活）；

@@ -1,8 +1,13 @@
 package cache
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -15,50 +20,62 @@ type Cache struct {
 	items    map[string]*cacheItem
 	pathKeys map[string]map[string]struct{} // path → set of cache keys (O(1) invalidate)
 	ttl      time.Duration
-	grace    time.Duration // skip Stat for entries younger than this
 }
-
-// defaultCacheGrace is the window after a cache entry was set during which we
-// skip os.Stat revalidation — the entry is fresh enough that an external
-// modification is extremely unlikely. Write tools already invalidate the cache
-// immediately. Beyond this window we Stat-check as before for safety.
-const defaultCacheGrace = 5 * time.Second
 
 type cacheItem struct {
 	content string
-	mtime   time.Time
+	digest  [sha256.Size]byte
 	cached  time.Time
 }
 
 // newToolCache creates a cache with the given TTL. Zero or negative TTL means
-// no expiry (entries live until invalidated by a write or clear).
-// grace sets the Stat-bypass window; 0 disables the optimisation.
+// no expiry (entries live until invalidated by a write, content change or clear).
 func New(ttl time.Duration) *Cache {
 	return &Cache{
 		items:    make(map[string]*cacheItem),
 		pathKeys: make(map[string]map[string]struct{}),
 		ttl:      ttl,
-		grace:    defaultCacheGrace,
 	}
 }
 
-// readKey builds a cache key from path, offset and limit. limit 进键（刀0，
-// dsh-ops 第二波 2026-11-10）：同 path+offset 不同 limit 是不同的页——旧键
-// 撞页会把 cached 的 2000 行页错发给 limit=100 的调用。limit<=0 视为缺省页。
+func cachePathKey(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	path = filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		path = strings.ToLower(path)
+	}
+	return path
+}
+
+func fileDigest(path string) ([sha256.Size]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	var out [sha256.Size]byte
+	copy(out[:], h.Sum(nil))
+	return out, nil
+}
+
+// readKey builds a collision-free cache key from normalized path, offset and
+// limit. limit 进键（刀0，dsh-ops 第二波 2026-11-10）：同 path+offset 不同
+// limit 是不同的页。NUL separators prevent paths containing "@" from colliding
+// with numeric suffixes.
 func readKey(path string, offset, limit int) string {
-	key := path
-	if offset != 0 {
-		key = fmt.Sprintf("%s@%d", key, offset)
-	}
-	if limit > 0 {
-		key = fmt.Sprintf("%s@L%d", key, limit)
-	}
-	return key
+	return fmt.Sprintf("%s\x00%d\x00%d", path, offset, limit)
 }
 
 // Get returns the cached content for a read_file(path, offset, limit). Returns
 // ("", false) on miss or stale entry.
 func (c *Cache) Get(path string, offset, limit int) (string, bool) {
+	path = cachePathKey(path)
 	key := readKey(path, offset, limit)
 	c.mu.RLock()
 	ci, ok := c.items[key]
@@ -66,45 +83,35 @@ func (c *Cache) Get(path string, offset, limit int) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	// Grace period: entries cached within the grace window skip os.Stat.
-	// Write tools already invalidate the cache, so the only way the file changes
-	// during the grace window is an external process — vanishingly rare in a turn.
-	if c.grace > 0 && time.Since(ci.cached) <= c.grace {
-		return ci.content, true
+
+	if c.ttl > 0 && time.Since(ci.cached) > c.ttl {
+		c.deleteIfSame(path, key, ci)
+		return "", false
 	}
-	// Standard path: TTL not expired and mtime still matches.
-	if c.ttl <= 0 || time.Since(ci.cached) <= c.ttl {
-		fi, err := os.Stat(path)
-		if err != nil || !fi.ModTime().Equal(ci.mtime) {
-			c.InvalidatePath(path)
-			return "", false
-		}
-		return ci.content, true
+
+	// A cache hit is valid only while the bytes on disk match the bytes that
+	// produced this result. mtime alone misses same-timestamp writes on Windows,
+	// so verify a content digest on every hit.
+	digest, err := fileDigest(path)
+	if err != nil || digest != ci.digest {
+		c.deleteIfSame(path, key, ci)
+		return "", false
 	}
-	// Slow path: TTL expired. Re-check under write lock to avoid TOCTOU with
-	// a concurrent set() that refreshed the entry between our RUnlock and Lock.
-	c.mu.Lock()
-	ci2, ok2 := c.items[key]
-	if ok2 && ci2 == ci {
-		// Same entry we read under RLock — safe to delete.
-		delete(c.items, key)
-	}
-	c.mu.Unlock()
-	return "", false
+	return ci.content, true
 }
 
 // Set caches content for a read_file(path, offset, limit).
 func (c *Cache) Set(path string, offset, limit int, content string) {
-	key := readKey(path, offset, limit)
-	// Read mtime immediately for accurate invalidation
-	var mtime time.Time
-	if fi, err := os.Stat(path); err == nil {
-		mtime = fi.ModTime()
+	path = cachePathKey(path)
+	digest, err := fileDigest(path)
+	if err != nil {
+		return
 	}
+	key := readKey(path, offset, limit)
 	c.mu.Lock()
 	c.items[key] = &cacheItem{
 		content: content,
-		mtime:   mtime,
+		digest:  digest,
 		cached:  time.Now(),
 	}
 	if c.pathKeys[path] == nil {
@@ -116,11 +123,44 @@ func (c *Cache) Set(path string, offset, limit int, content string) {
 
 // invalidatePath removes all cache entries for a given file path. O(keys-per-path).
 func (c *Cache) InvalidatePath(path string) {
+	path = cachePathKey(path)
 	c.mu.Lock()
 	for k := range c.pathKeys[path] {
 		delete(c.items, k)
 	}
 	delete(c.pathKeys, path)
+	c.mu.Unlock()
+}
+
+// InvalidateUnder removes every cached file under a file or directory path.
+// This is used by domain writers that update several files beneath a workspace.
+func (c *Cache) InvalidateUnder(path string) {
+	root := cachePathKey(path)
+	c.mu.Lock()
+	for cachedPath, keys := range c.pathKeys {
+		rel, err := filepath.Rel(root, cachedPath)
+		if err != nil || (rel != "." && (rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)))) {
+			continue
+		}
+		for k := range keys {
+			delete(c.items, k)
+		}
+		delete(c.pathKeys, cachedPath)
+	}
+	c.mu.Unlock()
+}
+
+func (c *Cache) deleteIfSame(path, key string, want *cacheItem) {
+	c.mu.Lock()
+	if cur, ok := c.items[key]; ok && cur == want {
+		delete(c.items, key)
+		if keys := c.pathKeys[path]; keys != nil {
+			delete(keys, key)
+			if len(keys) == 0 {
+				delete(c.pathKeys, path)
+			}
+		}
+	}
 	c.mu.Unlock()
 }
 

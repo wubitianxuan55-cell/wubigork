@@ -45,12 +45,14 @@ func (bash) Name() string { return "bash" }
 
 func (b bash) Description() string {
 	if b.resolved().Kind == sandbox.ShellPowerShell {
-		return "Execute a command in the shell and return combined stdout/stderr. " +
-			"NOTE: bash is not available on this host — commands run under Windows PowerShell, " +
-			"so write PowerShell syntax (e.g. $null not /dev/null; ';' or separate calls, not '&&'; " +
-			"Get-ChildItem/Select-String, not ls/grep). Use for builds, tests, git, etc."
+		return "Execute a command with Windows PowerShell and return combined stdout/stderr. " +
+			"Commands run as `powershell -Command`, so use PowerShell syntax: `$null` (not `/dev/null`), " +
+			"`;` or separate calls (not `&&` unless using pwsh 7+), and `Get-ChildItem`/`Select-String`. " +
+			"Example: `Get-ChildItem; python --version`. Use run_in_background=true for long jobs."
 	}
-	return "Execute a shell command. 5-minute timeout. Shell state persists across calls in this session: " +
+	return "Execute a command with bash (POSIX/bash syntax), even on Windows when Git Bash is available. " +
+		"Commands run as `bash -c`; do not send PowerShell cmdlets or `$env:NAME`. " +
+		"Example: `pwd; python -c \"print('ok')\"`. 5-minute timeout. Shell state persists across calls in this session: " +
 		"the working directory and exported variables/functions carry over — cd once and later calls start there. " +
 		"State is captured when a command finishes; a timed-out or interrupted command does not update it, " +
 		"and a deleted working directory falls back to the workspace root. " +
@@ -67,8 +69,12 @@ func (b bash) resolved() sandbox.Shell {
 	return sandbox.ResolveShell()
 }
 
-func (bash) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute"},"run_in_background":{"type":"boolean","description":"Run detached: returns a job id immediately and keeps running across turns."},"output_format":{"type":"string","enum":["plain","json"],"description":"plain (default) returns raw merged output. json returns structured {ok, exit_code, duration_ms, stdout, stderr, command} with separated stdout/stderr fields."}},"required":["command"]}`)
+func (b bash) Schema() json.RawMessage {
+	commandDesc := "Command passed to bash -c. Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax."
+	if b.resolved().Kind == sandbox.ShellPowerShell {
+		commandDesc = "Command passed to Windows PowerShell -Command. Use PowerShell syntax, not bash syntax."
+	}
+	return json.RawMessage(fmt.Sprintf(`{"type":"object","properties":{"command":{"type":"string","description":%s},"run_in_background":{"type":"boolean","description":"Run detached: returns a job id immediately and keeps running across turns."},"output_format":{"type":"string","enum":["plain","json"],"description":"plain (default) returns raw merged output. json returns structured {ok, exit_code, duration_ms, stdout, stderr, command} with separated stdout/stderr fields."}},"required":["command"]}`, strconv.Quote(commandDesc)))
 }
 
 // ReadOnly is false: bash's effect cannot be inferred from args (rm, curl,
@@ -104,7 +110,12 @@ func (b bash) publishCheck(g *tool.PublishGuard) error {
 	return fmt.Errorf("%s", tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()))
 }
 
-func (bash) CompactDescription() string     { return compactDesc["bash"] }
+func (b bash) CompactDescription() string {
+	if b.resolved().Kind == sandbox.ShellPowerShell {
+		return "执行命令(Windows PowerShell -Command;用 PowerShell 语法,如 Get-ChildItem; python --version;长任务 run_in_background)"
+	}
+	return "执行命令(bash -c;用 POSIX/bash 语法,不是 PowerShell;如 pwd; python script.py;长任务 run_in_background)"
+}
 func (bash) CompactSchema() json.RawMessage { return compactSchema["bash"] }
 
 // ResetSessionState 清空会话状态锚（cwd/env/探针目录）。controller 在会话

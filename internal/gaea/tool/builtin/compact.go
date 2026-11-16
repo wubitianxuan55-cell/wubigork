@@ -5,7 +5,7 @@ package builtin
 import "encoding/json"
 
 var compactDesc = map[string]string{
-	"read_file":          "读取文件内容(可选行范围/分页)",
+	"read_file":          "读取文件内容(可选行范围/分页;负 offset 从文件末尾倒数,默认输出绝对行号)",
 	"write_file":         "写入/覆盖文件(自动建父目录;expected_revision=CAS防陈旧写,read_file尾标取值;失败信封effect_state=unknown时先核实再重试)",
 	"edit_file":          "精确替换文件内容(old_string→new_string,new_string空串=删除;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"multi_edit":         "单文件批量替换(edits数组,内存串行,全部成功才原子写盘;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
@@ -22,7 +22,7 @@ var compactDesc = map[string]string{
 	"web_fetch":          "抓取URL文本(mode=auto正文主提取nav/footer降噪,full整页;SSRF安全,重试退避)",
 	"web_search":         "搜索公开网页，返回结构化JSON(title/url/snippet/source)，支持引用追踪；传url直接抓取该页整页文本",
 	"todo_write":         "更新任务清单(全量替换,最多一个进行中)",
-	"complete_step":      "完成计划步骤(须可验证证据,禁止纯manual)",
+	"complete_step":      "完成计划步骤(step/result/evidence;kind=verification|diff|files|manual,禁止纯manual)",
 	"memory_search":      "搜索记忆(关键词,kind过滤,BM25排序)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
 	"format_convert":     "文档格式转换(docx/xlsx/pdf→Markdown，含OCR扫描件回退)",
@@ -57,7 +57,7 @@ var compactDesc = map[string]string{
 
 var compactSchema = map[string]json.RawMessage{
 	"read_file": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"}},"required":["path"]}`),
+		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer","description":"向前分页用非负 offset；负值表示从 EOF 倒数，如 -30 读末尾 30 行窗口"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"}},"required":["path"]}`),
 	"write_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256，或 absent=仅新建"}},"required":["path","content"]}`),
 	"edit_file": json.RawMessage(
@@ -75,7 +75,7 @@ var compactSchema = map[string]json.RawMessage{
 	"ls": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"}}}`),
 	"bash": json.RawMessage(
-		`{"type":"object","properties":{"command":{"type":"string"},"run_in_background":{"type":"boolean"}},"required":["command"]}`),
+		`{"type":"object","properties":{"command":{"type":"string"},"run_in_background":{"type":"boolean"},"output_format":{"type":"string","enum":["plain","json"]}},"required":["command"]}`),
 	"read_spill": json.RawMessage(
 		`{"type":"object","properties":{"id":{"type":"string"},"offset":{"type":"integer"},"max_bytes":{"type":"integer"}},"required":["id"]}`),
 	"bash_output": json.RawMessage(
@@ -91,7 +91,7 @@ var compactSchema = map[string]json.RawMessage{
 	"todo_write": json.RawMessage(
 		`{"type":"object","properties":{"todos":{"type":"array","items":{"type":"object","properties":{"content":{"type":"string"},"status":{"type":"string"},"activeForm":{"type":"string"},"level":{"type":"integer"}},"required":["content","status"]}}},"required":["todos"]}`),
 	"complete_step": json.RawMessage(
-		`{"type":"object","properties":{"step":{"type":"string"},"step_index":{"type":"integer"},"result":{"type":"string"},"evidence":{"type":"array","items":{"type":"object","properties":{"kind":{"type":"string"},"summary":{"type":"string"},"command":{"type":"string"},"paths":{"type":"array","items":{"type":"string"}}},"required":["kind","summary"]}}},"required":["step","result","evidence"]}`),
+		`{"type":"object","properties":{"step":{"type":"string"},"step_index":{"type":"integer","minimum":1},"result":{"type":"string"},"evidence":{"type":"array","minItems":1,"items":{"type":"object","properties":{"kind":{"type":"string","enum":["verification","diff","files","manual"]},"summary":{"type":"string"},"command":{"type":"string"},"paths":{"type":"array","items":{"type":"string"}}},"required":["kind","summary"]}}},"required":["result","evidence"]}`),
 	"memory_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"kind":{"type":"string"}},"required":["query"]}`),
 	"read_skill": json.RawMessage(

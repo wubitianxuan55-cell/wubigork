@@ -66,6 +66,20 @@ func (todoWrite) ReadOnly() bool { return true }
 func (todoWrite) CompactDescription() string     { return compactDesc["todo_write"] }
 func (todoWrite) CompactSchema() json.RawMessage { return compactSchema["todo_write"] }
 
+// CachePaths lets the host invalidate a cached read of .gaea/todos.md after the
+// checklist changes. todo_write remains read-only for approval purposes.
+func (todoWrite) CachePaths(json.RawMessage) []string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	gaeaDir := findGaeaDir(cwd)
+	if gaeaDir == "" {
+		return nil
+	}
+	return []string{filepath.Join(gaeaDir, "todos.md")}
+}
+
 func (todoWrite) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Todos []todoItem `json:"todos"`
@@ -104,8 +118,23 @@ func (todoWrite) Execute(ctx context.Context, args json.RawMessage) (string, err
 	// 四次）。读取端 compact_util.readProgressFile 优先 todos.md、回退旧名。
 	saveProgressMarkdown(p.Todos)
 
-	return fmt.Sprintf("Todos updated: %d total — %d completed, %d in progress, %d pending.",
-		len(p.Todos), done, active, pending), nil
+	result := fmt.Sprintf("Todos updated: %d total — %d completed, %d in progress, %d pending.",
+		len(p.Todos), done, active, pending)
+	if missing := unverifiedTodoSignoffs(ctx, p.Todos); len(missing) > 0 {
+		var b strings.Builder
+		b.WriteString(result)
+		b.WriteString("\nSigned-off steps are still required before the final answer. Call complete_step once for each newly completed todo:")
+		for _, m := range missing {
+			label := m.Content
+			if label == "" {
+				label = m.ActiveForm
+			}
+			fmt.Fprintf(&b, "\n- step_index=%d, step=%q", m.Index, label)
+		}
+		b.WriteString("\nCopyable shape: complete_step {\"step\":\"<exact todo title>\",\"step_index\":<N>,\"result\":\"<what changed>\",\"evidence\":[{\"kind\":\"files\",\"summary\":\"<what was confirmed>\",\"paths\":[\"<path>\"]}]}")
+		return b.String(), nil
+	}
+	return result, nil
 }
 
 // saveProgressMarkdown writes the current todo list to .gaea/todos.md
@@ -188,6 +217,18 @@ func verifyTodoCompletionTransitions(ctx context.Context, todos []todoItem) erro
 		return fmt.Errorf("todo %d %q is newly completed but has no matching successful complete_step receipt in this turn", m.Index, m.Content)
 	}
 	return fmt.Errorf("%d todos are newly completed but have no matching successful complete_step receipts in this turn", len(missing))
+}
+
+func unverifiedTodoSignoffs(ctx context.Context, todos []todoItem) []evidence.TodoStepMatch {
+	ledger, ok := evidence.FromContext(ctx)
+	if !ok {
+		return nil
+	}
+	missing, hasBaseline := ledger.UnverifiedCompletedTodos(toEvidenceTodos(todos))
+	if !hasBaseline {
+		return nil
+	}
+	return missing
 }
 
 func toEvidenceTodos(todos []todoItem) []evidence.TodoItem {

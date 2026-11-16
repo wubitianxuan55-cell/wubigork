@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -38,10 +39,16 @@ var validEvidenceKinds = map[string]bool{
 	"manual":       true, // a manual check; cite what was confirmed and how
 }
 
+const completeStepExample = `{"step":"1","step_index":1,"result":"<what is now true>","evidence":[{"kind":"verification","summary":"<test/command result>","command":"<exact successful command>"}]}`
+
+func completeStepError(format string, args ...any) error {
+	return fmt.Errorf("%s\nCopyable complete_step example (replace placeholders): %s", fmt.Sprintf(format, args...), completeStepExample)
+}
+
 func (completeStep) Name() string { return "complete_step" }
 
 func (completeStep) Description() string {
-	return `Sign off ONE plan step with PROOF it is done. At least one evidence item must be verification (run a command via bash and cite its output), diff (show what changed), or files (list paths touched). Manual evidence alone is NOT accepted — combine it with at least one verifiable kind. Fields: step (title/number matching todo_write), result (what changed), evidence (≥1 item, at least one non-manual), optional notes.`
+	return `Sign off ONE plan step with PROOF it is done. Identify it with step (title/number matching todo_write) or step_index (1-based). At least one evidence item must be verification (run a command via bash and cite its output), diff (show what changed), or files (list paths touched). Manual evidence alone is NOT accepted — combine it with at least one verifiable kind. evidence.kind is exactly one of verification|diff|files|manual.`
 }
 
 func (completeStep) Schema() json.RawMessage {
@@ -68,7 +75,7 @@ func (completeStep) Schema() json.RawMessage {
   },
   "notes":{"type":"string","description":"Optional caveats, follow-ups, or anything deferred."}
 },
-"required":["step","result","evidence"]
+"required":["result","evidence"]
 }`)
 }
 
@@ -88,39 +95,43 @@ func (completeStep) Execute(ctx context.Context, args json.RawMessage) (string, 
 		Notes     string         `json:"notes"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return "", fmt.Errorf("invalid args: %w", err)
+		return "", completeStepError("invalid args: %v", err)
 	}
 	if strings.TrimSpace(p.Step) == "" && p.StepIndex == nil {
-		return "", fmt.Errorf("step or step_index is required — name the plan step you are completing")
+		return "", completeStepError("step or step_index is required — name the plan step you are completing")
 	}
 	if strings.TrimSpace(p.Result) == "" {
-		return "", fmt.Errorf("result is required — state what is now true after finishing this step")
+		return "", completeStepError("result is required — state what is now true after finishing this step")
 	}
 	if len(p.Evidence) == 0 {
-		return "", fmt.Errorf("at least one evidence item is required — don't mark a step complete without showing why it's done (run a check, cite the diff, or confirm manually)")
+		return "", completeStepError("at least one evidence item is required — don't mark a step complete without showing why it's done (run a check, cite the diff, or confirm manually)")
 	}
 	kinds := make([]string, 0, len(p.Evidence))
 	for i, e := range p.Evidence {
 		if !validEvidenceKinds[e.Kind] {
-			return "", fmt.Errorf("evidence %d: invalid kind %q (want verification|diff|files|manual)", i+1, e.Kind)
+			return "", completeStepError("evidence %d: invalid kind %q (want verification|diff|files|manual)", i+1, e.Kind)
 		}
 		if strings.TrimSpace(e.Summary) == "" {
-			return "", fmt.Errorf("evidence %d: summary is required — the evidence is the summary, not just its kind", i+1)
+			return "", completeStepError("evidence %d: summary is required — the evidence is the summary, not just its kind", i+1)
 		}
 		kinds = append(kinds, e.Kind)
 	}
 
 	hostVerified, manualUnverified, err := verifyStepEvidence(ctx, p.Evidence)
 	if err != nil {
-		return "", err
+		return "", completeStepError("%v", err)
 	}
-	todoMatch, hasTodo, err := verifyTodoStep(ctx, p.Step)
+	stepRef := strings.TrimSpace(p.Step)
+	if stepRef == "" && p.StepIndex != nil {
+		stepRef = strconv.Itoa(*p.StepIndex)
+	}
+	todoMatch, hasTodo, err := verifyTodoStep(ctx, stepRef)
 	if err != nil {
-		return "", err
+		return "", completeStepError("%v", err)
 	}
 	// 编码铁律: manual 证据不能单独作为签退依据——至少需要一条可验证证据
 	if hostVerified == 0 && manualUnverified > 0 {
-		return "", fmt.Errorf("all evidence is manual (%d item(s)) — at least one verification, diff, or files evidence is required; run a check with bash and cite its output, or cite a concrete code change", manualUnverified)
+		return "", completeStepError("all evidence is manual (%d item(s)) — at least one verification, diff, or files evidence is required; run a check with bash and cite its output, or cite a concrete code change", manualUnverified)
 	}
 	hostStatus := ""
 	if _, ok := evidence.FromContext(ctx); ok {
@@ -131,7 +142,7 @@ func (completeStep) Execute(ctx context.Context, args json.RawMessage) (string, 
 		todoStatus = fmt.Sprintf(" Todo step: todo-matched %d.", todoMatch.Index)
 	}
 	return fmt.Sprintf("Step %q signed off with %d evidence item(s) [%s].%s The host advances the task list for you — it marks this step completed and moves the next to in_progress, so you don't need another todo_write to mark completions.",
-		p.Step, len(p.Evidence), strings.Join(kinds, ", "), hostStatus+todoStatus), nil
+		stepRef, len(p.Evidence), strings.Join(kinds, ", "), hostStatus+todoStatus), nil
 }
 
 func verifyStepEvidence(ctx context.Context, items []stepEvidence) (hostVerified int, manualUnverified int, err error) {
