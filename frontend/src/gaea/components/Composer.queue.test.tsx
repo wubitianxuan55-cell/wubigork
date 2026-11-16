@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Composer } from "./Composer";
 import { LocaleProvider } from "../lib/i18n";
 import { ToastProvider } from "./Toast";
+import { resetComposerDraftsForTests, saveComposerDraft } from "../../lib/composerDrafts";
 
 const appStub = vi.hoisted(() => new Proxy({}, { get: () => vi.fn().mockResolvedValue(null) }));
 
@@ -35,7 +36,10 @@ function renderQueue(running: boolean, onSend = vi.fn(), onSteer = vi.fn(), onCa
 }
 
 describe("Composer 发送队列", () => {
-  beforeEach(() => { vi.useFakeTimers(); });
+  beforeEach(() => {
+    resetComposerDraftsForTests();
+    vi.useFakeTimers();
+  });
   afterEach(() => { cleanup(); vi.useRealTimers(); });
 
   it("运行中入队；回合结束后显示发送中并派出；期间不可编辑/插话/取消", () => {
@@ -125,5 +129,70 @@ describe("Composer 发送队列", () => {
     fireEvent.click(screen.getByTestId("composer-queue-cancel-all"));
     expect(screen.queryByTestId("composer-queue")).toBeNull();
     expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("会话级草稿隔离：切换会话恢复各自文本与附件", () => {
+    saveComposerDraft("work:a", {
+      text: "A 会话草稿",
+      attachments: [{ path: "C:/ws/a.docx", previewUrl: "", type: "file", size: 12 }],
+      queue: [],
+    });
+    saveComposerDraft("work:b", {
+      text: "B 会话草稿",
+      attachments: [],
+      queue: [],
+    });
+    const ui = (key: string) => (
+      <LocaleProvider>
+        <ToastProvider>
+          <Composer
+            key={key}
+            sessionKey={key}
+            running={false}
+            cwd="/ws"
+            onSend={() => {}}
+            onCancel={() => undefined}
+            onPickFolder={async () => "/ws"}
+          />
+        </ToastProvider>
+      </LocaleProvider>
+    );
+    const view = render(ui("work:a"));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("A 会话草稿");
+    expect(screen.getByRole("button", { name: /预览 a\.docx/ })).toBeTruthy();
+
+    view.rerender(ui("work:b"));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("B 会话草稿");
+    expect(screen.queryByRole("button", { name: /预览 a\.docx/ })).toBeNull();
+
+    view.rerender(ui("work:a"));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("A 会话草稿");
+    expect(screen.getByRole("button", { name: /预览 a\.docx/ })).toBeTruthy();
+  });
+
+  it("恢复的历史队列只展示，不因挂载时 running=false 被自动重发", () => {
+    saveComposerDraft("work:paused", {
+      text: "",
+      attachments: [],
+      queue: [{ id: "q-r", text: "不能静默重发", status: "pending" }],
+    });
+    const onSend = vi.fn();
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          <Composer
+            sessionKey="work:paused"
+            running={false}
+            cwd="/ws"
+            onSend={onSend}
+            onCancel={() => undefined}
+            onPickFolder={async () => "/ws"}
+          />
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("不能静默重发")).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(onSend).not.toHaveBeenCalled();
   });
 });

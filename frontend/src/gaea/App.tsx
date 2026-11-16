@@ -73,6 +73,7 @@ import { rankPaletteItems } from "./lib/paletteRank";
 import { usePaneTabsStore } from "./lib/paneTabs";
 import { usePaneEnabledStore } from "./lib/paneEnabled";
 import { normalizePreviewPath } from "./lib/officeTurnProjection";
+import { makeComposerSessionKey } from "../lib/composerDrafts";
 import { SIDEBAR_REGISTRY, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./lib/taskTemplates";
 
@@ -172,6 +173,10 @@ export default function App() {
       ? currentSessionPath.replace(/[\\/:*?"<>|]/g, "_")
       : cwdNow ? `unsaved_${cwdNow.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
   }, [currentSessionPath, state.meta?.cwd]);
+  const composerSessionKey = useMemo(
+    () => makeComposerSessionKey("work", currentSessionPath, state.meta?.cwd, state.sessionNonce),
+    [currentSessionPath, state.meta?.cwd, state.sessionNonce],
+  );
   // pane tabs 按会话持久化：会话切换时读档/复位（better-sidebar 会话隔离语义）
   useEffect(() => {
     usePaneTabsStore.getState().setSessionKey(currentSessionKey);
@@ -973,6 +978,8 @@ export default function App() {
               />
               <div className="composer-glow office-composer">
                 <Composer
+                  key={composerSessionKey}
+                  sessionKey={composerSessionKey}
                   running={state.running}
                   cwd={state.meta?.cwd}
                   onSend={handleSend}

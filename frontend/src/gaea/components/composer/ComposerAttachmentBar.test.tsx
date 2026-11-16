@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ComposerAttachmentBar } from "./ComposerAttachmentBar";
 import { usePreviewStore } from "../../lib/store";
-import type { Attachment } from "../../hooks/useComposerAttachments";
+import type { Attachment, AttachmentUploadTask } from "../../hooks/useComposerAttachments";
 
 const noop = () => {};
 
@@ -91,5 +91,59 @@ describe("ComposerAttachmentBar 附件预览条", () => {
       <ComposerAttachmentBar attachments={atts} running={false} recognizingPath={null} ocrPath={null} onRecognize={noop} onOCRText={noop} onRemove={noop} />,
     );
     expect(screen.queryByText(/KB|MB|B$/)).toBeNull();
+  });
+
+  it("上传中任务卡显示进度且不提供假取消", () => {
+    const uploads: AttachmentUploadTask[] = [{
+      id: "u1", name: "大报告.pdf", size: 4096, type: "file",
+      status: "uploading", progress: 45, retryable: true,
+    }];
+    render(
+      <ComposerAttachmentBar attachments={[]} uploads={uploads} running={false} recognizingPath={null} ocrPath={null} onRecognize={noop} onOCRText={noop} onRemove={noop} />,
+    );
+    expect(screen.getByTestId("attachment-upload-u1").textContent).toContain("大报告.pdf");
+    expect(screen.getByText(/上传中 · 45%/)).toBeTruthy();
+    expect(screen.queryByTitle("移除失败任务")).toBeNull();
+  });
+
+  it("失败任务卡显示原因、重试与移除动作", () => {
+    const retried: string[] = [];
+    const removed: string[] = [];
+    const uploads: AttachmentUploadTask[] = [{
+      id: "u2", name: "中断.zip", type: "file", status: "error",
+      error: "文件上传失败：bridge timeout", retryable: true,
+    }];
+    render(
+      <ComposerAttachmentBar
+        attachments={[]}
+        uploads={uploads}
+        running={false}
+        recognizingPath={null}
+        ocrPath={null}
+        onRecognize={noop}
+        onOCRText={noop}
+        onRemove={noop}
+        onRetryUpload={(id) => retried.push(id)}
+        onRemoveUpload={(id) => removed.push(id)}
+      />,
+    );
+    expect(screen.getByText(/bridge timeout/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重试上传 中断.zip" }));
+    fireEvent.click(screen.getByRole("button", { name: "移除失败上传 中断.zip" }));
+    expect(retried).toEqual(["u2"]);
+    expect(removed).toEqual(["u2"]);
+  });
+
+  it("不可重试任务只显示原因与移除", () => {
+    const uploads: AttachmentUploadTask[] = [{
+      id: "u3", name: "超大.png", type: "image", status: "error",
+      error: "超过 10MB 上限", retryable: false,
+    }];
+    render(
+      <ComposerAttachmentBar attachments={[]} uploads={uploads} running={false} recognizingPath={null} ocrPath={null} onRecognize={noop} onOCRText={noop} onRemove={noop} onRetryUpload={noop} onRemoveUpload={noop} />,
+    );
+    expect(screen.getByText("不可重试")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /重试上传/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "移除失败上传 超大.png" })).toBeTruthy();
   });
 });

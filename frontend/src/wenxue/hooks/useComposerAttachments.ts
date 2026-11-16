@@ -12,6 +12,23 @@ export interface Attachment {
   size?: number;
 }
 
+export interface AttachmentUploadTask {
+  id: string;
+  name: string;
+  size?: number;
+  type: "image" | "file";
+  previewUrl?: string;
+  status: "uploading" | "error";
+  progress?: number;
+  error?: string;
+  retryable: boolean;
+}
+
+interface UploadSource {
+  file: File;
+  dataUrl?: string;
+}
+
 export const ATTACHMENT_LIMITS = {
   /** 单次桥接整包上限（SaveAttachmentFile 单调用；超过走分块上传）。 */
   file: 25 * 1024 * 1024,
@@ -56,6 +73,8 @@ export interface UseComposerAttachmentsOptions {
   taRef: React.RefObject<HTMLTextAreaElement>
   running: boolean
   onSend: (displayText: string, submitText?: string) => void
+  /** 会话草稿恢复用；缺省空数组保持既有调用方零变化。 */
+  initialAttachments?: Attachment[]
 }
 
 // 图片 base64 dataURL → 估算字节数（P2-4 上下文占用透明化）。
@@ -66,17 +85,34 @@ function dataUrlBytes(dataUrl: string): number {
   return Math.floor((body.length * 3) / 4);
 }
 
-// FE4-12：附件落盘失败的可见化文案（此前三处 catch {} 只归零 pendingPaste，
-// 用户拖入大文件后界面毫无变化，无法分辨后端拒绝/体积超限/读失败）。
-// 前缀点明是哪个文件、哪一步失败，否则多个文件连拖时分不清谁挂了。
-function attachFailText(step: string, file: File | null, e: unknown): string {
-  const why = e instanceof Error ? (e.message || String(e)) : String(e ?? "未知错误");
-  return `${step}${file ? `「${file.name}」` : ""}：${why}`;
+function fileFromDataUrl(dataUrl: string, name: string): File {
+  const match = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl)
+  if (!match) throw new Error("截图数据格式无效")
+  const binary = atob(match[2])
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new File([bytes], name, { type: match[1] })
 }
 
-function oversizeText(item: OversizeAttachment): string {
-  const mb = Math.round(item.limit / (1024 * 1024))
-  return `${item.kind === "image" ? "图片" : "文件"}附件失败「${item.file.name}」：超过 ${mb}MB 上限`
+// 对话框级故障没有单文件任务锚点，仍以 toast 可见上报。
+function attachFailText(step: string, e: unknown): string {
+  const why = e instanceof Error ? (e.message || String(e)) : String(e ?? "未知错误");
+  return `${step}：${why}`;
+}
+
+function uploadErrorText(step: string, e: unknown): string {
+  return `${step}：${e instanceof Error ? (e.message || String(e)) : String(e ?? "未知错误")}`
+}
+
+function isRetryableUploadError(e: unknown): boolean {
+  const message = e instanceof Error ? (e.message || String(e)) : String(e ?? "");
+  return !/(不支持|非法|格式|超限|超过|权限|invalid|unsupported|permission|denied|not found|no such|disk full|空间不足|磁盘已满)/i.test(message);
+}
+
+let uploadTaskSeq = 0;
+function nextUploadTaskId(): string {
+  uploadTaskSeq += 1;
+  return `upload-${Date.now()}-${uploadTaskSeq}`;
 }
 
 // bytesToBase64 分块编码（v4.508）：此前逐字节 String.fromCharCode 拼接——
@@ -107,12 +143,13 @@ function readSlice(file: File, start: number, end: number): Promise<ArrayBuffer>
   })
 }
 
-async function uploadChunkedAttachment(file: File): Promise<string> {
+async function uploadChunkedAttachment(file: File, onProgress?: (percent: number) => void): Promise<string> {
   const token = await app.AttachmentChunkBegin(file.name)
   try {
     for (let off = 0; off < file.size; off += CHUNK_UPLOAD_BYTES) {
       const buf = await readSlice(file, off, Math.min(off + CHUNK_UPLOAD_BYTES, file.size))
       await app.AttachmentChunkAppend(token, bytesToBase64(new Uint8Array(buf)))
+      onProgress?.(Math.min(95, Math.round(((off + CHUNK_UPLOAD_BYTES) / file.size) * 100)))
     }
     return await app.AttachmentChunkFinish(token)
   } catch (e: unknown) {
@@ -129,9 +166,10 @@ function appendUnique(prev: Attachment[], next: Attachment): Attachment[] {
 
 // v4.508：识图/OCR 不再清草稿后 setText 无消费——不解构（接口字段保留，
 // 调用方签名不变；text/taRef 同为兼容保留）。
-export function useComposerAttachments({ running, onSend }: UseComposerAttachmentsOptions) {
+export function useComposerAttachments({ running, onSend, initialAttachments }: UseComposerAttachmentsOptions) {
   const toast = useToast()
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [attachments, setAttachments] = useState<Attachment[]>(() => initialAttachments ?? [])
+  const [uploadTasks, setUploadTasks] = useState<AttachmentUploadTask[]>([])
   const [pendingPaste, setPendingPaste] = useState(0)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [captureBusy, setCaptureBusy] = useState(false)
@@ -140,54 +178,110 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
   // 与 Composer.submit 一致：onSend 每次渲染更新，避免异步回调读到过期闭包
   const onSendRef = useRef(onSend)
   onSendRef.current = onSend
+  const uploadSourcesRef = useRef(new Map<string, UploadSource>())
+
+  const updateTask = (id: string, patch: Partial<AttachmentUploadTask>) => {
+    setUploadTasks((prev) => prev.map((task) => task.id === id ? { ...task, ...patch } : task))
+  }
+
+  const removeTask = (id: string) => {
+    uploadSourcesRef.current.delete(id)
+    setUploadTasks((prev) => prev.filter((task) => task.id !== id))
+  }
+
+  const addErrorTask = (
+    file: { name: string; size?: number },
+    type: "image" | "file",
+    reason: string,
+    retryable: boolean,
+  ): AttachmentUploadTask => {
+    const task: AttachmentUploadTask = {
+      id: nextUploadTaskId(), name: file.name, size: file.size, type,
+      status: "error", error: reason, retryable,
+    }
+    setUploadTasks((prev) => [...prev, task])
+    return task
+  }
+
+  const performUpload = async (taskId: string, file: File, type: "image" | "file") => {
+    const source = uploadSourcesRef.current.get(taskId) ?? { file }
+    uploadSourcesRef.current.set(taskId, source)
+    setPendingPaste((n) => n + 1)
+    try {
+      if (type === "image") {
+        let dataUrl = source.dataUrl
+        if (!dataUrl) {
+          dataUrl = await new Promise<string>((res, rej) => {
+            const r = new FileReader()
+            r.onload = () => res(String(r.result))
+            r.onerror = () => rej(r.error)
+            r.readAsDataURL(file)
+          })
+          source.dataUrl = dataUrl
+          updateTask(taskId, { previewUrl: dataUrl, progress: 45 })
+        }
+        const path = await app.SavePastedImage(dataUrl)
+        setAttachments((prev) => appendUnique(prev, {
+          path, previewUrl: dataUrl, type: "image", size: file.size || dataUrlBytes(dataUrl),
+        }))
+      } else {
+        const path = file.size > ATTACHMENT_LIMITS.file
+          ? await uploadChunkedAttachment(file, (progress) => updateTask(taskId, { progress }))
+          : await (async () => {
+              const buf = await new Promise<ArrayBuffer>((res, rej) => {
+                const r = new FileReader()
+                r.onload = () => res(r.result as ArrayBuffer)
+                r.onerror = () => rej(r.error)
+                r.readAsArrayBuffer(file)
+              })
+              updateTask(taskId, { progress: 55 })
+              return app.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
+            })()
+        setAttachments((prev) => appendUnique(prev, { path, previewUrl: "", type: "file", size: file.size }))
+      }
+      removeTask(taskId)
+    } catch (e: unknown) {
+      const step = type === "image" ? "图片上传失败" : "文件上传失败"
+      updateTask(taskId, {
+        status: "error",
+        error: uploadErrorText(step, e),
+        retryable: isRetryableUploadError(e),
+        progress: undefined,
+      })
+    } finally {
+      setPendingPaste((n) => Math.max(0, n - 1))
+    }
+  }
 
   // 附加文件：图片走已有流程，非图片用 base64 上传
   const attachDroppedFiles = async (files: File[]) => {
     const split = splitOversizeAttachments(files)
-    for (const rejected of split.rejected) toast.show(oversizeText(rejected), "warn")
-    files = split.accepted
-    if (files.length === 0) return
-    const images: File[] = []
-    const others: File[] = []
-    for (const f of files) {
-      if (f.type.startsWith("image/")) images.push(f)
-      else others.push(f)
+    for (const rejected of split.rejected) {
+      addErrorTask(
+        rejected.file,
+        rejected.kind,
+        `超过 ${Math.round(rejected.limit / (1024 * 1024))}MB 上限`,
+        false,
+      )
     }
-    // 处理图片
-    for (const file of images) {
-      setPendingPaste((n) => n + 1)
-      try {
-        const dataUrl = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(file) })
-        const path = await app.SavePastedImage(dataUrl)
-        // v4.365：落盘成功后直接复用内存中的 dataUrl 作预览——原再走一次
-        // AttachmentDataURL 把同一份 base64 从盘上读回（大截图=两次全量跨桥）。
-        const previewUrl = dataUrl
-        setAttachments((prev) => appendUnique(prev, { path, previewUrl, type: "image", size: file.size || dataUrlBytes(dataUrl) }))
-      } catch (e: unknown) {
-        // FE4-12：不静默——失败必须可见（文件读取 / SavePastedImage 落盘）
-        toast.show(attachFailText("图片附件失败", file, e), "warn")
-      } finally { setPendingPaste((n) => Math.max(0, n - 1)) }
+    for (const file of split.accepted) {
+      const type = file.type.startsWith("image/") || isImagePath(file.name) ? "image" : "file"
+      const task: AttachmentUploadTask = {
+        id: nextUploadTaskId(), name: file.name, size: file.size, type,
+        status: "uploading", progress: 0, retryable: true,
+      }
+      uploadSourcesRef.current.set(task.id, { file })
+      setUploadTasks((prev) => [...prev, task])
+      await performUpload(task.id, file, type)
     }
-    // 处理非图片文件（P0-1 chip 化）：不再注入裸 @路径 文本，而是进入
-    // attachments 数组渲染为 chip（图标 + 文件名 + 扩展名 badge + 移除），
-    // 点击可预览；提交时 Composer.submit 仍按 attachments 统一注入 @路径，
-    // 行为与旧「裸文本注入」一致（调研 2026-08-16 P0-1）。
-    for (const file of others) {
-      setPendingPaste((n) => n + 1)
-      try {
-        // 超过单次整包上限的走分块上传（流式过桥，后端逐片落盘），其余照旧。
-        const path = file.size > ATTACHMENT_LIMITS.file
-          ? await uploadChunkedAttachment(file)
-          : await (async () => {
-              const buf = await new Promise<ArrayBuffer>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file) })
-              return app.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
-            })()
-        setAttachments((prev) => appendUnique(prev, { path, previewUrl: "", type: "file", size: file.size }))
-      } catch (e: unknown) {
-        // FE4-12：不静默——失败必须可见（文件读取 / 落盘失败一律上报）
-        toast.show(attachFailText("文件附件失败", file, e), "warn")
-      } finally { setPendingPaste((n) => Math.max(0, n - 1)) }
-    }
+  }
+
+  const retryUploadTask = async (id: string) => {
+    const task = uploadTasks.find((item) => item.id === id)
+    const source = uploadSourcesRef.current.get(id)
+    if (!task || task.status !== "error" || !task.retryable || !source) return
+    updateTask(id, { status: "uploading", error: undefined, progress: 0 })
+    await performUpload(id, source.file, task.type)
   }
 
   // 导入文件：通过原生对话框选择文件
@@ -211,10 +305,7 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
         // 大小只受磁盘约束，任何体积都能挂 chip。图片仍守 10MB（识图链
         // 限制面，与拖拽同口径）。
         if (image && (f.size ?? 0) > ATTACHMENT_LIMITS.image) {
-          toast.show(
-            `图片附件失败「${f.name}」：超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`,
-            "warn",
-          )
+          addErrorTask(f, "image", `超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`, false)
           continue
         }
         if (image) {
@@ -225,7 +316,7 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
         }
       }
     } catch (e: unknown) {
-      toast.show(attachFailText("选择附件失败", null, e), "warn")
+      toast.show(attachFailText("选择附件失败", e), "warn")
     }
   }
 
@@ -250,18 +341,25 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
   const handleCropConfirm = async (dataUrl: string) => {
     setCropSrc(null)
     if (dataUrlBytes(dataUrl) > ATTACHMENT_LIMITS.image) {
-      toast.show(`截图超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`, "warn")
+      addErrorTask(
+        { name: `截图-${Date.now()}.png`, size: dataUrlBytes(dataUrl) },
+        "image",
+        `超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`,
+        false,
+      )
       return
     }
-    setPendingPaste((n) => n + 1)
     try {
-      const path = await app.SavePastedImage(dataUrl)
-      // v4.365：同粘贴路径——复用内存 dataUrl 作预览，省第二次全量回读
-      setAttachments((prev) => [...prev, { path, previewUrl: dataUrl, type: "image" }])
+      const file = fileFromDataUrl(dataUrl, `截图-${Date.now()}.png`)
+      const task: AttachmentUploadTask = {
+        id: nextUploadTaskId(), name: file.name, size: file.size, type: "image",
+        previewUrl: dataUrl, status: "uploading", progress: 45, retryable: true,
+      }
+      uploadSourcesRef.current.set(task.id, { file, dataUrl })
+      setUploadTasks((prev) => [...prev, task])
+      await performUpload(task.id, file, "image")
     } catch (e: unknown) {
-      toast.show(String((e as Error)?.message ?? e), "warn")
-    } finally {
-      setPendingPaste((n) => Math.max(0, n - 1))
+      addErrorTask({ name: "截图", size: dataUrlBytes(dataUrl) }, "image", uploadErrorText("截图上传失败", e), true)
     }
   }
 
@@ -307,9 +405,10 @@ export function useComposerAttachments({ running, onSend }: UseComposerAttachmen
   }
 
   return {
-    attachments, setAttachments, pendingPaste,
+    attachments, setAttachments, uploadTasks, pendingPaste,
     cropSrc, setCropSrc, captureBusy, recognizingPath, ocrPath,
     attachDroppedFiles, handlePickFiles, handleScreenshot,
     handleCropConfirm, handleRecognize, handleOCRText,
+    retryUploadTask, removeUploadTask: removeTask,
   }
 }

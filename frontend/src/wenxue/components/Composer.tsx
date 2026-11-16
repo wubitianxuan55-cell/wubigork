@@ -7,6 +7,7 @@ import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import { applyTableConversion, detectTableBlock } from "../lib/tableData";
 import { useComposerInsertStore } from "../lib/store";
+import { getComposerDraft, saveComposerDraft } from "../../lib/composerDrafts";
 import { SlashMenu } from "./SlashMenu";
 import { ArgMenu } from "./ArgMenu";
 import { FileMenu } from "./FileMenu";
@@ -55,9 +56,11 @@ function loadComposerHeight(): number {
 }
 
 export function Composer({
-  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, contextStatus, placeholderOverride,
+  running, cwd, sessionKey, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, contextStatus, placeholderOverride,
 }: {
   running: boolean; cwd?: string;
+  /** 宿主生成的会话草稿键；缺省不持久化，保持独立复用场景零变化。 */
+  sessionKey?: string;
   /** placeholder 覆盖（sin 加性缝）：disabled 态显示宿主文案而非「加载中…」。 */
   placeholderOverride?: string;
   onSend: (displayText: string, submitText?: string) => void;
@@ -74,7 +77,8 @@ export function Composer({
   onQueueDrop?: (count: number) => void;
 }) {
   const t = useT();
-  const [text, setText] = useState("");
+  const initialDraft = useMemo(() => getComposerDraft(sessionKey), [sessionKey]);
+  const [text, setText] = useState(initialDraft.text);
   // 粘贴表格即数据：识别 CSV/TSV 表格块，发送时转 Markdown 表格（可关）
   const tableInfo = useMemo(() => detectTableBlock(text), [text]);
   const [tableMode, setTableMode] = useState(true);
@@ -85,11 +89,15 @@ export function Composer({
   const wasRunning = useRef(running);
 
   // ── 附件/粘贴/截图/识图/OCR（useComposerAttachments） ──
-  const att = useComposerAttachments({ text, setText, taRef, running, onSend });
+  const att = useComposerAttachments({
+    text, setText, taRef, running, onSend,
+    initialAttachments: initialDraft.attachments,
+  });
   const {
-    attachments, setAttachments, pendingPaste, cropSrc, setCropSrc, captureBusy,
+    attachments, setAttachments, uploadTasks, pendingPaste, cropSrc, setCropSrc, captureBusy,
     recognizingPath, ocrPath, attachDroppedFiles, handlePickFiles,
     handleScreenshot, handleCropConfirm, handleRecognize, handleOCRText,
+    retryUploadTask, removeUploadTask,
   } = att;
 
   // ── 工作区切换菜单（useComposerWorkspace） ──
@@ -112,13 +120,30 @@ export function Composer({
   } = menus;
 
   // 排队（pending 可编辑/删除/插话；sending = 已派出等回合接手，整列锁定）
-  const queueRef = useRef<ComposerQueueItem[]>([]);
-  const [queue, setQueue] = useState<ComposerQueueItem[]>([]);
+  const initialQueue = useMemo<ComposerQueueItem[]>(
+    () => initialDraft.queue
+      .filter((item) => item.status === "pending")
+      .map((item) => ({ ...item, status: "pending" })),
+    [initialDraft],
+  );
+  const queueRef = useRef<ComposerQueueItem[]>(initialQueue);
+  const [queue, setQueue] = useState<ComposerQueueItem[]>(initialQueue);
+  // Restored pending rows are visible but not auto-dispatched on mount: the
+  // previous run may already be over. They are armed only by observing a live
+  // running=true turn, preventing cross-session duplicate sends.
+  const queueArmedRef = useRef(initialQueue.length === 0 || running);
   const syncQueue = (next: ComposerQueueItem[]) => {
     queueRef.current = next;
     setQueue(next);
   };
   const queueLen = queue.length;
+  useEffect(() => {
+    saveComposerDraft(sessionKey, {
+      text,
+      attachments,
+      queue: queue.filter((item) => item.status === "pending"),
+    });
+  }, [sessionKey, text, attachments, queue]);
   // 卸载时队列未清空如实上报（ref 读取，避免闭包过期；仅卸载触发一次）
   const queueDropRef = useRef(onQueueDrop)
   queueDropRef.current = onQueueDrop
@@ -149,9 +174,11 @@ export function Composer({
       return;
     }
     if (running) {
+      queueArmedRef.current = true;
       if (isQueueBusy(queueRef.current)) syncQueue(dropSending(queueRef.current));
       return;
     }
+    if (!queueArmedRef.current) return;
     if (isQueueBusy(queueRef.current)) return;
     const next = firstPending(queueRef.current);
     if (!next) return;
@@ -238,7 +265,7 @@ export function Composer({
   const assembleSubmit = (): { displayText: string; submitText: string } | null => {
     const converted = tableMode ? applyTableConversion(text, true) : text;
     const tTrim = converted.trim();
-    if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return null;
+    if ((!tTrim && attachments.length === 0) || pendingPaste > 0 || uploadTasks.length > 0) return null;
     // 含空格路径用 @"..." 引号形式（消费端原罪 sin_file_refs 支持引号 token）：
     // 裸 @token 在第一个空格处截断，"C:\Users\John Doe\a.txt" 这类路径注入后
     // 静默失效。不含空格的路径保持裸形式（办公/原罪的既有解析口径零变化）。
@@ -452,12 +479,15 @@ export function Composer({
       {/* ── 附件预览 ── */}
       <ComposerAttachmentBar
         attachments={attachments}
+        uploads={uploadTasks}
         running={running}
         recognizingPath={recognizingPath}
         ocrPath={ocrPath}
         onRecognize={handleRecognize}
         onOCRText={handleOCRText}
         onRemove={(path) => setAttachments((prev) => prev.filter((x) => x.path !== path))}
+        onRetryUpload={(id) => void retryUploadTask(id)}
+        onRemoveUpload={removeUploadTask}
       />
 
       {/* ── 粘贴块 ── */}
@@ -522,7 +552,7 @@ export function Composer({
           dragOver={dragOver}
           shiftHeld={shiftHeld}
           queueLen={queueLen}
-          pendingPaste={pendingPaste}
+          pendingPaste={pendingPaste + uploadTasks.length}
           attachmentsCount={attachments.length}
           onDrop={onDrop}
           onDragOver={onDragOver}
@@ -540,7 +570,7 @@ export function Composer({
           onToggleWorkspaceMenu={() => { if (!running) setWorkspaceMenuOpen((o) => !o) }}
           workspaceAnchorRef={workspaceAnchorRef}
           running={running}
-          pendingPaste={pendingPaste}
+          pendingPaste={pendingPaste + uploadTasks.length}
           captureBusy={captureBusy}
           onPickFiles={() => void handlePickFiles()}
           onScreenshot={() => void handleScreenshot()}

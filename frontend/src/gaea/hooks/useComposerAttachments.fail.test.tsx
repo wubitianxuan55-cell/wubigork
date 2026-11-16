@@ -1,7 +1,6 @@
 // FE4-12 回归防线：附件落盘失败不再被空 catch 吞掉。
-// 此前三处 catch {} 只归零 pendingPaste：用户拖入大文件后界面毫无变化，无法
-// 诊断是后端拒绝、体积超限还是读失败。现在失败一律走 toast（warn）可见上报；
-// handlePickFiles 只在「绑定不存在」（typeof app.PickFiles !== 'function'）时静默。
+// 逐文件失败保留为可重试/不可重试任务卡；只有无法绑定到具体文件的对话框故障
+// 继续走 toast。handlePickFiles 仅在「绑定不存在」时静默。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook, screen, waitFor } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
@@ -61,28 +60,30 @@ const sizedFile = (file: File, size: number) => {
 describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks() })
 
-  it('图片附件落盘失败 → toast 出现失败原因与文件名', async () => {
+  it('图片附件落盘失败 → 保留可重试任务卡状态', async () => {
     bridgeMocks.SavePastedImage.mockRejectedValue(new Error('后端拒绝：体积超限'))
     const { result } = renderAttachments()
 
     await act(async () => { await result.current.attachDroppedFiles([pngFile('大截图.png')]) })
 
-    await waitFor(() => expect(screen.getByText(/图片附件失败/)).toBeTruthy())
-    const shown = screen.getByText(/图片附件失败/).textContent ?? ''
-    expect(shown).toContain('大截图.png')
-    expect(shown).toContain('体积超限')
+    await waitFor(() => expect(result.current.uploadTasks).toHaveLength(1))
+    expect(result.current.uploadTasks[0]).toMatchObject({
+      name: '大截图.png', type: 'image', status: 'error', retryable: false,
+    })
+    expect(result.current.uploadTasks[0].error).toContain('体积超限')
     expect(result.current.attachments).toHaveLength(0)
     expect(result.current.pendingPaste).toBe(0)
   })
 
-  it('普通文件落盘失败 → toast 可见', async () => {
+  it('普通文件落盘失败 → 任务记录文件名与原因', async () => {
     bridgeMocks.SaveAttachmentFile.mockRejectedValue(new Error('disk full'))
     const { result } = renderAttachments()
 
     await act(async () => { await result.current.attachDroppedFiles([binFile('数据.bin')]) })
 
-    await waitFor(() => expect(screen.getByText(/文件附件失败/)).toBeTruthy())
-    expect(screen.getByText(/文件附件失败/).textContent).toContain('数据.bin')
+    await waitFor(() => expect(result.current.uploadTasks).toHaveLength(1))
+    expect(result.current.uploadTasks[0]).toMatchObject({ name: '数据.bin', status: 'error', retryable: false })
+    expect(result.current.uploadTasks[0].error).toContain('disk full')
   })
 
   it('落盘成功时不出现任何失败提示（反向验证：不是恒弹）', async () => {
@@ -112,7 +113,7 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
     expect(screen.queryByText(/附件失败/)).toBeNull()
   })
 
-  it('分块上传中段失败：Abort 清理后端会话 + toast 可见', async () => {
+  it('分块上传中段失败：Abort 清理后端会话 + 任务可重试', async () => {
     const { result } = renderAttachments()
     const tooLarge = sizedFile(binFile('中断.zip'), 25 * 1024 * 1024 + 1)
     bridgeMocks.AttachmentChunkBegin.mockResolvedValue('chunk-token-2')
@@ -122,13 +123,14 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
 
     expect(bridgeMocks.AttachmentChunkAbort).toHaveBeenCalledWith('chunk-token-2')
     expect(bridgeMocks.AttachmentChunkFinish).not.toHaveBeenCalled()
-    await waitFor(() => expect(screen.getByText(/文件附件失败/)).toBeTruthy())
-    expect(screen.getByText(/文件附件失败/).textContent).toContain('bridge timeout')
+    await waitFor(() => expect(result.current.uploadTasks).toHaveLength(1))
+    expect(result.current.uploadTasks[0]).toMatchObject({ name: '中断.zip', status: 'error', retryable: true })
+    expect(result.current.uploadTasks[0].error).toContain('bridge timeout')
     expect(result.current.attachments).toHaveLength(0)
     expect(result.current.pendingPaste).toBe(0)
   })
 
-  it('文件超过分块总量上限（1GiB）：元数据即拒收、不读不传、提示可见', async () => {
+  it('文件超过分块总量上限（1GiB）：元数据即拒收、不读不传、生成不可重试任务', async () => {
     const read = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer')
     const { result } = renderAttachments()
     const tooHuge = sizedFile(binFile('monster.bin'), 1024 * 1024 * 1024 + 1)
@@ -137,12 +139,16 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
 
     expect(read).not.toHaveBeenCalled()
     expect(bridgeMocks.AttachmentChunkBegin).not.toHaveBeenCalled()
-    expect(screen.getByText(/超过 1024MB 上限/)).toBeTruthy()
+    expect(result.current.uploadTasks).toHaveLength(1)
+    expect(result.current.uploadTasks[0]).toMatchObject({
+      name: 'monster.bin', status: 'error', retryable: false,
+    })
+    expect(result.current.uploadTasks[0].error).toContain('1024MB')
     expect(result.current.pendingPaste).toBe(0)
     read.mockRestore()
   })
 
-  it('图片超过 10MB：FileReader 不启动、后端不调用', async () => {
+  it('图片超过 10MB：FileReader 不启动、后端不调用、生成不可重试任务', async () => {
     const read = vi.spyOn(FileReader.prototype, 'readAsDataURL')
     const { result } = renderAttachments()
     const tooLarge = sizedFile(pngFile('oversize.png'), 10 * 1024 * 1024 + 1)
@@ -151,7 +157,10 @@ describe('useComposerAttachments 附件失败可见化（FE4-12）', () => {
 
     expect(read).not.toHaveBeenCalled()
     expect(bridgeMocks.SavePastedImage).not.toHaveBeenCalled()
-    expect(screen.getByText(/超过 10MB 上限/)).toBeTruthy()
+    expect(result.current.uploadTasks).toHaveLength(1)
+    expect(result.current.uploadTasks[0]).toMatchObject({
+      name: 'oversize.png', status: 'error', retryable: false,
+    })
     read.mockRestore()
   })
 
@@ -217,8 +226,40 @@ describe('useComposerAttachments v4.508 文件交互修复', () => {
     const { result } = renderAttachments()
     await act(async () => { await result.current.handlePickFiles() })
     expect(result.current.attachments).toHaveLength(0)
-    expect(screen.getByText(/图片附件失败/)).toBeTruthy()
-    expect(screen.getByText(/超过 10MB 上限/)).toBeTruthy()
+    expect(result.current.uploadTasks).toHaveLength(1)
+    expect(result.current.uploadTasks[0]).toMatchObject({
+      name: '巨图.png', status: 'error', retryable: false,
+    })
+    expect(result.current.uploadTasks[0].error).toContain('10MB')
+  })
+
+  it('失败任务可重试：成功后转正为附件 chip 并清理任务', async () => {
+    bridgeMocks.SavePastedImage
+      .mockRejectedValueOnce(new Error('temporary bridge timeout'))
+      .mockResolvedValueOnce('.gaea/uploads/retry.png')
+    const { result } = renderAttachments()
+    await act(async () => { await result.current.attachDroppedFiles([pngFile('重试.png')]) })
+    expect(result.current.uploadTasks[0]).toMatchObject({ status: 'error', retryable: true })
+
+    await act(async () => { await result.current.retryUploadTask(result.current.uploadTasks[0].id) })
+    expect(result.current.uploadTasks).toHaveLength(0)
+    expect(result.current.attachments).toHaveLength(1)
+    expect(result.current.attachments[0]).toMatchObject({
+      path: '.gaea/uploads/retry.png', type: 'image',
+    })
+  })
+
+  it('裁剪截图上传失败也进入同一任务卡，可重试', async () => {
+    bridgeMocks.SavePastedImage.mockRejectedValueOnce(new Error('temporary timeout'))
+    const { result } = renderAttachments()
+    await act(async () => {
+      await result.current.handleCropConfirm('data:image/png;base64,AQID')
+    })
+    expect(result.current.uploadTasks).toHaveLength(1)
+    expect(result.current.uploadTasks[0]).toMatchObject({
+      type: 'image', status: 'error', retryable: true,
+    })
+    expect(result.current.uploadTasks[0].previewUrl).toContain('data:image/png')
   })
 
   it('识图发送后输入框草稿保留（此前 setText("") 清用户半句话）', async () => {

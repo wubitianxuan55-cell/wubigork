@@ -4,7 +4,7 @@ import { Layout, Modal } from "antd";
 import {
   Check, SquarePen, ChevronDown, FolderGit2, FileText,
   PanelRight, MessageSquare, Trash2, X, Aim, Inbox,
-  ClipboardList, Sparkles,
+  ClipboardList, Sparkles, BookOpen, Shield,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -75,6 +75,7 @@ import { usePaneTabsStore } from "./lib/paneTabs";
 import { usePaneEnabledStore } from "./lib/paneEnabled";
 import { normalizePreviewPath } from "./lib/officeTurnProjection";
 import { isDisabledWenxueCommand } from "./lib/disabledDomains";
+import { makeComposerSessionKey } from "../lib/composerDrafts";
 import { SIDEBAR_REGISTRY, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./lib/taskTemplates";
 
@@ -181,6 +182,10 @@ export default function App() {
       ? currentSessionPath.replace(/[\\/:*?"<>|]/g, "_")
       : cwdNow ? `unsaved_${cwdNow.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
   }, [currentSessionPath, state.meta?.cwd]);
+  const composerSessionKey = useMemo(
+    () => makeComposerSessionKey("play", currentSessionPath, state.meta?.cwd, state.sessionNonce),
+    [currentSessionPath, state.meta?.cwd, state.sessionNonce],
+  );
   // pane tabs 按会话持久化：会话切换时读档/复位（better-sidebar 会话隔离语义）
   useEffect(() => {
     usePaneTabsStore.getState().setSessionKey(currentSessionKey);
@@ -326,7 +331,7 @@ export default function App() {
   const {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
     confirmDeleteCurrent, switchFolder, resumeSessionInProject,
-    recentSessions, resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
+    resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
   } = useSessionHandlers({
     t, toast, refreshSessions, deleteSession, newSessionAndReset, pickWorkspace,
     switchWorkspace, handleResumeSession, handleDeleteSession, handleRenameSession,
@@ -546,12 +551,12 @@ export default function App() {
       templates.find((template) => template.name === name)
       ?? FALLBACK_TEMPLATES.find((template) => template.name === name)
       ?? FALLBACK_TEMPLATES[fallbackIndex]!;
-    // 2026-11-15 刀4：欢迎页三快捷卡小说化（开篇/续写/大纲），模板与
-    // lib/taskTemplates.ts 八条小说模板同源。
+    // 欢迎页快捷卡：开篇/续写/候选稿/大纲，模板与 taskTemplates.ts 同源。
     return [
       { key: "chapter-first", label: t("wenxue.quickChapterFirst"), Icon: FileText, template: resolve("chapter-first", 0) },
       { key: "chapter-continue", label: t("wenxue.quickChapterContinue"), Icon: ClipboardList, template: resolve("chapter-continue", 1) },
-      { key: "outline-push", label: t("wenxue.quickOutlinePush"), Icon: Sparkles, template: resolve("outline-push", 2) },
+      { key: "chapter-candidates", label: t("wenxue.quickChapterCandidates"), Icon: Aim, template: resolve("chapter-candidates", 2) },
+      { key: "outline-push", label: t("wenxue.quickOutlinePush"), Icon: Sparkles, template: resolve("outline-push", 3) },
     ];
   }, [templates, t]);
 
@@ -657,15 +662,7 @@ export default function App() {
   const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
   const showOfficeComposer = chatTab === "chat" && !activeSubagent && !!currentProject;
   const showWenxueHome = chatTab === "chat" && !activeSubagent && state.items.length === 0;
-  const homeQuickActions = useMemo(
-    () => quickActions.map(({ key, label, Icon, template }) => ({
-      key,
-      label,
-      Icon,
-      prompt: template.prompt,
-    })),
-    [quickActions],
-  );
+  const showWenxueEmptyHome = showWenxueHome && !!currentProject;
   const requestNewNovel = useCallback(() => {
     window.dispatchEvent(new Event("wenxue:new-novel-requested"));
   }, []);
@@ -718,7 +715,7 @@ export default function App() {
           SIDEBAR_MAX_WIDTH={SIDEBAR_MAX_WIDTH}
         />
 
-        <section className={`chat-pane v3-zone office-chat-active${showWenxueHome && currentProject ? " wx-home-chat" : ""}${homePrivacy ? " is-private" : ""}`}>
+        <section className={`chat-pane v3-zone office-chat-active${showWenxueEmptyHome ? " office-chat-empty wx-home-empty" : ""}${homePrivacy ? " is-private" : ""}`}>
           <header className="office-topbar flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
             <div className="office-topbar__primary">
               <div className="flex items-center gap-2 min-w-0">
@@ -826,25 +823,14 @@ export default function App() {
                   />
                 ) : (
                   <>
-                    {chatTab === "chat" && showWenxueHome && (
+                    {chatTab === "chat" && showWenxueHome && !currentProject && (
                       <Suspense fallback={null}>
                         <WenxueHome
                           projects={projectGroups}
-                          currentProject={currentProject}
                           projectsLoaded={projectGroupsLoaded}
-                          recentSessions={recentSessions}
-                          currentSessionPath={currentSessionPath ?? undefined}
-                          quickActions={homeQuickActions}
                           onOpenProject={selectNovelWorkspace}
                           onCreateNovel={requestNewNovel}
                           onOpenHistory={() => { void openHistory(); }}
-                          onResumeSession={(path, projectPath) => {
-                            void resumeSessionInProject(path, projectPath);
-                          }}
-                          onNewSession={() => { void newSessionAndReset(); }}
-                          onInsertPrompt={(prompt) => useComposerInsertStore.getState().requestText(prompt)}
-                          onSwitchTab={(tab) => setChatTab(tab)}
-                          onOpenLibrary={() => { void openNovelLibrary(); }}
                           privateMode={homePrivacy}
                           onTogglePrivacy={toggleHomePrivacy}
                         />
@@ -924,7 +910,7 @@ export default function App() {
                 方便）——会话级登记表驱动，消息流正文卡保留（不抽卡）。
                 新建会话空首页不挂载：避免沿用上一会话登记缓存，出现无主
                 「交互文件」面板。进入实际会话内容后才显示。 */}
-            {showOfficeComposer && (
+            {showOfficeComposer && !showWenxueEmptyHome && (
               <DeliverablesDock items={sessionDeliverables} />
             )}
             <CompactContext.Provider value={compactMode}>
@@ -944,6 +930,53 @@ export default function App() {
                 onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
             )}
+            {showOfficeComposer && showWenxueEmptyHome && (
+              <>
+                <div className="office-empty-heading wx-home-empty-heading">
+                  <div className="wx-home-empty-context">
+                    <span>
+                      <BookOpen size={13} aria-hidden />
+                      {homePrivacy
+                        ? t("wenxue.home.hiddenWork")
+                        : `${t("wenxue.home.currentWork")} · ${currentProject?.name ?? ""}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { void openNovelLibrary(); }}
+                    >
+                      {t("wenxue.home.switchWork")}
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={homePrivacy}
+                      onClick={toggleHomePrivacy}
+                    >
+                      <Shield size={11} aria-hidden />
+                      {homePrivacy ? t("wenxue.home.privacyOn") : t("wenxue.home.privacy")}
+                    </button>
+                  </div>
+                  <h1>{t("wenxue.home.continueTitle")}</h1>
+                </div>
+                <div
+                  className="office-quick-actions wx-home-quick-actions"
+                  role="group"
+                  aria-label={t("wenxue.home.quickActions")}
+                >
+                  {quickActions.map(({ key, label, Icon, template }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className="office-quick-action"
+                      onClick={() => useComposerInsertStore.getState().requestText(template.prompt)}
+                      title={template.description || template.prompt}
+                    >
+                      <Icon size={15} aria-hidden />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             {showOfficeComposer && (
             <div className="office-composer-stack">
               <RunStatus
@@ -953,6 +986,8 @@ export default function App() {
               />
               <div className="composer-glow office-composer">
                 <Composer
+                  key={composerSessionKey}
+                  sessionKey={composerSessionKey}
                   running={state.running}
                   cwd={state.meta?.cwd}
                   onSend={handleSend}
