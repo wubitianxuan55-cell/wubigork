@@ -68,7 +68,7 @@
 | ✅ | 建立长期迭代交接档 `docs/gaea-better-sidebar-go-iteration-2026-11.md`，同步 AGENTS 入口、docs 索引、progress 与 todos |
 | ✅ | F0：`f49ea150` 功能提交 + 独立干净工作树构建（Vite 20.38s / Wails 50.158s）+ 正式路径冒烟 200 + 预览 ZIP/源码 TAR/哈希/包记录/记忆更新 |
 | ⏳ | 用户决定是否 push（当前 ahead 25：better-sidebar 全清+卫生批+验证扫+装机；golangci/eslint 已清零，push 即绿） |
-| ⏳ | **发版门欠账（2026-11-13 立账）**：v4.530.0~v4.543.0 共 14 已装机版本零 CHANGELOG 版本段/零 releases 发布说明（releases/README V4_RECENT 也停在 v4.529.1），17 个「未发布」段+WHIRL 族六版 CHANGELOG 全缺待折；wails.json 抬号史权威考古表已立 day-log 2026-11-13 §13——发版时按表折段+补 14 版说明（release.ps1 骨架+人手收尾） |
+| ✅ | **发版门欠账收官（2026-11-13 立账→2026-11-17 折段完成）**：v4.530.0~v4.543.0 十四版 CHANGELOG 段+releases/vX.md 说明全补齐（`318ac521` 已推 origin）——16 个未发布段按考古表（day-log §13 抬号史+git 版本区间/树文件双重验证）落版折段：v4.530.0=Orca 四批+注意力五刀+Memory Atlas（树文件在位实锚）/v4.534.0=Living Constellation+OpenMausBot/v4.535.0=编程回流三线/v4.542.0=上下文界面/v4.543.0=超大附件；九个无段版本补段（git 区间证据）；「未发布」段清零；同批随 v4.544.0 发版（抬号三处+CHANGELOG v4.544.0 段+releases/v4.544.0.md，`ad9d11cf`） |
 | ✅ | G1.6 worktree 只读展示+Git 子进程预算收口：`GaeaGitWorktrees` 绑定+GitStatus linked 标注+GitPanel 第四镜头；git 调用统一超时（读 20s/写 60s）+输出预算（8MB/1MB/diff 4MB 截断）；设计判定=切换归工作区切换器产品门、服务扩展不重做；分支 `feat/g1-git-deepening`（自 `de283ace`）Go/tsc/vitest/drift 全绿待并入 |
 | ✅ | G1.6 已快进并入 main（205c5947，本地未 push） |
 | ✅ | G1.7 冲突/重命名/二进制展示策略收口：GitFileStatus.conflict 六形态+origPath 溯源+冲突 staged=false；GitPanel 冲突独立分组（不代解）+rename `← 原名`；buildGitDiff 二进制诚实占位；gitStatusInk 六形态补齐；已快进并入 main（277dc240+7b7f314d） |
