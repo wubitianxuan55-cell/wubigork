@@ -175,18 +175,24 @@ func (a *App) gaeaApplyCfg(mutate func(cfg *gaeaConfig.Config)) error {
 		return err
 	}
 	ga.mu.Lock()
-	defer ga.mu.Unlock()
 	if ga.cfg == nil {
+		ga.mu.Unlock()
 		return errors.New("gaea: 办公引擎配置未初始化")
 	}
 	mutate(ga.cfg)
 	if err := gaeaConfig.Save(ga.cfg); err != nil {
+		ga.mu.Unlock()
 		return fmt.Errorf("gaea: 保存配置失败: %w", err)
 	}
+	rebuildErr := a.gaeaRebuildLocked()
+	ga.mu.Unlock()
 	// 2026-11-15 刀1：图文独立引擎跟随重建（全局配置面变更同步生效；
 	// 图文引擎未初始化时跳过，首次 WenxueEngineInit 自然取新配置）。
+	// 2026-11-16 审查批1：挪出 ga.mu 临界区——wx 构建经全局 loader 读
+	// ga.cfg，持锁跨 Build 是④号自死锁同族（纪律同 applyOfficeFeatureModel）；
+	// 先办公后图文与旧实现顺序相反，两侧各读已落盘的 ga.cfg 无依赖。
 	a.wenxueReloadIfInit()
-	return a.gaeaRebuildLocked()
+	return rebuildErr
 }
 
 // GaeaSaveSettings 保存办公引擎设置（模型 / Agent 参数 / 权限 / 沙箱），

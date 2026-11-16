@@ -85,3 +85,74 @@ func TestWenxueReloadIfInitCompletesUnderFollowUpCallback(t *testing.T) {
 		t.Fatalf("图文热重载失败: %v", err)
 	}
 }
+
+// 2026-11-16 审查批1 死锁同族回归锁：ga.cfg 为 nil 时 WenxueEngineInit 注册的
+// 全局 loader 旧实现闭包内取 ga.mu——任何「持 ga.mu 调 gaeaConfig.Load」路径
+// （applyOfficeFeatureModel/gaeaApplyCfg 的 wx 跟随重建、办公 gaeaRebuildLocked
+// 自身的 boot.Build→config.Load）同 goroutine 重入即整应用冻结。新实现无锁读
+// 指针：持锁调用必须秒级完成。复刻形态=直进图文板块（ga.cfg nil→注册 wx
+// loader）后模型中心改办公绑定。
+func TestWenxueEngineInitLoaderCompletesUnderGaMu(t *testing.T) {
+	prevBrain := wenxueBrainDirOverride
+	wenxueBrainDirOverride = t.TempDir()
+	brainDir := wenxueBrainDirOverride
+	t.Cleanup(func() {
+		wenxueBrainDirOverride = prevBrain
+		// 图文脑 DB 句柄不关会让 TempDir 清理失败（unlinkat 占用）。
+		knowledge.ResetForTest()
+		db.CloseDatabase(brainDir)
+	})
+
+	cfg := gaeaConfig.Default()
+	cfg.DefaultModel = "gaea"
+	cfg.Providers = []gaeaConfig.ProviderEntry{{Name: "gaea", Kind: "wubigrok", Model: "", ContextWindow: 1_000_000}}
+	cfg.Tools.Enabled = nil
+	cfg.Sandbox.Bash = "off"
+	// 预注册 harness loader：gaeaLoadConfig 取测试配置，不读真实用户配置；
+	// 随后 WenxueEngineInit 会以自己的 loader 覆盖本槽（ga.cfg 为 nil 的注册分支）。
+	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
+	t.Cleanup(func() { gaeaConfig.SetLoader(nil) })
+	bridge.SetClient(ai.NewClient(config.Load()))
+	t.Cleanup(func() { bridge.SetClient(nil) })
+
+	a := &App{core: &core{cfg: config.Load()}}
+	a.ctx = context.Background()
+
+	// 复刻「直进图文板块」：ga.cfg 置 nil → 注册分支必走。
+	ga.mu.Lock()
+	ga.cfg = nil
+	ga.mu.Unlock()
+	t.Cleanup(func() {
+		ga.mu.Lock()
+		ga.cfg = nil
+		ga.mu.Unlock()
+	})
+	if err := a.WenxueEngineInit(); err != nil {
+		t.Fatalf("图文引擎首建失败: %v", err)
+	}
+	t.Cleanup(func() {
+		wx.mu.Lock()
+		old := wx.ctrl
+		wx.ctrl = nil
+		wx.mu.Unlock()
+		if old != nil {
+			old.Close()
+		}
+	})
+
+	// 持 ga.mu 调全局 loader（config.Load 首选 loaderOverride）：旧实现同
+	// goroutine 重入 ga.mu 挂死（watchdog 判死；泄漏 goroutine 持 ga.mu，
+	// 仅在回归态发生——套件此时本已不可用），新实现秒级返回。
+	done := make(chan struct{})
+	go func() {
+		ga.mu.Lock()
+		defer ga.mu.Unlock()
+		_, _ = gaeaConfig.Load()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("图文 loader 持 ga.mu 调用挂死——loader 闭包禁止取 ga.mu（审查批1 纪律）")
+	}
+}

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 )
 
 func isolateWenxueRuntime(t *testing.T) (*App, string) {
@@ -244,4 +246,26 @@ func TestWenxueCreateNovel_BookInfoAndPin(t *testing.T) {
 			t.Fatalf("空等级应缺省全年龄: %s", raw2)
 		}
 	})
+}
+
+// 2026-11-16 审查批1 行为锁：图文 UI 绑定边界不混入办公 WriteRoots——旧实现
+// roots 拼 ga.cfg.WriteRoots()（=办公 workspace_root+allow_write），办公根指向
+// 盘面任意目录即扩大图文编辑器读边界（b6c10f7d/bce7ccef 的 WriteRoots/ReadRoots
+// 接管只封 agent 面，绑定面不得保留第二套混杂口径）。
+func TestWenxueWithinWriteRootsNoOfficeRoots(t *testing.T) {
+	_, root := isolateWenxueRuntime(t)
+
+	office := t.TempDir()
+	cfg := gaeaConfig.Default()
+	cfg.Sandbox.WorkspaceRoot = office
+	ga.mu.Lock()
+	ga.cfg = cfg
+	ga.mu.Unlock()
+
+	if wenxueWithinWriteRoots(filepath.Join(office, "合同.docx")) {
+		t.Fatal("办公工作区文件不应落入图文 UI 绑定边界")
+	}
+	if !wenxueWithinWriteRoots(filepath.Join(root, "章节", "001.md")) {
+		t.Fatal("图文工作区文件应在绑定边界内")
+	}
 }

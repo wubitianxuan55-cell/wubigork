@@ -1372,7 +1372,7 @@ func (a *App) WenxueReadFile(rel string) FilePreview {
 		return FilePreview{Path: rel, Markdown: "非法工作区相对路径: " + rel}
 	}
 	if !wenxueWithinWriteRoots(abs) {
-		return FilePreview{Path: rel, Markdown: "路径不在可读范围内（工作区/allow_write）: " + rel}
+		return FilePreview{Path: rel, Markdown: "路径不在可读范围内（工作区）: " + rel}
 	}
 	b, err := os.ReadFile(abs)
 	if err != nil {
@@ -1858,13 +1858,13 @@ func (a *App) wenxueWithinReadRoots(abs string) bool {
 	return false
 }
 
-// wenxueWithinWriteRoots 判断绝对路径是否落在任一可写根（工作区 + allow_write）内。
-// 相对路径按工作区根解析（v4.405.1，与读侧同惯例）。
+// wenxueWithinWriteRoots 判断绝对路径是否落在图文档内。
+// 2026-11-16 审查批1：摘除 ga.cfg.WriteRoots() 混入（fork 自办公的遗留形态
+// ——办公 workspace_root/allow_write 会扩大图文 UI 绑定读边界，b6c10f7d/
+// bce7ccef 的 WriteRoots/ReadRoots 接管只封 agent 面，绑定面不保留第二套
+// 混杂口径）。相对路径按工作区根解析（v4.405.1，与读侧同惯例）。
 func wenxueWithinWriteRoots(abs string) bool {
 	roots := []string{wenxueWorkspace()}
-	if ga.cfg != nil {
-		roots = ga.cfg.WriteRoots()
-	}
 	abs = wenxueResolveAgainstWorkspace(abs)
 	for _, r := range roots {
 		// 审计 2026-10-02 AP5-09：同读侧，改调 wspath.Within（root 本身仍算内）。

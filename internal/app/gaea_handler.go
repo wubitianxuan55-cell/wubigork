@@ -414,14 +414,16 @@ func (a *App) applyOfficeFeatureModel(engine, model string) {
 	// 绑定注入已收敛到 gaeaBuildController 构造期（双引擎各表各的绑定）；
 	// 此处只负责重建生效。
 	ga.mu.Lock()
-	defer ga.mu.Unlock()
 	if ga.ctrl != nil && ga.cfg != nil {
 		if err := a.gaeaRebuildLocked(); err != nil {
 			slog.Warn("办公模型绑定变更后重建引擎失败", "error", err)
 		}
 	}
+	ga.mu.Unlock()
 	// 2026-11-15 刀1：图文独立引擎跟随（同全局模型注入面；未初始化跳过）。
-	// 注意不可持 ga.mu 调用（wx 构建读全局 loader 闭包内部会取 ga.mu）。
+	// 不可持 ga.mu 调用（wx 构建经全局 loader 读 ga.cfg，同 goroutine 重入
+	// 即自死锁；2026-11-16 审查批1 修正——原 defer 把本调用关在临界区内，
+	// 与本注释矛盾）。
 	a.wenxueReloadIfInit()
 }
 

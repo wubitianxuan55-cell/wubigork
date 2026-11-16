@@ -120,9 +120,12 @@ func (a *App) WenxueEngineInit() error {
 			return err
 		}
 		ga.cfg = cfg
+		// loader 无锁读 ga.cfg（2026-11-16 审查批1 根修：旧实现闭包内取 ga.mu
+		// ——任何「持 ga.mu 调 config.Load」路径（applyOfficeFeatureModel/
+		// gaeaApplyCfg 的 wx 跟随重建、办公 gaeaRebuildLocked 自身的
+		// boot.Build→config.Load）同 goroutine 重入即整应用死锁。与办公 loader
+		// 同口径：指针替换在持锁下进行，读取方只会拿到完整可用配置）。
 		gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) {
-			ga.mu.Lock()
-			defer ga.mu.Unlock()
 			if ga.cfg == nil {
 				return gaeaConfig.Default(), nil
 			}

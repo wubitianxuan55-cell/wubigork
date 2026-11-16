@@ -6,7 +6,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, RefreshCw, Search } from "../icons";
 import { app } from "../lib/bridge";
-import { subscribe } from "../../events";
 import { WenxueHubFrame } from "./WenxueHubFrame";
 import type { MemoryView, WenxueMemoryArchivedView } from "../lib/types";
 
@@ -57,7 +56,13 @@ export function WenxueMemoryPanel() {
 
   useEffect(() => {
     void load();
-    return subscribe("wenxue:workspace-changed", () => void load());
+    // wenxue:workspace-changed 是 DOM CustomEvent（App 新建/选中/删除小说时
+    // window.dispatchEvent），必须走 window.addEventListener——Wails subscribe
+    // 订 Wails 通道，两套系统不通，订了等于空气（2026-11-16 审查批1：旧实现
+    // 订空气，切书后记忆面板永不重载；与其余三 Hub 同口径）。
+    const onWorkspaceChanged = () => void load();
+    window.addEventListener("wenxue:workspace-changed", onWorkspaceChanged);
+    return () => window.removeEventListener("wenxue:workspace-changed", onWorkspaceChanged);
   }, [load]);
 
   const facts = useMemo(() => {
