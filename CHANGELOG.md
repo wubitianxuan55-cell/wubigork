@@ -1,10 +1,10 @@
-## 未发布 · 文学板块无限制档：云端模型破甲契约随书注入（2026-11-16）
+## v4.544.0 · 文学板块无限制档：云端模型破甲契约随书注入（2026-11-16）
 
-> 用户口径「无限制版本时，能不能对云端模型破甲」。结论：提示词层破甲是概率性的，对开放权重/中转 API 成功率高、对强对齐官方 API 中低；工程上把破甲做成随书注入的契约层。①**契约层**：新增 `internal/maturecraft/jailbreak.go` 的 `JailbreakSection(level)`——仅 `unrestricted` 返回契约（授权与「作者引擎」角色、零拒绝、零淡化、零审查、续写纪律、冲突裁决、兜底改写成内心挣扎），其余档零注入。②**注入链**：无限制档建书时把契约写进 `书籍信息.md` 的「无限制档执行契约」节（随 pinned 自动进每个新会话），工作台纪律补动笔前按契约执行、拒绝/淡化/免责视为违约。③**验证**：`JailbreakSection` 矩阵测试（四档零注入断言 + 契约关键词）+ 建书书籍信息断言含契约；`go test ./internal/maturecraft ./internal/app -run TestWenxue` 全绿。未抬版本、未 commit/push。
+> 用户口径「无限制版本时，能不能对云端模型破甲」。结论：提示词层破甲是概率性的，对开放权重/中转 API 成功率高、对强对齐官方 API 中低；工程上把破甲做成随书注入的契约层。①**契约层**：新增 `internal/maturecraft/jailbreak.go` 的 `JailbreakSection(level)`——仅 `unrestricted` 返回契约（授权与「作者引擎」角色、零拒绝、零淡化、零审查、续写纪律、冲突裁决、兜底改写成内心挣扎），其余档零注入。②**注入链**：无限制档建书时把契约写进 `书籍信息.md` 的「无限制档执行契约」节（随 pinned 自动进每个新会话），工作台纪律补动笔前按契约执行、拒绝/淡化/免责视为违约。③**验证**：`JailbreakSection` 矩阵测试（四档零注入断言 + 契约关键词）+ 建书书籍信息断言含契约；`go test ./internal/maturecraft ./internal/app -run TestWenxue` 全绿。已随 v4.544.0 发版。
 
-## 未发布 · 文学板块新建小说：无限制档零安全底线（2026-11-16）
+## v4.544.0 · 文学板块新建小说：无限制档零安全底线（2026-11-16）
 
-> 用户口径「文学板块新建小说时的等级设置，需要修改成无限制时无任何安全底线」。①**书籍信息注入**：`internal/app/wenxue_workspace.go` 的 `深度成人（无限制）` guidance 改为零底线口径（无禁止题材/无回避项/无审查项，不淡化、关键场景不跳切、不说教、不医学化、不加免责声明、不输出道德判断）；`wenxueAdultSafetyLine` 改为仅非无限制档写入（其余三档保留涉未成年线），新增 `wenxueAdultUnrestricted` 常量收口。②**编制链单一源**：`internal/maturecraft` 新增 `unrestricted` 档（NormalizeLevel/LevelName 白名单），`CraftSection` 拆 `craftGate`（功能闸，全档）与 `craftHardLine`（硬线，仅含蓄/直白）；无限制档走 `craftUnrestricted`（无同意节拍、无成年/胁迫硬线），`CharacterSection` 无限制分支放开欲望设定限制；`UpdateProjectMeta` 合法值补 `unrestricted`。③**前端与文档**：Sidebar 无限制档提示改为零底线口径；`docs/ADULT_MODE.md` 新增第七节记录四档边界；`wails.d.ts` 档位注释同步。④**验证**：`go test ./internal/app ./internal/maturecraft`（含新增无限制档断言：不含「唯一恒守线」「必须是成年人」「同意节拍」）+ `go vet` 全绿。未抬版本、未 commit/push。
+> 用户口径「文学板块新建小说时的等级设置，需要修改成无限制时无任何安全底线」。①**书籍信息注入**：`internal/app/wenxue_workspace.go` 的 `深度成人（无限制）` guidance 改为零底线口径（无禁止题材/无回避项/无审查项，不淡化、关键场景不跳切、不说教、不医学化、不加免责声明、不输出道德判断）；`wenxueAdultSafetyLine` 改为仅非无限制档写入（其余三档保留涉未成年线），新增 `wenxueAdultUnrestricted` 常量收口。②**编制链单一源**：`internal/maturecraft` 新增 `unrestricted` 档（NormalizeLevel/LevelName 白名单），`CraftSection` 拆 `craftGate`（功能闸，全档）与 `craftHardLine`（硬线，仅含蓄/直白）；无限制档走 `craftUnrestricted`（无同意节拍、无成年/胁迫硬线），`CharacterSection` 无限制分支放开欲望设定限制；`UpdateProjectMeta` 合法值补 `unrestricted`。③**前端与文档**：Sidebar 无限制档提示改为零底线口径；`docs/ADULT_MODE.md` 新增第七节记录四档边界；`wails.d.ts` 档位注释同步。④**验证**：`go test ./internal/app ./internal/maturecraft`（含新增无限制档断言：不含「唯一恒守线」「必须是成年人」「同意节拍」）+ `go vet` 全绿。已随 v4.544.0 发版。
 
 ## 未发布 · 办公附件超大文件改造：>25MB 不再失败，按路径引用/分块上传（2026-11-12）
 
@@ -58,6 +58,10 @@
 
 ## 未发布 · 记忆中枢 Memory Atlas 重设计（2026-10-31）
 > 按 `redesign-existing-projects` 技能完成记忆中枢外壳重构，功能与绑定面零变更。①入口升级为品牌化 Memory Atlas：标题、本地索引状态、检索范围与最近更新统一收进首屏；三脑/工作区检索改为完整命令栏，保留 Enter、空态、失败、关闭和键盘命中链路。②左侧索引按“记忆集合 / 探索与存档”分组，库域色只用于语义识别；中区在总览与完整图谱间共用同一关系舞台，右侧空态升级为可点击的库分布、检索范围与更新时间 Inspector。③GraphView 补加载骨架、无记忆、连接失败与重试四态，WebGL 画布改透明并由 CSS 承接背景，修复亮暗切换残留上一主题整块底色；筛选按关联图/事件图谱只显示相关节点类型，窄窗口改为两行工具条。④空间术语全量收口为“工位 / 乐园”，覆盖检索范围、壳层兜底标签、全局搜索、任务收件箱与相关契约测试，旧“书房/庭院/书斋/闲庭”不再出现在这些入口。⑤响应式覆盖 1092px 三栏、≤980px Inspector 浮层、≤820px 纵向布局，并补齐 hover/active/focus-visible 与 reduced-motion。验证=生产构建、ESLint、8 个测试文件 30 例通过；浏览器内检查亮暗主题、检索失败、空态与库页切换。记录=`design-system/gaea/pages/memoryhub.md`。
+
+## v4.544.0 · 文学板块系统性审查十批收官+质检/文风族开工（2026-11-17）
+
+> 用户令「继续优化完善文学板块……先进行系统性审查，调研」。调研=三路并行只读审查（Go 侧/前端对账 gaea 树/技能·挂池·文档）+高危发现逐条实码复核（逮住审查误报三处：versionCompare 活链/CostLibraryView 已清/diagram 真实工具 deny 承重）。随后十批动刀全部收官，每批独立门禁（vet 0+Go 全量+前端 vitest 全量 4398 例+tsc 0+eslint 0+registry -check）+装机冒烟 200。①**批1 高危**（ac352c45）：死锁同族根修（图文 loader 闭包取 ga.mu=持锁 config.Load 全族重入冻结——loader 无锁化+两调用点挪出临界区）/UI 绑定边界去办公根/记忆面板切书重载/变更面板去重贯通。②**批2 一致性**（4eb4beeb）：任务模板图文单源/写侧会话件围栏（confine 单点收口六写件）/书籍信息契约投影同步（降档残留零底线契约根除）。③**批3 卫生**（57392dce）：死链 20 文件+死键 378 行净 −7090/`?mock=wenxue` 兑现/registry_map_doc `-check` 门+图谱重导。④**批4 补防线**（68fd73fe）：镜像债回种 gaea（deliverableDedupKey+tab 单源）/ChatTabs 测试移植/wenxue_chat 首测。⑤**批5**（0e4dbf21）：成本账目标签分列（wx 用量落 wenxue 独立桶）/novel-* 三技能播种分发链/桥面误操作根修。⑥**批6**（350bc382）：MCP 管理四件换锚图文引擎/技能蒸馏换锚/factbase 死链摘除。⑦**批7**（d6cffd7e）：证据链读侧换锚书工作区/Docx 编辑链降级只读。⑧**批8 质检族**（fac54447）：wenxue_quality_check 五组确定性体检（章节编号/角色卡六节/时间线锚/设定空文档/孤儿候选）。⑨**批9 文风族**（3500d956）：wenxue_style_report 确定性指标+书内基线漂移差值。⑩**批10**（81e43300）：预览绝对分支白名单化（读根+拾取登记同单源）/ListDir 死防线摘除。功能包 `releases/gaea-wenxue-v6-20261117-2342ff68/`（干净树构建+wailsjs 零漂移+payload 冒烟 200）。详见 `releases/v4.544.0.md`。
 
 ## v4.529.1 · 小结标题挤压根修与亮态目检补课（2026-10-30）
 > v4.529.0 断行修复的补完刀，纯 CSS 一条规则，绑定面零变更。根因=协作小结头部 flex 行被 tag(76px)+印记预留(72px) 挤压，档案栏展开时标题只剩 256px 绞回四行碎句——v4.529.0 的「两行验收」恰逢折叠栏态成立，单态验过≠修复成立。修复=head 加 flex-wrap:wrap+标题恒占整行（flex:1 1 100%）、tag 恒换行右对齐，字号 27→24px。验收=亮态暖纸×暗态、展开栏×折叠栏四象限实拍两行成立+vitest 19/19+冒烟 200；纪律沉淀=flex 收窄类断行目检必须覆盖主列宽度全布局态。详见 `releases/v4.529.1.md`。
