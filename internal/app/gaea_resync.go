@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // GaeaResyncItem 是补拉重建的单条对话项（前端 Item 联合类型的 Go 投影，
@@ -34,21 +35,22 @@ import (
 // （对话窗只剩 WorkHeader 读秒，过程卡/文本卡全靠轨迹面板才可见）。序列化
 // 全键 + 前端对缺省键宽容（类型错仍拒）双保险。
 type GaeaResyncItem struct {
-	Kind      string `json:"kind"`
-	ID        string `json:"id"`
-	Text      string `json:"text"`
-	Reasoning string `json:"reasoning"`
-	Streaming bool   `json:"streaming"`
-	Level     string `json:"level"`
-	Name      string `json:"name"`
-	Args      string `json:"args"`
-	ToolID    string `json:"toolId"`
-	Output    string `json:"output"`
-	Err       string `json:"err"`
-	Status    string `json:"status"`
-	ReadOnly  bool   `json:"readOnly"`
-	Truncated bool   `json:"truncated"`
-	ParentID  string `json:"parentId"`
+	Kind      string             `json:"kind"`
+	ID        string             `json:"id"`
+	Text      string             `json:"text"`
+	Reasoning string             `json:"reasoning"`
+	Streaming bool               `json:"streaming"`
+	Level     string             `json:"level"`
+	Name      string             `json:"name"`
+	Args      string             `json:"args"`
+	ToolID    string             `json:"toolId"`
+	Output    string             `json:"output"`
+	Err       string             `json:"err"`
+	Status    string             `json:"status"`
+	ReadOnly  bool               `json:"readOnly"`
+	Truncated bool               `json:"truncated"`
+	ParentID  string             `json:"parentId"`
+	Sources   []event.ToolSource `json:"sources,omitempty"`
 	// SubagentRef 仅 assistant 条目携带（v4.27.2）：subagent_message 折叠出的
 	// 子代理答复气泡，前端据此画「子代理」徽标（与实时 message 事件同键位）。
 	SubagentRef string `json:"subagentRef"`
@@ -133,11 +135,12 @@ type (
 	}
 	// resyncToolResultPayload 是 tool_result 的 payload。
 	resyncToolResultPayload struct {
-		ID        string `json:"id"`
-		Name      string `json:"name,omitempty"`
-		Output    string `json:"output,omitempty"`
-		Err       string `json:"err,omitempty"`
-		Truncated bool   `json:"truncated,omitempty"`
+		ID        string             `json:"id"`
+		Name      string             `json:"name,omitempty"`
+		Output    string             `json:"output,omitempty"`
+		Err       string             `json:"err,omitempty"`
+		Truncated bool               `json:"truncated,omitempty"`
+		Sources   []event.ToolSource `json:"sources,omitempty"`
 	}
 	// resyncNoticePayload 是 notice 的 payload。
 	resyncNoticePayload struct {
@@ -260,6 +263,7 @@ func foldResyncItems(entries []session.LogEntry) []GaeaResyncItem {
 				it.Output = p.Output
 				it.Err = p.Err
 				it.Truncated = p.Truncated
+				it.Sources = p.Sources
 				if p.Name != "" {
 					it.Name = p.Name
 				}
@@ -268,7 +272,7 @@ func foldResyncItems(entries []session.LogEntry) []GaeaResyncItem {
 			// 悬挂 result（日志被裁剪/仅存结果）：自建完成态条目，不丢事件。
 			items = append(items, GaeaResyncItem{
 				Kind: "tool", ID: p.ID, ToolID: p.ID, Name: p.Name,
-				Status: status, Output: p.Output, Err: p.Err, Truncated: p.Truncated,
+				Status: status, Output: p.Output, Err: p.Err, Truncated: p.Truncated, Sources: p.Sources,
 			})
 			toolIdx[p.ID] = len(items) - 1
 

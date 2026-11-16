@@ -1,5 +1,6 @@
 import type { WireShape } from "./shared";
 import type { app as AppModels } from "../../../../wailsjs/go/models";
+import type { ToolSource } from "../../../types/evidence";
 
 // Wire contract — mirrors desktop/wire.go (itself mirroring internal/serve/wire.go).
 // One event channel carries every kind; `kind` discriminates the payload.
@@ -48,6 +49,7 @@ export interface WireTool {
   truncated?: boolean;
   partial?: boolean; // an early dispatch (name only) — a full one with args follows
   parentId?: string; // set on a sub-agent's calls — the parent `task` call's id
+  sources?: ToolSource[];
 }
 
 export interface WireUsage {

@@ -10,6 +10,7 @@ import type {
   Meta, SessionStatsView, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "../types";
+import type { ToolSource } from "../../../types/evidence";
 
 export type ToolStatus = "running" | "done" | "error" | "stopped";
 
@@ -21,7 +22,7 @@ export type Item =
   | { kind: "phase"; id: string; text: string }
   | { kind: "notice"; id: string; level: "info" | "warn"; text: string }
   | { kind: "compaction"; id: string; pending: boolean; trigger: string; messages: number; summary: string; archive: string }
-  | { kind: "tool"; id: string; name: string; args: string; readOnly: boolean; status: ToolStatus; output?: string; error?: string; truncated?: boolean; recoverable?: boolean; parentId?: string };
+  | { kind: "tool"; id: string; name: string; args: string; readOnly: boolean; status: ToolStatus; output?: string; error?: string; truncated?: boolean; recoverable?: boolean; parentId?: string; sources?: ToolSource[] };
 
 export interface ControllerState {
   items: Item[]; running: boolean; turnActive: boolean; approval?: WireApproval; ask?: WireAsk;
@@ -173,6 +174,26 @@ export function parseResyncItems(raw: unknown): Item[] | null {
   // absentOk：缺键 → 零值；present 但类型错 → null（调用方判坏整快照）。
   const absentStr = (v: unknown): string | null => (v === undefined ? "" : typeof v === "string" ? v : null);
   const absentBool = (v: unknown): boolean | null => (v === undefined ? false : typeof v === "boolean" ? v : null);
+  const toolSources = (v: unknown): ToolSource[] | undefined => {
+    if (!Array.isArray(v)) return undefined;
+    const seen = new Set<string>();
+    const out: ToolSource[] = [];
+    for (const item of v) {
+      if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+      const source = item as Record<string, unknown>;
+      const title = typeof source.title === "string" ? source.title.trim() : "";
+      const url = typeof source.url === "string" ? source.url.trim() : "";
+      if (!title || !url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({
+        title,
+        url,
+        ...(typeof source.snippet === "string" && source.snippet.trim() ? { snippet: source.snippet.trim() } : {}),
+        ...(typeof source.source === "string" && source.source.trim() ? { source: source.source.trim() } : {}),
+      });
+    }
+    return out.length > 0 ? out : undefined;
+  };
   const items: Item[] = [];
   for (const it of raw) {
     if (it === null || typeof it !== "object" || Array.isArray(it)) return null;
@@ -227,6 +248,7 @@ export function parseResyncItems(raw: unknown): Item[] | null {
           truncated: o.truncated === true ? true : undefined,
           recoverable: o.recoverable === true ? true : undefined,
           parentId: optStr(o.parentId),
+          sources: toolSources(o.sources),
         });
         break;
       }
@@ -363,7 +385,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
           if (cand.kind === "tool" && cand.status === "running") { idx = i; break; }
         }
       }
-      if (idx >= 0) { const it = next[idx]; if (it.kind === "tool") next[idx] = { ...it, status: t.err ? "error" : "done", output: t.output, error: t.err, recoverable: t.recoverable, truncated: t.truncated }; }
+      if (idx >= 0) { const it = next[idx]; if (it.kind === "tool") next[idx] = { ...it, status: t.err ? "error" : "done", output: t.output, error: t.err, recoverable: t.recoverable, truncated: t.truncated, sources: t.sources }; }
       return { ...s, items: next };
     }
     case "usage": {

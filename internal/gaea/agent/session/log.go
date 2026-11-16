@@ -161,11 +161,12 @@ type assistantLogPayload struct {
 
 // toolResultLogPayload 是 tool_result 事件的 payload。
 type toolResultLogPayload struct {
-	ID        string `json:"id"`
-	Name      string `json:"name,omitempty"`
-	Output    string `json:"output,omitempty"`
-	Err       string `json:"err,omitempty"`
-	Truncated bool   `json:"truncated,omitempty"`
+	ID        string             `json:"id"`
+	Name      string             `json:"name,omitempty"`
+	Output    string             `json:"output,omitempty"`
+	Err       string             `json:"err,omitempty"`
+	Truncated bool               `json:"truncated,omitempty"`
+	Sources   []event.ToolSource `json:"sources,omitempty"`
 }
 
 // usageLogPayload 是 usage 事件的 payload（token 统计/成本派生 API 的输入）。
@@ -519,6 +520,7 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			Output:    e.Tool.Output,
 			Err:       e.Tool.Err,
 			Truncated: e.Tool.Truncated,
+			Sources:   e.Tool.Sources,
 		}
 	case event.Usage:
 		payload = usagePayloadFromEvent(e)

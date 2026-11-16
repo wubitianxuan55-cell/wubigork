@@ -749,6 +749,9 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		if e.Tool.Err != "" {
 			t["err"] = e.Tool.Err
 		}
+		if len(e.Tool.Sources) > 0 {
+			t["sources"] = e.Tool.Sources
+		}
 		m["tool"] = t
 	case event.Notice:
 		m["text"] = e.Text

@@ -164,6 +164,7 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 			Recoverable: o.recoverable,
 			ReadOnly:    ok && t.ReadOnly(),
 			Truncated:   o.truncated,
+			Sources:     successfulToolSources(c.Name, c.Arguments, o.output, o.errMsg),
 		}})
 		// v4.61：工具结果到达 → 关闭 mt_ 记录（成功/失败如实标记）。
 		if c.ID != "" && a.isModelBacked(c.Name) {

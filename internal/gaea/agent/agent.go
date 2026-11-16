@@ -1144,9 +1144,9 @@ func (a *AgentRunner) finalReadinessCheck() (blocked bool, reason string) {
 	}
 	names := make([]string, len(unverified))
 	for i, m := range unverified {
-		names[i] = m.ActiveForm
+		names[i] = m.Content
 		if names[i] == "" {
-			names[i] = m.Content
+			names[i] = m.ActiveForm
 		}
 	}
 	return true, fmt.Sprintf("complete_step missing for: %s", strings.Join(names, ", "))

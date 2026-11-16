@@ -152,6 +152,10 @@ type Tool struct {
 	Args   string
 	Output string // ToolResult: the result text fed to the model
 	Err    string // ToolResult: non-empty when the call failed or was blocked
+	// Sources is structured evidence extracted from search/fetch tools. It is
+	// display/telemetry metadata only: Output remains the exact model-visible
+	// result, so adding sources never changes the prompt.
+	Sources []ToolSource
 	// Recoverable is true when the error is one the agent can fix on the next
 	// turn (bad arguments, wrong file path, command exit code) — not a genuine
 	// system fault (unknown tool, permission block, panic). Frontends render
@@ -167,6 +171,16 @@ type Tool struct {
 	// sub-agent's calls carry the parent `task` call's ID so a frontend can nest
 	// them under it. Empty for top-level calls.
 	ParentID string
+}
+
+// ToolSource is one normalized web/document source surfaced by a tool result.
+// The frontend groups these into the shared evidence drawer for both office
+// and literature sessions.
+type ToolSource struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet,omitempty"`
+	Source  string `json:"source,omitempty"`
 }
 
 // Approval identifies a pending tool-call approval for an ApprovalRequest

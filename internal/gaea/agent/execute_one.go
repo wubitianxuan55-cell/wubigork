@@ -144,15 +144,26 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			}
 		}
 	}
-	// V4.2: tool result cache — avoid redundant disk IO for repeat file reads
-	if call.Name == "read_file" && a.tc != nil {
-		var ra struct {
-			Path   string `json:"path"`
-			Offset int    `json:"offset"`
-			Limit  int    `json:"limit"`
+	// V4.2: tool result cache — avoid redundant disk IO for repeat file reads.
+	// Use the tool's resolved read target (absolute for workspace-bound tools)
+	// so cache invalidation and reads agree even when the model passes a relative
+	// path.
+	readPath := ""
+	var readArgs struct {
+		Path   string `json:"path"`
+		Offset int    `json:"offset"`
+		Limit  int    `json:"limit"`
+	}
+	if call.Name == "read_file" &&
+		json.Unmarshal(json.RawMessage(call.Arguments), &readArgs) == nil &&
+		readArgs.Path != "" {
+		if rt, ok := t.(tool.ReadTargeter); ok {
+			if target, ok := rt.ReadTarget(json.RawMessage(call.Arguments)); ok {
+				readPath = target
+			}
 		}
-		if err := json.Unmarshal(json.RawMessage(call.Arguments), &ra); err == nil && ra.Path != "" {
-			if cached, ok := a.tc.Get(ra.Path, ra.Offset, ra.Limit); ok {
+		if readPath != "" && a.tc != nil {
+			if cached, ok := a.tc.Get(readPath, readArgs.Offset, readArgs.Limit); ok {
 				return toolOutcome{output: cached}
 			}
 		}
@@ -211,42 +222,15 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	}
 	duration := time.Since(start).Milliseconds()
 
-	// V4.2: cache successful file reads; invalidate writes
+	// Cache invalidation happens for every declared writer, including domain
+	// writers (wenxue_*) and read-only tools with host-side persistence
+	// (todo_write). A failed/unknown-effect call also invalidates conservatively.
+	a.invalidateToolReadCache(t, json.RawMessage(call.Arguments))
+
+	// V4.2: cache successful file reads.
 	if a.tc != nil {
-		switch call.Name {
-		case "read_file":
-			if err == nil {
-				var ra struct {
-					Path   string `json:"path"`
-					Offset int    `json:"offset"`
-					Limit  int    `json:"limit"`
-				}
-				if json.Unmarshal(json.RawMessage(call.Arguments), &ra) == nil && ra.Path != "" {
-					a.tc.Set(ra.Path, ra.Offset, ra.Limit, result)
-				}
-			}
-		case "edit_file", "write_file", "multi_edit", "edit_lines", "replace":
-			var wa struct {
-				Path string `json:"path"`
-			}
-			if json.Unmarshal(json.RawMessage(call.Arguments), &wa) == nil && wa.Path != "" {
-				a.tc.InvalidatePath(wa.Path)
-			}
-		case "move_file":
-			// A move invalidates both endpoints: args carry no "path" key, so
-			// the generic branch above would silently miss them (S0.6 risk 2).
-			var ma struct {
-				Source      string `json:"source"`
-				Destination string `json:"destination"`
-			}
-			if json.Unmarshal(json.RawMessage(call.Arguments), &ma) == nil {
-				if ma.Source != "" {
-					a.tc.InvalidatePath(ma.Source)
-				}
-				if ma.Destination != "" {
-					a.tc.InvalidatePath(ma.Destination)
-				}
-			}
+		if call.Name == "read_file" && err == nil && readPath != "" {
+			a.tc.Set(readPath, readArgs.Offset, readArgs.Limit, result)
 		}
 	}
 
@@ -651,4 +635,29 @@ func isFileWriter(name string) bool {
 		return true
 	}
 	return false
+}
+
+// invalidateToolReadCache invalidates cached reads affected by a tool call.
+// CachePathResolver is the precise/domain hook; WritePathResolver is the
+// existing write-scope declaration used by built-in and office writers.
+func (a *AgentRunner) invalidateToolReadCache(t tool.Tool, args json.RawMessage) {
+	if a == nil || a.tc == nil || t == nil {
+		return
+	}
+	var paths []string
+	if cp, ok := t.(tool.CachePathResolver); ok {
+		paths = cp.CachePaths(args)
+	}
+	if len(paths) == 0 {
+		if wp, ok := t.(tool.WritePathResolver); ok {
+			if resolved, err := wp.WritePaths(args); err == nil {
+				paths = resolved
+			}
+		}
+	}
+	for _, path := range paths {
+		if strings.TrimSpace(path) != "" {
+			a.tc.InvalidateUnder(path)
+		}
+	}
 }

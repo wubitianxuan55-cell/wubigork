@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -442,14 +443,24 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			dedupOK := false
 			if t, ok := a.tools.Get(call.Name); ok {
 				dedupOK = t.ReadOnly()
+				// Read-only for approval does not imply idempotent: todo_write
+				// persists host state, and its count-only ack can repeat across
+				// different lists. Never deduplicate declared cache mutators.
+				if _, mutatesCache := t.(tool.CachePathResolver); mutatesCache {
+					dedupOK = false
+				}
 			}
 			if dedupOK {
-				dk := call.Name + "|" + truncateStr(call.Arguments, 64) + "|" + truncateStr(results[i], 64)
+				// Hash the complete result, not its first 64 bytes. Domain readers
+				// often share the same metadata prefix while the chapter/todo body
+				// changes; prefix-only dedup used to replay stale content.
+				sum := sha256.Sum256([]byte(results[i]))
+				dk := call.Name + "|" + call.Arguments + "|" + fmt.Sprintf("%x", sum[:])
 				if a.dedupHashes == nil {
 					a.dedupHashes = make(map[string]bool)
 				}
 				if a.dedupHashes[dk] {
-					results[i] = "[cached — same as previous " + call.Name + " call]"
+					results[i] = "[cached — byte-identical result for the same " + call.Name + " call earlier in this turn]"
 				} else {
 					a.dedupHashes[dk] = true
 				}
@@ -563,6 +574,7 @@ func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason 
 				Err:         out.errMsg,
 				Recoverable: out.recoverable,
 				ReadOnly:    t.ReadOnly(),
+				Sources:     successfulToolSources(c.Name, c.Arguments, out.output, out.errMsg),
 			}})
 		}
 	}
