@@ -41,6 +41,7 @@ export const gaeaToGaea = {
   ListWorkspaces: "WenxueListWorkspaces",
   PickWorkspace: "WenxuePickWorkspace",
   SwitchWorkspace: "WenxueSwitchWorkspace",
+  EngineInit: "WenxueEngineInit",
   ContextUsage: "WenxueContext",
   ContextView: "WenxueContextView",
   ContextInsights: "WenxueContextInsights",

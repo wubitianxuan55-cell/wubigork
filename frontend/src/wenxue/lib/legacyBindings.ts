@@ -227,7 +227,6 @@ export const legacyBindings = [
   "UpdateCustomEngine",
   "UpdateProjectMeta",
   "VisionRoute",
-  "WenxueEngineInit",
   "WenxuePermLevel",
   "WenxueReload",
   "WhirlEngineStart",

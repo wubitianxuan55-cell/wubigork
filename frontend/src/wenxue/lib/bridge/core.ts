@@ -119,6 +119,9 @@ export interface CoreBindings {
   ListWorkspaces(): Promise<WorkspaceView[]>;
   PickWorkspace(): Promise<string>;
   SwitchWorkspace(path: string): Promise<string>;
+  // EngineInit 图文引擎板挂即初始化（幂等）：角色/阅读/设定/记忆四 tab 与
+  // Meta.ready 不依赖会话——未发消息时 ctrl 未建会挡主区（Skeleton 永挂）。
+  EngineInit(): Promise<void>;
   // 双空间（S4，设计 §6）：work/play 静态枚举、当前生效空间、切换持久化。
   // Activate 只写配置（非法 space 拒绝）；生效时机为下次引擎重建/重启。
   GaeaSpaceList(): Promise<SpaceOption[]>;

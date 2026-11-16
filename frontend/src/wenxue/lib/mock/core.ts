@@ -24,7 +24,7 @@ let mockSpaceProfiles: SpaceProfileView[] = mockSpaceProfilesInit.map((p) => ({ 
 
 type CoreMethods = Pick<
   AppBindings,
-  | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
+  | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace" | "EngineInit"
   | "WenxueCreateNovel" | "WenxueDeleteNovel" | "WenxueListWorkspaces" | "WenxueListSessions"
   | "WenxueListProjectSessions" | "WenxueMeta" | "WenxueNewSession" | "WenxueSwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
@@ -138,6 +138,8 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async SwitchWorkspace(path: string) {
       return switchWorkspace(s, path);
     },
+    // EngineInit mock：幂等空转（真实现建 wx 控制器，浏览器 dev 无此态）。
+    async EngineInit() {},
     async ContextUsage() {
       return { used: 1280, window: 1_000_000 };
     },

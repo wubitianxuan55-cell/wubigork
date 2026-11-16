@@ -25,6 +25,7 @@ export type BindingSpace = ShellSpace | "shared" | "independent";
 /** gaea 桥方法空间归属（键名 = AppBindings 短方法名，经 gaeaToGaea 映射到 Go）。 */
 export const GAEA_METHOD_FACETS = {
   WenxueCreateNovel: "work",
+  EngineInit: "work",
   WenxueDeleteNovel: "work",
   WenxueListProjectSessions: "work",
   WenxueListSessions: "work",

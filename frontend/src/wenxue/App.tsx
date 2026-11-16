@@ -355,6 +355,12 @@ export default function App() {
 
   useEffect(() => { void refreshSessions(); }, [cwd, refreshSessions]);
 
+  // 图文引擎板挂即初始化（幂等）：角色/阅读/设定/记忆四 tab 与 Meta.ready 不
+  // 依赖会话——未发消息时 ctrl 未建，Meta.ready=false 会把主区挡在 Skeleton
+  // 后面（用户实测：选书不开会话四 tab 全空）。Send/NewSession 入口的自动
+  // 初始化照旧，此处只补「选书即可见」的板挂初始化。
+  useEffect(() => { void app.EngineInit().catch(() => {}); }, []);
+
   // 会话级回源（7.3-1 收口）：冷启态消费 pending；keepAlive 已挂载态走事件直达。
   // resumeRecentSession 依赖 projectGroups 快照（异步加载）——ref 保最新回调，
   // 订阅 effect 只跑一次不重建，避免过期闭包拿到空分组。
