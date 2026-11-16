@@ -18,6 +18,24 @@ function pushPath(out: string[], v: unknown): void {
   if (typeof v === "string" && v.trim() !== "") out.push(v.trim());
 }
 
+// deliverableDedupKey — 交付路径去重键归一化（2026-11-16「4 个相同交互文件」
+// 根修）：同一文件在会话里有多种写法（绝对/相对、正/反斜杠、./ 前缀、大小
+// 写、正文提及 vs 工具参数），此前三层去重全按原始字符串比对，把它们记成多
+// 条面板条目。键恒为归一化绝对形态（小写、正斜杠、相对路径按工作区解析）；
+// 展示层保留首次出现的原始写法，不做改写。Windows 文件系统大小写不敏感，
+// 本板块是 Windows 桌面端。
+export function deliverableDedupKey(path: string, cwd?: string): string {
+  let s = path.trim().replace(/\\/g, "/");
+  while (s.startsWith("./")) s = s.slice(2);
+  s = s.toLowerCase();
+  if (!cwd) return s;
+  const root = cwd.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  if (s === root) return "";
+  if (root !== "" && s.startsWith(root + "/")) return s; // 工作区内绝对路径
+  if (/^[a-z]:\//i.test(s) || s.startsWith("/")) return s; // 工作区外绝对路径
+  return root + "/" + s; // 相对路径按工作区解析
+}
+
 // 从写类工具的参数里提取被改动的工作区文件路径，与后端
 // internal/gaea/evidence/evidence.go 的 extractPaths 及
 // internal/gaea/agent/agent_helpers.go 的 extractFilePath 对齐。
@@ -49,20 +67,29 @@ export function extractChangedPaths(args: string, _tool?: string): string[] {
 }
 
 // 从会话消息里汇总“写/改过的工作区文件及次数”，按最近改动倒序返回。
+// cwd 传入时按归一化键去重（同一文件多种写法合并且计数累加，2026-11-16）；
+// 展示 path 保留首次出现的原始写法。
 export function buildSessionChanges(
   items: Item[],
   writeTools: ReadonlySet<string> = WRITE_TOOL_NAMES,
+  cwd?: string,
 ): SessionChange[] {
-  const map = new Map<string, { count: number; lastTouched: number }>();
+  const map = new Map<string, { path: string; count: number; lastTouched: number }>();
   items.forEach((it, idx) => {
     if (it.kind !== "tool" || !writeTools.has(it.name)) return;
     for (const p of extractChangedPaths(it.args || "", it.name)) {
-      const cur = map.get(p) ?? { count: 0, lastTouched: idx };
-      map.set(p, { count: cur.count + 1, lastTouched: idx });
+      const key = deliverableDedupKey(p, cwd);
+      const cur = map.get(key);
+      if (cur) {
+        cur.count++;
+        cur.lastTouched = idx;
+      } else {
+        map.set(key, { path: p, count: 1, lastTouched: idx });
+      }
     }
   });
   return [...map.entries()]
-    .map(([path, v]) => ({ path, count: v.count, lastTouched: v.lastTouched }))
+    .map(([, v]) => ({ path: v.path, count: v.count, lastTouched: v.lastTouched }))
     .sort((a, b) => b.lastTouched - a.lastTouched);
 }
 

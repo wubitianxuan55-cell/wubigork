@@ -3,7 +3,7 @@
 // （freshDeliverablePaths）从 App.tsx 原样迁出，执行顺序与 deps 不变。
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SessionDeliverable } from "../components/DeliverablesPanel";
-import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "../lib/changes";
+import { buildSessionChanges, deliverableDedupKey, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "../lib/changes";
 import { shouldAutoOpenDeliverables } from "../lib/deliverablePrefs";
 import { DELIVERABLE_EXT_RE, deliverableMentions } from "../lib/fileLinks";
 import type { ControllerState } from "../lib/store";
@@ -17,19 +17,24 @@ interface UseDeliverablesParams {
 }
 
 export function useDeliverables({ state, currentSessionKey, rightTab, openPaneView }: UseDeliverablesParams) {
+  const cwd = state.meta?.cwd;
   // 会话产物：从会话消息文本中提取交付文件 + 写类工具落盘的显式登记
   // （保留首现顺序；同一文件多次出现计入 versions 次数——产物版本时间线
   // 数据源，对标 Hermes 版本步进器）。显式登记修复：Agent 未在正文提及
   // 路径时成果面板漏登记的启发式缺陷。
+  // 去重键=deliverableDedupKey 归一化（2026-11-16「4 个相同交互文件」根修）：
+  // 同一文件以绝对/相对、正/反斜杠、大小写等不同写法出现时合并且 versions
+  // 累加；展示 path 保留首次出现的原始写法。
   const sessionDeliverables = useMemo<SessionDeliverable[]>(() => {
-    const order = new Map<string, { sourceId: string; turn: number; versions: number }>();
+    const order = new Map<string, { path: string; sourceId: string; turn: number; versions: number }>();
     let turn = -1;
     const register = (p: string, sourceId: string) => {
-      const rec = order.get(p);
+      const key = deliverableDedupKey(p, cwd);
+      const rec = order.get(key);
       if (rec) {
         rec.versions++;
       } else {
-        order.set(p, { sourceId, turn: Math.max(0, turn), versions: 1 });
+        order.set(key, { path: p, sourceId, turn: Math.max(0, turn), versions: 1 });
       }
     };
     for (const it of state.items) {
@@ -50,14 +55,17 @@ export function useDeliverables({ state, currentSessionKey, rightTab, openPaneVi
       }
     }
     const out: SessionDeliverable[] = [];
-    for (const [path, rec] of order) {
-      out.push({ path, sourceId: rec.sourceId, turn: rec.turn, versions: rec.versions });
+    for (const rec of order.values()) {
+      out.push({ path: rec.path, sourceId: rec.sourceId, turn: rec.turn, versions: rec.versions });
     }
     return out;
-  }, [state.items]);
+  }, [state.items, cwd]);
 
-  // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数
-  const sessionChanges = useMemo<SessionChange[]>(() => buildSessionChanges(state.items), [state.items]);
+  // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数（同键归一）
+  const sessionChanges = useMemo<SessionChange[]>(
+    () => buildSessionChanges(state.items, WRITE_TOOL_NAMES, cwd),
+    [state.items, cwd],
+  );
 
   // ── v4.30 产物自动置前/角标（Devin Auto-open 式）────────────────────────
   // 本会话内新出现的产物路径：diff sessionDeliverables（首现即新），产物 tab
@@ -69,7 +77,7 @@ export function useDeliverables({ state, currentSessionKey, rightTab, openPaneVi
   const baselinePendingRef = useRef(true);
   useEffect(() => {
     baselinePendingRef.current = true;
-    seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => d.path));
+    seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => deliverableDedupKey(d.path, cwd)));
     setFreshDeliverablePaths([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅会话切换时重置基线，快照取当前值
   }, [currentSessionKey]);
@@ -78,14 +86,15 @@ export function useDeliverables({ state, currentSessionKey, rightTab, openPaneVi
     // 增长中出现的路径才标新。
     if (baselinePendingRef.current) {
       baselinePendingRef.current = false;
-      seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => d.path));
+      seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => deliverableDedupKey(d.path, cwd)));
       return;
     }
     const seen = seenDeliverablePathsRef.current;
     const added: string[] = [];
     for (const d of sessionDeliverables) {
-      if (!seen.has(d.path)) {
-        seen.add(d.path);
+      const key = deliverableDedupKey(d.path, cwd);
+      if (!seen.has(key)) {
+        seen.add(key);
         added.push(d.path);
       }
     }
