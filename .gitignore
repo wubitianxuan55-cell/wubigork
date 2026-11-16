@@ -93,6 +93,7 @@ releases/*.exe
 releases/*/*.exe
 releases/*/*.dll
 releases/*/payload/
+build/*-payload/
 releases/*-preview.zip
 releases/*/*-preview.zip
 releases/archive/*.exe

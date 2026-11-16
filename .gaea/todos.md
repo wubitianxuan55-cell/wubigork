@@ -4,7 +4,12 @@
 
 | 状态 | 任务 |
 |------|------|
+| ✅ | **图文板块身份提示词分板**（2026-11-16）：boot.SystemPrompt 覆写位+DefaultWenxueSystemPrompt（指路型，纪律单源不重复）+wenxue_system_prompt 双键+engine 接线；办公 config.toml 摘 Hermes/Hephaestus 退役段（备份 bak-20261116-pre-hermes）；定稿删除授权走两板块脑 AGENTS.md 记忆红线（词表授权门被用户否决撤净）；config/boot/app 测试绿+两次装机冒烟 200；**全树未提交件分组打包提交（含上传任务卡/候选稿/蒸馏第一批/工具回执缓存线六笔），装机 22:26 冒烟 200** |
+| ✅ | **文件上传任务卡**（2026-11-16）：办公/文学逐文件显示上传中/进度/失败原因/可重试与移除；拖拽、粘贴、裁剪截图统一走任务，成功后转附件 chip；失败或上传中阻止发送，重试复用内存原件/data URL，分块逐片进度；超限/格式/权限/磁盘满不可重试，超时/临时桥接错误可重试；前端相关 75/75、tsc、ESLint、Vite 41.84s 绿；未 Wails/装机/提交 |
+| ✅ | **文学候选稿**（2026-11-16）：用户否决「中断续写」（文件未落盘时 append 无法救回，已全链撤除）；保留 A/B/C 候选稿能力——`wenxue_candidate_write` 固定落 `章节/候选/<章名>/`，`wenxue_candidate_promote` 提升前自动归档当前正文；工具契约/装配 census/能力面板/技能/首页快捷卡同批接入；Go Wenxue 全测、RegistryMap 守卫、前端 38/38、tsc、ESLint、vet、Vite 22.88s 绿；未 Wails/装机/提交 |
+| ✅ | **DeepSeek chat-demo 办公/文学第一批**（2026-11-16）：共享会话级 Composer 文本/附件路径草稿（work/play+会话路径隔离，新会话 nonce 区分；队列不回放）+`web_search/web_fetch` 结构化来源经 Agent 事件、日志、wire、resync、reducer 全链贯通，办公/文学 ToolCard 共用来源抽屉；前端 16/16、tsc 0、ESLint 0、Vite 32.78s，Go agent/session/app 定向与 vet 绿；未 Wails/装机/提交 |
 | ✅ | **文学首页双态重设计**（2026-11-16）：调研 Dabble/Ulysses/LivingWriter；未选小说=书斋作品库（书架/最近作品/建档引导，无 Composer），已选小说=作品控制台（章节/定稿/角色/设定概况+续写/核人物/时间线/大纲+最近会话）；**两态共用首页隐身偏好**：路径默认不渲染，隐私模式联动遮罩作品/封面/章节/会话/人物设定名单及左栏、顶栏、Composer 工作区入口；新增 `WenxueHome`、`projectGroupsLoaded`、`?mock=library`；28/28、tsc 0、ESLint 0/0、正式 `npm run build` 40.96s；未 Wails/装机/提交 |
+| ✅ | **文学新会话首页简洁化**（2026-11-16）：按用户反馈对齐办公首页，删除已选作品控制台的封面/概况/动作卡/最近会话仪表盘，改为居中欢迎、写作快捷动作、Composer；未选作品为三列封面卡片（窄窗两列/手机单列），封面仅保留标题、书脊线与同类色调；隐私、切换作品与快捷提示全保留；4/4、tsc 0、ESLint 0、Vite build 23.58s，1440/880 亮暗走查绿；未 Wails/装机/提交 |
 | ✅ | **图文记忆面板恢复+图文生图面修复**（2026-11-16 收尾批）：新 WenxueMemoryPanel（图文脑数据面，快捷添加/搜索/编辑/删除；办公机制如实标注不跑；旧 848 行办公脑面板不复活）+ChatTabs 第八 tab 记忆+WenxueMemory 去混源（facts 办公脑→图文脑）；wxWorkSpaceTool 适配器救回被 work 空间闸过滤的 image_gen（办公 play 不变），面板 42→43；测试 4 组、app 全包 110s 绿、tsc 0、vitest 188 绿；`7e0dffde` |
 | ✅ | **图文记忆接入记忆中枢**（2026-11-16）：新绑定 GaeaWenxueMemoryBrowse（图文脑 facts 跨书全览只读，物理隔离不动）+总览 WenxueCount+MemoryHubPage 九库「图文记忆」只读组件；绑定四件套再生（wails generate module 需 DLL 双 PATH）；坑=os.UserConfigDir 读 %AppData% 不受 USERPROFILE 影响（新增 wenxueBrainDirOverride 缝防测试误写真实脑，实测写入已精确清除）；测试 3 组、app 全包 108s 绿、tsc 0、vitest 188 绿；`7e0dffde` |
 | ✅ | **图文工具瘦身刀**（2026-11-16）：55→42 件——摘编辑族五件/大文件两件/办公侧栏/会话元工具两件/子代理管理三件（agent 保留 task）；boot.addGated 把 ToolFilter 从三处装配点扩为全部模型面注册点 17 处（filter 空=办公逐字节现状）；前端 disabledDomains+13、静态表补 会话组/task/grep 灭「其他」组；policy 测试翻面+census 抽查+boot 闸四态；app 全包 98s 绿/boot 包绿/tsc 0/vitest 24 绿；`7e0dffde` |

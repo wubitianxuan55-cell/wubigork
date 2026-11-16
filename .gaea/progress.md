@@ -1,3 +1,88 @@
+## 图文板块身份提示词分板（2026-11-16）
+
+- **根因**：系统提示词身份段只有全局一条解析链（`ResolveSystemPrompt`），图文引擎复用办公 config——本机实锤图文会话开场自称「土壤修复工程办公专用AI助手」（办公自定义人格）；`genui/officepointer.md` 核实为板块中立 GenUI 指针，不属串味。
+- **分板**：`boot.Options.SystemPrompt` 覆写位（空=现状逐字节）+ `DefaultWenxueSystemPrompt`（10 行指路型：纪律指向内嵌技能 wenxue-workbench/书籍信息.md/内嵌三件，纪律本体不重复防双源漂移；语言纪律不重复——LanguagePolicy 恒拼单源；技能不点名项目件防索引漂移）+ `agent.wenxue_system_prompt`/`wenxue_system_prompt_file` 双键（文件键优先，读失败硬报错）+ `wenxue_engine` 经 `ResolveWenxueSystemPrompt` 接线。
+- **配套**：办公 config.toml 人格摘除 Hermes/Hephaestus 退役工作流程段（备份 config.toml.bak-20261116-pre-hermes）；定稿删除授权走记忆路线（两板块脑 AGENTS.md Notes 红线：删定稿先 request_permission——词表授权门方案被用户否决撤净，零代码门）。
+- **验证**：config 解析链/ boot 装配覆写 / internal/app 图文族测试绿；两次 wails build+装机（22:07/22:26）冒烟 `/api/health` 200；图文实际索引 4 件=内建 genui+内嵌三件（novel 三件系开发仓项目件不随书装配，skill-creator 本机不存在）。
+
+## 文件上传任务卡（2026-11-16）
+
+- 办公/文学 Composer 上传从全局 `pendingPaste` 计数升级为逐文件任务：拖拽、粘贴
+  与裁剪截图均显示文件名/大小/进度；成功后转正为原附件 chip，失败保留原因、
+  可重试标记与移除入口。
+- 重试复用内存原件/图片 data URL；分块上传逐片更新进度。上传中不提供假取消，
+  避免桥接请求结束后又把已移除文件挂回。存在上传中或失败任务时禁止发送/补选，
+  防止悄悄少附件。
+- 错误分类：超限、格式、权限、磁盘满等不可重试；超时、临时网络/桥接错误可重试。
+  原生“选文件”仍是路径引用，不产生伪上传任务。
+- **验证**：相关前端 75/75、`tsc -b` 0、改动面 ESLint 0、正式 Vite build
+  41.84s（既有 CSS/大 chunk warning 不变）。纯前端；未 Wails、未装机、未提交。
+
+## 文学候选稿（2026-11-16）
+
+- **范围裁决**：用户否决「中断续写」映射——文学交付物在章节文件，生成未落盘时
+  append 无法救回；该功能的工具/模板/UI/文案已全部撤除，不作为蒸馏候选。
+- **候选稿**：新增 `wenxue_candidate_write`（固定写
+  `章节/候选/<章名>/<label>.md`，不碰正文与定稿）与
+  `wenxue_candidate_promote`（提升前自动把当前正文归档到同章候选目录）。
+  工具 schema、RegistryMap、图文装配 census、能力面板、工作台技能与首页
+  「候选稿比较」快捷卡同批接入。
+- **验证**：`internal/app -run TestWenxue` 绿、tool RegistryMap 守卫绿、
+  wenxue 前端 38/38、`tsc -b` 0、改动面 ESLint 0、`go vet` 绿、正式 Vite
+  build 22.88s（既有 `ctx-*` CSS / 大 chunk warning 不变）。未 Wails、未装机、
+  未提交。
+
+## DeepSeek chat-demo 办公/文学蒸馏第一批（2026-11-16）
+
+- **会话级 Composer 草稿**：新增共享 `composerDrafts` 存储，办公/文学分别以
+  `work`/`play` + 真实会话路径隔离；未保存会话用 `sessionNonce` 区分。恢复
+  文本与附件路径，图片 data URL 不落本地存储，待发送队列只保留在进程内且
+  恢复后不自动重发，避免跨会话串话与重复执行。
+- **结构化来源证据**：`web_search/web_fetch` 的工具原始输出保持逐字不变，
+  Agent 仅在 `ToolResult` 旁附 `ToolSource[]`；日志、实时 wire、断号补拉与
+  reducer 全链透传。办公/文学 ToolCard 共用「来源」抽屉，失败检索不虚报证据。
+- **验证**：前端定向 16/16、`tsc -b` 0、改动面 ESLint 0、正式 Vite build
+  32.78s（既有 `ctx-*` CSS 语法/大 chunk warning 不变）；Go agent/session/app
+  定向测试与三包 `go vet` 绿（补齐 build/bin DLL PATH）。未 Wails、未装机、
+  未提交；工作树内既有其他业务改动未触碰。
+
+## 文学实弹工具契约修复（2026-11-16）
+
+- **用户反馈**：文学板块实测暴露六类工具契约问题——写后读缓存陈旧、
+  `read_file offset=-30` 未读尾部、`bash` 解释器说明含糊、精简版
+  `complete_step` schema 漏 kind 枚举、todo 完成与签退脱节、章节回执字数口径不明。
+- **缓存**：读缓存改为按绝对路径 + 全文 SHA256 校验，移除 5 秒 mtime 信任窗；
+  `CachePathResolver` 接通图文写族整书失效与 `todo_write` 的 `todos.md` 失效；
+  回合内去重改用完整结果哈希，并排除持久化状态型 todo。
+- **分页与契约**：`read_file` 负 offset 从 EOF 倒数窗口，输出绝对行号与正确续页
+  offset；`bash` 精简描述/schema 动态标明当前为 bash 或 PowerShell 并给示例；
+  `complete_step` 精简 schema 补 kind 枚举、支持 step_index-only，错误附可复制样例；
+  todo 回执列出缺失签退项与调用形态；文学写回执新增 `contentChars` 与
+  `wordCountRule`（非空白 rune 口径）。
+- **验证**：cache/agent/tool/builtin 四包绿；`internal/app -run Wenxue` 绿；
+  相关 `go vet` 绿。未 Wails、未装机、未提交。
+
+## 文学新会话首页简洁化（2026-11-16）
+
+- **用户反馈**：文学板块新会话首页过于花哨，要求对齐办公板块的简洁度。
+  原“作品控制台”同时铺开封面、概况、动作卡、作品结构与最近会话，主次失衡。
+- **已选作品态**：改为与办公首页同构的居中空态，仅保留当前作品提示、标题
+  “继续你的故事”、切换作品/首页隐私、写作快捷动作与原 Composer。切换作品、
+  隐私模式、快捷提示插入、离开空态后的会话链路均保留。
+- **未选作品态**：作品库收敛为单列最近作品列表，删除封面叠层、渐变 Hero、
+  统计条、右侧说明卡与引导步骤卡；保留新建小说、全部历史、隐私和打开作品。
+- **书架封面卡片化（用户追加）**：作品列表升级为三列封面卡片，窄窗两列、
+  手机单列。封面只保留标题、分类小标与书脊线，使用同一强调色生成克制的浓淡档；
+  不使用旧版倾斜叠层、渐变和阴影。同步补齐 `wx-home` 自己的 `--wx-*` 令牌，
+  修复脱离 `wx-hub` 后透明背景与浅色边框问题。
+- **工程**：`WenxueHome` 从双首页 794 行收敛为作品库单态，已选作品欢迎区由
+  `App` 复用办公空态定位；`wenxue-home.css` 由 1215 行收敛为无渐变、无玻璃、
+  无封面叠层的轻量布局；三语补齐 7 个首页键。隐私模式继续隐藏输入框作品入口。
+- **验证**：WenxueHome 4/4；`tsc -b` 0；改动面 ESLint 0；卡片封面终版
+  `npm run build` 23.58s 绿。1440×920、880×760 亮暗实页走查无横向溢出，
+  封面标题对比度亮 10.01:1 / 暗 8.70:1，快捷动作与辅助文字对比度 6:1 以上，
+  主按钮暗态 7.77:1。未 Wails、未装机、未提交。
+
 ## 编程外部浏览器持久会话修复（2026-11-16）
 
 - 用户实测关闭 gaea 后外部浏览器里的 DSH 工作台同时断开。根因：DSH node 进程
