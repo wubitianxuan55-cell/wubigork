@@ -1,3 +1,27 @@
+## 编队拓扑实弹走查 · 两处几何 bug 根修 + mock 增稠（2026-11-18）
+
+headless Edge（CDP 9343 独立口）+ Vite dev `?mock=1` 走查新编队 UI——两刀修复
+（`6df5ec82`）+ 第三次构建装机（exe 新 PID 14704>构建时刻 01:33:06，未 push）：
+
+- **bug1 判列公式**：bandColsFor 用 MIN 槽位预算选列，窄容器（556px）选出 4 列
+  →行宽 680 溢出——改按钳制后实际卡宽逐列迭代（360→2/556→3/720→4）。
+- **bug2 步进口径**：place() 步进 x+=width+GUTTER 而 rowWidthOf 只算 slot 和
+  （slot 已含 gutter）——每边界漂 10px，行尾聚合卡出界（right 875>866）；
+  步进改 x+=child.width 与行宽同口径。
+- **bug3 测量口径**：canvas 测量用 getBoundingClientRect（border-box），
+  canvas 活在 stage padding 内侧→画布宽出 20px（scrollWidth 554>534）——
+  改 clientWidth-paddingX（content box）。
+- 终态实弹断言全绿：noHScroll=true、done=4/idle=3 聚合卡、aborted 词汇、
+  尾巴×2、深度色带两层、树视图 6 行、跨视图选中/折叠保持、ⓘ 浮层开合。
+- **mock 增稠**：AgentNetwork 补 done×4/idle×3/aborted/尾巴；SubagentRuns
+  默认分支 9 条对齐——浏览器 ?mock=1 走查面从此可验折叠/新词汇/尾巴。
+- **⚠️ 事故复犯记档**：GAEA_WALK_PORT 缺省 9333=用户壳 WebView2 调试口，
+  step2「编队」点击曾误打用户实盘（仅视图切换、无写入、无实害）；9333 事故
+  （2026-10-09）同源复犯——此后走查驱动前必须 GAEA_WALK_PORT 显式设口 +
+  /json/list 核对目标页。
+- 门禁：context 族 118/118；tsc -b 0；前端 30.80s+wails 53.96s+冒烟 200+
+  INSTALL OK。截图 temp/fleet-walk/（graph/tree/info/亮暗）。
+
 ## 编队 UI 完善批 · D8 双视图+深度色带+节点详情浮层（2026-11-18）
 
 DSH 蒸馏计划 01 的 UI 尾款一批收口（`c8f0e2e9`，构建装机 exe 新 PID 34288，未 push）：
