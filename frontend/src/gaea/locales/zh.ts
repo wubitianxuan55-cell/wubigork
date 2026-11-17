@@ -357,6 +357,8 @@ export const zh: Record<DictKey, string> = {
   "work.done": "已完成",
   "work.elapsed": "用时 {t}",
   "work.steps": "{n} 步",
+  "work.triggerWake": "后台唤醒",
+  "work.triggerSubagent": "子代理回合",
   // 相对时间分档文案（lib/time.ts relativeTime；FE4-03 唯一源）
   "time.justNow": "刚刚",
   "time.minutesAgo": "{n} 分钟前",

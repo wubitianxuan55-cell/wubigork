@@ -24,6 +24,18 @@ describe("applyEvent", () => {
     expect(s.turnTokens).toBe(0);
   });
 
+  it("U5 触发源捕获：turn_started 带 trigger 落 turnTrigger，user 轮清空", () => {
+    const wake = applyEvent(base(), { kind: "turn_started", trigger: "wake" });
+    expect(wake.turnTrigger).toBe("wake");
+    const sub = applyEvent(base({ turnTrigger: "wake" }), { kind: "turn_started", trigger: "subagent" });
+    expect(sub.turnTrigger).toBe("subagent");
+    // wire 缺省字段（老后端）→ 空 = user 兜底不画徽标
+    const legacy = applyEvent(base({ turnTrigger: "wake" }), { kind: "turn_started" });
+    expect(legacy.turnTrigger).toBe("");
+    const userTurn = reducer(base({ turnTrigger: "wake" }), { type: "user", text: "你好" });
+    expect(userTurn.turnTrigger).toBe("");
+  });
+
   it("text 流式追加到当前 assistant", () => {
     const s0 = base({
       items: [{ kind: "assistant", id: "a0", text: "你好", reasoning: "", streaming: true }],

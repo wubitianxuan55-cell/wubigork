@@ -763,6 +763,13 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		m["level"] = gaeaLevelName(e.Level)
 	case event.Phase:
 		m["text"] = e.Text
+	case event.TurnStarted:
+		// U5 触发源徽标（dsh ui 蒸馏收尾刀）：回合发起者随线事件下发。
+		// user 是缺省形态不下发（老前端/普通轮线格式逐字节不变）；
+		// wake/subagent 非用户回合，前端 WorkHeader 据此画归属徽标。
+		if e.Trigger != "" && e.Trigger != event.TriggerUser {
+			m["trigger"] = e.Trigger
+		}
 	case event.TurnDone:
 		if e.Err != nil {
 			m["err"] = e.Err.Error()

@@ -19,7 +19,7 @@ const tool = (id: string, status: "running" | "done"): Item =>
   ({ kind: "tool", id, name: "bash", args: "", readOnly: false, status });
 
 beforeEach(() => {
-  setStore({ running: false, turnStartAt: 0, items: [] });
+  setStore({ running: false, turnStartAt: 0, turnTrigger: "", items: [] });
   // WorkHeader 走 useT；钉住 zh 让断言用中文文案
   localStorage.setItem("gaea-lang", "zh");
 });
@@ -31,6 +31,19 @@ function headerOf(container: HTMLElement): HTMLElement | null {
 }
 
 describe("WorkHeader 工作态头部行", () => {
+  it("U5 触发源徽标：wake/subagent 回合亮归属，user 缺省不画", () => {
+    setStore({ running: true, turnStartAt: Date.now() - 3_000, turnTrigger: "wake", items: [] });
+    const view = mount(<WorkHeader />);
+    expect(headerOf(view.container)?.textContent).toContain("后台唤醒");
+    // 切子代理回合（zustand 外部 store 更新须 act 包裹触发重渲染）
+    act(() => { setStore({ turnTrigger: "subagent" }); });
+    expect(headerOf(view.container)?.textContent).toContain("子代理回合");
+    // user 缺省：无徽标
+    act(() => { setStore({ turnTrigger: "" }); });
+    expect(headerOf(view.container)?.textContent).not.toContain("后台唤醒");
+    expect(headerOf(view.container)?.textContent).not.toContain("子代理回合");
+  });
+
   it("零 items 也渲染（turn_started 后无任何 item 的死寂窗口有反馈）", () => {
     setStore({ running: true, turnStartAt: Date.now() - 5_000, items: [] });
     const view = mount(<WorkHeader />);

@@ -139,6 +139,9 @@ export interface WireEvent {
   progress?: WirePreviewProgress;
   path?: string; // preview_progress: 当前预览文件（冗余，便于前端过滤）
   err?: string;
+  // U5 触发源徽标：turn_started 可选携带回合发起者（user/wake/subagent）。
+  // 后端 user 缺省不下发；reducer 落 turnTrigger，WorkHeader 据此画归属徽标。
+  trigger?: string;
   // v4.26：message 事件可选携带子代理来源引用（后端把子代理最终答复回投主
   // 回合时标注）；reducer 落到 assistant item 上，渲染层据此画「子代理」徽标。
   subagentRef?: string;

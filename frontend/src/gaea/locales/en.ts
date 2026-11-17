@@ -354,6 +354,8 @@ export const en = {
   "work.done": "Done",
   "work.elapsed": "elapsed {t}",
   "work.steps": "{n} steps",
+  "work.triggerWake": "Background wake",
+  "work.triggerSubagent": "Subagent turn",
   // relative-time tiers (lib/time.ts relativeTime; FE4-03 single source)
   "time.justNow": "just now",
   "time.minutesAgo": "{n} min ago",

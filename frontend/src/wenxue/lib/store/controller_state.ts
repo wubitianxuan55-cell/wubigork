@@ -29,7 +29,7 @@ export interface ControllerState {
   usage?: WireUsage; context: ContextInfo; meta?: Meta; balance?: BalanceInfo; jobs: JobView[];
   currentAssistant?: string; pendingUser?: string; discardTurn?: boolean;
   lastAssistantIdx: number; // 最后一个 assistant 项的索引，避免流式 text/reasoning 事件中 O(n) 反向查找
-  turnStartAt: number; turnTokens: number; seq: number;
+  turnStartAt: number; turnTokens: number; turnTrigger: string; seq: number;
   sessionTotal: number;
   perTurnUsage: WireUsage | null | undefined; // V5.30: whole-turn accumulated usage
   perTurnExecutorUsage?: WireUsage; // 执行模型 usage
@@ -309,7 +309,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
   if (s.discardTurn) { if (e.kind === "turn_done") return { ...s, discardTurn: false, running: false, turnActive: false, currentAssistant: undefined }; return s; }
   if (s.pendingUser !== undefined && e.kind !== "turn_started" && e.kind !== "turn_done") s = flushPendingUser(s);
   switch (e.kind) {
-    case "turn_started": return { ...s, running: true, turnActive: true, currentAssistant: undefined, lastAssistantIdx: -1, turnStartAt: Date.now(), turnTokens: 0, perTurnUsage: null, perTurnExecutorUsage: undefined, perTurnSubUsage: undefined, turnSteps: [] };
+    case "turn_started": return { ...s, running: true, turnActive: true, currentAssistant: undefined, lastAssistantIdx: -1, turnStartAt: Date.now(), turnTrigger: e.trigger ?? "", turnTokens: 0, perTurnUsage: null, perTurnExecutorUsage: undefined, perTurnSubUsage: undefined, turnSteps: [] };
     case "text": case "reasoning": {
       // O(1) 查找最后一个 assistant 项：用 lastAssistantIdx 避免流式时每 chunk O(n) 扫描。
       // 若最后 assistant 已终结（上一轮 turn_done 已将 streaming 置 false）且当前轮活跃，
@@ -438,7 +438,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
 
 export function reducer(s: ControllerState, a: Action): ControllerState {
   switch (a.type) {
-    case "user": return { ...s, running: true, turnStartAt: Date.now(), turnTokens: 0, pendingUser: a.text, discardTurn: false, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: a.text }] };
+    case "user": return { ...s, running: true, turnStartAt: Date.now(), turnTrigger: "", turnTokens: 0, pendingUser: a.text, discardTurn: false, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: a.text }] };
     case "unsend": return { ...s, pendingUser: undefined, discardTurn: true, running: false };
     // 本地复位：turn_done 事件丢失/后端无实际任务可取消时，停止按钮必须能
     // 把界面从“执行中”拉回来。逻辑与 turn_done 一致但不触发任何后端调用。
@@ -500,6 +500,6 @@ export const initialState: ControllerState = {
   approval: undefined, ask: undefined, usage: undefined,
   context: { used: 0, window: 0 }, meta: undefined, balance: undefined,
   jobs: [], currentAssistant: undefined, pendingUser: undefined, discardTurn: false, lastAssistantIdx: -1,
-  turnStartAt: 0, turnTokens: 0, seq: 0, sessionTotal: 0, sessionNonce: 0, perTurnUsage: null, turnSteps: [],
+  turnStartAt: 0, turnTokens: 0, turnTrigger: "", seq: 0, sessionTotal: 0, sessionNonce: 0, perTurnUsage: null, turnSteps: [],
   _dispatch: () => {},
 };

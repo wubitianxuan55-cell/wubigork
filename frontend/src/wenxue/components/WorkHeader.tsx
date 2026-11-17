@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- countTurnSteps/latestTurnPhaseText 纯函数导出供测试复用 */
 import { useRef } from "react";
 import { CheckCircle, Loader2 } from "../icons";
-import { useItems, useStore, useTurnStartAt } from "../lib/store";
+import { useItems, useStore, useTurnStartAt, useTurnTrigger } from "../lib/store";
 import type { Item } from "../lib/store";
 import { useNow } from "../lib/useNow";
 import { formatElapsed } from "../lib/time";
@@ -62,6 +62,7 @@ export function latestTurnPhaseText(items: Item[]): string {
 export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolean }) {
   const running = useStore((s) => s.running);
   const turnStartAt = useTurnStartAt();
+  const turnTrigger = useTurnTrigger();
   const items = useItems();
   // v4.350：仅运行中订阅全局时钟（完成态耗时已定格在 finalRef，不看 now）
   const now = useNow(running);
@@ -96,6 +97,12 @@ export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolea
 
   const phaseText = latestTurnPhaseText(items);
   const steps = running ? countTurnSteps(items) : finalRef.current.steps;
+  // U5 触发源徽标（dsh ui 蒸馏收尾刀）：非用户回合（wake/subagent）在头部
+  // 亮归属——「这一轮是谁让它发生的」，user 缺省不画。
+  const triggerLabel =
+    turnTrigger === "wake" ? t("work.triggerWake")
+    : turnTrigger === "subagent" ? t("work.triggerSubagent")
+    : "";
   const elapsed = running
     ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
     : finalRef.current.elapsed;
@@ -122,6 +129,14 @@ export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolea
       ) : !running ? (
         <span className="shrink-0 font-medium text-fg-dim">{t("work.done")}</span>
       ) : null}
+      {triggerLabel !== "" && (
+        <span
+          className="shrink-0 rounded px-1 py-px text-[9.5px] font-medium"
+          style={{ color: "var(--fg-faint)", background: "var(--md-sys-color-surface-container-high)" }}
+        >
+          {triggerLabel}
+        </span>
+      )}
       <span className="min-w-0 truncate text-fg-faint/80 tabular-nums">
         · {t("work.elapsed", { t: formatElapsed(elapsed) })}
       </span>

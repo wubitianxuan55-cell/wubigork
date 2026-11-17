@@ -159,3 +159,9 @@ export function useItems(): Item[] {
 export function useTurnStartAt(): number {
   return useStore(s => s.turnStartAt);
 }
+
+// useTurnTrigger 返回当前回合发起者词汇（""=user 缺省；wake/subagent 非用户
+// 回合，WorkHeader 据此画归属徽标——U5 蒸馏收尾刀）。
+export function useTurnTrigger(): string {
+  return useStore(s => s.turnTrigger);
+}
