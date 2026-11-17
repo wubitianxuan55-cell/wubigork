@@ -1,3 +1,25 @@
+## codex 蒸馏前两批 · Git 打包与桌面构建（2026-11-17）
+
+- **功能提交**：`f416e223`（前两批 T1–T15 双板块收口 + 蒸馏文档）。
+- **模块再生提交**：`4be0ddc9`（Wails 模块补齐 Office/Wenxue 新绑定与
+  `control.DeniedActionInfo`/`pantheon.AgentStatus.description`）；交付构建点固定为该提交。
+- **干净树构建**：`.worktrees/pkg-4be0ddc9`（detached @`4be0ddc9`，前端 node_modules
+  junction）；前端 `npm.cmd run build` Vite 27.94s，随后 UCRT64 GCC +
+  `CGO_ENABLED=1` + 系统默认 TMP/TEMP 执行
+  `wails build -s -ldflags "-s -w" -trimpath` 56.045s，日志确认
+  `Skip Bindings=false`。构建后 wailsjs 仅有 CRLF 状态噪声，
+  `git diff --ignore-space-at-eol` 为空。
+- **交付目录**：`releases/gaea-codex-distill-batch12-20261117-4be0ddc9/`
+  （payload 四件 + `PACKAGE-INFO.md` + `SHA256SUMS-4be0ddc9.txt` +
+  preview ZIP + source TAR；二进制/源码包留盘不入库）。
+- **payload**：`gaea.exe` 54,987,776 B `03455E79…FA54D2`；三 DLL 与原基线同哈希
+  `68D0D5F5…` / `5DD36DBD…` / `4C5632…`。完整 SHA256 见包内清单。
+- **冒烟**：独立 worktree 的 `build/bin` 被本机策略拦截（WebView2
+  `800700aa`）；同构建复制到正式 payload 后 `/api/health` 200（PID 55368），
+  再同步主树 `build/bin` 冒烟 200（PID 24580），进程均已回收。
+- **版本/装机**：4.544.0，不抬号；未运行 `gaea_install.ps1`，未覆盖
+  `C:\AI\gaea-app`。
+
 ## codex 蒸馏前两批 · 第二轮全审计与办公/文学双板块收口（2026-11-17）
 
 按 `exec-brief-T1-T5.md`、`master-brief-T6-T15.md` 和两批资产验收逐项复核，
