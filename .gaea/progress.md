@@ -1,3 +1,22 @@
+## U5 触发源徽标收尾刀 · 非用户回合亮归属（2026-11-18）
+
+dsh ui 蒸馏档刀池最后一件（`e69154c4`，第四次装机 exe 新 PID 50556，未 push）：
+
+- **实锤路径**：TurnStarted.Trigger（user/wake/subagent）在会话日志
+  （log.go:503 payload 带 trigger）与轨迹（Turn.Trigger）两路已在，唯
+  wire 缺口——gaeaEventMap 无 TurnStarted 分支。
+- **三段补齐**：Go wire 下发（user 缺省不下发，普通轮线格式逐字节不变）
+  → reducer turn_started 捕获 turnTrigger（user 轮清空、老后端兜空）→
+  WorkHeader 状态行内嵌 chip（后台唤醒/子代理回合，运行态与完成态都亮
+  ——完成态耗时行的归属同样诚实）。
+- wenxue 镜像六文件同批（store reducer/hook/workheader/wire/locales）；
+  i18n work.triggerWake/work.triggerSubagent ×3 语 ×2 树。
+- 门禁：store+WorkHeader 22/22（U5 断言 2 例）、wenxue 49/49、tsc 0、
+  ESLint 0、Go build/vet/定向 test 绿；前端 32.38s+wails 59.476s+
+  冒烟 200+INSTALL OK。
+- **UI 蒸馏档刀池至此全部处置完毕**（UA-1/UA-2 已落、U5 徽标本刀收口、
+  谱系树/设置卡留档）。
+
 ## 编队拓扑实弹走查 · 两处几何 bug 根修 + mock 增稠（2026-11-18）
 
 headless Edge（CDP 9343 独立口）+ Vite dev `?mock=1` 走查新编队 UI——两刀修复
