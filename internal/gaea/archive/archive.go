@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // Record is a single message stored in the archive.
@@ -55,7 +57,7 @@ func (s *Store) RecordMessage(sessionID, role, content, toolCallsJSON string, tu
 
 	rec := Record{
 		Role:      role,
-		Content:   truncate(content, 2000),
+		Content:   truncate(content, strutil.SharedOutputBudget().Transport.ArchiveContentByteLimit),
 		ToolCalls: toolCallsJSON,
 		Turn:      turn,
 		TimeUS:    time.Now().UnixMicro(),
@@ -234,8 +236,5 @@ func (s *Store) ListRecentSessions(limit int) ([]SessionSummary, error) {
 }
 
 func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max]
+	return strutil.TruncateMiddleWithMarker(s, strutil.BytesPolicy(max), "…").Text
 }

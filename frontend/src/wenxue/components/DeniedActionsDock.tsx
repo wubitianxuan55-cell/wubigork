@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { app } from "../lib/bridge";
 import type { WireDeniedAction } from "../lib/types";
+import { truncateToWidth } from "../../gaea/lib/textMetrics";
 
 // 文学板块待追认账本（codex 蒸馏 T3/T11）：数据源和追认动作均映射到
 // WenxueB，绝不误读办公 controller 的拒绝账本。
@@ -63,7 +64,7 @@ export function DeniedActionsDock({ onReinstated }: { onReinstated?: () => void 
 }
 
 function clip(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+  return truncateToWidth(text, max);
 }
 
 function onWenxueEventKind(cb: (kind: string) => void): () => void {

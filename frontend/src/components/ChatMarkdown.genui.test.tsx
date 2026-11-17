@@ -45,6 +45,8 @@ describe("聊天 markdown 缝渲染 GenUI", () => {
     );
     const details = document.querySelector("details.gui-fence-fallback");
     expect(details).toBeTruthy();
+    expect(new URL(details?.getAttribute("data-genui-placeholder") ?? "").hostname.endsWith(".invalid"))
+      .toBe(true);
     expect(details?.textContent).toContain("废规格");
     expect(screen.getByText("前后文")).toBeTruthy();
   });

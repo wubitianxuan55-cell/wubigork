@@ -8,26 +8,53 @@
 // 可见）。兜底 textarea 用 fixed+opacity:0 防滚动跳变，select 后检查
 // execCommand 布尔返回。
 
-export async function copyToClipboard(text: string): Promise<boolean> {
+export type CopyOutcome = "rich" | "plain" | false;
+
+export async function copyToClipboard(
+  text: string,
+  options: { html?: string } = {},
+): Promise<CopyOutcome> {
+  if (text === "" && !options.html) return false;
+  const clipboard = navigator.clipboard as {
+    writeText?: (value: string) => Promise<void>;
+    write?: (items: ClipboardItem[]) => Promise<void>;
+  } | undefined;
+  const ClipboardItemCtor = (globalThis as typeof globalThis & {
+    ClipboardItem?: typeof ClipboardItem;
+  }).ClipboardItem;
+  if (options.html && typeof clipboard?.write === "function" && typeof ClipboardItemCtor === "function") {
+    try {
+      const item = new ClipboardItemCtor({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([options.html], { type: "text/html" }),
+      });
+      await clipboard.write([item]);
+      return "rich";
+    } catch {
+      // 富文本失败后仍尝试纯文本，避免内容完全落空
+    }
+  }
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
+    if (clipboard?.writeText) {
+      await clipboard.writeText(text);
+      return "plain";
     }
   } catch {
     // 落入 execCommand 兜底
   }
+  let ta: HTMLTextAreaElement | null = null;
   try {
-    const ta = document.createElement("textarea");
+    ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
     const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
+    return ok ? "plain" : false;
   } catch {
     return false;
+  } finally {
+    ta?.remove();
   }
 }

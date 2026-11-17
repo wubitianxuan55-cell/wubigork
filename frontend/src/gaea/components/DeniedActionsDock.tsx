@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { app } from "../lib/bridge";
 import type { WireDeniedAction } from "../lib/types";
+import { truncateToWidth } from "../lib/textMetrics";
 
 // DeniedActionsDock 待追认账本（codex 蒸馏 T3/T11 前端面）：拒绝/超时挂账的
 // 动作列表——「无人值守回来后还有 N 条待审」的落点。追认 = 按原参数重放
@@ -71,11 +72,11 @@ export function DeniedActionsDock({ onReinstated }: { onReinstated?: () => void 
 }
 
 function clipSubject(s: string): string {
-  return s.length > 80 ? `${s.slice(0, 80)}…` : s;
+  return truncateToWidth(s, 80);
 }
 
 function clipReason(s: string): string {
-  return s.length > 60 ? `${s.slice(0, 60)}…` : s;
+  return truncateToWidth(s, 60);
 }
 
 // onGaeaEventKind：gaea 事件流的 kind 过滤薄封装（组件内联，避免新公共 API）。

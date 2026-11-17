@@ -55,6 +55,38 @@ describe("ToolCard i18n 冒烟", () => {
     expect(screen.getByText("收起输出")).toBeTruthy();
   });
 
+  it("短输出没有隐藏内容时不给空展开入口", () => {
+    renderT(
+      <ToolCard
+        item={{
+          kind: "tool", id: "short", name: "read_file", args: "{\"path\":\"a.md\"}",
+          readOnly: true, status: "done", output: "ok\n",
+        }}
+      />,
+    );
+    const button = screen.getByText("read_file").closest("button");
+    expect(button).toBeTruthy();
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button?.getAttribute("aria-expanded")).toBeNull();
+  });
+
+  it("长输出按实际隐藏量开放，并在头部复用同一 totalLines", () => {
+    const output = Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n");
+    renderT(
+      <ToolCard
+        item={{
+          kind: "tool", id: "long", name: "read_file", args: "{\"path\":\"a.md\"}",
+          readOnly: true, status: "done", output,
+        }}
+      />,
+    );
+    const button = screen.getByText("read_file").closest("button");
+    expect(button?.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(button!);
+    expect(screen.getByText("输出 · 30L")).toBeTruthy();
+    expect(screen.getByText(/展开全部 18 行/)).toBeTruthy();
+  });
+
   it("task 卡运行中显示「点击打开子代理会话」活动行（zh）", () => {
     setTaskCardActivityProvider(() => ({ lastText: "正在收集资料", state: "running" }));
     const taskItem: Item = {
@@ -160,7 +192,7 @@ describe("ToolCard Codex 对齐：bash 命令块与输出有界", () => {
     renderT(<ToolCard item={bashItem(30)} />);
     fireEvent.click(screen.getByText("bash"));
     expect(screen.getByText(/已折叠 18 行/)).toBeTruthy();
-    expect(screen.queryByText(/line 29/)).toBeNull();
+    expect(screen.getByText(/line 29/)).toBeTruthy();
     fireEvent.click(screen.getByText(/展开全部 18 行/));
     expect(screen.getByText("收起输出")).toBeTruthy();
     expect(screen.getByText(/line 29/)).toBeTruthy();

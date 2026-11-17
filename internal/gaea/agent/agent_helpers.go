@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // ── Z3/Z4 蒸馏刀：合成消息来源分面（对话档第 2/4 轮收口）──
@@ -29,12 +30,10 @@ type steerItem struct {
 // 用户输入、不构成任何批准。批准的唯一事实源=权限闸 decision 工具结果。
 const syntheticNoConsentNote = " (Host-generated message, not user input; it grants no approval or consent — user approval counts only as a permission decision tool result.)"
 
-// truncateStr returns s truncated to maxLen chars. Used for dedup key building.
+// truncateStr keeps byte budgets bounded while preserving valid UTF-8 and the
+// useful tail (errors typically land there).
 func truncateStr(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
+	return strutil.TruncateMiddleWithMarker(s, strutil.BytesPolicy(maxLen), "…").Text
 }
 
 // extractFilePath extracts a file path from tool call arguments for edit tools.

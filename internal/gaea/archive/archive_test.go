@@ -182,8 +182,9 @@ func TestTruncate(t *testing.T) {
 		expect string
 	}{
 		{"hello", 10, "hello"},
-		{"hello world this is long", 5, "hello"},
+		{"hello world this is long", 5, "h…g"},
 		{"", 10, ""},
+		{"中文归档🎉尾部", 12, "中…部"},
 	}
 	for _, tt := range tests {
 		got := truncate(tt.input, tt.max)

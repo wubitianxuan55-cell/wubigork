@@ -193,11 +193,7 @@ func truncateText(s string, maxChars int) string {
 	if s == "" {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= maxChars {
-		return s
-	}
-	return string(runes[:maxChars]) + "…"
+	return strutil.TruncateMiddleWithMarker(s, strutil.RunesPolicy(maxChars), "…").Text
 }
 
 // extractKeyFiles 从消息中提取引用的文件路径。

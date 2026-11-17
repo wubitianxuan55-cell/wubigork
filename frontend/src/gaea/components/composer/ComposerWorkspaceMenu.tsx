@@ -9,10 +9,11 @@ export interface ComposerWorkspaceMenuProps {
   onQueryChange: (q: string) => void
   workspaces: WorkspaceView[]
   onChoose: (path?: string) => void
+  onCreateNovel?: () => void
   onClose: () => void
 }
 
-export function ComposerWorkspaceMenu({ menuRef, query, onQueryChange, workspaces, onChoose, onClose }: ComposerWorkspaceMenuProps) {
+export function ComposerWorkspaceMenu({ menuRef, query, onQueryChange, workspaces, onChoose, onCreateNovel, onClose }: ComposerWorkspaceMenuProps) {
   const t = useT()
   return (
     <div
@@ -41,9 +42,9 @@ export function ComposerWorkspaceMenu({ menuRef, query, onQueryChange, workspace
         {workspaces.length === 0 && <div className="py-4 text-fg-faint text-xs text-center">{t("composer.noProjectMatches")}</div>}
       </div>
       <div className="pt-1 border-t border-border-soft">
-        <button className="flex items-center gap-2.5 w-full px-2 py-1.5 bg-transparent border-0 rounded-lg text-left cursor-pointer text-fg-dim hover:bg-bg-soft hover:text-fg text-[13px] transition-colors" onClick={() => void onChoose()}>
+        <button className="flex items-center gap-2.5 w-full px-2 py-1.5 bg-transparent border-0 rounded-lg text-left cursor-pointer text-fg-dim hover:bg-bg-soft hover:text-fg text-[13px] transition-colors" onClick={onCreateNovel ?? (() => void onChoose())}>
           <FolderPlus size={15} className="shrink-0" />
-          <span>{t("composer.addProject")}</span>
+          <span>{onCreateNovel ? "新建小说" : t("composer.addProject")}</span>
         </button>
       </div>
     </div>

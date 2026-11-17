@@ -14,6 +14,7 @@ describe('MarkdownContent GFM 渲染', () => {
     expect(screen.getByText('角色')).toBeTruthy()
     expect(screen.getByText('林晚')).toBeTruthy()
     expect(screen.getByText('顾辞')).toBeTruthy()
+    expect(screen.getByTestId('table-copy')).toBeTruthy()
   })
 
   it('渲染标题与列表等基础语法', () => {

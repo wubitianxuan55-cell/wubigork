@@ -74,4 +74,25 @@ describe("useSessionManager", () => {
     expect(result.current.sidebarSessions.map((s) => s.path)).toEqual(["/cur"]);
     expect(d.onError).not.toHaveBeenCalled();
   });
+
+  it("刷新列表按会话路径去重，项目分组同源去重", async () => {
+    const d = makeDeps({
+      sessions: [meta("/cur", { current: true }), meta("/old"), meta("/old", { preview: "重复项" })],
+      groups: [{
+        path: "/ws",
+        name: "ws",
+        current: true,
+        sessions: [meta("/cur", { current: true }), meta("/cur", { preview: "重复项" }), meta("/old")],
+        archived: [meta("/archived"), meta("/archived")],
+        modTime: 1,
+      }],
+    });
+    const { result } = renderHook(() => useSessionManager(d.newSession, d.listSessions, d.listProjectSessions, d.resumeSession, d.deleteSession, d.renameSession, d.onError));
+
+    await act(async () => { await result.current.refreshSessions(); });
+
+    expect(result.current.sidebarSessions.map((s) => s.path)).toEqual(["/cur", "/old"]);
+    expect(result.current.projectGroups[0].sessions.map((s) => s.path)).toEqual(["/cur", "/old"]);
+    expect(result.current.projectGroups[0].archived.map((s) => s.path)).toEqual(["/archived"]);
+  });
 });

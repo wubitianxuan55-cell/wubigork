@@ -9,6 +9,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ChatMsg } from '../../pages/chat/types'
 import {
   MessageList, VIRTUALIZE_THRESHOLD, WINDOW_INITIAL, WINDOW_GROW_STEP,
+  MAX_RENDERED_ROWS,
 } from './MessageList'
 import type { ChatRowProps } from './ChatRow'
 
@@ -51,6 +52,10 @@ const baseProps = {
 const rowCount = () => document.querySelectorAll('.chat-row').length
 
 describe('MessageList 尾部窗口（DOM 节点受限）', () => {
+  it('显式保留上限不会小于初始窗口', () => {
+    expect(MAX_RENDERED_ROWS).toBeGreaterThanOrEqual(WINDOW_INITIAL)
+  })
+
   it(`消息数 ≤ ${VIRTUALIZE_THRESHOLD}：全量渲染，行为不变`, () => {
     render(<MessageList {...baseProps} messages={makeMessages(VIRTUALIZE_THRESHOLD)} />)
     expect(rowCount()).toBe(VIRTUALIZE_THRESHOLD)

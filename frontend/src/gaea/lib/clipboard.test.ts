@@ -22,6 +22,7 @@ describe("copyToClipboard（v4.513 单源）", () => {
     // 恢复 jsdom 原状（clipboard undefined / execCommand 未实现）
     Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
     delete (document as Partial<Document>).execCommand;
+    delete (globalThis as { ClipboardItem?: unknown }).ClipboardItem;
     vi.restoreAllMocks();
   });
 
@@ -29,7 +30,7 @@ describe("copyToClipboard（v4.513 单源）", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     stubClipboard(writeText);
     stubExecCommand(() => true);
-    await expect(copyToClipboard("文本")).resolves.toBe(true);
+    await expect(copyToClipboard("文本")).resolves.toBe("plain");
     expect(writeText).toHaveBeenCalledWith("文本");
     expect(document.execCommand).not.toHaveBeenCalled();
   });
@@ -37,14 +38,14 @@ describe("copyToClipboard（v4.513 单源）", () => {
   it("API 拒绝（失焦/权限）：execCommand 兜底成功 → true", async () => {
     stubClipboard(vi.fn().mockRejectedValue(new Error("denied")));
     stubExecCommand(() => true);
-    await expect(copyToClipboard("文本")).resolves.toBe(true);
+    await expect(copyToClipboard("文本")).resolves.toBe("plain");
     expect(document.execCommand).toHaveBeenCalledWith("copy");
   });
 
   it("Clipboard API 缺失（旧环境）：直接走兜底", async () => {
     stubClipboard(undefined);
     stubExecCommand(() => true);
-    await expect(copyToClipboard("文本")).resolves.toBe(true);
+    await expect(copyToClipboard("文本")).resolves.toBe("plain");
     expect(document.execCommand).toHaveBeenCalledWith("copy");
   });
 
@@ -62,9 +63,65 @@ describe("copyToClipboard（v4.513 单源）", () => {
       taValue = ta ? (ta as HTMLTextAreaElement).value : "";
       return true;
     });
-    await expect(copyToClipboard("整段内容")).resolves.toBe(true);
+    await expect(copyToClipboard("整段内容")).resolves.toBe("plain");
     expect(taValue).toBe("整段内容");
     // 兜底收尾即摘除临时 textarea，不留 DOM 残渣
+    expect(document.querySelector("textarea")).toBeNull();
+  });
+
+  it("rich copy writes text/plain + text/html through ClipboardItem", async () => {
+    class ClipboardItemStub {
+      constructor(public data: Record<string, Blob>) {}
+    }
+    Object.defineProperty(globalThis, "ClipboardItem", {
+      value: ClipboardItemStub,
+      configurable: true,
+      writable: true,
+    });
+    const write = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { write, writeText },
+      configurable: true,
+    });
+
+    await expect(copyToClipboard("纯文本", { html: "<table><tr><td>x</td></tr></table>" }))
+      .resolves.toBe("rich");
+    expect(writeText).not.toHaveBeenCalled();
+    const item = write.mock.calls[0][0][0] as ClipboardItemStub;
+    expect(Object.keys(item.data)).toEqual(["text/plain", "text/html"]);
+  });
+
+  it("empty content does not modify the clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+    await expect(copyToClipboard("")).resolves.toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("rich write rejection falls back to plain text", async () => {
+    class ClipboardItemStub {
+      constructor(public data: Record<string, Blob>) {}
+    }
+    Object.defineProperty(globalThis, "ClipboardItem", {
+      value: ClipboardItemStub,
+      configurable: true,
+      writable: true,
+    });
+    const write = vi.fn().mockRejectedValue(new Error("rich denied"));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { write, writeText },
+      configurable: true,
+    });
+    await expect(copyToClipboard("文本", { html: "<b>x</b>" })).resolves.toBe("plain");
+    expect(writeText).toHaveBeenCalledWith("文本");
+  });
+
+  it("execCommand throw still removes the temporary textarea", async () => {
+    stubClipboard(undefined);
+    stubExecCommand(() => { throw new Error("copy threw"); });
+    await expect(copyToClipboard("文本")).resolves.toBe(false);
     expect(document.querySelector("textarea")).toBeNull();
   });
 });

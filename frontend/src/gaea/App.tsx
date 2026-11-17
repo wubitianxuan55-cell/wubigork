@@ -140,7 +140,7 @@ export default function App() {
   } = useController();
   const t = useT();
   const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
-  const { histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, closeTopmost } = useDrawers();
+  const { histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, anyOpen, closeTopmost } = useDrawers();
   // v4.73：记忆由抽屉迁入主区 tab——视图快照在 App 层维护，动作写盘后统一刷新。
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
@@ -374,7 +374,7 @@ export default function App() {
 
   // 全局快捷键 → app/useAppKeyboard（deps 原样）
   useAppKeyboard({
-    state, closeTopmost, workspacePanelOpen, previewFile, toggleFocus,
+    state, closeTopmost, anyOpen, cancel, workspacePanelOpen, previewFile, toggleFocus,
     closeFilePreview, newSessionAndReset, openHistory, openKnowledge,
     toggleSidebar, toggleWorkspacePanel, setPaletteOpen,
   });

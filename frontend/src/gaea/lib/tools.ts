@@ -8,8 +8,24 @@ import { diffLines } from "./diff";
 import { t } from "./i18n";
 import { extToLang } from "./lang";
 import { parseWriteArgs } from "./toolArgs";
+import { lineWidth, truncateMiddleToWidth, truncateToWidth } from "./textMetrics";
+import {
+  TOOL_OUTPUT_MAX_PREVIEW_LINES,
+  TOOL_OUTPUT_LINE_WIDTH,
+  TOOL_OUTPUT_PREVIEW_BYTES,
+} from "./outputBudget";
 import type { DictKey } from "../locales/en";
 import type { DiffRow } from "./diff";
+
+export {
+  TOOL_CARD_OUTPUT_PREVIEW_LINES,
+  TOOL_OUTPUT_MAX_PREVIEW_LINES,
+  TOOL_OUTPUT_LINE_WIDTH,
+  TOOL_OUTPUT_PREVIEW_BYTES,
+} from "./outputBudget";
+
+/** Backward-compatible name; now measured in display columns, not UTF-16 units. */
+export const TOOL_OUTPUT_LINE_CAP = TOOL_OUTPUT_LINE_WIDTH;
 
 export interface ToolDiff {
   original: string;
@@ -40,11 +56,11 @@ function str(a: Record<string, unknown>, key: string): string {
 // （「# 编码」→「# b.」），优先回退到截断点前最后一个空格；空格太靠前
 // （<60% 处，中文/路径串常态）则硬切——避免为凑词界丢掉大半内容。
 export function truncateSubject(s: string, cap: number): string {
-  if (s.length <= cap) return s;
-  const cut = s.slice(0, cap);
+  if (lineWidth(s) <= cap) return s;
+  const cut = truncateToWidth(s, cap, "");
   const lastSpace = cut.lastIndexOf(" ");
   const head = lastSpace > cap * 0.6 ? cut.slice(0, lastSpace) : cut;
-  return `${head}…`;
+  return truncateToWidth(head, Math.max(1, cap - 1), "") + "…";
 }
 
 // 行内主体的最终截断上限（单卡折叠行与组行同源）。
@@ -407,21 +423,25 @@ export function summarize(name: string, args: string, output?: string, error?: s
 // 拖慢 Transcript。boundedOutput 把输出折叠为「头部 + 折叠计数」，
 // 由 ToolCard 提供「展开全部」开关（对标 QwenPaw 超长工具输出折叠）。
 export interface BoundedOutput {
-  /** 折叠状态下展示的文本（尾部追加折叠提示行）。 */
+  /** 有损预览：保留头尾，中间给出量化省略标记。 */
   preview: string;
   /** 完整输出。 */
   full: string;
-  /** 是否发生了折叠（totalLines > maxPreviewLines）。 */
+  /** 是否发生了任何内容隐藏（按行或按宽度）。 */
   collapsed: boolean;
-  /** 折叠掉的行数。 */
+  /** 隐藏行数 + 超宽裁断行数，供“展开 N 行”披露。 */
   hiddenLines: number;
   /** 输出总行数。 */
   totalLines: number;
+  /** 预览实际保留的逻辑行数。 */
+  retainedLines: number;
   /** 超宽被截断的行数（preview 侧；full 不动）。 */
   lineFolded: number;
+  /** lineFolded 的显式别名，供披露量化消费。 */
+  hiddenWidthClipped: number;
+  /** preview 相对 full 省略的 UTF-8 字节数（估算展示损失）。 */
+  hiddenBytes: number;
 }
-
-export const TOOL_OUTPUT_MAX_PREVIEW_LINES = 60;
 
 // stripOutputNoise 工具输出显示前清噪（v4.506）：①ANSI 转义序列（CSI 颜色/
 // 光标控制 + OSC 标题串）——引擎不剥，FORCE_COLOR/--color=always 的脚本会把
@@ -439,12 +459,11 @@ export function stripOutputNoise(s: string): string {
 // 办公对话流（ToolCard）输出预览上限：Codex 式紧凑——默认只露 12 行，
 // 折叠计数 + 「展开全部」按钮兜底（通用 60 行对 chat 流仍是大墙）。
 // SinProcessCard 维持 60 默认不随动。
-export const TOOL_CARD_OUTPUT_PREVIEW_LINES = 12;
+const utf8 = new TextEncoder();
 
-// TOOL_OUTPUT_LINE_CAP 预览行宽上限（v4.507）：单条超长行（base64、绝对
-// 路径串、[Image: source: …] 占位）此前原样上屏，几行就能占满 12 行预览。
-// 超宽行在 preview 侧截断加 …，full 保持原文（展开全部可见）。
-export const TOOL_OUTPUT_LINE_CAP = 160;
+function utf8Bytes(text: string): number {
+  return utf8.encode(text).byteLength;
+}
 
 export function boundedOutput(
   output: string | undefined,
@@ -452,31 +471,68 @@ export function boundedOutput(
 ): BoundedOutput {
   const full = stripOutputNoise(output ?? "");
   if (full === "") {
-    return { preview: "", full, collapsed: false, hiddenLines: 0, totalLines: 0, lineFolded: 0 };
+    return {
+      preview: "", full, collapsed: false, hiddenLines: 0, totalLines: 0, retainedLines: 0,
+      lineFolded: 0, hiddenWidthClipped: 0, hiddenBytes: 0,
+    };
   }
   const lines = full.split("\n");
   const totalLines = lines.length;
-  const clip = (l: string) => (l.length > TOOL_OUTPUT_LINE_CAP ? `${l.slice(0, TOOL_OUTPUT_LINE_CAP)}…` : l);
-  const clipped = lines.map(clip);
-  const lineFolded = clipped.filter((l, i) => l !== lines[i]).length;
-  if (totalLines <= maxPreviewLines) {
-    return {
-      preview: lineFolded > 0 ? clipped.join("\n") : full,
-      full,
-      collapsed: false,
-      hiddenLines: 0,
-      totalLines,
-      lineFolded,
-    };
+  const lineBudget = Math.max(0, Math.floor(maxPreviewLines));
+  let headCount = Math.min(Math.ceil(lineBudget / 2), totalLines);
+  let tailCount = Math.min(lineBudget - headCount, totalLines - headCount);
+  if (totalLines <= lineBudget) {
+    headCount = Math.ceil(totalLines / 2);
+    tailCount = totalLines - headCount;
   }
-  const head = clipped.slice(0, maxPreviewLines).join("\n");
-  const hiddenLines = totalLines - maxPreviewLines;
+
+  let lineFolded = 0;
+  let preview = "";
+  let hiddenByLine = 0;
+  let renderedHeadLines: string[] = [];
+  let renderedTailLines: string[] = [];
+  for (;;) {
+    const headLines = lines.slice(0, headCount).map((line) => {
+      if (lineWidth(line) <= TOOL_OUTPUT_LINE_WIDTH) return line;
+      return truncateMiddleToWidth(line, TOOL_OUTPUT_LINE_WIDTH);
+    });
+    const tailLines = tailCount > 0 ? lines.slice(totalLines - tailCount).map((line) => {
+      if (lineWidth(line) <= TOOL_OUTPUT_LINE_WIDTH) return line;
+      return truncateMiddleToWidth(line, TOOL_OUTPUT_LINE_WIDTH);
+    }) : [];
+    renderedHeadLines = headLines;
+    renderedTailLines = tailLines;
+    lineFolded = [...headLines, ...tailLines].reduce(
+      (n, line, idx) => n + (line === lines[idx < headLines.length ? idx : totalLines - tailCount + idx - headLines.length] ? 0 : 1),
+      0,
+    );
+    hiddenByLine = Math.max(0, totalLines - headCount - tailCount);
+    const disclosure = hiddenByLine + lineFolded;
+    const marker = disclosure > 0 ? `… 已折叠 ${disclosure} 行` : "";
+    const chunks: string[] = [];
+    if (headCount > 0) chunks.push(headLines.join("\n"));
+    if (marker) chunks.push(marker);
+    if (tailCount > 0) chunks.push(tailLines.join("\n"));
+    preview = chunks.join("\n");
+
+    if (utf8Bytes(preview) <= TOOL_OUTPUT_PREVIEW_BYTES || headCount + tailCount <= 1) break;
+    if (headCount > 1) headCount--;
+    else if (tailCount > 0) tailCount--;
+  }
+
+  const hiddenLines = hiddenByLine + lineFolded;
+  const retainedLines = headCount + tailCount;
+  const retainedText = renderedHeadLines.concat(renderedTailLines).join("\n");
+  const hiddenBytes = Math.max(0, utf8Bytes(full) - utf8Bytes(retainedText));
   return {
-    preview: `${head}\n… 已折叠 ${hiddenLines} 行`,
+    preview,
     full,
-    collapsed: true,
+    collapsed: hiddenLines > 0,
     hiddenLines,
     totalLines,
+    retainedLines,
     lineFolded,
+    hiddenWidthClipped: lineFolded,
+    hiddenBytes,
   };
 }

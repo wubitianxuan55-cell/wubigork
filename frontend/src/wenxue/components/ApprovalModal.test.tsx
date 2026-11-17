@@ -39,4 +39,14 @@ describe("文学审批卡 · codex 蒸馏 T3/T11", () => {
     render(wrap(<ApprovalModal approval={approval} onAnswer={() => {}} />));
     expect(screen.getByText(/追认重放卡/)).toBeTruthy();
   });
+
+  it("硬确认卡按 3 与办公壳走同一终止语义", () => {
+    const approval: WireApproval = { id: "wx-a3", tool: "remember", subject: "写入长期记忆" };
+    const onAnswer = vi.fn();
+    render(wrap(<ApprovalModal approval={approval} onAnswer={onAnswer} />));
+
+    fireEvent.keyDown(document, { key: "3" });
+
+    expect(onAnswer).toHaveBeenCalledWith("abort", undefined);
+  });
 });

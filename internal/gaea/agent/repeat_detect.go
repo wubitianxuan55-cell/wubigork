@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // repeatedStepNudge is the turn-tail synthetic user message injected when the
@@ -25,7 +26,7 @@ const repeatedStepFinalNudge = "[system] The same tool call has now repeated 8 t
 
 // repeatPreviewLimit caps the argument preview inside the level-2 nudge.
 // The detection key always uses the full arguments; the preview is display-only.
-const repeatPreviewLimit = 500
+var repeatPreviewLimit = strutil.SharedOutputBudget().Transport.RepeatArgumentPreviewBytes
 
 // repeatNudgeFor picks the escalation level for the given repeat count —
 // thresholds [3,5,8] with escalating detail (Distilled from Reasonix/dsh

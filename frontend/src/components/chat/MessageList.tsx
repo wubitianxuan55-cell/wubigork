@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatRow } from './ChatRow'
 import { buildVisiblePath, buildVersions } from '../../pages/chat/branches'
 import type { ChatSearchReference } from './searchCardModel'
+import { MAX_RENDERED_ROWS } from '../../gaea/lib/outputBudget'
 
 import type { ChatMsg } from '../../pages/chat/types'
 
@@ -70,6 +71,8 @@ export const WINDOW_INITIAL = 80
 export const WINDOW_GROW_STEP = 60
 /** 滚动容器距顶部多少 px 内触发向上扩载 */
 export const TOP_GROW_PX = 120
+/** 显式宿主保留上限：超过该行数继续扩载只会制造 DOM 成本，不增加可用历史。 */
+export { MAX_RENDERED_ROWS }
 
 /** memo 边界：props 为原始值 + msg 对象引用 + 恒稳回调，默认浅比较即可生效。 */
 const MemoChatRow = React.memo(ChatRow)
@@ -130,8 +133,9 @@ export const MessageList: React.FC<MessageListProps> = ({
   if (prependHandled) prependHandled = false
 
   const virtualized = visible.length > VIRTUALIZE_THRESHOLD
+  const requestedWindow = Math.min(win.size, visible.length, MAX_RENDERED_ROWS)
   const shown = virtualized
-    ? visible.slice(visible.length - Math.min(win.size, visible.length))
+    ? visible.slice(visible.length - requestedWindow)
     : visible
   // shown 首行在可见路径数组中的下标：newGroup 需要对照窗口外的相邻行，
   // 保证「AI 名牌」分组判断与全量渲染完全一致。

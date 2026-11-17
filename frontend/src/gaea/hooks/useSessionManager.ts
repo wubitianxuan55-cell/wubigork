@@ -4,6 +4,23 @@ import type { ProjectGroup, SessionMeta } from "../lib/types";
 
 const PAGE_SIZE = 10;
 
+function dedupeSessions(sessions: SessionMeta[]): SessionMeta[] {
+  const seen = new Set<string>();
+  return sessions.filter((session) => {
+    if (seen.has(session.path)) return false;
+    seen.add(session.path);
+    return true;
+  });
+}
+
+function dedupeProjectGroups(groups: ProjectGroup[]): ProjectGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    sessions: dedupeSessions(group.sessions),
+    archived: dedupeSessions(group.archived),
+  }));
+}
+
 export function useSessionManager(
   newSession: () => Promise<void>,
   listSessions: () => Promise<SessionMeta[]>,
@@ -18,19 +35,24 @@ export function useSessionManager(
   const [newSessionDone, setNewSessionDone] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
+  const [projectGroupsLoaded, setProjectGroupsLoaded] = useState(false);
   // 缓存全量列表，loadMore 不再重复请求
   const allSessionsRef = useRef<SessionMeta[]>([]);
 
   const refreshProjectGroups = useCallback(async () => {
-    const groups = await listProjectSessions();
-    setProjectGroups(groups);
-    return groups;
+    try {
+      const groups = await listProjectSessions();
+      setProjectGroups(dedupeProjectGroups(groups));
+      return groups;
+    } finally {
+      setProjectGroupsLoaded(true);
+    }
   }, [listProjectSessions]);
 
   const errText = useCallback((e: unknown) => (e instanceof Error ? e.message : String(e)), []);
 
   const refreshSessions = useCallback(async () => {
-    const sessions = await listSessions();
+    const sessions = dedupeSessions(await listSessions());
     allSessionsRef.current = sessions;
     setHasMore(sessions.length > PAGE_SIZE);
     setSidebarSessions(sessions.slice(0, PAGE_SIZE));
@@ -102,7 +124,7 @@ export function useSessionManager(
     sidebarSessions, sidebarQuery, setSidebarQuery,
     newSessionDone, refreshSessions, startNewSession, loadMore,
     hasMore,
-    projectGroups, refreshProjectGroups,
+    projectGroups, projectGroupsLoaded, refreshProjectGroups,
     handleResumeSession, handleDeleteSession, handleRenameSession,
   };
 }

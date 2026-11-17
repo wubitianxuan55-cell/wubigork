@@ -45,3 +45,10 @@ describe('ChatMarkdown mermaid 双态（C3）', () => {
     expect(screen.queryByRole('button', { name: '源码' })).toBeNull()
   })
 })
+
+describe('ChatMarkdown table copy chain', () => {
+  it('renders a copy-table action for GFM tables', () => {
+    render(<ChatMarkdown text={'| 名称 | 值 |\n| --- | --- |\n| A | 1 |'} />)
+    expect(screen.getByRole('button', { name: /复制表格/ })).toBeTruthy()
+  })
+})

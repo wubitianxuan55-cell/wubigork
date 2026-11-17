@@ -147,7 +147,7 @@ export default function App() {
   } = useController();
   const t = useT();
   const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
-  const { histView, setHistView, capsOpen, setCapsOpen, closeTopmost } = useDrawers();
+  const { histView, setHistView, capsOpen, setCapsOpen, anyOpen, closeTopmost } = useDrawers();
   // 记忆 tab 已退役（2026-11-16 记忆左右脑批）：memView 视图快照不再进 UI，
   // setMemView 仅为 useSessionHandlers 契约保留。
   const [, setMemView] = useState<MemoryView | null>(null);
@@ -405,7 +405,7 @@ export default function App() {
 
   // 全局快捷键 → app/useAppKeyboard（deps 原样）
   useAppKeyboard({
-    state, closeTopmost, workspacePanelOpen, previewFile, toggleFocus,
+    state, closeTopmost, anyOpen, cancel, workspacePanelOpen, previewFile, toggleFocus,
     closeFilePreview, newSessionAndReset, openHistory,
     toggleSidebar, toggleWorkspacePanel, setPaletteOpen,
   });

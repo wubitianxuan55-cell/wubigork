@@ -1,3 +1,73 @@
+## codex 蒸馏第三批 Wave 3 · 渲染闸门、表格复制与 GenUI 护栏（2026-11-17）
+
+第三批 W8/W9 完成，至此第三批 Wave 1–3 全清：
+
+- **C14 高亮闸门**：`codeHighlight` 统一执行 512 KiB 总字节、10000 总行、
+  单行 4 KiB 三道预检；任一越限直接返回纯文本，不加载 hljs。文学高亮入口改为
+  办公单源 re-export。
+- **C14 复制链**：新增表格 DOM → GFM 快照/序列化（含对齐行、反斜杠与 `|` 转义），
+  `ChatMarkdown`、`MarkdownContent`、办公/文学 `Markdown` 均挂同一
+  `CopyableTable` 工具条。`copyToClipboard` 扩为 `rich|plain|false`：
+  `ClipboardItem` 双 MIME（text/plain + text/html）优先，失败诚实回落纯文本；
+  空内容不写、execCommand 抛错仍清理临时 textarea。
+- **C13 GenUI 护栏**：共享预算配置新增 2 MiB GenUI 源门和
+  `https://gaea.invalid/genui/` 占位；超限源在切围栏前直接回退文本，
+  未通过校验的围栏带 `.invalid` 内部占位属性；外部 `src/imageUrl` 等未知字段
+  继续由白名单 guard 丢弃，不建立外链视觉源。
+- **验证**：全量前端 Vitest **494 文件 / 4453 例绿**；tsc + Vite **21.18s** 绿；
+  全量 ESLint 0 error；`git diff --check` 绿。
+- **边界**：未 Wails build、未装机、未 commit。第三批 11 条复核项（W1–W9）
+  至此全部落地；后续可选进入第四批其余项或 Wave 3 之外的独立 backlog。
+
+## codex 蒸馏第三批 Wave 2 · 截断、披露、Esc 与文本度量（2026-11-17）
+
+按复核稿完成 W5–W7，并同步落地第四批 P2：
+
+- **W5 A5/B8 + P2 同源预算**：新增
+  `internal/gaea/strutil/output_budget.json` 作为前后端共同契约；Go 新增
+  `Policy{ModeBytes|ModeTokens|ModeRunes}`、4:1 互折、1.2 序列化余量幂等、
+  rune 安全头尾中间截断。Agent/Archive/Controller 四处旧截断改为薄包装，
+  `truncateStr` 不再制造非法 UTF-8，长文本尾部不再被整段丢弃。
+- **工具卡披露量化**：`boundedOutput` 改为头 6/尾 6（通用 60 行同规则）、
+  单行按显示宽度头尾保留、`retainedLines/totalLines/hiddenLines/hiddenBytes`
+  分离；超宽行计入 `hiddenLines`。ToolCard 仅在确有 command/diff/args/error
+  或真实隐藏内容时开放，短输出不再亮空展开箭头。文学 ToolCard 改为办公单源
+  wrapper，并保留文学工具 deny 过滤。
+- **W6 Esc 阶梯 + 同源提示**：新增 `escLadder` 纯函数，优先级为
+  warnings/questions/modal/preview/overlay/banner/input/stop/backtrack；
+  Esc 在非输入区可直接停止运行中回合，弹层先于停止，审批卡仍由自身裁决。
+  文学键盘 hook 与 CommandPalette 改为办公单源。新增 `HintStrip`：
+  完整/中/短三档按容器宽度选整组提示，单条提示永不拆半。
+- **W7 按显示宽度度量**：新增 `textMetrics`（grapheme + CJK/emoji 两列宽、
+  组合字符零增宽）与 `hintLayout`；工具主体/单行输出、能力摘要、拒绝账本改走
+  显示宽度；`MessageList` 显式 `MAX_RENDERED_ROWS=10000`，不再只有隐式窗口。
+- **验证**：全量前端 Vitest **490 文件 / 4440 例绿**（全量首跑唯一非本面
+  `Fleet` 事件首条失败，单文件复跑 4/4 绿定性负载 flaky）；全量 ESLint
+  0 error；tsc + Vite **37.41s** 绿。Go `strutil/agent/archive/control`
+  四包全量绿、vet 绿；UCRT64 + `CGO_ENABLED=1` 下 `go build ./...` 绿。
+- **边界**：未 Wails build、未装机、未 commit；第三批 Wave 3（C14 渲染闸门/
+  C13 GenUI 上限）尚未开工。
+
+## codex 蒸馏第三批 Wave 1 · 前端正确性与双壳单源化（2026-11-17）
+
+按 `plan-batch3-landing-review.md` 的 W1–W4 开工，完成 11 条中第一波：
+
+- **W1 单源化**：`ApprovalModal`、`Composer`、`lib/tools.ts` 以办公实现为唯一逻辑源；
+  文学壳只保留适配 wrapper，显式注入 `Wenxue bridge`、文学 insert store、命令过滤与
+  `wenxue` variant，未回落办公绑定。i18n 改为共享 React Context、各自保留字典与
+  `DictKey`，避免共享组件在文学 Provider 下取错上下文。
+- **A1/A2/A8**：审批卡加焦点陷阱；hardConfirm 键位改为 `1=deny / 2=allow_once /
+  3=abort`；会话平铺与项目分组的 sessions/archived 按 path 去重。
+- **A7**：`useComposerMenus` 为 `/` 参数和 `@` 搜索加 waiting/current-query 门；
+  旧请求结果不能覆盖新查询，等待期显示加载态且不误提交。
+- **A4**：新增 `canBacktrack` 纯函数（非在飞、历史完整、目标存在、提示词非空且可见）；
+  办公/文学回退入口共用；后端回退失败会把原 prompt 回填到本壳 Composer 并保留错误提示。
+- **验证**：前端全量 Vitest **484 文件 / 4420 例全绿**；`npm.cmd run build`
+  tsc + Vite 38.17s 绿（仅既有 CSS minify/大 chunk warning）；全量 ESLint 0 error，
+  本轮改动面 ESLint 0。
+- **边界**：未 Wails build、未装机、未 commit；第三批 Wave 2（A5/B8、Esc 阶梯、按宽截断）
+  与第四批 P2 截断 Policy 同源事项尚未开工。
+
 ## codex 蒸馏前两批 · Git 打包与桌面构建（2026-11-17）
 
 - **功能提交**：`f416e223`（前两批 T1–T15 双板块收口 + 蒸馏文档）。

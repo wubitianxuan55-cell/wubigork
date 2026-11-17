@@ -10,10 +10,13 @@
 // have its own `language` config for prompts and terminal text, but switching the
 // desktop setting must not rewrite config or rebuild the model controller.
 
-import { createContext, useCallback, useContext, useEffect, useReducer, useState, useMemo } from "react";
+import { useCallback, useEffect, useReducer, useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { zh } from "../locales/zh";
 import type { DictKey } from "../locales/en";
+import {
+  SharedI18nContext, useSharedI18n, useSharedI18nOptional, type SharedI18nValue,
+} from "../../lib/i18nContext";
 
 export type Locale = "en" | "zh" | "zh-TW";
 // LangPref is the stored preference: "" means auto-detect from the OS.
@@ -94,8 +97,6 @@ interface I18nValue {
   t: Translator;
 }
 
-const I18nContext = createContext<I18nValue | null>(null);
-
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [pref, setPrefState] = useState<LangPref>(() => readPref());
   const locale = detectLocale(pref);
@@ -127,15 +128,24 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   // 渲染造新对象会把全部 context 消费者拖进重渲染级联；Markdown 成为消费者
   // 后（useTOptional），级联落在流式/弹层的中间态上会撕掉子组件状态
   // （MemCitationChip 弹层即此回归）。deps 变化才换新值。
-  const value = useMemo(() => ({ locale, pref, setPref, t: tt }), [locale, pref, setPref, tt]);
+  const value = useMemo<SharedI18nValue>(() => ({
+    locale,
+    pref,
+    setPref: (next) => setPref(next as LangPref),
+    t: tt as SharedI18nValue["t"],
+  }), [locale, pref, setPref, tt]);
 
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+  return <SharedI18nContext.Provider value={value}>{children}</SharedI18nContext.Provider>;
 }
 
 export function useI18n(): I18nValue {
-  const ctx = useContext(I18nContext);
-  if (!ctx) throw new Error("useI18n must be used within a LocaleProvider");
-  return ctx;
+  const ctx = useSharedI18n();
+  return {
+    locale: ctx.locale as Locale,
+    pref: ctx.pref as LangPref,
+    setPref: ctx.setPref as (pref: LangPref) => void,
+    t: ctx.t as Translator,
+  };
 }
 
 // useT is the common shorthand: just the translator.
@@ -147,7 +157,7 @@ export function useT(): Translator {
 // 这类被裸渲染的共享组件用（测试/mock 面板/独立挂载）；gaea 板块运行态恒有
 // Provider，真实三语不受影响。zh 静态字典恒可用（v4.177 回退链先例）。
 export function useTOptional(): Translator {
-  const ctx = useContext(I18nContext);
+  const ctx = useSharedI18nOptional();
   const fallback = useCallback<Translator>((key, vars) => translate("zh", key, vars), []);
   return ctx ? ctx.t : fallback;
 }

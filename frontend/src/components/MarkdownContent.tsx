@@ -7,6 +7,7 @@ import rehypeKatex from 'rehype-katex'
 import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathText'
 import { extractFence } from '../genui/markdownFence'
 import { ChatCodeBlock } from './ChatCodeBlock'
+import { CopyableTable } from './CopyableTable'
 
 /** Markdown 渲染（GFM：表格/删除线/任务列表等，基于 react-markdown） */
 
@@ -23,6 +24,7 @@ const defaultComponents: Components = {
     if (isBlock) return <ChatCodeBlock language={lang} text={text} />
     return <code className={className}>{children}</code>
   },
+  table: ({ children }) => <CopyableTable>{children}</CopyableTable>,
 }
 
 type Props = {

@@ -33,6 +33,20 @@ describe("guard.repairGenuiSpec", () => {
     expect(spec?.items[0]).toMatchObject({ type: "stat" });
   });
 
+  it("discards external visualization/source URLs from unknown fields", () => {
+    const spec = repairGenuiSpec({
+      items: [{
+        type: "text",
+        content: "safe",
+        src: "https://evil.example/visual",
+        imageUrl: "javascript:alert(1)",
+      }],
+    });
+    expect(spec).not.toBeNull();
+    expect(JSON.stringify(spec)).not.toContain("evil.example");
+    expect(JSON.stringify(spec)).not.toContain("javascript:");
+  });
+
   it("根规格不是对象/无 items → null；单组件 root 自动包装", () => {
     expect(repairGenuiSpec("oops")).toBeNull();
     expect(repairGenuiSpec({ items: [] })).toBeNull();

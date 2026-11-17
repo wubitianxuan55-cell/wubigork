@@ -7,10 +7,13 @@ import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import { applyTableConversion, detectTableBlock } from "../lib/tableData";
 import { useComposerInsertStore } from "../lib/store";
+import { app as defaultApp } from "../lib/bridge";
+import type { ComposerBridge } from "../lib/composerBridge";
 import { getComposerDraft, saveComposerDraft } from "../../lib/composerDrafts";
 import { SlashMenu } from "./SlashMenu";
 import { ArgMenu } from "./ArgMenu";
 import { FileMenu } from "./FileMenu";
+import { MenuContainer } from "./MenuContainer";
 import { usePasteBlocks, PasteBlocksUI } from "./PasteManager";
 import { ScreenCropOverlay } from "./ScreenCropOverlay";
 import { useComposerMenus } from "../hooks/useComposerMenus";
@@ -55,9 +58,9 @@ function loadComposerHeight(): number {
   return loadLayoutSize("composerHeightV2", COMPOSER_DEFAULT_HEIGHT, clampComposerHeight);
 }
 
-export function Composer({
-  running, cwd, sessionKey, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus, placeholderOverride,
-}: {
+export type ComposerVariant = "office" | "wenxue";
+
+export interface ComposerProps {
   running: boolean; cwd?: string;
   /** 宿主生成的会话草稿键；缺省不持久化，保持独立复用场景零变化。 */
   sessionKey?: string;
@@ -77,7 +80,19 @@ export function Composer({
   /** 卸载时队列未清空（宿主用 key 重挂 = 队列被静默丢弃）——如实上报条数，
    *  宿主可提示「排队 N 条已随切换清空」。可选；办公场景不传零影响。 */
   onQueueDrop?: (count: number) => void;
-}) {
+  /** 双壳单源适配：文学壳显式传入自己的 bridge/store/命令过滤。 */
+  variant?: ComposerVariant;
+  bridge?: ComposerBridge;
+  insertStore?: typeof useComposerInsertStore;
+  filterCommand?: (name: string) => boolean;
+}
+
+export function Composer({
+  running, cwd, sessionKey, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus, placeholderOverride,
+  variant = "office", bridge: bridgeOverride, insertStore, filterCommand,
+}: ComposerProps) {
+  const bridge = bridgeOverride ?? defaultApp;
+  const composerInsertStore = insertStore ?? useComposerInsertStore;
   const t = useT();
   const initialDraft = useMemo(() => getComposerDraft(sessionKey), [sessionKey]);
   const [text, setText] = useState(initialDraft.text);
@@ -94,6 +109,7 @@ export function Composer({
   const att = useComposerAttachments({
     text, setText, taRef, running, onSend,
     initialAttachments: initialDraft.attachments,
+    bridge,
   });
   const {
     attachments, setAttachments, uploadTasks, pendingPaste, cropSrc, setCropSrc, captureBusy,
@@ -103,11 +119,11 @@ export function Composer({
   } = att;
 
   // ── 工作区切换菜单（useComposerWorkspace） ──
-  const ws = useComposerWorkspace({ cwd, onPickFolder });
+  const ws = useComposerWorkspace({ cwd, onPickFolder, bridge, variant });
   const {
     workspaceName, workspaceMenuOpen, setWorkspaceMenuOpen,
     workspaceQuery, setWorkspaceQuery, filteredWorkspaces,
-    workspaceAnchorRef, workspaceMenuRef, chooseWorkspace,
+    workspaceAnchorRef, workspaceMenuRef, chooseWorkspace, requestCreateNovel,
   } = ws;
 
   // ── / 命令、/ 参数、@ 文件菜单（useComposerMenus） ──
@@ -115,9 +131,9 @@ export function Composer({
     setText(next);
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = next.length; } });
   };
-  const menus = useComposerMenus({ text, debouncedText, setTextCaretEnd, cwd });
+  const menus = useComposerMenus({ text, debouncedText, setTextCaretEnd, cwd, bridge, filterCommand });
   const {
-    slashMatches, argRes, atItems, menuMode, menuCount,
+    slashMatches, argRes, atItems, menuMode, menuCount, menuWaiting,
     active, setActive, setDismissed, pickCommand, pickArg, pickEntry, pickActive,
   } = menus;
 
@@ -205,23 +221,23 @@ export function Composer({
   }, [running, text]);
 
   // 右侧资料面板「一键 @ 引用」→ 插入输入框
-  const pendingAt = useComposerInsertStore((s) => s.pendingAt);
+  const pendingAt = composerInsertStore((s) => s.pendingAt);
   useEffect(() => {
     if (!pendingAt) return;
-    const at = useComposerInsertStore.getState().consumeAt();
+    const at = composerInsertStore.getState().consumeAt();
     if (!at) return;
     setText((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + "@" + at + " ");
     requestAnimationFrame(() => { taRef.current?.focus(); });
-  }, [pendingAt]);
+  }, [pendingAt, composerInsertStore]);
   // 资料面板「摘要后引用」：把摘要文本插入输入框（可编辑后再发送）。
-  const pendingText = useComposerInsertStore((s) => s.pendingText);
+  const pendingText = composerInsertStore((s) => s.pendingText);
   useEffect(() => {
     if (!pendingText) return;
-    const text = useComposerInsertStore.getState().consumeText();
+    const text = composerInsertStore.getState().consumeText();
     if (!text) return;
     setText((prev) => prev + (prev ? "\n\n" : "") + text);
     requestAnimationFrame(() => { taRef.current?.focus(); });
-  }, [pendingText]);
+  }, [pendingText, composerInsertStore]);
 
   // ── 拖放 ──
   const [dragOver, setDragOver] = useState(false);
@@ -398,6 +414,11 @@ export function Composer({
   // ── 键盘处理 ──
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const composing = e.nativeEvent.isComposing;
+    if (menuWaiting && menuMode === null && !composing) {
+      if (["Enter", "Tab", "ArrowUp", "ArrowDown", "Escape"].includes(e.key)) e.preventDefault();
+      if (e.key === "Escape") setDismissed(true);
+      return;
+    }
     if (menuMode && !composing) {
       if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => (i + 1) % menuCount); return; }
       if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i - 1 + menuCount) % menuCount); return; }
@@ -468,11 +489,19 @@ export function Composer({
           onQueryChange={setWorkspaceQuery}
           workspaces={filteredWorkspaces}
           onChoose={chooseWorkspace}
+          onCreateNovel={requestCreateNovel}
           onClose={() => setWorkspaceMenuOpen(false)}
         />
       )}
 
       {/* ── 菜单（命令/参数/文件）── */}
+      {menuWaiting && menuMode === null && (
+        <MenuContainer count={1}>
+          <div role="status" className="px-2 py-1.5 text-[12px] text-fg-faint">
+            {t("common.loading")}
+          </div>
+        </MenuContainer>
+      )}
       {menuMode === "slash" && <SlashMenu items={slashMatches} activeIndex={active} onPick={pickCommand} onHover={setActive} />}
       {menuMode === "slasharg" && argRes && <ArgMenu items={argRes.items} activeIndex={active} onPick={pickArg} onHover={setActive} />}
       {menuMode === "at" && <FileMenu items={atItems} activeIndex={active} onPick={pickEntry} onHover={setActive} />}
@@ -588,7 +617,7 @@ export function Composer({
       </div>
 
       {/* 会话录制技能浮层（阶段七 7.2-1） */}
-      <SkillRecordModal open={recordOpen} onClose={() => setRecordOpen(false)} />
+      <SkillRecordModal open={recordOpen} onClose={() => setRecordOpen(false)} bridge={bridge} />
 
       {/* 截图裁剪浮层 */}
       {cropSrc && (

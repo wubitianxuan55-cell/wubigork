@@ -1,6 +1,7 @@
 // Composer 拆分产物：附件/粘贴/截图/识图/OCR 状态机（行为零变化，T6-10.1）
 import { useRef, useState } from 'react'
-import { app } from '../lib/bridge'
+import { app as defaultApp } from '../lib/bridge'
+import type { ComposerBridge } from '../lib/composerBridge'
 import { isImagePath } from '../lib/pickFile'
 import { useToast } from '../components/Toast'
 
@@ -75,6 +76,8 @@ export interface UseComposerAttachmentsOptions {
   onSend: (displayText: string, submitText?: string) => void
   /** 会话草稿恢复用；缺省空数组保持既有调用方零变化。 */
   initialAttachments?: Attachment[]
+  /** 双壳共用 Composer 时显式注入本壳 bridge；缺省走办公 bridge。 */
+  bridge?: ComposerBridge
 }
 
 // 图片 base64 dataURL → 估算字节数（P2-4 上下文占用透明化）。
@@ -143,17 +146,17 @@ function readSlice(file: File, start: number, end: number): Promise<ArrayBuffer>
   })
 }
 
-async function uploadChunkedAttachment(file: File, onProgress?: (percent: number) => void): Promise<string> {
-  const token = await app.AttachmentChunkBegin(file.name)
+async function uploadChunkedAttachment(file: File, api: ComposerBridge, onProgress?: (percent: number) => void): Promise<string> {
+  const token = await api.AttachmentChunkBegin(file.name)
   try {
     for (let off = 0; off < file.size; off += CHUNK_UPLOAD_BYTES) {
       const buf = await readSlice(file, off, Math.min(off + CHUNK_UPLOAD_BYTES, file.size))
-      await app.AttachmentChunkAppend(token, bytesToBase64(new Uint8Array(buf)))
+      await api.AttachmentChunkAppend(token, bytesToBase64(new Uint8Array(buf)))
       onProgress?.(Math.min(95, Math.round(((off + CHUNK_UPLOAD_BYTES) / file.size) * 100)))
     }
-    return await app.AttachmentChunkFinish(token)
+    return await api.AttachmentChunkFinish(token)
   } catch (e: unknown) {
-    try { await app.AttachmentChunkAbort(token) } catch { /* 尽力清理，不掩盖原始错误 */ }
+    try { await api.AttachmentChunkAbort(token) } catch { /* 尽力清理，不掩盖原始错误 */ }
     throw e
   }
 }
@@ -166,7 +169,8 @@ function appendUnique(prev: Attachment[], next: Attachment): Attachment[] {
 
 // v4.508：识图/OCR 不再清草稿后 setText 无消费——不解构（接口字段保留，
 // 调用方签名不变；text/taRef 同为兼容保留）。
-export function useComposerAttachments({ running, onSend, initialAttachments }: UseComposerAttachmentsOptions) {
+export function useComposerAttachments({ running, onSend, initialAttachments, bridge: bridgeOverride }: UseComposerAttachmentsOptions) {
+  const bridge = bridgeOverride ?? defaultApp
   const toast = useToast()
   const [attachments, setAttachments] = useState<Attachment[]>(() => initialAttachments ?? [])
   const [uploadTasks, setUploadTasks] = useState<AttachmentUploadTask[]>([])
@@ -220,13 +224,13 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
           source.dataUrl = dataUrl
           updateTask(taskId, { previewUrl: dataUrl, progress: 45 })
         }
-        const path = await app.SavePastedImage(dataUrl)
+        const path = await bridge.SavePastedImage(dataUrl)
         setAttachments((prev) => appendUnique(prev, {
           path, previewUrl: dataUrl, type: "image", size: file.size || dataUrlBytes(dataUrl),
         }))
       } else {
         const path = file.size > ATTACHMENT_LIMITS.file
-          ? await uploadChunkedAttachment(file, (progress) => updateTask(taskId, { progress }))
+          ? await uploadChunkedAttachment(file, bridge, (progress) => updateTask(taskId, { progress }))
           : await (async () => {
               const buf = await new Promise<ArrayBuffer>((res, rej) => {
                 const r = new FileReader()
@@ -235,7 +239,7 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
                 r.readAsArrayBuffer(file)
               })
               updateTask(taskId, { progress: 55 })
-              return app.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
+              return bridge.SaveAttachmentFile(file.name, bytesToBase64(new Uint8Array(buf)))
             })()
         setAttachments((prev) => appendUnique(prev, { path, previewUrl: "", type: "file", size: file.size }))
       }
@@ -288,11 +292,11 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
   const handlePickFiles = async () => {
     // FE4-12：旧后端/HTTP 桥不暴露 PickFiles 时才静默（绑定不存在 ≠ 调用失败）。
     // 其余错误（对话框异常、后端拒绝）必须可见。
-    if (typeof app.PickFiles !== "function") return
+    if (typeof bridge.PickFiles !== "function") return
     try {
       // filters 显式空串=不过滤（Go 侧口径）。此前无参调用在 Wails v2.13 下被
       // 拒「received 0 arguments, expected 1」（2026-10-22/23 gaea.log 实录）。
-      const files = await app.PickFiles("")
+      const files = await bridge.PickFiles("")
       if (!files || files.length === 0) return
       for (const f of files) {
         // v4.508 bug 根修：FilePickResult 无 MIME type 字段，此前按 f.type
@@ -325,7 +329,7 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
     if (running || captureBusy) return
     setCaptureBusy(true)
     try {
-      const dataUrl = await app.CaptureScreen()
+      const dataUrl = await bridge.CaptureScreen()
       if (dataUrlBytes(dataUrl) > ATTACHMENT_LIMITS.image) {
         toast.show(`截图超过 ${Math.round(ATTACHMENT_LIMITS.image / (1024 * 1024))}MB 上限`, "warn")
         return
@@ -370,7 +374,7 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
     if (running || recognizingPath) return
     setRecognizingPath(att.path)
     try {
-      const desc = await app.RecognizeImage(
+      const desc = await bridge.RecognizeImage(
         att.path,
         "请详细描述这张图片的内容，包括所有可见文字、布局和关键细节。",
       )
@@ -391,7 +395,7 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
     if (running || ocrPath) return
     setOcrPath(att.path)
     try {
-      const text = await app.OCRText(att.path)
+      const text = await bridge.OCRText(att.path)
       const name = att.path.split(/[/\\]/).pop() || att.path
       const msg = `【图片文字提取：${name}】\n${text}`
       setAttachments((prev) => prev.filter((x) => x.path !== att.path))

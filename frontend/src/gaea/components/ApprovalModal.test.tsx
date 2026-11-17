@@ -71,6 +71,36 @@ describe("ApprovalModal 审批卡", () => {
       "abort",
     ]);
   });
+
+  it("硬确认卡按 3 触发中止，而不是落到被隐藏的会话授权", () => {
+    const approval: WireApproval = { id: "a5", tool: "cost_save", subject: "保存成本条目" };
+    const onAnswer = vi.fn();
+    render(wrap(<ApprovalModal approval={approval} onAnswer={onAnswer} />));
+
+    fireEvent.keyDown(document, { key: "3" });
+
+    expect(onAnswer).toHaveBeenCalledWith("abort", undefined);
+  });
+
+  it("焦点不能逃出审批卡，理由输入框仍可正常接收数字", () => {
+    const approval: WireApproval = { id: "a6", tool: "bash", subject: "git push" };
+    const onAnswer = vi.fn();
+    render(wrap(
+      <>
+        <ApprovalModal approval={approval} onAnswer={onAnswer} />
+        <input data-testid="outside-input" />
+      </>,
+    ));
+
+    const outside = screen.getByTestId("outside-input") as HTMLInputElement;
+    outside.focus();
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+
+    const reason = screen.getByTestId("approval-deny-reason") as HTMLInputElement;
+    reason.focus();
+    fireEvent.keyDown(reason, { key: "2" });
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
 });
 
 describe("ApprovalModal 拒绝理由（codex 蒸馏 T3）", () => {

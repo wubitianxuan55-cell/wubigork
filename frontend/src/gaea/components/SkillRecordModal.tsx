@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Modal, Typography } from "antd";
 import { useToast } from "./Toast";
-import { app } from "../lib/bridge";
+import { app as defaultApp } from "../lib/bridge";
+import type { ComposerBridge } from "../lib/composerBridge";
 import type { SkillDraft, SkillRecordResult } from "../lib/types";
 
 const { Text } = Typography;
@@ -19,12 +20,15 @@ export function SkillRecordModal({
   onClose,
   preload,
   onSaved,
+  bridge,
 }: {
   open: boolean;
   onClose: () => void;
   preload?: SkillRecordResult;
   onSaved?: (skillName: string) => void;
+  bridge?: ComposerBridge;
 }) {
+  const api = bridge ?? defaultApp;
   const toast = useToast();
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<SkillDraft | null>(null);
@@ -43,7 +47,7 @@ export function SkillRecordModal({
   const distill = async () => {
     setDrafting(true);
     try {
-      const res = await app.SkillDraftFromSession();
+      const res = await api.SkillDraftFromSession();
       setDraft(res.draft);
       setReplay(res.replay);
       setPreview(res.preview);
@@ -87,7 +91,7 @@ export function SkillRecordModal({
     }
     setSaving(true);
     try {
-      const res = await app.SkillDraftSave(payload);
+      const res = await api.SkillDraftSave(payload);
       toast.show(
         res.reloaded
           ? `技能已保存并热加载：/${res.name}（技能 ${res.skills} 个）`

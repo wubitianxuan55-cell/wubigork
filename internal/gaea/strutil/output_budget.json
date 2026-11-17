@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "transport": {
+    "byteLimit": 12000,
+    "headRatio": 0.5,
+    "serializationAllowance": 1.2,
+    "agentPreviewByteLimit": 120,
+    "repeatArgumentPreviewBytes": 500,
+    "archiveContentByteLimit": 2000,
+    "controllerSummaryRunes": 240
+  },
+  "display": {
+    "genericPreviewLines": 60,
+    "toolCardPreviewLines": 12,
+    "headLines": 6,
+    "tailLines": 6,
+    "lineWidth": 160,
+    "byteLimit": 32768,
+    "maxRenderedRows": 10000
+  },
+  "frontend": {
+    "highlightByteLimit": 524288,
+    "highlightLineLimit": 10000,
+    "highlightLineByteLimit": 4096,
+    "genuiFragmentByteLimit": 2097152,
+    "genuiPlaceholderOrigin": "https://gaea.invalid/genui/"
+  }
+}

@@ -41,6 +41,8 @@ import { useTOptional } from "../lib/i18n";
 import { CodeCollapse, type CodeCollapseLabels } from "./CodeCollapse";
 import { FileChip } from "./FileChip";
 import { MemCitationChip } from "./MemCitationChip";
+import { CopyableTable } from "../../components/CopyableTable";
+import { markdownTextAlign } from "../../gaea/lib/copyMarkdown";
 import { extractFence, GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../genui/markdownFence";
 import { parseGenuiFenceBody, splitGenuiFences } from "../../genui/parse";
 import { useGenuiScope } from "../../genui/scope";
@@ -535,12 +537,12 @@ function buildComponents(
       />
     ),
     table: ({ children }) => (
-      <div className="my-3 overflow-x-auto rounded-lg border border-border-soft">
-        <table>{children}</table>
-      </div>
+      <CopyableTable containerClassName="my-3 overflow-x-auto rounded-lg border border-border-soft">
+        {children}
+      </CopyableTable>
     ),
-    th: ({ children }) => <th>{children}</th>,
-    td: ({ children }) => <td>{children}</td>,
+    th: ({ children, align }) => <th align={align} style={{ textAlign: markdownTextAlign(align) }}>{children}</th>,
+    td: ({ children, align }) => <td align={align} style={{ textAlign: markdownTextAlign(align) }}>{children}</td>,
     blockquote: ({ children }) => <blockquote>{children}</blockquote>,
     hr: () => <hr />,
     // h1-h4 / p / ul / ol 刻意不挂排版工具类：styles.css 的 .md 排版块是

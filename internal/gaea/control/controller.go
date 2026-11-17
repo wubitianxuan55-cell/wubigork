@@ -34,6 +34,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/plugin"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/skill"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -716,10 +717,8 @@ func (c *Controller) statePath() string {
 // 避免把超长助手消息整体写进状态文件。
 func truncateSummary(s string) string {
 	s = strings.TrimSpace(s)
-	if r := []rune(s); len(r) > 240 {
-		return string(r[:240])
-	}
-	return s
+	limit := strutil.SharedOutputBudget().Transport.ControllerSummaryRunes
+	return strutil.TruncateMiddleWithMarker(s, strutil.RunesPolicy(limit), "…").Text
 }
 
 // Submit is the one-call entry for a simple frontend: it takes raw user input

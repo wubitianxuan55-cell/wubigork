@@ -38,7 +38,12 @@ import { FileLinkText } from "./FileLinkText";
 import { ScheduleApplyRollback } from "./ScheduleApplyRollback";
 import { ToolSources } from "../../components/evidence/ToolSources";
 
-type ToolItem = Extract<Item, { kind: "tool" }>;
+export type ToolItem = Extract<Item, { kind: "tool" }>;
+export interface ToolCardProps {
+  item: ToolItem;
+  subcalls?: ToolItem[];
+  isToolVisible?: (name: string) => boolean;
+}
 
 function pretty(json: string): string {
   try {
@@ -134,7 +139,7 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
   );
 }
 
-export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolItem; subcalls?: ToolItem[] }) {
+export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible }: ToolCardProps) {
   const t = useT();
   const compact = useCompact();
   const diffs = useMemo(() => diffsFor(item.name, item.args), [item.name, item.args]);
@@ -183,11 +188,10 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const command = useMemo(() => commandOf(item.name, item.args), [item.name, item.args]);
   const showArgsJson = !command && diffs.length === 0 && !READER_JSON_TOOLS.has(item.name) && !!item.args;
   const hasOutput = !!item.output;
-  const expandable = !!command || diffs.length > 0 || showArgsJson || hasOutput;
-
   const [open, setOpen] = useState(false);
-  // P2-2 大工具输出有界预览：超长输出折叠为头部 + 展开全部开关（12 行）
+  // 三层预算派生：披露按真实隐藏量，而不是“有 output 就一定有内容可展开”。
   const bounded = useMemo(() => boundedOutput(item.output, TOOL_CARD_OUTPUT_PREVIEW_LINES), [item.output]);
+  const expandable = !!command || diffs.length > 0 || showArgsJson || bounded.collapsed || !!item.error;
   const [showFullOutput, setShowFullOutput] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -196,7 +200,6 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const quiet =
     item.readOnly && !hasNested && item.status !== "error" && item.status !== "stopped";
 
-  const outputLines = useMemo(() => (item.output ? item.output.split("\n").length : 0), [item.output]);
   const prettyArgs = useMemo(() => (showArgsJson && item.args ? pretty(item.args) : ""), [showArgsJson, item.args]);
 
   // v4.63 子代理卡片整卡可点：task / run_skill 卡解析出可跳转的子代理 ref
@@ -227,6 +230,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const chevronSize = compact ? 11 : 12;
   const innerPx = compact ? "px-1" : "px-2";
   const innerPb = compact ? "pb-1" : "pb-1.5";
+  if (isToolVisible && !isToolVisible(item.name)) return null;
 
   // 工具行先回答“运行了什么、结果是什么”，再允许下钻输出。整行使用真实
   // button 语义，键盘与屏幕阅读器都能展开；子代理卡仍可直接打开会话。
@@ -341,7 +345,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           {hasNested && (
             <div className="pl-3 border-l border-border-soft ml-3">
               {nested.map((c) => (
-                <ToolCard key={c.id} item={c} />
+                <ToolCard key={c.id} item={c} isToolVisible={isToolVisible} />
               ))}
             </div>
           )}
@@ -360,7 +364,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           )}
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
-              <div className="office-tool-card__section-label select-none">{t("tool.outputHeader", { n: outputLines })}</div>
+              <div className="office-tool-card__section-label select-none">{t("tool.outputHeader", { n: bounded.totalLines })}</div>
               <pre className="office-tool-card__output px-3 py-2 overflow-auto max-h-72 whitespace-pre-wrap break-words text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
               {bounded.preview !== bounded.full && (
                 <button

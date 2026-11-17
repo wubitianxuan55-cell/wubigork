@@ -6,6 +6,7 @@
 
 import { GENUI_FENCE_LANGS, GENUI_LIMITS, type GenuiSpec } from "./spec";
 import { repairGenuiSpec } from "./guard";
+import { genuiSourceExceedsLimit } from "./sourceGate";
 
 /** 文本段或围栏段。 */
 export type GenuiSegment =
@@ -23,6 +24,9 @@ export interface GenuiFenceSplit {
  * 其他语言的代码块原样留在 text 段内（由 markdown 渲染器处理）。
  */
 export function splitGenuiFences(text: string): GenuiFenceSplit {
+  if (genuiSourceExceedsLimit(text)) {
+    return { segments: [{ kind: "text", text }], fenceIndex: [] };
+  }
   const lines = text.split("\n");
   const segments: GenuiSegment[] = [];
   const fenceIndex: number[] = [];

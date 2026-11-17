@@ -10,6 +10,8 @@ import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence, extractFence 
 import { useGenuiScope } from '../genui/scope'
 import remarkDisableCodeIndented from './chat/remarkDisableCodeIndented'
 import { ChatCodeBlock } from './ChatCodeBlock'
+import { CopyableTable } from './CopyableTable'
+import { markdownTextAlign } from '../gaea/lib/copyMarkdown'
 
 /** ChatMarkdown — 聊天消息 Markdown 渲染（老栈 M3 令牌样式，供 ChatPage 使用）
  *  C 批蒸馏（docs/gaea-deepseek-chatdemo-distill-2026-11.md §2.4）：
@@ -66,19 +68,27 @@ return {
     </a>
   ),
   table: ({ children }) => (
-    <div style={{ margin: '10px 0', overflowX: 'auto', borderRadius: 10, border: '1px solid var(--md-sys-color-outline-variant)' }}>
-      <table style={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 13 }}>{children}</table>
-    </div>
+    <CopyableTable
+      containerStyle={{
+        margin: '10px 0',
+        overflowX: 'auto',
+        borderRadius: 10,
+        border: '1px solid var(--md-sys-color-outline-variant)',
+      }}
+      tableStyle={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 13 }}
+    >
+      {children}
+    </CopyableTable>
   ),
-  th: ({ children }) => (
-    <th style={{
-      padding: '7px 12px', textAlign: 'left', fontSize: 11.5, fontWeight: 600,
+  th: ({ children, align }) => (
+    <th align={align} style={{
+      padding: '7px 12px', textAlign: markdownTextAlign(align) ?? 'left', fontSize: 11.5, fontWeight: 600,
       color: C('color-text-secondary'), background: 'var(--md-sys-color-surface-variant)',
       borderBottom: '1px solid var(--md-sys-color-outline-variant)',
     }}>{children}</th>
   ),
-  td: ({ children }) => (
-    <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--md-sys-color-outline-variant)', color: C('color-text') }}>{children}</td>
+  td: ({ children, align }) => (
+    <td align={align} style={{ padding: '7px 12px', textAlign: markdownTextAlign(align), borderBottom: '1px solid var(--md-sys-color-outline-variant)', color: C('color-text') }}>{children}</td>
   ),
   blockquote: ({ children }) => (
     <blockquote style={{

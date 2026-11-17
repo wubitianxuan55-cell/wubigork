@@ -45,6 +45,12 @@ const KEY_DECISIONS: Record<string, ApprovalDecision> = {
   "5": "abort",
 };
 
+const HARD_KEY_DECISIONS: Record<string, ApprovalDecision> = {
+  "1": "deny",
+  "2": "allow_once",
+  "3": "abort",
+};
+
 export function ApprovalModal({
   approval,
   onAnswer,
@@ -73,7 +79,17 @@ export function ApprovalModal({
     approval.tool === "schedule_apply" && scheduleApplyIsProjectChannel(scheduleApplyArgs ?? null);
   const hardConfirm = isHardAsk || isProjectHard;
 
-  useEffect(() => { cardRef.current?.focus(); }, [approval.id]);
+  useEffect(() => {
+    const card = cardRef.current;
+    card?.focus();
+    if (!card) return;
+    const keepFocusInside = (event: FocusEvent) => {
+      if (event.target instanceof Node && card.contains(event.target)) return;
+      card.focus();
+    };
+    document.addEventListener("focusin", keepFocusInside);
+    return () => document.removeEventListener("focusin", keepFocusInside);
+  }, [approval.id]);
 
   // 拒绝理由（codex 蒸馏 T3）：可选一句话，随 deny/abort 回喂模型——
   // 模型据此换方案而非原样重试。换卡即清空（不复用上一张卡的草稿）。
@@ -93,9 +109,8 @@ export function ApprovalModal({
         answerWithReason("deny");
         return;
       }
-      const decision = KEY_DECISIONS[event.key];
+      const decision = (hardConfirm ? HARD_KEY_DECISIONS : KEY_DECISIONS)[event.key];
       if (!decision) return;
-      if (hardConfirm && (decision === "allow_session" || decision === "persist_allow")) return;
       event.preventDefault();
       answerWithReason(decision);
     };

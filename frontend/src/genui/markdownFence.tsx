@@ -12,6 +12,7 @@ import { parseGenuiFenceBody } from "./parse";
 import { GenuiBlock } from "./GenuiBlock";
 import { genuiStateKey } from "./fingerprint";
 import type { GenuiScope } from "./scope";
+import { genuiPlaceholderUrl, genuiSourceExceedsLimit } from "./sourceGate";
 
 export function isGenuiFenceLang(lang: string): boolean {
   return GENUI_FENCE_LANGS.has(lang);
@@ -39,13 +40,23 @@ export function GenuiMarkdownFence({
   /** office 对 panel:true 规格只渲染占位 chip（发布动作由宿主面板层负责）。 */
   panelRender?: "block" | "chip";
 }) {
+  if (genuiSourceExceedsLimit(code)) {
+    return (
+      <div className="gui-fence-placeholder" data-genui-placeholder={genuiPlaceholderUrl("oversize")}>
+        UI 组件超过 2 MiB 上限，已拒绝渲染
+      </div>
+    );
+  }
   const spec = parseGenuiFenceBody(code);
   if (spec === null) {
     // guard 契约「结构不可用降级代码块」的落地：解析失败不再静默蒸发
     // （2026-11-11 前聊天板块模型输出不合规格时围栏原地消失，用户侧表现
     // 为「GenUI 完全不能用」）。折叠给出原文，内容可见且不打断阅读。
     return (
-      <details className="gui-fence-fallback">
+      <details
+        className="gui-fence-fallback"
+        data-genui-placeholder={genuiPlaceholderUrl(stateKey ?? "invalid")}
+      >
         <summary>UI 组件未通过校验，点击查看原文</summary>
         <pre>{code}</pre>
       </details>

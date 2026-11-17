@@ -8,9 +8,23 @@ import { app } from "../bridge";
 import { resetEventSync } from "../eventSync";
 import type { Action, ControllerState, Item } from "./controller_state";
 import { failWrite, logBridgeError } from "./controller_actions_memory";
+import { canBacktrack } from "../../../gaea/lib/backtrack";
+import { useComposerInsertStore } from "./commonts";
 
 export function useRewindActions(dispatch: (a: Action) => void, loadItemsFoldedFirst: () => Promise<void>, store: { getState: () => ControllerState }, send: (text: string, submitText?: string) => void) {
   const rewind = useCallback(async (turn: number, scope: string): Promise<boolean> => {
+    const cur = store.getState();
+    const decision = canBacktrack({
+      items: cur.items,
+      turn,
+      running: cur.running,
+      turnActive: cur.turnActive,
+      pendingUser: cur.pendingUser,
+    });
+    if (!decision.ok) {
+      failWrite(dispatch, "回退对话", new Error(decision.message));
+      return false;
+    }
     // T7-4：回退失败不再静默，且不触发 reset——保留当前对话现场（否则刚
     // 弹的失败提示会被 reset 清空，用户连发生了什么都看不到）。
     // 返回是否成功（v4.232：regenerate 编排需要据此决定是否重发）。
@@ -21,13 +35,16 @@ export function useRewindActions(dispatch: (a: Action) => void, loadItemsFoldedF
     else if (scope === "summ-from") ok = await act(app.SummarizeFrom(turn));
     else if (scope === "summ-upto") ok = await act(app.SummarizeUpTo(turn));
     else ok = await act(app.Rewind(turn, scope));
-    if (!ok) return false;
+    if (!ok) {
+      useComposerInsertStore.getState().requestText(decision.prompt);
+      return false;
+    }
     dispatch({ type: "reset" });
     resetEventSync(); // v4.26：回退重载历史，seq 基线归零
     await loadItemsFoldedFirst(); // §8-5：折叠快照优先（日志序 id），History 保底
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
     return true;
-  }, [dispatch, loadItemsFoldedFirst]);
+  }, [dispatch, loadItemsFoldedFirst, store]);
 
   // 重新生成（v4.232，对齐同类产品 ChatGPT 式 regenerate）：丢弃最后一轮
   // （含用户消息），用同一文本原样重发。复用 GaeaRewind+GaeaSend 既有原语

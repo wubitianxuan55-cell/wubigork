@@ -15,6 +15,30 @@
 import type { LanguageFn } from "highlight.js";
 import { ALIASES } from "./lang";
 import { sanitizeHtml } from "./sanitize";
+import { OUTPUT_BUDGET } from "./outputBudget";
+
+export const MAX_HIGHLIGHT_BYTES = OUTPUT_BUDGET.frontend.highlightByteLimit;
+export const MAX_HIGHLIGHT_LINES = OUTPUT_BUDGET.frontend.highlightLineLimit;
+export const MAX_HIGHLIGHT_LINE_BYTES = OUTPUT_BUDGET.frontend.highlightLineByteLimit;
+
+const utf8 = new TextEncoder();
+
+export function exceedsHighlightLimits(
+  bytes: number,
+  lines: number,
+  longestLineBytes: number,
+): boolean {
+  return bytes > MAX_HIGHLIGHT_BYTES
+    || lines > MAX_HIGHLIGHT_LINES
+    || longestLineBytes > MAX_HIGHLIGHT_LINE_BYTES;
+}
+
+function highlightInputExceedsLimits(code: string): boolean {
+  const lines = code.split("\n");
+  let longest = 0;
+  for (const line of lines) longest = Math.max(longest, utf8.encode(line).byteLength);
+  return exceedsHighlightLimits(utf8.encode(code).byteLength, lines.length, longest);
+}
 
 // 白名单：只注册常用域语言，控制 chunk 体积；语法定义各自独立模块。
 const REGISTER: Record<string, () => Promise<{ default: LanguageFn }>> = {
@@ -76,6 +100,7 @@ export function canonFenceLang(lang: string | undefined): string | undefined {
 export async function highlightCode(code: string, lang: string | undefined): Promise<string | null> {
   const target = canonFenceLang(lang);
   if (!target) return null;
+  if (highlightInputExceedsLimits(code)) return null;
   const hljs = await loadCore();
   if (!hljs) return null;
   try {

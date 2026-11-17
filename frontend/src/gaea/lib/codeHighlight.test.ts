@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { applyHlTheme, canonFenceLang, highlightCode } from "./codeHighlight";
+import {
+  MAX_HIGHLIGHT_BYTES,
+  MAX_HIGHLIGHT_LINE_BYTES,
+  MAX_HIGHLIGHT_LINES,
+  applyHlTheme,
+  canonFenceLang,
+  exceedsHighlightLimits,
+  highlightCode,
+} from "./codeHighlight";
 
 describe("canonFenceLang 围栏语言归一", () => {
   it("白名单语言直通（大小写/空白容错）", () => {
@@ -37,6 +45,16 @@ describe("canonFenceLang 围栏语言归一", () => {
 });
 
 describe("highlightCode 懒加载高亮", () => {
+  it("enforces aggregate byte/line/single-line gates before loading hljs", async () => {
+    expect([MAX_HIGHLIGHT_BYTES, MAX_HIGHLIGHT_LINES, MAX_HIGHLIGHT_LINE_BYTES])
+      .toEqual([512 * 1024, 10000, 4 * 1024]);
+    expect(exceedsHighlightLimits(2000, 1, 2000)).toBe(false);
+    expect(exceedsHighlightLimits(512 * 1024 + 1, 1, 1)).toBe(true);
+    expect(exceedsHighlightLimits(1, 10001, 1)).toBe(true);
+    expect(exceedsHighlightLimits(1, 1, 4097)).toBe(true);
+    expect(await highlightCode("x".repeat(5000), "go")).toBeNull();
+  });
+
   it("go 代码产出 hljs 令牌 span", async () => {
     const html = await highlightCode('package main\n\nfunc main() {\n\tprintln("hi")\n}', "go");
     expect(html).toContain("hljs-keyword");

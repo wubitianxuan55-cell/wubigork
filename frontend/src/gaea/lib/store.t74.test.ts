@@ -1,7 +1,7 @@
 // T7-4（v2.37.0）store 写路径错误可见性 + reconcileFinalAnswer 完整文本比较。
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { initialState, isFinalAnswerRendered, useController, useStore } from "./store";
+import { initialState, isFinalAnswerRendered, useComposerInsertStore, useController, useStore } from "./store";
 import type { Item } from "./store";
 
 // 假 Wails 门面：让 realApp() 命中 CoreB；LogFrontendError 用 vi.fn 断言。
@@ -334,10 +334,18 @@ describe("useController 写路径失败可见化（T7-4）", () => {
     inject(f);
     const { result } = renderHook(() => useController());
     await flush();
+    useComposerInsertStore.setState({ pendingText: null });
+    useStore.setState({
+      items: [
+        { kind: "user", id: "u1", text: "第一轮" },
+        { kind: "user", id: "u2", text: "回退后应回到输入框" },
+      ],
+    });
 
     await act(async () => { await result.current.rewind(1, "code"); });
 
     expect(noticeText()).toContain("回退对话失败");
+    expect(useComposerInsertStore.getState().pendingText).toBe("回退后应回到输入框");
   });
 
   it("listSessions 失败：预期降级返回 []，仅记日志不弹窗", async () => {

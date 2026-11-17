@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Command, Search } from "../icons";
 import { useMountTransition } from "../lib/useMountTransition";
 import { useT } from "../lib/i18n";
+import { HintStrip } from "./ui/HintStrip";
+import type { HintItem } from "../lib/hintLayout";
 
 // CommandPalette is a Ctrl+K modal that surfaces commands, sessions, and
 // recent files via fuzzy search. Items are provided by the caller (App) so
@@ -25,6 +27,21 @@ export interface PaletteItem {
   keywords?: string[];
   run: () => void | Promise<void>;
 }
+
+const paletteHints: readonly (readonly HintItem[])[] = [
+  [
+    { id: "nav", keys: ["↑", "↓"], label: "导航" },
+    { id: "select", keys: ["↵"], label: "选择" },
+    { id: "close", keys: ["esc"], label: "关闭" },
+  ],
+  [
+    { id: "nav", keys: ["↑", "↓"], label: "导航" },
+    { id: "close", keys: ["esc"], label: "关闭" },
+  ],
+  [
+    { id: "close", keys: ["esc"], label: "关闭" },
+  ],
+];
 
 // Fuzzy match: every query token must appear in the candidate's title or hint,
 // in order (case-insensitive).
@@ -230,11 +247,7 @@ export function CommandPalette({
         </div>
 
         {/* Footer */}
-        <div className="palette__foot">
-          <span><kbd>↑</kbd><kbd>↓</kbd> 导航</span>
-          <span><kbd>↵</kbd> 选择</span>
-          <span><kbd>esc</kbd> 关闭</span>
-        </div>
+        <HintStrip className="palette__foot" variants={paletteHints} />
       </div>
     </div>
   );

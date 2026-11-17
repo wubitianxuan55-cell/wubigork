@@ -18,6 +18,7 @@ import {
   unifiedRows,
 } from "./tools";
 import { LocaleProvider } from "./i18n";
+import { lineWidth } from "./textMetrics";
 
 // summarize 走模块级 t()（无 React 上下文，默认 en）。挂一次 zh 的
 // LocaleProvider（渲染期同步刷新 i18n 镜像）让断言钉住中文文案。
@@ -94,7 +95,7 @@ describe("boundedOutput 输出清噪（v4.506）", () => {
     expect(TOOL_OUTPUT_LINE_CAP).toBe(160);
     const img = `[Image: source: C:\\Users\\wubi\\Documents\\xwechat_files\\wxid_x\\temp\\RWTemp\\2026-10\\${"p".repeat(200)}.png]`;
     const { preview, full, lineFolded, collapsed } = boundedOutput(`ok\n${img}`);
-    expect(collapsed).toBe(false);
+    expect(collapsed).toBe(true);
     expect(lineFolded).toBe(1);
     expect(preview).toContain("…");
     expect(preview.length).toBeLessThan(full.length);
@@ -146,7 +147,9 @@ describe("truncateSubject 词界截断（v4.507）", () => {
 
   it("中文/无空格串硬切（空格太靠前不回退）", () => {
     const s = "汉字".repeat(40);
-    expect(truncateSubject(s, 48)).toBe(`${"汉字".repeat(24)}…`);
+    const out = truncateSubject(s, 48);
+    expect(out.endsWith("…")).toBe(true);
+    expect(lineWidth(out)).toBeLessThanOrEqual(48);
   });
 });
 
@@ -200,16 +203,19 @@ describe("boundedOutput 大工具输出有界预览（P2-2）", () => {
     expect(r.totalLines).toBe(10);
   });
 
-  it("超长输出折叠为头部 + 折叠提示行", () => {
+  it("超长输出同时保留头部与尾部，中间披露折叠量", () => {
     const out = Array.from({ length: 100 }, (_, i) => `line${i}`).join("\n");
     const r = boundedOutput(out, 60);
     expect(r.collapsed).toBe(true);
     expect(r.totalLines).toBe(100);
+    expect(r.retainedLines).toBe(60);
     expect(r.hiddenLines).toBe(40);
     expect(r.preview).toContain("line0");
-    expect(r.preview).toContain("line59");
-    expect(r.preview).not.toContain("line60");
+    expect(r.preview).toContain("line29");
+    expect(r.preview).not.toContain("line30");
     expect(r.preview).toContain("… 已折叠 40 行");
+    expect(r.preview).toContain("line70");
+    expect(r.preview).toContain("line99");
     expect(r.full).toBe(out);
   });
 
@@ -244,8 +250,25 @@ describe("TOOL_CARD_OUTPUT_PREVIEW_LINES chat 流输出预览上限", () => {
     const bounded = boundedOutput(out, TOOL_CARD_OUTPUT_PREVIEW_LINES);
     expect(bounded.collapsed).toBe(true);
     expect(bounded.hiddenLines).toBe(18);
-    expect(bounded.preview).toContain("l11");
-    expect(bounded.preview).not.toContain("l12");
+    expect(bounded.retainedLines).toBe(12);
+    expect(bounded.preview).toContain("l5");
+    expect(bounded.preview).not.toContain("l6");
+    expect(bounded.preview).toContain("l24");
+    expect(bounded.preview).toContain("l29");
+  });
+
+  it("单行超宽按显示宽度头尾裁断，并把裁断计入披露数量", () => {
+    const out = "HEAD-" + "中文".repeat(120) + "-TAIL🎉";
+    const bounded = boundedOutput(out, TOOL_CARD_OUTPUT_PREVIEW_LINES);
+    expect(bounded.totalLines).toBe(1);
+    expect(bounded.retainedLines).toBe(1);
+    expect(bounded.lineFolded).toBe(1);
+    expect(bounded.hiddenWidthClipped).toBe(1);
+    expect(bounded.hiddenLines).toBe(1);
+    expect(bounded.collapsed).toBe(true);
+    expect(bounded.preview.startsWith("HEAD")).toBe(true);
+    expect(bounded.preview).toContain("-TAIL🎉");
+    expect(bounded.preview).toContain("… 已折叠 1 行");
   });
 });
 
@@ -268,9 +291,9 @@ describe("subjectOf 办公工具行首主体", () => {
       subjectOf("grep", JSON.stringify({ pattern: "施工", path: "D:/新工作/旺平矿业/周报.md" })),
     ).toBe("施工 @ 周报.md");
     const longPattern = `^施\\s*工|${"x".repeat(40)}`;
-    expect(subjectOf("grep", JSON.stringify({ pattern: longPattern }))).toBe(
-      `${longPattern.slice(0, 32)}…`,
-    );
+    const subject = subjectOf("grep", JSON.stringify({ pattern: longPattern }));
+    expect(subject.endsWith("…")).toBe(true);
+    expect(lineWidth(subject)).toBeLessThanOrEqual(32);
     // pattern 缺失回退 path（历史口径）
     expect(subjectOf("glob", JSON.stringify({ path: "docs/**" }))).toBe("docs/**");
   });
