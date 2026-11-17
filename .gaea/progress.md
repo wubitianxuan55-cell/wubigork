@@ -1,3 +1,22 @@
+## Git 打包 · gaea-vision-ocr-gallery-20261118-b3d994dc（2026-11-18）
+
+本日治理线全量（识图根修+OCR 大卡+插图标签+U5 徽标+DSH 蒸馏首批+编队 UI
+完善+走查根修）桌面构建包。打包点 `b3d994dc`（插图 wailsjs 再生物化后）：
+干净树 `.worktrees/pkg-b3d994dc`（detached，junction node_modules）前端
+30.03s + Wails 42.803s（bindings 未跳过）；wailsjs 仅 CRLF 噪音（内容漂移
+为空）。交付 `releases/gaea-vision-ocr-gallery-20261118-b3d994dc/`：
+
+- payload 四件：gaea.exe 55,064,576 B SHA256 `B9024B6D…F47313`；三 DLL
+  沿用基线原样哈希（68D0D5F5/5DD36DBD/4C563277，未重编）；正式路径冒烟
+  `/api/health` 200（PID 50912 回收）
+- PACKAGE-INFO.md + SHA256SUMS.txt 入库（六项复算全 OK）；源码 TAR
+  43,727,334 B `3997DF78…769F95` / ZIP 12,821,240 B `5DC4F634…831C7`
+  留盘不入库（P2-3）
+- 装机：`gaea_install.ps1 -SourceDir payload -Launch` INSTALL OK
+  （exe 新 PID 43192>构建时刻 02:48:03）
+- 版本 4.544.0 不抬号（随下个发版点统一抬）；工作树回收（含上批遗留
+  pkg-d30cb5d2 空壳）
+
 ## 文学「插图」标签 · 生成图/剧照图册（2026-11-18）
 
 用户令文学板块增加插图标签查看生成的插图/剧照等图片。第七次装机（exe 新
