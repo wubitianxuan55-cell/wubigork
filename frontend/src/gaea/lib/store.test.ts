@@ -24,6 +24,26 @@ describe("applyEvent", () => {
     expect(s.turnTokens).toBe(0);
   });
 
+  it("OCR 大卡：ocr_progress 按 path 原地 upsert，终态覆盖进度", () => {
+    const s0 = applyEvent(base(), { kind: "ocr_progress", ocr: { path: "C:/x/a.pdf", name: "a.pdf", engine: "uocr2", stage: "engine-start", total: 20 } });
+    const item0 = s0.items.find((it) => it.id === "ocr:C:/x/a.pdf");
+    expect(item0).toBeTruthy();
+    expect(item0?.kind).toBe("ocr");
+    // 同 path 二次事件：原地更新，不堆叠
+    const s1 = applyEvent(s0, { kind: "ocr_progress", ocr: { path: "C:/x/a.pdf", name: "a.pdf", engine: "uocr2", stage: "running", done: 5, total: 20 } });
+    expect(s1.items.filter((it) => it.id === "ocr:C:/x/a.pdf")).toHaveLength(1);
+    const it1 = s1.items.find((it) => it.id === "ocr:C:/x/a.pdf");
+    expect(it1 && it1.kind === "ocr" ? it1.done : -1).toBe(5);
+    // 终态覆盖
+    const s2 = applyEvent(s1, { kind: "ocr_progress", ocr: { path: "C:/x/a.pdf", stage: "done", total: 20, chars: 4210 } });
+    const it2 = s2.items.find((it) => it.id === "ocr:C:/x/a.pdf");
+    expect(it2 && it2.kind === "ocr" ? it2.stage : "").toBe("done");
+    expect(it2 && it2.kind === "ocr" ? it2.chars : -1).toBe(4210);
+    // 不同 path 各自成卡
+    const s3 = applyEvent(s2, { kind: "ocr_progress", ocr: { path: "C:/x/b.png", name: "b.png", stage: "engine-start", total: 1 } });
+    expect(s3.items.filter((it) => it.kind === "ocr")).toHaveLength(2);
+  });
+
   it("U5 触发源捕获：turn_started 带 trigger 落 turnTrigger，user 轮清空", () => {
     const wake = applyEvent(base(), { kind: "turn_started", trigger: "wake" });
     expect(wake.turnTrigger).toBe("wake");

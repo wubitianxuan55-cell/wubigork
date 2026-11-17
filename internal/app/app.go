@@ -24,6 +24,7 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/docmd"
 	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/filewatch"
@@ -451,6 +452,10 @@ func (a *App) Startup(ctx context.Context) {
 	// 识图改走绑定引擎端点（改绑即生效），未绑定回落 gaea.toml [vision] 静态
 	// 注入（boot 装配，默认本机 herdsman 视觉模型）。
 	vision.SetVisionRuntimeResolver(a.visionBoundRuntime)
+	// OCR 专属大卡（2026-11-18）：docmd OCR 进度钩子 → gaea-event，转录流
+	// OCRCard 大卡消费（引擎拉起/页进度/缓存命中/终态）。包级单点注册；
+	// 文件预览面板的 preview_progress 专用通道不受影响（双通道并存）。
+	docmd.SetOCRProgressHook(a.emitOCRProgress)
 	a.engineMgr.SetStatsPath(modelengine.StatsPathFor(filepath.Join(a.whisperDataRoot, "engines.json")))
 	// T6-6.2 汇率配置：把 ~/.gaea_config.json 的 usd_cny_rate 注入统计折算
 	// （config.Load 含磁盘 IO，只在启动/用户修改时注入一次，避免逐调用读取）。

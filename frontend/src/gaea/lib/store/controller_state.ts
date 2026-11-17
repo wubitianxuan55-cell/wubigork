@@ -22,7 +22,8 @@ export type Item =
   | { kind: "phase"; id: string; text: string }
   | { kind: "notice"; id: string; level: "info" | "warn"; text: string }
   | { kind: "compaction"; id: string; pending: boolean; trigger: string; messages: number; summary: string; archive: string }
-  | { kind: "tool"; id: string; name: string; args: string; readOnly: boolean; status: ToolStatus; output?: string; error?: string; truncated?: boolean; recoverable?: boolean; parentId?: string; sources?: ToolSource[] };
+  | { kind: "tool"; id: string; name: string; args: string; readOnly: boolean; status: ToolStatus; output?: string; error?: string; truncated?: boolean; recoverable?: boolean; parentId?: string; sources?: ToolSource[] }
+  | { kind: "ocr"; id: string; path: string; name: string; engine: string; stage: "engine-start" | "running" | "cached" | "done" | "failed"; done: number; total: number; chars: number; err: string };
 
 export interface ControllerState {
   items: Item[]; running: boolean; turnActive: boolean; approval?: WireApproval; ask?: WireAsk;
@@ -309,6 +310,24 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
   if (s.discardTurn) { if (e.kind === "turn_done") return { ...s, discardTurn: false, running: false, turnActive: false, currentAssistant: undefined }; return s; }
   if (s.pendingUser !== undefined && e.kind !== "turn_started" && e.kind !== "turn_done") s = flushPendingUser(s);
   switch (e.kind) {
+    case "ocr_progress": {
+      // OCR 专属大卡（2026-11-18）：按 path 原地 upsert——同一文件的进度事件
+      // 更新同一张卡（引擎拉起→页粒度→终态），不堆叠历史行。pendingUser 不豁免：
+      // @附件 OCR 腿在消息装配期就跑（turn_started 前），此时 flush 用户气泡
+      // 让时序保持「用户消息 → OCR 卡」。
+      const o = e.ocr;
+      if (!o || !o.path) return { ...s, seq: s.seq + 1 };
+      const id = `ocr:${o.path}`;
+      const item: Item = {
+        kind: "ocr", id, path: o.path,
+        name: o.name ?? o.path.split(/[\\/]/).pop() ?? o.path,
+        engine: o.engine ?? "", stage: o.stage,
+        done: o.done ?? 0, total: o.total ?? 0, chars: o.chars ?? 0, err: o.err ?? "",
+      };
+      const idx = s.items.findIndex((it) => it.id === id);
+      const items = idx >= 0 ? s.items.map((it, i) => (i === idx ? item : it)) : [...s.items, item];
+      return { ...s, seq: s.seq + 1, items };
+    }
     case "turn_started": return { ...s, running: true, turnActive: true, currentAssistant: undefined, lastAssistantIdx: -1, turnStartAt: Date.now(), turnTrigger: e.trigger ?? "", turnTokens: 0, perTurnUsage: null, perTurnExecutorUsage: undefined, perTurnSubUsage: undefined, turnSteps: [] };
     case "text": case "reasoning": {
       // O(1) 查找最后一个 assistant 项：用 lastAssistantIdx 避免流式时每 chunk O(n) 扫描。

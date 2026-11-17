@@ -361,6 +361,15 @@ export const zhTW: Record<DictKey, string> = {
   "work.steps": "{n} 步",
   "work.triggerWake": "後台喚醒",
   "work.triggerSubagent": "子代理回合",
+    "ocrCard.stageEngine": "引擎拉起中",
+    "ocrCard.stageRunning": "識別中",
+    "ocrCard.stageCached": "快取命中",
+    "ocrCard.stageDone": "完成",
+    "ocrCard.stageFailed": "失敗",
+    "ocrCard.pages": "{done}/{total} 頁",
+    "ocrCard.chars": "{n} 字",
+    "ocrCard.engineHint": "uocr2 冷啟動可達分鐘級，可先繼續對話",
+
   // 相對時間分檔文案（lib/time.ts relativeTime；FE4-03 唯一源）
   "time.justNow": "剛剛",
   "time.minutesAgo": "{n} 分鐘前",

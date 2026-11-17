@@ -1,0 +1,144 @@
+/* OCRCard — OCR 专属大卡（2026-11-18）：文件 OCR 解析的进度/状态面。
+   自带样式（不依赖 context 面板作用域类）；令牌全走 md-sys/fg 家族，亮暗自适应。 */
+
+.ocr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 560px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 72%, transparent);
+  font-size: 11.5px;
+}
+
+.ocr-card[data-stage="failed"] {
+  border-color: color-mix(in srgb, var(--err, var(--md-sys-color-destructive)) 45%, transparent);
+}
+
+.ocr-card-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--fg);
+}
+
+.ocr-card-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ocr-card-engine {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--fg) 16%, transparent);
+  border-radius: 999px;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+}
+
+.ocr-card-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-faint);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.ocr-card-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+}
+
+.ocr-card-status[data-stage="engine-start"],
+.ocr-card-status[data-stage="running"] {
+  color: var(--gaea-glow, var(--info));
+}
+
+.ocr-card-status[data-stage="engine-start"] i,
+.ocr-card-status[data-stage="running"] i {
+  background: var(--gaea-glow, var(--info));
+  animation: ocr-card-pulse 1.4s ease-in-out infinite;
+}
+
+.ocr-card-status[data-stage="cached"] {
+  color: var(--fg-dim);
+}
+
+.ocr-card-status[data-stage="done"] i {
+  background: var(--ok, var(--md-sys-color-success));
+}
+
+.ocr-card-status[data-stage="failed"] {
+  color: var(--err, var(--md-sys-color-destructive));
+}
+
+.ocr-card-status[data-stage="failed"] i {
+  background: var(--err, var(--md-sys-color-destructive));
+}
+
+.ocr-card-progress {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.ocr-card-bar {
+  display: block;
+  flex: 1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+.ocr-card-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gaea-glow, var(--info));
+  transition: width 300ms ease;
+}
+
+.ocr-card-pages {
+  flex: none;
+  color: var(--fg-dim);
+  font-size: 10px;
+}
+
+.ocr-card-hint {
+  color: var(--fg-faint);
+  font-size: 10px;
+}
+
+.ocr-card-result {
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ocr-card-error {
+  overflow: hidden;
+  color: var(--err, var(--md-sys-color-destructive));
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes ocr-card-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

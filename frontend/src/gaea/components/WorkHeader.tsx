@@ -42,7 +42,7 @@ export function countTurnSteps(items: Item[]): number {
   let n = 0;
   for (let i = lastUser + 1; i < items.length; i++) {
     const it = items[i];
-    if (it.kind === "tool" || it.kind === "phase" || it.kind === "notice" || it.kind === "compaction") n++;
+    if (it.kind === "tool" || it.kind === "phase" || it.kind === "notice" || it.kind === "compaction" || it.kind === "ocr") n++;
     else if (it.kind === "assistant" && !it.text) n++;
   }
   return n;

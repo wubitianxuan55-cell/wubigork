@@ -521,7 +521,14 @@ func OCRImageText(path string) (string, error) {
 	if ferr != nil {
 		return ocrImageTextUncached(path, kinds)
 	}
-	return ocrCached("img:"+fp+":"+engineOrderKey(), func() (string, error) {
+	key := "img:" + fp + ":" + engineOrderKey()
+	// 缓存命中即报 cached（大卡秒回态）：同文件重复 OCR（@引用重发/多消费方）
+	// 不该再演一遍引擎拉起。
+	if text, ok := defaultOCRCache.get(key); ok {
+		emitOCRProgress(OCRProgressEvent{Path: path, Stage: OCRStageCached, Total: 1, Chars: utf8.RuneCountInString(text)})
+		return text, nil
+	}
+	return ocrCached(key, func() (string, error) {
 		return ocrImageTextUncached(path, kinds)
 	})
 }
@@ -533,11 +540,16 @@ func ocrImageTextUncached(path string, kinds []string) (string, error) {
 		if perr != nil {
 			continue // kind 已校验，防御性跳过
 		}
+		// 进度事件：引擎拉起（uocr2 冷启动可达分钟级，进度价值最大的阶段）。
+		emitOCRProgress(OCRProgressEvent{Path: path, Engine: kind, Stage: OCRStageEngineStart, Total: 1})
 		if text, err := p.ExtractImage(path); err == nil && strings.TrimSpace(text) != "" {
+			emitOCRDone(path, kind, utf8.RuneCountInString(text))
 			return text, nil
 		}
 	}
-	return "", ocrUnavailableError(kinds)
+	unavailable := ocrUnavailableError(kinds)
+	emitOCRProgress(OCRProgressEvent{Path: path, Stage: OCRStageFailed, Total: 1, Err: unavailable.Error()})
+	return "", unavailable
 }
 
 // OCRPDFText 强制走扫描件 OCR 管线（忽略文本层）：供「文本层提取成功但内容
@@ -578,7 +590,21 @@ var pdftoppmLookup = findPdftoppm
 // PageBatchOCRProvider）。构造提供者实例后预探测一次：至少一个引擎可用才
 // 继续（ovis 探测并缓存常驻服务地址，失败整轮跳过、不逐页重试拉起；
 // tesseract 检查可执行文件），与历史提前失败行为一致。
-func ocrPDFRange(path, pages string, first, last, total int, progress func(done, totalN int)) (string, error) {
+func ocrPDFRange(path, pages string, first, last, total int, progress func(done, totalN int)) (text string, err error) {
+	// 进度事件（OCR 大卡）：页粒度 running + 终态 done/failed。终态走 defer
+	// 统一收口（错误路径多，逐处 emit 会漏）；engine 取链首可用引擎 kind。
+	pagesInRange := last - first + 1
+	if pagesInRange < 1 {
+		pagesInRange = 1
+	}
+	ocrEngine := ""
+	defer func() {
+		if err != nil {
+			emitOCRProgress(OCRProgressEvent{Path: path, Engine: ocrEngine, Stage: OCRStageFailed, Total: pagesInRange, Err: err.Error()})
+			return
+		}
+		emitOCRProgress(OCRProgressEvent{Path: path, Engine: ocrEngine, Stage: OCRStageDone, Done: pagesInRange, Total: pagesInRange, Chars: utf8.RuneCountInString(text)})
+	}()
 	pdftoppmPath := pdftoppmLookup()
 	if pdftoppmPath == "" {
 		return "", fmt.Errorf("扫描件 PDF 需要 poppler 渲染（pdftoppm），但未找到。" +
@@ -597,6 +623,10 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 	if !ocrAnyAvailable(providers) {
 		return "", ocrPDFUnavailableError(kinds)
 	}
+	if len(providers) > 0 {
+		ocrEngine = providers[0].Name()
+	}
+	emitOCRProgress(OCRProgressEvent{Path: path, Engine: ocrEngine, Stage: OCRStageEngineStart, Total: pagesInRange})
 
 	// 创建临时目录
 	tmpDir, err := os.MkdirTemp("", "gaea-ocr-*")
@@ -687,7 +717,8 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 		pageTexts = append(pageTexts, fmt.Sprintf("（第 %v 页 OCR 失败已跳过，共 %d 页）", failed, len(failed)))
 	}
 	result := strings.Join(pageTexts, "\n\n---\n\n")
-	return fmt.Sprintf("（以下内容由 OCR 识别，可能存在误差）\n\n%s", result), nil
+	text = fmt.Sprintf("（以下内容由 OCR 识别，可能存在误差）\n\n%s", result)
+	return text, nil
 }
 
 // ocrPageJob 一页待识别的渲染产物：num = 绝对页码（来自实际产物文件名）。

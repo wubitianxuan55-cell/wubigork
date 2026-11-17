@@ -356,6 +356,15 @@ export const en = {
   "work.steps": "{n} steps",
   "work.triggerWake": "Background wake",
   "work.triggerSubagent": "Subagent turn",
+    "ocrCard.stageEngine": "Starting engine",
+    "ocrCard.stageRunning": "Recognizing",
+    "ocrCard.stageCached": "Cache hit",
+    "ocrCard.stageDone": "Done",
+    "ocrCard.stageFailed": "Failed",
+    "ocrCard.pages": "{done}/{total} pages",
+    "ocrCard.chars": "{n} chars",
+    "ocrCard.engineHint": "Cold start can take minutes; keep chatting meanwhile",
+
   // relative-time tiers (lib/time.ts relativeTime; FE4-03 single source)
   "time.justNow": "just now",
   "time.minutesAgo": "{n} min ago",

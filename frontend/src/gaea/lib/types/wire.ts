@@ -21,6 +21,7 @@ export type EventKind =
   | "ask_resolved"
   | "approval_auto"
   | "subagent_message"
+  | "ocr_progress"
   | "turn_done"
   | "compaction_started"
   | "compaction_done"
@@ -75,6 +76,20 @@ export interface WireUsage {
 
 // GaeaReloadResult 是办公引擎热加载的结果摘要（工具/技能数量）。
 export type GaeaReloadResult = WireShape<AppModels.GaeaReloadResult>;
+
+// WireOCRProgress 是一次 OCR 作业的进度快照（path=作业键，前端按它去重
+// 原地更新同一张卡）。stage 词汇与 docmd.OCRProgressEvent 对齐：
+// engine-start/running/cached/done/failed。
+export interface WireOCRProgress {
+  path: string;
+  name?: string;
+  engine?: string;
+  stage: "engine-start" | "running" | "cached" | "done" | "failed";
+  done?: number;
+  total?: number;
+  chars?: number;
+  err?: string;
+}
 
 export interface WireApproval {
   id: string;
@@ -142,6 +157,9 @@ export interface WireEvent {
   // U5 触发源徽标：turn_started 可选携带回合发起者（user/wake/subagent）。
   // 后端 user 缺省不下发；reducer 落 turnTrigger，WorkHeader 据此画归属徽标。
   trigger?: string;
+  // OCR 专属大卡（2026-11-18）：docmd OCR 进度（引擎拉起/页粒度/缓存命中/
+  // 终态）经包级钩子转发。reducer 按 path 原地 upsert 一张 ocr 卡。
+  ocr?: WireOCRProgress;
   // v4.26：message 事件可选携带子代理来源引用（后端把子代理最终答复回投主
   // 回合时标注）；reducer 落到 assistant item 上，渲染层据此画「子代理」徽标。
   subagentRef?: string;

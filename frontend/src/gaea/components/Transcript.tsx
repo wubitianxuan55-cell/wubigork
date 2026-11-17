@@ -9,6 +9,8 @@ import { AssistantMessage, UserMessage } from "./Message";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { WorkHeader } from "./WorkHeader";
 import { ToolCard } from "./ToolCard";
+import { OCRCard } from "./OCRCard";
+import "./ocr-card.css";
 import { ToolGroup, scanGroups } from "./ToolGroup";
 import { ErrorCard } from "./ErrorCard";
 import { useEntranceAnimation } from "../lib/useEntranceAnimation";
@@ -171,6 +173,9 @@ function segSig(seg: Segment): string {
   for (const it of [...seg.processItems, ...seg.outsideItems]) {
     if (it.kind === "assistant") s += `${it.id}:${it.text.length}:${it.reasoning.length}:${it.streaming ? 1 : 0};`;
     else if (it.kind === "tool") s += `${it.id}:${it.status}:${it.output?.length ?? 0};`;
+    // OCR 大卡进度事件原地 upsert：签名带 stage/done/chars，进度更新才触发
+    // 段重渲染（memo 缓存否则吞掉活进度）。
+    else if (it.kind === "ocr") s += `${it.id}:${it.stage}:${it.done}:${it.chars};`;
     else s += `${it.id};`;
   }
   return s;
@@ -280,6 +285,14 @@ function renderOutsideItems(
         return (
           <div key={it.id} data-entrance={it.id}>
             <ToolCard item={it} subcalls={ctx.subcalls.get(it.id)} />
+          </div>
+        );
+      case "ocr":
+        // OCR 专属大卡（2026-11-18）：文件 OCR 解析的进度/状态面（docmd
+        // 进度钩子驱动，按 path 原地 upsert）。
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <OCRCard item={it} />
           </div>
         );
       case "phase":
