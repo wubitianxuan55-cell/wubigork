@@ -1,3 +1,31 @@
+## 文学「插图」标签 · 生成图/剧照图册（2026-11-18）
+
+用户令文学板块增加插图标签查看生成的插图/剧照等图片。第七次装机（exe 新
+PID 60596>构建时刻 02:44:09，未 push）：
+
+- **数据面（Go）**：新绑定 `WenxueGalleryList`（wenxue_gallery.go）——递归
+  收集书工作空间图片：`.gaea/uploads`（image_gen 封面/场景插图/角色立绘 +
+  WenxueSavePastedImage 粘贴图，媒体根分档同源）+ 其他目录图片如实收集；
+  mtime 倒序封顶 400；来源分类 uploads/workspace；`.git/node_modules` 跳过、
+  `.gaea` 非 uploads 子树（cache 等）整枝跳过、越界防护（Rel 归一）。
+- **前端**：ChatTabs 第九 tab「插图」（gallery 入 CHAT_VIEW_TAB_IDS 单源
+  白名单 + ChatTabId + TABS 末位）+ `WenxueGalleryHub`（WenxueHubFrame
+  tone=gallery）：网格懒加载取图（Preview image→dataUrl，首屏 24 张）、
+  来源筛选（全部/生成/其他）、lightbox 大图（遮罩点击/Esc 关）、空态引导
+  image_gen、`gaea-wenxue-filetree` 通道自动刷新（设定/角色 Hub 同款纪律）。
+  wenxue 无需 i18n（页内 zh 单语惯例）。
+- **绑定六面 + legacy**：facade + 双树 bindingNames + 签名（702→703）+
+  mappings（GalleryList→WenxueGalleryList）+ core.ts + spaceBindings(work)
+  + mock 桩；gen_bindings（wenxue 115/合计 712）+ `-legacy-ts` 再生（187 名
+  ——wenxue 专属绑定不经 gaea AppBindings 消费走 legacy 面，drift 锁三兜住）。
+- **走查式测试自逮两轮**：`.gaea` 段过滤/分类最初用根前缀判定——书嵌套在
+  图文根下（rel=书名/.gaea/uploads/…）前缀判定必漏（cache 噪声泄漏+来源
+  分类错），改路径段判定；裸 `.gaea` 目录访问时子目录未知须放行下钻。
+- 测试：Go WenxueGalleryList（收集/分类/过滤/排序/越界，TempDir 隔离）+
+  WenxueGalleryHub 4 例（清单/筛选/空态/灯箱）；ChatTabs 八 tab 契约升
+  九 tab（a11y End 键末位=插图）；wenxue 族 71/71、tsc 0、改动面 ESLint 0、
+  bindings completeness 绿、冒烟 200+INSTALL OK。
+
 ## 办公 OCR 专属大卡 · 文件 OCR 解析的进度/状态面（2026-11-18）
 
 用户报 OCR 解析无进度可见（agent ocr 工具只有 dispatch→result 两点、@附件 OCR
