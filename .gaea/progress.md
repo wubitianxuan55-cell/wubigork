@@ -1,3 +1,25 @@
+## 办公识图本地 llama 档根修 · mmproj 装载+能力标注+跟随链闸（2026-11-18）
+
+用户报「办公板块本地模型的识图功能」坏。三层根因同批修复（构建装机 exe 新
+PID 10016>构建时刻 02:02:35，未 push）：
+
+- **根因**：llamaEnsure 起 llama-server 不带 --mmproj（qwen35 纯文本服务）；
+  办公聊天绑 llama 8124 → 识图跟随链把图喂给纯文本服务必坏。mmproj 文件
+  在位（C:\AI\models\qwen35-uncensored）、WHIRL 同模型带 mmproj 正常——
+  单副本缺一半。
+- **修复**：qwen35 档补 MMProj（与 WHIRL 同文件）+ llamaServerArgs（抽出纯
+  函数）条件加载 --mmproj；managedCatalogModels 按 mmproj 文件在位标注
+  Caps=[vision]（managedProfileMmprojPathIn 统一根/历史根双布局）；跟随链
+  llama/strata/whirl 分支对未标注 running 档弃权落 herdsman 兜底——纯文本
+  档（gemma4）永不接图，mmproj 被删自动降级（自我愈合）。
+- **实机旁证**：engines.json herdsman LLM 槽 stopped 且 default_model 空——
+  llama 是识图唯一通路；herdsman 兜底链因 default 空也断，本刀为必修。
+- 测试：mmproj 路径解析（TempDir 隔离）/目录 caps/启动参数/跟随链能力闸
+  4 新例；seedLlama 种子随新契约补 caps（3 例既有测试对齐）；app 全包
+  118s 绿 0 失败。
+- **验收口径挂用户**：下次聊天（llama 档）@图片/识图应恢复——llama 需重启
+  一次让 --mmproj 生效（引擎停-起或由聊天 ensure 自动重拉）。
+
 ## U5 触发源徽标收尾刀 · 非用户回合亮归属（2026-11-18）
 
 dsh ui 蒸馏档刀池最后一件（`e69154c4`，第四次装机 exe 新 PID 50556，未 push）：
