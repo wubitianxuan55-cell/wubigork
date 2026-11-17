@@ -782,6 +782,10 @@ export function GaeaSubagentRuns(arg1) {
   return window['go']['app']['OfficeB']['GaeaSubagentRuns'](arg1);
 }
 
+export function GaeaSubagentStop(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaSubagentStop'](arg1, arg2);
+}
+
 export function GaeaSubagentTranscript(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaSubagentTranscript'](arg1, arg2);
 }

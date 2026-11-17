@@ -4349,6 +4349,8 @@ export namespace app {
 	    toolCalls: number;
 	    lastText?: string;
 	    lastTool?: string;
+	    parentRef?: string;
+	    spawnCallId?: string;
 	    followUpError?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -4372,6 +4374,8 @@ export namespace app {
 	        this.toolCalls = source["toolCalls"];
 	        this.lastText = source["lastText"];
 	        this.lastTool = source["lastTool"];
+	        this.parentRef = source["parentRef"];
+	        this.spawnCallId = source["spawnCallId"];
 	        this.followUpError = source["followUpError"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -9273,6 +9277,8 @@ export namespace trajectory {
 	    tokens: number;
 	    firstTs?: number;
 	    lastTs?: number;
+	    lastText?: string;
+	    lastTool?: string;
 	    children?: AgentNode[];
 	
 	    static createFrom(source: any = {}) {
@@ -9292,6 +9298,8 @@ export namespace trajectory {
 	        this.tokens = source["tokens"];
 	        this.firstTs = source["firstTs"];
 	        this.lastTs = source["lastTs"];
+	        this.lastText = source["lastText"];
+	        this.lastTool = source["lastTool"];
 	        this.children = this.convertValues(source["children"], AgentNode);
 	    }
 	

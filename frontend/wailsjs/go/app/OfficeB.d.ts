@@ -404,6 +404,8 @@ export function GaeaSubagentFollowUp(arg1:string,arg2:string,arg3:string):Promis
 
 export function GaeaSubagentRuns(arg1:string):Promise<app.SubagentRunsView>;
 
+export function GaeaSubagentStop(arg1:string,arg2:string):Promise<void>;
+
 export function GaeaSubagentTranscript(arg1:string,arg2:string):Promise<app.SubagentTranscriptView>;
 
 export function GaeaSummarizeFile(arg1:string,arg2:string):Promise<app.GaeaSummaryResult>;
