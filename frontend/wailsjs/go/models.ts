@@ -4745,6 +4745,26 @@ export namespace app {
 		}
 	}
 	
+	export class WenxueImageItem {
+	    rel: string;
+	    name: string;
+	    source: string;
+	    size: number;
+	    modTime: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WenxueImageItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rel = source["rel"];
+	        this.name = source["name"];
+	        this.source = source["source"];
+	        this.size = source["size"];
+	        this.modTime = source["modTime"];
+	    }
+	}
 	export class WenxueMemoryArchivedView {
 	    name: string;
 	    title?: string;

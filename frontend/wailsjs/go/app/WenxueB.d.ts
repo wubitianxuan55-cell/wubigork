@@ -76,6 +76,8 @@ export function WenxueForget(arg1:string):Promise<void>;
 
 export function WenxueFork(arg1:number):Promise<void>;
 
+export function WenxueGalleryList():Promise<Array<app.WenxueImageItem>>;
+
 export function WenxueGitCommit(arg1:string):Promise<string>;
 
 export function WenxueGitCommitDetail(arg1:string):Promise<app.GitCommitDetail>;

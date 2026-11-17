@@ -138,6 +138,10 @@ export function WenxueFork(arg1) {
   return window['go']['app']['WenxueB']['WenxueFork'](arg1);
 }
 
+export function WenxueGalleryList() {
+  return window['go']['app']['WenxueB']['WenxueGalleryList']();
+}
+
 export function WenxueGitCommit(arg1) {
   return window['go']['app']['WenxueB']['WenxueGitCommit'](arg1);
 }
