@@ -547,6 +547,14 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     }
     return "follow-up started（mock 受理不执行）";
   },
+  async SubagentStop(sessionPath: string, ref: string) {
+    // D6 独立 Stop：中断运行中/排队中的子代理。mock 无引擎与 subRuns 中断
+    // 面，受理即回（fire-and-return 契约同 TaskCancel，诚实注记不执行）。
+    if (!sessionPath || !ref.startsWith("sa_")) {
+      throw new Error(`仅子代理运行（sa_ 前缀）可停止: ${JSON.stringify(ref)}`);
+    }
+    return undefined;
+  },
   async DocumentLint(rel: string) {
     // 文档规范体检（批 46 NOT_MOCKED 收尾刀）：standard.LintReport 空报告——
     // mock 无文档解析链，0 处问题如实通过（确定性 lint 的诚实退化态）。

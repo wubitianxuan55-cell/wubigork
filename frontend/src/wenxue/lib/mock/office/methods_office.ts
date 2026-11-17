@@ -534,6 +534,14 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     }
     return "follow-up started（mock 受理不执行）";
   },
+  async SubagentStop(sessionPath: string, ref: string) {
+    // D6 独立 Stop（wenxue 镜像）：中断面按 ref 全局寻址，mock 无引擎
+    // subRuns 中断面，受理即回（与办公 mock 同款诚实注记）。
+    if (!sessionPath || !ref.startsWith("sa_")) {
+      throw new Error(`仅子代理运行（sa_ 前缀）可停止: ${JSON.stringify(ref)}`);
+    }
+    return undefined;
+  },
   async DeliverableRegistry(_sessionPath: string) {
     // 浏览器开发 mock：模拟会话权威产物登记表（写类 + 生成/导出类工具落盘）。
     return {

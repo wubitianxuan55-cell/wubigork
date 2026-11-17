@@ -724,4 +724,4 @@ export const bindingSignatures = {
 } as const;
 
 // 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 701。
-export const bindingSignatureCount = 701;
+export const bindingSignatureCount = 702;
