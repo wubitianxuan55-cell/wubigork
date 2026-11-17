@@ -1,3 +1,27 @@
+## 办公 OCR 专属大卡 · 文件 OCR 解析的进度/状态面（2026-11-18）
+
+用户报 OCR 解析无进度可见（agent ocr 工具只有 dispatch→result 两点、@附件 OCR
+腿完全无声、扫描件 PDF 分钟级只有预览面板可见）。`81645938`（第六次装机 exe
+新 PID 35500>构建时刻 02:25:06，未 push）：
+
+- **后端**：docmd 包级进度钩子（SetOCRProgressHook，panic recover 不反噬主链）
+  + 三链路插桩（OCRImageText 缓存命中即报 cached/逐引擎 engine-start/done
+  字数/failed 原因；ocrPDFRange 页粒度 running done/total + 终态 defer 统一
+  收口 + 链首引擎 kind）+ App 启动单点注册（app.go，SetVisionRuntimeResolver
+  同区）→ gaea-event ocr_progress；payload 抽纯函数 ocrProgressPayload。
+  预览面板 preview_progress 专用通道不受影响（双轨并存）。
+- **前端**：wire ocr_progress + reducer 按 path 原地 upsert（同文件进度事件
+  更新同一张卡不堆叠；pendingUser 不豁免——@附件 OCR 在消息装配期就跑，
+  flush 保住「用户消息→OCR 卡」时序）+ OCRCard 大卡（文件名+引擎 chip+
+  状态词+PDF 页粒度进度条+完成字数+失败原因；自带 ocr-card.css 亮暗自适应）
+  + Transcript case + segSig 带 stage/done（防 memo 吞活进度）+ countTurnSteps
+  计入。事件不落历史（恢复会话卡片消失，结果本体经注入块/工具卡持久化）。
+- 门禁：docmd 全包绿、app 钩子测试绿、store/WorkHeader/OCRCard 27/27、
+  **全量 vitest 4481/4481（291s）**、tsc 0、改动面 ESLint 0、冒烟 200+
+  INSTALL OK。
+- **验收挂用户**：对扫描件 PDF @引用（分钟级，页粒度最直观）或让 AI 调
+  ocr 工具看大卡流转（引擎拉起中→识别中→完成 N 字）。
+
 ## 办公识图本地 llama 档根修 · mmproj 装载+能力标注+跟随链闸（2026-11-18）
 
 用户报「办公板块本地模型的识图功能」坏。三层根因同批修复（构建装机 exe 新
