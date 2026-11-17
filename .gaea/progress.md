@@ -1,3 +1,33 @@
+## codex 蒸馏第三批 · Git 打包与桌面构建（2026-11-17）
+
+- **代码/交付点**：`d30cb5d2`（`feat(gaea): 完成 codex 蒸馏第三批双板块收口`，
+  94 files changed）。第三批 W1–W9 全清，并同步包含第四批 P2 输出预算同源；
+  剩余第四批、F 批与 B 批不在本包。
+- **干净树构建**：`.worktrees/pkg-d30cb5d2`（detached @`d30cb5d2`，node_modules
+  junction）；前端 `npm.cmd run build` 81.412s（Vite 34.85s），随后 UCRT64 GCC +
+  `CGO_ENABLED=1` + 系统默认 TMP/TEMP 执行
+  `wails build -s -ldflags "-s -w" -trimpath` 49.665s（编译 49.387s），
+  `Skip Bindings=false`。Wails 再生仅留下 wailsjs/go.mod 的 CRLF 状态噪声，
+  `git diff --ignore-space-at-eol` 内容漂移为空。
+- **交付目录**：`releases/gaea-codex-distill-batch3-20261117-d30cb5d2/`
+  （payload 四件 + PACKAGE-INFO + SHA256SUMS + preview ZIP + source TAR）；
+  两份文本记录入库，二进制/源码包留盘不入库。
+- **payload**：`gaea.exe` 54,916,608 B
+  `E058DB7E3CFDD1CA3E6B38A3D6D569A1EC9D2F57B76B7011421031412C080119`；
+  三件 DLL 沿用上一基线原样且哈希不变
+  `68D0D5F5…F550B` / `5DD36DBD…01E8` / `4C563277…7FFE`。
+- **冒烟**：正式 payload 路径 `/api/health` 200（`{"status":"ok"}`），
+  PID 49028 已回收；构建/冒烟后无 gaea/wails/go 孤儿进程。
+- **源码/投递包**：`gaea-d30cb5d2-source.tar.gz` 43,621,391 B
+  `79F508287D8E4746BFE8256B7E8F09C8E0AE1C63C2DCBBB01F6F3FD684ACA2EF`；
+  ZIP 30,100,260 B
+  `2B75C0AD378AF286D971C1FC691B47A0E30FF5F4EE97F9E3F9C89A09B928DE60`；
+  七项最终清单全部复算 OK。
+- **版本/边界**：源版本 `wails.json=4.544.0`，不抬号；当前与上一包 exe 的
+  raw FileVersion/ProductVersion 均为空，不伪记 PE 资源版本。未跟踪
+  hotspot-07 文档未纳入提交/源码包/构建；未运行 `gaea_install.ps1`，
+  未覆盖 `C:\AI\gaea-app`。
+
 ## codex 蒸馏第三批 Wave 3 · 渲染闸门、表格复制与 GenUI 护栏（2026-11-17）
 
 第三批 W8/W9 完成，至此第三批 Wave 1–3 全清：
