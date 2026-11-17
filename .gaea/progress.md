@@ -56,8 +56,13 @@
 - **门禁终值**：go vet 0；agent 包全量+app 包 117s+trajectory 全绿（新增 parentref/
   组树/gate 行为锁 8 例）；前端 tsc -b 0、改动面 ESLint 0 error（ChatTabs react-refresh
   warning=既有同名款）、**全量 vitest 495 文件/4467 例全绿（252.79s，两轮：首轮 2 红=
-  mock 漏面→补刀→复跑全绿）**。**未构建 Wails/未装机/未 push**（wailsjs 再生留到
-  下次构建随 bindings 面一起）。
+  mock 漏面→补刀→复跑全绿）**。**已构建 Wails/已装机（11-18 收尾刀）**：前端 26.35s+裸 wails build 1m13.487s
+  （bindings 未跳过），wailsjs 再生真实漂移仅三文件 14 行正当下游
+  （OfficeB GaeaSubagentStop + SubagentRunView parentRef/spawnCallId +
+  AgentNode lastText/lastTool）随 bindings 再生提交；冒烟 /api/health 200
+  （PID 31616 回收）；装机 INSTALL OK（exe B59D28E3BC7A…，三 DLL 基线
+  哈希不变，new PID 43256>构建时刻 00:56:29）。**未 push**。编队页新拓扑
+  真机走查挂用户实弹（需真实多子代理会话）。
 
 ## codex 蒸馏第四批 · Git 打包与桌面构建（2026-11-17）
 
