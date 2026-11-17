@@ -35,6 +35,12 @@ type SubagentRunView struct {
 	LastTool  string   `json:"lastTool,omitempty"` // C2 活动行：最后一次工具调用摘要（name + 结果头）
 	// FollowUpError 是最近一次追问的后台失败原因摘要（v4.66，meta 透传）：
 	// 非空 = 该运行最近一次追问失败，会话 tab 轮询据此把乐观气泡转失败态。
+	// ParentRef/SpawnCallID 是派生血缘盖章（D1 编队拓扑会话化，meta 透传，
+	// 语义见 agent.SubagentMeta 同名注释）：ParentRef 空 = 主会话直接派生；
+	// SpawnCallID 把会话节点与事件日志工具调用树精确联结。旧 meta 无字段 =
+	// 空（读端降级：拓扑按 root 挂载、统计不迁移）。
+	ParentRef     string    `json:"parentRef,omitempty"`
+	SpawnCallID   string    `json:"spawnCallId,omitempty"`
 	FollowUpError string    `json:"followUpError,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -78,6 +84,9 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		Tool      string    `json:"tool,omitempty"`
 		ToolScope []string  `json:"toolScope,omitempty"`
 		Model     string    `json:"model,omitempty"`
+		// ParentRef/SpawnCallID：派生血缘盖章（D1），空 = 旧 meta 未盖章。
+		ParentRef   string `json:"parentRef,omitempty"`
+		SpawnCallID string `json:"spawnCallId,omitempty"`
 		// FollowUpError：最近一次追问后台失败摘要（v4.66），空 = 无失败。
 		FollowUpError string `json:"followUpError,omitempty"`
 	}
@@ -102,6 +111,8 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 			Tool:          m.Tool,
 			Model:         m.Model,
 			ToolScope:     m.ToolScope,
+			ParentRef:     m.ParentRef,
+			SpawnCallID:   m.SpawnCallID,
 			FollowUpError: m.FollowUpError,
 			CreatedAt:     m.CreatedAt,
 			UpdatedAt:     m.UpdatedAt,

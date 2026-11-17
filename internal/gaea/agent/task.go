@@ -129,8 +129,12 @@ func subagentSessionIDFromContext(ctx context.Context) string {
 
 var ephemeralSubagentSeq atomic.Uint64
 
+// ephemeralSubagentPrefix 是无 transcript store 的临时子代理会话 ID 前缀：
+// 没有 meta 侧车可指，PersistedParentRef 对它落空（编队树挂 root）。
+const ephemeralSubagentPrefix = "sa_ephemeral_"
+
 func newEphemeralSubagentID() string {
-	return fmt.Sprintf("sa_ephemeral_%d_%d", time.Now().UnixNano(), ephemeralSubagentSeq.Add(1))
+	return fmt.Sprintf("%s%d_%d", ephemeralSubagentPrefix, time.Now().UnixNano(), ephemeralSubagentSeq.Add(1))
 }
 
 // SubagentScope 子代理逐调用作用域（2026-11-08 众神殿裁决刀3/刀4 ctx 缝）：
@@ -500,6 +504,15 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		defer run.Release()
 		// 出发快照（B1）：执行面白名单在排队登记（MarkQueued）前盖到 run 上。
 		run.ToolScope = sortedToolNames(subReg.Names())
+		// D1 编队拓扑会话化：派生血缘盖章（一次写定，见 SubagentMeta 注释）。
+		// 只在新鲜派发（非 continue_from）时盖——续跑的血缘属于原 spawn，
+		// meta 已有值不覆盖、旧 meta 缺值也不该把续跑发起方误记成父亲。
+		if p.ContinueFrom == "" {
+			run.ParentRef = PersistedParentRef(subagentSessionIDFromContext(ctx))
+			if id, _, _, _ := CallContext(ctx); id != "" {
+				run.SpawnCallID = id
+			}
+		}
 		// send_message 中期回报通道（dsh 蒸馏 2026-11）：ref 就绪后按运行注入
 		// ——工具实例绑定本运行引用，兄弟运行互不可见；父注册表永不持有
 		// （它只属于子代理）。transcripts 缺席（run.Ref 空）不注入：无 ref
@@ -831,6 +844,13 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 		return result, "", err
 	}
 	defer run.Release()
+	// D1 派生血缘盖章：RunNew 是宿主（DAG 执行器）派发的顶层运行，ctx 通常
+	// 无 agent 调用上下文——PersistedParentRef 落空按主会话派生落账；若未来
+	// 宿主在 agent 调用链内派发，这里同样拿得到父 ref。
+	run.ParentRef = PersistedParentRef(subagentSessionIDFromContext(ctx))
+	if id, _, _, _ := CallContext(ctx); id != "" {
+		run.SpawnCallID = id
+	}
 	if err := t.transcripts.MarkRunning(run); err != nil {
 		return "", ref, fmt.Errorf("mark subagent running: %w", err)
 	}

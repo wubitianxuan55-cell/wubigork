@@ -9,8 +9,12 @@ export interface AgentNetwork {
 export interface AgentNode {
   id: string;
   name: string;
-  kind: "root" | "subagent";
-  status: "running" | "completed" | "error";
+  // fold = 折叠聚合卡（D3 fleetModel 合成，wire 不出现；done/idle 两组信息
+  // 在 FleetFoldInfo 上）。
+  kind: "root" | "subagent" | "fold";
+  // queued = 并行闸排队中（D1 会话骨架后由 run 状态直达；工具调用骨架只有
+  // 前三态）。
+  status: "running" | "queued" | "completed" | "error" | "failed";
   model?: string;
   task?: string;
   toolCalls: number;
@@ -18,5 +22,9 @@ export interface AgentNode {
   tokens: number;
   firstTs?: number;
   lastTs?: number;
+  // C2 活动行（D1 会话骨架后由 run 直接落节点）：最后一段 assistant 文本与
+  // 最后一次工具调用摘要；工具调用骨架无此数据。
+  lastText?: string;
+  lastTool?: string;
   children?: AgentNode[];
 }

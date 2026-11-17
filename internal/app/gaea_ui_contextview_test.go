@@ -330,3 +330,102 @@ func TestResolveNodeAttachmentsConfinesAndStatsFiles(t *testing.T) {
 		t.Fatalf("outside attachment must stay inaccessible: %+v", d.Attachments[1])
 	}
 }
+
+// buildSessionNetwork：runs 携带血缘盖章时以会话为骨架建树——嵌套派生按
+// parentRef 挂载、统计按 spawnCallId 精确联结（不再任务前缀猜）、活动行直达节点。
+func TestBuildSessionNetwork_StampedRunsBuildSessionTree(t *testing.T) {
+	net := trajectory.AgentNetwork{Ok: true, Root: trajectory.AgentNode{
+		ID: "root", Kind: "root", Status: "completed", Tokens: 42,
+		Children: []trajectory.AgentNode{
+			{ID: "call_parent", Kind: "subagent", Task: "父任务预览", Status: "completed", ToolCalls: 5, Errors: 1, Tokens: 900, FirstTs: 100, LastTs: 200},
+			{ID: "call_child", Kind: "subagent", Task: "子任务预览", Status: "completed", ToolCalls: 2, Tokens: 300, FirstTs: 150, LastTs: 190},
+		},
+	}}
+	created := time.Date(2026, 11, 17, 10, 0, 0, 0, time.Local)
+	runs := SubagentRunsView{Available: true, Runs: []SubagentRunView{
+		{Ref: "sa_child", Kind: "subagent", Status: "completed", Task: "子任务全文", ParentRef: "sa_parent", SpawnCallID: "call_child", CreatedAt: created.Add(time.Minute), UpdatedAt: created.Add(2 * time.Minute), LastText: "子代理最终答复", LastTool: "read_file: a.go"},
+		{Ref: "sa_parent", Kind: "subagent", Status: "running", Task: "父任务全文", SpawnCallID: "call_parent", CreatedAt: created, UpdatedAt: created.Add(3 * time.Minute), LastText: "父代理进行中"},
+	}}
+	buildSessionNetwork(&net, runs)
+	if len(net.Root.Children) != 1 {
+		t.Fatalf("stamped runs build one root child, got %d", len(net.Root.Children))
+	}
+	parent := net.Root.Children[0]
+	if parent.ID != "sa_parent" || parent.Status != "running" || parent.LastText != "父代理进行中" {
+		t.Fatalf("parent session node wrong: %+v", parent)
+	}
+	if parent.ToolCalls != 5 || parent.Errors != 1 || parent.Tokens != 900 || parent.FirstTs != 100 || parent.LastTs != 200 {
+		t.Fatalf("spawnCallId stats join missing: %+v", parent)
+	}
+	if len(parent.Children) != 1 {
+		t.Fatalf("nested run must nest under parentRef, got %d children", len(parent.Children))
+	}
+	child := parent.Children[0]
+	if child.ID != "sa_child" || child.Task != "子任务全文" || child.LastTool != "read_file: a.go" || child.LastText != "子代理最终答复" {
+		t.Fatalf("child session node wrong: %+v", child)
+	}
+	if child.ToolCalls != 2 || child.Tokens != 300 {
+		t.Fatalf("child stats join missing: %+v", child)
+	}
+	if net.Root.Status != "running" {
+		t.Fatalf("root must surface running subtree, got %q", net.Root.Status)
+	}
+	if net.Root.Tokens != 42 {
+		t.Fatalf("root own stats must stay untouched, got %d", net.Root.Tokens)
+	}
+}
+
+// buildSessionNetwork：旧数据（无盖章）回落 legacy 富化路径，行为不变；
+// 新旧混合会话里旧 run 走启发式兜底联结统计。
+func TestBuildSessionNetwork_UnstampedFallsBackToLegacy(t *testing.T) {
+	net := trajectory.AgentNetwork{Ok: true, Root: trajectory.AgentNode{
+		ID: "root", Kind: "root",
+		Children: []trajectory.AgentNode{{ID: "call_1", Kind: "subagent", Task: "调研土壤修复", Status: "running"}},
+	}}
+	runs := SubagentRunsView{Available: true, Runs: []SubagentRunView{{
+		Ref: "sa_1", Kind: "subagent", Status: "completed", Model: "m1", Task: "调研土壤修复并输出报告",
+	}}}
+	buildSessionNetwork(&net, runs)
+	if n := net.Root.Children[0]; n.ID != "call_1" || n.Status != "completed" || n.Model != "m1" {
+		t.Fatalf("legacy fallback not applied: %+v", n)
+	}
+}
+
+// buildSessionNetwork：ghost 父（parentRef 指向不存在的 run）按 root 挂载降级，
+// 绝不丢节点。
+func TestBuildSessionNetwork_GhostParentFallsBackToRoot(t *testing.T) {
+	net := trajectory.AgentNetwork{Ok: true, Root: trajectory.AgentNode{ID: "root", Kind: "root"}}
+	created := time.Date(2026, 11, 17, 10, 0, 0, 0, time.Local)
+	runs := SubagentRunsView{Available: true, Runs: []SubagentRunView{{
+		Ref: "sa_orphan", Kind: "subagent", Status: "completed", Task: "孤儿运行",
+		ParentRef: "sa_ghost", SpawnCallID: "call_x", CreatedAt: created, UpdatedAt: created,
+	}}}
+	buildSessionNetwork(&net, runs)
+	if len(net.Root.Children) != 1 || net.Root.Children[0].ID != "sa_orphan" {
+		t.Fatalf("ghost-parent run must stay visible at root, got %+v", net.Root.Children)
+	}
+}
+
+// buildSessionNetwork：未被 run 承载的 legacy 节点（ephemeral 派发等无 meta
+// 场景）原样保留在 root——「任何派发过的 agent 都可见」不变量。
+func TestBuildSessionNetwork_OrphanLegacyNodesKept(t *testing.T) {
+	net := trajectory.AgentNetwork{Ok: true, Root: trajectory.AgentNode{
+		ID: "root", Kind: "root",
+		Children: []trajectory.AgentNode{
+			{ID: "call_ephemeral", Kind: "subagent", Task: "临时派发", Status: "completed", ToolCalls: 3, Tokens: 100},
+		},
+	}}
+	created := time.Date(2026, 11, 17, 10, 0, 0, 0, time.Local)
+	runs := SubagentRunsView{Available: true, Runs: []SubagentRunView{{
+		Ref: "sa_1", Kind: "subagent", Status: "completed", Task: "持久运行",
+		SpawnCallID: "call_persisted", CreatedAt: created, UpdatedAt: created,
+	}}}
+	buildSessionNetwork(&net, runs)
+	ids := map[string]bool{}
+	for _, n := range net.Root.Children {
+		ids[n.ID] = true
+	}
+	if !ids["sa_1"] || !ids["call_ephemeral"] {
+		t.Fatalf("session node + orphan legacy node both expected, got %v", ids)
+	}
+}

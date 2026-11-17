@@ -171,16 +171,23 @@ type AgentNetwork struct {
 
 // AgentNode 是一个 agent 节点。
 type AgentNode struct {
-	ID        string      `json:"id"`     // "root" | 工具调用 ID
-	Name      string      `json:"name"`   // 主 agent | 子代理工具名
-	Kind      string      `json:"kind"`   // root | subagent
-	Status    string      `json:"status"` // running | completed | error
-	Model     string      `json:"model,omitempty"`
-	Task      string      `json:"task,omitempty"` // 子代理任务摘要（prompt/description 预览）
-	ToolCalls int         `json:"toolCalls"`      // 子树内工具调用数
-	Errors    int         `json:"errors"`
-	Tokens    int64       `json:"tokens"` // 子树 args+output 估算
-	FirstTs   int64       `json:"firstTs,omitempty"`
-	LastTs    int64       `json:"lastTs,omitempty"`
-	Children  []AgentNode `json:"children,omitempty"`
+	ID   string `json:"id"`   // "root" | 工具调用 ID | sa_ 子会话 ref（会话骨架）
+	Name string `json:"name"` // 主 agent | 子代理工具名 | 子代理任务摘要
+	Kind string `json:"kind"` // root | subagent
+	// Status 词汇：running | completed | error | queued（queued=并行闸排队中，
+	// D1 会话骨架后由 run 状态直达；工具调用骨架只产生前三态）。
+	Status    string `json:"status"`
+	Model     string `json:"model,omitempty"`
+	Task      string `json:"task,omitempty"` // 子代理任务摘要（prompt/description 预览）
+	ToolCalls int    `json:"toolCalls"`      // 子树内工具调用数
+	Errors    int    `json:"errors"`
+	Tokens    int64  `json:"tokens"` // 子树 args+output 估算
+	FirstTs   int64  `json:"firstTs,omitempty"`
+	LastTs    int64  `json:"lastTs,omitempty"`
+	// LastText/LastTool 是 C2 活动行（D1 会话骨架后由 run 直接落节点）：最后
+	// 一段 assistant 文本与最后一次工具调用摘要。工具调用骨架无此数据，
+	// omitempty 不改变历史输出形状。
+	LastText string `json:"lastText,omitempty"`
+	LastTool string `json:"lastTool,omitempty"`
+	Children []AgentNode `json:"children,omitempty"`
 }

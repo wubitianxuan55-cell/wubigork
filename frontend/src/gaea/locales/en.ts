@@ -1942,6 +1942,8 @@ export const en = {
   "fleet.kpiRunning": "Running",
   "fleet.kpiTasks": "Work items",
   "fleet.kpiToolCalls": "Tool calls",
+  "fleet.foldDone": "Settled {n}",
+  "fleet.foldIdle": "Queued {n}",
   "fleet.networkTitle": "Agent network",
   "fleet.networkSub": "Live context across the current agent and its subagents. Click a node to highlight it.",
   "fleet.heroEyebrow": "AGENT FLEET / TIME",

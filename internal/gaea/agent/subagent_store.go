@@ -105,6 +105,17 @@ type SubagentMeta struct {
 	ResumedFrom      string   `json:"resumedFrom,omitempty"`
 	ToolScope        []string `json:"toolScope,omitempty"`
 	Model            string   `json:"model,omitempty"`
+	// ParentRef 是派生本运行的父会话引用（D1 编队拓扑会话化，dsh Tasks 页
+	// 节点语义蒸馏）：父是主会话 = 空；父是子代理 = 其 sa_ ref；ephemeral 父
+	// （sa_ephemeral_*）没有 meta 侧车可指，同样落空——读端按「主会话直接
+	// 派生」降级。一次写定（applySnapshot 同语义）：续跑/追问保原值——它记
+	// 的是「谁派生了这个 run」，续跑发起方不改变血缘。旧 meta 无字段 = 空。
+	ParentRef string `json:"parentRef,omitempty"`
+	// SpawnCallID 是派生本运行的父侧元工具调用 ID（与 ParentRef 同批盖章）：
+	// 编队页把会话树节点与事件日志折叠的工具调用树按它**精确**联结，工具数/
+	// 时长/token 统计据此迁移（替代任务前缀互含启发式，即前端 matchRun 与
+	// 后端 runMatchesNode 的同款病灶）。一次写定，同上。
+	SpawnCallID string `json:"spawnCallId,omitempty"`
 }
 
 // SubagentRun holds a prepared sub-agent transcript ready to execute.
@@ -129,8 +140,12 @@ type SubagentRun struct {
 	WorkspaceRoot    string
 	SystemPromptHash string
 	ResumedFrom      string
-	store            *SubagentStore
-	release          func()
+	// ParentRef/SpawnCallID：派生血缘盖章（语义见 SubagentMeta 同名注释），
+	// 派发方在 prepare 后、首个 meta 写（MarkQueued/MarkRunning）前填写。
+	ParentRef   string
+	SpawnCallID string
+	store       *SubagentStore
+	release     func()
 }
 
 // Release unlocks the run's ref in the store so another caller can
@@ -276,6 +291,23 @@ func applySnapshot(meta *SubagentMeta, run *SubagentRun) {
 	if meta.Model == "" {
 		meta.Model = run.Model
 	}
+	if meta.ParentRef == "" {
+		meta.ParentRef = run.ParentRef
+	}
+	if meta.SpawnCallID == "" {
+		meta.SpawnCallID = run.SpawnCallID
+	}
+}
+
+// PersistedParentRef 把当前 agent 会话 ID 归一为可落盘的 parentRef：只有持久
+// sa_ ref（非 ephemeral）才作父——ephemeral id 没有 meta 侧车可指，返回空 =
+// 按主会话直接派生降级（编队树挂 root）。mt_ 记录是单轮本地模型调用，不派生
+// 子代理，天然不在候选里。
+func PersistedParentRef(sessionID string) string {
+	if !IsSubagentRef(sessionID) || strings.HasPrefix(sessionID, ephemeralSubagentPrefix) {
+		return ""
+	}
+	return sessionID
 }
 
 // baseMeta loads an existing sidecar (ignoring absence/corruption) so the

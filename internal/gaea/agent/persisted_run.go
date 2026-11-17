@@ -46,6 +46,14 @@ func RunPersistedSubAgent(
 	// 出发快照（B1）：技能派发的执行面=调用方传入的注册表全体（技能路径无
 	// 父白名单过滤，注册表即边界）。
 	run.ToolScope = sortedToolNames(reg.Names())
+	// D1 编队拓扑会话化：派生血缘盖章（先读调用方 ctx 再盖本运行 ID——顺序
+	// 反了会把孩子记成自己的父亲）。技能子代理此前不盖 subagentSessionID，
+	// 嵌套在技能子代理里的 task 调用读不到父 ref，这里一并补齐。
+	run.ParentRef = PersistedParentRef(subagentSessionIDFromContext(ctx))
+	if id, _, _, _ := CallContext(ctx); id != "" {
+		run.SpawnCallID = id
+	}
+	ctx = withSubagentSessionID(ctx, run.Ref)
 	opts = bindHooksToSession(opts, run.Ref)
 	// 有限并行：排队先落 queued 侧车（分工面板如实显示「排队中」），起跑时
 	// MarkRunning 覆写；等槽期间 ctx 取消则补 failed 收口，不留永久排队态。

@@ -1944,6 +1944,8 @@ export const zhTW: Record<DictKey, string> = {
   "fleet.kpiRunning": "執行中",
   "fleet.kpiTasks": "工作項",
   "fleet.kpiToolCalls": "工具呼叫",
+  "fleet.foldDone": "已結算 {n} 項",
+  "fleet.foldIdle": "排隊 {n} 項",
   "fleet.networkTitle": "Agent 網路",
   "fleet.networkSub": "目前 Agent 與子 Agent 的即時上下文，點擊節點高亮聯動",
   "fleet.heroEyebrow": "AGENT 編隊 / 時間",

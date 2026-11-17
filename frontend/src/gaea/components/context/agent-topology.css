@@ -360,6 +360,29 @@
   background: var(--agent-hue);
 }
 
+/* D2 卡片文本尾巴（lastTool 单行省略 + lastText 两行截断）：卡片高度由
+   agentTopologyLayout.cardHeightOf 按有无尾巴计价，两处口径同源。 */
+.agent-topology-tail-tool {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 8.5px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-tail-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-size: 9px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .agent-topology-card-foot {
   display: flex;
   min-width: 0;
@@ -370,6 +393,64 @@
   color: var(--fg-faint);
   font-size: 8px;
   font-variant-numeric: tabular-nums;
+}
+
+/* D3 折叠聚合卡（done/idle）：紧凑虚线卡，折叠态点开只展开该组，展开态
+   保留作收起入口（手折优先）。 */
+.agent-topology-card.is-fold {
+  justify-content: center;
+  gap: 2px;
+  border-style: dashed;
+  cursor: pointer;
+}
+
+.agent-topology-card.is-fold.is-expanded {
+  border-style: solid;
+  opacity: 0.85;
+}
+
+.agent-topology-card.is-fold.has-errors {
+  border-color: color-mix(in srgb, var(--err) 45%, var(--border-soft));
+}
+
+.agent-topology-fold-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.agent-topology-fold-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--fg-faint);
+}
+
+.agent-topology-fold-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-size: 10px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-fold-errors {
+  flex: none;
+  color: var(--err);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-topology-fold-previews {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 8.5px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-topology-card-foot > span {

@@ -426,10 +426,13 @@ func (a *App) GaeaTrajectory(sessionPath ...string) (trajectory.Trajectory, erro
 	return trajectory.FoldTrajectory(entries), nil
 }
 
-// GaeaAgentNetwork 返回会话的 Agent 网络（主 agent 根 + 子代理树），并用
-// subagents/ meta 富化子代理节点的任务摘要/状态/模型。sessionPath 可选：
-// 显式传入=按该会话读取（UI 会话切换语义）；缺省=内核当前会话（兼容旧调用）。
-// 事件日志缺失时回退 legacy 会话投影（见 session.ReadEntriesFor）。
+// GaeaAgentNetwork 返回会话的 Agent 网络（主 agent 根 + 子代理树）。骨架来源
+// 二选一（D1 编队拓扑会话化）：runs 携带派生血缘盖章时以**子代理会话**为节点
+// （id=sa_ ref，嵌套按 parentRef 挂载，状态/模型/活动行直达 run，工具调用树
+// 经 spawnCallId 精确联结迁移统计）；旧会话（无盖章）沿用事件日志工具调用树
+// + meta 富化。sessionPath 可选：显式传入=按该会话读取（UI 会话切换语义）；
+// 缺省=内核当前会话（兼容旧调用）。事件日志缺失时回退 legacy 会话投影
+// （见 session.ReadEntriesFor）。
 func (a *App) GaeaAgentNetwork(sessionPath ...string) (trajectory.AgentNetwork, error) {
 	path := resolveGaeaSessionPath(sessionPath)
 	if path == "" {
@@ -444,7 +447,7 @@ func (a *App) GaeaAgentNetwork(sessionPath ...string) (trajectory.AgentNetwork, 
 	}
 	window := gaeaContextWindow()
 	net := trajectory.FoldAgentNetwork(entries, int64(window))
-	enrichAgentNetwork(&net, a.GaeaSubagentRuns(path))
+	buildSessionNetwork(&net, a.GaeaSubagentRuns(path))
 	return net, nil
 }
 
@@ -475,7 +478,8 @@ func gaeaCompactTiers() *contextview.CompactTiers {
 
 // runMatchesNode 判定一个已落盘 run 是否已被树上的节点承载：
 // ref 直等（合成节点 id=sa_ ref），或任务摘要前缀双向（与前端
-// AgentTree.matchRunForNode / 后端富化同口径）。
+// AgentTree.matchRunForNode / 后端富化同口径）。仅旧数据兜底路径使用——
+// 会话骨架（buildSessionNetwork）的联键是 spawnCallId 精确直等。
 func runMatchesNode(r SubagentRunView, node trajectory.AgentNode) bool {
 	if r.Ref != "" && r.Ref == node.ID {
 		return true
@@ -484,11 +488,193 @@ func runMatchesNode(r SubagentRunView, node trajectory.AgentNode) bool {
 		(strings.HasPrefix(r.Task, node.Task) || strings.HasPrefix(node.Task, r.Task))
 }
 
+// buildSessionNetwork 以子代理会话为骨架重建 Agent 网络（D1 编队拓扑会话化，
+// dsh Tasks 页节点语义蒸馏）。判定：任一 subagent run 携带血缘盖章
+// （parentRef/spawnCallId 非空）即认为本会话有新格式数据——
+//   - 树骨架从 meta 父子链构建：节点 id=sa_ ref，嵌套派生按 parentRef 挂载
+//     （父 ref 失配/缺失按 root 挂载降级，绝不丢节点）；
+//   - status/model/task/lastText/lastTool 直接来自 run（前端 matchRun 启发式
+//     退役的数据基础）；
+//   - 事件日志折叠出的工具调用树按 spawnCallId **精确**联结，把工具数/错误/
+//     token/时长迁到会话节点上（替代任务前缀互含启发式）；
+//   - 无盖章 run（新旧混合会话里的旧运行）仍走启发式兜底联结统计；
+//   - 未被任何 run 承载的 legacy 节点（ephemeral 派发等无 meta 场景）原样
+//     保留在 root，维持「任何派发过的 agent 都可见」不变量。
+//
+// 无任何盖章（旧会话）整体回落原富化路径，行为逐字节不变。
+func buildSessionNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
+	if !runs.Available || len(runs.Runs) == 0 {
+		return
+	}
+	stamped := false
+	for i := range runs.Runs {
+		r := &runs.Runs[i]
+		if r.Kind == "subagent" && (r.ParentRef != "" || r.SpawnCallID != "") {
+			stamped = true
+			break
+		}
+	}
+	if !stamped {
+		enrichAgentNetwork(net, runs)
+		return
+	}
+
+	// legacy 树节点按 id 建索引（FoldAgentNetwork 输出是 root 下一层扁平表）。
+	legacyByCall := make(map[string]*trajectory.AgentNode, len(net.Root.Children))
+	legacyUsed := make(map[string]bool, len(net.Root.Children))
+	for i := range net.Root.Children {
+		legacyByCall[net.Root.Children[i].ID] = &net.Root.Children[i]
+	}
+
+	// 会话节点：kind=subagent 的 run（mt_ 模型工具记录不入拓扑，与工具调用
+	// 骨架口径一致）；CreatedAt 升序保证父先于子（ref 内嵌时间戳，嵌套派生
+	// 必然晚于父建档；乱序时 ghost-parent 降级兜底）。
+	ordered := make([]*SubagentRunView, 0, len(runs.Runs))
+	for i := range runs.Runs {
+		if runs.Runs[i].Kind == "subagent" {
+			ordered = append(ordered, &runs.Runs[i])
+		}
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].CreatedAt.Before(ordered[j].CreatedAt) })
+
+	nodeOf := make(map[string]*trajectory.AgentNode, len(ordered))
+	for _, r := range ordered {
+		var legacy *trajectory.AgentNode
+		if r.SpawnCallID != "" {
+			legacy = legacyByCall[r.SpawnCallID]
+			if legacy != nil {
+				legacyUsed[r.SpawnCallID] = true
+			}
+		}
+		n := sessionNodeFromRun(r, legacy)
+		if legacy == nil && n.ToolCalls == 0 && n.Task != "" {
+			// 无盖章 run（旧运行）：启发式兜底联结统计（仅迁移数据，不改骨架）。
+			for i := range net.Root.Children {
+				ln := &net.Root.Children[i]
+				if legacyUsed[ln.ID] || !runMatchesNode(*r, *ln) {
+					continue
+				}
+				n.ToolCalls, n.Errors, n.Tokens = ln.ToolCalls, ln.Errors, ln.Tokens
+				if ln.FirstTs > 0 {
+					n.FirstTs = ln.FirstTs
+				}
+				if ln.LastTs > 0 {
+					n.LastTs = ln.LastTs
+				}
+				legacyUsed[ln.ID] = true
+				break
+			}
+		}
+		nodeOf[r.Ref] = &n
+	}
+
+	// 组树：parentRef 可解析的挂父，否则挂 root（ghost 父降级）。
+	childrenOf := make(map[string][]*trajectory.AgentNode, len(ordered))
+	rootChildren := make([]*trajectory.AgentNode, 0, len(ordered))
+	for _, r := range ordered {
+		n := nodeOf[r.Ref]
+		if r.ParentRef != "" && nodeOf[r.ParentRef] != nil && r.ParentRef != r.Ref {
+			childrenOf[r.ParentRef] = append(childrenOf[r.ParentRef], n)
+		} else {
+			rootChildren = append(rootChildren, n)
+		}
+	}
+	var materialize func(n *trajectory.AgentNode)
+	materialize = func(n *trajectory.AgentNode) {
+		kids := childrenOf[n.ID]
+		if len(kids) == 0 {
+			return
+		}
+		n.Children = make([]trajectory.AgentNode, 0, len(kids))
+		for _, k := range kids {
+			materialize(k)
+			n.Children = append(n.Children, *k)
+		}
+	}
+
+	// ephemeral 等无 meta 派发场景：未被任何 run 承载的 legacy 节点原样保留
+	// （覆盖 root.Children 前收集），维持「任何派发过的 agent 都可见」不变量。
+	orphans := make([]trajectory.AgentNode, 0, len(net.Root.Children))
+	for i := range net.Root.Children {
+		if !legacyUsed[net.Root.Children[i].ID] {
+			orphans = append(orphans, net.Root.Children[i])
+		}
+	}
+
+	// root 自身统计沿用工具调用骨架（主 agent 自己的工具记录，不含子代理），
+	// 只换 Children；状态只在会话子树存在运行中节点时升为 running（error /
+	// 既有 running 均保留，不降级）。
+	net.Root.Children = make([]trajectory.AgentNode, 0, len(rootChildren)+len(orphans))
+	for _, k := range rootChildren {
+		materialize(k)
+		net.Root.Children = append(net.Root.Children, *k)
+	}
+	net.Root.Children = append(net.Root.Children, orphans...)
+	anyRunning := false
+	var walk func(n *trajectory.AgentNode)
+	walk = func(n *trajectory.AgentNode) {
+		if n.Status == "running" || n.Status == "queued" {
+			anyRunning = true
+		}
+		for i := range n.Children {
+			walk(&n.Children[i])
+		}
+	}
+	for i := range net.Root.Children {
+		walk(&net.Root.Children[i])
+	}
+	if anyRunning && net.Root.Status != "error" {
+		net.Root.Status = "running"
+	}
+}
+
+// sessionNodeFromRun 把一条 run 投影成会话骨架节点；legacy 非 nil 时该 spawn
+// 的工具调用子树统计整体迁移（spawnCallId 精确联结）。
+func sessionNodeFromRun(r *SubagentRunView, legacy *trajectory.AgentNode) trajectory.AgentNode {
+	status := r.Status
+	switch status {
+	case "running", "queued":
+	case "failed":
+		status = "error"
+	default:
+		status = "completed"
+	}
+	n := trajectory.AgentNode{
+		ID:       r.Ref,
+		Name:     r.Task,
+		Kind:     "subagent",
+		Status:   status,
+		Model:    r.Model,
+		Task:     r.Task,
+		LastText: r.LastText,
+		LastTool: r.LastTool,
+		FirstTs:  r.CreatedAt.Unix(),
+		LastTs:   r.UpdatedAt.Unix(),
+	}
+	if legacy != nil {
+		n.ToolCalls, n.Errors, n.Tokens = legacy.ToolCalls, legacy.Errors, legacy.Tokens
+		if legacy.FirstTs > 0 {
+			n.FirstTs = legacy.FirstTs
+		}
+		if legacy.LastTs > 0 {
+			n.LastTs = legacy.LastTs
+		}
+		if n.Task == "" {
+			n.Task = legacy.Task
+		}
+		if n.Name == "" {
+			n.Name = legacy.Name
+		}
+	}
+	return n
+}
+
 // enrichAgentNetwork 把 subagents/ meta 合并进 Agent 网络子代理节点：
 // 按任务摘要匹配（子代理 transcript 首条 user 消息 ≈ task 调用的 prompt 预览）。
 // 树来自事件日志折叠，「零工具调用」的子代理（纯调研/禁用工具）在日志里
 // 没有子记录、FoldAgentNetwork 不为其建节点——这里对没有任何节点承载的
 // run 补挂合成节点（id=sa_ ref），保证任何已落盘运行都在树上可见。
+// 仅旧数据（无血缘盖章）回落路径；新数据走 buildSessionNetwork 会话骨架。
 func enrichAgentNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
 	if !runs.Available || len(runs.Runs) == 0 {
 		return

@@ -137,7 +137,6 @@ export function Fleet({ sessionPath, onViewContext }: {
           {net ? (
             <AgentTopology
               network={net}
-              runs={subagentRuns}
               agents={familyAgents}
               selectedAgent={selectedAgent}
               onSelectAgent={chooseAgent}

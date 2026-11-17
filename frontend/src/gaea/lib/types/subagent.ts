@@ -18,6 +18,12 @@ export interface SubagentRunView {
   // 最近一次追问的后台失败原因摘要（v4.66，meta 透传）：非空 = 该运行最近
   // 一次追问失败；空/缺省 = 无失败。
   followUpError?: string;
+  // 派生血缘盖章（D1 编队拓扑会话化，meta 透传）：parentRef 空 = 主会话直接
+  // 派生，sa_* = 父是子代理（嵌套派生）；spawnCallId 是父侧元工具调用 ID，
+  // 编队拓扑把会话节点与事件日志工具调用树按它精确联结。旧 meta 无字段 =
+  // 空（拓扑按 root 挂载降级）。
+  parentRef?: string;
+  spawnCallId?: string;
   createdAt: string;
   updatedAt: string;
 }

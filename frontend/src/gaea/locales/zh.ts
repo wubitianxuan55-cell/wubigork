@@ -1940,6 +1940,8 @@ export const zh: Record<DictKey, string> = {
   "fleet.kpiRunning": "运行中",
   "fleet.kpiTasks": "工作项",
   "fleet.kpiToolCalls": "工具调用",
+  "fleet.foldDone": "已结算 {n} 项",
+  "fleet.foldIdle": "排队 {n} 项",
   "fleet.networkTitle": "Agent 网络",
   "fleet.networkSub": "当前 Agent 与子 Agent 的实时上下文，点击节点高亮联动",
   "fleet.heroEyebrow": "AGENT 编队 / 时间",
