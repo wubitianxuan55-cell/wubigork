@@ -89,6 +89,49 @@ describe("AgentTopology 编队卡片拓扑", () => {
     expect(plain.classList.contains("has-tail")).toBe(false);
   });
 
+  it("D8 双视图：默认图谱；切树视图复用同一模型且选中态保持", () => {
+    const onSelectAgent = vi.fn();
+    const { container } = renderT(<AgentTopology network={NETWORK} onSelectAgent={onSelectAgent} />);
+    // 默认图谱：画布 + 卡片在场，树不在。
+    expect(container.querySelector(".agent-topology-canvas")).toBeTruthy();
+    expect(container.querySelector('[data-testid="fleet-tree"]')).toBeNull();
+    // 切树视图：树行出现（root + sa_1 + sa_2），画布退场。
+    const toggles = container.querySelectorAll(".agent-topology-view-toggle button");
+    expect(toggles).toHaveLength(2);
+    fireEvent.click(toggles[1]);
+    const tree = container.querySelector('[data-testid="fleet-tree"]') as HTMLElement;
+    expect(tree).toBeTruthy();
+    expect(container.querySelector(".agent-topology-canvas")).toBeNull();
+    expect(tree.querySelectorAll(".fleet-tree-row")).toHaveLength(3);
+    // 树内点选 sa_1 → 归一 ref 回调。
+    fireEvent.click(tree.querySelector('[data-agent="sa_1"] .fleet-tree-hit') as HTMLElement);
+    expect(onSelectAgent).toHaveBeenLastCalledWith("sa_1");
+  });
+
+  it("D8 深度色带：卡片左缘按层着色（root 紫带/子代蓝带）", () => {
+    const { container } = renderT(<AgentTopology network={NETWORK} />);
+    const rootCard = container.querySelector('[data-agent="main"]') as HTMLElement;
+    const subCard = container.querySelector('[data-agent="sa_1"]') as HTMLElement;
+    expect(rootCard.style.getPropertyValue("--agent-depth-hue")).toContain("--fleet-violet");
+    expect(subCard.style.getPropertyValue("--agent-depth-hue")).not.toContain("--fleet-violet");
+    // 家系色保留在 --agent-hue（连线维度不变）。
+    expect(subCard.style.getPropertyValue("--agent-hue")).not.toBe("");
+  });
+
+  it("ⓘ 详情浮层：节点行可开合，状态/工具/活动行在场", () => {
+    const { container } = renderT(<AgentTopology network={NETWORK} />);
+    const subCard = container.querySelector('[data-agent="sa_1"]') as HTMLElement;
+    expect(container.querySelector('[data-testid="agent-topology-info"]')).toBeNull();
+    fireEvent.click(subCard.querySelector(".agent-topology-info-btn") as HTMLElement);
+    const info = container.querySelector('[data-testid="agent-topology-info"]') as HTMLElement;
+    expect(info.textContent).toContain("进行中");
+    expect(info.textContent).toContain("工具调用");
+    expect(info.textContent).toContain("web_fetch");
+    // 再点即收。
+    fireEvent.click(subCard.querySelector(".agent-topology-info-btn") as HTMLElement);
+    expect(container.querySelector('[data-testid="agent-topology-info"]')).toBeNull();
+  });
+
   it("D3 折叠：≥4 张已结算卡收进聚合卡，点开只展开该组", () => {
     const foldedNetwork: AgentNetwork = {
       ...NETWORK,

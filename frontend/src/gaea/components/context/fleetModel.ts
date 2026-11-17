@@ -54,6 +54,20 @@ function labelOf(node: AgentNode): string {
   return node.task || node.name || node.id;
 }
 
+// statusLabelOf 是拓扑/树两视图共用的状态词汇（queued/aborted 为 D1/D4 新
+// 词汇；failed 是 run 侧别名，工具调用骨架产出 error）。labels 由调用方从
+// i18n 注入——模型层不持字典。
+export function statusLabelOf(
+  status: AgentNode["status"],
+  labels: { running: string; queued: string; aborted: string; error: string; done: string },
+): string {
+  if (status === "running") return labels.running;
+  if (status === "queued") return labels.queued;
+  if (status === "aborted") return labels.aborted;
+  if (status === "error" || status === "failed") return labels.error;
+  return labels.done;
+}
+
 export interface FleetModelOptions {
   // 点聚合卡展开的组（只展开该组，其它组保持折叠）。
   expandedGroups?: ReadonlySet<string>;

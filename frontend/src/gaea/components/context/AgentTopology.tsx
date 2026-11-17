@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowUpRight, ChevronDown, ChevronRight, GitBranch } from "../../icons";
+import { ArrowUpRight, BarChart3, ChevronDown, ChevronRight, GitBranch, ListTree } from "../../icons";
 import { useT } from "../../lib/i18n";
 import { fmtTokens } from "../../lib/stats";
 import type { AgentNetwork, AgentNode } from "../../lib/types";
@@ -9,7 +9,9 @@ import {
   layoutFleetTopology,
   topologyLinkPath,
 } from "./agentTopologyLayout";
-import { buildFleetModel, type FleetNode } from "./fleetModel";
+import { buildFleetModel, statusLabelOf, type FleetNode } from "./fleetModel";
+import { depthHue } from "./fleetVisuals";
+import { FleetTree } from "./FleetTree";
 import "./agent-topology.css";
 
 // D1 会话骨架（dsh Tasks 页节点语义蒸馏）：network.root 的节点 id 已是子代理
@@ -18,11 +20,13 @@ import "./agent-topology.css";
 // 随之退役。
 
 function statusLabel(status: AgentNode["status"], t: ReturnType<typeof useT>): string {
-  if (status === "running") return t("subagent.statusRunning");
-  if (status === "queued") return t("subagent.statusQueued");
-  if (status === "aborted") return t("subagent.statusAborted");
-  if (status === "error" || status === "failed") return t("subagent.statusError");
-  return t("subagent.statusDone");
+  return statusLabelOf(status, {
+    running: t("subagent.statusRunning"),
+    queued: t("subagent.statusQueued"),
+    aborted: t("subagent.statusAborted"),
+    error: t("subagent.statusError"),
+    done: t("subagent.statusDone"),
+  });
 }
 
 function avatarLabelOf(label: string): string {
@@ -58,6 +62,11 @@ export function AgentTopology({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageWidth, setStageWidth] = useState(720);
   const [hovered, setHovered] = useState<string | null>(null);
+  // D8 双视图：GRAPH（默认画布）/ TREE（缩进树）共用同一 buildFleetModel
+  // 产物——选中态/折叠态/联动全在模型层，切视图零状态丢失。
+  const [view, setView] = useState<"graph" | "tree">("graph");
+  // ⓘ 详情浮层：同屏至多一张（节点 id 寻址，再点即收）。
+  const [infoId, setInfoId] = useState<string | null>(null);
   // D3 折叠态：expandedGroups（点聚合卡只展开该组）+ foldedIds（手折优先）。
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(new Set());
   const [foldedIds, setFoldedIds] = useState<ReadonlySet<string>>(new Set());
@@ -162,6 +171,28 @@ export function AgentTopology({
         <span className="agent-topology-meta">
           {t("contextview.radialTotal", { tokens: fmtTokens(totalTokens) })}
         </span>
+        <span className="agent-topology-view-toggle" role="group" aria-label={t("fleet.networkTitle")}>
+          <button
+            type="button"
+            className={view === "graph" ? "is-active" : ""}
+            aria-pressed={view === "graph"}
+            aria-label={t("fleet.viewGraph")}
+            title={t("fleet.viewGraph")}
+            onClick={() => setView("graph")}
+          >
+            <GitBranch size={12} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className={view === "tree" ? "is-active" : ""}
+            aria-pressed={view === "tree"}
+            aria-label={t("fleet.viewTree")}
+            title={t("fleet.viewTree")}
+            onClick={() => setView("tree")}
+          >
+            <ListTree size={12} aria-hidden />
+          </button>
+        </span>
       </div>
 
       <div className="agent-topology-legend" aria-label={t("fleet.networkTitle")}>
@@ -176,7 +207,19 @@ export function AgentTopology({
         )}
       </div>
 
-      <div className="agent-topology-stage" ref={stageRef}>
+      <div className="agent-topology-stage" ref={stageRef} data-view={view}>
+        {view === "tree" && (
+          <FleetTree
+            nodes={model}
+            selectedAgent={selectedAgent}
+            onSelectAgent={onSelectAgent}
+            onViewContext={onViewContext}
+            rowByRef={rowByRef}
+            windowSize={network.window}
+            onToggleFold={toggleFold}
+          />
+        )}
+        {view === "graph" && (
         <div
           className={`agent-topology-canvas${focusId !== null ? " is-focused" : ""}`}
           style={{ width: layout.width, height: layout.height }}
@@ -255,10 +298,56 @@ export function AgentTopology({
                 onChoose={() => choose(entry.node.id)}
                 onHover={setHovered}
                 onViewContext={onViewContext}
+                infoOpen={infoId === entry.node.id}
+                onToggleInfo={() => setInfoId((prev) => (prev === entry.node.id ? null : entry.node.id))}
               />
             );
           })}
+          {(() => {
+            // ⓘ 详情浮层（08 包 P2 蒸馏：metrics/toolCalls/最近活动一屏可读）：
+            // 画布层内绝对定位、横向钳制，盖在卡片上沿，再点即收；行词汇全部
+            // 复用既有 i18n 键（radial*/msgCount/elapsed）。
+            if (infoId === null) return null;
+            const entry = layout.nodes.find((candidate) => candidate.node.id === infoId);
+            const point = layout.points.find((candidate) => candidate.id === infoId);
+            if (entry === undefined || point === undefined) return null;
+            const node = entry.node;
+            const row = rowByRef.get(node.id);
+            const infoLines: string[] = [
+              t("contextview.radialStatus", { v: statusLabel(node.status, t) }),
+            ];
+            if (node.model) infoLines.push(t("contextview.radialModel", { v: node.model }));
+            const duration = durationOf(node);
+            if (duration) infoLines.push(t("subagent.elapsed", { dur: duration }));
+            infoLines.push(t("contextview.radialToolCalls", { n: node.toolCalls }));
+            if (node.errors > 0) infoLines.push(t("contextview.radialErrors", { n: node.errors }));
+            infoLines.push(t("contextview.radialTotal", { tokens: fmtTokens(node.tokens) }));
+            if (row?.cost !== undefined) infoLines.push(`${t("fleet.cost")} ¥${row.cost.toFixed(2)}`);
+            if (row?.messages) infoLines.push(t("subagent.msgCount", { n: row.messages }));
+            return (
+              <div
+                className="agent-topology-info"
+                style={{ left: Math.max(4, Math.min(point.x - 105, layout.width - 214)), top: point.y + 8 }}
+                data-testid="agent-topology-info"
+                role="status"
+              >
+                <span className="agent-topology-info-title" title={node.task || node.name || node.id}>
+                  {node.task || node.name || node.id}
+                </span>
+                {infoLines.map((line, index) => (
+                  <span key={`${index}-${line}`} className="agent-topology-info-row">{line}</span>
+                ))}
+                {node.lastTool !== undefined && (
+                  <span className="agent-topology-info-row is-activity">{t("fleet.kpiToolCalls")}：{node.lastTool}</span>
+                )}
+                {node.lastText !== undefined && (
+                  <span className="agent-topology-info-row is-activity">{t("fleet.lastOutput")}：{node.lastText}</span>
+                )}
+              </div>
+            );
+          })()}
         </div>
+        )}
       </div>
     </section>
   );
@@ -336,8 +425,10 @@ function TopologyCard({
   hovered,
   focused,
   related,
+  infoOpen,
   onChoose,
   onHover,
+  onToggleInfo,
   onViewContext,
 }: {
   entry: FleetNode;
@@ -353,8 +444,10 @@ function TopologyCard({
   hovered: boolean;
   focused: boolean;
   related: boolean;
+  infoOpen: boolean;
   onChoose: () => void;
   onHover: (ref: string | null) => void;
+  onToggleInfo: () => void;
   onViewContext?: (ref: string) => void;
 }) {
   const t = useT();
@@ -382,6 +475,7 @@ function TopologyCard({
         width,
         height,
         "--agent-hue": hue,
+        "--agent-depth-hue": depthHue(entry.depth),
         "--agent-index": Math.min(index, 8),
       } as CSSProperties}
       data-agent={node.id}
@@ -425,6 +519,21 @@ function TopologyCard({
         <span title={meta.join(" · ")}>{meta.length > 0 ? meta.join(" · ") : "—"}</span>
         {pct !== null && <b>{pct}%</b>}
       </span>
+      {!root && (
+        <button
+          type="button"
+          className={`agent-topology-info-btn${infoOpen ? " is-open" : ""}`}
+          aria-label={t("fleet.info")}
+          title={t("fleet.info")}
+          aria-expanded={infoOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleInfo();
+          }}
+        >
+          <BarChart3 size={11} aria-hidden />
+        </button>
+      )}
       {!root && onViewContext !== undefined && (
         <button
           type="button"

@@ -203,6 +203,19 @@
   animation-delay: calc(var(--agent-index, 0) * 35ms);
 }
 
+/* D2 尾款·深度色带（dsh Tasks 页蒸馏：卡片左缘按层同色，家系色保留连线） */
+.agent-topology-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: inherit;
+  background: var(--agent-depth-hue, transparent);
+  opacity: 0.9;
+}
+
 .agent-topology-card.is-root {
   border-color: color-mix(in srgb, var(--fleet-violet) 56%, var(--border-soft));
   background:
@@ -495,6 +508,114 @@
 .agent-topology-open:hover {
   color: var(--agent-hue);
   background: color-mix(in srgb, var(--agent-hue) 8%, var(--bg-elev, var(--md-sys-color-surface-container)));
+}
+
+/* D8 视图切换（GRAPH/TREE 共用同一模型） */
+.agent-topology-view-toggle {
+  display: inline-flex;
+  flex: none;
+  margin-left: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+}
+
+.agent-topology-view-toggle button {
+  display: inline-flex;
+  width: 22px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  color: var(--fg-faint);
+  background: transparent;
+  cursor: pointer;
+}
+
+.agent-topology-view-toggle button + button {
+  border-left: 1px solid var(--border-soft, var(--md-sys-color-outline-variant));
+}
+
+.agent-topology-view-toggle button.is-active {
+  color: var(--fleet-cyan, var(--info));
+  background: color-mix(in srgb, var(--fleet-cyan, var(--info)) 10%, transparent);
+}
+
+/* ⓘ 详情浮层（08 包 P2：metrics/最近活动一屏可读） */
+.agent-topology-info-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 3px;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--bg-elev, var(--md-sys-color-surface-container)) 86%, transparent);
+  cursor: pointer;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.agent-topology-card:hover .agent-topology-info-btn,
+.agent-topology-card:focus-within .agent-topology-info-btn,
+.agent-topology-card.is-selected .agent-topology-info-btn,
+.agent-topology-info-btn.is-open {
+  opacity: 1;
+}
+
+.agent-topology-info-btn:hover,
+.agent-topology-info-btn.is-open {
+  color: var(--agent-depth-hue, var(--agent-hue));
+  background: color-mix(in srgb, var(--agent-depth-hue, var(--agent-hue)) 8%, var(--bg-elev, var(--md-sys-color-surface-container)));
+}
+
+.agent-topology-info {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--agent-depth-hue, var(--agent-hue)) 45%, var(--border-soft));
+  border-radius: 8px;
+  background: var(--bg-elev, var(--md-sys-color-surface-container));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--fg) 14%, transparent);
+}
+
+.agent-topology-info-title {
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-info-row {
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-topology-info-row.is-activity {
+  color: var(--fg-faint);
+  border-top: 1px dashed color-mix(in srgb, var(--fg) 12%, transparent);
+  padding-top: 3px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .agent-topology-card-foot > span {

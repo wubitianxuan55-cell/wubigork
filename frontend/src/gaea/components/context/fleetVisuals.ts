@@ -22,3 +22,19 @@ export function agentHue(ref: string, index?: number): string {
   if (index !== undefined && index >= 0) return SUBAGENT_HUES[index % SUBAGENT_HUES.length];
   return SUBAGENT_HUES[hash(ref) % SUBAGENT_HUES.length];
 }
+
+// 深度色带（dsh Tasks 页蒸馏：depth 决定卡片左缘颜色，同一层同色 → 宽图按
+// 层读）。家系色保留在连线（家系=血缘维度，深度=层读维度，双维不打架）。
+const DEPTH_HUES = [
+  "var(--fleet-violet, var(--info))", // depth 0 root：与主 agent 家系色同源
+  "hsl(211 70% 60%)",
+  "hsl(184 62% 44%)",
+  "hsl(45 79% 51%)",
+  "hsl(320 67% 63%)",
+  "hsl(146 48% 50%)",
+] as const;
+
+export function depthHue(depth: number): string {
+  const index = Number.isFinite(depth) && depth > 0 ? Math.floor(depth) : 0;
+  return DEPTH_HUES[index % DEPTH_HUES.length];
+}
