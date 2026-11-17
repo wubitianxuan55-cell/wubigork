@@ -1128,6 +1128,8 @@ export const zhTW: Record<DictKey, string> = {
   "subagent.statusError": "出錯",
   "subagent.statusDone": "已完成",
   "subagent.statusQueued": "排隊中",
+  "subagent.statusAborted": "已中斷",
+  "subagent.stopTitle": "停止",
   "subagent.statusFailed": "失敗",
   "subagent.durSec": "{n} 秒",
   "subagent.durMin": "{n} 分",

@@ -44,7 +44,13 @@ const (
 	// 理、transcript 已建档，但并发槽位未到、LLM 循环尚未起跑。起跑时
 	// MarkRunning 覆写为 running；崩溃恢复（CleanupStaleRunning）与 running
 	// 同判为 failed——排队中的进程没了就是没跑成。
-	SubagentQueued    SubagentStatus = "queued"
+	SubagentQueued SubagentStatus = "queued"
+	// SubagentAborted 是用户中止的终态（D4 结算词汇对齐，dsh stopReason=
+	// aborted 蒸馏）：interrupt_agent/独立 Stop/回合取消。此前一律落
+	// failed——用户主动停冒充「出错」，编队卡与 tab 徽标全红，与真失败
+	// 不可区分。aborted 与 failed 同为可续跑终态（PrepareContinue 只拒
+	// running/queued）；崩溃恢复不产生 aborted（进程没了=failed）。
+	SubagentAborted   SubagentStatus = "aborted"
 	SubagentCompleted SubagentStatus = "completed"
 	SubagentFailed    SubagentStatus = "failed"
 )
@@ -431,6 +437,23 @@ func (s *SubagentStore) SaveFailed(run *SubagentRun) error {
 		_ = run.Session.Save(s.transcriptPathUnlocked(run.Ref))
 	}
 	return s.finalizeMetaUnlocked(run, SubagentFailed)
+}
+
+// SaveAborted marks the run as user-aborted（D4）：与 SaveFailed 同构，只是
+// 终态词汇不同——UI 凭它区分「真失败」与「用户主动停」（编队卡不再整批
+// 红脸）。中断是诚实语义的必要面：Stop 按钮存在的前提是停止后用户看得懂
+// 发生了什么。
+func (s *SubagentStore) SaveAborted(run *SubagentRun) error {
+	if run == nil || run.Ref == "" {
+		return nil
+	}
+	defer s.continueClaims.Delete(run.Ref)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if run.Session != nil && run.Session.HasContent() {
+		_ = run.Session.Save(s.transcriptPathUnlocked(run.Ref))
+	}
+	return s.finalizeMetaUnlocked(run, SubagentAborted)
 }
 
 // finalizeMetaUnlocked writes the terminal sidecar, preserving the run's

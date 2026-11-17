@@ -633,7 +633,7 @@ func buildSessionNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
 func sessionNodeFromRun(r *SubagentRunView, legacy *trajectory.AgentNode) trajectory.AgentNode {
 	status := r.Status
 	switch status {
-	case "running", "queued":
+	case "running", "queued", "aborted":
 	case "failed":
 		status = "error"
 	default:

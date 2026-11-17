@@ -23,6 +23,7 @@ const transcript: SubagentTranscriptView = {
 const mocks = vi.hoisted(() => ({
   SubagentTranscript: vi.fn(),
   SubagentFollowUp: vi.fn(),
+  SubagentStop: vi.fn(),
   onEvent: vi.fn(() => () => {}),
   onSubagentText: vi.fn(() => () => {}),
 }));
@@ -69,6 +70,28 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(thinkBtns.every((b) => b.getAttribute("aria-expanded") === "false")).toBe(true);
     fireEvent.click(thinkBtns[0]);
     expect(thinkBtns[0].getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("D6 独立 Stop：running 态头部可点并调用中断绑定", async () => {
+    mocks.SubagentStop.mockResolvedValue(undefined);
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="running" onBack={() => {}} />));
+    await screen.findByText("任务");
+    const stop = screen.getByTestId("subagent-stop");
+    fireEvent.click(stop);
+    expect(mocks.SubagentStop).toHaveBeenCalledWith("s1.jsonl", "sa_2_b2b2b2b2");
+  });
+
+  it("D6 独立 Stop：queued 可见；completed/failed/mt_ 不出现停止入口", async () => {
+    mocks.SubagentStop.mockResolvedValue(undefined);
+    const { rerender } = render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("任务");
+    expect(screen.queryByTestId("subagent-stop")).toBeNull();
+    rerender(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="failed" onBack={() => {}} />));
+    expect(screen.queryByTestId("subagent-stop")).toBeNull();
+    rerender(wrap(<SubagentThread sessionPath="s1.jsonl" target="mt_1" task="vision" status="running" onBack={() => {}} />));
+    expect(screen.queryByTestId("subagent-stop")).toBeNull();
+    rerender(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="queued" onBack={() => {}} />));
+    expect(screen.getByTestId("subagent-stop")).toBeTruthy();
   });
 
   it("头部返回按钮触发 onBack", async () => {

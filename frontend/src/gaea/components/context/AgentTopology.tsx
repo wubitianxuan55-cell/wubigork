@@ -20,6 +20,7 @@ import "./agent-topology.css";
 function statusLabel(status: AgentNode["status"], t: ReturnType<typeof useT>): string {
   if (status === "running") return t("subagent.statusRunning");
   if (status === "queued") return t("subagent.statusQueued");
+  if (status === "aborted") return t("subagent.statusAborted");
   if (status === "error" || status === "failed") return t("subagent.statusError");
   return t("subagent.statusDone");
 }

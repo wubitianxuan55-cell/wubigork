@@ -1301,6 +1301,8 @@ export const en = {
   "subagent.statusError": "Error",
   "subagent.statusDone": "Completed",
   "subagent.statusQueued": "Queued",
+  "subagent.statusAborted": "Stopped",
+  "subagent.stopTitle": "Stop",
   "subagent.statusFailed": "Failed",
   "subagent.durSec": "{n} s",
   "subagent.durMin": "{n} min",

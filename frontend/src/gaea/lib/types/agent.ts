@@ -12,9 +12,9 @@ export interface AgentNode {
   // fold = 折叠聚合卡（D3 fleetModel 合成，wire 不出现；done/idle 两组信息
   // 在 FleetFoldInfo 上）。
   kind: "root" | "subagent" | "fold";
-  // queued = 并行闸排队中（D1 会话骨架后由 run 状态直达；工具调用骨架只有
-  // 前三态）。
-  status: "running" | "queued" | "completed" | "error" | "failed";
+  // queued = 并行闸排队中；aborted = 用户中止（D4 结算词汇，run 状态直达；
+  // 工具调用骨架只有 running/completed/error 三态）。
+  status: "running" | "queued" | "completed" | "error" | "failed" | "aborted";
   model?: string;
   task?: string;
   toolCalls: number;

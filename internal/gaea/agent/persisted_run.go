@@ -79,7 +79,12 @@ func RunPersistedSubAgent(
 
 	result, err := RunSubAgentWithSession(ctx, prov, reg, run.Session, prompt, opts, sink, subUsage)
 	if err != nil {
-		_ = store.SaveFailed(run)
+		// D4 结算词汇：用户中止（ctx 取消）落 aborted，不冒充失败。
+		if abortedErr(err) {
+			_ = store.SaveAborted(run)
+		} else {
+			_ = store.SaveFailed(run)
+		}
 		return result, err
 	}
 	if err := store.SaveCompleted(run); err != nil {

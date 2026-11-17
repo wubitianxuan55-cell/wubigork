@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Loader2, Rollback, Save, X } from "../icons";
+import { ArrowUp, Ban, Loader2, Rollback, Save, X } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import { useToast } from "./Toast";
@@ -40,7 +40,9 @@ import { useLiveReload } from "../hooks/useLiveReload";
 
 // queued：有限并行闸排队中（后端 [agent] subagent_max_parallel，超限派生
 // 等槽）——tab 头/状态徽标如实显示，不与 running 混淆。
-export type SubagentThreadStatus = "queued" | "running" | "completed" | "failed";
+// aborted：用户中止（D4 结算词汇——独立 Stop/interrupt_agent/回合取消），
+// 不再冒充 failed 整批红脸。
+export type SubagentThreadStatus = "queued" | "running" | "completed" | "failed" | "aborted";
 
 const THREAD_POLL_MS = 3000;
 
@@ -59,6 +61,13 @@ function statusMeta(status: SubagentThreadStatus, t: Translator): { label: strin
         color: "var(--fg-faint)",
         bg: "color-mix(in srgb, var(--fg-faint) 10%, transparent)",
         border: "1px solid color-mix(in srgb, var(--fg-faint) 30%, transparent)",
+      };
+    case "aborted":
+      return {
+        label: t("subagent.statusAborted"),
+        color: "var(--fg-faint)",
+        bg: "color-mix(in srgb, var(--fg-faint) 8%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--fg-faint) 25%, transparent)",
       };
     case "failed":
       return {
@@ -300,6 +309,19 @@ export function SubagentThread({
   // 失败时后端把原因摘要写回 meta（followUpError），随 transcript 快照带出。
   // 本地镜像最新一次读到的摘要：等待态气泡在场且非空 → 气泡转失败态。
   const [followUpRemoteErr, setFollowUpRemoteErr] = useState("");
+  // D6 独立 Stop：running/queued 态的头部停止入口（fire-and-return，终态
+  // aborted 由 runner 收尾写落账，3s 轮询自校正——与 TaskCancel 同契约）。
+  const [stopping, setStopping] = useState(false);
+  const stopRun = useCallback(() => {
+    if (stopping || isMtTab) return;
+    setStopping(true);
+    app
+      .SubagentStop(sessionPath, target)
+      .catch((e) => {
+        setFollowUpErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => setStopping(false));
+  }, [stopping, isMtTab, sessionPath, target]);
   const followUpBaseRef = useRef(0);
   useEffect(() => {
     // 失败优先判定：meta 带回最近一次追问的失败摘要 → 等待态气泡转失败态
@@ -420,6 +442,21 @@ export function SubagentThread({
           <span className="shrink-0 font-mono text-[9.5px] tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             {t("subagent.msgCount", { n: messages.length })}
           </span>
+        )}
+        {!isMtTab && (running || status === "queued") && (
+          <button
+            type="button"
+            data-testid="subagent-stop"
+            className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[11px] transition-colors hover:bg-(color:--md-sys-color-surface-container-high) disabled:cursor-default disabled:opacity-50"
+            style={{ color: "var(--md-sys-color-destructive)" }}
+            onClick={stopRun}
+            disabled={stopping}
+            title={t("subagent.stopTitle")}
+            aria-label={t("subagent.stopTitle")}
+          >
+            <Ban size={12} className={stopping ? "animate-pulse" : ""} aria-hidden />
+            {t("subagent.stopTitle")}
+          </button>
         )}
         {!isMtTab && (
           <button

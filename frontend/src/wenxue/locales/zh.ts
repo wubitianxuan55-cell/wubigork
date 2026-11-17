@@ -1124,6 +1124,8 @@ export const zh: Record<DictKey, string> = {
   "subagent.statusError": "出错",
   "subagent.statusDone": "已完成",
   "subagent.statusQueued": "排队中",
+  "subagent.statusAborted": "已中断",
+  "subagent.stopTitle": "停止",
   "subagent.statusFailed": "失败",
   "subagent.durSec": "{n} 秒",
   "subagent.durMin": "{n} 分",

@@ -229,9 +229,9 @@ func TestTaskToolQueuedUnderBoundedSlots(t *testing.T) {
 	})
 }
 
-// TestTaskToolQueuedCancelMarksFailed：排队等待期间 ctx 取消，queued 侧车
+// TestTaskToolQueuedCancelMarksAborted：排队等待期间 ctx 取消，queued 侧车
 // 如实收口为 failed，不留永久排队假态。
-func TestTaskToolQueuedCancelMarksFailed(t *testing.T) {
+func TestTaskToolQueuedCancelMarksAborted(t *testing.T) {
 	setSlotsForTest(t, 1)
 	dir := t.TempDir()
 	store := NewSubagentStore(dir)
@@ -271,9 +271,10 @@ func TestTaskToolQueuedCancelMarksFailed(t *testing.T) {
 	if err := <-errCh; err == nil {
 		t.Fatal("排队中取消应返回错误")
 	}
-	waitFor(t, 2*time.Second, "queued meta to settle failed", func() bool {
-		_, failed := countMetas(t, dir, "failed")
-		return failed == 1
+	// D4 结算词汇：排队中取消 = 用户中止，落 aborted 而非 failed。
+	waitFor(t, 2*time.Second, "queued meta to settle aborted", func() bool {
+		_, aborted := countMetas(t, dir, "aborted")
+		return aborted == 1
 	})
 	// 测试结束前放行并等第一路收尾：TempDir 清理不得与子代理快照写盘竞速。
 	close(gate)

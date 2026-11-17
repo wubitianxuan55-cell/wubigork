@@ -252,6 +252,8 @@ export interface CoreBindings {
   // Side Chat 式追问（v4.64）：对已完结的 sa_ 运行追加用户提问，后台运行
   // 即刻返回；文本增量走 gaea-subagent-text 专用通道，完成态经轮询自校正。
   SubagentFollowUp(sessionPath: string, ref: string, prompt: string): Promise<string>;
+  // D6 独立 Stop：中断运行中/排队中的子代理（ref 全局寻址，双引擎共用）。
+  SubagentStop(sessionPath: string, ref: string): Promise<void>;
   // PromoteSubagent 把子代理会话提升为独立顶层会话（dsh Side Chat promote 语义，
   // v4.66.0）：忠实投影 transcript 为新会话日志，返回新 sessionPath；不动原运行。
   PromoteSubagent(sessionPath: string, ref: string): Promise<string>;

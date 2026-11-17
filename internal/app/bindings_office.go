@@ -216,6 +216,7 @@ func (b *OfficeB) GaeaSteer(input string) { b.a.GaeaSteer(input) }
 func (b *OfficeB) GaeaSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) { return b.a.GaeaSubagentContextView(sessionPath, ref) }
 func (b *OfficeB) GaeaSubagentFollowUp(sessionPath string, ref string, prompt string) (string, error) { return b.a.GaeaSubagentFollowUp(sessionPath, ref, prompt) }
 func (b *OfficeB) GaeaSubagentRuns(sessionPath string) SubagentRunsView { return b.a.GaeaSubagentRuns(sessionPath) }
+func (b *OfficeB) GaeaSubagentStop(sessionPath string, ref string) error { return b.a.GaeaSubagentStop(sessionPath, ref) }
 func (b *OfficeB) GaeaSubagentTranscript(sessionPath string, ref string) (SubagentTranscriptView, error) { return b.a.GaeaSubagentTranscript(sessionPath, ref) }
 func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, error) { return b.a.GaeaSummarizeFile(rel, focus) }
 func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFrom(turn) }

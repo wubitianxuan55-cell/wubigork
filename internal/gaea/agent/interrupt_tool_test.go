@@ -106,9 +106,10 @@ func TestInterruptRunningSubagent(t *testing.T) {
 	if !strings.Contains(err.Error(), "interrupted") {
 		t.Fatalf("中断的 task 错误应标明 interrupted，got: %v", err)
 	}
-	waitFor(t, 2*time.Second, "sidecar to settle failed", func() bool {
-		_, failed := countMetas(t, dir, "failed")
-		return failed == 1
+	// D4 结算词汇：中断落 aborted（用户主动停不冒充 failed）。
+	waitFor(t, 2*time.Second, "sidecar to settle aborted", func() bool {
+		_, aborted := countMetas(t, dir, "aborted")
+		return aborted == 1
 	})
 }
 
@@ -177,9 +178,10 @@ func TestInterruptQueuedSubagent(t *testing.T) {
 	if err := <-secondDone; err == nil {
 		t.Fatal("排队中被中断的第二路应返回错误")
 	}
-	waitFor(t, 2*time.Second, "queued meta to settle failed", func() bool {
-		_, failed := countMetas(t, dir, "failed")
-		return failed == 1
+	// D4 结算词汇：排队中被中断同落 aborted。
+	waitFor(t, 2*time.Second, "queued meta to settle aborted", func() bool {
+		_, aborted := countMetas(t, dir, "aborted")
+		return aborted == 1
 	})
 	// 收尾：放行并等第一路正常结束（TempDir 清理不得与快照写盘竞速）。
 	close(gate)

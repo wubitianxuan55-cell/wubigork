@@ -17,7 +17,7 @@ import "./fleet-tasks.css";
 type RunStatus = SubagentRunView["status"];
 type PhaseFilter = "all" | RunStatus;
 
-const STATUS_ORDER: RunStatus[] = ["running", "queued", "completed", "failed"];
+const STATUS_ORDER: RunStatus[] = ["running", "queued", "completed", "failed", "aborted"];
 
 export interface FleetTasksProps {
   runs: SubagentRunView[];
@@ -99,6 +99,7 @@ export function FleetTasks({
       queued: 0,
       completed: 0,
       failed: 0,
+      aborted: 0,
     };
     for (const run of scopedRuns) next[run.status] += 1;
     return next;

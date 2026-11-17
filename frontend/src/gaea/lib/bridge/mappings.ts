@@ -260,6 +260,7 @@ export const gaeaToGaea = {
   PriceFetchAll: "GaeaPriceFetchAll",
   TaskList: "GaeaTaskList",
   SubagentFollowUp: "GaeaSubagentFollowUp",
+  SubagentStop: "GaeaSubagentStop",
   TaskCancel: "GaeaTaskCancel",
   TaskKill: "GaeaTaskKill",
   TaskRetry: "GaeaTaskRetry",

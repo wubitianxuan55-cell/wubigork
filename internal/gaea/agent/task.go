@@ -625,7 +625,8 @@ func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func(
 	}
 	if err := acquireSubSlot(ctx); err != nil {
 		if run != nil && run.Ref != "" && t.transcripts != nil {
-			_ = t.transcripts.SaveFailed(run) // 取消/放弃：排队态如实收口为失败
+			// 取消/放弃：排队态收口为 aborted（用户中止，D4 词汇，不冒充出错）。
+			_ = t.transcripts.SaveAborted(run)
 		}
 		return "", fmt.Errorf("sub-agent queued: %w", err)
 	}
@@ -851,6 +852,17 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	if id, _, _, _ := CallContext(ctx); id != "" {
 		run.SpawnCallID = id
 	}
+	// D5 容量口径自检（上游 workflow maxConcurrentAgents 与 subagent 硬限两池
+	// 错配的 gaea 对应面）：宿主路径（DAG 节点执行器）此前绕过并发闸——同一
+	// 「每实例一条 LLM 循环」负载必须过同一扇门（单闸不变量），否则 DAG 波宽
+	// × task 派生叠加可以超出 [agent] subagent_max_parallel 的容量语义。等待
+	// 期 ctx 取消 = 用户中止（aborted 落账）。
+	_ = t.transcripts.MarkQueued(run)
+	if err := acquireSubSlot(ctx); err != nil {
+		_ = t.transcripts.SaveAborted(run)
+		return "", ref, fmt.Errorf("sub-agent queued: %w", err)
+	}
+	defer releaseSubSlot()
 	if err := t.transcripts.MarkRunning(run); err != nil {
 		return "", ref, fmt.Errorf("mark subagent running: %w", err)
 	}
@@ -884,8 +896,14 @@ func (t *TaskTool) RunFollowUp(ctx context.Context, ref, prompt string, sink eve
 	if err != nil && t.transcripts != nil {
 		// best-effort 写回失败摘要。此刻 runner 已返回（stop 先于终态写、
 		// 绑定层同 ref 单飞），不再有并发 meta 写，本次写即该 meta 的最后一
-		// 次——前端追问轮询必能读到，无需额外事件通道。
-		_ = t.transcripts.RecordFollowUpError(ref, err.Error())
+		// 笔——前端追问轮询必能读到，无需额外事件通道。
+		// D4：用户中止（独立 Stop/回合取消）不是失败——写中性摘要而不是
+		// 错误链，乐观气泡照样有解（转「已中止」态）但不冒充红错误。
+		if abortedErr(err) {
+			_ = t.transcripts.RecordFollowUpError(ref, "用户停止：本轮追问已中止")
+		} else {
+			_ = t.transcripts.RecordFollowUpError(ref, err.Error())
+		}
 	}
 	return err
 }
@@ -903,6 +921,14 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 		return fmt.Errorf("subagent transcript store is not available")
 	}
 	defer run.Release()
+	// D5：追问与 task 派发同闸（单闸不变量）——追问的 LLM 循环同样是整条
+	// 子代理负载，不能因为入口是用户 tab 就绕过容量语义。
+	_ = t.transcripts.MarkQueued(run)
+	if err := acquireSubSlot(ctx); err != nil {
+		_ = t.transcripts.SaveAborted(run)
+		return fmt.Errorf("sub-agent queued: %w", err)
+	}
+	defer releaseSubSlot()
 	if err := t.transcripts.MarkRunning(run); err != nil {
 		return fmt.Errorf("mark subagent running: %w", err)
 	}
@@ -923,7 +949,11 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 	}
 	_, _, err = t.runSubSession(ctx, nil, prompt, subReg, sink, run, maxSteps, nil, nil)
 	if err != nil {
-		_ = t.transcripts.SaveFailed(run)
+		if abortedErr(err) {
+			_ = t.transcripts.SaveAborted(run)
+		} else {
+			_ = t.transcripts.SaveFailed(run)
+		}
 		return err
 	}
 	return t.transcripts.SaveCompleted(run)
@@ -1324,13 +1354,24 @@ func (t *TaskTool) prepareRun(ctx context.Context, continueFrom string, runInBac
 	return run, err
 }
 
+// abortedErr 判定「用户中止」类错误（D4 结算词汇对齐）：ctx 取消 =
+// interrupt_agent / 独立 Stop / 回合取消。DeadlineExceeded 是超时失败，
+// 不算中止——中止是用户的显式意图，失败是系统没跑成，两者不可混词。
+func abortedErr(err error) bool {
+	return err != nil && errors.Is(err, context.Canceled)
+}
+
 // finalizeRun persists the run result and appends the reference to the output.
 func (t *TaskTool) finalizeRun(result string, err error, run *SubagentRun) (string, error) {
 	if run == nil || run.Ref == "" {
 		return result, err
 	}
 	if err != nil {
-		_ = t.transcripts.SaveFailed(run)
+		if abortedErr(err) {
+			_ = t.transcripts.SaveAborted(run)
+		} else {
+			_ = t.transcripts.SaveFailed(run)
+		}
 		return result, err
 	}
 	if saveErr := t.transcripts.SaveCompleted(run); saveErr != nil {
@@ -1450,10 +1491,14 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 		// 「被打断」与「真失败」——前者重派有意义（换口径/放大预算），后者
 		// 重派只会原样再炸。诊断走卫生面（≤4096B 截断）。
 		if classifySubagentStop(runCtx, runErr) == StopInterrupted {
+			// D4 结算词汇：中断错误带 %w context.Canceled 逃逸到终态写路径
+			// （finalizeRun/runFollowUp/persisted_run 的 abortedErr），meta 落
+			// aborted 而非 failed——用户主动停不再冒充「出错」（编队卡整批
+			// 红脸的根因）。文案不变（P1-C 断言依赖）。
 			if lastMsg != "" {
-				return lastMsg, fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop); partial result kept below\n%s", lastMsg)
+				return lastMsg, fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop); partial result kept below\n%s: %w", lastMsg, context.Canceled)
 			}
-			return "", fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop)")
+			return "", fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop): %w", context.Canceled)
 		}
 		diag := sanitizeSubagentDiagnostic(runErr.Error())
 		if lastMsg != "" {
