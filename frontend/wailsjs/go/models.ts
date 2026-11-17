@@ -6715,6 +6715,35 @@ export namespace contextview {
 
 }
 
+export namespace control {
+	
+	export class DeniedActionInfo {
+	    id: string;
+	    tool: string;
+	    subject: string;
+	    source: string;
+	    decision: string;
+	    reason: string;
+	    at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeniedActionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.tool = source["tool"];
+	        this.subject = source["subject"];
+	        this.source = source["source"];
+	        this.decision = source["decision"];
+	        this.reason = source["reason"];
+	        this.at = source["at"];
+	    }
+	}
+
+}
+
 export namespace cost {
 	
 	export class BandSource {
@@ -7637,6 +7666,7 @@ export namespace pantheon {
 	    version?: string;
 	    reason?: string;
 	    capabilities?: string[];
+	    description?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AgentStatus(source);
@@ -7652,6 +7682,7 @@ export namespace pantheon {
 	        this.version = source["version"];
 	        this.reason = source["reason"];
 	        this.capabilities = source["capabilities"];
+	        this.description = source["description"];
 	    }
 	}
 	export class AnswerPayload {

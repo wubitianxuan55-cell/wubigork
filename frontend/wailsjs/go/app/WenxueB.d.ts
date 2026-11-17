@@ -6,6 +6,7 @@ import {event} from '../models';
 import {contextview} from '../models';
 import {workbench} from '../models';
 import {evidence} from '../models';
+import {control} from '../models';
 
 export function WenxueAddMCPServer(arg1:app.MCPServerInput):Promise<number>;
 
@@ -14,6 +15,10 @@ export function WenxueAgentNetwork(arg1:string):Promise<trajectory.AgentNetwork>
 export function WenxueAnswer(arg1:string,arg2:Array<event.AskAnswer>):Promise<void>;
 
 export function WenxueApprove(arg1:string,arg2:string):Promise<void>;
+
+export function WenxueApproveDenied(arg1:string):Promise<void>;
+
+export function WenxueApproveWithReason(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function WenxueArchiveSession(arg1:string):Promise<void>;
 
@@ -131,6 +136,8 @@ export function WenxueNewSession():Promise<void>;
 
 export function WenxueOpenWorkspacePath(arg1:string):Promise<void>;
 
+export function WenxuePendingDeniedActions():Promise<Array<control.DeniedActionInfo>>;
+
 export function WenxuePermLevel():Promise<string>;
 
 export function WenxuePickWorkspace():Promise<string>;
@@ -190,6 +197,8 @@ export function WenxueSaveWorkspacePathsAs(arg1:Array<string>):Promise<string>;
 export function WenxueSend(arg1:string):Promise<void>;
 
 export function WenxueSetMCPServerEnabled(arg1:string,arg2:boolean):Promise<void>;
+
+export function WenxueSetModel(arg1:string):Promise<void>;
 
 export function WenxueSetPermLevel(arg1:string):Promise<void>;
 

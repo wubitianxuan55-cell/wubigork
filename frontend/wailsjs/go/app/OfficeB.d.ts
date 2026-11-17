@@ -10,6 +10,7 @@ import {dag} from '../models';
 import {standard} from '../models';
 import {tasks} from '../models';
 import {evidence} from '../models';
+import {control} from '../models';
 import {pptxedit} from '../models';
 import {skillstats} from '../models';
 
@@ -30,6 +31,10 @@ export function GaeaAnswer(arg1:string,arg2:Array<event.AskAnswer>):Promise<void
 export function GaeaApplyUpdate():Promise<void>;
 
 export function GaeaApprove(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaApproveDenied(arg1:string):Promise<void>;
+
+export function GaeaApproveWithReason(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function GaeaArchiveSession(arg1:string):Promise<void>;
 
@@ -236,6 +241,8 @@ export function GaeaOpenDownloadPage():Promise<void>;
 export function GaeaOpenLogsDir():Promise<void>;
 
 export function GaeaOpenWorkspacePath(arg1:string):Promise<void>;
+
+export function GaeaPendingDeniedActions():Promise<Array<control.DeniedActionInfo>>;
 
 export function GaeaPickDirectory():Promise<string>;
 

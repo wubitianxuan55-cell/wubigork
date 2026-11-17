@@ -18,6 +18,14 @@ export function WenxueApprove(arg1, arg2) {
   return window['go']['app']['WenxueB']['WenxueApprove'](arg1, arg2);
 }
 
+export function WenxueApproveDenied(arg1) {
+  return window['go']['app']['WenxueB']['WenxueApproveDenied'](arg1);
+}
+
+export function WenxueApproveWithReason(arg1, arg2, arg3) {
+  return window['go']['app']['WenxueB']['WenxueApproveWithReason'](arg1, arg2, arg3);
+}
+
 export function WenxueArchiveSession(arg1) {
   return window['go']['app']['WenxueB']['WenxueArchiveSession'](arg1);
 }
@@ -250,6 +258,10 @@ export function WenxueOpenWorkspacePath(arg1) {
   return window['go']['app']['WenxueB']['WenxueOpenWorkspacePath'](arg1);
 }
 
+export function WenxuePendingDeniedActions() {
+  return window['go']['app']['WenxueB']['WenxuePendingDeniedActions']();
+}
+
 export function WenxuePermLevel() {
   return window['go']['app']['WenxueB']['WenxuePermLevel']();
 }
@@ -368,6 +380,10 @@ export function WenxueSend(arg1) {
 
 export function WenxueSetMCPServerEnabled(arg1, arg2) {
   return window['go']['app']['WenxueB']['WenxueSetMCPServerEnabled'](arg1, arg2);
+}
+
+export function WenxueSetModel(arg1) {
+  return window['go']['app']['WenxueB']['WenxueSetModel'](arg1);
 }
 
 export function WenxueSetPermLevel(arg1) {

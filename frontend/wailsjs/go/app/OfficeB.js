@@ -38,6 +38,14 @@ export function GaeaApprove(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaApprove'](arg1, arg2);
 }
 
+export function GaeaApproveDenied(arg1) {
+  return window['go']['app']['OfficeB']['GaeaApproveDenied'](arg1);
+}
+
+export function GaeaApproveWithReason(arg1, arg2, arg3) {
+  return window['go']['app']['OfficeB']['GaeaApproveWithReason'](arg1, arg2, arg3);
+}
+
 export function GaeaArchiveSession(arg1) {
   return window['go']['app']['OfficeB']['GaeaArchiveSession'](arg1);
 }
@@ -448,6 +456,10 @@ export function GaeaOpenLogsDir() {
 
 export function GaeaOpenWorkspacePath(arg1) {
   return window['go']['app']['OfficeB']['GaeaOpenWorkspacePath'](arg1);
+}
+
+export function GaeaPendingDeniedActions() {
+  return window['go']['app']['OfficeB']['GaeaPendingDeniedActions']();
 }
 
 export function GaeaPickDirectory() {
