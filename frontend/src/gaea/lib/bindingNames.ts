@@ -669,6 +669,7 @@ export const bindingNames = [
   "WenxueRollbackRecord",
   "WenxueRunning",
   "WenxueSaveAttachmentFile",
+  "WenxueGalleryList",
   "WenxueSaveDoc",
   "WenxueSavePastedImage",
   "WenxueSaveWorkspacePathAs",

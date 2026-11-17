@@ -169,3 +169,13 @@ export interface FilePickResult {
   size?: number;
 }
 export type FileSemanticHit = WireShape<AppModels.FileSemanticHit>;
+
+// WenxueImageItem 图册单项（插图标签，Go WenxueGalleryList 直出形状；wailsjs
+// models 未生成前手写对齐，字段名与 Go json tag 一致）。
+export interface WenxueImageItem {
+  rel: string;
+  name: string;
+  source: "uploads" | "workspace";
+  size: number;
+  modTime: number;
+}

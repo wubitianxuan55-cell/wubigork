@@ -2139,3 +2139,149 @@
     padding: 14px;
   }
 }
+
+/* ── 插图标签（2026-11-18）：图册网格/筛选/灯箱 ───────────────────── */
+
+.wx-root .wx-gallery-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.wx-root .wx-gallery-filter {
+  padding: 3px 10px;
+  border: 1px solid var(--border-soft, var(--md-sys-color-outline-variant));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-faint);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.wx-root .wx-gallery-filter.is-active {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.wx-root .wx-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+
+.wx-root .wx-gallery-item {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-soft, var(--md-sys-color-outline-variant));
+  border-radius: 10px;
+  background: var(--md-sys-color-surface-container);
+}
+
+.wx-root .wx-gallery-thumb {
+  display: flex;
+  width: 100%;
+  height: 128px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  cursor: zoom-in;
+}
+
+.wx-root .wx-gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wx-root .wx-gallery-thumb-placeholder {
+  color: var(--fg-faint);
+}
+
+.wx-root .wx-gallery-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+}
+
+.wx-root .wx-gallery-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-root .wx-gallery-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-faint);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wx-root .wx-gallery-source {
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--fg) 16%, transparent);
+  border-radius: 999px;
+  font-size: 9px;
+}
+
+.wx-root .wx-gallery-source.is-uploads {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.wx-root .wx-gallery-error {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--err) 45%, transparent);
+  border-radius: 8px;
+  color: var(--err);
+  font-size: 11px;
+}
+
+.wx-root .wx-gallery-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 78%, transparent);
+  cursor: zoom-out;
+}
+
+.wx-root .wx-gallery-lightbox img {
+  max-width: min(1080px, 92vw);
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.wx-root .wx-gallery-lightbox-meta {
+  position: absolute;
+  bottom: 18px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+}
+
+.wx-root .wx-gallery-lightbox-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 16px;
+  cursor: pointer;
+}

@@ -115,6 +115,7 @@ export const gaeaToGaea = {
   ExportDeliverable: "WenxueExportDeliverable",
   OpenWorkspacePath: "WenxueOpenWorkspacePath",
   RevealWorkspacePath: "WenxueRevealWorkspacePath",
+  GalleryList: "WenxueGalleryList",
   SavePastedImage: "WenxueSavePastedImage",
   SaveAttachmentFile: "WenxueSaveAttachmentFile",
   AttachmentChunkBegin: "WenxueAttachmentChunkBegin",

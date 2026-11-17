@@ -419,6 +419,7 @@ export const GAEA_METHOD_FACETS = {
   ExportDeliverable: "work",
   OpenWorkspacePath: "work",
   RevealWorkspacePath: "work",
+  GalleryList: "work",
   SavePastedImage: "work",
   SaveAttachmentFile: "work",
   AttachmentChunkBegin: "work",

@@ -29,6 +29,7 @@ import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
+const WenxueGalleryHub = lazy(() => import("./components/WenxueGalleryHub").then(m => ({ default: m.WenxueGalleryHub })));
 const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
 const WenxueMemoryPanel = lazy(() => import("./components/WenxueMemoryPanel").then(m => ({ default: m.WenxueMemoryPanel })));
 const WenxueSettingsHub = lazy(() => import("./components/WenxueSettingsHub").then(m => ({ default: m.WenxueSettingsHub })));
@@ -887,6 +888,11 @@ export default function App() {
                     {chatTab === "memory" && (
                       <Suspense fallback={null}>
                         <WenxueMemoryPanel />
+                      </Suspense>
+                    )}
+                    {chatTab === "gallery" && (
+                      <Suspense fallback={null}>
+                        <WenxueGalleryHub />
                       </Suspense>
                     )}
                     {chatTab === "settings" && (

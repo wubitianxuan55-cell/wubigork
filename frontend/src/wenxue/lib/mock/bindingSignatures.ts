@@ -680,6 +680,7 @@ export const bindingSignatures = {
   WenxueRunning: { argc: 0, variadic: false, params: "" },
   WenxueSaveAttachmentFile: { argc: 2, variadic: false, params: "fileName string, base64Data string" },
   WenxueSaveDoc: { argc: 2, variadic: false, params: "path string, body string" },
+  WenxueGalleryList: { argc: 0, variadic: false, params: "" },
   WenxueSavePastedImage: { argc: 1, variadic: false, params: "dataURL string" },
   WenxueSaveWorkspacePathAs: { argc: 1, variadic: false, params: "rel string" },
   WenxueSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
@@ -724,4 +725,4 @@ export const bindingSignatures = {
 } as const;
 
 // 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 701。
-export const bindingSignatureCount = 702;
+export const bindingSignatureCount = 703;

@@ -585,6 +585,14 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
   async RevealWorkspacePath(rel: string) {
     console.info("mock RevealWorkspacePath", rel);
   },
+  async GalleryList() {
+    // 插图标签（2026-11-18）：?mock=wenxue 给雾港样例图占位（真实图经 Preview
+    // 委托，mock 无图——卡片空态/骨架即可走查布局）。
+    return [
+      { rel: "雾港来信/.gaea/uploads/gen-cover.png", name: "gen-cover.png", source: "uploads", size: 10240, modTime: 0 },
+      { rel: "雾港来信/.gaea/uploads/gen-scene-01.png", name: "gen-scene-01.png", source: "uploads", size: 8192, modTime: 0 },
+    ];
+  },
   async SavePastedImage(_dataUrl: string) {
     return ".gaea/attachments/mock.png";
   },

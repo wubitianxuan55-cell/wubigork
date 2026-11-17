@@ -49,6 +49,7 @@ func (b *WenxueB) WenxueFileSearch(query string, limit int, exclude []string) []
 func (b *WenxueB) WenxueFileTreeWatch(paths []string, exclude []string) error { return b.a.WenxueFileTreeWatch(paths, exclude) }
 func (b *WenxueB) WenxueForget(name string) error { return b.a.WenxueForget(name) }
 func (b *WenxueB) WenxueFork(turn int) error { return b.a.WenxueFork(turn) }
+func (b *WenxueB) WenxueGalleryList() ([]WenxueImageItem, error) { return b.a.WenxueGalleryList() }
 func (b *WenxueB) WenxueGitCommit(message string) (string, error) { return b.a.WenxueGitCommit(message) }
 func (b *WenxueB) WenxueGitCommitDetail(hash string) (GitCommitDetail, error) { return b.a.WenxueGitCommitDetail(hash) }
 func (b *WenxueB) WenxueGitDiff(path string, staged bool) (string, error) { return b.a.WenxueGitDiff(path, staged) }

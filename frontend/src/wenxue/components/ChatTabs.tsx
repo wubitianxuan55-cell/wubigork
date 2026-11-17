@@ -1,5 +1,5 @@
 import type React from "react";
-import { BarChart3, BookOpen, Brain, ListTree, MessageSquare, PieChart, ScrollText, Users } from "../icons";
+import { BarChart3, BookOpen, Brain, ListTree, MessageSquare, PieChart, ScrollText, Users, Image } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
 // [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
@@ -14,7 +14,7 @@ import { BarChart3, BookOpen, Brain, ListTree, MessageSquare, PieChart, ScrollTe
 // 2026-11-16 设定批：「编队」退役（办公域文件流水线看板，图文无 DAG 面）；
 // 新增「设定」——世界观/时间线/规则等设定文档查看/编辑/AI 生成，与
 // write_file+时间线工具同源（设定|worldview|设定集 + 时间线|timeline 目录）。
-export type ChatTabId = "chat" | "trajectory" | "context" | "insights" | "characters" | "reading" | "settings" | "memory";
+export type ChatTabId = "chat" | "trajectory" | "context" | "insights" | "characters" | "reading" | "settings" | "memory" | "gallery";
 
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
@@ -44,6 +44,9 @@ export const CHAT_VIEW_TAB_IDS: ChatTabId[] = [
   // 记忆五件工具同源（wenxue-brain 独立 DB）。漏白名单 = tab 被当子代理
   // tab 吃掉、内容回落 chat（useSubagentTabs 白名单老坑）。
   "memory",
+  // 图文板块专属（2026-11-18 插图批）：图册（image_gen 封面/场景插图/角色
+  // 立绘 + 粘贴图，落书目录 .gaea/uploads），数据面 WenxueGalleryList/Preview。
+  "gallery",
 ];
 
 const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
@@ -55,6 +58,7 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "reading", label: "阅读", icon: BookOpen },
   { id: "settings", label: "设定", icon: ScrollText },
   { id: "memory", label: "记忆", icon: Brain },
+  { id: "gallery", label: "插图", icon: Image },
 ];
 
 export function ChatTabs({ active, onChange, tabs, labelOverrides, className, extraTabs, onCloseExtra }: {

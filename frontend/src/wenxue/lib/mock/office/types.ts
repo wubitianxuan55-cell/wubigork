@@ -25,7 +25,7 @@ export type OfficeMethods = Pick<
   // 众神殿刀3：搜索主源设置三绑定。
   | "WebSearchSettingsGet" | "WebSearchSettingsSet" | "WebSearchTestConnection"
   | "ExportDeliverable" | "RevealWorkspacePath"
-  | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
+  | "SavePastedImage" | "GalleryList" | "SaveAttachmentFile" | "AttachmentDataURL"
   // 分块上传三段（超大附件过桥形态；Begin 发 token → Append 吞片 → Finish 落名）。
   | "AttachmentChunkBegin" | "AttachmentChunkAppend" | "AttachmentChunkFinish" | "AttachmentChunkAbort"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"

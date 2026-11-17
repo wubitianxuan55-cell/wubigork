@@ -16,6 +16,7 @@ import type {
   DeliverableRegistryView,
   DirEntry,
   FactBaseView,
+  WenxueImageItem,
   FilePickResult,
   FilePreview,
   FileSearchHit,
@@ -267,6 +268,9 @@ export interface CoreBindings {
   ResyncEvents(afterSeq: number): Promise<GaeaResyncResult>;
   OpenWorkspacePath(rel: string): Promise<void>;
   RevealWorkspacePath(rel: string): Promise<void>;
+  // 插图标签（2026-11-18）：图册清单（uploads 生成图 + 工作空间其他图片），
+  // 取图经 Preview(image→dataUrl)。
+  GalleryList(): Promise<WenxueImageItem[]>;
   SavePastedImage(dataUrl: string): Promise<string>;
   SaveAttachmentFile(fileName: string, base64Data: string): Promise<string>;
   // 分块上传（超大附件）：单次过桥 25MiB 上限只约束整包；超过的走 Begin/
