@@ -467,11 +467,91 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
       return { available: false, total: 0, running: 0, runs: [] };
     }
     if (sessionPath === "" || sessionPath.includes("c.jsonl") || sessionPath.includes("cur.jsonl")) {
+      // 编队新 UI 走查增稠（D1-D3/D8）：与 AgentNetwork mock 的孩子一一对齐
+      // （done×4 折叠/idle×3 聚合/aborted 词汇/尾巴），面板联动不串味。
+      const day = (h: number, m: number) => new Date(now - h * 3_600_000 - m * 60_000).toISOString();
       return {
         available: true,
-        total: 2,
+        total: 9,
         running: 1,
         runs: [
+          {
+            ref: "sa_20260817_130000_0000000008_b8b8b8b8",
+            status: "queued" as const,
+            task: "排队任务：竞品舆情时间线整理",
+            toolCalls: 0,
+            createdAt: day(1, 2),
+            updatedAt: day(1, 2),
+          },
+          {
+            ref: "sa_20260817_130100_0000000009_c9c9c9c9",
+            status: "queued" as const,
+            task: "排队任务：海外竞品补充调研",
+            toolCalls: 0,
+            createdAt: day(1, 3),
+            updatedAt: day(1, 3),
+          },
+          {
+            ref: "sa_20260817_130200_0000000010_d0d0d0d0",
+            status: "queued" as const,
+            task: "排队任务：表格交互走查报告",
+            toolCalls: 0,
+            createdAt: day(1, 4),
+            updatedAt: day(1, 4),
+          },
+          {
+            ref: "sa_20260817_123000_0000000007_a7a7a7a7",
+            status: "aborted" as const,
+            task: "抽取竞品截图素材（用户中止）",
+            lastText: "已抓到两张首页截图，任务被手动停止。",
+            lastTool: "browser_navigate: competitor-home",
+            toolCalls: 1,
+            createdAt: day(1, 10),
+            updatedAt: day(1, 9),
+          },
+          {
+            ref: "sa_20260817_122000_0000000006_f6f6f6f6",
+            status: "completed" as const,
+            model: "deepseek-v4-flash",
+            task: "按技能模板核对表格交互结论",
+            lastText: "结论与模板条目逐项对齐，无缺漏。",
+            lastTool: "read_file: 模板.md",
+            toolCalls: 2,
+            createdAt: day(1, 15),
+            updatedAt: day(1, 12),
+          },
+          {
+            ref: "sa_20260817_121000_0000000005_e5e5e5e5",
+            status: "completed" as const,
+            model: "deepseek-v4-pro",
+            task: "起草竞品对比矩阵初稿",
+            lastText: "对比矩阵初稿已按五维度铺开。",
+            lastTool: "write_file: 竞品对比矩阵.md",
+            toolCalls: 3,
+            createdAt: day(1, 20),
+            updatedAt: day(1, 16),
+          },
+          {
+            ref: "sa_20260817_120000_0000000004_d4d4d4d4",
+            status: "completed" as const,
+            model: "deepseek-v4-flash",
+            task: "汇总三家竞品的定价与部署形态",
+            lastText: "三家竞品定价集中在按席位订阅模式。",
+            lastTool: "web_search: 竞品定价 2026",
+            toolCalls: 4,
+            createdAt: day(1, 25),
+            updatedAt: day(1, 20),
+          },
+          {
+            ref: "sa_20260817_113000_0000000003_c3c3c3c3",
+            status: "running" as const,
+            task: "子任务：对比三家竞品表格交互",
+            lastText: "正在对比三家竞品的表格选中→图表链路…",
+            lastTool: "web_fetch: https://example.com/table-agent",
+            toolCalls: 2,
+            createdAt: day(1, 40),
+            updatedAt: day(0, 2),
+          },
           {
             ref: "sa_20260817_110000_0000000002_b2b2b2b2",
             status: "running",

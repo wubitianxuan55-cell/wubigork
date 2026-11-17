@@ -7,11 +7,13 @@ export const FLEET_CARD_GUTTER = 10;
 export const FLEET_CARD_HEIGHT = 92;
 export const FLEET_LEVEL_HEIGHT = 136;
 export const FLEET_STAGE_PAD_Y = 32;
-// D2 折行（dsh Tasks tasks-graph-layout 蒸馏）：可读下限 0.78——宁可折行也
-// 不把整图缩到 0.78 以下；折行上限 4 列（上游 maxBandCols 默认 4）。判列
-// 槽位按最小卡（160+10）算，让 360px→2 列、720px→4 列与上游口径一致；
-// 实际卡宽随容器按所选列数摊开（≤232 时行宽仍不超容器）。
-export const FLEET_FIT_MIN_SCALE = 0.78;
+// D2 折行（dsh Tasks tasks-graph-layout 蒸馏）：折行上限 4 列（上游
+// maxBandCols 默认 4）；卡宽钳在 [MIN, MAX] 摊开容器宽——列数按**实际卡宽**
+// 可行性判（行宽必须不超容器）：判列槽位若固定用 MIN 槽，窄容器会选出放
+// 不下的列数（556px 选 4 列=680 溢出，实弹走查逮住后改为逐列迭代）。
+// 上游 0.78 可读下限在本算法里由「卡宽钳不下探 + 画布恒 1:1」隐式满足
+// （卡宽下限 160 / 上限 232 ≈ 0.69 最差比值出现在单列窄容器，宁溢一张卡
+// 的宽度也不把卡片压到不可读——该极端仅在容器 <2×MIN 槽时出现）。
 export const FLEET_BAND_MAX_COLS = 4;
 // D2 活动行尾巴的高度估算（与 AgentTopology 卡片 tail 区 CSS 一致）：
 // lastText 两行（line-clamp 2）+ lastTool 单行省略。行距按模型里最高卡片
@@ -84,15 +86,19 @@ export function cardHeightOf(node: { kind?: AgentNode["kind"]; lastText?: string
   );
 }
 
-// bandColsFor 折行列数：在 ≥FLEET_FIT_MIN_SCALE 的可读缩放下能放下的最多
-// 列数（判列槽位=最小卡），360px→2 列、720px→4 列，封顶 FLEET_BAND_MAX_COLS。
+// bandColsFor 折行列数：从最宽列数逐级收窄，取「按钳制后卡宽摊开的行宽
+// 不超容器」的最大列数——360px→2 列、556px→3 列、720px→4 列，封顶
+// FLEET_BAND_MAX_COLS。
 export function bandColsFor(containerWidth: number): number {
   if (!Number.isFinite(containerWidth) || containerWidth <= 0) return FLEET_BAND_MAX_COLS;
-  const slot = FLEET_CARD_WIDTH_MIN + FLEET_CARD_GUTTER;
-  const budget = containerWidth / FLEET_FIT_MIN_SCALE;
-  let cols = 1;
-  while (cols < FLEET_BAND_MAX_COLS && (cols + 1) * slot <= budget) cols += 1;
-  return cols;
+  for (let cols = FLEET_BAND_MAX_COLS; cols > 1; cols -= 1) {
+    const card = Math.max(
+      FLEET_CARD_WIDTH_MIN,
+      Math.min(FLEET_CARD_WIDTH_MAX, Math.floor(containerWidth / cols) - FLEET_CARD_GUTTER),
+    );
+    if (cols * (card + FLEET_CARD_GUTTER) <= containerWidth) return cols;
+  }
+  return 1;
 }
 
 // bandCardWidth 折行后的实际卡宽：按所选列数摊开容器宽，夹在 [MIN, MAX]。
@@ -174,7 +180,9 @@ export function layoutFleetTopology<T extends FleetTopologyNode>(entries: T[], s
       let x = xLeft + (block.width - rowWidthOf(row)) / 2;
       for (const child of row) {
         place(child, x, rowY);
-        x += child.width + FLEET_CARD_GUTTER;
+        // slot（块宽）已含右侧 gutter，步进不再另加——与 rowWidthOf 同口径
+        //（步进另加会把行尾卡推出画布，实弹走查逮住：done 聚合卡右缘出界）。
+        x += child.width;
       }
       rowY += row.reduce((max, child) => Math.max(max, child.totalHeight), 0) + FLEET_LEVEL_GAP;
     }

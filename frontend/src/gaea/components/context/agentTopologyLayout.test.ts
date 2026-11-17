@@ -80,8 +80,9 @@ describe("agentTopologyLayout", () => {
     expect(nodes.find((entry) => entry.node.id === "sa_2")?.family).toBe(1);
   });
 
-  it("band cols follow the readable floor: 360px→2 cols, 720px→4 cols", () => {
+  it("band cols follow the readable floor: 360px→2, 556px→3, 720px→4 cols", () => {
     expect(bandColsFor(360)).toBe(2);
+    expect(bandColsFor(556)).toBe(3);
     expect(bandColsFor(720)).toBe(4);
     expect(bandColsFor(0)).toBe(4);
     const card = bandCardWidth(720);
@@ -104,9 +105,10 @@ describe("agentTopologyLayout", () => {
   });
 
   it("folds wide sibling bands instead of expanding canvas width", () => {
-    for (const stageWidth of [360, 720]) {
+    for (const stageWidth of [360, 556, 720]) {
       const layout = layoutAgentTopology(fanoutNetwork(20), stageWidth);
-      // 画布不横向溢出（此前 width = max(measured, content) 只会把画布撑宽）。
+      // 画布不横向溢出（此前 width = max(measured, content) 只会把画布撑宽；
+      // 556px 4 列溢出走查案例并入 360/720 同一断言面）。
       expect(layout.width).toBeLessThanOrEqual(stageWidth);
       // 全部节点落在画布内。
       expect(

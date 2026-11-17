@@ -138,7 +138,12 @@ export function AgentTopology({
     const element = stageRef.current;
     if (element === null) return undefined;
     const measure = () => {
-      const width = element.getBoundingClientRect().width;
+      // 测 content box（clientWidth 含 padding，须扣除）——canvas 活在
+      // padding 内侧，按 border-box 量会让画布比内容盒宽出两侧 padding
+      //（实弹走查：stage 534 / canvas 534 → scrollWidth 554 溢出 20px）。
+      const style = getComputedStyle(element);
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const width = element.clientWidth - padX;
       if (width > 0) setStageWidth(width);
     };
     measure();
