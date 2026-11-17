@@ -143,7 +143,7 @@ type ModelInfo struct {
 	Currency      string   `json:"currency,omitempty"`       // "CNY" | "USD"
 	Unit          string   `json:"unit,omitempty"`           // 空=tokens 每百万；"call"=每次；"minute"=每分钟
 	Free          bool     `json:"free,omitempty"`           // 官方免费档（费用恒 0）
-	Caps          []string `json:"caps,omitempty"`           // 能力标记：vision/tools/reasoning/search/json（宁缺勿滥，官方未列不填）
+	Caps          []string `json:"caps,omitempty"`           // 能力标记：vision/tools/reasoning/search/json（宁缺勿滥，官方未列不填）；managed 本地引擎按 mmproj 在位标注 vision（2026-11-18）
 	PriceNote     string   `json:"price_note,omitempty"`     // 价格口径备注（如官方只给相对价）
 	PointsIn      float64  `json:"points_in,omitempty"`      // coding 套餐积分系数：输入（积分=(输入×In+缓存×Cached+输出×Out)/10000）
 	PointsCached  float64  `json:"points_cached,omitempty"`  // coding 套餐积分系数：缓存命中

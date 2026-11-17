@@ -8,6 +8,7 @@ package app
 // 而不是被 /v1/models 当前只返回一条所限制。
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -47,6 +48,26 @@ type engineProfileOption struct {
 	MMProj        string `json:"-"` // whirl 档位可选 vision 编码器 GGUF（文件缺失时降级跳过）
 }
 
+// managedProfileMmprojPath 档位 vision 编码器（mmproj）文件路径：统一模型根
+// 优先、历史 base 根回退（llama qwen35 双布局兼容）；两处都缺=空串（纯文本
+// 档位，识图不得跟随）。whirl/llama 共用单副本文件。
+func managedProfileMmprojPath(p engineProfileOption) string {
+	return managedProfileMmprojPathIn(voiceV2ModelsRoot, filepath.Join(voiceV2LegacyBaseRoot, "models"), p)
+}
+
+func managedProfileMmprojPathIn(root, legacyRoot string, p engineProfileOption) string {
+	if p.MMProj == "" || p.ModelDir == "" {
+		return ""
+	}
+	for _, base := range []string{root, legacyRoot} {
+		candidate := filepath.Join(base, p.ModelDir, p.MMProj)
+		if voiceV2FileExists(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
 func managedCatalogModels(profiles []engineProfileOption, served []string, activeProfile string) []modelengine.ModelInfo {
 	activeID := ""
 	if len(served) > 0 {
@@ -62,11 +83,19 @@ func managedCatalogModels(profiles []engineProfileOption, served []string, activ
 				id = activeID
 			}
 		}
+		// 能力标注（2026-11-18 识图修复）：带 vision 编码器且文件在位的档位
+		// 标 caps=vision——识图跟随链（visionChatFollowRoute）据此免把图喂给
+		// 纯文本 llama-server；文件缺失（被删/换布局）即降级，自我愈合。
+		var caps []string
+		if managedProfileMmprojPath(p) != "" {
+			caps = []string{"vision"}
+		}
 		out = append(out, modelengine.ModelInfo{
 			ID:     id,
 			Name:   p.Label,
 			Kind:   "llm",
 			Status: status,
+			Caps:   caps,
 		})
 	}
 	return out

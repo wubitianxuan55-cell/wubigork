@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"image/png"
+	"slices"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/vision"
@@ -111,6 +112,14 @@ func (c *core) visionChatFollowRoute() (engine, model, source string, ok bool) {
 		}
 		for _, m := range e.Models {
 			if m.Kind == "llm" && m.Status == "running" {
+				// 识图能力闸（2026-11-18 修复）：目录未标注 caps=vision 的运行
+				// 档位（无 mmproj 的纯文本 llama 档）接不了图——识图跟随会
+				// 把图喂给纯文本 llama-server 必坏，改走 herdsman 兜底链。
+				// 目录 caps 由 managedCatalogModels 按 mmproj 文件在位标注，
+				// 文件缺失即降级，自我愈合。
+				if !slices.Contains(m.Caps, "vision") {
+					break
+				}
 				return chatEng, m.ID, "chat-follow", true
 			}
 		}

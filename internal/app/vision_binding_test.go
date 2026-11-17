@@ -156,8 +156,10 @@ func seedLlama(t *testing.T, c *core, running string) {
 	if running != "" {
 		status = "running"
 	}
+	// 2026-11-18 起目录按 mmproj 在位标注 caps=vision（qwen35 档带编码器），
+	// 识图跟随链的能力闸读这份标注——种子与真实目录形状对齐。
 	models := []modelengine.ModelInfo{
-		{ID: "qwen35", Kind: "llm", Status: status},
+		{ID: "qwen35", Kind: "llm", Status: status, Caps: []string{"vision"}},
 	}
 	if err := c.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "llama", Enabled: true, Models: models}); err != nil {
 		t.Fatalf("seedLlama: %v", err)

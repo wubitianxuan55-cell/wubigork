@@ -23,9 +23,13 @@ const (
 	// whirlfix2：张量手术版（仅 blk.40 两个 BF16 router→F32，权重位级无损，
 	// llama/WHIRL 双引擎兼容）。2026-11-11 起成为唯一 35B 文件（原件已删，
 	// 单副本原则——llama 8124 与 WHIRL 8126 服务同一份文件）。
-	qwen35ModelFile       = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2-whirlfix2.gguf"
-	qwen35CtxSize         = 32768 // 语音+聊天共用：语音短轮足够，聊天留增长余量
-	qwen35HealthScript    = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
+	qwen35ModelFile    = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-MTP-r2-whirlfix2.gguf"
+	qwen35CtxSize      = 32768 // 语音+聊天共用：语音短轮足够，聊天留增长余量
+	qwen35HealthScript = `{"model":"qwen35","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
+	// qwen35MmprojFile 35B 档位 vision 编码器（与 WHIRL 共用同一文件，单副本
+	// 原则）。2026-11-18 识图修复：llama 8124 此前不带 --mmproj 起服务——办公
+	// 聊天绑 llama 档时识图跟随链把图喂给纯文本 llama-server，识图必坏。
+	qwen35MmprojFile      = "mmproj-Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-f16.gguf"
 	gemma4_26BModelDir    = "gemma-4-26b-a4b-it-qat"
 	gemma4_26BModelFile   = "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf"
 	gemma4_26BMTPFile     = "mtp-gemma-4-26B-A4B-it.gguf"
@@ -55,6 +59,7 @@ var llamaProfiles = []engineProfileOption{
 		ModelID:       "qwen35",
 		ModelDir:      "qwen35-uncensored",
 		ModelFile:     qwen35ModelFile,
+		MMProj:        qwen35MmprojFile,
 		SpecType:      "draft-mtp",
 		SpecDraftNMax: 3,
 		CtxSize:       qwen35CtxSize,
@@ -90,6 +95,40 @@ func llamaProfileDraftModelPath(p engineProfileOption) string {
 		return ""
 	}
 	return filepath.Join(voiceV2ModelsRoot, p.ModelDir, p.DraftModel)
+}
+
+// llamaServerArgs 组装 llama-server 启动参数（纯函数，可测）：基础推理参数 +
+// 可选 chat template + 推测解码 + **可选 --mmproj**（档位带 vision 编码器且
+// 文件在位才加——2026-11-18 识图修复：qwen35 档此前不带 mmproj，办公聊天绑
+// llama 时识图跟随链把图喂给纯文本服务，识图必坏）。文件存在性由调用方
+// （llamaEnsure 的 model/draft 校验 + managedProfileMmprojPath）保证。
+func llamaServerArgs(p engineProfileOption, model, draftModel, mmproj string, ctxSize int) []string {
+	if ctxSize <= 0 {
+		ctxSize = qwen35CtxSize
+	}
+	args := []string{
+		"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", qwen35Port),
+		"--jinja", "-m", model, "-ngl", "99",
+		"--ctx-size", strconv.Itoa(ctxSize),
+		"--reasoning", "off", "-np", "1", "--cache-reuse", "256",
+		"--alias", p.ID,
+	}
+	if p.ChatTemplate != "" && voiceV2FileExists(p.ChatTemplate) {
+		args = append(args, "--chat-template-file", p.ChatTemplate)
+	}
+	if p.SpecType != "" {
+		args = append(args, "--spec-type", p.SpecType)
+		if draftModel != "" {
+			args = append(args, "-md", draftModel, "--spec-draft-ngl", "99")
+		}
+		if p.SpecDraftNMax > 0 {
+			args = append(args, "--spec-draft-n-max", strconv.Itoa(p.SpecDraftNMax))
+		}
+	}
+	if mmproj != "" {
+		args = append(args, "--mmproj", mmproj)
+	}
+	return args
 }
 
 // llamaProfileFromModels 把 llama-server 的 served id（稳定别名或 GGUF
@@ -261,25 +300,7 @@ func (a *App) llamaEnsure(profileID string) map[string]interface{} {
 	if ctxSize <= 0 {
 		ctxSize = qwen35CtxSize
 	}
-	args := []string{
-		"--host", "127.0.0.1", "--port", fmt.Sprintf("%d", qwen35Port),
-		"--jinja", "-m", model, "-ngl", "99",
-		"--ctx-size", strconv.Itoa(ctxSize),
-		"--reasoning", "off", "-np", "1", "--cache-reuse", "256",
-		"--alias", p.ID,
-	}
-	if p.ChatTemplate != "" && voiceV2FileExists(p.ChatTemplate) {
-		args = append(args, "--chat-template-file", p.ChatTemplate)
-	}
-	if p.SpecType != "" {
-		args = append(args, "--spec-type", p.SpecType)
-		if draftModel != "" {
-			args = append(args, "-md", draftModel, "--spec-draft-ngl", "99")
-		}
-		if p.SpecDraftNMax > 0 {
-			args = append(args, "--spec-draft-n-max", strconv.Itoa(p.SpecDraftNMax))
-		}
-	}
+	args := llamaServerArgs(p, model, draftModel, managedProfileMmprojPath(p), ctxSize)
 	cmd, err := detachedCmd(voiceV2LLMBinPath(), args, "")
 	if err != nil {
 		return map[string]interface{}{
