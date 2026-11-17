@@ -1,3 +1,64 @@
+## DSH 子代理蒸馏首批 D1–D6 · 编队拓扑会话化+折行+折叠+aborted+单闸+独立 Stop（2026-11-18）
+
+按 `docs/gaea-dsh-distill-plan-01-2026-11.md`（dsh-v0.2.2-rc.1 对账基线，逆向证据包
+`C:\AI\dsh-subagent-reverse\`）首批 D1–D7 全处置，三笔提交（015730c9/665b6450/0f6897a1），未 push 未装机未构建 Wails。
+
+- **门 2 验证（开工首验，已写回计划 §4·D1）**：gaea 后端可读父子——spawn 时 ctx 已盖
+  `withSubagentSessionID`（task.go:515），`SubagentMeta` 直写 `parentRef`/`spawnCallId`
+  （applySnapshot 一次写定）即可，无需日志扫描路线；ephemeral 父（`sa_ephemeral_*`）
+  落空按主会话降级，`continue_from` 不改血缘。三条派发路径同批盖章
+  （task Execute 新鲜派发/RunNew 宿主/persisted_run 技能路径补 ctx 盖章——技能子代理此前
+  不盖会话 ID，嵌套派生会误记到主会话头上）。
+- **D1 编队拓扑会话化**（`buildSessionNetwork` in gaea_ui_contextview.go）：runs 携带血缘
+  盖章时以**子代理会话**为骨架建树（id=sa_ ref、parentRef 嵌套、ghost 父降级 root、
+  孤儿 legacy 节点保留=「任何派发过的 agent 都可见」不变量）；spawnCallId **精确**联结
+  事件日志工具调用树迁移统计（替代前端 matchRun 与后端 runMatchesNode 的任务前缀互含
+  同款病灶）；lastText/lastTool/model 直达节点；无盖章旧数据回落 legacy 富化逐字节不变。
+  前端删 matchRun、statusLabel 四态、root 卡选中归一 main（Fleet knownRefs 联动修复——
+  此前拓扑点击 root/工具调用 ID 节点会被 knownRefs 校验清态）。
+- **D2 折行布局**（agentTopologyLayout.ts 重写）：bandColsFor 0.78 可读下限
+  （360px→2 列/720px→4 列，判列槽位=最小卡）、bandCardWidth 随列摊开、行距按最高卡实测
+  （cardHeightOf 活动行尾巴计价：lastText 两行+lastTool 单行）；**gutter 双计 bug**
+  当场自逮（slot 已含 gutter 行宽再另加=720px 4 列 750 溢出）。画布不再
+  `width=max(measured,content)` 撑宽，20+ 子代理 360/720 两宽无横向滚动。
+- **D3 折叠聚合**（fleetModel.ts）：done/idle 两类聚合卡；FOLD_IDLE_MIN=3 上游逐字，
+  **done≥4 为 gaea 规模偏差留档**（典型会话 2–5 个子代理，≥2 就折会把常见小会话的
+  已结算卡藏进聚合卡——Fleet 集成测试当场逮住）；foldGroupId 稳定组 id、手折
+  （foldedIds）优先于组展开（chevron 不失效）、running/活跃分支永不折、展开态聚合卡
+  保留作收起入口；50 节点树收敛到 4-5 卡。
+- **D4 aborted 结算词汇**：`classifySubagentStop`（P1-C 批既有）只覆盖模型面，meta/UI
+  侧中断仍落 failed。根修=中断错误带 `%w context.Canceled` 从 runSubAgentInternal
+  逃逸到全部终态写路径，新增 `SubagentAborted`（SaveAborted）：interrupt_agent/独立
+  Stop/回合取消不再冒充「出错」；排队中取消同落 aborted；aborted 可续跑；追问中止写
+  中性摘要「用户停止：本轮追问已中止」；max-tokens/refusal 维持宁缺勿虚报不造轴
+  （判定留档）。三处测试断言同步（interrupt×2/queued-cancel×1）。
+- **D5 单闸补齐**：实锤 RunNew（DAG 宿主节点）/runFollowUp（追问）绕过并发闸
+  （acquireSubSlot 仅 3 调用点）——补 acquireSubSlot+MarkQueued，单闸不变量成立
+  （上游是两池性质错配+超限 fatal，gaea 是单闸+排队可见，实缺口是绕行）；
+  行为锁 `TestRunNewRespectsParallelGate`（槽满必排队+queued 侧车+槽释放起跑）。
+- **D6 独立 Stop**：新绑定 `GaeaSubagentStop`（后端 InterruptSubagent 早已存在+工具面
+  覆盖，只差 bridge）——OfficeB 门面+bindingNames/signatures/mappings/core.ts/
+  spaceBindings(work)+gen_bindings 再生 711 方法+TestBindingsCompleteness 绿；
+  SubagentThread 头部 Stop 钮（running/queued 可见、mt_/终态隐藏，fire-and-return
+  与 TaskCancel 同契约）+2 新用例。**wenxue 镜像同批移植**：SubagentThread 逐字节
+  同步（改前两树同源）、ChatTabs/useSubagentTabs 状态词汇、中断按 ref 全局寻址
+  （agent 包 subRuns 双引擎同进程共用）直用 GaeaSubagentStop 不设 Wenxue* 换锚、
+  locales 三语补 statusAborted/stopTitle。
+- **D7 留档不立项（带证据）**：gaea 缓存存原始 LogEntry（size+mtime 失效、折叠每次
+  现算），无上游「投影缓存跨格式静默错读」面；格式演进走读端宽容降级。判定写回
+  计划 §4·D7。**D8 双视图**未动（P2 demand-gated）。剩余拍板门=计划 §7 门 1
+  （rc.1 client 609 文件 UI 复核）。
+- **mock 补刀（第三笔 0f6897a1）**：全量 vitest 契约锁（X1-11 漏 mock fail-closed）
+  逮住 D6 绑定漏 dev mock——「expected 711 to be 710」+「漏 mock 即红」双例红；
+  补办公/wenxue 两树 SubagentStop 桩+types union+防御计数 710→711/701→702。
+  **新绑定六面纪律记档**（门面/bindingNames/bindingSignatures/mappings/spaceBindings/
+  dev mock），定向跑对漏面假绿又一实证。
+- **门禁终值**：go vet 0；agent 包全量+app 包 117s+trajectory 全绿（新增 parentref/
+  组树/gate 行为锁 8 例）；前端 tsc -b 0、改动面 ESLint 0 error（ChatTabs react-refresh
+  warning=既有同名款）、**全量 vitest 495 文件/4467 例全绿（252.79s，两轮：首轮 2 红=
+  mock 漏面→补刀→复跑全绿）**。**未构建 Wails/未装机/未 push**（wailsjs 再生留到
+  下次构建随 bindings 面一起）。
+
 ## codex 蒸馏第四批 · Git 打包与桌面构建（2026-11-17）
 
 - **代码/交付点**：Wave 1 `0d42c3fb` + Wave 2+3 `2a11f08a`（本包锚定后者）+
