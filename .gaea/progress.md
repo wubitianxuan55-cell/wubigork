@@ -1,3 +1,22 @@
+## 编队 UI 完善批 · D8 双视图+深度色带+节点详情浮层（2026-11-18）
+
+DSH 蒸馏计划 01 的 UI 尾款一批收口（`c8f0e2e9`，构建装机 exe 新 PID 34288，未 push）：
+
+- **D8 TREE 双视图**：`FleetTree.tsx` 缩进树渲染器复用 `buildFleetModel` 同一 pre-order
+  节点表——选中态/折叠态/过滤联动全在模型层，头部 GRAPH/TREE 双钮切换零状态丢失；
+  折叠卡在树中以聚合行同款语义呈现（chevron/错误计数/预览一致）。
+- **深度色带**（08 包 P0 尾款）：`depthHue` 五色轮换、卡片与树行左缘按层同色（root 与
+  主 agent 家系紫同源），家系色保留连线——血缘/层读双维不打架。
+- **ⓘ 节点详情浮层**（08 包 P2）：卡片 hover ⓘ→画布层浮层（状态/模型/历时/工具数/
+  错误/token/成本/消息数/最近工具/最近输出），行词汇全复用 radial*/msgCount/elapsed
+  既有键，横向钳制不溢出，再点即收。
+- **U5 待核销号**：`TriggerSubagent` 前端零渲染实锤（仅 compactedMeta 文案占位）——
+  词汇已备渲染面留档待需求。wenxue 无 Fleet/AgentTopology 消费面（仅 locale parity
+  五键同步）。i18n 新增 fleet.viewGraph/viewTree/info/cost/lastOutput ×3 语。
+- 门禁：context 族 118/118（三跑两绿一红，红例未留痕零交集定性负载期偶发）；
+  tsc -b 0、改动面 ESLint 0；wailsjs 零漂移（纯 UI 批无绑定面）；前端 30.74s+
+  冒烟 200+INSTALL OK（exe 新 PID 34288>构建时刻 01:13:33）。
+
 ## DSH 子代理蒸馏首批 D1–D6 · 编队拓扑会话化+折行+折叠+aborted+单闸+独立 Stop（2026-11-18）
 
 按 `docs/gaea-dsh-distill-plan-01-2026-11.md`（dsh-v0.2.2-rc.1 对账基线，逆向证据包
