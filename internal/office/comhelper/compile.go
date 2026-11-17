@@ -153,6 +153,7 @@ func buildHelper() (string, error) {
 	args = append(args, srcPath)
 
 	cmd := exec.Command(csc, args...)
+	cmd.Env = proc.CommandEnv()
 	proc.HideWindow(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

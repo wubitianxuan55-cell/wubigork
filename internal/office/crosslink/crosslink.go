@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -145,6 +146,7 @@ func GenerateChartPNG(labels []string, values []float64, chartType, title, outpu
 		_ = os.MkdirAll(dir, 0o755)
 	}
 	cmd := exec.Command(python, "-c", chartScript)
+	cmd.Env = proc.CommandEnv()
 	hideWindow(cmd)
 	cmd.Stdin = bytes.NewReader(input)
 	var stderr bytes.Buffer

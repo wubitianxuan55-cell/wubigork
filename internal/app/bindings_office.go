@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/gaea/gaea/internal/gaea/browser"
 	"github.com/gaea/gaea/internal/gaea/contextview"
+	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/dag"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -29,6 +30,8 @@ func (b *OfficeB) GaeaAgentNetwork(sessionPath string) (trajectory.AgentNetwork,
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
 func (b *OfficeB) GaeaApprove(id string, decision string) { b.a.GaeaApprove(id, decision) }
+func (b *OfficeB) GaeaApproveDenied(id string) { b.a.GaeaApproveDenied(id) }
+func (b *OfficeB) GaeaApproveWithReason(id string, decision string, reason string) { b.a.GaeaApproveWithReason(id, decision, reason) }
 func (b *OfficeB) GaeaArchiveSession(path string) error { return b.a.GaeaArchiveSession(path) }
 func (b *OfficeB) GaeaAttachmentChunkAbort(token string) error { return b.a.GaeaAttachmentChunkAbort(token) }
 func (b *OfficeB) GaeaAttachmentChunkAppend(token string, base64Chunk string) error { return b.a.GaeaAttachmentChunkAppend(token, base64Chunk) }
@@ -132,6 +135,7 @@ func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (m
 func (b *OfficeB) GaeaOpenDownloadPage() error { return b.a.GaeaOpenDownloadPage() }
 func (b *OfficeB) GaeaOpenLogsDir() error { return b.a.GaeaOpenLogsDir() }
 func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error { return b.a.GaeaOpenWorkspacePath(rel) }
+func (b *OfficeB) GaeaPendingDeniedActions() []control.DeniedActionInfo { return b.a.GaeaPendingDeniedActions() }
 func (b *OfficeB) GaeaPickDirectory() string { return b.a.GaeaPickDirectory() }
 func (b *OfficeB) GaeaPickFiles(filters string) []FilePickResult { return b.a.GaeaPickFiles(filters) }
 func (b *OfficeB) GaeaPickWorkspace() string { return b.a.GaeaPickWorkspace() }

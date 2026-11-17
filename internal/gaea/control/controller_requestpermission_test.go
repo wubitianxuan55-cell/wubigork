@@ -155,7 +155,7 @@ func TestRequestPermissionGrantFeedsNormalGate(t *testing.T) {
 	}
 
 	// 闸门路径：匹配规则的调用自然放行，且没有新卡（走 granted 短路而非弹卡）。
-	allow, remember, err := gateApprover{h.c}.Approve(ctx, "bash", "go build ./...", nil)
+	allow, remember, _, err := gateApprover{h.c}.Approve(ctx, "bash", "go build ./...", nil)
 	if err != nil || !allow {
 		t.Fatalf("规则覆盖的闸门调用应放行: (%v,%v)", allow, err)
 	}
@@ -165,7 +165,7 @@ func TestRequestPermissionGrantFeedsNormalGate(t *testing.T) {
 	// 不匹配的 subject：仍走正常闸门弹卡（规则没有放大授权面）。
 	blocked := make(chan bool, 1)
 	go func() {
-		allow, _, _ := gateApprover{h.c}.Approve(ctx, "bash", "curl evil.example", nil)
+		allow, _, _, _ := gateApprover{h.c}.Approve(ctx, "bash", "curl evil.example", nil)
 		blocked <- allow
 	}()
 	card2 := h.waitCard(t, "未覆盖 subject")

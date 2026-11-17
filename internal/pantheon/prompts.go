@@ -120,6 +120,13 @@ func contributionContract() string {
 }
 
 func toolPolicy(agent AgentStatus) string {
+	// T15 文件席位：角色文件的 description 进席位引导（spawn 引导契约），
+	// 后接只读工具基线。persona 全文由后端注入模型 system prompt，这里只带
+	// 模型可读摘要，不重复两份。
+	if hasCapability(agent, "role-file") && strings.TrimSpace(agent.Description) != "" {
+		base := toolPolicy(AgentStatus{ID: agent.ID, Capabilities: nil})
+		return "【角色设定】\n" + strings.TrimSpace(agent.Description) + "\n\n" + base
+	}
 	if strings.EqualFold(agent.ID, "grok") {
 		return `【Gaea 办公工具】
 本席位由 Gaea 办公 AgentRunner 驱动，可使用当前注册表中的只读工具，包括工作区文件读取与搜索、本地识图/OCR、CAD 图纸读图、知识/记忆/事实检索和只读网络工具；领域规范与数据口径用 read_skill 按需加载。只调用与议题直接相关的工具并说明证据来源；不得写盘、改配置、安装软件、启动副作用服务或读取凭证。

@@ -46,7 +46,7 @@ func TestHardAskEmptySetPersistsRule(t *testing.T) {
 	c.persistAllowRule = func(rule string) error { rules <- rule; return nil }
 
 	go func() { c.Approve(<-ids, DecisionPersistAllow) }()
-	allow, remember, err := gateApprover{c}.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试"}`))
+	allow, remember, _, err := gateApprover{c}.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试"}`))
 	if err != nil || !allow || remember {
 		t.Fatalf("空集下 persist_allow = (%v,%v,%v), want allow", allow, remember, err)
 	}

@@ -6,10 +6,14 @@ package app
 // 配置写入临时 USERPROFILE/HOME（SetActiveEngine 落盘走 config.Save）。
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/agent"
+	"github.com/gaea/gaea/internal/gaea/control"
+	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
@@ -153,5 +157,41 @@ func TestGaeaSetModelEngineModel(t *testing.T) {
 	}
 	if eng := a.GetActiveEngine(); eng != "deepseek" {
 		t.Errorf("失败切换不应改变活跃引擎，got %q", eng)
+	}
+}
+
+// T9 硬验收④：切到更小窗口模型时走「压缩入口 → 更新执行器窗口 → 再请求」，
+// runner 未重建也能按新模型水位继续自动压缩。
+func TestGaeaSetModelUpdatesCompactionWindow(t *testing.T) {
+	a := modelsTestApp(t)
+	a.ctx = context.Background()
+	if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{
+		ID: "herdsman", Enabled: true, DefaultModel: "big",
+		Models: []modelengine.ModelInfo{
+			{ID: "big", Kind: "llm", ContextLength: 100_000},
+			{ID: "small", Kind: "llm", ContextLength: 32_000},
+		},
+	}); err != nil {
+		t.Fatalf("SaveEngine: %v", err)
+	}
+	exec := agent.New(nil, nil, agent.NewSession("sys"), agent.Options{
+		Compaction: agent.CompactionConfig{Window: 100_000, Ratio: 0.8, RecentKeep: 3},
+	}, event.Discard)
+	ctrl := control.New(control.Options{Executor: exec, Sink: event.Discard})
+	ga.mu.Lock()
+	old := ga.ctrl
+	ga.ctrl = ctrl
+	ga.mu.Unlock()
+	t.Cleanup(func() {
+		ga.mu.Lock()
+		ga.ctrl = old
+		ga.mu.Unlock()
+	})
+
+	if err := a.GaeaSetModel("herdsman/small"); err != nil {
+		t.Fatalf("GaeaSetModel: %v", err)
+	}
+	if got := exec.ContextWindow(); got != 32_000 {
+		t.Fatalf("切换后执行器窗口 = %d, want 32000", got)
 	}
 }

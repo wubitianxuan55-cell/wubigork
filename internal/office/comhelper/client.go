@@ -178,6 +178,7 @@ func (c *Client) ensureLocked(ctx context.Context) error {
 		cmd, stdin, stdout, stderr, spawnErr = c.testHookSpawn(exe)
 	} else {
 		cmd = exec.Command(exe)
+		cmd.Env = proc.CommandEnv()
 		proc.HideWindow(cmd)
 		in, inErr := cmd.StdinPipe()
 		out, outErr := cmd.StdoutPipe()

@@ -48,18 +48,21 @@ const (
 	// fires when a `task` sub-agent finishes. Notification fires when the agent
 	// needs the user's attention (e.g. a pending approval). PreCompact fires just
 	// before a compaction pass; its stdout is injected as extra summary guidance.
+	// PostCompact fires just after a compaction pass completes（codex 蒸馏 T9，
+	// 生命周期收尾）——压缩已发生、回合已中止与否都可见。
 	SessionStart Event = "SessionStart"
 	SessionEnd   Event = "SessionEnd"
 	SubagentStop Event = "SubagentStop"
 	Notification Event = "Notification"
 	PreCompact   Event = "PreCompact"
+	PostCompact  Event = "PostCompact"
 )
 
 // Events is every event, in a stable order — drives loading and `/hooks`.
 var Events = []Event{
 	PreToolUse, PostToolUse, UserPromptSubmit, Stop,
 	PostLLMCall,
-	SessionStart, SessionEnd, SubagentStop, Notification, PreCompact,
+	SessionStart, SessionEnd, SubagentStop, Notification, PreCompact, PostCompact,
 }
 
 // IsBlocking reports whether a non-zero/exit-2 (or timed-out) hook on this event
@@ -424,6 +427,10 @@ func DefaultSpawner(ctx context.Context, in SpawnInput) SpawnResult {
 	}
 	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	cmd.Dir = in.Cwd
+	// T2 确定性环境（审计补 2026-11-17）：hook 输出会注入模型上下文
+	// （PreCompact 指引/通知文案），与 bash 工具同源——同样过 CommandEnv
+	// 唯一合并口（GAEA_EXEC_ENV_RAW=1 阀门同样适用，排查用）。
+	cmd.Env = proc.CommandEnv()
 	cmd.Stdin = strings.NewReader(in.Stdin)
 	var outBuf, errBuf cappedBuffer
 	cmd.Stdout = &outBuf

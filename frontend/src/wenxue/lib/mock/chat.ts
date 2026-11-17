@@ -9,6 +9,7 @@ import type { HistoryMessage, QuestionAnswer } from "../types";
 type ChatMethods = Pick<
   AppBindings,
   | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
+  | "ApproveWithReason" | "PendingDeniedActions" | "ApproveDenied"
   | "GaeaRunning" | "NewSession"
   | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Rewind" | "Fork"
   | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide" | "SkillStats"
@@ -221,6 +222,19 @@ export function buildChat(s: MakeMockState): ChatMethods {
       emit({ kind: "message", text: reply });
       emitUsageTwice();
       emit({ kind: "turn_done" });
+    },
+    async ApproveWithReason(
+      id: string,
+      decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort",
+      _reason: string,
+    ) {
+      await this.Approve(id, decision);
+    },
+    async PendingDeniedActions() {
+      return [] as import("../types").WireDeniedAction[];
+    },
+    async ApproveDenied(_id: string) {
+      /* mock：图文 dev 场景无待追认历史 */
     },
     async AnswerQuestion(_id: string, _answers: QuestionAnswer[]) {
       if (pendingFlow !== "ask") return;

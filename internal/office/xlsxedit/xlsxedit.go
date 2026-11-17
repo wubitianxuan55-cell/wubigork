@@ -623,6 +623,7 @@ func Recalc(path, workspaceRoot string) (RecalcReport, error) {
 		return RecalcReport{}, fmt.Errorf("未找到 recalc.py（.gaea/skills/xlsx/scripts）")
 	}
 	cmd := exec.Command("python", script, path, "60")
+	cmd.Env = proc.CommandEnv()
 	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.CombinedOutput()
 	if err != nil {

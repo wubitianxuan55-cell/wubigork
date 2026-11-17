@@ -25,6 +25,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/command"
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/guardian"
 	"github.com/gaea/gaea/internal/gaea/hook"
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/memory"
@@ -127,6 +128,11 @@ type Controller struct {
 	approvalTimeout time.Duration
 	// persistAllowRule 是「始终允许」的策略回写回调（见 Options 同名字段）。
 	persistAllowRule func(rule string) error
+	// deniedActions 是「待追认账本」（codex 蒸馏 T3）：拒绝/超时的审批动作
+	// 挂账留底，ApproveDenied 可按原参数重放一次审批（走正常闸门）。FIFO
+	// 封顶 deniedActionCap，超限滚掉最旧。由 mu 保护；重启即失（内存账本，
+	// 跨会话持久化未做，见 progress 记档）。
+	deniedActions []deniedAction
 	// hardAskTools 是逐条强制审批工具集（S1.5-A 按空间策略参数化）：构造时
 	// 从 Options.HardAskTools 快照，nil = 包级默认集（见 hardAskSet）。构造后
 	// 不可变，读不加锁。
@@ -135,6 +141,10 @@ type Controller struct {
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
 	permLevel string
+
+	// approvalMode 是审批模式归一（codex 蒸馏 T4，Options.ApprovalMode 注入）：
+	// "never"=Ask 硬拒给理由；""/其他=现状。构造后不可变，读不加锁。
+	approvalMode string
 
 	// pendingMemory holds memory notes added mid-session (via "#" quick-add or a
 	// memory edit) that haven't yet been folded into a turn. Compose drains it
@@ -151,6 +161,27 @@ type Controller struct {
 	// pendingSends 是回合进行中排队等待的用户消息（T6-2.5 Send 排队），
 	// turnLoop 在每个回合结束后按序排空。由 mu 保护。
 	pendingSends []sendRequest
+
+	// argvRules 是会话级 argv 放行规则集（codex 蒸馏 T10，「记住这条命令」
+	// 的 Session 作用域）：promptApproval 放行时写入，gate 的 Ask 分支免审批。
+	// 会话实例生命周期 = 作用域（轮换即失效，与 granted 同级）。惰性创建。
+	argvRules *permission.ArgvRuleSet
+
+	// sectionDiff / sectionStore 是章节化差分（codex 蒸馏 T7）：开启后
+	// Compose 的 session-facts 注入走快照差分（不变零注入/变更替换通知/清空
+	// 移除通知）；关闭（默认）走原全量注入，行为逐字节不变。快照账本随会话
+	// 生命周期（构造即建，开关只决定是否使用）。
+	sectionDiff  bool
+	sectionStore *tiancontext.SectionStore
+
+	// guardian 是动作级自动评审（codex 蒸馏 T11）：nil=关闭（默认）。只在
+	// 常规 Ask 通道（gate）的用户卡之前预判；hardAsk/project 通道不走
+	// （逐条确认硬纪律）。由 mu 保护读。
+	guardian guardian.Reviewer
+	// guardianBreaker 是连续拒绝熔断器（评审只计数，中断由本控制器执行）。
+	guardianBreaker guardian.Breaker
+	// lastUserInput 是最近一条用户原话（Guardian 授权证据源，T11）。
+	lastUserInput string
 }
 
 // ApproveDecision 是审批回复的决策语义（C4，对齐 codex ReviewDecision 子集
@@ -168,6 +199,9 @@ const (
 
 type approvalReply struct {
 	decision string
+	// reason 是拒绝理由（codex 蒸馏 T3）：前端拒绝时可随决策带回一句话，
+	// 空则由 promptApproval 用默认文案兜底。放行决策不读此字段。
+	reason string
 }
 
 // grantedRule 是一条会话内批准的权限规则（request_permission）：
@@ -211,6 +245,17 @@ type Options struct {
 	Executor     *agent.Agent
 	Sink         event.Sink
 	Policy       permission.Policy
+	// ApprovalMode 是审批模式归一（codex 蒸馏 T4，[permissions].approval_mode）：
+	// "never"=绝不弹窗，Ask 一律硬拒绝并给理由（Gate.ApprovalMode）；""/其他=
+	// 现状。无人值守会话的部署档用。
+	ApprovalMode string
+	// SectionDiff 开启 Compose 注入的章节化差分（codex 蒸馏 T7）：session-facts
+	// 不变零注入/变更替换通知/清空移除通知。默认 false=全量注入（现状逐字节）。
+	SectionDiff bool
+	// Guardian 是动作级自动评审器（codex 蒸馏 T11）：nil=关闭（默认）。开启后
+	// 常规 Ask 通道在用户卡之前先评审——allow 放行（guardian 账本）、deny 带
+	// 理由拒绝（可追认）、评审失败回落用户卡（红线：错误不冒充风险）。
+	Guardian     guardian.Reviewer
 	Label        string
 	SystemPrompt string
 	SessionDir   string
@@ -266,6 +311,7 @@ func New(opts Options) *Controller {
 		executor:         opts.Executor,
 		sink:             sink,
 		policy:           opts.Policy,
+		approvalMode:     opts.ApprovalMode,
 		label:            opts.Label,
 		systemPrompt:     opts.SystemPrompt,
 		sessionDir:       opts.SessionDir,
@@ -287,6 +333,9 @@ func New(opts Options) *Controller {
 		pluginCtx:        pluginCtx,
 		ctxMgr:           opts.CtxMgr,
 		permLevel:        "ask",
+		sectionDiff:      opts.SectionDiff,
+		guardian:         opts.Guardian,
+		sectionStore:     tiancontext.NewSectionStore(),
 		approvalTimeout:  opts.ApprovalTimeout,
 		persistAllowRule: opts.PersistAllowRule,
 		hardAskTools:     opts.HardAskTools,
@@ -459,11 +508,19 @@ func (c *Controller) sendWithRaw(input, raw string, resetWake bool, trigger stri
 		c.mu.Unlock()
 	}
 	// v4.414.1 根修：桌面 Send 与 Submit 共用斜杠语义——内建动词/自定义命令/
-	// # 快记此前会被当普通文本开回合发给模型（真机走查实录发现）。
+	// # 快记此前会被当普通文本发给模型（真机走查实录发现）。
 	if c.dispatchSlash(strings.TrimSpace(input)) {
 		return
 	}
 	c.mu.Lock()
+	// T11 Guardian：记住最近一条用户原话（截 8KiB）——审批点的授权证据源
+	// （T6 ProvUser 是唯一常规可信授权来源）。
+	if u := strings.TrimSpace(input); u != "" {
+		if len(u) > 8<<10 {
+			u = u[:8<<10]
+		}
+		c.lastUserInput = u
+	}
 	if c.running {
 		if len(c.pendingSends) >= sendQueueLimit {
 			c.mu.Unlock()
@@ -756,16 +813,46 @@ func (c *Controller) Running() bool {
 	return c.running
 }
 
+// MaybeDownshiftCompact 为切到更小窗口模型提供「先压缩、后切换」入口
+// （codex 蒸馏 T9 硬验收④）。是否真正压缩由 AgentRunner 的 NewWindow 开关、
+// 新窗口与当前用量共同决定；未开启时返回 false,nil。
+func (c *Controller) MaybeDownshiftCompact(ctx context.Context, newWindow int) (bool, error) {
+	c.mu.Lock()
+	exec := c.executor
+	c.mu.Unlock()
+	if exec == nil {
+		return false, nil
+	}
+	return exec.MaybeDownshiftCompact(ctx, newWindow)
+}
+
+// SetContextWindow 在模型切换成功后同步执行器的压缩窗口。
+func (c *Controller) SetContextWindow(window int) {
+	c.mu.Lock()
+	exec := c.executor
+	c.mu.Unlock()
+	if exec != nil {
+		exec.SetContextWindow(window)
+	}
+}
+
 // Approve answers a pending ApprovalRequest by ID with an ApproveDecision
 // (allow_once / allow_session / persist_allow / deny / abort). Unknown/expired
 // IDs and unknown decision strings are ignored.
 func (c *Controller) Approve(id string, decision string) {
+	c.ApproveWithReason(id, decision, "")
+}
+
+// ApproveWithReason 同 Approve，拒绝时可附一句话理由（codex 蒸馏 T3）：
+// 理由经 approvalReply.promptApproval 回喂为工具结果文本「已拒绝：<理由>」，
+// 模型据此换方案而不是原样重试。放行决策忽略理由。
+func (c *Controller) ApproveWithReason(id string, decision string, reason string) {
 	c.mu.Lock()
 	reply := c.approvals[id]
 	delete(c.approvals, id)
 	c.mu.Unlock()
 	if reply != nil {
-		reply <- approvalReply{decision: decision} // buffered, never blocks
+		reply <- approvalReply{decision: decision, reason: reason} // buffered, never blocks
 	}
 }
 
@@ -776,14 +863,27 @@ func (c *Controller) Approve(id string, decision string) {
 // a nil asker from setup.
 func (c *Controller) EnableInteractiveApproval() {
 	if c.executor != nil {
-		g := permission.NewGate(c.policy, gateApprover{c})
-		g.AlwaysAsk = c.hardAskSet()
+		g := c.newGate()
 		c.executor.SetGate(g)
 		c.executor.SetAsker(c)
 		// request_permission：把 controller 接线为 PermissionRequester——
 		// 权限升级申请经既有审批卡通道弹卡，与工具闸门共用同一应答/超时语义。
 		c.executor.SetPermissionRequester(c)
 	}
+}
+
+// newGate 构造当前权限级别下的闸门（四个换级点共用，不许各写一份）：
+// AlwaysAsk 硬门 + 会话级 argv 规则集（T10「记住这条命令」的 Session 作用域）
+// + 审批模式归一（T4，never=Ask 硬拒）。
+func (c *Controller) newGate() *permission.Gate {
+	g := permission.NewGate(c.policy, gateApprover{c})
+	g.AlwaysAsk = c.hardAskSet()
+	g.ApprovalMode = c.approvalMode
+	if c.argvRules == nil {
+		c.argvRules = permission.NewArgvRuleSet()
+	}
+	g.SessionArgv = c.argvRules
+	return g
 }
 
 // hardAskSet 返回生效的逐条强制审批工具集（S1.5-A）：Options.HardAskTools
@@ -862,24 +962,20 @@ func (c *Controller) SetPermLevel(level string) {
 	case "auto":
 		c.policy.Mode = permission.Allow
 		if c.executor != nil {
-			g := permission.NewGate(c.policy, gateApprover{c})
-			g.AlwaysAsk = c.hardAskSet()
-			c.executor.SetGate(g)
+			c.executor.SetGate(c.newGate())
 		}
 	case "yolo":
 		if c.executor != nil {
 			// yolo 保持"跳过一切门禁"，但持久化写入例外仍必须确认：
 			// 用空策略 + AlwaysAsk 的 gate 替代 nil gate。
-			g := permission.NewGate(permission.New("allow", nil, nil, nil), gateApprover{c})
-			g.AlwaysAsk = c.hardAskSet()
+			g := c.newGate()
+			g.Policy = permission.New("allow", nil, nil, nil)
 			c.executor.SetGate(g)
 		}
 	default: // "ask"
 		c.policy.Mode = permission.Ask
 		if c.executor != nil {
-			g := permission.NewGate(c.policy, gateApprover{c})
-			g.AlwaysAsk = c.hardAskSet()
-			c.executor.SetGate(g)
+			c.executor.SetGate(c.newGate())
 		}
 	}
 	c.mu.Unlock()

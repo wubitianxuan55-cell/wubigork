@@ -24,6 +24,7 @@ import { Composer } from "./components/Composer";
 import { DeliverablesDock } from "./components/DeliverablesDock";
 import { TodoCard } from "./components/TodoCard";
 import { ApprovalModal } from "./components/ApprovalModal";
+import { DeniedActionsDock } from "./components/DeniedActionsDock";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
@@ -919,11 +920,12 @@ export default function App() {
             {state.approval && (
               <ApprovalModal
                 approval={state.approval}
-                onAnswer={(decision) => {
-                  approve(state.approval!.id, decision);
+                onAnswer={(decision, reason) => {
+                  approve(state.approval!.id, decision, reason);
                 }}
               />
             )}
+            <DeniedActionsDock key={currentSessionPath ?? "current-session"} />
             {showTodos && (
               <TodoCard
                 todos={todos}

@@ -144,6 +144,9 @@ type AgentStatus struct {
 	Version      string   `json:"version,omitempty"`
 	Reason       string   `json:"reason,omitempty"`
 	Capabilities []string `json:"capabilities,omitempty"`
+	// Description 是席位说明（T15 文件席位：角色文件的 description——spawn
+	// 引导与前端席位卡的模型可读文案）。内建席位为空（人设与实现分离前）。
+	Description string `json:"description,omitempty"`
 }
 
 // EvidenceItem is user-supplied material copied into the council brief.

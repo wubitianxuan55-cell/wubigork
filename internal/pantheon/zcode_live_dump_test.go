@@ -16,7 +16,7 @@ func TestLiveZCodeStreamDump(t *testing.T) {
 	if os.Getenv("PANTHEON_LIVE_SMOKE") == "" {
 		t.Skip("set PANTHEON_LIVE_SMOKE=1")
 	}
-	adapters := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"))
+	adapters := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"), nil, nil)
 	adapter := adapters["zcode"]
 	probeCtx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	status := adapter.probe(probeCtx)

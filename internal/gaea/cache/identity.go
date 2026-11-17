@@ -75,6 +75,11 @@ func (l *IdentityLayer) FilteredSchemas(names []string) []provider.ToolSchema {
 			})
 		}
 	}
+	// T5 schema 字节预算：与 Registry.FilteredSchemas 用同一配置值、同一
+	// 收口函数（budget.go），两处不许各写一份。<=0（默认关）逐字节等价现状。
+	if b := l.registry.SchemaBudget(); b > 0 {
+		return tool.ApplySchemaBudget(out, b)
+	}
 	return out
 }
 

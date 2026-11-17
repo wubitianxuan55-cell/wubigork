@@ -197,6 +197,9 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 	}
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
 		Model: "gaea",
+		// T11 Guardian：图文委员会有真实工具审批面，不能只在办公引擎接
+		// 自动评审；feature=wenxue 让评审调用跟随图文自己的模型绑定。
+		Guardian: newGuardianReviewer(a, ga.cfg, "wenxue"),
 		// 身份覆写：图文人格（见 wenxueSystemPrompt）。
 		SystemPrompt: sysPrompt,
 		// 账目标签分列（2026-11-17 审查批5 刀1）：wx 全部 provider（主 agent+

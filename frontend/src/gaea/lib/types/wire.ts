@@ -16,6 +16,11 @@ export type EventKind =
   | "phase"
   | "approval_request"
   | "ask_request"
+  // 审批/提问解决态与自动评审账本（后端 gaeaKindName 已下发，dock/统计面消费）。
+  | "approval_resolved"
+  | "ask_resolved"
+  | "approval_auto"
+  | "subagent_message"
   | "turn_done"
   | "compaction_started"
   | "compaction_done"
@@ -75,11 +80,26 @@ export interface WireApproval {
   id: string;
   tool: string;
   subject: string;
+  // 触发来源（gate/hard_ask/project_plan/permission_request/guardian）：
+  // guardian = 自动评审拒绝后的追认重放卡（T3/T11，前端据此换副标题）。
+  source?: string;
   // request_permission 权限升级申请（后端仅在该形态下发这两个字段）：
   // request=true 时本卡是模型主动发起的规则申请而非常规工具审批；
   // reason 是模型给出的申请理由原文——审批卡必须原样展示后才可采信。
   request?: boolean;
   reason?: string;
+}
+
+// WireDeniedAction 待追认账本条目（codex 蒸馏 T3/T11）：拒绝/超时挂账的
+// 动作快照——decision=deny|timeout（timeout 与用户主动拒绝可区分）。
+export interface WireDeniedAction {
+  id: string;
+  tool: string;
+  subject: string;
+  source: string;
+  decision: string;
+  reason: string;
+  at: string;
 }
 
 export interface WireAskOption {

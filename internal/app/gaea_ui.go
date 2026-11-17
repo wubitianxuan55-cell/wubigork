@@ -80,6 +80,31 @@ func (a *App) GaeaApprove(id string, decision string) {
 	}
 }
 
+// GaeaApproveWithReason 同 GaeaApprove，拒绝（deny/abort）时可附一句话理由
+// （codex 蒸馏 T3 前端面）：理由回喂为下一轮工具结果文本，模型据此换方案。
+func (a *App) GaeaApproveWithReason(id string, decision string, reason string) {
+	if c := gaeaCtrl(); c != nil {
+		c.ApproveWithReason(id, decision, reason)
+	}
+}
+
+// GaeaPendingDeniedActions 返回待追认账本（拒绝/超时挂账，时间正序）——
+// 前端「N 条待审」提示与追认列表的数据源。
+func (a *App) GaeaPendingDeniedActions() []control.DeniedActionInfo {
+	if c := gaeaCtrl(); c != nil {
+		return c.DeniedActionList()
+	}
+	return nil
+}
+
+// GaeaApproveDenied 追认一条已拒/超时的动作：按原参数重放一次审批卡，
+// 由用户裁决（guardian 拒绝的追认也走人工卡，机器不复审）。
+func (a *App) GaeaApproveDenied(id string) {
+	if c := gaeaCtrl(); c != nil {
+		go c.ApproveDenied(id)
+	}
+}
+
 // GaeaAnswer 回答结构化提问。
 func (a *App) GaeaAnswer(id string, answers []event.AskAnswer) {
 	if c := gaeaCtrl(); c != nil {

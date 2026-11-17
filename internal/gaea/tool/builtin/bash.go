@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/gaea/sandbox"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -223,6 +224,8 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			cmd := exec.CommandContext(jobCtx, argv[0], argv[1:]...)
 			hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 			cmd.Dir = workDir
+			// 前台同款确定性环境（合并唯一入口，见 proc.CommandEnv 注释）。
+			cmd.Env = proc.CommandEnv(extraEnv...)
 			cmd.Stdout = out
 			cmd.Stderr = out
 			if err := cmd.Start(); err != nil {
@@ -283,11 +286,10 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	cmd.Dir = fgDir     // "" lets exec use the process working directory
-	if probe != "" {
-		// 状态锚定的调用才注入探针路径/上次 env 转储；其余调用保持 nil（继承
-		// 进程环境，与旧行为逐字节一致）。
-		cmd.Env = append(os.Environ(), extraEnv...)
-	}
+	// 确定性环境注入（codex 蒸馏 T2）：颜色/分页/本地化固定，输出才可比对。
+	// 状态锚定的探针/env 转储变量经 extra 叠加（后到者优先）；GAEA_EXEC_ENV_RAW=1
+	// 阀门开时回退历史行为。合并唯一入口在 proc.CommandEnv，前后台不许各写一份。
+	cmd.Env = proc.CommandEnv(extraEnv...)
 
 	// V10.5: json 模式下分离 stdout/stderr；plain 模式保持合并
 	// （v4.374 刀6：运行中即封顶的有界缓冲，防 `yes` 等失控命令打爆内存）

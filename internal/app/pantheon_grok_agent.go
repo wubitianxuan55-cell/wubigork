@@ -112,6 +112,39 @@ func runPantheonGrokAgent(
 	if prov == nil || reg == nil {
 		return "", fmt.Errorf("Grok 办公 AgentRunner 未完成装配")
 	}
+	// 会话装配：单发提示词形态（A5③ Seed 实弹证伪后回退——往轮记忆由宿主
+	// 全量窗口内联进 prompt，见 pantheon.historyFullWindow；引擎侧会话对 grok
+	// 的行为增益未证实、风险实测过）。
+	return runPantheonAgentWithPrompt(ctx, prov, reg, workspace,
+		pantheonGrokSystemPrompt(reg.Names()), prompt, readPaths, emitText, onTool,
+		pantheonAgentRunOptions{})
+}
+
+// pantheonAgentRunOptions 是角色级配置层的执行预算覆盖；零值保持模型席位
+// 历史默认（12 步 / 0.2 / 200k）。
+type pantheonAgentRunOptions struct {
+	MaxSteps      *int
+	Temperature   *float64
+	ContextWindow *int
+}
+
+// runPantheonAgentWithPrompt 是模型席位的通用执行核：system prompt 参数化
+// （T15 文件席位传角色 persona，grok 席传 pantheonGrokSystemPrompt）。
+func runPantheonAgentWithPrompt(
+	ctx context.Context,
+	prov provider.LLMProvider,
+	reg *tool.Registry,
+	workspace string,
+	systemPrompt string,
+	prompt string,
+	readPaths []string,
+	emitText func(string),
+	onTool func(pantheon.ToolTrace),
+	opts pantheonAgentRunOptions,
+) (string, error) {
+	if prov == nil || reg == nil {
+		return "", fmt.Errorf("Grok 办公 AgentRunner 未完成装配")
+	}
 	var streamed strings.Builder
 	var finalMessage string
 	var mu sync.Mutex
@@ -154,15 +187,26 @@ func runPantheonGrokAgent(
 		}
 	})
 
-	// 会话装配：单发提示词形态（A5③ Seed 实弹证伪后回退——往轮记忆由宿主
-	// 全量窗口内联进 prompt，见 pantheon.historyFullWindow；引擎侧会话对 grok
-	// 的行为增益未证实、风险实测过）。
-	session := gaeaAgent.NewSession(pantheonGrokSystemPrompt(reg.Names()))
+	maxSteps := opts.MaxSteps
+	maxStepsValue := 12
+	if maxSteps != nil {
+		maxStepsValue = *maxSteps
+	}
+	temperatureValue := 0.2
+	if opts.Temperature != nil {
+		temperatureValue = *opts.Temperature
+	}
+	contextWindow := opts.ContextWindow
+	contextWindowValue := 200_000
+	if contextWindow != nil {
+		contextWindowValue = *contextWindow
+	}
+	session := gaeaAgent.NewSession(systemPrompt)
 	runner := gaeaAgent.New(prov, reg, session, gaeaAgent.Options{
-		MaxSteps:      12,
-		Temperature:   0.2,
+		MaxSteps:      maxStepsValue,
+		Temperature:   temperatureValue,
 		AccessPolicy:  tool.NewPathAccessPolicy(workspace, readPaths, nil, nil),
-		ContextWindow: 200_000,
+		ContextWindow: contextWindowValue,
 		DisableVerify: true,
 	}, sink)
 	result, err := runner.Run(ctx, prompt)

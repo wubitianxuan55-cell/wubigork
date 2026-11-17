@@ -332,6 +332,10 @@ export const GAEA_METHOD_FACETS = {
   GaeaRunning: "work",
   SubagentFollowUp: "work",
   Approve: "work",
+  // codex 蒸馏 T3/T11：审批域同坐 work（办公引擎会话的审批面）。
+  ApproveWithReason: "work",
+  PendingDeniedActions: "work",
+  ApproveDenied: "work",
   AnswerQuestion: "work",
   NewSession: "work",
   Reload: "work",

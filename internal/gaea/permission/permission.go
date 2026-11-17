@@ -96,16 +96,33 @@ type Policy struct {
 	Allow []Rule
 	Ask   []Rule
 	Deny  []Rule
+	// ArgvAllow 是 argv 前缀放行规则（codex 蒸馏 T10，按工具名分组）：命令类
+	// 工具的「记住这条命令」用 token 前缀匹配而不是 glob——glob 会把
+	// `git status; rm -rf` 一起放行。格式 `ToolName prefix ["tok",...]`，
+	// 解析失败的条目丢弃并告警（由调用方负责）。优先级：glob Deny 仍最高，
+	// argv 放行只把 Ask 升级为 Allow。
+	ArgvAllow map[string][]ArgvRule
 }
 
 // New builds a Policy from config string slices and a mode string ("ask" by
-// default). Malformed rule strings are dropped.
+// default). Malformed rule strings are dropped. Allow 列表里 `ToolName
+// prefix ["tok",...]` 形态的条目进 ArgvAllow（T10），其余走 glob 规则。
 func New(mode string, allow, ask, deny []string) Policy {
+	argvAllow := map[string][]ArgvRule{}
+	var allowRules []string
+	for _, s := range allow {
+		if tool, r, ok := ParseArgvRuleText(s); ok {
+			argvAllow[tool] = append(argvAllow[tool], r)
+			continue
+		}
+		allowRules = append(allowRules, s)
+	}
 	return Policy{
-		Mode:  ParseDecision(mode),
-		Allow: parseRules(allow),
-		Ask:   parseRules(ask),
-		Deny:  parseRules(deny),
+		Mode:      ParseDecision(mode),
+		Allow:     parseRules(allowRules),
+		Ask:       parseRules(ask),
+		Deny:      parseRules(deny),
+		ArgvAllow: argvAllow,
 	}
 }
 
@@ -124,9 +141,17 @@ func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Dec
 		return Allow
 	case readOnly:
 		return Allow
-	default:
-		return p.Mode
 	}
+	// T10 argv 前缀放行：glob 规则未命中、策略落到 Ask/Mode 时，命中的 argv
+	// 规则把 Ask 升级为 Allow（Deny 已在上方短路，永远最高）。
+	if d := p.Mode; d == Ask {
+		for _, r := range p.ArgvAllow[toolName] {
+			if r.Matches(subject) {
+				return Allow
+			}
+		}
+	}
+	return p.Mode
 }
 
 // Denies reports whether any deny rule matches the (toolName, subject) pair.
@@ -229,9 +254,12 @@ func matchGlob(pattern, name string) bool {
 // the Gate treats as "allow" to preserve autonomous behaviour.
 type Approver interface {
 	// Approve asks the user about a pending call. It returns whether to allow
-	// it and whether to remember that choice as a new rule. A non-nil err (e.g.
-	// the context was cancelled while waiting) aborts the turn.
-	Approve(ctx context.Context, toolName, subject string, args json.RawMessage) (allow, remember bool, err error)
+	// it, whether to remember that choice as a new rule, and a denial note
+	// (拒绝/超时时回喂给模型的一句话，如「已拒绝：<理由>」；放行为空——
+	// codex 蒸馏 T3：拒绝要带理由进下一轮上下文，模型才知道往哪换法子).
+	// A non-nil err (e.g. the context was cancelled while waiting) aborts the
+	// turn.
+	Approve(ctx context.Context, toolName, subject string, args json.RawMessage) (allow, remember bool, denial string, err error)
 }
 
 // Gate is what the agent consults at execute time: a Policy plus an optional
@@ -263,6 +291,17 @@ type Gate struct {
 	// 不能靠「没人守门」获得写面（2026-11-08 众神殿结论第五步，pan_1794098356822）。
 	DenyUnapproved bool
 
+	// ApprovalMode 是审批模式归一（codex 蒸馏 T4）："never"=绝不弹窗——Ask
+	// 一律硬拒绝并给理由（NormalizeAsk）；"" / 其他 = 现状语义逐字节不变。
+	// 由宿主按会话审批策略注入；默认关闭。
+	ApprovalMode string
+
+	// SessionArgv 是会话级 argv 放行规则集（codex 蒸馏 T10，「记住这条命令」
+	// 的 Session 作用域）：允许会话内用户已放行的命令前缀再命中时免审批。
+	// 只作用于 Ask 分支（hardAsk 逐条确认不经过这里，纪律不受影响）；
+	// nil = 未接线（现状）。会话轮换时由宿主换新集（Session 作用域语义）。
+	SessionArgv *ArgvRuleSet
+
 	// OnUnapprovedDeny, when set, is told about a call this Gate refused under
 	// DenyUnapproved. Ledger hook only — the decision is already made.
 	OnUnapprovedDeny func(toolName, subject, source string)
@@ -290,6 +329,13 @@ func NewGate(p Policy, a Approver) *Gate { return &Gate{Policy: p, Approver: a} 
 // reason the agent feeds back to the model.
 func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage, readOnly bool) (bool, string, error) {
 	if g.AlwaysAsk[toolName] {
+		// never 模式（codex 蒸馏 T4）：hardAsk 的逐条确认本质也是 Ask——
+		// 绝不弹窗的策略下硬拒绝给理由。默认 "" 时 NormalizeAsk 返回 Ask，
+		// 行为逐字节不变。
+		if d, reason := NormalizeAsk(g.ApprovalMode, toolName); d == Deny {
+			g.recordDenial(toolName, Subject(args), event.ApprovalSourceHardAsk)
+			return false, reason, nil
+		}
 		if g.Approver == nil {
 			if g.DenyUnapproved {
 				g.recordDenial(toolName, Subject(args), event.ApprovalSourceHardAsk)
@@ -298,17 +344,26 @@ func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage,
 			g.recordAuto(toolName, Subject(args), event.ApprovalSourceHardAsk)
 			return true, "", nil // 非交互：保持自治
 		}
-		allow, _, err := g.Approver.Approve(ctx, toolName, Subject(args), args)
+		allow, _, denial, err := g.Approver.Approve(ctx, toolName, Subject(args), args)
 		if err != nil {
 			return false, "approval aborted", err
 		}
 		if !allow {
-			return false, "the user declined this tool call — do not retry it; ask how they would like to proceed or choose another approach.", nil
+			if denial == "" {
+				denial = "the user declined this tool call — do not retry it; ask how they would like to proceed or choose another approach."
+			}
+			return false, denial, nil
 		}
 		return true, "", nil
 	}
 	if toolName == "bash" && !readOnly {
 		subject := Subject(args)
+		// Windows 破坏性删除硬拦截（codex 蒸馏 T4）：与只读判定同一处，
+		// 先于策略判定——深删不走「策略允许即放行」。命令串按 bash -c 形
+		// 交给判定器（cmd/PowerShell 首词同样被识别）。
+		if ok, why := DangerousWindowsCommand([]string{"bash", "-c", subject}); ok {
+			return false, why, nil
+		}
 		if isReadOnlyBashSubject(subject) {
 			readOnly = true
 		}
@@ -317,6 +372,17 @@ func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage,
 	case Deny:
 		return false, "denied by permission policy — this tool/command is on the deny list. Do not retry it; choose another approach or stop and explain.", nil
 	case Ask:
+		// never 模式（codex 蒸馏 T4）：策略要求批准而审批模式绝不弹窗——
+		// 硬拒绝给理由，与用户主动拒绝在文本上可区分。默认 "" 逐字节不变。
+		if d, reason := NormalizeAsk(g.ApprovalMode, toolName); d == Deny {
+			g.recordDenial(toolName, Subject(args), event.ApprovalSourceGate)
+			return false, reason, nil
+		}
+		subject := Subject(args)
+		// T10 会话级 argv 规则：会话内用户已放行的命令前缀再次命中 → 免审批。
+		if g.SessionArgv != nil && g.SessionArgv.Allowed(subject) {
+			return true, "", nil
+		}
 		if g.Approver == nil {
 			if g.DenyUnapproved {
 				g.recordDenial(toolName, Subject(args), event.ApprovalSourceGate)
@@ -325,13 +391,15 @@ func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage,
 			g.recordAuto(toolName, Subject(args), event.ApprovalSourceGate)
 			return true, "", nil // non-interactive: preserve autonomy
 		}
-		subject := Subject(args)
-		allow, remember, err := g.Approver.Approve(ctx, toolName, subject, args)
+		allow, remember, denial, err := g.Approver.Approve(ctx, toolName, subject, args)
 		if err != nil {
 			return false, "approval aborted", err
 		}
 		if !allow {
-			return false, "the user declined this tool call — do not retry it; ask how they would like to proceed or choose another approach.", nil
+			if denial == "" {
+				denial = "the user declined this tool call — do not retry it; ask how they would like to proceed or choose another approach."
+			}
+			return false, denial, nil
 		}
 		if remember && g.OnRemember != nil {
 			g.OnRemember(rememberRule(toolName, subject))

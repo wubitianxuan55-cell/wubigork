@@ -86,6 +86,11 @@ func TestWenxueChatSessionBindingSmoke(t *testing.T) {
 	if a.WenxueRunning() {
 		t.Fatal("初始应非运行态")
 	}
+	if got := a.WenxuePendingDeniedActions(); len(got) != 0 {
+		t.Fatalf("新图文引擎待追认账本应为空，got %+v", got)
+	}
+	a.WenxueApproveWithReason("missing", "deny", "测试理由")
+	a.WenxueApproveDenied("missing")
 	meta := a.WenxueMeta()
 	if !strings.HasSuffix(strings.ReplaceAll(meta.Cwd, `\`, "/"), "/围炉夜话") {
 		t.Fatalf("Meta.Cwd 应锚当前小说目录，got %q", meta.Cwd)

@@ -86,7 +86,10 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 		return "", err
 	}
 	// D4 写锁（dsh-ops bind-before-publish 蒸馏）：锁包「读→CAS→写」整段。
-	var baseline string
+	var (
+		baseline string
+		notes    = make([]string, len(p.Edits)) // 各编辑的三档兜底定位说明
+	)
 	if err := WithFileLock(p.Path, func() error {
 		bind, berr := bindFileLockTarget(p.Path)
 		if berr != nil {
@@ -112,12 +115,13 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 				return fmt.Errorf("multi_edit[%d]: old_string is required and must be non-empty "+
 					"(pass new_string:\"\" to delete text, or use write_file to create a file)", i)
 			}
-			next, _, err := replaceInContent(cur, e.OldString, e.NewString, e.ReplaceAll)
+			next, _, note, err := replaceInContent(cur, e.OldString, e.NewString, e.ReplaceAll)
 			if err != nil {
 				// Nothing has been written — the on-disk file still has the
 				// original content, so the whole batch is safely retryable.
 				return fmt.Errorf("multi_edit[%d] failed, no changes written: %w", i, err)
 			}
+			notes[i] = note
 			cur = next
 		}
 		if werr := atomicWriteEncoded(p.Path, cur, enc); werr != nil {
@@ -139,7 +143,12 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 	}
 	out := fmt.Sprintf("%s: applied %d/%d edits", p.Path, len(p.Edits), len(p.Edits))
 	for i := range p.Edits {
-		out += fmt.Sprintf("\n#%d ok", i)
+		if notes[i] != "" {
+			// 三档兜底命中的定位说明随条目回喂（与 edit_file 同款）。
+			out += fmt.Sprintf("\n#%d ok%s", i, notes[i])
+		} else {
+			out += fmt.Sprintf("\n#%d ok", i)
+		}
 	}
 	return out, nil
 }

@@ -210,6 +210,10 @@ const (
 	ApprovalSourceHardAsk           = "hard_ask"
 	ApprovalSourceProjectPlan       = "project_plan"
 	ApprovalSourcePermissionRequest = "permission_request"
+	// ApprovalSourceGuardian 是自动评审通道（codex 蒸馏 T11）：Guardian 在
+	// 用户卡之前预判，allow/deny 都不弹卡、落 ApprovalAuto 账本；评审失败
+	// 不带此来源（回落用户卡）。
+	ApprovalSourceGuardian = "guardian"
 )
 
 // 自动放行的决策者（AutoApproval.Decided 取值）：谁替人做的这次决定。
@@ -232,6 +236,11 @@ const (
 	// fail-closed 拒绝并留痕——同一 approval_auto 账本，Decided 记「机器决定
 	// 不放行」。
 	AutoDecidedUnapprovedDeny = "unapproved_deny"
+	// AutoDecidedGuardianAllow / AutoDecidedGuardianDeny 是 Guardian 自动评审
+	// 的两态（codex 蒸馏 T11）：评审模型替人预判放行/拒绝，三字段账本
+	// （Risk/Authorization/Rationale）随事件落档。
+	AutoDecidedGuardianAllow = "guardian_allow"
+	AutoDecidedGuardianDeny  = "guardian_deny"
 )
 
 // AutoApproval 是 ApprovalAuto 事件的载荷：一次没弹卡就被放行的工具调用。
@@ -240,8 +249,14 @@ const (
 type AutoApproval struct {
 	Tool    string
 	Subject string // 拟执行动作摘要（与审批卡的 subject 同源）
-	Source  string // ApprovalSource* 四值：这条放行发生在哪个通道上
-	Decided string // AutoDecided* 三值：谁做的决定
+	Source  string // ApprovalSource* 五值：这条放行发生在哪个通道上
+	Decided string // AutoDecided* 值：谁做的决定
+	// Risk / Authorization / Rationale 是 Guardian 自动评审的三字段账本
+	// （codex 蒸馏 T11）：Decided 为 guardian_* 时填写，其余通道为空——
+	// 「机器依据什么风险档放行/拒绝」必须可审计。
+	Risk          string
+	Authorization string
+	Rationale     string
 }
 
 // 注意力卡片的归一解决结果（ApprovalResolution.Outcome / AskResolution.Outcome）。
@@ -309,11 +324,14 @@ type Ask struct {
 // Summary empty). Trigger is "auto" (the prompt reached the window threshold) or
 // "manual" (the user ran /compact).
 type Compaction struct {
-	Trigger  string // "auto" | "manual"
+	Trigger  string // "auto" | "manual"（T9 扩：new_window / model_downshift）
 	Messages int    // Done: how many messages were folded into the summary
 	Summary  string // Done: the briefing the agent keeps relying on
 	Archive  string // Done: path the dropped originals were archived to ("" if none)
 	Quality  string // V3.2: post-hoc quality assessment (human-readable one-liner)
+	// Window 是压缩序号（T9 token-budget 形态）：单调递增，回放按窗口边界
+	// 重放。Summary 为空 = 「无摘要的换窗口压缩」，UI 据此区分空摘要与摘要失败。
+	Window int
 }
 
 // AskAnswer is the user's reply to one AskQuestion: the chosen option label(s)

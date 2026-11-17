@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -447,6 +448,7 @@ func (d diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, 
 
 	payload, _ := json.Marshal(p)
 	cmd := exec.CommandContext(ctx, py, "-c", diagramScript)
+	cmd.Env = proc.CommandEnv()
 	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	cmd.Stdin = strings.NewReader(string(payload))
 	out, err := cmd.CombinedOutput()

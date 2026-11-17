@@ -23,7 +23,7 @@ func TestScheduleApplyProjectPromptsAtAsk(t *testing.T) {
 	c, ids, _ := approvalIDs()
 	go func() { c.Approve(<-ids, DecisionAllowOnce) }()
 
-	allow, remember, err := gateApprover{c}.Approve(context.Background(), "schedule_apply", "进度计划/当前计划.gsched.json", json.RawMessage(projArgs))
+	allow, remember, _, err := gateApprover{c}.Approve(context.Background(), "schedule_apply", "进度计划/当前计划.gsched.json", json.RawMessage(projArgs))
 	if err != nil || !allow || remember {
 		t.Fatalf("Approve = (%v,%v,%v), want allow once", allow, remember, err)
 	}
@@ -36,7 +36,7 @@ func TestScheduleApplyProjectHardAtAutoAndYolo(t *testing.T) {
 		c, ids, prompts := approvalIDs()
 		c.SetPermLevel(level)
 		go func() { c.Approve(<-ids, DecisionAllowOnce) }()
-		allow, _, err := gateApprover{c}.Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(projArgs))
+		allow, _, _, err := gateApprover{c}.Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(projArgs))
 		if err != nil || !allow {
 			t.Fatalf("level %s: Approve = (%v,%v), want allow via prompt", level, allow, err)
 		}
@@ -56,7 +56,7 @@ func TestScheduleApplyProjectNoSessionGrant(t *testing.T) {
 		}
 	}()
 	for i := 0; i < 2; i++ {
-		allow, _, err := gateApprover{c}.Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(projArgs))
+		allow, _, _, err := gateApprover{c}.Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(projArgs))
 		if err != nil || !allow {
 			t.Fatalf("call %d = (%v,%v), want allow", i, allow, err)
 		}
@@ -71,13 +71,13 @@ func TestScheduleApplyProjectNoSessionGrant(t *testing.T) {
 func TestScheduleApplyOpsChannelKeepsLegacyGate(t *testing.T) {
 	c, ids, _ := approvalIDs()
 	go func() { c.Approve(<-ids, DecisionAllowOnce) }()
-	if allow, _, err := (gateApprover{c}).Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(opsArgs)); err != nil || !allow {
+	if allow, _, _, err := (gateApprover{c}).Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(opsArgs)); err != nil || !allow {
 		t.Fatalf("ops ask: Approve = (%v,%v), want allow via prompt", allow, err)
 	}
 
 	c2, _, prompts2 := approvalIDs()
 	c2.SetPermLevel("auto")
-	allow, _, err := (gateApprover{c2}).Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(opsArgs))
+	allow, _, _, err := (gateApprover{c2}).Approve(context.Background(), "schedule_apply", "当前计划", json.RawMessage(opsArgs))
 	if err != nil || !allow {
 		t.Fatalf("ops auto: Approve = (%v,%v), want silent allow", allow, err)
 	}

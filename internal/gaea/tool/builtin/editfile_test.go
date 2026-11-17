@@ -244,17 +244,17 @@ func TestEditFileSymlinkEscapeBlocked(t *testing.T) {
 
 func TestReplaceInContentKernel(t *testing.T) {
 	// Shared kernel: zero match / multi match / replaceAll semantics.
-	got, n, err := replaceInContent("a b c", "a", "z", false)
+	got, n, _, err := replaceInContent("a b c", "a", "z", false)
 	if err != nil || n != 1 || got != "z b c" {
 		t.Errorf("single replace = %q n=%d err=%v", got, n, err)
 	}
-	if _, _, err := replaceInContent("a b c", "zz", "c", false); err == nil {
+	if _, _, _, err := replaceInContent("a b c", "zz", "c", false); err == nil {
 		t.Error("zero match must error")
 	}
-	if _, _, err := replaceInContent("a b a", "a", "c", false); err == nil {
+	if _, _, _, err := replaceInContent("a b a", "a", "c", false); err == nil {
 		t.Error("multi match without replace_all must error")
 	}
-	got, n, err = replaceInContent("a b a", "a", "c", true)
+	got, n, _, err = replaceInContent("a b a", "a", "c", true)
 	if err != nil || n != 2 || got != "c b c" {
 		t.Errorf("replace_all = %q n=%d err=%v", got, n, err)
 	}

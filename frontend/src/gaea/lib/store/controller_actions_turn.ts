@@ -39,8 +39,13 @@ export function useTurnActions(dispatch: (a: Action) => void, store: { getState:
 
   // T7-4：approve/answerQuestion 失败时不清掉弹窗（保留审批/提问界面），
   // 记录日志并提示用户重试；成功后才清除。
-  const approve = useCallback((id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort") => {
-    app.Approve(id, decision)
+  // reason（可选，codex 蒸馏 T3）：拒绝时随决策带回一句话，回喂给模型作为
+  // 工具结果文本——模型据此换方案而非原样重试。空理由走原 Approve 通道。
+  const approve = useCallback((id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort", reason?: string) => {
+    const call = reason && reason.trim() !== "" && (decision === "deny" || decision === "abort")
+      ? app.ApproveWithReason(id, decision, reason.trim())
+      : app.Approve(id, decision);
+    call
       .then(() => dispatch({ type: "clearApproval" }))
       .catch((err) => failWrite(dispatch, "审批提交", err));
   }, [dispatch]);

@@ -31,7 +31,7 @@ var hardAskTools = map[string]bool{
 // from the public Approve command (different signature, different direction).
 type gateApprover struct{ c *Controller }
 
-func (g gateApprover) Approve(ctx context.Context, tool, subject string, args json.RawMessage) (bool, bool, error) {
+func (g gateApprover) Approve(ctx context.Context, tool, subject string, args json.RawMessage) (bool, bool, string, error) {
 	// Auto-allow without prompting while executing a just-approved plan (the plan
 	// was the approval) or while YOLO/bypass mode is on. Deny rules already bit
 	// before this point, so they still block.
@@ -44,14 +44,16 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
 	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
 	if g.c.hardAskSet()[tool] {
-		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceHardAsk)
+		allow, _, denial, err := g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceHardAsk)
+		return allow, false, denial, err
 	}
 	// diff 确认闭环刀C：schedule_apply project 通道（args.project 非空=整计划
 	// 替换/生成）毁伤半径最大——任何权限级别（含 auto/yolo）前置强制逐条
 	// 确认，alwaysPrompt 不读不写会话放行（拍板项 2：禁会话记忆）。ops 增量
 	// 通道维持现状闸门（拍板项 3：auto/yolo 豁免弹卡，后置回执+回滚兜底）。
 	if tool == "schedule_apply" && scheduleApplyIsProjectChannel(args) {
-		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceProjectPlan)
+		allow, _, denial, err := g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true, event.ApprovalSourceProjectPlan)
+		return allow, false, denial, err
 	}
 	if auto {
 		// 没弹卡，但这是一次真实的写入授权：记进自动放行账本（谁放的、
@@ -61,9 +63,24 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 			decided = event.AutoDecidedYolo
 		}
 		g.c.emitAutoApproval(tool, subject, event.ApprovalSourceGate, decided)
-		return true, false, nil
+		return true, false, "", nil
 	}
-	return g.c.requestApproval(ctx, tool, subject, false, event.ApprovalSourceGate)
+	// 会话内已授权（granted / argv 规则 / 追认落账）：授权已由人给出，直接
+	// 放行——不进机器评审也不弹卡（guardian 在授权之后，不在授权之前）。
+	g.c.mu.Lock()
+	alreadyGranted := g.c.ruleGrantedLocked(tool, subject) || g.c.argvAllowedLocked(approvalPrompt{tool: tool, subject: subject})
+	g.c.mu.Unlock()
+	if !alreadyGranted {
+		// T11 Guardian：常规 Ask 通道的用户卡之前先自动评审——allow 放行、
+		// deny 带理由拒绝（可追认）；评审失败回落用户卡（红线：错误不冒充
+		// 风险，也绝不因失败自动放行）。hardAsk/project 通道在上面已走
+		// requestApproval，不经过这里（逐条确认硬纪律不受机器评审影响）。
+		if path, denial := g.c.guardianReview(ctx, tool, subject, args); path != guardianFallthrough {
+			return path == guardianAllowPath, false, denial, nil
+		}
+	}
+	allow, remember, denial, err := g.c.requestApproval(ctx, tool, subject, false, event.ApprovalSourceGate)
+	return allow, remember, denial, err
 }
 
 // approvalSubjectFor 为硬性审批工具生成可读的确认摘要。
@@ -181,12 +198,12 @@ func approvalOutcome(decision string, err error) string {
 // requestApproval emits an ApprovalRequest and blocks until Approve(ID, …)
 // answers or ctx is cancelled. A prior session grant for the same tool+subject
 // short-circuits, unless alwaysPrompt is set (敏感写入必须逐条确认）。
-// promptMu serialises outstanding prompts.
-func (c *Controller) requestApproval(ctx context.Context, tool, subject string, alwaysPrompt bool, source string) (bool, bool, error) {
-	allow, remember, _, err := c.promptApproval(ctx, approvalPrompt{
+// promptMu serialises outstanding prompts. denial 非空=拒绝/超时的回喂文案。
+func (c *Controller) requestApproval(ctx context.Context, tool, subject string, alwaysPrompt bool, source string) (bool, bool, string, error) {
+	res := c.promptApproval(ctx, approvalPrompt{
 		tool: tool, subject: subject, alwaysPrompt: alwaysPrompt, source: source,
 	})
-	return allow, remember, err
+	return res.allow, res.remember, res.denial, res.err
 }
 
 // RequestPermission 处理 request_permission 工具的「权限升级申请」（对齐 codex
@@ -244,13 +261,14 @@ func (c *Controller) RequestPermission(ctx context.Context, tool, subject, reaso
 		c.emitAutoApproval(tool, subject, event.ApprovalSourcePermissionRequest, decided)
 		return true, "auto", nil
 	}
-	_, _, decision, err := c.promptApproval(ctx, approvalPrompt{
+	res := c.promptApproval(ctx, approvalPrompt{
 		tool: tool, subject: subject, reason: reason, ruleRequest: true,
 		source: event.ApprovalSourcePermissionRequest,
 	})
-	if err != nil {
-		return false, "", err
+	if res.err != nil {
+		return false, "", res.err
 	}
+	decision := res.decision
 	return decision == DecisionAllowOnce || decision == DecisionAllowSession ||
 		decision == DecisionPersistAllow, decision, nil
 }
@@ -300,22 +318,22 @@ func autoSource(p approvalPrompt) string {
 
 // promptApproval emits one approval prompt per p and blocks until Approve(ID, …)
 // answers, ctx is cancelled, or the configured approval timeout fires. It returns
-// whether the call may proceed, whether a session grant was already in effect
-// (the second bool of the legacy requestApproval signature), and the decision
-// string (DecisionTimeout when nobody answered in time; "" when ctx cancelled).
-func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allow, remember bool, decision string, err error) {
+// the resolution as an approvalResult: allow/remember for the gate, decision for
+// RequestPermission, and denial（拒绝/超时的回喂文案，放行为空）——codex 蒸馏
+// T3：拒绝必须带着理由进下一轮模型上下文，模型才知道换法子。
+func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) approvalResult {
 	key := p.tool + "\x00" + p.subject
 
 	if !p.alwaysPrompt {
 		c.mu.Lock()
-		grantedAlready := c.ruleGrantedLocked(p.tool, p.subject)
+		grantedAlready := c.ruleGrantedLocked(p.tool, p.subject) || c.argvAllowedLocked(p)
 		c.mu.Unlock()
 		if grantedAlready {
 			// 会话内已有规则覆盖：不弹卡、不产生注意力事务，但账本要记下
 			// 「这次写操作是被一条既有规则放行的」——否则人只看到结果，
 			// 看不到机器替他做过的决定。
 			c.emitAutoApproval(p.tool, p.subject, autoSource(p), event.AutoDecidedSessionGrant)
-			return true, true, DecisionAllowSession, nil // session grant was previously stored
+			return approvalResult{allow: true, remember: true, decision: DecisionAllowSession} // session grant was previously stored
 		}
 	}
 
@@ -326,10 +344,10 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 	// another prompt for the same subject.
 	c.mu.Lock()
 	if !p.alwaysPrompt {
-		if c.ruleGrantedLocked(p.tool, p.subject) {
+		if c.ruleGrantedLocked(p.tool, p.subject) || c.argvAllowedLocked(p) {
 			c.mu.Unlock()
 			c.emitAutoApproval(p.tool, p.subject, autoSource(p), event.AutoDecidedSessionGrant)
-			return true, true, DecisionAllowSession, nil // session grant stored while waiting
+			return approvalResult{allow: true, remember: true, decision: DecisionAllowSession} // session grant stored while waiting
 		}
 	}
 	c.nextID++
@@ -346,10 +364,11 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 	// 取消/超时/中止）+ 等待时长 + 来源，成对落日志与轨迹，使「这张卡后来
 	// 怎样了」可重放、可计数。短路的会话放行不弹卡、不产生事务。
 	startedAt := time.Now()
+	var res approvalResult
 	defer func() {
 		c.sink.Emit(event.Event{Kind: event.ApprovalResolved, Resolved: event.ApprovalResolution{
 			ID: id, Tool: p.tool, Subject: p.subject, Source: p.source,
-			Decision: decision, Outcome: approvalOutcome(decision, err),
+			Decision: res.decision, Outcome: approvalOutcome(res.decision, res.err),
 			LatencyMS: attentionLatency(startedAt),
 		}})
 	}()
@@ -381,8 +400,11 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 			// 拒绝并终止本轮（codex ReviewDecision::Abort）：取消当前回合，
 			// agent 循环在下一步采样/闸门检查处快速收敛退出；工具结果按
 			// 拒绝落日志（「拒绝但继续」由 deny 表达，两者语义分离）。
+			res.decision = DecisionAbort
+			res.denial = "已拒绝：" + rejectionReason(r.reason) + "，本轮已中止"
+			c.recordDeniedAction(id, p, res.decision, r.reason)
 			c.Cancel()
-			return false, false, DecisionAbort, nil
+			return res
 		case DecisionPersistAllow:
 			// 始终允许（codex ApprovedExecpolicyAmendment）：本会话内先记
 			// granted（与 allow_session 同效），再把规则回写策略文件持久化，
@@ -392,26 +414,22 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 			// 规则申请：记入 grantedRules（保留 glob 语义）而非精确 key。
 			if !p.alwaysPrompt {
 				c.mu.Lock()
-				if p.ruleRequest {
-					c.grantRuleLocked(p.tool, p.subject)
-				} else {
-					c.granted[key] = true
-				}
+				c.grantAllowLocked(key, p)
 				c.mu.Unlock()
 				c.writebackAllowRule(p.tool, p.subject)
 			}
-			return true, false, DecisionPersistAllow, nil
+			res.decision = DecisionPersistAllow
+			res.allow = true
+			return res
 		case DecisionAllowSession:
 			if !p.alwaysPrompt {
 				c.mu.Lock()
-				if p.ruleRequest {
-					c.grantRuleLocked(p.tool, p.subject)
-				} else {
-					c.granted[key] = true
-				}
+				c.grantAllowLocked(key, p)
 				c.mu.Unlock()
 			}
-			return true, false, DecisionAllowSession, nil
+			res.decision = DecisionAllowSession
+			res.allow = true
+			return res
 		case DecisionAllowOnce:
 			// 常规闸门：允许一次不记忆（该次调用放行即完成语义）。规则申请：
 			// 申请的对象本身就是一条规则——allow_once 与 allow_session 同效
@@ -421,27 +439,245 @@ func (c *Controller) promptApproval(ctx context.Context, p approvalPrompt) (allo
 				c.grantRuleLocked(p.tool, p.subject)
 				c.mu.Unlock()
 			}
-			return true, false, DecisionAllowOnce, nil
+			res.decision = DecisionAllowOnce
+			res.allow = true
+			return res
 		default:
-			// deny（含未知决策串的保守处理）：拒绝但回合继续。
-			return false, false, DecisionDeny, nil
+			// deny（含未知决策串的保守处理）：拒绝但回合继续。理由回喂是
+			// 本次拒绝的正文（默认「用户拒绝」），一句话，不贴全量参数。
+			res.decision = DecisionDeny
+			res.denial = "已拒绝：" + rejectionReason(r.reason) + "——不要原样重试，换方案或结束回合说明"
+			c.recordDeniedAction(id, p, res.decision, r.reason)
+			return res
 		}
 	case <-ctx.Done():
 		c.mu.Lock()
 		delete(c.approvals, id)
 		c.mu.Unlock()
-		return false, false, "", ctx.Err()
+		res.err = ctx.Err()
+		return res
 	case <-timeoutCh:
 		c.mu.Lock()
 		delete(c.approvals, id)
 		c.mu.Unlock()
+		// 超时挂起（codex 蒸馏 T3）：按拒绝处理但不进 deny 账本（与用户主动
+		// 拒绝可区分），动作挂「待追认账本」——回来后 ApproveDenied 可重放。
+		res.decision = DecisionTimeout
+		res.denial = "审批超时无人响应，已按拒绝处理——不要原样重试；换方案或结束回合说明，也可稍后追认"
+		c.recordDeniedAction(id, p, res.decision, "")
 		if p.subject != "" {
-			c.notice(fmt.Sprintf("审批超时（%s 未响应），已按拒绝处理：%s %s",
+			c.notice(fmt.Sprintf("审批超时（%s 未响应），已按拒绝处理并挂起待追认：%s %s",
 				c.approvalTimeout, p.tool, p.subject))
 		} else {
-			c.notice(fmt.Sprintf("审批超时（%s 未响应），已按拒绝处理：%s", c.approvalTimeout, p.tool))
+			c.notice(fmt.Sprintf("审批超时（%s 未响应），已按拒绝处理并挂起待追认：%s",
+				c.approvalTimeout, p.tool))
 		}
-		return false, false, DecisionTimeout, nil
+		return res
+	}
+}
+
+// approvalResult 是一次审批弹卡的归一结果：allow/remember 供闸门，decision
+// 供 request_permission 的决策串回传，denial 是拒绝/超时的回喂文案（放行为
+// 空），err 仅在 ctx 取消（回合终止）时非 nil。
+type approvalResult struct {
+	allow    bool
+	remember bool
+	decision string
+	denial   string
+	err      error
+}
+
+// rejectionReason 归一拒绝理由：空白用默认「用户拒绝」；截到一句话（200 rune）
+// ——理由是回喂模型的提示，不是参数回放。
+func rejectionReason(reason string) string {
+	r := strings.TrimSpace(reason)
+	if r == "" {
+		return "用户拒绝"
+	}
+	if runes := []rune(r); len(runes) > 200 {
+		r = string(runes[:200]) + "…"
+	}
+	return r
+}
+
+// deniedActionCap 是待追认账本的封顶条数：超限滚掉最旧（内存账本，防长会话
+// 无界增长）。
+const deniedActionCap = 50
+
+// deniedAction 是一条拒绝/超时挂账：记录原弹卡的全部重放原料，ApproveDenied
+// 按原参数再弹一次卡走正常闸门。
+type deniedAction struct {
+	id           string    // 原弹卡 ID（账本键，nextID 单调不复用）
+	tool         string    // 工具名
+	subject      string    // 确认摘要 / 规则 subject（glob 语义原样保留）
+	source       string    // 原来源（gate / hard_ask / project_plan / permission_request）
+	alwaysPrompt bool      // hardAsk 逐条确认卡——追认放行也不写 granted（硬纪律）
+	ruleRequest  bool      // 权限升级申请卡——追认放行走 grantRuleLocked
+	decision     string    // deny / timeout（timeout 与用户拒绝可区分）
+	reason       string    // 拒绝理由（超时为空）
+	at           time.Time // 挂账时刻
+	inFlight     bool      // 正在重放审批卡：双击/并发追认只能开一张卡
+}
+
+// recordDeniedAction 把拒绝/超时的动作挂进待追认账本（FIFO 封顶）。ctx 取消
+// 不挂账（回合终止，模型没拿到结果，重放无意义）。
+func (c *Controller) recordDeniedAction(id string, p approvalPrompt, decision, reason string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.deniedActions = append(c.deniedActions, deniedAction{
+		id: id, tool: p.tool, subject: p.subject, source: p.source,
+		alwaysPrompt: p.alwaysPrompt, ruleRequest: p.ruleRequest,
+		decision: decision, reason: reason, at: time.Now(),
+	})
+	if len(c.deniedActions) > deniedActionCap {
+		c.deniedActions = c.deniedActions[len(c.deniedActions)-deniedActionCap:]
+	}
+}
+
+// PendingDeniedActions 返回待追认账本快照（时间正序）。前端「恢复时提示有 N
+// 条待审」与追认列表都读这里；无人值守会话回来后按此展示。
+func (c *Controller) PendingDeniedActions() []deniedAction {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]deniedAction, len(c.deniedActions))
+	copy(out, c.deniedActions)
+	return out
+}
+
+// DeniedActionInfo 是待追认账本的绑定面视图（JSON 字段名与前端 WireDeniedAction
+// 对齐；decision=deny|timeout，timeout 与用户主动拒绝可区分）。
+type DeniedActionInfo struct {
+	ID       string `json:"id"`
+	Tool     string `json:"tool"`
+	Subject  string `json:"subject"`
+	Source   string `json:"source"`
+	Decision string `json:"decision"`
+	Reason   string `json:"reason"`
+	At       string `json:"at"`
+}
+
+// DeniedActionList 返回待追认账本的绑定面快照（时间正序）。
+func (c *Controller) DeniedActionList() []DeniedActionInfo {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]DeniedActionInfo, 0, len(c.deniedActions))
+	for _, a := range c.deniedActions {
+		out = append(out, DeniedActionInfo{
+			ID: a.id, Tool: a.tool, Subject: a.subject, Source: a.source,
+			Decision: a.decision, Reason: a.reason, At: a.at.Format(time.RFC3339),
+		})
+	}
+	return out
+}
+
+// ApproveDenied 追认一条已拒/超时的动作（codex 蒸馏 T3 approve-after-deny）：
+// 按原参数（tool/subject/alwaysPrompt/source）再弹一次审批卡走正常闸门。
+// 放行后写会话 granted（hardAsk 卡除外——逐条确认纪律，granted 永不写），
+// 模型下次同参调用即自然放行、工具被重新执行；再次拒绝则账本保留可再追认。
+func (c *Controller) ApproveDenied(id string) {
+	var (
+		act   deniedAction
+		found bool
+	)
+	c.mu.Lock()
+	for i := range c.deniedActions {
+		if c.deniedActions[i].id == id {
+			if c.deniedActions[i].inFlight {
+				c.mu.Unlock()
+				c.notice("追认：该动作的审批卡已经打开")
+				return
+			}
+			c.deniedActions[i].inFlight = true
+			act = c.deniedActions[i]
+			found = true
+			break
+		}
+	}
+	c.mu.Unlock()
+	if !found {
+		c.notice("追认：未找到该动作（可能已滚动出账本或已被移除）")
+		return
+	}
+	release := func() {
+		c.mu.Lock()
+		for i := range c.deniedActions {
+			if c.deniedActions[i].id == id {
+				c.deniedActions[i].inFlight = false
+				break
+			}
+		}
+		c.mu.Unlock()
+	}
+	// 重放弹卡：走与原始弹卡完全相同的通道与语义（hardAsk 逐条确认不降级）。
+	res := c.promptApproval(context.Background(), approvalPrompt{
+		tool: act.tool, subject: act.subject, alwaysPrompt: act.alwaysPrompt, ruleRequest: act.ruleRequest,
+		source: act.source,
+	})
+	if res.err != nil {
+		release()
+		return
+	}
+	if !res.allow {
+		release()
+		c.notice(fmt.Sprintf("追认未通过（%s），动作保留在待审账本", res.decision))
+		return
+	}
+	// 放行：写会话授权（hardAsk 除外），账本移除，回合里模型重试即通。
+	c.mu.Lock()
+	stillCurrent := false
+	for i := range c.deniedActions {
+		if c.deniedActions[i].id == id {
+			stillCurrent = true
+			break
+		}
+	}
+	if !stillCurrent {
+		c.mu.Unlock()
+		c.notice("追认：会话已切换，旧动作不会授予到新会话")
+		return
+	}
+	if !act.alwaysPrompt {
+		if act.ruleRequest {
+			c.grantRuleLocked(act.tool, act.subject)
+		} else {
+			c.granted[act.tool+"\x00"+act.subject] = true
+		}
+	}
+	for i := range c.deniedActions {
+		if c.deniedActions[i].id == id {
+			c.deniedActions = append(c.deniedActions[:i], c.deniedActions[i+1:]...)
+			break
+		}
+	}
+	c.mu.Unlock()
+	c.notice(fmt.Sprintf("已追认：%s %s——模型下次同参调用将放行", act.tool, act.subject))
+}
+
+// argvAllowedLocked 报告会话 argv 规则集是否放行该调用（调用方持锁）：
+// bash 的「记住这条命令」形态（T10）。
+func (c *Controller) argvAllowedLocked(p approvalPrompt) bool {
+	return p.tool == "bash" && c.argvRules != nil && c.argvRules.Allowed(p.subject)
+}
+
+// grantAllowLocked 落一条「允许并记忆」的会话授权（allow_session / persist_allow
+// 共用，调用方持锁）：规则申请走 glob 规则；命令类工具（bash）走 argv 前缀
+// 规则（T10——记住命令形状而非逐字串，同前缀变体免重复审批，串接提权不匹配）；
+// 其余工具保持精确 key。argvRules 惰性创建。
+func (c *Controller) grantAllowLocked(key string, p approvalPrompt) {
+	switch {
+	case p.ruleRequest:
+		c.grantRuleLocked(p.tool, p.subject)
+	case p.tool == "bash":
+		if r, ok := permission.ArgvRuleFromCommand(p.subject, 0); ok {
+			if c.argvRules == nil {
+				c.argvRules = permission.NewArgvRuleSet()
+			}
+			c.argvRules.Add(r)
+			return
+		}
+		fallthrough // 命令无法安全切分（引号异常等）：回落精确 key，不猜
+	default:
+		c.granted[key] = true
 	}
 }
 
@@ -453,7 +689,16 @@ func (c *Controller) writebackAllowRule(tool, subject string) {
 		return
 	}
 	rule := tool
-	if subject != "" {
+	if tool == "bash" && subject != "" {
+		// T10（codex 蒸馏）：命令类工具回写 argv 前缀规则而不是 glob——
+		// `bash prefix ["git","status"]` 只匹配各 shell 段前缀都命中的命令，
+		// `git status; rm -rf` 不会顺手放行。切分失败回落精确串。
+		if r, ok := permission.ArgvRuleFromCommand(subject, 0); ok {
+			rule = permission.ArgvRuleText(tool, r)
+		} else {
+			rule = tool + "(" + subject + ")"
+		}
+	} else if subject != "" {
 		rule = tool + "(" + subject + ")"
 	}
 	if err := c.persistAllowRule(rule); err != nil {

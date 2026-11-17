@@ -5,8 +5,43 @@ import (
 	"fmt"
 	"strings"
 
+	tiancontext "github.com/gaea/gaea/internal/gaea/context"
+	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/skill"
 )
+
+const sessionFactsSectionID = "sessionfacts.list"
+
+// sessionFactsSection 是会话临时事实清单的章节化形状（T7）：快照=渲染后的
+// 清单文本（可比较字符串）；Body 空=清单已清空（promote/清除 → 移除通知）。
+type sessionFactsSection struct {
+	facts []memory.Memory
+}
+
+func (s sessionFactsSection) ID() string { return sessionFactsSectionID }
+func (s sessionFactsSection) Snapshot() string {
+	if len(s.facts) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, f := range s.facts {
+		b.WriteString(f.Name + "\x00" + f.Title + "\x00" + f.Description + "\n")
+	}
+	return b.String()
+}
+func (s sessionFactsSection) Body() string {
+	if len(s.facts) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("<session-facts>\n")
+	b.WriteString("You saved these temporary facts this session (call promote_session_facts to make them permanent):\n")
+	for _, f := range s.facts {
+		fmt.Fprintf(&b, "- [%s] %s: %s\n", f.Name, f.Title, f.Description)
+	}
+	b.WriteString("</session-facts>")
+	return b.String()
+}
 
 // Compose appends memory updates, session facts, background job notes, and memory
 // block injections to a turn's text. The frontend keeps showing the raw text as
@@ -35,7 +70,17 @@ func (c *Controller) Compose(text string) string {
 	// Session facts — temporary memories saved with session=true. These persist
 	// across turns and are re-injected each turn. The model can also call
 	// memory_search to find them (they're in the session, not on disk).
-	if len(sessionFacts) > 0 {
+	//
+	// T7 章节化差分（Options.SectionDiff，默认关=走下面的全量注入）：facts
+	// 列表不变 → 零注入（省 N facts × 轮次的逐轮成本）；列表变化 → 替换通知 +
+	// 全量列表；清空（promote/清除）→ 移除通知（模型不再遵守已不存在的清单）。
+	// 快照真源在 c.sectionStore（会话生命周期）；Kind=sessionfacts.list。
+	if c.sectionDiff {
+		sec := sessionFactsSection{facts: sessionFacts}
+		for _, f := range c.sectionStore.RenderAll([]tiancontext.Section{sec}) {
+			text = f.Render() + "\n\n" + text
+		}
+	} else if len(sessionFacts) > 0 {
 		var b strings.Builder
 		b.WriteString("<session-facts>\n")
 		b.WriteString("You saved these temporary facts this session (call promote_session_facts to make them permanent):\n")

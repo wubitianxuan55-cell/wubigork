@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 703 名（原生变参 19 名已收窄标注）。
+// 共 710 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -83,6 +83,8 @@ export const bindingSignatures = {
   GaeaAnswer: { argc: 2, variadic: false, params: "id string, answers []event.AskAnswer" },
   GaeaApplyUpdate: { argc: 0, variadic: false, params: "" },
   GaeaApprove: { argc: 2, variadic: false, params: "id string, decision string" },
+  GaeaApproveDenied: { argc: 1, variadic: false, params: "id string" },
+  GaeaApproveWithReason: { argc: 3, variadic: false, params: "id string, decision string, reason string" },
   GaeaArchiveSession: { argc: 1, variadic: false, params: "path string" },
   GaeaAttachmentChunkAbort: { argc: 1, variadic: false, params: "token string" },
   GaeaAttachmentChunkAppend: { argc: 2, variadic: false, params: "token string, base64Chunk string" },
@@ -257,6 +259,7 @@ export const bindingSignatures = {
   GaeaOpenDownloadPage: { argc: 0, variadic: false, params: "" },
   GaeaOpenLogsDir: { argc: 0, variadic: false, params: "" },
   GaeaOpenWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
+  GaeaPendingDeniedActions: { argc: 0, variadic: false, params: "" },
   GaeaPickDirectory: { argc: 0, variadic: false, params: "" },
   GaeaPickFiles: { argc: 1, variadic: false, params: "filters string" },
   GaeaPickWorkspace: { argc: 0, variadic: false, params: "" },
@@ -599,6 +602,8 @@ export const bindingSignatures = {
   WenxueAgentNetwork: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueAnswer: { argc: 2, variadic: false, params: "id string, answers []event.AskAnswer" },
   WenxueApprove: { argc: 2, variadic: false, params: "id string, decision string" },
+  WenxueApproveDenied: { argc: 1, variadic: false, params: "id string" },
+  WenxueApproveWithReason: { argc: 3, variadic: false, params: "id string, decision string, reason string" },
   WenxueArchiveSession: { argc: 1, variadic: false, params: "path string" },
   WenxueAttachmentChunkBegin: { argc: 1, variadic: false, params: "fileName string" },
   WenxueAttachmentDataURL: { argc: 1, variadic: false, params: "path string" },
@@ -657,6 +662,7 @@ export const bindingSignatures = {
   WenxueMeta: { argc: 0, variadic: false, params: "" },
   WenxueNewSession: { argc: 0, variadic: false, params: "" },
   WenxueOpenWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
+  WenxuePendingDeniedActions: { argc: 0, variadic: false, params: "" },
   WenxuePermLevel: { argc: 0, variadic: false, params: "" },
   WenxuePickWorkspace: { argc: 0, variadic: false, params: "" },
   WenxuePickWorkspaceUploadFiles: { argc: 1, variadic: false, params: "dir string" },
@@ -687,6 +693,7 @@ export const bindingSignatures = {
   WenxueSaveWorkspacePathsAs: { argc: 1, variadic: false, params: "paths []string" },
   WenxueSend: { argc: 1, variadic: false, params: "input string" },
   WenxueSetMCPServerEnabled: { argc: 2, variadic: false, params: "name string, enabled bool" },
+  WenxueSetModel: { argc: 1, variadic: false, params: "name string" },
   WenxueSetPermLevel: { argc: 1, variadic: false, params: "level string" },
   WenxueSkillDraftFromSession: { argc: 0, variadic: false, params: "" },
   WenxueSlashArgs: { argc: 1, variadic: false, params: "input string" },
@@ -724,5 +731,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 703。
-export const bindingSignatureCount = 703;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 710。
+export const bindingSignatureCount = 710;

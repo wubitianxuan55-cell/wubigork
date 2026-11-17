@@ -14,7 +14,7 @@ func TestLiveAgentAdapters(t *testing.T) {
 	if os.Getenv("PANTHEON_LIVE_SMOKE") == "" {
 		t.Skip("set PANTHEON_LIVE_SMOKE=1 to call installed agent harnesses")
 	}
-	adapters := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"))
+	adapters := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"), nil, nil)
 	only := strings.TrimSpace(os.Getenv("PANTHEON_LIVE_AGENTS"))
 	workDir := strings.TrimSpace(os.Getenv("PANTHEON_LIVE_WORKDIR"))
 	if workDir == "" {
@@ -62,7 +62,7 @@ func TestLiveDSHSeatSessionReuse(t *testing.T) {
 	if os.Getenv("PANTHEON_LIVE_SMOKE") == "" {
 		t.Skip("set PANTHEON_LIVE_SMOKE=1 to call installed agent harnesses")
 	}
-	adapter := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"))["dsh"]
+	adapter := buildAdapters(nil, nil, os.Getenv("DEEPSEEK_API_KEY"), nil, nil)["dsh"]
 	// 凭据跟着「工作目录」走：DSH headless 会读 cwd 下的 .env（本仓 .env 带
 	// DEEPSEEK_API_KEY）或环境变量。临时目录没有凭据，实弹必须在真实工作区跑。
 	workDir := strings.TrimSpace(os.Getenv("PANTHEON_LIVE_WORKDIR"))
@@ -110,7 +110,7 @@ func TestLiveZCodeSeatSessionReuse(t *testing.T) {
 	if os.Getenv("PANTHEON_LIVE_SMOKE") == "" {
 		t.Skip("set PANTHEON_LIVE_SMOKE=1 to call installed agent harnesses")
 	}
-	adapter := buildAdapters(nil, nil, "")["zcode"]
+	adapter := buildAdapters(nil, nil, "", nil, nil)["zcode"]
 	workDir := strings.TrimSpace(os.Getenv("PANTHEON_LIVE_WORKDIR"))
 	if workDir == "" {
 		workDir = t.TempDir()

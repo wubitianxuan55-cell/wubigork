@@ -148,6 +148,9 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	}
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
 		Model: "gaea",
+		// T11 Guardian：[guardian] enabled 时注入动作级自动评审（评审走办公
+		// 本地优先路由）；未启用传 nil=审批纯人工（现状逐字节）。
+		Guardian: newGuardianReviewer(a, ga.cfg, "office"),
 		// v4.64 Side Chat 式追问：文本增量走专用通道（gaea-subagent-text），
 		// 追问执行器交给 ga 保存（GaeaSubagentFollowUp 绑定调用）。
 		EmitSubagentText: func(ref, text string) {

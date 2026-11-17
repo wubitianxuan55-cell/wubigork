@@ -3,6 +3,7 @@ package memory
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -238,6 +239,11 @@ func (s Store) RestoreInvalidate(name string) error {
 // 已被另一条活跃事实持有时拒绝（错误点名持有者），修订单值事实必须走原条目
 // 重写（revision，不是 contradiction）。同名保存（自己顶自己）不受限。
 func (s Store) Save(m Memory) (string, error) {
+	// T12 脱敏护栏（codex 蒸馏，常开）：模型沉淀文本在落库前替换密钥形态。
+	// 计数只进日志不落原文——审计能知道「写过密钥」，库里查不到密钥。
+	if n := sanitizeMemory(&m); n > 0 {
+		slog.Info("memory sanitize: 替换密钥形态", "name", m.Name, "redacted", n)
+	}
 	if holder := s.subjectHolder(m); holder != "" {
 		return "", fmt.Errorf(
 			"subject key %q is already held by memory %q — one active value per subject: "+

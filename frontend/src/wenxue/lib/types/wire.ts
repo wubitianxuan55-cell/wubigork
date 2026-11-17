@@ -16,6 +16,11 @@ export type EventKind =
   | "phase"
   | "approval_request"
   | "ask_request"
+  // 与办公 wire 对齐：审批/提问解决态 + Guardian 自动评审账本。
+  | "approval_resolved"
+  | "ask_resolved"
+  | "approval_auto"
+  | "subagent_message"
   | "turn_done"
   | "compaction_started"
   | "compaction_done"
@@ -75,11 +80,24 @@ export interface WireApproval {
   id: string;
   tool: string;
   subject: string;
+  // gate / hard_ask / project_plan / permission_request / guardian。
+  source?: string;
   // request_permission 权限升级申请（后端仅在该形态下发这两个字段）：
   // request=true 时本卡是模型主动发起的规则申请而非常规工具审批；
   // reason 是模型给出的申请理由原文——审批卡必须原样展示后才可采信。
   request?: boolean;
   reason?: string;
+}
+
+// 待追认账本条目（codex 蒸馏 T3/T11）：decision=deny|timeout。
+export interface WireDeniedAction {
+  id: string;
+  tool: string;
+  subject: string;
+  source: string;
+  decision: string;
+  reason: string;
+  at: string;
 }
 
 export interface WireAskOption {

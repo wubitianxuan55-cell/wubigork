@@ -177,18 +177,121 @@ func (a *App) GaeaModels() []ModelInfo {
 // SetDefaultModel 校验模型在引擎清单内，失败如实报错不静默降级（防陈旧清单
 // 悄悄回落引擎默认，用户以为切过去了）。
 func (a *App) GaeaSetModel(name string) error {
-	engine := name
-	model := ""
+	engine, model, setDefault, err := a.resolveModelSwitch(name)
+	if err != nil {
+		return err
+	}
+	c := gaeaCtrl()
+	newWindow, err := a.precompactBeforeModelSwitch(c, engine, model, "office")
+	if err != nil {
+		return err
+	}
+	if err := a.applyModelSwitch(engine, model, setDefault); err != nil {
+		return err
+	}
+	if c != nil {
+		c.SetContextWindow(newWindow)
+	}
+	return nil
+}
+
+// WenxueSetModel 是文学板块自己的模型切换入口：与办公共用全局引擎选择，
+// 但「先压缩再切小窗口」必须作用在图文 controller 上，不能只压办公历史。
+func (a *App) WenxueSetModel(name string) error {
+	engine, model, setDefault, err := a.resolveModelSwitch(name)
+	if err != nil {
+		return err
+	}
+	c := wenxueCtrl()
+	newWindow, err := a.precompactBeforeModelSwitch(c, engine, model, "wenxue")
+	if err != nil {
+		return err
+	}
+	if err := a.applyModelSwitch(engine, model, setDefault); err != nil {
+		return err
+	}
+	if c != nil {
+		c.SetContextWindow(newWindow)
+	}
+	return nil
+}
+
+// resolveModelSwitch 只校验与解析目标模型，不修改活跃引擎/默认模型。
+// 预压缩失败时不能留下「状态已切换、历史未压缩」的半完成态。
+func (a *App) resolveModelSwitch(name string) (engine, model string, setDefault bool, err error) {
+	if a == nil || a.engineMgr == nil {
+		return "", "", false, errNoEngineMgr
+	}
+	engine = name
+	model = ""
 	if i := strings.Index(name, "/"); i > 0 {
 		engine = name[:i]
 		model = name[i+1:]
 	}
-	if model != "" && model != "(默认)" {
+	setDefault = model != "" && model != "(默认)"
+	eng, ok := a.engineMgr.GetEngine(engine)
+	if !ok {
+		return "", "", false, &appError{"引擎不存在: " + engine}
+	}
+	if !eng.Enabled {
+		return "", "", false, &appError{"引擎未启用: " + engine}
+	}
+	if !setDefault {
+		model = eng.DefaultModel
+	}
+	if model != "" && len(eng.Models) > 0 {
+		found := false
+		for _, m := range eng.Models {
+			if m.ID == model {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return "", "", false, fmt.Errorf("模型 %s 不在引擎 %s 的可用列表中", model, engine)
+		}
+	}
+	return engine, model, setDefault, nil
+}
+
+func (a *App) applyModelSwitch(engine, model string, setDefault bool) error {
+	if setDefault && model != "" {
 		if err := a.engineMgr.SetDefaultModel(engine, model); err != nil {
 			return err
 		}
 	}
 	return a.SetActiveEngine(engine)
+}
+
+// precompactBeforeModelSwitch 在新窗口小于当前窗口且上下文越过新阈值时，
+// 先走 T9 的无摘要换窗口压缩，再允许改活跃模型。开关关闭/窗口已知更大时
+// helper 自然 no-op，保持旧切换路径。
+func (a *App) precompactBeforeModelSwitch(c *control.Controller, engine, model, feature string) (int, error) {
+	eng, ok := a.engineMgr.GetEngine(engine)
+	if !ok || model == "" {
+		return 0, nil
+	}
+	newWindow := 0
+	for _, m := range eng.Models {
+		if m.ID == model {
+			newWindow = m.ContextLength
+			break
+		}
+	}
+	if newWindow <= 0 {
+		return 0, nil
+	}
+	if c == nil {
+		return newWindow, nil
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := c.MaybeDownshiftCompact(ctx, newWindow); err != nil {
+		return 0, fmt.Errorf("%s 切换模型前压缩失败: %w", feature, err)
+	}
+	return newWindow, nil
 }
 
 // GaeaCommands 列出可用斜杠命令（内置 + 技能 + 自定义 + MCP 提示）。

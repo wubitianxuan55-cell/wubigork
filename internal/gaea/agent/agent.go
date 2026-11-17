@@ -798,6 +798,14 @@ func (a *AgentRunner) systemPrompt() string {
 
 func (a *AgentRunner) ContextWindow() int { return a.compaction.Window }
 
+// SetContextWindow 在已切换模型、未重建 runner 的路径上同步生效窗口，
+// 让后续自动压缩按新模型而不是旧窗口计算水位。
+func (a *AgentRunner) SetContextWindow(window int) {
+	if window > 0 {
+		a.compaction.Window = window
+	}
+}
+
 // CompactRatio returns the fraction of the window at which auto-compaction
 // fires (e.g. 0.8). The status line uses it to show headroom to the next compact.
 func (a *AgentRunner) CompactRatio() float64 { return a.compaction.Ratio }

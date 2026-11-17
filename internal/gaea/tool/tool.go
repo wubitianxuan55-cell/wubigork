@@ -195,6 +195,11 @@ type Registry struct {
 	order  []string
 	hidden map[string]bool            // V6.0 P8: hidden from schema but still callable
 	canon  map[string]json.RawMessage // V10.0: schema canonicalized once on Add, reused by Schemas()
+	// schemaBudget 是工具 schema 描述文本的共享字节预算（codex 蒸馏 T5）：
+	// <=0（默认）= 关闭，下发与现状逐字节一致；>0 = FilteredSchemas 收口处
+	// 按预算裁描述（名字优先，见 budget.go）。构造后由 boot 按配置注入，
+	// 只读访问走 SchemaBudget()。
+	schemaBudget int
 }
 
 // NewRegistry returns an empty registry.
@@ -334,6 +339,25 @@ func (r *Registry) PersistWriteNames() []string {
 	return out
 }
 
+// SetSchemaBudget 注入 schema 描述字节预算（T5）：<=0 = 关闭（默认）。
+// 仅应在 boot 装配期调用一次；会话中途改预算会打破前缀缓存稳定性。
+func (r *Registry) SetSchemaBudget(n int) {
+	if n < 0 {
+		n = 0
+	}
+	r.mu.Lock()
+	r.schemaBudget = n
+	r.mu.Unlock()
+}
+
+// SchemaBudget 返回当前预算值（<=0 = 关闭）。IdentityLayer 的具名下发路径
+// 用同一值收口，避免两处漂移。
+func (r *Registry) SchemaBudget() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.schemaBudget
+}
+
 // Schemas exports tool definitions in stable name order for the provider.
 // When a tool implements CompactDescriptor, the compact versions are used
 // instead of the full Description + Schema — unconditionally (no runtime
@@ -411,6 +435,11 @@ func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
 				Source:      SourceOf(s.name),
 			})
 		}
+	}
+	// T5 schema 字节预算收口：<=0（默认关）时 ApplySchemaBudget 不参与，
+	// 返回值与现状逐字节一致。
+	if b := r.SchemaBudget(); b > 0 {
+		return ApplySchemaBudget(out, b)
 	}
 	return out
 }

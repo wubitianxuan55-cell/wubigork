@@ -41,6 +41,7 @@ import type {
   ProgrammingWebStatus,
   ProjectGroup,
   QuestionAnswer,
+  WireDeniedAction,
   RetrievalEvalReport,
   SearchScope,
   SessionMeta,
@@ -87,6 +88,13 @@ export interface CoreBindings {
   // GaeaRunning 返回办公引擎当前是否真的在跑（看门狗校准用）。
   GaeaRunning(): Promise<boolean>;
   Approve(id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort"): Promise<void>;
+  // ApproveWithReason 拒绝时可附一句话理由（codex 蒸馏 T3）：理由回喂下一轮
+  // 工具结果文本，模型据此换方案而非原样重试。
+  ApproveWithReason(id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort", reason: string): Promise<void>;
+  // PendingDeniedActions 返回待追认账本（拒绝/超时挂账，时间正序；T3/T11）。
+  PendingDeniedActions(): Promise<WireDeniedAction[]>;
+  // ApproveDenied 追认一条已拒/超时动作：按原参数重放审批卡，由用户裁决。
+  ApproveDenied(id: string): Promise<void>;
   AnswerQuestion(id: string, answers: QuestionAnswer[]): Promise<void>;
   NewSession(): Promise<void>;
   // Reload 热加载办公引擎：重新读取磁盘上的持久化配置并重建 controller，

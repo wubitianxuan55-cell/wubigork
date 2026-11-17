@@ -115,7 +115,7 @@ type GrokHistoryBackend interface {
 	) (string, error)
 }
 
-func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey string) map[string]agentAdapter {
+func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey string, roles []RoleFile, roleBackend RoleSeatBackend) map[string]agentAdapter {
 	adapters := []agentAdapter{
 		newCodexAdapter(overrides["codex"]),
 		newZCodeAdapter(overrides["zcode"]),
@@ -125,11 +125,73 @@ func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey st
 		// Grok 席位列首位：Gaea 办公 AgentRunner、秒级探测，适合作协作汇总人。
 		adapters = append(adapters, newGrokAdapter(grok))
 	}
+	// T15 文件席位：角色文件定义的模型席位排在内建之后（Agents() 的 priority
+	// 排序已给非内建 id 兜底 10）。与内建同名的文件席位跳过——内建席位的引擎
+	// 绑定不可被文件替换（防串引擎提权）。backend 缺省（无注入方）时文件席位
+	// 不出现。
+	if roleBackend != nil {
+		for _, role := range roles {
+			if isBuiltinSeatID(role.Name) {
+				continue
+			}
+			adapters = append(adapters, newRoleAdapter(role, roleBackend))
+		}
+	}
 	out := make(map[string]agentAdapter, len(adapters))
 	for _, adapter := range adapters {
 		out[adapter.id] = adapter
 	}
 	return out
+}
+
+// builtinSeatIDs 是内建引擎席位（文件席位不得顶替）。
+var builtinSeatIDs = map[string]bool{
+	"grok": true, "codex": true, "zcode": true, "dsh": true,
+}
+
+func isBuiltinSeatID(id string) bool { return builtinSeatIDs[id] }
+
+// RoleSeatBackend 是文件席位的运行时后端（注入方实现；pantheon 不 import
+// internal/app）：角色文件的 persona/模型选择由后端按 RoleFile 解释。
+type RoleSeatBackend interface {
+	// ProbeRole 返回该席位可用性；不可用时 Available=false 且 Reason 面向用户。
+	ProbeRole(ctx context.Context, role RoleFile) AgentStatus
+	// CallRole 完成一次只读议事调用，返回纯文本。persona 语义由后端解释
+	// （gaea 实现把它注入模型席位的 system prompt）。
+	CallRole(ctx context.Context, role RoleFile, prompt string) (string, error)
+}
+
+// RoleStreamingBackend 是可选的文件席位流式通道。
+type RoleStreamingBackend interface {
+	StreamRole(ctx context.Context, role RoleFile, prompt string, emit func(string)) (string, error)
+}
+
+// newRoleAdapter 把一个文件角色装配成模型席位适配器（复用 grok 席的后端接口
+// 形态：只读议事 + 可选流式）。
+func newRoleAdapter(role RoleFile, backend RoleSeatBackend) agentAdapter {
+	adapter := agentAdapter{
+		id:   role.Name,
+		name: role.Name,
+		kind: "文件席位",
+		// 与 grok 席同一只读纪律的文案基线；具体能力以后端 Probe 为准。
+		runMode: "Gaea 只读工具白名单（文件席位）",
+		probe: func(ctx context.Context) AgentStatus {
+			status := backend.ProbeRole(ctx, role)
+			status.ID = role.Name
+			status.Description = role.Description
+			status.Capabilities = ensureCapability(status.Capabilities, "role-file")
+			return status
+		},
+		invoke: func(ctx context.Context, prompt string) (string, error) {
+			return backend.CallRole(ctx, role, prompt)
+		},
+	}
+	if streaming, ok := backend.(RoleStreamingBackend); ok {
+		adapter.stream = func(ctx context.Context, prompt string, emit func(string)) (string, error) {
+			return streaming.StreamRole(ctx, role, prompt, emit)
+		}
+	}
+	return adapter
 }
 
 func ensureCapability(capabilities []string, capability string) []string {

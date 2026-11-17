@@ -90,7 +90,7 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		c := New(Options{Sink: rec})
 		go func() { c.Approve(<-rec.approvals, DecisionAllowOnce) }()
 
-		allow, _, err := gateApprover{c}.Approve(context.Background(), "bash", "go test", nil)
+		allow, _, _, err := gateApprover{c}.Approve(context.Background(), "bash", "go test", nil)
 		if err != nil || !allow {
 			t.Fatalf("Approve = (%v,%v)", allow, err)
 		}
@@ -111,7 +111,7 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		c := New(Options{Sink: rec})
 		go func() { c.Approve(<-rec.approvals, DecisionDeny) }()
 
-		if allow, _, _ := (gateApprover{c}).Approve(context.Background(), "bash", "rm -rf /", nil); allow {
+		if allow, _, _, _ := (gateApprover{c}).Approve(context.Background(), "bash", "rm -rf /", nil); allow {
 			t.Fatal("deny 应拒绝")
 		}
 		_, res := approvalPair(t, rec.snapshot())
@@ -125,7 +125,7 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		c := New(Options{Sink: rec})
 		c.approvalTimeout = 20 * time.Millisecond
 
-		if allow, _, _ := (gateApprover{c}).Approve(context.Background(), "bash", "sleep", nil); allow {
+		if allow, _, _, _ := (gateApprover{c}).Approve(context.Background(), "bash", "sleep", nil); allow {
 			t.Fatal("超时应按拒绝处理")
 		}
 		_, res := approvalPair(t, rec.snapshot())
@@ -140,7 +140,7 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			_, _, err := gateApprover{c}.Approve(ctx, "bash", "sleep", nil)
+			_, _, _, err := gateApprover{c}.Approve(ctx, "bash", "sleep", nil)
 			done <- err
 		}()
 		<-rec.approvals // 卡已弹出
@@ -160,7 +160,7 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		c.SetPermLevel("yolo") // 逐条确认工具在 yolo 下仍弹卡
 		go func() { c.Approve(<-rec.approvals, DecisionAllowOnce) }()
 
-		if allow, _, err := (gateApprover{c}).Approve(context.Background(), "cost_save", "", []byte(`{"title":"钢材"}`)); err != nil || !allow {
+		if allow, _, _, err := (gateApprover{c}).Approve(context.Background(), "cost_save", "", []byte(`{"title":"钢材"}`)); err != nil || !allow {
 			t.Fatalf("cost_save 应放行: %v %v", allow, err)
 		}
 		req, res := approvalPair(t, rec.snapshot())
@@ -179,7 +179,7 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		}()
 		g := gateApprover{c}
 		for i := 0; i < 3; i++ {
-			if allow, _, err := g.Approve(context.Background(), "bash", "go build", nil); err != nil || !allow {
+			if allow, _, _, err := g.Approve(context.Background(), "bash", "go build", nil); err != nil || !allow {
 				t.Fatalf("call %d = (%v,%v)", i, allow, err)
 			}
 		}
@@ -224,7 +224,7 @@ func TestAutoApprovalLedger(t *testing.T) {
 		c := New(Options{Sink: rec})
 		c.SetPermLevel("yolo")
 
-		if allow, _, err := (gateApprover{c}).Approve(context.Background(), "bash", "go test ./...", nil); err != nil || !allow {
+		if allow, _, _, err := (gateApprover{c}).Approve(context.Background(), "bash", "go test ./...", nil); err != nil || !allow {
 			t.Fatalf("yolo 应放行 = (%v,%v)", allow, err)
 		}
 		events := rec.snapshot()
@@ -251,7 +251,7 @@ func TestAutoApprovalLedger(t *testing.T) {
 		c := New(Options{Sink: rec})
 		c.SetPermLevel("auto")
 
-		if allow, _, err := (gateApprover{c}).Approve(context.Background(), "write_file", "a.txt", nil); err != nil || !allow {
+		if allow, _, _, err := (gateApprover{c}).Approve(context.Background(), "write_file", "a.txt", nil); err != nil || !allow {
 			t.Fatalf("auto 应放行 = (%v,%v)", allow, err)
 		}
 		var got *event.AutoApproval

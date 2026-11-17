@@ -72,6 +72,7 @@ import type {
   WorkspaceTextPage,
   WorkspaceUploadResult,
   WorkspaceWriteResult,
+  WireDeniedAction,
 } from "../types";
 // BrowserObserveView 定义在 BrowserPanel.tsx（v4.28 A2，导出供 bridge/测试重用）。
 import type { BrowserObserveView } from "../../components/BrowserPanel";
@@ -86,6 +87,10 @@ export interface CoreBindings {
   // GaeaRunning 返回办公引擎当前是否真的在跑（看门狗校准用）。
   GaeaRunning(): Promise<boolean>;
   Approve(id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort"): Promise<void>;
+  // 拒绝理由 / 待追认账本 / 追认重放（T3/T11，目标为图文引擎）。
+  ApproveWithReason(id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort", reason: string): Promise<void>;
+  PendingDeniedActions(): Promise<WireDeniedAction[]>;
+  ApproveDenied(id: string): Promise<void>;
   AnswerQuestion(id: string, answers: QuestionAnswer[]): Promise<void>;
   NewSession(): Promise<void>;
   // Reload 热加载办公引擎：重新读取磁盘上的持久化配置并重建 controller，

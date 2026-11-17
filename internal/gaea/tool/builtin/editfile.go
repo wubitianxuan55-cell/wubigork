@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -90,6 +91,7 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	var (
 		n        int
 		baseline string
+		seekNote string
 	)
 	if err := WithFileLock(p.Path, func() error {
 		bind, berr := bindFileLockTarget(p.Path)
@@ -111,11 +113,12 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 		// v4.1b：写盘前整文件基线快照（Verifier 视觉 diff / 回滚原料；未配置则 ""）。
 		baseline = evidence.StageBaseline(ctx, p.Path, []byte(content))
-		newContent, cnt, nerr := replaceInContent(content, p.OldString, p.NewString, p.ReplaceAll)
+		newContent, cnt, note, nerr := replaceInContent(content, p.OldString, p.NewString, p.ReplaceAll)
 		if nerr != nil {
 			return fmt.Errorf("edit %s: %w", p.Path, nerr)
 		}
 		n = cnt
+		seekNote = note
 		if werr := atomicWriteEncoded(p.Path, newContent, enc); werr != nil {
 			return fmt.Errorf("write %s: %w", p.Path, werr)
 		}
@@ -132,41 +135,144 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		AfterSummary:  p.NewString,
 		BaselinePath:  baseline,
 	})
-	return fmt.Sprintf("edited %s: %d occurrence(s) replaced (+%d/-%d bytes)",
-		p.Path, n, n*len(p.NewString), n*len(p.OldString)), nil
+	msg := fmt.Sprintf("edited %s: %d occurrence(s) replaced (+%d/-%d bytes)",
+		p.Path, n, n*len(p.NewString), n*len(p.OldString))
+	if seekNote != "" {
+		// 三档兜底命中：告诉模型「没逐字节对上也找到了」，下次可继续给上下文块。
+		msg += "\n" + seekNote
+	}
+	return msg, nil
 }
 
 // ── shared replacement / write kernel (edit_file + multi_edit + edit_lines) ──
 
 // replaceInContent replaces old with new inside content and returns the new
-// content plus the number of replacements made. With replaceAll=false it
-// demands exactly one match: zero occurrences is an error (with a CRLF
-// diagnostic, the dominant cause of phantom misses on Windows files), and
-// more than one is an error telling the model to widen the context or opt
+// content, the number of replacements made, and a locator note (非空=走了三档
+// 兜底定位，调用方原样追加进工具结果). With replaceAll=false it demands exactly
+// one match: zero occurrences falls back to three-tier line matching (T1)，
+// and more than one is an error telling the model to widen the context or opt
 // into replace_all. edit_file and multi_edit both route through here so the
 // two tools cannot drift apart on match semantics.
-func replaceInContent(content, old, new string, replaceAll bool) (string, int, error) {
+func replaceInContent(content, old, new string, replaceAll bool) (string, int, string, error) {
 	n := strings.Count(content, old)
-	if n == 0 {
-		if strings.Contains(content, strings.ReplaceAll(old, "\n", "\r\n")) {
-			return "", 0, fmt.Errorf(
-				"old_string not found: the file uses CRLF (Windows) line endings — " +
-					"your old_string has bare \\n. Re-read the file and copy the text exactly, " +
-					"or edit line-wise with edit_lines")
-		}
-		return "", 0, fmt.Errorf(
-			"old_string not found in file (%d occurrences). Re-read the file with read_file "+
-				"and retry with the exact current content", n)
-	}
 	if n > 1 && !replaceAll {
-		return "", 0, fmt.Errorf(
+		return "", 0, "", fmt.Errorf(
 			"old_string matches %d locations; include more surrounding context to make it unique, "+
 				"or pass replace_all:true to replace all %d occurrences", n, n)
 	}
-	if replaceAll {
-		return strings.ReplaceAll(content, old, new), n, nil
+	if n >= 1 {
+		if replaceAll {
+			return strings.ReplaceAll(content, old, new), n, "", nil
+		}
+		return strings.Replace(content, old, new, 1), 1, "", nil
 	}
-	return strings.Replace(content, old, new, 1), 1, nil
+	// 精确零命中：CRLF 病因优先诊断（既有行为，三档兜底不抢——裸 \n 对 CRLF
+	// 文件仍报错，指引模型抄对行尾或改用 edit_lines；静默改写 CRLF 文件会混行尾）。
+	if strings.Contains(content, strings.ReplaceAll(old, "\n", "\r\n")) {
+		return "", 0, "", fmt.Errorf(
+			"old_string not found: the file uses CRLF (Windows) line endings — " +
+				"your old_string has bare \\n. Re-read the file and copy the text exactly, " +
+				"or edit line-wise with edit_lines")
+	}
+	// 三档行匹配兜底（codex 蒸馏 T1）：文件被无关改动后按上下文仍能定位。
+	return seekReplace(content, old, new, replaceAll)
+}
+
+// seekReplace 三档行匹配兜底：把 old/new 拆成逻辑行，tool.FindSequence 逐档
+// 定位后按行首偏移整段拼接替换。未触及区域保留原始字节（含各自行尾符），
+// 替换块用文件的行尾风格（CRLF 文件探测到 \r\n 即整块用 CRLF）。
+// 未命中时错误附「最接近的候选」行号（首行匹配度前 3）。
+func seekReplace(content, old, new string, replaceAll bool) (string, int, string, error) {
+	pat := splitLogicalLines(old)
+	lines := splitLinesKeepEnds(content)
+	logical := make([]string, len(lines))
+	for i, l := range lines {
+		logical[i] = strings.TrimRight(l, "\r\n")
+	}
+	// 反复定位收集全部非重叠命中（FindSequence 恒取最低档位，同输入同结果）。
+	type hit struct {
+		idx, tier int
+	}
+	var hits []hit
+	for at := 0; ; {
+		idx, tier := tool.FindSequence(logical, pat, at)
+		if idx < 0 {
+			break
+		}
+		hits = append(hits, hit{idx, tier})
+		at = idx + len(pat)
+	}
+	if len(hits) == 0 {
+		hint := ""
+		if cands := tool.NearestMatches(logical, pat, 3); len(cands) > 0 {
+			parts := make([]string, len(cands))
+			for i, c := range cands {
+				parts[i] = strconv.Itoa(c)
+			}
+			hint = " 三档匹配（忽略行尾/两侧空白）仍未命中；最接近的候选在第 " +
+				strings.Join(parts, "、") + " 行"
+		}
+		return "", 0, "", fmt.Errorf(
+			"old_string not found in file (0 occurrences). Re-read the file with read_file "+
+				"and retry with the exact current content.%s", hint)
+	}
+	if len(hits) > 1 && !replaceAll {
+		return "", 0, "", fmt.Errorf(
+			"old_string matches %d locations under whitespace-tolerant matching; include more "+
+				"surrounding context to make it unique, or pass replace_all:true to replace all %d occurrences",
+			len(hits), len(hits))
+	}
+	// 行首偏移表：starts[i] 是第 i 行在 content 里的字节偏移。
+	starts := make([]int, len(lines)+1)
+	for i, l := range lines {
+		starts[i+1] = starts[i] + len(l)
+	}
+	eol := "\n"
+	if strings.Contains(content, "\r\n") {
+		eol = "\r\n"
+	}
+	block := strings.ReplaceAll(strings.ReplaceAll(new, "\r\n", "\n"), "\n", eol)
+	out := content
+	// 从后往前替换，前面的偏移不受影响。
+	for i := len(hits) - 1; i >= 0; i-- {
+		last := hits[i].idx + len(pat) - 1
+		start, end := starts[hits[i].idx], starts[last]+len(logical[last])
+		out = out[:start] + block + out[end:]
+	}
+	note := ""
+	if tier := hits[0].tier; tier > 0 {
+		name := "忽略行尾空白"
+		if tier == 2 {
+			name = "忽略两侧空白"
+		}
+		note = fmt.Sprintf("（按第 %d 档[%s]定位到第 %d 行）", tier, name, hits[0].idx+1)
+	}
+	return out, len(hits), note, nil
+}
+
+// splitLogicalLines 把模型给的块拆成逻辑行（剥 \r 行尾；尾随空行保留，
+// 它承载「删到行尾」的语义）。
+func splitLogicalLines(s string) []string {
+	parts := strings.Split(s, "\n")
+	for i := range parts {
+		parts[i] = strings.TrimSuffix(parts[i], "\r")
+	}
+	return parts
+}
+
+// splitLinesKeepEnds 按行拆分但保留每行行尾符（末行可能无行尾符）。
+func splitLinesKeepEnds(s string) []string {
+	var lines []string
+	for len(s) > 0 {
+		i := strings.IndexByte(s, '\n')
+		if i < 0 {
+			lines = append(lines, s)
+			break
+		}
+		lines = append(lines, s[:i+1])
+		s = s[i+1:]
+	}
+	return lines
 }
 
 // atomicWriteEncoded encodes content back to the file's original encoding and

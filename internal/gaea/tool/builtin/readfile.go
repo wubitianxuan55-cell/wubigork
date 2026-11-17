@@ -19,6 +19,7 @@ import (
 	"golang.org/x/text/transform"
 
 	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -457,14 +458,17 @@ func (c *markitdownCLIConverter) Convert(ctx context.Context, path string) (stri
 	var runErr error
 	if p, err := exec.LookPath("markitdown"); err == nil {
 		cmd := exec.CommandContext(ctx, p, path)
+		cmd.Env = proc.CommandEnv()
 		hideBashWindow(cmd)
 		out, runErr = cmd.Output()
 	} else if p, err := exec.LookPath("python3"); err == nil {
 		cmd := exec.CommandContext(ctx, p, "-m", "markitdown", path)
+		cmd.Env = proc.CommandEnv()
 		hideBashWindow(cmd)
 		out, runErr = cmd.Output()
 	} else if p, err := exec.LookPath("python"); err == nil {
 		cmd := exec.CommandContext(ctx, p, "-m", "markitdown", path)
+		cmd.Env = proc.CommandEnv()
 		hideBashWindow(cmd)
 		out, runErr = cmd.Output()
 	} else {

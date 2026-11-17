@@ -303,6 +303,16 @@ func (r *Runner) PreCompact(ctx context.Context, trigger string) string {
 	return b.String()
 }
 
+// PostCompact fires just after a compaction pass completes（codex 蒸馏 T9 生命
+// 周期收尾）：压缩已发生，hook 只做观测与通知，无 stdout 注入面（摘要已成）。
+func (r *Runner) PostCompact(ctx context.Context, trigger string) {
+	if !r.Enabled() {
+		return
+	}
+	rep := Run(ctx, Payload{Event: PostCompact, Cwd: r.cwd, SessionID: r.session, Trigger: trigger}, r.hooks, r.spawn)
+	r.handle(rep)
+}
+
 // handle surfaces every non-pass outcome to the user (notify) and returns the
 // block decision plus the blocking hook's message.
 func (r *Runner) handle(rep Report) (bool, string) {

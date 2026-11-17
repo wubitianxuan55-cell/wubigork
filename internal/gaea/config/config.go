@@ -34,12 +34,15 @@ type Config struct {
 	Providers     []ProviderEntry         `toml:"providers"`
 	Tools         ToolsConfig             `toml:"tools"`
 	Permissions   PermissionsConfig       `toml:"permissions"`
-	Sandbox       SandboxConfig           `toml:"sandbox"`
-	Plugins       []PluginEntry           `toml:"plugins"`
-	Skills        SkillsConfig            `toml:"skills"`
-	Search        SearchConfig            `toml:"search"`
-	Network       NetworkConfig           `toml:"network"`
-	Memory        MemoryConfig            `toml:"memory"`
+	// Guardian 是动作级自动评审配置（codex 蒸馏 T11）：[guardian] 段。默认
+	// 关——关时审批仍是纯人工（现状逐字节）。
+	Guardian GuardianConfig `toml:"guardian"`
+	Sandbox  SandboxConfig  `toml:"sandbox"`
+	Plugins  []PluginEntry  `toml:"plugins"`
+	Skills   SkillsConfig   `toml:"skills"`
+	Search   SearchConfig   `toml:"search"`
+	Network  NetworkConfig  `toml:"network"`
+	Memory   MemoryConfig   `toml:"memory"`
 	// Tasks 是通用任务调度器配置（S1.4 按空间分账；v4.5.1a 红线补课把内核
 	// 接线进生产）：[tasks] 段。缺省（零值）= 应用层启用空间分账默认值
 	// （work/play 各 1 条并发跑道 + 价格抓取优先于文件索引）。
@@ -306,6 +309,9 @@ type SpacePermissions struct {
 	// 步）：true 时无人值守 Ask/hard_ask 拒绝而非自治放行。空间级显式 true 可
 	// 开启，不支持按空间关闭（顶层默认 false）。
 	DenyUnapproved bool
+	// ApprovalMode 是审批模式生效值（T4，仅顶层，不按空间覆盖）："never"=
+	// Ask 硬拒；""/其他=现状。
+	ApprovalMode string
 }
 
 // SpaceProfile 返回空间的装配 profile（S1.3-A）。space 为 "work"/"play"
@@ -347,6 +353,7 @@ func (c *Config) PermissionsForSpace(space string) SpacePermissions {
 		Ask:            c.Permissions.Ask,
 		Deny:           c.Permissions.Deny,
 		DenyUnapproved: c.Permissions.DenyUnapproved,
+		ApprovalMode:   c.Permissions.ApprovalMode,
 	}
 	space = strings.ToLower(strings.TrimSpace(space))
 	if c == nil || space == "" || !spaces.Valid(space) {
@@ -732,6 +739,14 @@ type AgentConfig struct {
 	CompactionSoftRatio  float64 `toml:"compaction_soft_ratio"`
 	CompactionRatio      float64 `toml:"compaction_ratio"`
 	CompactionForceRatio float64 `toml:"compaction_force_ratio"`
+	// CompactionNewWindow 开启 token-budget 压缩形态（codex 蒸馏 T9）：允许
+	// 「不摘要、直接换窗口」的压缩通道（含切小窗口模型时的降档预压缩）。
+	// 默认 false = 只有原有摘要式压缩，行为逐字节不变。
+	CompactionNewWindow bool `toml:"compaction_new_window"`
+	// SectionDiff 开启注入的章节化差分（codex 蒸馏 T7）：session-facts 等逐轮
+	// 注入按快照差分——不变零注入、变更替换通知、清空移除通知。默认 false=
+	// 全量注入（现状逐字节）。
+	SectionDiff bool `toml:"section_diff"`
 }
 
 // ToolSpillEnabled 返回泄洪的生效开关：nil（未配置）= 默认开。
@@ -857,6 +872,41 @@ type ToolsConfig struct {
 	// Hidden tools remain callable by name but don't appear in the schema list,
 	// reducing model cognitive load from ~41 to ~25 visible tools.
 	Compact bool `toml:"compact"`
+	// SchemaBudget 是工具 schema 描述字节预算（codex 蒸馏 T5）：Enabled 开启后
+	// 首轮 schema 的描述文本按共享预算截断（名字优先全额保留，见 tool/budget.go）。
+	// Bytes <=0 时用保守默认 12KiB。默认关闭 = 下发与现状逐字节等价。
+	SchemaBudget SchemaBudgetConfig `toml:"schema_budget"`
+	// Deferred 是延迟工具名单（codex 蒸馏 T8）：名单内的工具隐藏出首轮 schema
+	// 列表但保持可按名调用；仅当 [tools.search] enabled=true 时生效（否则工具
+	// 会无声消失）。默认空 = 现状。
+	Deferred []string `toml:"deferred"`
+	// Search 是检索展开开关（codex 蒸馏 T8）：开启后注册 tool_search 工具，
+	// 模型按查询取回延迟工具的 schema 文本。
+	Search ToolsSearchConfig `toml:"search"`
+}
+
+// ToolsSearchConfig 是 [tools.search] 段。
+type ToolsSearchConfig struct {
+	Enabled bool `toml:"enabled"`
+	// Limit 是单次检索默认返回数；<=0 用内置 8。
+	Limit int `toml:"limit"`
+}
+
+// GuardianConfig 是 [guardian] 段（codex 蒸馏 T11）。零值 = 关闭（审批纯人工）。
+type GuardianConfig struct {
+	Enabled bool `toml:"enabled"`
+	// TimeoutMs 是单次评审超时；<=0 用 guardian 包默认 20s。超时回落用户卡。
+	TimeoutMs int `toml:"timeout_ms"`
+	// InputBudget 是证据包字节预算；<=0 用 guardian 包默认 24KiB。超限先裁
+	// 不可信上下文，仍超则评审失败回落用户卡。
+	InputBudget int `toml:"input_budget"`
+}
+
+// SchemaBudgetConfig 是 [tools.schema_budget] 段。
+type SchemaBudgetConfig struct {
+	Enabled bool `toml:"enabled"`
+	// Bytes 是共享预算字节数；<=0 走 tool 包内保守默认。
+	Bytes int `toml:"bytes"`
 }
 
 // PermissionsConfig declares the per-call permission policy (see
@@ -873,6 +923,10 @@ type PermissionsConfig struct {
 	// refuse (audited) — 无人值守的执行链不能靠「没人守门」获得写面（2026-11-08
 	// 众神殿结论第五步）。Defaults false to preserve `gaea run` autonomy.
 	DenyUnapproved bool `toml:"deny_unapproved"`
+	// ApprovalMode 是审批模式归一（codex 蒸馏 T4）："never"=绝不弹窗——策略
+	// 命中「需批准」时硬拒绝并给理由（模型可换法子）；""/其他=现状。无人值守
+	// 会话的部署档用。仅顶层生效（不按空间覆盖）。
+	ApprovalMode string `toml:"approval_mode"`
 }
 
 // PluginEntry declares an external MCP server. Type selects the transport:

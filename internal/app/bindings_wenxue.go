@@ -4,6 +4,7 @@ package app
 
 import (
 	"github.com/gaea/gaea/internal/gaea/contextview"
+	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
@@ -18,6 +19,8 @@ func (b *WenxueB) WenxueAddMCPServer(input MCPServerInput) (int, error) { return
 func (b *WenxueB) WenxueAgentNetwork(sessionPath string) (trajectory.AgentNetwork, error) { return b.a.WenxueAgentNetwork(sessionPath) }
 func (b *WenxueB) WenxueAnswer(id string, answers []event.AskAnswer) { b.a.WenxueAnswer(id, answers) }
 func (b *WenxueB) WenxueApprove(id string, decision string) { b.a.WenxueApprove(id, decision) }
+func (b *WenxueB) WenxueApproveDenied(id string) { b.a.WenxueApproveDenied(id) }
+func (b *WenxueB) WenxueApproveWithReason(id string, decision string, reason string) { b.a.WenxueApproveWithReason(id, decision, reason) }
 func (b *WenxueB) WenxueArchiveSession(path string) error { return b.a.WenxueArchiveSession(path) }
 func (b *WenxueB) WenxueAttachmentChunkBegin(fileName string) (string, error) { return b.a.WenxueAttachmentChunkBegin(fileName) }
 func (b *WenxueB) WenxueAttachmentDataURL(path string) (string, error) { return b.a.WenxueAttachmentDataURL(path) }
@@ -76,6 +79,7 @@ func (b *WenxueB) WenxueMemoryUnarchive(name string) error { return b.a.WenxueMe
 func (b *WenxueB) WenxueMeta() Meta { return b.a.WenxueMeta() }
 func (b *WenxueB) WenxueNewSession() error { return b.a.WenxueNewSession() }
 func (b *WenxueB) WenxueOpenWorkspacePath(rel string) error { return b.a.WenxueOpenWorkspacePath(rel) }
+func (b *WenxueB) WenxuePendingDeniedActions() []control.DeniedActionInfo { return b.a.WenxuePendingDeniedActions() }
 func (b *WenxueB) WenxuePermLevel() string { return b.a.WenxuePermLevel() }
 func (b *WenxueB) WenxuePickWorkspace() string { return b.a.WenxuePickWorkspace() }
 func (b *WenxueB) WenxuePickWorkspaceUploadFiles(dir string) ([]workbench.UploadResult, error) { return b.a.WenxuePickWorkspaceUploadFiles(dir) }
@@ -106,6 +110,7 @@ func (b *WenxueB) WenxueSaveWorkspacePathAs(rel string) (string, error) { return
 func (b *WenxueB) WenxueSaveWorkspacePathsAs(paths []string) (string, error) { return b.a.WenxueSaveWorkspacePathsAs(paths) }
 func (b *WenxueB) WenxueSend(input string) { b.a.WenxueSend(input) }
 func (b *WenxueB) WenxueSetMCPServerEnabled(name string, enabled bool) error { return b.a.WenxueSetMCPServerEnabled(name, enabled) }
+func (b *WenxueB) WenxueSetModel(name string) error { return b.a.WenxueSetModel(name) }
 func (b *WenxueB) WenxueSetPermLevel(level string) error { return b.a.WenxueSetPermLevel(level) }
 func (b *WenxueB) WenxueSkillDraftFromSession() (SkillRecordResult, error) { return b.a.WenxueSkillDraftFromSession() }
 func (b *WenxueB) WenxueSlashArgs(input string) SlashArgsResult { return b.a.WenxueSlashArgs(input) }

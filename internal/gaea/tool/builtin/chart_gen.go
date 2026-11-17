@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -297,6 +298,7 @@ func (c chartGen) Execute(ctx context.Context, args json.RawMessage) (string, er
 	inputJSON, _ := json.Marshal(input)
 
 	cmd := exec.CommandContext(ctx, python, "-c", chartScript)
+	cmd.Env = proc.CommandEnv()
 	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	cmd.Stdin = strings.NewReader(string(inputJSON))
 	output, err := cmd.CombinedOutput()

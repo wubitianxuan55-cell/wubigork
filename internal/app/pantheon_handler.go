@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,8 +77,25 @@ func (s *pantheonState) managerRef() (*pantheon.Manager, error) {
 	manager.SetGrokBackend(&pantheonGrokSeat{app: s.app})          // Grok 模型席位（xai 引擎直调；主持默认优先）
 	manager.SetDSHAPIKey(s.app.engineMgr.EngineAPIKey("deepseek")) // dsh 陈词凭据：DSH 凭据服务无存档时官方 env 通道兜底
 	manager.SetWorkDir(gaeaCwd())
+	// T15 文件席位：加载 <pantheon 根>/agents/*.md 角色文件（description 必填，
+	// 坏文件跳过告警不炸全场），后端跑办公 AgentRunner（persona 即席位人设）。
+	s.reloadRoleSeatsLocked(manager, root)
 	s.manager = manager
 	return s.manager, nil
+}
+
+// reloadRoleSeatsLocked 重载角色文件并注入文件席位（调用方持 s.mu）。
+// 审计补（2026-11-17）：PantheonStart 每场讨论前也调一次——角色文件增删
+// 免重启，新讨论即可见（进行中的旧会话不受影响，席位表在讨论启动时定格）。
+func (s *pantheonState) reloadRoleSeatsLocked(manager *pantheon.Manager, root string) {
+	roles, roleWarns, roleErr := pantheon.LoadRoleFiles(filepath.Join(root, "agents"))
+	if roleErr != nil {
+		slog.Warn("pantheon 角色目录读取失败（文件席位不启用）", "error", roleErr)
+	}
+	for _, w := range roleWarns {
+		slog.Warn("pantheon 角色文件跳过", "detail", w)
+	}
+	manager.SetRoleSeats(roles, &pantheonRoleSeat{app: s.app})
 }
 
 func (s *pantheonState) closePantheon() {
@@ -248,6 +266,10 @@ func (s *pantheonState) PantheonStart(req pantheon.StartRequest) (*pantheon.Sess
 		}
 	}
 	req.Evidence = append(baseEvidence, visualEvidence...)
+	// 审计补（2026-11-17）：每场讨论前重载角色文件——增删席位免重启。
+	s.mu.Lock()
+	s.reloadRoleSeatsLocked(manager, filepath.Join(config.DataRoot(), "pantheon"))
+	s.mu.Unlock()
 	manager.SetWorkDir(gaeaCwd())
 	session, err := manager.Start(req)
 	if err == nil && session != nil && session.Request.Workspace != "" {

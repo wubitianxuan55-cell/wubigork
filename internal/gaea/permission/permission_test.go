@@ -130,9 +130,9 @@ type stubApprover struct {
 	calls    int
 }
 
-func (s *stubApprover) Approve(ctx context.Context, tool, subject string, args json.RawMessage) (bool, bool, error) {
+func (s *stubApprover) Approve(ctx context.Context, tool, subject string, args json.RawMessage) (bool, bool, string, error) {
 	s.calls++
-	return s.allow, s.remember, s.err
+	return s.allow, s.remember, "", s.err
 }
 
 func TestGateHeadlessAllowsAsk(t *testing.T) {

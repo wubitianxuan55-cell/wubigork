@@ -1165,6 +1165,98 @@
   line-height: 1.5;
 }
 
+/* 拒绝理由输入（codex 蒸馏 T3）：审批卡底部的可选单行——回喂模型的换方案依据。 */
+.office-approval-deny-reason {
+  padding: 0 14px 6px;
+}
+
+.office-approval-deny-reason__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.office-approval-deny-reason__input:focus-visible {
+  outline: 2px solid var(--accent, #4f7cff);
+  outline-offset: 1px;
+}
+
+/* 待追认账本（codex 蒸馏 T3/T11）：被拒/超时动作列表，审批卡同层决策区。 */
+.office-denied-dock {
+  margin: 0 0 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elev, var(--bg));
+  font-size: 11px;
+}
+
+.office-denied-dock__title {
+  margin: 0 0 6px;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+}
+
+.office-denied-dock__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.office-denied-dock__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.office-denied-dock__item[data-decision="timeout"] .office-denied-dock__tool {
+  color: var(--fg-faint);
+}
+
+.office-denied-dock__tool {
+  flex: none;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.office-denied-dock__subject,
+.office-denied-dock__reason {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-faint);
+}
+
+.office-denied-dock__reason {
+  font-style: italic;
+}
+
+.office-denied-dock__reinstate {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.office-denied-dock__reinstate:hover {
+  border-color: var(--accent, #4f7cff);
+}
+
 /* ── responsive and motion ─────────────────────────────────────────── */
 
 @media (max-width: 760px) {

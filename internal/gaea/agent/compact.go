@@ -22,10 +22,15 @@ type CompactionConfig struct {
 	TailTokens int     // verbatim recent-tail budget in tokens
 	RecentKeep int     // min recent messages to keep verbatim (fallback)
 	ArchiveDir string  // archive directory for saved sessions
+	// NewWindow 是 token-budget 压缩形态开关（codex 蒸馏 T9，默认关）：开启后
+	// MaybeNewWindowCompact 可走「不摘要、直接换窗口」——跳过 LLM 摘要，历史
+	// 收敛为固定前缀 + 白名单保留项 + 回合上下文。关时只有原有摘要式压缩，
+	// 行为逐字节不变。
+	NewWindow bool
 
 	// Internal state
 	LastPrompt   int        // prompt tokens from last turn
-	CompactCount int        // how many times we've compacted this session
+	CompactCount int        // how many times we've compacted this session（兼作窗口序号真源）
 	softNoticed  bool       // one-shot soft-ratio notice
 	KeepPolicy   KeepPolicy // V10.0: messages to retain verbatim during compaction (0=none)
 }
@@ -204,6 +209,17 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
 			Text: fmt.Sprintf("pruned %d stale tool results (~%d tokens est.) before compaction", st.Results, saved)})
 		if !force && prompt-saved < high {
+			return
+		}
+	}
+
+	// ── Tier 2.5: token-budget 压缩形态（codex 蒸馏 T9，compaction_new_window
+	// 默认关）——先试「不摘要、直接换窗口」；无物可压/经济学拒绝（did=false）
+	// 时回落 Tier 3 摘要式。关时本分支零行为变化。事件/保留语义见
+	// compact_newwindow.go。
+	if a.compaction.NewWindow {
+		if did, nerr := a.NewWindowCompact(ctx); nerr == nil && did {
+			a.consecutiveCompacts++
 			return
 		}
 	}

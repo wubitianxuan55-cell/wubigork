@@ -12,6 +12,9 @@ export const gaeaToGaea = {
   GaeaRunning: "WenxueRunning",
   Steer: "WenxueSteer",
   Approve: "WenxueApprove",
+  ApproveWithReason: "WenxueApproveWithReason",
+  PendingDeniedActions: "WenxuePendingDeniedActions",
+  ApproveDenied: "WenxueApproveDenied",
   AnswerQuestion: "WenxueAnswer",
   NewSession: "WenxueNewSession",
   // 能力面板刷新=热重载图文引擎（2026-11-17 审查批5 刀3：原指 GaeaReload
@@ -127,7 +130,7 @@ export const gaeaToGaea = {
   CadTexts: "GaeaCadTexts",
   CadCount: "GaeaCadCount",
   Models: "GaeaModels",
-  SetModel: "GaeaSetModel",
+  SetModel: "WenxueSetModel",
   Memory: "WenxueMemory",
   Remember: "WenxueRemember",
   Forget: "WenxueForget",

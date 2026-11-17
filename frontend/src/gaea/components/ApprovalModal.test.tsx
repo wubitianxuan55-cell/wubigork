@@ -72,3 +72,24 @@ describe("ApprovalModal 审批卡", () => {
     ]);
   });
 });
+
+describe("ApprovalModal 拒绝理由（codex 蒸馏 T3）", () => {
+  it("拒绝时携带理由输入框内容；放行决策不带理由", () => {
+    const approval: WireApproval = { id: "a2", tool: "bash", subject: "rm -rf build" };
+    const onAnswer = vi.fn();
+    render(wrap(<ApprovalModal approval={approval} onAnswer={onAnswer} />));
+    const input = screen.getByTestId("approval-deny-reason") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "不要删 build，改用清理脚本" } });
+    fireEvent.click(screen.getByText("拒绝"));
+    expect(onAnswer).toHaveBeenCalledWith("deny", "不要删 build，改用清理脚本");
+    onAnswer.mockClear();
+    fireEvent.click(screen.getByText("允许一次"));
+    expect(onAnswer).toHaveBeenCalledWith("allow_once", undefined);
+  });
+
+  it("guardian 追认重放卡带来源徽标文案", () => {
+    const approval: WireApproval = { id: "a3", tool: "bash", subject: "git push", source: "guardian" };
+    render(wrap(<ApprovalModal approval={approval} onAnswer={() => {}} />));
+    expect(screen.getByText(/追认重放卡/)).toBeTruthy();
+  });
+});

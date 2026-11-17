@@ -92,6 +92,29 @@ func (a *App) WenxueApprove(id string, decision string) {
 	}
 }
 
+// WenxueApproveWithReason 同办公审批理由通道（codex 蒸馏 T3）：拒绝理由
+// 回喂图文引擎的模型上下文，目标始终是 wenxueCtrl。
+func (a *App) WenxueApproveWithReason(id string, decision string, reason string) {
+	if c := wenxueCtrl(); c != nil {
+		c.ApproveWithReason(id, decision, reason)
+	}
+}
+
+// WenxuePendingDeniedActions 返回图文引擎待追认账本。
+func (a *App) WenxuePendingDeniedActions() []control.DeniedActionInfo {
+	if c := wenxueCtrl(); c != nil {
+		return c.DeniedActionList()
+	}
+	return nil
+}
+
+// WenxueApproveDenied 按原参数重放图文审批卡，由用户最终裁决。
+func (a *App) WenxueApproveDenied(id string) {
+	if c := wenxueCtrl(); c != nil {
+		go c.ApproveDenied(id)
+	}
+}
+
 // WenxueAnswer 回答结构化提问。
 func (a *App) WenxueAnswer(id string, answers []event.AskAnswer) {
 	if c := wenxueCtrl(); c != nil {

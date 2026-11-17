@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import { Shield } from "../icons";
 import { useT } from "../lib/i18n";
 import type { WireApproval } from "../lib/types";
@@ -51,7 +51,7 @@ export function ApprovalModal({
   scheduleApplyArgs,
 }: {
   approval: WireApproval;
-  onAnswer: (decision: ApprovalDecision) => void;
+  onAnswer: (decision: ApprovalDecision, reason?: string) => void;
   onRevisePlan?: (text: string) => void;
   /** schedule_apply 专用：宿主从 Transcript 取该次调用的完整 args（弹卡期间
    *  工具卡 status=running 已携带，§1.3）→ diff 确认卡（刀B）事前预览用。 */
@@ -75,24 +75,33 @@ export function ApprovalModal({
 
   useEffect(() => { cardRef.current?.focus(); }, [approval.id]);
 
+  // 拒绝理由（codex 蒸馏 T3）：可选一句话，随 deny/abort 回喂模型——
+  // 模型据此换方案而非原样重试。换卡即清空（不复用上一张卡的草稿）。
+  const denyReasonRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (denyReasonRef.current) denyReasonRef.current.value = ""; }, [approval.id]);
+  const denyReason = useCallback(() => denyReasonRef.current?.value.trim() || undefined, []);
+  const answerWithReason = useCallback((decision: ApprovalDecision) =>
+    onAnswer(decision, (decision === "deny" || decision === "abort") ? denyReason() : undefined),
+  [onAnswer, denyReason]);
+
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
       if (event.key === "Escape") {
         event.preventDefault();
-        onAnswer("deny");
+        answerWithReason("deny");
         return;
       }
       const decision = KEY_DECISIONS[event.key];
       if (!decision) return;
       if (hardConfirm && (decision === "allow_session" || decision === "persist_allow")) return;
       event.preventDefault();
-      onAnswer(decision);
+      answerWithReason(decision);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onAnswer, hardConfirm]);
+  }, [answerWithReason, hardConfirm]);
 
   return (
     <div className="office-approval-dock" aria-live="polite">
@@ -157,19 +166,35 @@ export function ApprovalModal({
         )}
         </div>
 
+        {approval.source === "guardian" && (
+          <p className="office-approval-note" data-source="guardian">
+            自动评审此前拒绝了这一动作——这是追认重放卡，由你最终裁决（机器不复审）。
+          </p>
+        )}
+        <div className="office-approval-deny-reason">
+          <input
+            ref={denyReasonRef}
+            type="text"
+            className="office-approval-deny-reason__input"
+            placeholder="拒绝理由（可选）：会回喂给模型，让它换方案"
+            aria-label="拒绝理由（可选）"
+            data-testid="approval-deny-reason"
+          />
+        </div>
+
         <footer className="office-approval-actions">
           <div className="office-approval-actions__primary">
-            <PlanBtn num={1} decision="deny" title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer("deny")} />
-            <PlanBtn num={2} decision="allow_once" tone="primary" title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer("allow_once")} />
+            <PlanBtn num={1} decision="deny" title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => answerWithReason("deny")} />
+            <PlanBtn num={2} decision="allow_once" tone="primary" title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => answerWithReason("allow_once")} />
           </div>
           <div className="office-approval-actions__secondary">
             {!hardConfirm && (
-              <PlanBtn num={3} decision="allow_session" title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer("allow_session")} />
+              <PlanBtn num={3} decision="allow_session" title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => answerWithReason("allow_session")} />
             )}
             {!hardConfirm && (
-              <PlanBtn num={4} decision="persist_allow" title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => onAnswer("persist_allow")} />
+              <PlanBtn num={4} decision="persist_allow" title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => answerWithReason("persist_allow")} />
             )}
-            <PlanBtn num={hardConfirm ? 3 : 5} decision="abort" tone="danger" title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer("abort")} />
+            <PlanBtn num={hardConfirm ? 3 : 5} decision="abort" tone="danger" title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => answerWithReason("abort")} />
           </div>
           {isProjectHard && (
             <p className="office-approval-note">

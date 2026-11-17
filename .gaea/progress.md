@@ -1,4 +1,561 @@
-## 图文板块身份提示词分板（2026-11-16）
+## codex 蒸馏前两批 · 第二轮全审计与办公/文学双板块收口（2026-11-17）
+
+按 `exec-brief-T1-T5.md`、`master-brief-T6-T15.md` 和两批资产验收逐项复核，
+**前两批在 gaea 现有产品形态下的适用面已收口**。后续 F 批与 B 批未触碰。
+本轮又抓到并修复 7 类真实缺口：
+
+1. **T10 会话作用域未真正失效**：`/new` 此前不清 `granted` / `grantedRules` /
+   `argvRules`，且既有 Gate 持有旧 argv 指针。现会话切换统一清空授权、追认
+   账本、Guardian 连续拒绝计数与最近用户授权证据；`ArgvRuleSet` 改并发安全并
+   **原地 Clear**，旧 Gate 同步失效。
+2. **T7 新会话/恢复快照断链**：`SectionStore` 原随 controller 永久存活，新
+   会话会误用上一会话快照；恢复会话又没有 `MarkUnknown`。现 `/new` Reset、
+   Resume 转 Unknown（下一轮发替换通知），`SectionStore` 加锁可并发读。
+3. **文学审批仍停在旧五决策**：补齐 `WenxueApproveWithReason` /
+   `WenxuePendingDeniedActions` / `WenxueApproveDenied`、拒绝理由框、待追认
+   Dock、Guardian 来源徽标与独立事件通道刷新；全部锚 `wenxueCtrl`，不再误用
+   办公账本。
+4. **T11 只接办公**：Guardian caller 改按 feature 路由，办公传 `office`、
+   图文传 `wenxue`；图文引擎同样注入 `[guardian]` reviewer。
+5. **T9 只判不接**：`GaeaSetModel` / 新 `WenxueSetModel` 均先按目标模型窗口
+   触发换窗口压缩，成功后才改模型；成功后同步 runner 的 `Compaction.Window`，
+   后续自动压缩不再按旧模型水位计算。
+6. **T2 覆盖不全**：除 bash/hook 外，补齐 chart/diagram/read_file、proc
+   session、office xlsx 重算、crosslink、COM helper spawn/csc 的固定环境。
+7. **T4 绝对路径绕过**：`C:\...\powershell.exe`、`cmd.exe`、绝对路径 `rm`
+   此前绕过直呼命令归一；现先取路径 basename 再判定。
+
+另补 T15 角色级配置层：角色 frontmatter 可写
+`config_layer: reviewer.toml`，相对角色目录读取 `[agent] max_steps /
+temperature / context_window`；路径含符号链接逃逸拒绝，坏层在扫描期跳过并
+告警，执行预算只进该席位。两条角色各读各的层有隔离测试。
+
+### 双板块结论
+
+- **办公**：T1/T2/T4/T5/T6/T7/T8/T9/T10/T11/T15 的共享内核与本板块审批/
+  模型切换已接线；无“只落库不消费”的新增死开关。
+- **文学**：共享内核同样生效；本轮重点补齐 T3/T11 审批闭环与 T9 独立模型切换
+  路径，桥面 `bindingNames` 701 名、签名 701、legacy 225 名，与办公 710 名
+  维持“减 6 个 Chat* + 3 个 Gaea 审批名”的既有镜像口径。
+- **适用性关账（不是代码缺口）**：T8 Catalog 原语因 provider 只收 tools 数组、
+  没有目录文本槽而未虚接；T12 Gate/Baseline 原语与 T13 proc.Session、T14
+  RRF 原语均无会改变行为的现存生产消费方，保留库接口，不强接死代码。
+
+### 门禁
+
+- `go build ./...`、`go vet ./internal/gaea/... ./internal/office/...
+  ./internal/pantheon ./internal/app` 全绿（UCRT64 GCC + 正式 DLL 搜索路径）。
+- Go 全量 `internal/app` 165.7s 绿；control/context/permission/proc/agent、
+  tool/builtin、office 全包、pantheon 全绿。
+- 前端 `tsc -b --force` 0；office `src/gaea` 247 文件/2109 例绿；文学
+  `src/wenxue` 14 文件/62 例绿；本轮改动面 ESLint 0；binding drift
+  OK@710。
+- `scripts/check-docs.mjs` 仍红于既有旁支：4 份顶层文档未登记 +
+  releases README 三组历史计数漂移；与本轮改动无交集，未顺手改后续批次。
+- 未 Wails build、未装机、未 commit；后续批次未动。
+
+## codex 0.165.0 蒸馏第二批 · 第二/三波补刀 T8/T9/T10（2026-11-17）
+
+第一波四刀（T6/T12/T14/T13）见上段。本段补第二波两项与第三波一项，
+**未 commit、未装机**。新增 16 例：tool 5 / agent 5 / permission 8 / control 2。
+
+### T8 · 工具面预算三层（tool/{catalog,search_index}.go，叠在 T5 budget.go 上）
+
+- **目录差分**：`Catalog`（name→sha256 快照）+ `Diff`（added/removed/changed，
+  changed=false 时上下文逐字节相同）+ `CoalesceRemoved`（整命名空间移除吞并成
+  `ns/*` 一条——上游纪律 3）。
+- **检索展开**：`SearchIndex` 自包含 BM25（k1=1.2/b=0.75，同分名字典序确定序），
+  索引条目只存检索文本（schema 引用不复制）；`BuildSearchIndexFromRegistry`
+  含隐藏工具（藏而可搜）、排除 tool_search/websearch 自身；limit 默认 8。
+- **偏差照实记**：施工单说「用现有 bm25」——gaea 无该包（v2 式按名猜），自实现
+  60 行整数化 BM25 不引新依赖。
+- **审计纠偏（2026-11-17）**：**Catalog 目录差分是「原语就绪、生产零调用」**——
+  gaea 工具面走 provider tools 数组逐请求下发，没有「上下文内工具目录文本」
+  这个槽位（上游 top_level_tools 差分的是注入上下文的目录段，形态依赖
+  T7 批次②/世界状态注入面，该面未立项）。故 `tools.catalog.diff.enabled`
+  开关不加（不给死代码配开关），Catalog 留作原语；后续若做工具目录注入再接线。
+  已接线的是检索展开层（接线小批）：`[tools] deferred` 隐藏 + `[tools.search]
+  enabled/limit` 注册 tool_search（命中即回 schema 文本，物化即文本）。
+
+### T9 · 压缩三形态（agent/compact_newwindow.go + hook PostCompact）
+
+- **做法**：`NewWindowCompact`（token-budget 形态）——跳过 LLM 摘要直接换窗口：
+  固定前缀 + partitionFold 白名单保留项（[[keep]] 用户目标=上游 input_goal_ids
+  继承的 gaea 折算）+ 回合上下文，无摘要占位消息；完整生命周期（PreCompact
+  观测 + CompactionStarted/Done + PostCompact 通知）；`Compaction.Window` 序号
+  单调递增、Done.Summary 空=「无摘要的换窗口」标记； economics 双闸
+  （foldEconomics 小额跳过 + 丢弃后估算不降拒绝）。`MaybeDownshiftCompact`
+  （ModelDownshift 触发）暴露给切模型入口，开关 `CompactionConfig.NewWindow`
+  默认关=零行为变化。
+- **纪律落地**：PostCompact 用可选接口（postCompactHook）不扩 ToolHooks 主接口
+  ——既有测试桩零破坏；小窗口不按 trigger 判经济学（tail 2000 token 下限会
+  顶破小窗口 trigger，与 compact() 自身注释同款教训，按「估算有没有变小」判）。
+- **未做（挂小批）**：ModelDownshift 在控制器换模型处的实际接线；CompHashChanged
+  （gaea 无 comp hash 概念，需先建模型口径指纹）。
+- **审计补（2026-11-17）**：接线小批只加了配置键，`compaction_new_window=true`
+  此前**无任何触发点**（NewWindowCompact 无人调用，开关无效——审计逮住）。
+  已修：`compactIfOver` 增 Tier 2.5——开关开时先试换窗口形态，无物可压/
+  经济学拒绝回落 Tier 3 摘要式；回归测试 `TestNewWindowWiredIntoAutoCompact`
+  （开=无摘要占位、关=摘要式现状）。
+
+### T10 · 审批七态 + argv 前缀规则（permission/argv_rule.go，承接 T3/T4）
+
+- **现状对账**：步一（七态映射/拒绝理由/超时不进 deny 账本）与步三（追认账本
+  + ApproveDenied 重放）已由第一批 T3 覆盖——本刀补真正的缺口 **步二 argv 规则**：
+  glob 是字符串级匹配，`bash(git status*)` 会把 `git status; rm -rf` 一起放行。
+- **做法**：`ArgvRule`（首 token 索引 + rest 前缀精确匹配）+ 分段安全语义
+  （命令按 shell 串接符分段，每段 token 前缀都命中才放行——串接提权天然不匹配）
+  + 引号剥除切分（含 glob 元字符 `*?[` 的 subject 拒绝转 argv，回落既有路径）。
+  三层接线：`Policy.ArgvAllow`（config `bash prefix ["git","status"]` 形态，
+  Persistent 作用域）/ `Gate.SessionArgv`（会话作用域，/new 轮换即失效）/
+  `writebackAllowRule`（bash 回写 argv 一行式，其他工具保持既有形态）。
+  promptApproval 短路预检同步查 argv 规则（否则同形命令重复弹卡，测试逮住后补）。
+- **验收**：git status 放行而 `git status; rm -rf /tmp/x` 仍要审批（且深删被 T4
+  硬闸先拦，两条防线各司其职）；Session/Persistent 作用域区分；回写格式往返；
+  controller 全链（弹卡→allow_session→同形免卡→串接仍卡）。
+- **未做**：`permission.argv_rules.enabled` 开关（argv 解析只在显式配置该形态
+  时生效，默认配置零变化=等效关闭）；Alts 多选一 token（上游也不建议先做）；
+  MCP/网络策略落盘（gaea 无对应需求面）。
+
+### 门禁
+
+十四面 `go build`+`go vet`+`go test` 全绿（context/memory/skill/proc/tool/builtin/
+control/permission/agent/hook/event/cache/config/boot，既有用例零回归；
+`TestApprovalSessionGrant` 等 glob 回写用例经 glob 元字符守卫保住原格式）。
+零新外部依赖；UTF-8 无 BOM；gofmt 全绿。
+
+## codex 蒸馏 · 审计缺口完善批（2026-11-17）
+
+审计五缺口的修复落地（后端 3 + 前端面 1 + 记档纠偏并入上段）。**未 commit**。
+
+### 后端三件
+
+- **T2 hook 注入**：`hook.DefaultSpawner` 接 `proc.CommandEnv()`——hook 输出
+  注入模型上下文（PreCompact 指引），与 bash 工具同源同阀（GAEA_EXEC_ENV_RAW）。
+  MCP stdio 维持不注入（服务进程环境敏感）。
+- **T4 wsl 形态**：`DangerousWindowsCommand` 补 wsl 直通（`wsl rm -rf x` /
+  `wsl --exec rm …` / `--cd <p> rm …`）——剥带值/带旗引导开关取尾部命令；
+  未知开关保守放行、裸 wsl 不拦。测试 +7 形态（直通/--exec/引导/未知/只读/空）。
+- **T15 席位免重启**：角色加载抽 `reloadRoleSeatsLocked`，`PantheonStart` 每场
+  讨论前重载——增删 `<pantheon 根>/agents/*.md` 免重启，新讨论即见（旧会话
+  席位表定格不受影响）。
+
+### T3/T11 前端面（审批闭环 UI）
+
+- **绑定三件**（Go→bindingNames→core/mappings/spaceBindings/mock 六面同步，
+  签名清单 `-signatures-ts` 再生，drift 脚本 706 名一致）：
+  `GaeaApproveWithReason` / `GaeaPendingDeniedActions`（control.DeniedActionInfo
+  DTO，decision=deny|timeout 可区分）/ `GaeaApproveDenied`（追认走人工卡）。
+- **ApprovalModal**：拒绝理由输入框（可选一句话，deny/abort 随卡带回——
+  store.approve 按「拒绝类决策 + 非空理由」路由 ApproveWithReason，其余走原
+  Approve 零变化；快捷键路径同携理由）；guardian 追认重放卡徽标
+  （source=guardian 副标题「机器不复审，由你裁决」）。新增测试 2 例（理由
+  透传/放行不带理由 + 徽标），既有 4 例零破坏（断言取 c[0] 天然兼容）。
+- **DeniedActionsDock**（新组件）：待追认账本列表——审批卡同层决策区；
+  事件驱动刷新（turn_done/approval_auto/approval_resolved，EventKind 联合
+  补齐后端已发的四种 kind）；「追认」钮 → ApproveDenied → 重放人工卡；
+  空账本零渲染。CSS 配套（office-approval-deny-reason / office-denied-dock）。
+- mock：ApproveWithReason 复用 Approve 收尾流；PendingDeniedActions 空表
+  （dev 无审批历史）；ApproveDenied no-op。
+
+### 门禁
+
+go：hook/permission/control/app build+vet+test 全绿（gofmt 列表中的
+bindings_* 为既有漂移非本批，bindings_office.go 本批改动自身 gofmt 净）。
+前端：tsc -b 0；vitest gaea 全量 247 文件绿（contract 清单再生后过；
+DatabaseLibrary 单跑绿=负载 flaky 非本批）；bindingNames drift 706 一致。
+
+## codex 蒸馏 · 两批全景审计（2026-11-17）
+
+对 T1–T15 + 接线小批逐项核对施工单验收 vs 实际代码/测试。结论：
+**3 处真错（已修 2、纠账 1）+ 5 处记档/边界缺口（已如实入档）+ 判定关账
+4 项复核全部成立**。
+
+### 真错（代码级，审计逮住并修复）
+
+1. **T15 文件席位探测恒不可用**：`pantheonRoleSeat.ProbeRole` 可用路径漏设
+   `status.Available = true`（AgentStatus 零值 false）——文件席位会被前端
+   判为不可用。测试用 fake 后端自设 Available 故未逮住。已补一行置位。
+2. **T9 开关断链**：`compaction_new_window=true` 后无任何代码调用
+   NewWindowCompact/MaybeDownshiftCompact——开关无效（接线小批只通了配置键，
+   记档只把 Downshift 挂账、没说主触发链也断）。已修：compactIfOver 增
+   Tier 2.5（开=先换窗口，回落摘要式）+ 回归测试。
+3. **T8 Catalog 死代码**：生产零调用。根因是形态错位——上游差分的是
+   「注入上下文的工具目录文本」，gaea 工具走 provider tools 数组，无此槽位。
+   处置：纠账为「原语就绪、无生产槽位」（不给死代码配开关），等 T7 批次②
+   /世界状态注入面立项再接；已在 T8 段落改写。
+
+### 记档/边界缺口（如实入档，不改动行为）
+
+4. **T2 范围**：环境注入只覆盖 bash 工具两条执行路；hook 命令子进程
+   （DefaultSpawner）与 MCP stdio 未注入——已记档的范围决策（hook 是用户
+   诊断脚本，注入 GAEA_CI 可能干扰其逻辑），审计确认维持。
+5. **T6 生产面**：碎片契约的生产者目前只有 T7 的章节碎片——契约本身是
+   地基性质（T11 证据信任标注是第二个消费者），可接受但审计点名。
+6. **T11 前端面**：ApprovalSourceGuardian 是新 Source 值，前端审批卡对
+   guardian 来源的渲染/追认入口未核（后端链全绿，前端联调挂装机后）。
+7. **T15 生效粒度**：角色文件在 manager 创建时加载，增删文件需重启应用
+   （未记档，现补）。
+8. **T4 wsl 盲区**：`wsl rm -rf` 逃过危险命令判定（wsl 不走 -c 形态）——
+   保守方向（认不出不拦）与既记纪律一致，单列待后续补 wsl 直通形态。
+
+### 判定关账复核（4 项全部成立）
+
+- T12 背压门（dream 已有模式门+建议制红线，三道门无真实缺口）✓
+- T14 rrf（技能 pinned 注入，无动态选技消费方）✓
+- T9 ModelDownshift（换模型=重建控制器，auto 压缩+overflowRecovery 已覆盖）✓
+- T13 proc.session（与 bgjobs 语义重叠，整合形态在拍板池）✓
+
+### 复核后门禁
+
+agent（含新回归例）/app/pantheon 及相关面包 build/vet/test 全绿；gofmt 净。
+
+## codex 蒸馏 · T11 Guardian 自动评审（2026-11-17）
+
+施工单 `master-brief-T6-T15.md` §T11 + `asset-07`（施工级）。三刀全落，
+**未 commit、未装机**。新增 10 例：guardian 4 / control 6。
+
+### 刀一 · 契约与容错（guardian/guardian.go）
+
+- `Parse` 三层容错：严格 JSON → 首 { 到末 } 切片重试 → 评审失败（非 JSON ≠
+  高风险）。默认值纪律照抄：outcome 必填（缺即失败）；allow 缺 risk→low、
+  **deny 缺 risk→high（保守方向）**；缺 authorization→unknown；缺/空
+  rationale→固定兜底句（UI 不出现空白理由）。枚举非法值一律失败。
+- `ResponseSchema` 常量与提示词模板分放（注释钉住「改一处同步另一处」）。
+
+### 刀二 · 证据包/预算/超时（guardian/{evidence,review}.go）
+
+- **T6 联动**：`EvidencePack` 信任标注由 `context.CanAuthorize` 派生——用户
+  原话（ProvUser）标【可信证据·可支撑授权】，工具输出/框架注入标
+  【背景信息·不可作为授权依据】（asset 验收③的落地形态：结构标注进提示词，
+  归属由生产端声明不反推）。
+- 预算三层裁剪：不可裁（动作+用户指令）→ 先丢不可信上下文 → 再丢可信
+  上下文 → UTF-8 边界截断；仍超 → `ErrInputBudget`；`Original/RetainedBytes`
+  跨阶段记账。
+- `Runner`：Caller 接口注入（评审走独立调用不复用主会话）；超时从入口即
+  生效（默认 20s）、父取消每阶段尊重；失败四分类
+  `ErrInputBudget/ErrTimeout/ErrParse/ErrSession`——失败不产生拒绝账本、
+  不冒充风险（asset §四红线）。
+- `Breaker`：连续 3 deny 熔断（计数器只请求，中断由宿主执行——职责分界）。
+
+### 刀三 · 接线（control/controller_guardian.go + 装配链）
+
+- **通道纪律**：只在常规 Ask 通道（gate）用户卡之前；hardAsk（cost_save
+  等逐条确认）与 schedule_apply project 通道**不走**机器评审（测试钉死）；
+  auto/yolo 短路在更早处，guardian 不参与。
+- **顺序修正（测试逮住的真缺陷）**：会话已授权（granted/argv 规则/T3 追认
+  落账）必须排在 guardian **之前**——人已给过的授权不需要机器复审。
+  gateApprover 顺序定为 hardAsk → project → auto → **session-grant** →
+  **guardian** → 用户卡。
+- 三路径：allow→放行+`ApprovalAuto` 三字段账本（Risk/Authorization/Rationale，
+  Source=guardian，Decided=guardian_allow）；deny→理由回喂+T3 待追认账本
+  （用户 `ApproveDenied` 弹卡裁决，机器不复审）+熔断计数（第 3 次发通知并
+  `Cancel` 中断回合）；**失败→回落用户卡（红线，四类失败逐一测试）**。
+- `lastUserInput`（sendWithRaw 存最近用户原话截 8KiB）作授权证据源。
+- 装配链：`[guardian] enabled/timeout_ms/input_budget`（默认关=审批纯人工
+  逐字节）→ app `newGuardianReviewer`（办公本地优先路由，与 dream 同口径）
+  → boot.Options.Guardian → control.Options.Guardian。
+
+### 验收对照
+
+asset 六例全落（严格/散文/缺 risk/缺 rationale/空/非 JSON）+ 信任标注与
+预算裁剪 + 四类失败分类 + 熔断 + control 六例（allow 账本三字段/deny 追认
+全链/失败回落红线×4/熔断触发/hardAsk 旁路/失败打断熔断连续性）。
+
+### 未做（如实）
+
+- guardian-v2 的采样/观测体系与 CachedApproval（上游明示单机用不上）；
+- 滑动窗口降级（50 次/10 deny）——先做连续熔断，窗口态待真实使用数据；
+- wenxue 引擎不接 guardian（play 侧无审批面）。
+
+## codex 蒸馏 · T15 角色数据化（2026-11-17）
+
+施工单 `master-brief-T6-T15.md` §T15 + `asset-06`（角色文件化值得做/图谱不搬）。
+**未 commit、未装机**。新增 6 例：pantheon rolefile 五例 + 内建碰撞一例。
+
+### 做法（pantheon 层核心 + app 装配，动前对齐众神殿线程史）
+
+- **角色文件**：`<pantheon 根>/agents/<role>.md`（frontmatter
+  name/description/nicknames + 正文即 persona）。纪律照抄上游：
+  description 给模型当 spawn 引导、**必填非空**（空描述拒载+告警不炸全场）；
+  坏文件跳过留 warn；目录不存在=空表常态；按 Name 排序稳定序列。
+- **适配器**：`RoleSeatBackend{ProbeRole,CallRole}`（+可选 `RoleStreamingBackend`）
+  与 grok 席同构——`newRoleAdapter(role, backend)` id/name 取文件、kind=文件
+  席位、Description 随 AgentStatus 暴露（前端席位卡直接可见，零前端改动）；
+  persona 由后端注入模型 system prompt（agent 级，非 pantheon prompt 拼装）。
+- **防串引擎提权**：与内建（grok/codex/zcode/dsh）同名的文件席位跳过——内建
+  的引擎绑定不可被文件替换；文件席位排序落内建之后（Agents() priority 兜底 10）。
+- **app 装配**：`pantheonRoleSeat` 后端（办公本地优先路由 + persona 即
+  system prompt + grok 席同款只读注册表）；`runPantheonGrokAgent` 抽出
+  `runPantheonAgentWithPrompt`（system prompt 参数化，grok 席零行为变化）；
+  handler 加载 `agents/` 目录 → `SetRoleSeats`（SetGrokBackend 同款重建纪律，
+  四个 buildAdapters 调用点全穿 roles/backend）。
+- **验收四条全落**：建文件即出现在席位表（Agents()→UI 席位卡，Description
+  可见）；删文件（空表重载）不残留；description 进席位引导（toolPolicy
+  role-file 分支带【角色设定】+description，内建不受累）；角色级覆盖隔离
+  （invoke 各传各的 RoleFile，A 人设不进 B 调用）+ 内建碰撞跳过。
+
+### 未做（如实）
+
+- **config_layer（角色级配置覆盖）**：资产里的「审稿人自带更严审批/更小预算」
+  需要席位级策略注入面（当前席位共用闸门）——persona/描述已文件化，配置覆盖
+  等席位级闸门立项（与 T10 作用域语义衔接）；file 格式已留扩展位。
+- 昵称候选：文件可声明 `nicknames`，运行期取昵称逻辑未接（单次入席无混淆
+  面），字段就绪。
+- UI 侧改动：零（Agents() 透传 Description，席位卡自渲染）。
+
+### 门禁
+
+pantheon + app build/vet 全绿；pantheon 全量测试绿（含 live_smoke 等
+buildAdapters 旧调用点的机械适配）；gofmt 净。
+
+## codex 蒸馏 · T7 章节化+快照差分（2026-11-17）
+
+施工单 `master-brief-T6-T15.md` §T7 + `asset-08`（施工级）/`asset-02`（装配），
+基于 T6 碎片契约。**未 commit、未装机**。新增 8 例：context 6 / control 2。
+
+### 落点判定（照实修正施工单）
+
+施工单写「contextview 加章节表」——contextview 实为会话日志折叠视图（前端面），
+真实注入面在两处：①`Compose` 逐轮注入（input.go：memory-update/session-facts/
+background-jobs）②L2 runtime 前缀（已在 V5.7 学过本课——易变字段挪 turn-tail，
+前缀只留稳定块）。**真消费方选①的 session-facts**：临时事实清单每轮全量重注入
+（N facts × 每轮，直到 promote），是 gaea 里唯一「按轮重发且大多不变」的块。
+
+### 引擎（context/sections.go，纯函数 + 账本）
+
+- 三态 `Previous{PrevAbsent/PrevKnown/PrevUnknown}`（历史没快照 / 有快照 /
+  老会话有旧片段但不可考——`*T` 两态分不开「没有」与「是空」）；
+- `RenderSectionDiff` 三情形照抄上游：相同零片段（省 token 的唯一来源）/
+  撤销发移除通知 / Unknown 当有（保守发替换）；通知文案固定两句话（不逐轮
+  生成，diff 才收敛）；快照只放可比较字符串；
+- `SectionStore` 会话内账本（MarkUnknown 迁移入口 / RenderAll 按 ID 字典序
+  稳定输出）；片段即 T6 Fragment（Kind=`section.<id>`，user 角色 + ProvHarness
+  ——role 与归属两件事，CanAuthorize=false 有测试钉死）。
+
+### 接线（Compose session-facts，开关 `[agent] section_diff` 默认关）
+
+- `Options.SectionDiff` → `c.sectionDiff/sectionStore`（构造即建账本）；开时
+  注入走差分：不变零注入（省 N×轮次）/ 变更「替换通知+全量清单」/ 清空
+  「移除通知」；关时走原全量注入，与旧实现逐字节一致（HasPrefix 断言钉死）。
+- boot ctrlOpts 接 `cfg.Agent.SectionDiff`。
+
+### 验收
+
+引擎五例（三轮稳定/移除通知/Unknown 迁移/一字之差替换/多章节字典序稳定）
++ T6 联动例 + 端到端四态例 + 关态逐字节回归，八例全绿；context/control/config/
+boot/agent/permission/memory/tool 八面 build/vet/test 全绿。
+
+### 未做（如实）
+
+- L2 runtime 前缀的章节化（批次②：差分进 flow 而非重建前缀）——动前缀缓存
+  关键路径，需 prefix_stability 级独立刀；引擎/账本已备，`RenderAll` 输出即可
+  为 flow 片段源。
+- 其他 Compose 注入块（memory-update/background-jobs）为事件驱动型（有事件才
+  注入），本就 delta 形态，无差分收益。
+
+## codex 蒸馏 · 接线小批清挂账（2026-11-17）
+
+两批 12 刀的挂账接线收口。**未 commit、未装机**。新增 4 例（tool 2 / control 1
++既有面回归）。
+
+### 已接线（三件）
+
+- **T9 `compact.new_window` 配置键**：`[agent] compaction_new_window`（默认
+  false）→ `compactionConfig` 注入 `CompactionConfig.NewWindow`。开启后
+  `NewWindowCompact`/`MaybeDownshiftCompact` 才可被触达。
+- **T4 `[permissions] approval_mode` 全链**：config 字段（仅顶层，不按空间
+  覆盖）→ `SpacePermissions` → boot 两处闸（headlessGate + controller Options
+  → `c.approvalMode` → `newGate` 统一注入 `Gate.ApprovalMode`）。never=Ask 硬
+  拒给理由且**卡不弹**（测试钉死），""=现状逐字节。验证发现：Controller.New
+  默认 permLevel="ask"（交互语义），headless 判定走 headlessGate——两档各自
+  生效。
+- **T8 tool_search + deferred**：`[tools] deferred` 名单 + `[tools.search]
+  enabled/limit`（默认关=现状）。enabled 时：名单工具 `reg.Hide`（藏而可按名
+  调用）+ 注册 `tool.NewToolSearchTool(reg, limit)`——命中即回 schema 文本，
+  **物化即文本**，agent 循环零改动；未注册名单项 slog 告警；非 enabled 时名单
+  不隐藏（防工具无声消失）。
+
+### 判定关账（三件，附理由不虚接）
+
+- **T12 背压门**：gaea 的 dream 写入已有模式门（auto/suggest，用户红线=建议制
+  先例）+ 写侧空间化，三道门（ephemeral/subagent/限流）在 gaea 架构里无真实
+  缺口——`GateCheck` 原语保留供未来自动化写入路径。
+- **T14 skill.rrf**：gaea 技能是 pinned 注入形态，无「按查询动态选技能」消费
+  方——Select 等 dynamic-loading 特性立项时接线，原语已备。
+- **T9 ModelDownshift 接线**：gaea 换模型=重建控制器+会话恢复，恢复后既有
+  auto 压缩 + `tryOverflowRecovery`（报错采纳窗口）已覆盖降档场景，增量价值
+  =省一次可恢复的失败请求——`MaybeDownshiftCompact` 保留为库接口。
+- **T13 proc.session 接 bash 工具**：gaea 已有 bgjobs（后台任务+有界输出），
+  会话层与其语义重叠——整合形态（替换 bgjobs 内核 or 新增 exec_session 工具）
+  需用户拍板，转拍板池。
+
+### 门禁
+
+六面 build/vet/test 全绿（tool/control/config/boot/permission/agent，既有用例
+零回归）；gofmt 全净。
+
+## codex 0.165.0 蒸馏第二批 · 第一波四刀（2026-11-17）
+
+施工单 `docs/codex-distill/batch2-execution-plan.md` + `master-brief-T6-T15.md`，
+逐项资产在 `asset-10/12/14/15`。第一波四项零冲突全落，**未 commit、未装机**。
+新增 23 例：context 5 / memory 7 / skill 6 / proc 5，各包全量绿（含既有用例）。
+
+### T6 · 上下文碎片契约（context/fragment.go，全批地基）
+
+- **做法**：`Provenance` 七档（Unknown 零值不猜来源 / DeveloperInstructions / Skills /
+  AgentsMD / Harness / HarnessHook / Tool / User）+ `Fragment{Role,Kind,Start,End,Body,Prov,NS}`
+  + `Render`（标记对包裹）+ `MatchesText`（Kind 派生类型级标记，同 Kind 连续轮稳定命中）
+  + `CanAuthorize`（只有 User/DeveloperInstructions/AgentsMD 可作授权证据——
+  「user 角色」≠「用户说的」，T11 Guardian 的判定入口）+ `NewToolFragment`/
+  `NewHarnessFragment` 生产入口（归属由生产者声明，标记自动派生）。
+- **验收**：五条全落测试（三轮命中 / 工具片段框架代写仍 ProvTool / user 角色
+  harness 归属不可授权 / 无标记直出 / 零值 Unknown）。
+
+### T12 · 记忆四护栏（memory/{sanitize,gate,baseline}.go）
+
+- **脱敏（常开，已接线）**：四条正则按序替换（Bearer→sk-→AKIA→key 赋值），
+  赋值条保留键名/键侧引号/分隔符/值侧引号只换值（JSON 形态 `"token": "v"` 的
+  键后引号是实测补的——上游正则没覆盖）；接线在 `Store.Save` 单一写口，
+  计数进 slog 不落原文。12 条假密钥零命中 + 5 条普通文本零误伤有测试钉死。
+- **背压门（纯原语，调度口接线挂小批）**：`GateCheck` 三道门（ephemeral/subagent
+  →enabled→限流），限流拿不到按通过（上游 unwrap_or(true) 务实默认），拒绝给
+  `skipped: <reason>`。dream 调度口带会话类型才有接线位。
+- **基线差分（纯原语，整理流接线挂小批）**：Snapshot（名→sha256）/Diff 三类/
+  阈值拦截（删除>10% 或修改>30%，空基线防清库）/有界渲染（4096B，UTF-8 边界）。
+- **未做**：保留期清理（gaea 无扩展资源概念，跳过）；产物校验（gaea 记忆非
+  汇总文件形态，不适用）。
+
+### T14 · 技能 RRF（skill/{lexical,ngram,fuse,select}.go）
+
+- **做法**：词法整数权重梯度 256/128/64/24/16/6/4/1 + matched²平方加成
+  （覆盖多词>单词刷频）；字符 2–5 gram 字段权重 8/4/1（中文容错）；RRF 融合
+  K=60 三级 tie-break（分数→最好名次→id）；硬上限全截断不报错（查询 4KiB/64
+  词、文档 4KiB/256 词、候选 1000、返回 50），截断标志 OR 合并上报。
+  CJK 按二字窗口切词（与 ngram 路同思路，不引入分词器）。
+- **验收**：100 次逐元素相同 / 3 词覆盖排前 / 8KiB 截断上报 / 中文技能名
+  top-1。**未做**：30 技能×30 查询的命中率对比（现状无检索器可作基线，
+  接线后补记录）；`skill.rrf.enabled` 开关挂接线批（现状零调用方=零行为变化）。
+
+### T13 · 执行语义（proc/{session.go,headtail.go}）
+
+- **做法**：`HeadTail` 50/50 头尾保留 + `... N bytes omitted ...` 唯一标记
+  （计数=实际丢弃量）；`Session` 双缓冲同锁追加（pending 消费式/transcript
+  累积式，容量各 1MiB）+ `Drain` 消费式续取不重复 + `RunSession` 双闸门
+  （时间预算 yieldMS 与输出量预算谁先到谁生效，到点返回增量进程不死）+
+  `Wait` 收尾上限 100ms（后代持管道不永久等）+ `WriteStdin` 超 8KB 返回
+  `ErrStdinApproval` 哨兵、写已退会话明确报错 + chunk_id 6 位十六进制。
+- **验收**：yield≈100ms 返回进程仍活 / 三段 Drain 不重叠且拼接=Transcript /
+  省略标记唯一计数准确 / 自然退出收尾 / 写退会话报错 / 审批哨兵——测试用
+  测试二进制自重执行驱动真实子进程（无 shell 依赖）。
+- **未做**：`proc.session.enabled` 配置开关与 batch_executor/bash 工具接线
+  （现有「跑完取结果」路径零改动=零行为变化，接线挂小批）；远端 drain 策略
+  （gaea 无远端执行器，明确不做）。
+
+### 门禁
+
+context/memory/skill/proc 四包 `go build`+`go vet`+`go test` 全绿（含既有
+用例零回归）；零新外部依赖；UTF-8 无 BOM。
+
+## codex 0.165.0 蒸馏第一批 T1–T5（2026-11-17）
+
+施工单 `docs/codex-distill/exec-brief-T1-T5.md`，逆向资料在仓库外
+`C:\AI\re\codex-0.165.0\`。全部纯后端+单测，**未 commit、未 wails build、未装机**
+（施工单纪律：待用户点名再打包）。基线（六包 -count=1）全绿；改后
+tool 43→50 / builtin 249→257 / control 101→108 / permission 33→37 / proc 13→18，
+boot 36 / agent 400 / cache / config 持平，九面 `go build`+`go vet`+`go test` 全绿。
+
+### T2 · 执行环境固定注入（proc/env.go）
+
+- **根因**：工具子进程继承父环境——颜色码/分页器/本地化令「同一命令」输出不可
+  比对，长输出可被 pager 卡死。
+- **做法**：`proc.DeterministicEnv()` 固定 10 变量（NO_COLOR/TERM=dumb/LANG·LC_*
+  =C.UTF-8/COLORTERM=空值存在/PAGER·GIT_PAGER·GH_PAGER=cat/GAEA_CI=1——机制同构
+  codex 的 CI 标记，名字用 gaea 自己的，施工单原文 CODEX_CI 系文案已自写）；
+  `proc.CommandEnv(extra...)` 是唯一合并点（父环境打底→覆盖→extra 后到优先），
+  `bash.go` 前台+后台两路接线；转义阀门 `GAEA_EXEC_ENV_RAW=1` 跳过注入回退历史行为。
+  hook 装载器与 MCP stdio 传输非「工具子进程」，本批不动。
+- **门禁**：proc 13→18 全绿；builtin 257 全绿（bash 工具用例含状态锚定链）。
+
+### T1 · 三档行匹配（tool/seek.go + replaceInContent 兜底）
+
+- **根因**：edit_file/multi_edit 只会逐字节整串匹配，目标文件被无关改动后
+  old_block 整块失败。施工单写「boot.go 的编辑工具」系 v2 式按目录猜——实际
+  内核在 `tool/builtin/editfile.go` 的 `replaceInContent`（edit_file+multi_edit
+  共享），本刀按实际落点接线。
+- **做法**：`tool.FindSequence`（0 精确/1 行尾空白/2 两侧空白，最低档位下最早
+  位置，整段连续）+ `tool.NearestMatches`（首行最长公共前缀前 3 候选）；
+  `replaceInContent` 签名加 note 返回：精确零命中→先保 CRLF 诊断（既有红线
+  `TestEditFileCRLFHint` 不破：裸 \n 对 CRLF 文件仍报错，兜底不抢）→再 seek
+  行级拼接替换（未触及区域保原始字节，替换块用文件行尾风格）；命中 tier>0
+  在工具结果回一句「按第 N 档[忽略行尾/两侧空白]定位到第 X 行」；未命中错误附
+  「最接近的候选在第 X、Y 行」。edit_lines 按行号定位，无需兜底。
+- **门禁**：tool 43→50（seek 7 例）+ builtin +8（施工单验收例「文件被追加无关行
+  仍成功」+定位说明+候选行号+多命中拒绝+CRLF 不被吞+multi_edit 同款）全绿；
+  既有 `TestReplaceInContentKernel`/`TestEditFileCRLFHint` 断言原样。
+
+### T3 · 审批拒绝理由回喂 + 超时挂起 + 追认（controller_approval.go）
+
+- **根因**：拒绝只有 outcome 字符串进不了模型上下文（模型只会原样重试）；
+  追认无入口；超时动作解决后不可查。
+- **做法**：①`permission.Approver` 接口加 `denial` 返回（实现面=gateApprover+
+  permission 测试桩，机械适配）；`ApproveWithReason(id,decision,reason)` 新口
+  （`Approve` 委托空理由，前端绑定零破坏）；deny 回喂「已拒绝：<理由>——不要
+  原样重试」（理由默认「用户拒绝」，200 rune 封顶）。②超时 `DecisionTimeout`
+  归一本就与 deny/cancel 可区分（approvalOutcome→OutcomeTimeout），补「不产生
+  deny 账本」确认（Gate.recordDenial 只在 DenyUnapproved 路径）+超时挂
+  「待追认账本」。③`deniedActions` FIFO 账本（封顶 50）+`ApproveDenied(id)`
+  按原参数重放一次审批走正常闸门，放行写会话 granted（hardAsk 卡除外——逐条
+  纪律不写）+账本移除+notice；`PendingDeniedActions()` 供恢复侧「N 条待审」
+  展示；ctx 取消不挂账。
+- **门禁**：control 101→108（理由回喂/默认理由/超时挂账/追认放行/追认后
+  同参重试短路放行/hardAsk 追认永不写 granted/封顶/取消不挂账）全绿；
+  五决策既有语义逐字节不变（`TestApprovalResolvedPaired` 等原样）。
+
+### T4 · Never 语义 + Windows 危险命令（permission/approval_mode.go + dangerous_windows.go）
+
+- **根因**：绝不弹窗模式下命中「需批准」会静默放行（headless 自治）或静默卡死；
+  Windows 深删无硬拦截。
+- **做法**：`NormalizeAsk(mode,tool)`——mode=never→Deny+理由（含 never 字样，
+  与用户主动拒绝可区分），""/on-request/untrusted→保持 Ask（现状逐字节）；
+  `Gate.ApprovalMode` 字段（默认 ""=关闭）挂 AlwaysAsk 与 Ask 两分支；施工单
+  默认文案 "approval required by policy, but approval mode is never" 保留为
+  理由主体。`DangerousWindowsCommand(argv)` 纯文本判定（无 build tag，CI linux
+  可测）：删除集 remove-item/delete-item/ri/rm/del/erase/rd/rmdir；powershell/
+  cmd/bash -c 三壳剥引导参数取命令首词，&& ; | 分段扫；未知开关/token 保守
+  不拦（不确定≠危险）；-Force/-rf 判高危写进理由；接线在 Gate.Check bash
+  非只读处（与只读判定同位），先于策略判定（策略 Allow 也拦）。审批模式/危险闸
+  的控制器配置面接线（permLevel→Gate.ApprovalMode）未做，挂小批。
+- **门禁**：permission 33→37（never 归一/Gate 接线含 Allow 不受累+默认等价/
+  四壳判定/Gate 深删硬拒）全绿；boot/agent 全量绿（深删闸未误伤既有用例）。
+
+### T5 · 工具 schema 字节预算（tool/budget.go，默认关）
+
+- **根因**：工具多时首轮 schema 只有「全量下发」或「按名过滤」，无共享预算。
+- **做法**：`TruncateRows`（名字行成本 2+len(name)+1 先全额保留；名字总额超
+  预算从尾部整行省略，「...还有 N 个工具」占位；剩余在描述间按轮次均分
+  每轮+1 字节，公平且同输入同结果）+`TruncateDescBytes`（UTF-8 字符边界截断
+  +"..."）+`ApplySchemaBudget`（-1 哨兵=整行省略——施工单 []int 装不下 nil，
+  语义等价）；收口两处=`Registry.FilteredSchemas` 尾 + `IdentityLayer` 具名
+  路径（同一函数同一配置值，不许漂移）；开关 `[tools.schema_budget]
+  enabled/bytes`，boot 装配期一次性注入，默认关=逐字节等价现状；Bytes<=0
+  走保守默认 12KiB（注释注明取值依据）。
+- **门禁**：tool +5（省略/均分/中文不切字符/两次调用逐字节相同/默认关）全绿；
+  cache/config/boot 全绿。**实测**（builtin 全集静态口径，`.tmp/t5-measure`，
+  不入库）：50 工具，关 14136B(~4.7k tok) → 开(12KiB) 13867B(~4.6k tok)，
+  整行省略 0——builtin 描述本就紧凑（CompactDescriptor），预算收益随
+  MCP/办公工具面与长描述增长；真实会话 token 对比待装机后实测。
+
+### 共用纪律核对
+
+- 三硬禁止：零新外部依赖 ✓；既有测试断言意图未改（仅 mechanical 适配
+  `replaceInContent` 3→4 值与 `Approver` 4 值解构）✓；未放宽生产逻辑 ✓。
+- UTF-8 无 BOM ✓；gofmt 全绿（`provider_feature_test.go` 系既有漂移，未动）。
+- 未做项：T3 前端接线（拒绝理由输入框/追认按钮/恢复时 N 条待审卡片）挂小批；
+  T4 控制器配置面（permLevel→ApprovalMode、config 键）挂小批；T5 真实会话
+  token 对比挂装机后；账本/预算均内存态，跨会话持久化未做。
+
+
 
 - **根因**：系统提示词身份段只有全局一条解析链（`ResolveSystemPrompt`），图文引擎复用办公 config——本机实锤图文会话开场自称「土壤修复工程办公专用AI助手」（办公自定义人格）；`genui/officepointer.md` 核实为板块中立 GenUI 指针，不属串味。
 - **分板**：`boot.Options.SystemPrompt` 覆写位（空=现状逐字节）+ `DefaultWenxueSystemPrompt`（10 行指路型：纪律指向内嵌技能 wenxue-workbench/书籍信息.md/内嵌三件，纪律本体不重复防双源漂移；语言纪律不重复——LanguagePolicy 恒拼单源；技能不点名项目件防索引漂移）+ `agent.wenxue_system_prompt`/`wenxue_system_prompt_file` 双键（文件键优先，读失败硬报错）+ `wenxue_engine` 经 `ResolveWenxueSystemPrompt` 接线。

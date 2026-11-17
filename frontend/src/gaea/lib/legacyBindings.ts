@@ -11,7 +11,7 @@
 // 消费方：frontend/src/gaea/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +
 // 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。
 //
-// 共 182 名 = Go 导出 703 − 认领且 Go 存在 521（facets 键 522，其中 mock-only 名无 Go 绑定不计）。
+// 共 186 名 = Go 导出 710 − 认领且 Go 存在 524（facets 键 525，其中 mock-only 名无 Go 绑定不计）。
 
 export const legacyBindings = [
   "AddCustomEngine",
@@ -87,6 +87,8 @@ export const legacyBindings = [
   "WenxueAgentNetwork",
   "WenxueAnswer",
   "WenxueApprove",
+  "WenxueApproveDenied",
+  "WenxueApproveWithReason",
   "WenxueArchiveSession",
   "WenxueAttachmentChunkBegin",
   "WenxueAttachmentDataURL",
@@ -145,6 +147,7 @@ export const legacyBindings = [
   "WenxueMeta",
   "WenxueNewSession",
   "WenxueOpenWorkspacePath",
+  "WenxuePendingDeniedActions",
   "WenxuePermLevel",
   "WenxuePickWorkspace",
   "WenxuePickWorkspaceUploadFiles",
@@ -175,6 +178,7 @@ export const legacyBindings = [
   "WenxueSaveWorkspacePathsAs",
   "WenxueSend",
   "WenxueSetMCPServerEnabled",
+  "WenxueSetModel",
   "WenxueSetPermLevel",
   "WenxueSkillDraftFromSession",
   "WenxueSlashArgs",

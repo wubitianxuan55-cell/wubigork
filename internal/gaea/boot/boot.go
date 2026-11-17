@@ -29,6 +29,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/guardian"
 	"github.com/gaea/gaea/internal/gaea/hook"
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/largefile"
@@ -56,6 +57,9 @@ type Options struct {
 	MaxSteps   int
 	RequireKey bool
 	Sink       event.Sink
+	// Guardian 是动作级自动评审器（codex 蒸馏 T11）：nil=关闭（默认）。
+	// app 层按 [guardian] 配置构造（评审调用走办公本地优先路由）后注入。
+	Guardian guardian.Reviewer
 	// EmitSubagentText / OnFollowUpReady（v4.64 Side Chat 式追问）：前者把
 	// 追问运行的文本增量发到前端专用通道；后者接收「追问执行器」——boot 用
 	// taskTool 的 continue_from 管道组装，宿主（App）保存并在绑定里调用。
@@ -344,6 +348,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// （gaea run 既有语义不破坏）；配置 deny_unapproved=true 时，无人值守遇
 	// ask/hard_ask 即拒绝——执行链不能靠「没人守门」获得写面。拒绝同样落账。
 	headlessGate.DenyUnapproved = perm.DenyUnapproved
+	// T4：审批模式归一（[permissions].approval_mode，"never"=Ask 硬拒给理由）。
+	headlessGate.ApprovalMode = perm.ApprovalMode
 	// 无人值守放行也要留痕：子代理、后台任务、headless 都没有 UI 可问，遇
 	// 「本该问人」的工具时按自治放行——账上写一条 approval_auto，Source 记清
 	// 是闸门的 ask 还是 hard_ask，Decided=headless。共用 sink 已串到会话事件
@@ -621,6 +627,28 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		applyCompactToolset(reg)
 	}
 
+	// T5（codex 蒸馏）：工具 schema 字节预算——默认关闭；开启后描述文本按
+	// 共享预算截断（名字优先，收口在 Registry.FilteredSchemas 与 identity
+	// 具名路径两处，同一函数）。Bytes<=0 走 tool 包内保守默认 12KiB。
+	// 装配期一次性注入，会话中途改预算会打破前缀缓存稳定性。
+	if cfg.Tools.SchemaBudget.Enabled {
+		reg.SetSchemaBudget(cfg.Tools.SchemaBudget.Bytes)
+	}
+
+	// T8（codex 蒸馏）：检索展开——deferred 名单工具隐藏出首轮 schema（藏而
+	// 可按名调用），tool_search 注册后模型按查询取回 schema 文本。只在
+	// search.enabled=true 时隐藏（否则工具会无声消失）；两者默认关 = 现状。
+	if cfg.Tools.Search.Enabled {
+		for _, name := range cfg.Tools.Deferred {
+			if _, ok := reg.Get(name); ok {
+				reg.Hide(name)
+			} else {
+				slog.Warn("tools.deferred 名单含未注册工具", "name", name)
+			}
+		}
+		reg.Add(tool.NewToolSearchTool(reg, cfg.Tools.Search.Limit))
+	}
+
 	// S4 双空间：执行纪律文本按会话空间渲染 exports/work 路径根段（设计 §5）。
 	// work 缺省（含 space.mode=off 的 "" 生效值）输出与历史 const 逐字一致。
 	execPrompt := compiler.SystemPrompt() + "\n\n" + agent.SingleModelPromptFor(cfg.EffectiveSessionSpace())
@@ -794,6 +822,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Executor:       executor,
 		Sink:           sink,
 		Policy:         policy,
+		ApprovalMode:   perm.ApprovalMode,
+		SectionDiff:    cfg.Agent.SectionDiff,
+		Guardian:       opts.Guardian,
 		Label:          label,
 		SystemPrompt:   sysPrompt,
 		SessionDir:     orDefault(opts.SessionDir, config.SessionDir()),
@@ -1133,5 +1164,7 @@ func compactionConfig(cfg *config.Config) agent.CompactionConfig {
 		SoftRatio:  soft,
 		Ratio:      ratio,
 		ForceRatio: force,
+		// T9：token-budget 压缩形态开关（默认关=只有摘要式压缩）。
+		NewWindow: cfg.Agent.CompactionNewWindow,
 	}
 }

@@ -328,6 +328,10 @@ export const GAEA_METHOD_FACETS = {
   GaeaRunning: "work",
   SubagentFollowUp: "work",
   Approve: "work",
+  // 短名经 Wenxue 映射后只作用于图文 controller。
+  ApproveWithReason: "play",
+  PendingDeniedActions: "play",
+  ApproveDenied: "play",
   AnswerQuestion: "work",
   NewSession: "work",
   Reload: "work",

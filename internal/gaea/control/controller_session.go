@@ -20,17 +20,29 @@ import (
 // ends the old session and starts the new one for lifecycle hooks.
 func (c *Controller) NewSession() error {
 	if c.executor == nil {
+		c.mu.Lock()
+		c.resetSessionAuthorityLocked()
+		c.sessionFacts = nil
+		if c.sectionStore != nil {
+			c.sectionStore.Reset()
+		}
+		c.mu.Unlock()
 		return nil
 	}
 	if err := c.Snapshot(); err != nil {
 		return err
 	}
 	c.hooks.SessionEnd(context.Background())
+	c.mu.Lock()
 	if c.sessionDir != "" {
-		c.mu.Lock()
 		c.sessionPath = agent.NewSessionPath(c.sessionDir, c.label)
-		c.mu.Unlock()
 	}
+	c.resetSessionAuthorityLocked()
+	c.sessionFacts = nil
+	if c.sectionStore != nil {
+		c.sectionStore.Reset()
+	}
+	c.mu.Unlock()
 	ns := agent.NewSession(c.systemPrompt)
 	c.mu.Lock()
 	f := c.logFormat
@@ -87,6 +99,16 @@ func (c *Controller) Resume(s *agent.Session, path string) {
 	}
 	c.mu.Lock()
 	c.sessionPath = path
+	c.resetSessionAuthorityLocked()
+	if c.sectionStore != nil {
+		if s != nil && s.HasContent() {
+			// 恢复的 transcript 已经带着上一轮注入，但新控制器内存里没有
+			// 可比快照：按 Unknown=当有，下一次只发替换通知，不重复叠加。
+			c.sectionStore.ResetUnknown(sessionFactsSectionID)
+		} else {
+			c.sectionStore.Reset()
+		}
+	}
 	f := c.logFormat
 	c.mu.Unlock()
 	// 3.0 Step 1：恢复的会话继承当前持久化格式（事件日志模式下 Save 双写、
@@ -101,6 +123,22 @@ func (c *Controller) Resume(s *agent.Session, path string) {
 	// v4.378：换会话即清 bash 状态锚（恢复的是对话历史，shell 锚定态从不
 	// 持久化——磁盘上没有它的真相，重置是唯一诚实态）。
 	c.resetSessionToolState()
+}
+
+// resetSessionAuthorityLocked 清空严格属于「当前会话」的授权状态。调用方
+// 持 c.mu：/new 与恢复都必须让 Session 作用域真正失效，不能让上一个会话的
+// argv 规则、精确放行、追认账本或 Guardian 连续拒绝计数泄漏到新会话。
+func (c *Controller) resetSessionAuthorityLocked() {
+	c.granted = map[string]bool{}
+	c.grantedRules = nil
+	if c.argvRules != nil {
+		// 原地清空：executor 当前 Gate 持有同一指针，换指针会让旧 Gate 继续
+		// 命中旧规则。
+		c.argvRules.Clear()
+	}
+	c.deniedActions = nil
+	c.lastUserInput = ""
+	c.guardianBreaker.Reset()
 }
 
 // ResumeFromDisk 从磁盘恢复会话并接管为当前会话。事件日志模式下：

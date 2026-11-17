@@ -130,7 +130,11 @@ type Manager struct {
 	dshKey    string
 	adapters  map[string]agentAdapter
 	grok      GrokBackend
-	cancels   map[string]context.CancelFunc
+	// roles / roleBackend 是文件席位（codex 蒸馏 T15）：角色文件经
+	// SetRoleSeats 注入，后端缺省时文件席位不出现。由 mu 保护。
+	roles       []RoleFile
+	roleBackend RoleSeatBackend
+	cancels     map[string]context.CancelFunc
 	// agentCalls 会话×席位双键槽：独立开场第 1 轮并行时多席同时持有活动调用，
 	// skip/retry/中止判定按 (sessionID, agentID) 定位（2026-11-03 并行刀）。
 	agentCalls map[string]map[string]*activeAgentCall
@@ -182,7 +186,7 @@ func NewManager(root string, runner commandRunner, emit func(Event)) (*Manager, 
 		store:       store,
 		runner:      runner,
 		overrides:   overrides,
-		adapters:    buildAdapters(overrides, nil, ""),
+		adapters:    buildAdapters(overrides, nil, "", nil, nil),
 		cancels:     map[string]context.CancelFunc{},
 		agentCalls:  map[string]map[string]*activeAgentCall{},
 		runs:        map[string]*Session{},
@@ -259,7 +263,17 @@ func (m *Manager) SetGrokBackend(backend GrokBackend) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.grok = backend
-	m.adapters = buildAdapters(m.overrides, backend, m.dshKey)
+	m.adapters = buildAdapters(m.overrides, backend, m.dshKey, m.roles, m.roleBackend)
+}
+
+// SetRoleSeats 注入文件席位（codex 蒸馏 T15，app 层加载角色目录后调用；
+// roles 为空 = 清空文件席位）。重建适配器表与 SetGrokBackend 同纪律。
+func (m *Manager) SetRoleSeats(roles []RoleFile, backend RoleSeatBackend) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.roles = roles
+	m.roleBackend = backend
+	m.adapters = buildAdapters(m.overrides, m.grok, m.dshKey, m.roles, m.roleBackend)
 }
 
 // SetDSHAPIKey 注入 DeepSeek 凭据给 dsh 席位（DEEPSEEK_API_KEY 走 DSH 官方
@@ -268,7 +282,7 @@ func (m *Manager) SetDSHAPIKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.dshKey = key
-	m.adapters = buildAdapters(m.overrides, m.grok, key)
+	m.adapters = buildAdapters(m.overrides, m.grok, key, m.roles, m.roleBackend)
 }
 
 func (m *Manager) DataRoot() string { return m.root }
@@ -359,7 +373,7 @@ func (m *Manager) SetExecutable(id, path string) ([]AgentStatus, error) {
 		m.mu.Unlock()
 		return nil, err
 	}
-	m.adapters = buildAdapters(overrides, m.grok, m.dshKey)
+	m.adapters = buildAdapters(overrides, m.grok, m.dshKey, m.roles, m.roleBackend)
 	m.mu.Unlock()
 	return m.Agents(context.Background()), nil
 }
