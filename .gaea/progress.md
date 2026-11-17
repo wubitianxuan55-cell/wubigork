@@ -1,3 +1,31 @@
+## codex 蒸馏第四批 · Git 打包与桌面构建（2026-11-17）
+
+- **代码/交付点**：Wave 1 `0d42c3fb` + Wave 2+3 `2a11f08a`（本包锚定后者）+
+  bindings 再生 `c393f847`。第四批 9 项全落地、归档 8 项在册——codex 蒸馏
+  四批（研究面 + 落地面）至此整体收官。
+- **干净树构建**：`.worktrees/pkg-2a11f08a`（detached @`2a11f08a`，
+  node_modules junction）；前端 `npm.cmd run build` 23.91s 绿；UCRT64 GCC +
+  `CGO_ENABLED=1` + 系统 TMP/TEMP 裸 `wails build -s -ldflags "-s -w"
+  -trimpath` 49.061s（Skip Bindings=false）。Wails 再生仅
+  `wailsjs/go/models.ts` +4 行真实漂移（trajectory.ToolRec 的 model/turn，
+  B5 归因正当下游），已随 `c393f847` 物化回主树；其余 wailsjs 仅 CRLF
+  噪音（`--ignore-space-at-eol` 内容漂移为空）。
+- **交付目录**：`releases/gaea-codex-distill-batch4-20261117-2a11f08a/`
+  （payload 四件 + PACKAGE-INFO + SHA256SUMS + ZIP + 源码 TAR）；两份文本
+  记录入库，二进制/源码包留盘不入库（P2-3 纪律）。
+- **payload**：`gaea.exe` 54,992,384 B
+  `AAB7891162F7384337F9555BA8EB4D3D9F7D6D26899978C4F44A4B9D916DE013`；
+  三件 DLL 沿用基线原样哈希不变（`68D0D5F5…F550B` / `5DD36DBD…01E8` /
+  `4C563277…7FFE`）。
+- **冒烟**：正式 payload 路径 `scripts\smoke.ps1 -ExePath` → `/api/health`
+  200（`{"status":"ok"}`，PID 40852 已回收）；构建/冒烟后无孤儿进程。
+- **源码/投递包**：`gaea-2a11f08a-source.tar.gz` 43,660,125 B
+  `3E290CC1…76B71E`；ZIP 29,501,222 B `1E7A7FEE…2A7FB`；七项清单复算全 OK。
+- **版本/边界**：`wails.json=4.544.0` 不抬号（后端治理批无前端可感面）；
+  未装机（`gaea_install.ps1` 未运行）；未 push（本地 ahead 9：前三批 5 +
+  第四批 3 + bindings 1，随后补 release 记录 1 笔）。默认关开关
+  （drain/telemetry/outbound restricted）与 P6 灰度 warn 待实弹后处置。
+
 ## codex 蒸馏第四批 Wave 2+3 · 快照/持久化/观测/隔离/MCP（2026-11-17）
 
 三拍板门用户已定（权限算快照维度 / 投影允许滞后禁止超前先灰度 warn /
