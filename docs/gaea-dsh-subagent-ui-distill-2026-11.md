@@ -1,5 +1,18 @@
 # DSH 0.2.2-alpha.2 子代理 UI/UX 蒸馏 —— 调研与刀池（2026-11-02）
 
+> **✅ rc.1 复核已闭（2026-11-18，蒸馏计划 01 §7 门 1）**：以 `C:\AI\dsh-src\deepseek-harness-0.2.2-rc.1`
+>（`66491b05`）tag diff 全量核对——子代理三 UI 包（ui-subagent / ui-settings-subagent / ui-reference）
+> alpha.2→rc.1 实质变更仅 3 处：① ui-subagent locales +1 键 `open.floatWindow`（在浮窗中打开，
+> 四语言表，**全仓无消费面=词汇先行未启用面**，U1 谱系树/StateDot/只读三态词汇逐字未动）；
+> ② ui-reference FileReference +13 行=文件 chip 增右键上下文菜单（`resolveFilePath` 注入+sessionId
+> 随菜单项，@ 引用面增强，不在 U1–U8 范围）；③ ui-settings-subagent 仅版本号。ui-chat 35 文件
+> 483+/89- 但 **U5/U6/U7 机制主张全部原样**：locales 零变更（trigger 徽标词汇表/notice 形态未动）、
+> LIVE_TOOL_DETAIL_KEYS 优先级清单未动、委派 `subagent ? 0 : 1` 计数未动、活动分组词汇未动；
+> assistant.ts 37 行=流式块可见性记账重构（内部正确性，非 UI 契约）、process-activity 3 行=live
+> 推理摘要先过 `reasoningText()` 归一再分段。**判定：U1–U8 全部维持原判定，本档正文无需改写**；
+> 609 文件大改分布在 ui-chat 内部实现与其它 client 包，不触及本档主张面。新增留档两词：
+> `open.floatWindow`（浮窗打开，留观）、FileReference 右键菜单（gaea @引用无右键，demand-gated）。
+
 > **补课缘起**：后端/模型面已两轮蒸馏（2026-10 判定级+刀池、2026-11 机制深挖，P0/P1 已落地），**UI/UX
 > 面此前从未系统蒸馏**——gaea 前端的子代理面（SubagentThread/useTaskCards/ChatTabs 圆点/queued 徽标/Ban
 > 图标）全部是随刀顺手认领，不是从上游 UI 蒸馏出来的。本档补上。
