@@ -532,6 +532,11 @@ type NetworkConfig struct {
 	ProxyURL  string             `toml:"proxy_url"`  // http://host:port or socks5://host:port
 	NoProxy   string             `toml:"no_proxy"`   // comma-separated host suffixes excluded from proxying
 	Proxy     NetworkProxyConfig `toml:"proxy"`      // structured alternative to ProxyURL
+	// OutboundMode/OutboundAllowedHosts 是出网许可层（codex 蒸馏 B9 刀1，
+	// 第四批 P4）：restricted 时仅 https 出网且主机须在白名单（回环豁免），
+	// 重定向跨源剥凭据头。默认空=unrestricted，行为与现状逐字节等价。
+	OutboundMode         string   `toml:"outbound_mode"`          // unrestricted | restricted
+	OutboundAllowedHosts []string `toml:"outbound_allowed_hosts"` // 精确主机或子域后缀
 }
 
 // NetworkProxyConfig is the structured form of proxy configuration.
@@ -557,6 +562,15 @@ func (c *Config) NetworkProxySpec() netclient.ProxySpec {
 		Port:     c.Network.Proxy.Port,
 		Username: c.Network.Proxy.Username,
 		Password: c.Network.Proxy.Password,
+	}
+}
+
+// NetworkOutboundPolicy 折算出网许可策略；mode 为空或 unrestricted 时返回
+// unrestricted 策略（关闸形态，netclient 装配侧据此跳过 guard 安装）。
+func (c *Config) NetworkOutboundPolicy() netclient.OutboundPolicy {
+	return netclient.OutboundPolicy{
+		Mode:         c.Network.OutboundMode,
+		AllowedHosts: c.Network.OutboundAllowedHosts,
 	}
 }
 
@@ -695,6 +709,11 @@ type AgentConfig struct {
 	// startup (a built-in like "explanatory"/"learning"/"concise", or a custom
 	// .gaea/output-styles/<name>.md). Empty = the unmodified prompt.
 	OutputStyle string `toml:"output_style"`
+	// DrainEnabled 开启优雅关闭（codex 蒸馏 B1，第四批 P1）：应用退出时先
+	// 关闸两板块控制器——在飞回合收敛（默认 3s，超时强退）+ 排队未跑消息
+	// 逐条通知作废 + SessionEnd 钩子——再走其余 teardown。默认 false=现状
+	//（Shutdown 不等回合、控制器不随退出 Close）。
+	DrainEnabled bool `toml:"drain_enabled"`
 	// PromptPrefix/PromptSuffix 是部署级系统提示词首尾拼接（v4.542 刀14，
 	// dsh-context promptPrefix/promptSuffix 蒸馏）：非空时拼接在**所有会话**
 	// 系统提示词的最前/最后（含 task/run_skill 子代理——子代理 L1 从同一

@@ -669,6 +669,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		MaxSteps:      maxSteps,
 		Temperature:   cfg.Agent.Temperature,
 		Pricing:       entry.Price,
+		// B5 工具归因：runner 把模型 id 盖戳到工具/请求头事件（ResolveModel
+		// 已归一出实际模型，含 provider/model 引用与 Models 列表缺省）。
+		ModelName:     entry.Model,
 		Gate:          headlessGate,
 		Hooks:         hookRunner,
 		AccessPolicy:  accessPolicy,

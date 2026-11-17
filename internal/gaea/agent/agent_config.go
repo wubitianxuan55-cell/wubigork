@@ -42,9 +42,11 @@ type Options struct {
 	// CtxMgr is the TCCA context kernel (V3.0). When set, the agent uses it
 	// for prompt assembly and tool filtering instead of inline logic.
 	CtxMgr *context.ContextManager
-	// AuditFunc, when non-nil, is called after every tool execution with a
-	// summary of the call. V3.2: foundational audit trail.
-	AuditFunc func(tool string, taskKind string, readOnly bool, outcome string, errMsg string, outputLen int, durationMs int64)
+	// ModelName 是本 runner 的模型 id（B5 工具归因）：runner 把它盖戳到
+	// ToolDispatch/ToolResult/RequestHeader 事件，会话日志据此把工具调用
+	// 反查到具体模型。空=不盖戳（旧日志行为逐字节一致）。provider 实例
+	// 封装了模型选择且 runner 生命周期内不变，构造期一次注入即准确。
+	ModelName string
 
 	// ParamStorm enables parameter-level duplicate tool call detection (V5.13).
 	// nil disables; non-nil provides WindowSize/Threshold/ExemptTools.

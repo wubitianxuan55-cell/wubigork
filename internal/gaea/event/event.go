@@ -171,6 +171,10 @@ type Tool struct {
 	// sub-agent's calls carry the parent `task` call's ID so a frontend can nest
 	// them under it. Empty for top-level calls.
 	ParentID string
+	// Model 是本次调用所属的模型 id（B5 归因，由 AgentRunner 在派发/结果两侧
+	// 盖戳；空=旧路径未盖戳，读端按未知处理）。provider 实例封装了模型选择，
+	// runner 生命周期内不变，因此构造期一次注入即准确。
+	Model string
 }
 
 // ToolSource is one normalized web/document source surfaced by a tool result.
@@ -363,7 +367,7 @@ type Event struct {
 	// Usage's single-turn numbers.
 	SessionHit  int      // Usage: cumulative cache-hit prompt tokens this session
 	SessionMiss int      // Usage: cumulative cache-miss prompt tokens this session
-	Turn        int      // Usage: 会话 API 调用轮次（从 1 开始，由 AgentRunner 维护）
+	Turn        int      // Usage / ToolDispatch / ToolResult: 会话 API 调用轮次（从 1 开始，由 AgentRunner 维护）
 	Level       Level    // Notice
 	Approval    Approval // ApprovalRequest
 	Ask         Ask      // AskRequest
@@ -399,6 +403,9 @@ type RequestHeaderInfo struct {
 	// Provider 是供应商实例名（Provider.Name()，如 "deepseek"）。落日志供
 	// 上下文折叠出模型切换事件与跨会话洞察按供应商分面；空=旧路径未盖戳。
 	Provider string `json:"provider,omitempty"`
+	// Model 是本次请求的模型 id（B5 归因，比 Provider 更细一档——同一供应商
+	// 多模型时工具/请求归因靠它区分）。空=旧路径未盖戳。
+	Model string `json:"model,omitempty"`
 	// ── v4.212 上下文编译 dump/diff（5.2）────────────────────────────
 	// CompileHash 是本请求消息序列（canonical role+content 串接）的 SHA256
 	// 前 16 hex；PrevCompileHash 是上一请求的整体摘要（空=会话首请求）。

@@ -45,7 +45,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		a.evidence.Reset()
 	}
 	// v4.1 证据链：回合号自增 + 清空变更台账；回合结束（含错误路径）flush Journal。
-	a.turnSeq++
+	a.turnSeq.Add(1)
 	a.changes.Reset()
 	if a.journalDir != "" {
 		// v4.1b：基线快照目录（<cwd>/.gaea/work/rollback），写盘工具 StageBaseline 用。
@@ -240,7 +240,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		if usage != nil && usage.TotalTokens > 0 {
 			a.sink.Emit(event.Event{Kind: event.Usage, Usage: usage, Pricing: a.pricing,
 				SessionHit: int(a.sessCacheHit.Load()), SessionMiss: int(a.sessCacheMiss.Load()),
-				UsageSource: event.UsageSourceExecutor})
+				UsageSource: event.UsageSourceExecutor, Turn: a.turnNow()})
 			// budget gate — cumulative fee check
 			if a.budgetGate != nil {
 				status := a.budgetGate.Check(a.pricing, usage)
@@ -566,7 +566,7 @@ func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason 
 			Name:       c.Name,
 		})
 		if t, tok := a.tools.Get(c.Name); tok {
-			a.sink.Emit(event.Event{Kind: event.ToolResult, Tool: event.Tool{
+			a.sink.Emit(event.Event{Kind: event.ToolResult, Turn: a.turnNow(), Tool: event.Tool{
 				ID:          c.ID,
 				Name:        c.Name,
 				Args:        c.Arguments,
@@ -575,6 +575,7 @@ func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason 
 				Recoverable: out.recoverable,
 				ReadOnly:    t.ReadOnly(),
 				Sources:     successfulToolSources(c.Name, c.Arguments, out.output, out.errMsg),
+				Model:       a.modelNow(),
 			}})
 		}
 	}
@@ -603,10 +604,10 @@ func (a *AgentRunner) flushJournal() {
 	for i := range recs {
 		recs[i].Space = "work"
 		recs[i].SessionID = a.sessionID
-		recs[i].Turn = a.turnSeq
+		recs[i].Turn = int(a.turnSeq.Load())
 		recs[i].At = now
 		if recs[i].ID == "" {
-			recs[i].ID = fmt.Sprintf("%s-%d-%d", a.sessionID, a.turnSeq, i)
+			recs[i].ID = fmt.Sprintf("%s-%d-%d", a.sessionID, a.turnSeq.Load(), i)
 		}
 		if err := st.Append(recs[i]); err != nil {
 			continue // 单卡失败不阻断回合（证据链尽力而为）
@@ -616,8 +617,8 @@ func (a *AgentRunner) flushJournal() {
 	// 失败 warn 留痕（2026-09-19 审计）：导出目录被占用/磁盘满时 JSONL 证据链
 	// 仍在（Append 已成功），但投影静默缺失让人以为导出通道坏了也没人知道。
 	exportsJournalDir := filepath.Join(filepath.Dir(a.journalDir), "exports", "journal")
-	if _, err := st.WriteTurnMarkdown(exportsJournalDir, a.sessionID, a.turnSeq, recs); err != nil {
-		slog.Warn("journal turn markdown 投影失败", "session", a.sessionID, "turn", a.turnSeq, "error", err)
+	if _, err := st.WriteTurnMarkdown(exportsJournalDir, a.sessionID, int(a.turnSeq.Load()), recs); err != nil {
+		slog.Warn("journal turn markdown 投影失败", "session", a.sessionID, "turn", a.turnSeq.Load(), "error", err)
 	}
 }
 

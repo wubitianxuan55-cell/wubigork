@@ -73,6 +73,7 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 		Window:      a.ContextWindow(),
 		CompileHash: compileDiff.Hash,
 		Provider:    a.prov.Name(),
+		Model:       a.modelNow(),
 	}
 	if hadPrev {
 		stable := compileDiff.Stable
@@ -129,8 +130,9 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 			// working instead of a stall. executeBatch emits the full dispatch
 			// (with args) once the call completes; the frontend merges by ID.
 			if tc := chunk.ToolCall; tc != nil {
-				a.sink.Emit(event.Event{Kind: event.ToolDispatch, Tool: event.Tool{
+				a.sink.Emit(event.Event{Kind: event.ToolDispatch, Turn: a.turnNow(), Tool: event.Tool{
 					ID: tc.ID, Name: tc.Name, ReadOnly: a.toolReadOnly(tc.Name), Partial: true,
+					Model: a.modelNow(),
 				}})
 			}
 		case provider.ChunkToolCall:

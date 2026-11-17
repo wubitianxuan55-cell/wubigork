@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -208,7 +207,6 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	}
 	var result string
 	var err error
-	start := time.Now()
 	if ct, ok := t.(tool.ContextualTool); ok {
 		tc := tool.ToolContext{
 			SessionID:  a.sessionID,
@@ -220,7 +218,6 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	} else {
 		result, err = t.Execute(cctx, json.RawMessage(call.Arguments))
 	}
-	duration := time.Since(start).Milliseconds()
 
 	// Cache invalidation happens for every declared writer, including domain
 	// writers (wenxue_*) and read-only tools with host-side persistence
@@ -250,16 +247,9 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		}
 	}
 
-	// V3.2: audit trail — log every tool execution
-	if a.auditFunc != nil {
-		outcome := "success"
-		errMsg := ""
-		if err != nil {
-			outcome = "error"
-			errMsg = err.Error()
-		}
-		a.auditFunc(call.Name, "", t.ReadOnly(), outcome, errMsg, len(result), duration)
-	}
+	// V3.2 的 auditFunc 钩子已退役（B5 归因，2026-11-17）：全仓零消费方、
+	// 签名缺 call_id/回合号/模型名，且第二参从落地起恒为空串。工具审计的
+	// 真账本=会话日志（ToolDispatch/ToolResult 带 ID+Turn+Model 盖戳）。
 
 	// V3.0: notify workspace observer of successful edits.
 	if err == nil && !t.ReadOnly() && a.dispatcher != nil {

@@ -888,7 +888,7 @@ func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, in
 		case chunk, ok := <-ch:
 			if !ok {
 				if usage != nil && usage.TotalTokens > 0 {
-					a.sink.Emit(event.Event{Kind: event.Usage, Usage: usage, Pricing: a.pricing})
+					a.sink.Emit(event.Event{Kind: event.Usage, Usage: usage, Pricing: a.pricing, Turn: a.turnNow()})
 				}
 				s := strings.TrimSpace(b.String())
 				if s == "" {

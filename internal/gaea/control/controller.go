@@ -112,6 +112,15 @@ type Controller struct {
 	cancel      context.CancelFunc
 	running     bool
 	sessionPath string
+	// draining/admitted 是准入与优雅关闭态（codex 蒸馏 B1，第四批 P1）：
+	// BeginDrain 关闸（与准入同一把 mu——「检查—登记」之间没有窗口能让
+	// 关闭漏过去）后 Send 拒收并回结构化通知；「在跑回合 + 已准入消息」
+	// 两计数同零才算收敛，turnLoop 排空队列落完最后一条 TurnDone 时归零
+	// 并唤醒等待者。由 mu 保护。
+	draining bool
+	admitted int
+	// drainWait 惰性创建：BeginDrain 等待收敛的信号通道，收敛时关闭后置 nil。
+	drainWait chan struct{}
 	approvals   map[string]chan approvalReply
 	asks        map[string]chan []event.AskAnswer
 	granted     map[string]bool
@@ -415,7 +424,7 @@ func (c *Controller) runGuarded(body func(ctx context.Context) error) {
 // observes the in-flight one.
 func (c *Controller) tryStartTurn(body func(ctx context.Context) error) bool {
 	c.mu.Lock()
-	if c.running {
+	if c.running || !c.admitLocked() { // B1：关闸后系统回合同样拒收（running 通知由 runGuarded 发）
 		c.mu.Unlock()
 		return false
 	}
@@ -460,6 +469,9 @@ func (c *Controller) turnLoop(ctx context.Context, body func(ctx context.Context
 		}
 		c.running = false
 		c.cancel = nil
+		// B1 收敛点：队列已空、本轮收尾——本批已准入消息全部完成，计数
+		// 归零并唤醒 drain 等待者（两计数同零才允许退出等待）。
+		c.settleDrainLocked()
 		c.mu.Unlock()
 		c.sink.Emit(event.Event{Kind: event.TurnDone, Err: err})
 		return
@@ -514,8 +526,15 @@ func (c *Controller) sendWithRaw(input, raw string, resetWake bool, trigger stri
 		return
 	}
 	c.mu.Lock()
+	// B1 准入（第四批 P1）：关闸后拒收——结构化通知，不静默丢；队列满的
+	// 拒绝路径不计数（admit 在通过检查后才登记）。
+	if c.draining {
+		c.mu.Unlock()
+		c.sink.Emit(noticeDraining(input))
+		return
+	}
 	// T11 Guardian：记住最近一条用户原话（截 8KiB）——审批点的授权证据源
-	// （T6 ProvUser 是唯一常规可信授权来源）。
+	//（T6 ProvUser 是唯一常规可信授权来源）。
 	if u := strings.TrimSpace(input); u != "" {
 		if len(u) > 8<<10 {
 			u = u[:8<<10]
@@ -529,12 +548,14 @@ func (c *Controller) sendWithRaw(input, raw string, resetWake bool, trigger stri
 				Text: fmt.Sprintf("发送队列已满（最多 %d 条），这条消息未发送 — 请等待当前回合结束", sendQueueLimit)})
 			return
 		}
+		c.admitted++ // 入队即准入：drain 收敛要等它跑完或被关闸作废
 		c.pendingSends = append(c.pendingSends, sendRequest{input: input, raw: raw, trigger: trigger})
 		queued := len(c.pendingSends)
 		c.mu.Unlock()
 		c.notice(fmt.Sprintf("当前回合进行中，消息已加入发送队列（%d/%d），回合结束后自动发送", queued, sendQueueLimit))
 		return
 	}
+	c.admitted++ // 开跑即准入（与入队同口径：drain 收敛等它完成）
 	c.launchTurnLocked(func(ctx context.Context) error {
 		return c.runSendTurn(ctx, input, raw, trigger)
 	})

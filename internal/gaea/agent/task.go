@@ -448,7 +448,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		if perr != nil {
 			return "", fmt.Errorf("sub-agent route %q unavailable: %w", route, perr)
 		}
-		routeProv = pr
+		routeProv = &routedProv{LLMProvider: pr, model: p.Model}
 	}
 	// A10 写范围声明（Reasonix 2.x fleet 预检蒸馏）：glob/逃逸当场拒绝。
 	writePaths, err := normalizeWritePaths(p.WritePaths)
@@ -917,6 +917,21 @@ func (t *TaskTool) SetSubagentProvider(p provider.LLMProvider, pricing *provider
 	t.subagentCtxWin = ctxWin
 }
 
+// routedProv 标记按调用路由的子代理 provider 并携带模型 id（B5 归因）：
+// runSubSession 侧类型断言取出，覆盖 boot 级 subModel——路由事实优先。
+type routedProv struct {
+	provider.LLMProvider
+	model string
+}
+
+// subModelFor 折算子代理归因模型 id：路由覆盖优先，否则用 boot 身份快照。
+func subModelFor(provOverride provider.LLMProvider, bootModel string) string {
+	if rp, ok := provOverride.(*routedProv); ok && rp.model != "" {
+		return rp.model
+	}
+	return bootModel
+}
+
 // SetSubagentIdentity 注入出发快照的模型身份（B1 蒸馏）：boot 按**实际选中**
 // 的配置条目调用（显式子代理模型=子条目，否则=父条目）。快照审计面，与
 // 执行无关。
@@ -1053,6 +1068,9 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 		MaxSteps:      maxSteps,
 		Temperature:   t.temperature,
 		Pricing:       subPrice,
+		// B5 归因：子代理工具事件盖本子代理的模型 id。路由覆盖（模型显式
+		// engine/model）> boot 级身份快照（子代理条目或父条目）。
+		ModelName:     subModelFor(provOverride, t.subModel),
 		Gate:          t.gate,
 		Hooks:         t.hooksForChild(hookSessionID),
 		AccessPolicy:  access,

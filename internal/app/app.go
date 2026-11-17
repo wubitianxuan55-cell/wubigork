@@ -692,28 +692,39 @@ func (a *App) Shutdown(ctx context.Context) {
 		}
 	}()
 
+	// B1 优雅关闭（codex 蒸馏第四批 P1，[agent] drain_enabled 默认关=现状）：
+	// 先关闸两板块控制器（在飞回合收敛/超时强退 + SessionEnd 钩子），再走
+	// 其余 teardown——关闸后新消息拒收，未跑的排队消息逐条通知作废。
+	// 开关读 gaea.toml（与代理/出网策略同一配置世界），读失败视为关。
+	if gcfg, err := gaeacfg.Load(); err == nil && gcfg != nil && gcfg.Agent.DrainEnabled {
+		a.drainControllers()
+	}
+
 	if a.pantheonState != nil {
-		a.pantheonState.closePantheon()
+		shutdownStep("pantheon", 5*time.Second, func() error { a.pantheonState.closePantheon(); return nil })
 	}
 
 	// 停止 GLM 目录远程拉取循环（B 刀；engineMgr 未初始化时为空操作兜底）。
 	if a.engineMgr != nil {
-		a.engineMgr.StopGLMCatalogRemote()
+		shutdownStep("glm-catalog", 5*time.Second, func() error { a.engineMgr.StopGLMCatalogRemote(); return nil })
 		// 停止引擎健康巡检循环（C 刀 v0）。
-		a.engineMgr.StopHealthProbe()
+		shutdownStep("health-probe", 5*time.Second, func() error { a.engineMgr.StopHealthProbe(); return nil })
 	}
 	if a.cfg != nil && a.cfg.VoiceBackend == "v2" {
 		// 4B/sidecar 是 Gaea 代启进程，应用退出后已失去控制面；同步收尸，
 		// 避免 3GB 级模型在后台常驻。breeze 为共享 TTS，不在本停止面。
-		a.VoiceV2Stop()
+		shutdownStep("voice-v2", 10*time.Second, func() error { a.VoiceV2Stop(); return nil })
 	}
 	if a.weixinServers != nil {
-		a.weixinMu.Lock()
-		for id, srv := range a.weixinServers {
-			srv.Stop()
-			delete(a.weixinServers, id)
-		}
-		a.weixinMu.Unlock()
+		shutdownStep("weixin", 5*time.Second, func() error {
+			a.weixinMu.Lock()
+			for id, srv := range a.weixinServers {
+				srv.Stop()
+				delete(a.weixinServers, id)
+			}
+			a.weixinMu.Unlock()
+			return nil
+		})
 	}
 	// T7-1.1 ③：末轮落库——先 drain 异步记忆写入队列再持久化所有轻语会话，
 	// 避免进程退出时末轮 LLM 抽取的记忆/状态丢失（H4）。须在关闭 DB 前执行。

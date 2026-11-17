@@ -111,10 +111,12 @@ func (a *AgentRunner) emitTodoState(todos []evidence.TodoItem, itemIndex int) {
 		return
 	}
 	id := fmt.Sprintf("host-advance-%d-%d", a.hostAdvanceSeq.Add(1), itemIndex)
+	// Model 留空：合成调用由框架代写而非模型发起（T6 归属纪律——框架代写
+	// 不冒充模型来源），回合号照盖（归因到「哪一轮」仍然成立）。
 	t := event.Tool{ID: id, Name: "todo_write", Args: string(args), ReadOnly: true}
-	a.sink.Emit(event.Event{Kind: event.ToolDispatch, Tool: t})
+	a.sink.Emit(event.Event{Kind: event.ToolDispatch, Turn: a.turnNow(), Tool: t})
 	t.Output = "task list advanced by complete_step"
-	a.sink.Emit(event.Event{Kind: event.ToolResult, Tool: t})
+	a.sink.Emit(event.Event{Kind: event.ToolResult, Turn: a.turnNow(), Tool: t})
 }
 
 func promoteNextPendingTodo(todos []evidence.TodoItem) {

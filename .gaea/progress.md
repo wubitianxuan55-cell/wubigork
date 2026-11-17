@@ -1,3 +1,57 @@
+## codex 蒸馏第四批 Wave 1 · 准入关闭/工具归因/出网安全（2026-11-17）
+
+按 `plan-batch4-landing-priorities.md` 完成 Wave 1 剩余三项（P2/B12 已随第三批
+Wave 2 落地）：
+
+- **P1 B1 准入与优雅关闭**：`control/controller_drain.go` 新增 draining/
+  admitted/`BeginDrain(timeout)`——关闸与准入同一把 mu（检查—登记无窗口）；
+  关闸后 Send/系统回合（runGuarded）结构化拒收（`ErrSessionDraining` + 含消息
+  预览的通知，不静默丢）、队列未跑消息逐条通知作废；「在跑 + 已准入」两计数
+  同零才收敛（turnLoop 排空落完最后一条 TurnDone 时 `settleDrainLocked` 归零
+  并唤醒等待者）；超时强退 cancel 在飞回合、TurnDone{Err} 走既有路径不伪造。
+  `App.Shutdown` 侧：`[agent] drain_enabled`（默认关=现状：Shutdown 不等回合
+  不 Close 控制器）开启时先 `drainControllers()`（办公+文学双板）再 teardown；
+  进程管理步骤（pantheon/glm-catalog/health-probe/voice-v2/weixin）全部套
+  `shutdownStep` 超时（5–10s，挂起记日志继续退出，A4）；步骤错误文本尾截
+  4KiB（`tailStderr`）。DB 关闭与 whisper 落库保持必须完成（不套超时）。
+- **P3 B5 工具归因闭合**：`event.Tool` +`Model`、`Event.Turn` 从死字段变实盖戳
+  （注释原称 runner 维护、实际从未赋值）；六处发射点（batch 派发/结果、流式
+  pre-exec 派发、pre-exec 结果、Usage×2、host-advance 合成对）盖 `Turn+Model`
+  （合成 todo_write 按归属纪律留空 Model——框架代写不冒充模型来源）；子代理
+  经 `routedProv` 携带按调用路由模型 id（覆盖 boot 身份快照），`Options.ModelName`
+  由 boot 以 `entry.Model` 注入（ResolveModel 已归一含 provider/model 引用与
+  Models 列表缺省）。会话日志 `tool_dispatch/tool_result` payload 落
+  `model/turn`（omitempty，旧日志逐字节同形）；`request_header` 补 `model`
+  （比 Provider 实例名细一档）；轨迹折叠 ToolRec 浮出 Model/Turn（dispatch 为
+  准、result 仅补齐重建路径）。**退役死钩子 auditFunc**（V3.2 落地起全仓零
+  消费方、第二参恒空串、签名缺归因三元组——FE3-04 零调用者摘除先例）。
+- **P4 B9 出网安全 + B7 构造即验证**：落点从施工卡的 provider/outbound.go 改到
+  **既有唯一 HTTP 工厂 `internal/netclient`**（asset-53 自认未读 gaea 侧；
+  一处只改一次纪律，不平行造层）。`outbound.go`：`OutboundPolicy`
+  （unrestricted 默认=现状 / restricted=https 白名单+回环豁免——本机引擎不是
+  出网）、`OutboundGuard` 四态拒因（Unavailable/Destination/Revoked/
+  UnsupportedTransport，`OutboundError` 错误即值可分类）、Acquire/Permit 带
+  revision（SetPolicy 即撤销全部旧许可）、`InstallOutbound` 重定向纪律（≤10
+  跳、每跳过闸、跨源剥 Authorization/Cookie/Proxy-Authorization + 补 Referer、
+  同源不删）、`OutboundTransport` 首跳拨号前过闸。B7：`NewOutboundGuard`/
+  `SetPolicy` 构造即验证（restricted 空白名单拒绝构造——不给静默宽口；零值
+  guard 裁决 unavailable，无默认放行形态）。config `[network]` 增
+  `outbound_mode/outbound_allowed_hosts`；`ai.Client.buildHTTPClient` 装配
+  （策略非法 warn 不装=不降级假 restricted）。**不搬**：N6 TLS 双后端回退
+  （Go 标准库无此概念）、N7 模型目录缓存（不在 P4 落地面，gaea 目录是
+  modelengine 侧另一形态）、路由池具体形态（单进程按需分池即可）。
+- **验证**：新增测试 22 例全绿——drain 5 例（A1 拒收不开跑/A2 已准入跑完才返/
+  A3 超时强退落账/排队逐条作废/系统回合拒收）+ shutdownStep 3 例（完成/挂起
+  超时继续/尾截 4KiB）+ 归因 8 例（回合一致/并行不串号/未配置不盖/日志含
+  model·turn·header/未盖戳缺省字段/折叠浮出/旧日志零值）+ outbound 9 例
+  （N1 协议与白名单/N2 尾点归一/N3 许可撤销/构造即验证/N4 跨源剥头补 Referer/
+  同源保留/N5 11 跳终止/首跳过闸/nil guard 不动客户端）。全量回归：control
+  2.9s、agent 18.4s、config、netclient、ai 全绿；app 全量 130.1s 绿（ucrt64+
+  DLL）；`go build ./...` + vet 全绿。
+- **边界**：未 Wails build、未装机、未 push；Wave 2（P5–P8）卡三拍板门
+  （权限快照维度/投影滞后/观测落盘），Wave 3（P9 B8 MCP 目录缓存）待定——
+  gaea 无 MCP 客户端面（在册排除清单），需先证伪或改刀。
+
 ## codex 蒸馏第三批 · Git 打包与桌面构建（2026-11-17）
 
 - **代码/交付点**：`d30cb5d2`（`feat(gaea): 完成 codex 蒸馏第三批双板块收口`，

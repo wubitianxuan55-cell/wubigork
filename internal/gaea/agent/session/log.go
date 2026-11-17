@@ -123,6 +123,8 @@ type requestHeaderLogPayload struct {
 	Tools    []requestToolLogPayload `json:"tools,omitempty"`
 	Window   int                     `json:"window,omitempty"`
 	Provider string                  `json:"provider,omitempty"`
+	// Model 是本次请求的模型 id（B5 归因，比 Provider 细一档）；空=未盖戳。
+	Model string `json:"model,omitempty"`
 	// v4.212（5.2）上下文编译 dump/diff：消息级摘要链与相邻请求前缀稳定
 	// 判定（追加列，旧日志读端零值缺省=未计算）。
 	CompileHash     string `json:"compileHash,omitempty"`
@@ -148,6 +150,9 @@ type toolCallLogPayload struct {
 	ReadOnly bool   `json:"readOnly,omitempty"`
 	Partial  bool   `json:"partial,omitempty"`
 	ParentID string `json:"parentId,omitempty"`
+	// Model/Turn 是 B5 归因盖戳：空/0=旧路径未盖戳（旧日志逐字节一致）。
+	Model string `json:"model,omitempty"`
+	Turn  int    `json:"turn,omitempty"`
 }
 
 // assistantLogPayload 是 assistant_message / message 事件的 payload。
@@ -167,6 +172,9 @@ type toolResultLogPayload struct {
 	Err       string             `json:"err,omitempty"`
 	Truncated bool               `json:"truncated,omitempty"`
 	Sources   []event.ToolSource `json:"sources,omitempty"`
+	// Model/Turn 是 B5 归因盖戳：空/0=旧路径未盖戳（旧日志逐字节一致）。
+	Model string `json:"model,omitempty"`
+	Turn  int    `json:"turn,omitempty"`
 }
 
 // usageLogPayload 是 usage 事件的 payload（token 统计/成本派生 API 的输入）。
@@ -512,6 +520,8 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			ReadOnly: e.Tool.ReadOnly,
 			Partial:  e.Tool.Partial,
 			ParentID: e.Tool.ParentID,
+			Model:    e.Tool.Model,
+			Turn:     e.Turn,
 		}
 	case event.ToolResult:
 		payload = toolResultLogPayload{
@@ -521,6 +531,8 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			Err:       e.Tool.Err,
 			Truncated: e.Tool.Truncated,
 			Sources:   e.Tool.Sources,
+			Model:     e.Tool.Model,
+			Turn:      e.Turn,
 		}
 	case event.Usage:
 		payload = usagePayloadFromEvent(e)
@@ -596,6 +608,7 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			Tools:    tools,
 			Window:   e.Header.Window,
 			Provider: e.Header.Provider,
+			Model:    e.Header.Model,
 
 			CompileHash:     e.Header.CompileHash,
 			PrevCompileHash: e.Header.PrevCompileHash,

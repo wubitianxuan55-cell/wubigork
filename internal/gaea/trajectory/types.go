@@ -98,6 +98,10 @@ type ToolRec struct {
 	ReadOnly  bool   `json:"readOnly,omitempty"`
 	Status    string `json:"status"` // ok | error | running
 	ParentID  string `json:"parentId,omitempty"`
+	// Model/Turn 是 B5 归因（dispatch 盖戳，result 不覆盖）：模型 id 与回合号，
+	// 并行同名调用可据此反查「哪一轮、哪个模型、哪一次」。空/0=旧日志未盖戳。
+	Model string `json:"model,omitempty"`
+	Turn  int    `json:"turn,omitempty"`
 }
 
 // CompactRec 是一次压缩记录。

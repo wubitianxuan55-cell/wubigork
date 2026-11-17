@@ -5,7 +5,14 @@
 >
 > **落地状态（2026-11-17）**：P2/B12 已随第三批 Wave 2 提前落地：Go 使用共享
 > `output_budget.json` + `strutil.Policy`，Agent/Archive/Controller 四处旧截断已薄封装；
-> 前端工具卡共用同一预算配置。第四批其余项未开工。
+> 前端工具卡共用同一预算配置。
+> **Wave 1 其余三项同日完成**：P1 优雅关闭（`control/controller_drain.go` +
+> `App.Shutdown` 步超时/stderr 尾截，`[agent] drain_enabled` 默认关）、
+> P3 工具归因（工具事件 Model/Turn 盖戳→会话日志→轨迹折叠；退役零消费
+> auditFunc）、P4 出网安全+B7 构造即验证（落 `internal/netclient/outbound.go`
+> ——既有唯一 HTTP 工厂，不平行造 provider 层；ai.Client 装配）。
+> Wave 2（P5–P8）卡 §6 三拍板门未开工；Wave 3（P9）待定——gaea 无 MCP
+> 客户端面（在册排除），需先证伪或改刀。
 
 ---
 

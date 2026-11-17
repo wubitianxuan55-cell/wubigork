@@ -265,6 +265,9 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 		ReadOnly bool   `json:"readOnly,omitempty"`
 		Partial  bool   `json:"partial,omitempty"`
 		ParentID string `json:"parentId,omitempty"`
+		// B5 归因盖戳（旧日志零值=未盖戳）。
+		Model string `json:"model,omitempty"`
+		Turn  int    `json:"turn,omitempty"`
 	}
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return
@@ -291,6 +294,14 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 	r.Tool.Name = p.Name
 	r.Tool.ReadOnly = p.ReadOnly
 	r.Tool.ParentID = p.ParentID
+	// 归因以 dispatch 为准（result 不覆盖；补齐仅当记录还没有——结果先于
+	// 派发到达的重建路径）。
+	if p.Model != "" && r.Tool.Model == "" {
+		r.Tool.Model = p.Model
+	}
+	if p.Turn > 0 && r.Tool.Turn == 0 {
+		r.Tool.Turn = p.Turn
+	}
 	if !p.Partial && p.Args != "" {
 		r.Tool.Args = preview(p.Args, maxOutPreview)
 	}
@@ -303,6 +314,9 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 		Output    string `json:"output,omitempty"`
 		Err       string `json:"err,omitempty"`
 		Truncated bool   `json:"truncated,omitempty"`
+		// B5 归因盖戳（旧日志零值=未盖戳）。
+		Model string `json:"model,omitempty"`
+		Turn  int    `json:"turn,omitempty"`
 	}
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return
@@ -320,6 +334,13 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	}
 	if p.Name != "" {
 		r.Tool.Name = p.Name
+	}
+	// 归因补齐：结果先于派发到达（重建路径）时结果侧的盖戳是唯一来源。
+	if p.Model != "" && r.Tool.Model == "" {
+		r.Tool.Model = p.Model
+	}
+	if p.Turn > 0 && r.Tool.Turn == 0 {
+		r.Tool.Turn = p.Turn
 	}
 	r.Tool.Truncated = p.Truncated
 	if p.Err != "" {

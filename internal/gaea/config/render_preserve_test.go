@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -140,7 +141,9 @@ func TestSaveRoundTripKeepsAllSections(t *testing.T) {
 	}
 
 	// ── [network] + [network.proxy] ──
-	if got.Network != first.Network {
+	// B9 刀1 后 Network 含 []string（outbound_allowed_hosts），整体不可比较，
+	// 改 DeepEqual——断言意图不变（渲染/回写不丢字段）。
+	if !reflect.DeepEqual(got.Network, first.Network) {
 		t.Errorf("[network]/[network.proxy] 丢字段: got %+v want %+v", got.Network, first.Network)
 	}
 	if got.Network.Proxy.Server != "127.0.0.1" || got.Network.Proxy.Port != 7890 || got.Network.Proxy.Username != "u" {

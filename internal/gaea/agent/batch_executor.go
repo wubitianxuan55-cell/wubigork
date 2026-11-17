@@ -89,11 +89,12 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 			a.startModelToolRun(ctx, c.ID, c.Name, c.Arguments)
 			a.updateModelToolLabel(c.ID, c.Name, c.Arguments)
 		}
-		a.sink.Emit(event.Event{Kind: event.ToolDispatch, Tool: event.Tool{
+		a.sink.Emit(event.Event{Kind: event.ToolDispatch, Turn: a.turnNow(), Tool: event.Tool{
 			ID:       c.ID,
 			Name:     c.Name,
 			Args:     c.Arguments,
 			ReadOnly: ok && t.ReadOnly(),
+			Model:    a.modelNow(),
 		}})
 	}
 
@@ -155,7 +156,7 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 	for i, c := range calls {
 		o := outcomes[i]
 		t, ok := a.tools.Get(c.Name)
-		a.sink.Emit(event.Event{Kind: event.ToolResult, Tool: event.Tool{
+		a.sink.Emit(event.Event{Kind: event.ToolResult, Turn: a.turnNow(), Tool: event.Tool{
 			ID:          c.ID,
 			Name:        c.Name,
 			Args:        c.Arguments,
@@ -165,6 +166,7 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 			ReadOnly:    ok && t.ReadOnly(),
 			Truncated:   o.truncated,
 			Sources:     successfulToolSources(c.Name, c.Arguments, o.output, o.errMsg),
+			Model:       a.modelNow(),
 		}})
 		// v4.61：工具结果到达 → 关闭 mt_ 记录（成功/失败如实标记）。
 		if c.ID != "" && a.isModelBacked(c.Name) {

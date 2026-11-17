@@ -55,6 +55,9 @@ type Client struct {
 	requestSendBudget time.Duration
 	// proxySpecOverride 代理配置覆盖（测试注入）；nil 时读取 gaea 生效配置。
 	proxySpecOverride *netclient.ProxySpec
+	// outboundPolicyOverride 出网策略覆盖（测试注入，B9 刀1）；nil 时读
+	// gaea 生效配置的 [network] outbound_* 段。
+	outboundPolicyOverride *netclient.OutboundPolicy
 
 	// engineFailoverFn 引擎故障转移开关读取函数（C 刀 v0；app 启动/重建 client
 	// 后注入 cfg.GetEngineFailover，照 engineMgr 注入先例——避免逐请求读
@@ -136,6 +139,9 @@ func (c *Client) proxySpec() netclient.ProxySpec {
 
 // buildHTTPClient 按应用代理配置构建 AI/引擎流量使用的 HTTP 客户端，
 // 保留默认传输的超时与连接池行为。代理配置无效时回退直连客户端。
+// 出网许可层（B9 刀1）：[network] outbound_mode=restricted 时装 guard
+// （首跳拨号前过闸 + 重定向逐跳复核/跨源剥凭据头）；默认不装=现状等价。
+// 策略非法（restricted 空白名单）按构造即验证拒绝，降级 warn 不放行宽口。
 func (c *Client) buildHTTPClient() *http.Client {
 	spec := c.proxySpec()
 	cli, err := netclient.NewHTTPClient(spec, netclient.TransportOptions{})
@@ -144,7 +150,35 @@ func (c *Client) buildHTTPClient() *http.Client {
 		cli = netclient.NewSimpleClient(0)
 	}
 	cli.Transport = newSendGuardTransport(cli.Transport, c.sendBudget(), c.idleTimeout())
+	if guard := c.outboundGuard(); guard != nil {
+		netclient.InstallOutbound(cli, guard)
+	}
 	return cli
+}
+
+// outboundGuard 折算出网闸门：unrestricted（默认）返回 nil（不装=现状）；
+// restricted 构造失败时 warn 并返回 nil——闸门装不上不能断全部流量，
+// 但也不降级成「假 restricted」（netclient 的 Acquire 语义仍在，仅本
+// 客户端未装）。
+func (c *Client) outboundGuard() *netclient.OutboundGuard {
+	policy := c.outboundPolicyOverride
+	if policy == nil {
+		gcfg, err := gaeacfg.Load()
+		if err != nil || gcfg == nil {
+			return nil
+		}
+		p := gcfg.NetworkOutboundPolicy()
+		policy = &p
+	}
+	if policy.Mode == "" || policy.Mode == netclient.OutboundUnrestricted {
+		return nil
+	}
+	guard, err := netclient.NewOutboundGuard(*policy)
+	if err != nil {
+		slog.Warn("出网策略非法，未装出网闸门", "error", err)
+		return nil
+	}
+	return guard
 }
 
 // idleTimeout 返回流空闲超时时长（测试可覆盖，默认 60s）。

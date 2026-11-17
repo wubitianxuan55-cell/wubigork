@@ -441,7 +441,10 @@ type AgentRunner struct {
 	// flushJournal 写入 Journal）。play 回合不落盘（设计红线）。
 	changes    *evidence.ChangeLedger
 	journalDir string
-	turnSeq    int
+	// turnSeq 是会话 API 调用轮次（B5 归因）：回合起点递增，工具/用量事件
+	// 盖戳。atomic 因为批量执行器工作协程也会读（写只发生在回合起点，
+	// 但读侧跨协程必须无竞争）。
+	turnSeq atomic.Int32
 
 	// memQueue, when non-nil, lets the remember/forget tools fold a turn-tail note
 	// about a just-made memory change into the next turn, so it applies this
@@ -517,9 +520,9 @@ type AgentRunner struct {
 	// V5.15: Ԥ���ſء���׷�ٻỰ�ۼƷ��ã�80%����/100%��ϡ�
 	budgetGate *BudgetGate
 
-	// auditFunc, when non-nil, is called after each tool execution for
-	// audit trail logging (V3.2).
-	auditFunc func(tool string, taskKind string, readOnly bool, outcome string, errMsg string, outputLen int, durationMs int64)
+	// modelName 是本 runner 的模型 id（B5 工具归因）：盖戳进工具事件与请求头，
+	// 会话日志/轨迹折叠据此反查「这次调用是哪个模型发的」。空=不盖戳。
+	modelName string
 
 	// preOutcomes collects results of read-only tool calls that were pre-executed
 	// during stream() before the full batch. Keyed by tool call ID. executeBatch
@@ -606,6 +609,12 @@ func (a *AgentRunner) SetResidentTools(names []string) {
 // 为子代理 ActiveSchemas，目录开启时父子同面——既保前缀缓存对齐，也不把父
 // 未激活的工具（如 MCP 重载面）整包发给子代理）。
 func (a *AgentRunner) CurrentSchemas() []provider.ToolSchema { return a.currentSchemas() }
+
+// turnNow 返回当前回合号（B5 归因盖戳；批量工作协程可并发读）。
+func (a *AgentRunner) turnNow() int { return int(a.turnSeq.Load()) }
+
+// modelNow 返回本 runner 的模型 id（B5 归因盖戳；空=未配置，事件不携带）。
+func (a *AgentRunner) modelNow() string { return a.modelName }
 
 // DynamicToolsOn 报告动态工具目录是否开启。
 func (a *AgentRunner) DynamicToolsOn() bool {
@@ -877,7 +886,7 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		keepPolicy:    comp.KeepPolicy,
 		dispatcher:    opts.Dispatcher,
 		ctxMgr:        opts.CtxMgr,
-		auditFunc:     opts.AuditFunc,
+		modelName:     opts.ModelName,
 		tc:            cache.New(-1), // V5.8: session 缓存，mtime 校验器
 		disableVerify: opts.DisableVerify,
 		// 空终答重试退避基数（2026-11-10 实弹根修）：Options 可注入（测试缩值），
