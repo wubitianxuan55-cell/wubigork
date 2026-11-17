@@ -13,6 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/telemetry"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -577,6 +578,10 @@ func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason 
 				Sources:     successfulToolSources(c.Name, c.Arguments, out.output, out.errMsg),
 				Model:       a.modelNow(),
 			}})
+			// P7 观测：pre-exec 路径与批量路径同口径记账。
+			telemetry.Default().Record("tool_result",
+				map[string]string{"name": c.Name, "ok": boolTag(out.errMsg == "")},
+				float64(out.durMS))
 		}
 	}
 }

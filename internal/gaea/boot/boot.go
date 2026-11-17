@@ -371,6 +371,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		}})
 	}
 
+	// P8 断网闸（codex 蒸馏 B6 折算）：[sandbox] network=false 时，网络能力
+	// 工具（web/浏览器/mcp__ 动态工具）在闸门层拒绝——此前断网只关 bash
+	// 子进程，web/浏览器照常出网是半开沙箱。network=true（默认）零介入。
+	gatedHeadless := agent.WrapNetworkGate(headlessGate, cfg.Sandbox.Network)
+
 	// Hooks: load the global settings.json plus the project's (only when trusted —
 	// project hooks run arbitrary shell commands, so cloning a repo must not
 	// silently execute them). Non-blocking hook output is surfaced to the user as
@@ -566,7 +571,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			MaxSteps:    steps,
 			Temperature: cfg.Agent.Temperature,
 			Pricing:     price,
-			Gate:        headlessGate,
+			Gate:        gatedHeadless,
 			HooksForSession: func(sessionID string) agent.ToolHooks {
 				return hookRunner.WithSessionID(sessionID)
 			},
@@ -672,7 +677,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		// B5 工具归因：runner 把模型 id 盖戳到工具/请求头事件（ResolveModel
 		// 已归一出实际模型，含 provider/model 引用与 Models 列表缺省）。
 		ModelName:     entry.Model,
-		Gate:          headlessGate,
+		Gate:          gatedHeadless,
 		Hooks:         hookRunner,
 		AccessPolicy:  accessPolicy,
 		Jobs:          jm,
@@ -834,6 +839,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Host:           pluginHost,
 		Commands:       cmds,
 		Skills:         skills,
+		// P8 断网闸（交互路径四个换级点共用 newGate 后统一包装）。
+		DenyNetworkTools: !cfg.Sandbox.Network,
 		Hooks:          hookRunner,
 		Memory:         mem,
 		MemoryDisabled: !cfg.Memory.Enabled,

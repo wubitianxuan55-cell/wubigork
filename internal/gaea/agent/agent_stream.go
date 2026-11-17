@@ -157,7 +157,7 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 						}
 					}()
 					defer a.preWG.Done()
-					o := a.executeOne(ctx, call)
+					o := a.executeOneTimed(ctx, call)
 					a.preMu.Lock()
 					a.preOutcomes[call.ID] = o
 					a.preMu.Unlock()

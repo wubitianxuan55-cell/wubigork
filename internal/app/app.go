@@ -29,6 +29,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/filewatch"
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/gaea/tasks"
+	"github.com/gaea/gaea/internal/gaea/telemetry"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/vision"
 	"github.com/gaea/gaea/internal/gaea/workbench"
@@ -350,6 +351,13 @@ func New() *App {
 }
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// P7 本地观测最小集（codex 蒸馏 B10 折算）：[telemetry] enabled（默认
+	// 关）时开启事实流，落 whisperDataRoot/telemetry 按日 ndjson、保留 14 天。
+	// 关闭时 Record 单布尔短路（零成本）。
+	if gcfg, err := gaeacfg.Load(); err == nil && gcfg != nil && gcfg.Telemetry.Enabled {
+		telemetry.Default().Enable(filepath.Join(a.whisperDataRoot, "telemetry"))
+	}
 
 	// 冷启动基线打点（瘦身轨道五）：各阶段耗时落长期日志，真机数据随日常
 	// 启动自然积累；零行为变化，仅观测。
@@ -690,6 +698,8 @@ func (a *App) Shutdown(ctx context.Context) {
 		if a.logClose != nil {
 			a.logClose()
 		}
+		// P7：观测缓冲收尾落盘（未开启时 no-op）。
+		telemetry.Default().Flush()
 	}()
 
 	// B1 优雅关闭（codex 蒸馏第四批 P1，[agent] drain_enabled 默认关=现状）：

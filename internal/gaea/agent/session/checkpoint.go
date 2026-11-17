@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -97,6 +98,17 @@ func Restore(checkpointPath, logPath string) ([]provider.Message, int64, error) 
 			return msgs, base, nil
 		}
 		return nil, 0, err
+	}
+	// P6 守卫（codex 蒸馏 B3「允许滞后、禁止超前」，2026-11-17 拍板灰度 warn）：
+	// checkpoint.Seq 越过日志末条 seq = 投影超前权威源（日志被外部截断/轮转，
+	// 或检查点与日志不成对）。允许滞后（checkpoint 落后于日志=正常重放追上），
+	// 禁止超前：灰度记 warn + 丢弃检查点从日志全量重放（恢复正确性优先，
+	// 检查点只是加速）；稳定一版后升 error。
+	if base > 0 && len(entries) > 0 && entries[len(entries)-1].Seq < base {
+		slog.Warn("restore: checkpoint 超前于日志（投影不得超前权威源），丢弃检查点全量重放",
+			"checkpointSeq", base, "logLastSeq", entries[len(entries)-1].Seq, "log", logPath)
+		msgs = nil
+		base = 0
 	}
 	var tail []LogEntry
 	for _, e := range entries {

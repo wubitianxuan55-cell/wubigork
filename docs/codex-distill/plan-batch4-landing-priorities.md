@@ -11,8 +11,18 @@
 > P3 工具归因（工具事件 Model/Turn 盖戳→会话日志→轨迹折叠；退役零消费
 > auditFunc）、P4 出网安全+B7 构造即验证（落 `internal/netclient/outbound.go`
 > ——既有唯一 HTTP 工厂，不平行造 provider 层；ai.Client 装配）。
-> Wave 2（P5–P8）卡 §6 三拍板门未开工；Wave 3（P9）待定——gaea 无 MCP
-> 客户端面（在册排除），需先证伪或改刀。
+> Wave 2（P5–P8）三拍板门已定（2026-11-17 用户拍板：权限算快照维度；
+> 投影允许滞后禁止超前、断言先灰度 warn；观测落 whisperDataRoot/telemetry
+> 保留 14 天默认关）；Wave 3（P9）确认实施——gaea 已有 MCP 接入面
+> （controller.AddMCPServer / boot 注册链），目录缓存刀有真实落点。
+> **Wave 2+3 同日全清**：P5 step 快照（回合内权限/窗口变更三态拒+理由
+> 透传）、P6 投影「禁止超前」守卫（灰度 warn）、P7 观测最小集
+> （`internal/gaea/telemetry`：环形 256/去重 4096/按日 ndjson/14 天，默认
+> 关）、P8 断网闸（`tool/capability.go` 网络能力名单 + `agent.NetworkGate`
+> ——[sandbox] network=false 拒 web/浏览器/MCP；panic 隔离已有三处
+> recover，补验收落袋）、P9 MCP 目录缓存+启动 deadline（`plugin/catalog.go`：
+> 指纹键 32 条/30min + StartAll/热插拔 15s fail-soft）。**第四批 9 项全部
+> 落地，归档 8 项维持**。
 
 ---
 

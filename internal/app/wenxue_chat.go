@@ -625,9 +625,12 @@ func (a *App) WenxueMemorySuggestions() MemorySuggestionsView {
 // ── 权限档位 / 事件补拉 / 子代理追问 ────────────────────────────
 
 // WenxueSetPermLevel 设置图文会话权限级别（ask/auto/yolo，ctrl 级状态）。
+// P5（codex 蒸馏 B4）：回合进行中被拒，拒绝理由透给前端。
 func (a *App) WenxueSetPermLevel(level string) error {
 	if c := wenxueCtrl(); c != nil {
-		c.SetPermLevel(level)
+		if status, reason := c.SetPermLevelReported(level); status == control.StepRejected {
+			return fmt.Errorf("%s", reason)
+		}
 	}
 	return nil
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/nilutil"
 	"github.com/gaea/gaea/internal/gaea/permission"
 	"github.com/gaea/gaea/internal/gaea/plugin"
+	"github.com/gaea/gaea/internal/gaea/telemetry"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/strutil"
@@ -121,6 +122,10 @@ type Controller struct {
 	admitted int
 	// drainWait 惰性创建：BeginDrain 等待收敛的信号通道，收敛时关闭后置 nil。
 	drainWait chan struct{}
+	// turnStep 是在跑回合的设置准入快照（codex 蒸馏 B4，第四批 P5）：
+	// 回合启动时记录，运行中的权限/模型维度变更被拒（SetPermLevelReported /
+	// SetContextWindowReported），回合按被准入时的权威跑完。由 mu 保护。
+	turnStep stepSnapshot
 	approvals   map[string]chan approvalReply
 	asks        map[string]chan []event.AskAnswer
 	granted     map[string]bool
@@ -177,6 +182,9 @@ type Controller struct {
 	// 会话实例生命周期 = 作用域（轮换即失效，与 granted 同级）。惰性创建。
 	argvRules *permission.ArgvRuleSet
 
+	// denyNetworkTools 是断网闸开关（P8，Options.DenyNetworkTools 注入）：
+	// true 时 newGate 产物统一包 NetworkGate——网络能力工具拒绝。
+	denyNetworkTools bool
 	// sectionDiff / sectionStore 是章节化差分（codex 蒸馏 T7）：开启后
 	// Compose 的 session-facts 注入走快照差分（不变零注入/变更替换通知/清空
 	// 移除通知）；关闭（默认）走原全量注入，行为逐字节不变。快照账本随会话
@@ -262,6 +270,10 @@ type Options struct {
 	// SectionDiff 开启 Compose 注入的章节化差分（codex 蒸馏 T7）：session-facts
 	// 不变零注入/变更替换通知/清空移除通知。默认 false=全量注入（现状逐字节）。
 	SectionDiff bool
+	// DenyNetworkTools 开启断网闸（codex 蒸馏 B6 折算，第四批 P8）：
+	// [sandbox] network=false 时网络能力工具（web/浏览器/mcp__）在闸门层
+	// 拒绝。newGate 的四个换级点统一包装（boot 注入）。
+	DenyNetworkTools bool
 	// Guardian 是动作级自动评审器（codex 蒸馏 T11）：nil=关闭（默认）。开启后
 	// 常规 Ask 通道在用户卡之前先评审——allow 放行（guardian 账本）、deny 带
 	// 理由拒绝（可追认）、评审失败回落用户卡（红线：错误不冒充风险）。
@@ -344,6 +356,7 @@ func New(opts Options) *Controller {
 		ctxMgr:           opts.CtxMgr,
 		permLevel:        "ask",
 		sectionDiff:      opts.SectionDiff,
+		denyNetworkTools: opts.DenyNetworkTools,
 		guardian:         opts.Guardian,
 		sectionStore:     tiancontext.NewSectionStore(),
 		approvalTimeout:  opts.ApprovalTimeout,
@@ -440,6 +453,8 @@ func (c *Controller) launchTurnLocked(body func(ctx context.Context) error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
 	c.running = true
+	// P5 准入快照：本回合按此刻的审批权威跑完（运行中被拒换）。
+	c.turnStep = stepSnapshot{permLevel: c.permLevel}
 	c.mu.Unlock()
 	go c.turnLoop(ctx, body)
 }
@@ -450,6 +465,7 @@ func (c *Controller) launchTurnLocked(body func(ctx context.Context) error) {
 // queue drains. A panicking turn is recovered into a failed TurnDone and the
 // queue still continues.
 func (c *Controller) turnLoop(ctx context.Context, body func(ctx context.Context) error) {
+	turnStart := time.Now()
 	for {
 		err := c.runOneTurn(ctx, body)
 
@@ -474,6 +490,11 @@ func (c *Controller) turnLoop(ctx context.Context, body func(ctx context.Context
 		c.settleDrainLocked()
 		c.mu.Unlock()
 		c.sink.Emit(event.Event{Kind: event.TurnDone, Err: err})
+		// P7 观测（codex 蒸馏 B10 折算）：回合成败与总时长进本地事实流
+		//（默认关；开启时可答「最近 100 回合失败率」）。
+		telemetry.Default().Record("turn_done",
+			map[string]string{"ok": boolTag(err == nil), "label": c.label},
+			float64(time.Since(turnStart).Milliseconds()))
 		return
 	}
 }
@@ -847,13 +868,10 @@ func (c *Controller) MaybeDownshiftCompact(ctx context.Context, newWindow int) (
 }
 
 // SetContextWindow 在模型切换成功后同步执行器的压缩窗口。
+// P5（codex 蒸馏 B4）：回合进行中拒绝（撕裂在跑回合的压缩判定）——
+// 需要拒绝理由的调用方用 SetContextWindowReported。
 func (c *Controller) SetContextWindow(window int) {
-	c.mu.Lock()
-	exec := c.executor
-	c.mu.Unlock()
-	if exec != nil {
-		exec.SetContextWindow(window)
-	}
+	_, _ = c.SetContextWindowReported(window)
 }
 
 // Approve answers a pending ApprovalRequest by ID with an ApproveDecision
@@ -884,7 +902,8 @@ func (c *Controller) ApproveWithReason(id string, decision string, reason string
 func (c *Controller) EnableInteractiveApproval() {
 	if c.executor != nil {
 		g := c.newGate()
-		c.executor.SetGate(g)
+		// P8：断网闸统一在 SetGate 出口包装（四个换级点同一出口纪律）。
+		c.executor.SetGate(agent.WrapNetworkGate(g, !c.denyNetworkTools))
 		c.executor.SetAsker(c)
 		// request_permission：把 controller 接线为 PermissionRequester——
 		// 权限升级申请经既有审批卡通道弹卡，与工具闸门共用同一应答/超时语义。
@@ -973,32 +992,11 @@ func (c *Controller) AnswerQuestion(id string, answers []event.AskAnswer) {
 //	"ask"  — prompt before writes (default), interactive gate active
 //	"auto" — allow writes without asking, deny rules still block
 //	"yolo" — skip all gating (nil gate = every tool auto-approved)
+//
+// P5（codex 蒸馏 B4）：回合进行中拒绝（在跑回合按回合开始时的级别跑完）。
+// 需要拿到拒绝理由的调用方用 SetPermLevelReported。
 func (c *Controller) SetPermLevel(level string) {
-	c.mu.Lock()
-	c.permLevel = level
-	// 持久化写入（成本库/记忆/知识库）必须逐条确认：
-	// 任何权限级别都保留 AlwaysAsk 硬门（按空间策略参数化，S1.5-A）。
-	switch level {
-	case "auto":
-		c.policy.Mode = permission.Allow
-		if c.executor != nil {
-			c.executor.SetGate(c.newGate())
-		}
-	case "yolo":
-		if c.executor != nil {
-			// yolo 保持"跳过一切门禁"，但持久化写入例外仍必须确认：
-			// 用空策略 + AlwaysAsk 的 gate 替代 nil gate。
-			g := c.newGate()
-			g.Policy = permission.New("allow", nil, nil, nil)
-			c.executor.SetGate(g)
-		}
-	default: // "ask"
-		c.policy.Mode = permission.Ask
-		if c.executor != nil {
-			c.executor.SetGate(c.newGate())
-		}
-	}
-	c.mu.Unlock()
+	_, _ = c.SetPermLevelReported(level)
 }
 
 // PermLevel returns the current permission level.

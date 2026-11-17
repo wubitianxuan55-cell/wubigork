@@ -151,10 +151,14 @@ func StartAll(ctx context.Context, specs []Spec) (*Host, []tool.Tool, error) {
 				return
 			}
 
-			ts, err := c.listTools(ctx)
-			if err != nil {
+			// B8（第四批 P9）：目录拉取带缓存与 deadline——慢/挂服务器只让
+			// 自己失败（15s），命中目录缓存免一次 tools/list 往返。
+			dctx, cancel := context.WithTimeout(ctx, MCPStartTimeout)
+			ts, lerr := c.listToolsCached(dctx, SpecFingerprint(spec))
+			cancel()
+			if lerr != nil {
 				c.close()
-				ch <- result{idx: idx, err: fmt.Errorf("list tools from %q: %w", spec.Name, err)}
+				ch <- result{idx: idx, err: fmt.Errorf("list tools from %q: %w", spec.Name, lerr)}
 				return
 			}
 			c.toolCount = len(ts)
@@ -298,6 +302,9 @@ type Client struct {
 	prompts   []Prompt
 	resources []Resource
 	tools     []ToolInfo
+	// lastRawTools 是最近一次 tools/list 的原始目录形状（B8 目录缓存，
+	// 第四批 P9）：仅启动路径读写，无并发面。
+	lastRawTools []mcpTool
 }
 
 // ToolInfo is the human-facing metadata returned by MCP tools/list for one tool.
@@ -419,14 +426,11 @@ func (h *Host) Add(ctx context.Context, s Spec) ([]tool.Tool, error) {
 }
 
 func (h *Host) addConnected(ctx context.Context, s Spec) ([]tool.Tool, error) {
-	c, err := start(ctx, s)
+	// B8（第四批 P9）：start+目录统一走 deadline 包装（热插拔同样不被慢
+	// 服务器拖住）；目录命中缓存免一次往返。
+	c, ts, err := startWithDeadline(ctx, s)
 	if err != nil {
 		return nil, err
-	}
-	ts, err := c.listTools(ctx)
-	if err != nil {
-		c.close()
-		return nil, fmt.Errorf("list tools: %w", err)
 	}
 	c.toolCount = len(ts)
 	// Do the remaining network calls before taking the lock, so a hot-add never
@@ -607,6 +611,9 @@ func (c *Client) listTools(ctx context.Context) ([]tool.Tool, error) {
 	}
 	sort.SliceStable(toolInfos, func(i, j int) bool { return toolInfos[i].Name < toolInfos[j].Name })
 	c.tools = toolInfos
+	// B8 目录缓存（第四批 P9）：留一份原始目录形状供 catalog 缓存（工具
+	// 对象绑定本连接不可跨重建复用，缓存的是形状）。
+	c.lastRawTools = out.Tools
 	return sortToolsByName(tools), nil
 }
 

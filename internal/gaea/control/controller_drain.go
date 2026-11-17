@@ -98,6 +98,7 @@ func (c *Controller) BeginDrain(timeout time.Duration) error {
 // 已准入消息全部完成，计数归零并唤醒等待者。调用方必须已持 c.mu。
 func (c *Controller) settleDrainLocked() {
 	c.admitted = 0
+	c.turnStep = stepSnapshot{} // 回合收尾：准入快照随之失效
 	if c.drainWait != nil {
 		close(c.drainWait)
 		c.drainWait = nil

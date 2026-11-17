@@ -43,6 +43,10 @@ type Config struct {
 	Search   SearchConfig   `toml:"search"`
 	Network  NetworkConfig  `toml:"network"`
 	Memory   MemoryConfig   `toml:"memory"`
+	// Telemetry 是本地观测最小集（codex 蒸馏 B10 折算，第四批 P7）：
+	// [telemetry] 段。默认关——关闭时 Record 单布尔短路（零成本）；
+	// 开启后事实流落 whisperDataRoot/telemetry 按日 ndjson，保留 14 天。
+	Telemetry TelemetryConfig `toml:"telemetry"`
 	// Tasks 是通用任务调度器配置（S1.4 按空间分账；v4.5.1a 红线补课把内核
 	// 接线进生产）：[tasks] 段。缺省（零值）= 应用层启用空间分账默认值
 	// （work/play 各 1 条并发跑道 + 价格抓取优先于文件索引）。
@@ -572,6 +576,12 @@ func (c *Config) NetworkOutboundPolicy() netclient.OutboundPolicy {
 		Mode:         c.Network.OutboundMode,
 		AllowedHosts: c.Network.OutboundAllowedHosts,
 	}
+}
+
+// TelemetryConfig 是本地观测最小集配置（第四批 P7）。
+type TelemetryConfig struct {
+	// Enabled 开关（默认 false=现状：不记录、不落盘）。
+	Enabled bool `toml:"enabled"`
 }
 
 // SkillsConfig configures skill discovery. Paths adds extra "custom"-scope skill

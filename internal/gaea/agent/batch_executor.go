@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/telemetry"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -126,7 +127,7 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 				outcomes[i] = toolOutcome{output: results[i], errMsg: fmt.Sprintf("panic: %v", r)}
 			}
 		}()
-		outcomes[i] = a.executeOne(ctx, calls[i])
+		outcomes[i] = a.executeOneTimed(ctx, calls[i])
 		results[i] = outcomes[i].output
 
 		// V7.4: learn from tool errors across sessions
@@ -168,6 +169,11 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 			Sources:     successfulToolSources(c.Name, c.Arguments, o.output, o.errMsg),
 			Model:       a.modelNow(),
 		}})
+		// P7 观测（codex 蒸馏 B10 折算）：工具成败与耗时进本地事实流
+		//（默认关；开启时可答「工具 p95/失败率」）。
+		telemetry.Default().Record("tool_result",
+			map[string]string{"name": c.Name, "ok": boolTag(o.errMsg == "")},
+			float64(o.durMS))
 		// v4.61：工具结果到达 → 关闭 mt_ 记录（成功/失败如实标记）。
 		if c.ID != "" && a.isModelBacked(c.Name) {
 			var toolErr error
@@ -482,6 +488,16 @@ type toolOutcome struct {
 	recoverable bool // agent can fix this on next turn (bad args, wrong file, etc.)
 	truncated   bool
 	truncMsg    string
+	// durMS 是本次调用执行耗时（P7 观测：工具 p95 的数据源；0=未计）。
+	durMS int64
+}
+
+// boolTag 是观测维度的布尔串形态（低基数两值）。
+func boolTag(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 // executeOne runs a single tool call. It is pure with respect to the event sink

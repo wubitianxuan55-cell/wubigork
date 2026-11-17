@@ -18,6 +18,7 @@ import (
 	"github.com/gaea/gaea/internal/config"
 	gaeaAttachment "github.com/gaea/gaea/internal/gaea/attachment"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/filefilter"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/wspath"
@@ -436,9 +437,13 @@ func removeString(list []string, v string) []string {
 }
 
 // GaeaSetPermLevel 设置权限级别（ask/auto/yolo），真实生效。
+// P5（codex 蒸馏 B4）：回合进行中被拒（在跑回合按开始时级别跑完），
+// 拒绝理由透给前端。
 func (a *App) GaeaSetPermLevel(level string) error {
 	if c := gaeaCtrl(); c != nil {
-		c.SetPermLevel(level)
+		if status, reason := c.SetPermLevelReported(level); status == control.StepRejected {
+			return errors.New(reason)
+		}
 	}
 	return nil
 }

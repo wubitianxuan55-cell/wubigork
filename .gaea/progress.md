@@ -1,3 +1,51 @@
+## codex 蒸馏第四批 Wave 2+3 · 快照/持久化/观测/隔离/MCP（2026-11-17）
+
+三拍板门用户已定（权限算快照维度 / 投影允许滞后禁止超前先灰度 warn /
+观测落 whisperDataRoot/telemetry 14 天默认关；P9 用户纠正「gaea 有 MCP 面板」
+转入实施——AddMCPServer/plugin host 是现成落点）。五刀全落：
+
+- **P5 B4 step 快照**：`control/controller_step.go`——回合启动记录准入快照
+  （turnStep.permLevel），运行中 SetPermLevel/SetContextWindow 走
+  Reported 三态（Applied/Rejected+理由）：在跑回合按被准入时的审批权威跑完、
+  权限双板 UI 与模型切换链拒绝理由透传前端（半切换态如实告知默认引擎已切）。
+  禁止清单折算：审批政策（活热切换面）/模型窗口（切换链回落面）；沙箱
+  AccessPolicy 构造期固定无运行中变更面（记档）。`/perm` 斜杠本就回合外
+  派发（sendWithRaw 派发序实证）不受影响。
+- **P6 B3 持久化守卫**：`session/checkpoint.go` Restore 加「禁止超前」守卫
+  ——checkpoint.Seq 越过日志末条 seq（日志被外部截断/轮转或检查点不成对）
+  = 投影超前权威源：灰度 warn + 丢弃检查点从日志全量重放（恢复正确性优先，
+  允许滞后=正常重放追上不变）。
+- **P7 B10 观测最小集**：新包 `internal/gaea/telemetry`——环形 256/去重合并
+  计数（表上限 4096）/按日 ndjson 落盘（无 fsync）/14 天清扫/`[telemetry]`
+  enabled 默认关（Record 单布尔短路零成本）。接线：turnLoop 记 turn_done
+  （ok+label+时长）、批量与 pre-exec 两路 ToolResult 记 tool_result
+  （name+ok+durMS——executeOneTimed 包装回补耗时）、App Startup 开关/Shutdown
+  Flush。不引 otel（归档决策）。
+- **P8 B6 panic 隔离+能力声明**：隔离面已有三处 recover+回合级（资产未读
+  gaea 侧的误判）——本刀补验收测试落袋（注入 panic 工具：宿主存活、errMsg
+  可解释、同批健康工具照常）。能力三档：readOnly/写盘=Tool 接口既有自报；
+  网络档=`tool/capability.go` 名单（web×2+浏览器×12+mcp__ 前缀）+防漂移钉；
+  消费方=断网闸 `agent.NetworkGate`（[sandbox] network=false 时拒绝网络能力
+  工具——此前断网只关 bash 子进程，web/浏览器/MCP 照常出网是半开沙箱）；
+  boot 双消费点（主执行器+子代理）与 control 四个换级点统一包装；
+  bash 不拒（有自己的子进程网络开关）。
+- **P9 B8 MCP 目录缓存+启动 deadline**：`plugin/catalog.go`——SpecFingerprint
+  （type+command+args 保序+env/headers 键序归一+url+dir 的 SHA256；Name 不
+  参与——改名重连同目录形状）；目录缓存 32 条/30min TTL/满逐出最旧，缓存
+  **目录形状**（mcpTool 原始清单）而非工具对象（remoteTool 绑定旧连接不可
+  复用），命中免 tools/list 往返、对新连接重建包装；StartAll 与热插拔
+  addConnected 统一 15s deadline（慢/挂服务器只让自己失败，fail-soft 既有
+  语义保持）。
+- **验证**：新增 21 例全绿（step 快照 5/checkpoint 守卫 4/telemetry 5/
+  断网闸+panic 隔离 2+能力钉 1/MCP 指纹·TTL·重建 3+遗留布尔短路形态）；
+  全量回归 control 3.0s/agent 18.2s/session/config/telemetry/plugin/tool/
+  builtin 30.3s/netclient/ai 全绿；app 全量 123.9s 绿（ucrt64+DLL）；
+  `go build ./...` + vet 全绿。
+- **边界**：未 Wails build、未装机、未 push。第四批 9 项（P1–P9）至此全部
+  落地或按证据归档（B12 已随第三批；B2/B11/插件市场/EMA/codex-mcp 服务端/
+  otel 全套在册归档）。灰度项两处：P6 超前断言 warn（一版后升 error）、
+  drain_enabled/telemetry/sandbox network 断网闸均默认现状。
+
 ## codex 蒸馏第四批 Wave 1 · 准入关闭/工具归因/出网安全（2026-11-17）
 
 按 `plan-batch4-landing-priorities.md` 完成 Wave 1 剩余三项（P2/B12 已随第三批

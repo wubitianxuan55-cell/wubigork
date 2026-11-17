@@ -190,7 +190,11 @@ func (a *App) GaeaSetModel(name string) error {
 		return err
 	}
 	if c != nil {
-		c.SetContextWindow(newWindow)
+		// P5（codex 蒸馏 B4）：回合内窗口同步被拒=压缩判定暂按旧窗口跑，
+		// 默认引擎已切换——如实告知重试，不静默半切换。
+		if status, reason := c.SetContextWindowReported(newWindow); status == control.StepRejected {
+			return fmt.Errorf("%s（默认引擎已切换为 %s/%s）", reason, engine, model)
+		}
 	}
 	return nil
 }
@@ -211,7 +215,10 @@ func (a *App) WenxueSetModel(name string) error {
 		return err
 	}
 	if c != nil {
-		c.SetContextWindow(newWindow)
+		// P5：同办公——回合内窗口同步被拒时如实告知重试。
+		if status, reason := c.SetContextWindowReported(newWindow); status == control.StepRejected {
+			return fmt.Errorf("%s（默认引擎已切换为 %s/%s）", reason, engine, model)
+		}
 	}
 	return nil
 }

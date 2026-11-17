@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -16,6 +17,15 @@ import (
 	"github.com/gaea/gaea/internal/gaea/spill"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
+
+// executeOneTimed 包装 executeOne 补执行耗时（P7 观测：工具 p95 数据源；
+// 含闸门/缓存命中等前置判定——它们也是「这次调用花了多久」的一部分）。
+func (a *AgentRunner) executeOneTimed(ctx context.Context, call provider.ToolCall) toolOutcome {
+	start := time.Now()
+	out := a.executeOne(ctx, call)
+	out.durMS = time.Since(start).Milliseconds()
+	return out
+}
 
 func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) toolOutcome {
 	t, ok := a.tools.Get(call.Name)
