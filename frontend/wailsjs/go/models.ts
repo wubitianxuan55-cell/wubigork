@@ -9641,6 +9641,8 @@ export namespace trajectory {
 	    readOnly?: boolean;
 	    status: string;
 	    parentId?: string;
+	    model?: string;
+	    turn?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ToolRec(source);
@@ -9657,6 +9659,8 @@ export namespace trajectory {
 	        this.readOnly = source["readOnly"];
 	        this.status = source["status"];
 	        this.parentId = source["parentId"];
+	        this.model = source["model"];
+	        this.turn = source["turn"];
 	    }
 	}
 	export class UserRec {
