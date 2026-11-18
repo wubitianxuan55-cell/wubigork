@@ -2655,6 +2655,9 @@ export namespace app {
 	    args: string[];
 	    url: string;
 	    env: Record<string, string>;
+	    headers?: Record<string, string>;
+	    startup_timeout_sec?: number;
+	    tool_timeout_sec?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new MCPServerInput(source);
@@ -2668,6 +2671,9 @@ export namespace app {
 	        this.args = source["args"];
 	        this.url = source["url"];
 	        this.env = source["env"];
+	        this.headers = source["headers"];
+	        this.startup_timeout_sec = source["startup_timeout_sec"];
+	        this.tool_timeout_sec = source["tool_timeout_sec"];
 	    }
 	}
 	export class MemoryArchivedView {

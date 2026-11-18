@@ -1075,6 +1075,12 @@ func PluginSpecs(entries []config.PluginEntry) []plugin.Spec {
 			URL:     e.URL,
 			Headers: e.Headers,
 		}
+		if v := e.StartupTimeout(); v > 0 {
+			specs[i].StartupTimeout = time.Duration(v * float64(time.Second))
+		}
+		if v := e.ToolTimeout(); v > 0 {
+			specs[i].ToolTimeout = time.Duration(v * float64(time.Second))
+		}
 	}
 	return specs
 }

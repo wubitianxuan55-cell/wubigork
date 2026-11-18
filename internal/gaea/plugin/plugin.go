@@ -36,6 +36,12 @@ type Spec struct {
 	Env     map[string]string
 	URL     string
 	Headers map[string]string
+	// StartupTimeout 覆盖本服务器的启动+目录拉取预算（per-server
+	// startup_timeout_sec，codex 蒸馏差距档案刀2）；0 = 用包默认
+	// MCPStartTimeout。ToolTimeout 是单次 tools/call 的预算；0 = 不设
+	// 工具级超时（沿用上层回合 ctx，历史行为）。
+	StartupTimeout time.Duration
+	ToolTimeout    time.Duration
 	// Dir, when set, is the working directory of a stdio subprocess. Empty means
 	// inherit gaea's cwd (the default for user-configured plugins). It exists
 	// for cwd-aware servers like CodeGraph, which detect the project from the
@@ -152,8 +158,13 @@ func StartAll(ctx context.Context, specs []Spec) (*Host, []tool.Tool, error) {
 			}
 
 			// B8（第四批 P9）：目录拉取带缓存与 deadline——慢/挂服务器只让
-			// 自己失败（15s），命中目录缓存免一次 tools/list 往返。
-			dctx, cancel := context.WithTimeout(ctx, MCPStartTimeout)
+			// 自己失败（默认 15s；per-server startup_timeout_sec 可覆盖），
+			// 命中目录缓存免一次 tools/list 往返。
+			startTimeout := MCPStartTimeout
+			if spec.StartupTimeout > 0 {
+				startTimeout = spec.StartupTimeout
+			}
+			dctx, cancel := context.WithTimeout(ctx, startTimeout)
 			ts, lerr := c.listToolsCached(dctx, SpecFingerprint(spec))
 			cancel()
 			if lerr != nil {
@@ -287,6 +298,9 @@ func (h *Host) Close() {
 type Client struct {
 	name string
 	t    transport
+	// toolTimeout 是本服务器单次 tools/call 的预算（per-server
+	// tool_timeout_sec）；0 = 不设工具级超时（沿用上层回合 ctx）。
+	toolTimeout time.Duration
 
 	// Capabilities advertised by the server at initialize. prompts/list and
 	// resources/list are only called when advertised, so we never provoke a
@@ -511,7 +525,7 @@ func start(ctx context.Context, s Spec) (*Client, error) {
 	if tt == "" {
 		tt = "stdio"
 	}
-	c := &Client{name: s.Name, t: t, transport: tt}
+	c := &Client{name: s.Name, t: t, transport: tt, toolTimeout: s.ToolTimeout}
 	if err := c.initialize(ctx); err != nil {
 		c.close()
 		return nil, err
@@ -601,12 +615,13 @@ func (c *Client) listTools(ctx context.Context) ([]tool.Tool, error) {
 	for _, t := range out.Tools {
 		toolInfos = append(toolInfos, ToolInfo{Name: t.Name, Description: t.Description})
 		tools = append(tools, &remoteTool{
-			client:   c,
-			name:     toolName(c.name, t.Name),
-			rawName:  t.Name,
-			desc:     t.Description,
-			schema:   canonicalizeSchema(t.InputSchema),
-			readOnly: t.Annotations != nil && t.Annotations.ReadOnlyHint,
+			client:      c,
+			name:        toolName(c.name, t.Name),
+			rawName:     t.Name,
+			desc:        t.Description,
+			schema:      canonicalizeSchema(t.InputSchema),
+			readOnly:    t.Annotations != nil && t.Annotations.ReadOnlyHint,
+			toolTimeout: c.toolTimeout,
 		})
 	}
 	sort.SliceStable(toolInfos, func(i, j int) bool { return toolInfos[i].Name < toolInfos[j].Name })
@@ -679,12 +694,13 @@ func (e *rpcError) Error() string { return fmt.Sprintf("rpc error %d: %s", e.Cod
 // --- remote tool adapter ---
 
 type remoteTool struct {
-	client   *Client
-	name     string // namespaced "mcp__<server>__<tool>"
-	rawName  string // original name for tools/call
-	desc     string
-	schema   json.RawMessage
-	readOnly bool // from the tool's MCP readOnlyHint annotation
+	client      *Client
+	name        string // namespaced "mcp__<server>__<tool>"
+	rawName     string // original name for tools/call
+	desc        string
+	schema      json.RawMessage
+	readOnly    bool // from the tool's MCP readOnlyHint annotation
+	toolTimeout time.Duration
 }
 
 func (t *remoteTool) Name() string        { return t.name }
@@ -761,6 +777,13 @@ func (t *remoteTool) Execute(ctx context.Context, args json.RawMessage) (string,
 		if err := json.Unmarshal(args, &argMap); err != nil {
 			return "", fmt.Errorf("invalid args: %w", err)
 		}
+	}
+	// per-server tool_timeout_sec（codex 蒸馏差距档案刀2）：>0 时给单次
+	// tools/call 设预算；0 = 不包装（沿用上层回合 ctx，历史行为逐字节等价）。
+	if t.toolTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, t.toolTimeout)
+		defer cancel()
 	}
 	res, err := t.client.call(ctx, "tools/call", map[string]any{
 		"name":      t.rawName,

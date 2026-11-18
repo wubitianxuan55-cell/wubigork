@@ -32,6 +32,7 @@ const (
 
 // SpecFingerprint 返回服务器身份指纹（SHA256 前 16 hex）。args 保序、env 与
 // headers 键序归一——语义相同的 spec 命中同一指纹，改任何一项即换键。
+// per-server 超时（刀2）参与指纹：改超时必须换缓存键。
 func SpecFingerprint(s Spec) string {
 	h := sha256.New()
 	writeField := func(k, v string) { fmt.Fprintf(h, "%s\x00%s\x00", k, v) }
@@ -39,6 +40,8 @@ func SpecFingerprint(s Spec) string {
 	writeField("command", s.Command)
 	writeField("url", s.URL)
 	writeField("dir", s.Dir)
+	writeField("startup_timeout", s.StartupTimeout.String())
+	writeField("tool_timeout", s.ToolTimeout.String())
 	for i, a := range s.Args {
 		writeField(fmt.Sprintf("arg%d", i), a)
 	}
@@ -152,8 +155,13 @@ func (c *Client) toolsFromCatalog(raw []mcpTool) []tool.Tool {
 
 // startWithDeadline 是 start + 目录拉取的 deadline 包装（B8 启动解耦）：
 // 超时返回错误（该服务器失败，其余照常——fail-soft 语义由调用方既有路径保持）。
+// per-server startup_timeout_sec > 0 时覆盖包默认 15s（差距档案刀2）。
 func startWithDeadline(ctx context.Context, s Spec) (*Client, []tool.Tool, error) {
-	dctx, cancel := context.WithTimeout(ctx, MCPStartTimeout)
+	timeout := MCPStartTimeout
+	if s.StartupTimeout > 0 {
+		timeout = s.StartupTimeout
+	}
+	dctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	c, err := start(dctx, s)
 	if err != nil {

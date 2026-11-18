@@ -1000,6 +1000,27 @@ type PluginEntry struct {
 	// AutoStart controls whether the server connects during session startup.
 	// Nil preserves historical behavior: configured servers start automatically.
 	AutoStart *bool `toml:"auto_start"`
+	// Per-server timeouts (codex 蒸馏差距档案刀2, names mirror codex
+	// mcp_types.rs). Nil = 包默认：启动用 15s 全局值；工具调用不设超时
+	// （沿用上层回合 ctx，历史行为逐字节等价）。
+	StartupTimeoutSec *float64 `toml:"startup_timeout_sec,omitempty"`
+	ToolTimeoutSec    *float64 `toml:"tool_timeout_sec,omitempty"`
+}
+
+// StartupTimeout 返回 per-server 启动预算秒数；nil/<=0 返回 0（调用方落包默认）。
+func (e PluginEntry) StartupTimeout() float64 {
+	if e.StartupTimeoutSec == nil || *e.StartupTimeoutSec <= 0 {
+		return 0
+	}
+	return *e.StartupTimeoutSec
+}
+
+// ToolTimeout 返回 per-server 工具调用预算秒数；nil/<=0 返回 0（不设超时）。
+func (e PluginEntry) ToolTimeout() float64 {
+	if e.ToolTimeoutSec == nil || *e.ToolTimeoutSec <= 0 {
+		return 0
+	}
+	return *e.ToolTimeoutSec
 }
 
 func (e PluginEntry) ShouldAutoStart() bool {

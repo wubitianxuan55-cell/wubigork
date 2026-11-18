@@ -23,6 +23,9 @@ type mcpServerSpec struct {
 	URL       string            `json:"url"`
 	Headers   map[string]string `json:"headers"`
 	AutoStart *bool             `json:"auto_start"`
+	// 与 PluginEntry 同名同语义（差距档案刀2）：nil = 包默认。
+	StartupTimeoutSec *float64 `json:"startup_timeout_sec,omitempty"`
+	ToolTimeoutSec    *float64 `json:"tool_timeout_sec,omitempty"`
 }
 
 // loadMCPJSON reads path (Claude Code's .mcp.json) and returns its servers as
@@ -52,14 +55,16 @@ func loadMCPJSON(path string) ([]PluginEntry, error) {
 	for _, name := range names {
 		s := doc.MCPServers[name]
 		entries = append(entries, PluginEntry{
-			Name:      name,
-			Type:      s.Type,
-			Command:   s.Command,
-			Args:      s.Args,
-			Env:       s.Env,
-			URL:       s.URL,
-			Headers:   s.Headers,
-			AutoStart: s.AutoStart,
+			Name:              name,
+			Type:              s.Type,
+			Command:           s.Command,
+			Args:              s.Args,
+			Env:               s.Env,
+			URL:               s.URL,
+			Headers:           s.Headers,
+			AutoStart:         s.AutoStart,
+			StartupTimeoutSec: s.StartupTimeoutSec,
+			ToolTimeoutSec:    s.ToolTimeoutSec,
 		})
 	}
 	return entries, nil

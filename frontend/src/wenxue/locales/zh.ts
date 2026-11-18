@@ -89,6 +89,8 @@ export const zh: Record<DictKey, string> = {
   "caps.commandPlaceholder": "命令（如 npx -y @modelcontextprotocol/server-github）",
   "caps.urlPlaceholder": "url（https://…）",
   "caps.envLabel": "环境变量（可选）",
+  "caps.startupTimeoutLabel": "启动超时（秒，可留空）",
+  "caps.toolTimeoutLabel": "工具超时（秒，可留空）",
   "caps.envPlaceholder": "KEY=VALUE，每行一个",
   "caps.remove": "删除服务器",
   "caps.confirmRemove": "确认删除",

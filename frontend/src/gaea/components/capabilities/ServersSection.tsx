@@ -325,6 +325,8 @@ export function AddServerForm({
   const [command, setCommand] = useState("")
   const [url, setUrl] = useState("")
   const [env, setEnv] = useState("")
+  const [startupTimeout, setStartupTimeout] = useState("")
+  const [toolTimeout, setToolTimeout] = useState("")
 
   const isStdio = transport === "stdio"
   const ready = name.trim() !== "" && (isStdio ? command.trim() !== "" : url.trim() !== "")
@@ -336,6 +338,13 @@ export function AddServerForm({
       const eq = line.indexOf("=")
       if (eq > 0) envMap[line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
     }
+    // per-server 超时（秒，可留空=默认）；非法输入视为未填。
+    const optSec = (v: string): number | undefined => {
+      const n = Number(v.trim())
+      return v.trim() !== "" && Number.isFinite(n) && n > 0 ? n : undefined
+    }
+    const st = optSec(startupTimeout)
+    const tt = optSec(toolTimeout)
     onAdd({
       name: name.trim(),
       transport,
@@ -343,6 +352,8 @@ export function AddServerForm({
       args: isStdio ? parts.slice(1) : [],
       url: isStdio ? "" : url.trim(),
       env: envMap,
+      ...(st !== undefined ? { startup_timeout_sec: st } : {}),
+      ...(tt !== undefined ? { tool_timeout_sec: tt } : {}),
     })
   }
 
@@ -368,6 +379,16 @@ export function AddServerForm({
       )}
       <label className="text-[13px] shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.envLabel")}</label>
       <textarea className={`resize-y min-h-[60px] p-2 ${fieldCls}`} style={{ minHeight: 60 }} value={env} onChange={(e) => setEnv(e.target.value)} placeholder={t("caps.envPlaceholder")} spellCheck={false} />
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="text-[13px] shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.startupTimeoutLabel")}</label>
+          <input className={`w-full px-2.5 py-1.5 ${fieldCls}`} inputMode="decimal" placeholder="15" value={startupTimeout} onChange={(e) => setStartupTimeout(e.target.value)} />
+        </div>
+        <div className="flex-1">
+          <label className="text-[13px] shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.toolTimeoutLabel")}</label>
+          <input className={`w-full px-2.5 py-1.5 ${fieldCls}`} inputMode="decimal" placeholder="—" value={toolTimeout} onChange={(e) => setToolTimeout(e.target.value)} />
+        </div>
+      </div>
       <div className="flex justify-end gap-2 mt-2">
         <OutlinedBtn onClick={onCancel} disabled={busy}>
           {t("common.cancel")}

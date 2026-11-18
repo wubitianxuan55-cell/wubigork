@@ -147,6 +147,8 @@ export const zhTW: Record<DictKey, string> = {
   "caps.commandPlaceholder": "指令（例如 npx -y @modelcontextprotocol/server-github）",
   "caps.urlPlaceholder": "網址（https://…）",
   "caps.envLabel": "環境變數（選填）",
+  "caps.startupTimeoutLabel": "啟動逾時（秒，可留空）",
+  "caps.toolTimeoutLabel": "工具逾時（秒，可留空）",
   "caps.envPlaceholder": "KEY=VALUE，每行一個",
   "caps.remove": "移除伺服器",
   "caps.confirmRemove": "確認移除",

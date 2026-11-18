@@ -1181,27 +1181,39 @@ func (a *App) persistWorkspaceLocked(abs string) error {
 	return gaeaConfig.Save(ga.cfg)
 }
 
-// GaeaAddMCPServer 添加 MCP 服务器（真实生效）。
+// GaeaAddMCPServer 添加 MCP 服务器（真实生效）。字段全量透传（历史上这里
+// 丢过 Transport/Headers，导致远端服务器热加后被按 stdio 落盘——差距档案
+// 刀2 顺修），超时字段 nil/0 走包默认。
 func (a *App) GaeaAddMCPServer(input MCPServerInput) (int, error) {
 	c := gaeaCtrl()
 	if c == nil {
 		return 0, errors.New("办公引擎未初始化")
 	}
-	entry := gaeaConfig.PluginEntry{Name: input.Name, Command: input.Command, Args: input.Args, Env: input.Env}
-	if input.URL != "" {
-		entry.URL = input.URL
+	entry := gaeaConfig.PluginEntry{
+		Name:              input.Name,
+		Type:              input.Transport,
+		Command:           input.Command,
+		Args:              input.Args,
+		Env:               input.Env,
+		URL:               input.URL,
+		Headers:           input.Headers,
+		StartupTimeoutSec: input.StartupTimeoutSec,
+		ToolTimeoutSec:    input.ToolTimeoutSec,
 	}
 	return c.AddMCPServer(entry)
 }
 
 // MCPServerInput 是抽屉的添加服务器表单。
 type MCPServerInput struct {
-	Name      string            `json:"name"`
-	Transport string            `json:"transport"`
-	Command   string            `json:"command"`
-	Args      []string          `json:"args"`
-	URL       string            `json:"url"`
-	Env       map[string]string `json:"env"`
+	Name              string            `json:"name"`
+	Transport         string            `json:"transport"`
+	Command           string            `json:"command"`
+	Args              []string          `json:"args"`
+	URL               string            `json:"url"`
+	Env               map[string]string `json:"env"`
+	Headers           map[string]string `json:"headers,omitempty"`
+	StartupTimeoutSec *float64          `json:"startup_timeout_sec,omitempty"`
+	ToolTimeoutSec    *float64          `json:"tool_timeout_sec,omitempty"`
 }
 
 // GaeaRemoveMCPServer 移除 MCP 服务器。

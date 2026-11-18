@@ -144,6 +144,8 @@ export const en = {
   "caps.commandPlaceholder": "command (e.g. npx -y @modelcontextprotocol/server-github)",
   "caps.urlPlaceholder": "url (https://…)",
   "caps.envLabel": "Environment (optional)",
+  "caps.startupTimeoutLabel": "Startup timeout (sec, optional)",
+  "caps.toolTimeoutLabel": "Tool timeout (sec, optional)",
   "caps.envPlaceholder": "KEY=VALUE, one per line",
   "caps.remove": "Remove server",
   "caps.confirmRemove": "Confirm remove",

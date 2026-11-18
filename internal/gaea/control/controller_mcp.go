@@ -2,6 +2,7 @@ package control
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/plugin"
@@ -34,7 +35,7 @@ func (c *Controller) AddMCPServer(e config.PluginEntry) (int, error) {
 
 func (c *Controller) connectMCPServer(e config.PluginEntry) (int, error) {
 	exp := e.ExpandedPlugin()
-	return c.connectMCPSpec(plugin.Spec{
+	s := plugin.Spec{
 		Name:    exp.Name,
 		Type:    exp.Type,
 		Command: exp.Command,
@@ -42,7 +43,14 @@ func (c *Controller) connectMCPServer(e config.PluginEntry) (int, error) {
 		Env:     exp.Env,
 		URL:     exp.URL,
 		Headers: exp.Headers,
-	})
+	}
+	if v := exp.StartupTimeout(); v > 0 {
+		s.StartupTimeout = time.Duration(v * float64(time.Second))
+	}
+	if v := exp.ToolTimeout(); v > 0 {
+		s.ToolTimeout = time.Duration(v * float64(time.Second))
+	}
+	return c.connectMCPSpec(s)
 }
 
 func (c *Controller) connectMCPSpec(s plugin.Spec) (int, error) {
