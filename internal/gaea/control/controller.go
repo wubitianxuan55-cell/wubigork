@@ -153,6 +153,13 @@ type Controller struct {
 	persistNetworkHost   func(entry string) error
 	networkExemptOnce    map[string]bool
 	networkExemptSession map[string]bool
+
+	// 会话策略随行存档（刀4）的 boot 基线：新会话/落点切换回到这份基线
+	// （= 装配期 Options 快照），恢复旧会话按 meta 存档临时覆盖。mu 保护
+	// （与 approvalMode/denyNetworkTools/policy 同锁）。
+	bootApprovalMode     string
+	bootDenyNetworkTools bool
+	bootPermMode         permission.Decision
 	// deniedActions 是「待追认账本」（codex 蒸馏 T3）：拒绝/超时的审批动作
 	// 挂账留底，ApproveDenied 可按原参数重放一次审批（走正常闸门）。FIFO
 	// 封顶 deniedActionCap，超限滚掉最旧。由 mu 保护；重启即失（内存账本，
@@ -382,7 +389,10 @@ func New(opts Options) *Controller {
 		persistNetworkHost: opts.PersistNetworkHost,
 		networkExemptOnce:    map[string]bool{},
 		networkExemptSession: map[string]bool{},
-		guardian:           opts.Guardian,
+		bootApprovalMode:     opts.ApprovalMode,
+		bootDenyNetworkTools: opts.DenyNetworkTools,
+		bootPermMode:         opts.Policy.Mode,
+		guardian:             opts.Guardian,
 		sectionStore:     tiancontext.NewSectionStore(),
 		approvalTimeout:  opts.ApprovalTimeout,
 		persistAllowRule: opts.PersistAllowRule,

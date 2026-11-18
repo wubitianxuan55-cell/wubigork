@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/permission"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -22,6 +23,7 @@ func (c *Controller) NewSession() error {
 	if c.executor == nil {
 		c.mu.Lock()
 		c.resetSessionAuthorityLocked()
+		c.resetSessionPolicyToBootLocked() // 刀4：新会话回 boot 基线，存档策略不泄漏
 		c.sessionFacts = nil
 		if c.sectionStore != nil {
 			c.sectionStore.Reset()
@@ -38,6 +40,7 @@ func (c *Controller) NewSession() error {
 		c.sessionPath = agent.NewSessionPath(c.sessionDir, c.label)
 	}
 	c.resetSessionAuthorityLocked()
+	c.resetSessionPolicyToBootLocked() // 刀4：新会话回 boot 基线，存档策略不泄漏
 	c.sessionFacts = nil
 	if c.sectionStore != nil {
 		c.sectionStore.Reset()
@@ -59,6 +62,8 @@ func (c *Controller) NewSession() error {
 	}
 	// v4.378：清空持有会话级状态的工具（bash 状态锚），防 cwd/env 跨会话泄漏。
 	c.resetSessionToolState()
+	// 刀4：新会话的策略快照落 meta（boot 基线形状）。
+	c.writeSessionPolicySnapshot(c.SessionPath())
 	c.mu.Lock()
 	c.startedOnce = true // NewSession fires SessionStart itself; don't re-fire on the next turn
 	c.mu.Unlock()
@@ -123,6 +128,25 @@ func (c *Controller) Resume(s *agent.Session, path string) {
 	// v4.378：换会话即清 bash 状态锚（恢复的是对话历史，shell 锚定态从不
 	// 持久化——磁盘上没有它的真相，重置是唯一诚实态）。
 	c.resetSessionToolState()
+	// 刀4：恢复旧会话用存档策略而非当前全局（meta 无快照的旧会话=回 boot
+	// 基线，现状等价）；随后把生效形状回写 meta（幂等）。恢复的会话策略
+	// 只属于它自己——下一个新会话经 NewSession 回 boot 基线，不泄漏。
+	c.resetSessionAuthorityPolicyAfterResume(path)
+}
+
+// resetSessionAuthorityPolicyAfterResume 按会话 meta 的 PolicySnapshot 恢复
+// 策略（有存档→覆盖；无存档→boot 基线），并把生效形状幂等写回 meta。
+func (c *Controller) resetSessionAuthorityPolicyAfterResume(path string) {
+	meta, ok, err := session.LoadBranchMeta(path)
+	c.mu.Lock()
+	switch {
+	case err == nil && ok && meta.PolicySnapshot != nil:
+		c.applySessionPolicySnapshotLocked(*meta.PolicySnapshot)
+	default:
+		c.resetSessionPolicyToBootLocked()
+	}
+	c.mu.Unlock()
+	c.writeSessionPolicySnapshot(path)
 }
 
 // resetSessionAuthorityLocked 清空严格属于「当前会话」的授权状态。调用方
@@ -139,6 +163,70 @@ func (c *Controller) resetSessionAuthorityLocked() {
 	c.deniedActions = nil
 	c.lastUserInput = ""
 	c.guardianBreaker.Reset()
+}
+
+// --- 会话策略随行存档（codex 蒸馏差距档案刀4，threads 行 sandbox_policy/
+// approval_mode 随行折算）：新会话回到 boot 基线，恢复旧会话按 meta 存档
+// 临时覆盖；快照写进 <session>.meta（session.PolicySnapshot）。-------------
+
+// sessionPolicySnapshot 取当前生效策略的存档形状（自带 mu）。
+func (c *Controller) sessionPolicySnapshot() *session.PolicySnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return &session.PolicySnapshot{
+		SandboxNetwork: !c.denyNetworkTools,
+		ApprovalMode:   c.approvalMode,
+		PermissionMode: c.policy.Mode.String(),
+	}
+}
+
+// writeSessionPolicySnapshot 把当前策略快照写进会话 meta（fail-soft：meta
+// 写失败不阻断会话，恢复端拿不到快照就按现状处理）。
+func (c *Controller) writeSessionPolicySnapshot(path string) {
+	if path == "" {
+		return
+	}
+	m, err := session.EnsureBranchMeta(path)
+	if err != nil {
+		return
+	}
+	m.PolicySnapshot = c.sessionPolicySnapshot()
+	_ = session.SaveBranchMeta(path, m)
+}
+
+// resetSessionPolicyToBootLocked 把审批/断网策略恢复到 boot 基线（新会话/
+// 落点切换用——存档策略只属于它那个会话，不许泄漏进下一个）。调用方持
+// c.mu；executor 非空时按换级点出口纪律重建闸门。
+func (c *Controller) resetSessionPolicyToBootLocked() {
+	changed := c.approvalMode != c.bootApprovalMode ||
+		c.denyNetworkTools != c.bootDenyNetworkTools ||
+		c.policy.Mode != c.bootPermMode
+	c.approvalMode = c.bootApprovalMode
+	c.denyNetworkTools = c.bootDenyNetworkTools
+	c.policy.Mode = c.bootPermMode
+	c.permLevel = "ask"
+	if changed && c.executor != nil {
+		c.executor.SetGate(c.wrapNetworkGate(c.newGate()))
+	}
+}
+
+// applySessionPolicySnapshotLocked 按存档快照覆盖审批/断网策略（恢复旧会话
+// 用存档而非当前全局——codex threads 行随行存档的恢复语义）。调用方持 c.mu。
+func (c *Controller) applySessionPolicySnapshotLocked(snap session.PolicySnapshot) {
+	c.approvalMode = snap.ApprovalMode
+	c.denyNetworkTools = !snap.SandboxNetwork
+	mode := permission.ParseDecision(snap.PermissionMode)
+	c.policy.Mode = mode
+	// 权限级别与策略回退态联动（applyPermLevelLocked 同款映射）：allow=auto
+	// 免卡，其余（ask/deny）回到 ask 弹卡；deny 由 policy.Mode 硬拒兜底。
+	if mode == permission.Allow {
+		c.permLevel = "auto"
+	} else {
+		c.permLevel = "ask"
+	}
+	if c.executor != nil {
+		c.executor.SetGate(c.wrapNetworkGate(c.newGate()))
+	}
 }
 
 // ResumeFromDisk 从磁盘恢复会话并接管为当前会话。事件日志模式下：
@@ -348,6 +436,7 @@ func (c *Controller) Snapshot() error {
 func (c *Controller) SetSessionPath(p string) {
 	c.mu.Lock()
 	c.sessionPath = p
+	c.resetSessionPolicyToBootLocked() // 刀4：落点切换=新会话语义，回 boot 基线
 	f := c.logFormat
 	spaceForPath := c.writeSpaceForLocked(p)
 	exec := c.executor
@@ -358,6 +447,7 @@ func (c *Controller) SetSessionPath(p string) {
 		exec.Session().SetSpace(spaceForPath)
 		exec.SetCheckpointFlusher(c.flushCheckpoint)
 	}
+	c.writeSessionPolicySnapshot(p)
 }
 
 // SessionDir reports the directory new session files land in ("" disables

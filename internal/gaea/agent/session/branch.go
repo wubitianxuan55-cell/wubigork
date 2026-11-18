@@ -12,6 +12,18 @@ import (
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
+// PolicySnapshot 是会话的审批与断网策略随行存档（codex 蒸馏差距档案刀4，
+// threads 行 sandbox_policy/approval_mode 随行折算）：会话创建时把生效策略
+// 快照进 meta，恢复旧会话用存档策略而非当前全局。只记 controller 可恢复面
+// （审批模式/权限级别/断网闸）；bash 沙箱模式是装配期工具配置，不在列。
+type PolicySnapshot struct {
+	// SandboxNetwork 是 [sandbox] network 的存档值（true=网络开）。
+	SandboxNetwork bool   `json:"sandbox_network"`
+	ApprovalMode   string `json:"approval_mode,omitempty"`
+	// PermissionMode 是权限级别回退态（"allow"/"ask"/"deny"，ParseDecision 口径）。
+	PermissionMode string `json:"permission_mode"`
+}
+
 // BranchMeta is the small sidecar record that turns flat session files into a
 // navigable conversation tree. The conversation itself remains in the .jsonl
 // file; metadata lives beside it at <session>.meta.
@@ -26,6 +38,8 @@ type BranchMeta struct {
 	Space     string    `json:"space,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// PolicySnapshot 是策略随行存档（刀4）；nil=旧会话无存档（恢复走现状）。
+	PolicySnapshot *PolicySnapshot `json:"policy_snapshot,omitempty"`
 }
 
 // BranchInfo combines sidecar metadata with the session file details needed for

@@ -164,14 +164,17 @@ func (c *Controller) Fork(turn int) (string, error) {
 		return "", fmt.Errorf("fork: save branch: %w", err)
 	}
 	// 分支 meta：记录父分支与会话关系（ParentID = 父会话文件名）；
-	// S2：space 自描述按目录归属写入。
+	// S2：space 自描述按目录归属写入。刀4：分叉携带当前生效策略快照——
+	// 分叉从父会话的对话历史续生，策略也随当前体验走（否则 c.Resume 读到
+	// 无快照 meta 会回落 boot 基线，分叉当刻策略被静默重置）。
 	meta := agent.BranchMeta{
-		ID:        agent.BranchID(newPath),
-		Name:      fmt.Sprintf("分叉 · 第 %d 轮", turn),
-		ParentID:  agent.BranchID(path),
-		ForkTurn:  turn,
-		Space:     session.SpaceForPath(newPath),
-		CreatedAt: time.Now().UTC(),
+		ID:             agent.BranchID(newPath),
+		Name:           fmt.Sprintf("分叉 · 第 %d 轮", turn),
+		ParentID:       agent.BranchID(path),
+		ForkTurn:       turn,
+		Space:          session.SpaceForPath(newPath),
+		CreatedAt:      time.Now().UTC(),
+		PolicySnapshot: c.sessionPolicySnapshot(),
 	}
 	if err := agent.SaveBranchMeta(newPath, meta); err != nil {
 		return "", fmt.Errorf("fork: save branch meta: %w", err)
