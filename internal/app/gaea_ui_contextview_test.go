@@ -429,3 +429,37 @@ func TestBuildSessionNetwork_OrphanLegacyNodesKept(t *testing.T) {
 		t.Fatalf("session node + orphan legacy node both expected, got %v", ids)
 	}
 }
+
+// 子代理实弹批：嵌套层（级别≥2）事件日志 task 节点 ID 被 subSinkFor 重写为
+// "父call/本call" 复合，而 SpawnCallID 盖的是本层原始 call id——直等失配曾
+// 让 legacy 节点成 orphan 与会话节点并存（同一孙代两张卡）。尾段找回+父链
+// 前缀消歧后应并成一颗会话子树。
+func TestBuildSessionNetwork_NestedCompositeCallIDJoins(t *testing.T) {
+	net := trajectory.AgentNetwork{Ok: true, Root: trajectory.AgentNode{
+		ID: "root", Kind: "root",
+		Children: []trajectory.AgentNode{
+			{ID: "call_1", Kind: "subagent", Task: "父任务预览", Status: "completed", ToolCalls: 4, Tokens: 700, FirstTs: 10, LastTs: 90},
+			// 嵌套孙代节点：复合 ID（本层原始 call id 是 call_2）。
+			{ID: "call_1/call_2", Kind: "subagent", Task: "孙任务预览", Status: "completed", ToolCalls: 2, Tokens: 260, FirstTs: 40, LastTs: 80},
+		},
+	}}
+	created := time.Date(2026, 11, 18, 10, 0, 0, 0, time.Local)
+	runs := SubagentRunsView{Available: true, Runs: []SubagentRunView{
+		{Ref: "sa_child", Kind: "subagent", Status: "completed", Task: "孙任务全文", ParentRef: "sa_parent", SpawnCallID: "call_2", CreatedAt: created.Add(time.Minute), UpdatedAt: created.Add(2 * time.Minute)},
+		{Ref: "sa_parent", Kind: "subagent", Status: "completed", Task: "父任务全文", SpawnCallID: "call_1", CreatedAt: created, UpdatedAt: created.Add(3 * time.Minute)},
+	}}
+	buildSessionNetwork(&net, runs)
+	if len(net.Root.Children) != 1 {
+		t.Fatalf("复合 ID 联键后 root 应只剩会话骨架 1 个孩子, got %d", len(net.Root.Children))
+	}
+	parent := net.Root.Children[0]
+	if parent.ID != "sa_parent" || parent.ToolCalls != 4 || parent.Tokens != 700 {
+		t.Fatalf("父会话节点统计联结缺失: %+v", parent)
+	}
+	if len(parent.Children) != 1 || parent.Children[0].ID != "sa_child" {
+		t.Fatalf("孙代应挂在父会话节点下: %+v", parent.Children)
+	}
+	if parent.Children[0].ToolCalls != 2 || parent.Children[0].Tokens != 260 {
+		t.Fatalf("孙代统计联结缺失: %+v", parent.Children[0])
+	}
+}

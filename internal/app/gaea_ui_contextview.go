@@ -520,11 +520,24 @@ func buildSessionNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
 	}
 
 	// legacy 树节点按 id 建索引（FoldAgentNetwork 输出是 root 下一层扁平表）。
+	// 嵌套层联键修复（子代理实弹批）：事件日志里嵌套 task 节点 ID 被 subSinkFor
+	// 逐层重写成 "父call/本call" 复合，而 SpawnCallID 盖的是本层原始 call id——
+	// 直等在级别≥2 必失配，legacy 节点成 orphan 与会话节点并存 = 同一子代理
+	// 双卡。除精确索引外建尾段索引（复合 ID 最后一段 = 本层原始 id），匹配时
+	// 先精确后尾段；尾段多候选用父 run 已认领的 legacy 前缀消歧，仍歧义取
+	// CreatedAt 序第一个（确定性）。
 	legacyByCall := make(map[string]*trajectory.AgentNode, len(net.Root.Children))
+	legacyByTail := make(map[string][]*trajectory.AgentNode, len(net.Root.Children))
 	legacyUsed := make(map[string]bool, len(net.Root.Children))
 	for i := range net.Root.Children {
-		legacyByCall[net.Root.Children[i].ID] = &net.Root.Children[i]
+		id := net.Root.Children[i].ID
+		legacyByCall[id] = &net.Root.Children[i]
+		if slash := strings.LastIndex(id, "/"); slash >= 0 {
+			tail := id[slash+1:]
+			legacyByTail[tail] = append(legacyByTail[tail], &net.Root.Children[i])
+		}
 	}
+	claimedLegacyByRef := make(map[string]string, len(net.Root.Children))
 
 	// 会话节点：kind=subagent 的 run（mt_ 模型工具记录不入拓扑，与工具调用
 	// 骨架口径一致）；CreatedAt 升序保证父先于子（ref 内嵌时间戳，嵌套派生
@@ -542,8 +555,33 @@ func buildSessionNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
 		var legacy *trajectory.AgentNode
 		if r.SpawnCallID != "" {
 			legacy = legacyByCall[r.SpawnCallID]
+			if legacy == nil {
+				// 嵌套层：复合 ID 尾段找回（候选须未被认领；多候选用父链前缀消歧）。
+				var unused []*trajectory.AgentNode
+				for _, cand := range legacyByTail[r.SpawnCallID] {
+					if !legacyUsed[cand.ID] {
+						unused = append(unused, cand)
+					}
+				}
+				switch {
+				case len(unused) == 1:
+					legacy = unused[0]
+				case len(unused) > 1:
+					parentLegacy := claimedLegacyByRef[r.ParentRef]
+					for _, cand := range unused {
+						if parentLegacy != "" && strings.HasPrefix(cand.ID, parentLegacy+"/") {
+							legacy = cand
+							break
+						}
+					}
+					if legacy == nil {
+						legacy = unused[0]
+					}
+				}
+			}
 			if legacy != nil {
-				legacyUsed[r.SpawnCallID] = true
+				legacyUsed[legacy.ID] = true
+				claimedLegacyByRef[r.Ref] = legacy.ID
 			}
 		}
 		n := sessionNodeFromRun(r, legacy)
