@@ -202,7 +202,7 @@ func TestInterruptSubagentErrors(t *testing.T) {
 // interrupt_agent 工具面：未知目标报错；接口完整性（CompactDescriptor）
 // 由编译器保证，这里钉模型面文案带关键语义。
 func TestInterruptToolExecute(t *testing.T) {
-	it := NewInterruptTool()
+	it := NewInterruptTool(nil)
 	if _, err := it.Execute(context.Background(), []byte(`{"ref":"sa_ghost"}`)); err == nil {
 		t.Fatal("未知 ref 应报错")
 	}

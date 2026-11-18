@@ -170,6 +170,65 @@ func SubagentScopeFromContext(ctx context.Context) (SubagentScope, bool) {
 	return s, ok
 }
 
+// ── 嵌套委派深度缝（2026-11-18，dsh 完整智能体形态蒸馏：子智能体可再派
+// 孙代，本机 maxDepth=10）──深度记账与闸口全走 ctx，并行调用互不串
+// （WithSubagentScope 同款纪律）。级别口径：主会话=0，主派生的一代=1，
+// 孙代=2……「允许派生」判据 = 子代理自身级别 < maxDepth。
+type subagentDepthKey struct{}
+
+func withSubagentDepth(ctx context.Context, level int) context.Context {
+	return context.WithValue(ctx, subagentDepthKey{}, level)
+}
+
+// subagentDepthFromContext 读回调用方所在子代理树级别（无盖/非正=0，主会话）。
+func subagentDepthFromContext(ctx context.Context) int {
+	if ctx == nil {
+		return 0
+	}
+	if v, ok := ctx.Value(subagentDepthKey{}).(int); ok && v > 0 {
+		return v
+	}
+	return 0
+}
+
+const (
+	// DefaultSubagentMaxDepth 是 [agent] subagent_max_depth 未配置（0）时的
+	// 嵌套深度：主→子→孙三级，对齐 dsh 完整智能体形态的最小可用档。
+	DefaultSubagentMaxDepth = 3
+	// MaxSubagentMaxDepth 是嵌套深度硬帽（dsh 本机档=10，对齐）。
+	MaxSubagentMaxDepth = 10
+)
+
+// nestedDelegationTools 是深度闸开放给子代理的协调元工具（自身子树管理）：
+// task（再派孙代）/ interrupt_agent / subagent_list / read_subagent_result。
+// 四件对子代理按「自己的子树」收窄（list/interrupt/read 的 Execute 有
+// ancestry 守卫；task 天然只产自己的下一代）——兄弟运行依旧不可见，原
+// subagentMetaTools 注释的可见性边界在兄弟面维持不变。
+var nestedDelegationTools = map[string]bool{
+	"task":                true,
+	"interrupt_agent":     true,
+	"subagent_list":       true,
+	"read_subagent_result": true,
+}
+
+// metaExclusionForLevel 返回级别 level 的子代理注册表应排除的元工具清单：
+//   - maxDepth<=1（未开嵌套）或 level>=maxDepth（到底）→ 全量排除（现行为，
+//     子代理=平面工兵，一层深）；
+//   - 否则仅排除非委派面（run_skill/install_skill/exit_plan_mode——审批出
+//     口与技能装配属宿主面），协调四件保留：子代理=完整智能体。
+func metaExclusionForLevel(maxDepth, level int) []string {
+	if maxDepth <= 1 || level >= maxDepth {
+		return SubagentMetaTools()
+	}
+	out := make([]string, 0, len(subagentMetaTools))
+	for _, n := range subagentMetaTools {
+		if !nestedDelegationTools[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // subagentWriteDenylist 已知写工具硬拒绝名单：ReadOnly() 是工具自报属性，
 // 误标写工具仍可能越权（裁决 pan_1794117515203 风险条）——名单优先于自报，
 // 命中即拒，不看 ReadOnly()。跨 harness 常见写面别名一并收录（PersistWrite
@@ -194,20 +253,25 @@ var subagentWriteDenylist = map[string]bool{
 }
 
 var subagentMetaTools = []string{
+	// 全量排除形态（未开嵌套 / 级别达深度上限）的清单。嵌套开放（2026-11-18
+	// dsh 完整智能体形态）后，task/interrupt_agent/subagent_list/
+	// read_subagent_result 四件在未到底级别对子代理开放（metaExclusion-
+	// ForLevel 分级），并按「自己的子树」收窄（见各工具 Execute 守卫）；
+	// 下面三件在任何级别都排除。
 	"task",
 	"run_skill",
 	"install_skill",
 	// exit_plan_mode（v4.414 计划审批门）：审批对象是父会话的计划模式闸——
 	// 子代理不该见到审批出口，防其代替父会话退出计划模式。
 	"exit_plan_mode",
-	// interrupt_agent（2026-10 P0-A）：子代理不得打断兄弟/父侧的其它运行，
-	// 中断权只属于父代理。
+	// interrupt_agent（2026-10 P0-A）：中断权原只属于父代理；嵌套开放后子代
+	// 理可中断**自己的后代**（子树守卫），兄弟/父侧运行仍不可及。
 	"interrupt_agent",
-	// subagent_list（2026-10 P1-D）：兄弟运行清单不进子代理上下文（子代理
-	// 无兄弟管理职责），与 interrupt_agent 同一可见性边界。
+	// subagent_list（2026-10 P1-D）：兄弟运行清单不进子代理上下文；嵌套开放
+	// 后子代理可见**自己的子树**清单（子树守卫）。
 	"subagent_list",
-	// read_subagent_result（2026-10 B2）：兄弟运行的结果体不进子代理上下文
-	// ——父代理才有「聚合没送达、按 ref 取回」的消费场景，同 list 边界。
+	// read_subagent_result（2026-10 B2）：兄弟运行的结果体不进子代理上下文；
+	// 嵌套开放后可读**自己的后代**结果（子树守卫）。
 	"read_subagent_result",
 }
 
@@ -307,10 +371,36 @@ type TaskTool struct {
 	// spill 随父配置开启子代理泄洪（v4.379）：子代理 runner 各持独立泄洪库，
 	// 大结果同样可经 read_spill 取回。缺省 false = 零行为变化。
 	spill bool
+
+	// maxDepth 是嵌套委派深度上限（2026-11-18 dsh 完整智能体形态）：1=关闭
+	// （子代理不见 task 等协调元工具，平面工兵现行为）；boot 按
+	// [agent] subagent_max_depth 装配（缺省 DefaultSubagentMaxDepth，硬帽
+	// MaxSubagentMaxDepth）。零值=关闭，测试/旧装配零行为变化。
+	maxDepth int
 }
 
 // SetSpill 开启子代理泄洪（boot 装配点按 [agent] tool_spill 调用）。
 func (t *TaskTool) SetSpill(on bool) { t.spill = on }
+
+// SetSubagentMaxDepth 设定嵌套委派深度上限（boot 装配点）。n<1 取 1（关闭=
+// 现行为）；n>MaxSubagentMaxDepth 取帽。
+func (t *TaskTool) SetSubagentMaxDepth(n int) {
+	if n < 1 {
+		n = 1
+	}
+	if n > MaxSubagentMaxDepth {
+		n = MaxSubagentMaxDepth
+	}
+	t.maxDepth = n
+}
+
+// effectiveMaxDepth 归一深度上限（零值/负=1=关闭）。
+func (t *TaskTool) effectiveMaxDepth() int {
+	if t.maxDepth < 1 {
+		return 1
+	}
+	return t.maxDepth
+}
 
 // NewTaskTool wires a task tool to the parent agent's environment so its
 // sub-agents can use the same provider and tools. sysPrompt is the system
@@ -431,6 +521,17 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 	if p.Readonly {
 		ctx = withSubagentReadOnly(ctx)
 	}
+	// 嵌套委派深度闸（2026-11-18 dsh 完整智能体形态）：子代理可再派子代理，
+	// 级别=调用方级别+1；超限 fail-loud。注册表面在超限层已无 task（工具
+	// 不可见），这里是配置热降/异常调用的防御性核验。
+	callerLevel := subagentDepthFromContext(ctx)
+	childLevel := callerLevel + 1
+	if childLevel > t.effectiveMaxDepth() {
+		return "", fmt.Errorf("nested delegation depth limit reached (max %d): do the subtask inline or restructure the delegation", t.effectiveMaxDepth())
+	}
+	// 防自锁判据要在 ctx 盖子代级别**之前**取（嵌套=调用方自身持槽等本派生
+	// 返回，runForeground 据此决定排队还是快拒）。
+	nestedSpawn := callerLevel >= 1
 	// 模型路由（P2，dsh model-selection 蒸馏 2026-11）：engine/model 须同时
 	// 给（上游「supply provider and model together」）；授权清单逐字核验，
 	// 未授权 fail-loud 点名可用路由——绝不静默回落父路由（静默降级=模型
@@ -490,7 +591,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		}
 	}
 
-	subReg, err := t.buildSubReg(p.Tools, p.Readonly)
+	subReg, err := t.buildSubRegAt(p.Tools, p.Readonly, childLevel)
 	if err != nil {
 		return "", err
 	}
@@ -508,6 +609,9 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		// 只在新鲜派发（非 continue_from）时盖——续跑的血缘属于原 spawn，
 		// meta 已有值不覆盖、旧 meta 缺值也不该把续跑发起方误记成父亲。
 		if p.ContinueFrom == "" {
+			// 深度记账（2026-11-18 嵌套委派）：本运行级别=调用方级别+1，
+			// 一次写定（applySnapshot 同语义，续跑保原值）。
+			run.Depth = childLevel
 			run.ParentRef = PersistedParentRef(subagentSessionIDFromContext(ctx))
 			if id, _, _, _ := CallContext(ctx); id != "" {
 				run.SpawnCallID = id
@@ -526,6 +630,9 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		childSessionID = newEphemeralSubagentID()
 	}
 	ctx = withSubagentSessionID(ctx, childSessionID)
+	// 深度缝（2026-11-18 嵌套委派）：子代理自己的工具调用（含它再派孙代）
+	// 在 childLevel 级别上跑——孙代的 parentRef/深度记账/闸口全由此 ctx 读出。
+	ctx = withSubagentDepth(ctx, childLevel)
 
 	// A10：声明非空时登记活动声明（重叠 fail-fast）。真后台任务的声明随 job
 	// 存活（任务跨回合，声明必须同样跨回合，否则并行批里后来的声明检不到
@@ -544,7 +651,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 
 	// retry_until: foreground only (background retry doesn't make sense across turns).
 	if p.RetryUntil != nil && !p.RunInBackground {
-		result, err := t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
+		result, err := t.runForeground(ctx, run, nestedSpawn, func(fgCtx context.Context) (string, error) {
 			return t.runSubWithRetrySession(fgCtx, routeProv, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
 		})
 		return t.finalizeRun(result, err, run)
@@ -564,7 +671,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 				bgSess   *Session
 				bgErr    error
 			)
-			_, bgErr = t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
+			_, bgErr = t.runForeground(ctx, run, nestedSpawn, func(fgCtx context.Context) (string, error) {
 				bgResult, bgSess, bgErr = t.runSubSession(fgCtx, routeProv, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, nil)
 				return bgResult, bgErr
 			})
@@ -598,7 +705,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		subSess   *Session
 		subErr    error
 	)
-	_, subErr = t.runForeground(ctx, run, func(fgCtx context.Context) (string, error) {
+	_, subErr = t.runForeground(ctx, run, nestedSpawn, func(fgCtx context.Context) (string, error) {
 		subResult, subSess, subErr = t.runSubSession(fgCtx, routeProv, p.Prompt, subReg, subSink(fgCtx, run), run, maxSteps, p.OutputSchema, seed)
 		return subResult, subErr
 	})
@@ -613,7 +720,19 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 // 中断面（P0-A）：持久 run 在等待期即挂 subRuns{cancel}——interrupt_agent
 // 对排队中的调用同样有效；fn 收到的 ctx 是该派生 ctx，起跑后 cancel 转由
 // runSubAgentInternal 的句柄接管（覆写同键），取消语义全程不断。
-func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func(context.Context) (string, error)) (string, error) {
+// nested=true（2026-11-18 嵌套委派防自锁）：调用方子代理自己持槽在等本派生
+// 返回——排队会让「等后代的父级」等自己占的名额形成全树自锁（dsh
+// ActivationPool 满拒绝不排队，同源洞察）。嵌套不排队：槽满诚实快拒，模型
+// 可稍后重试或自行完成；顶层派发维持排队语义逐字节不变。
+func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, nested bool, fn func(context.Context) (string, error)) (string, error) {
+	if nested {
+		if err := tryAcquireSubSlot(); err != nil {
+			return "", fmt.Errorf("nested delegation at capacity (%d/%d sub-agents running): retry shortly or do the subtask inline",
+				SubagentSlotsBusy(), SubagentMaxParallel())
+		}
+		defer releaseSubSlot()
+		return fn(ctx)
+	}
 	// 排队登记：只对持久 run 且尚无真实 meta 的（新鲜派发）生效，MarkQueued
 	// 内部幂等守卫。ephemeral（无 transcript store）没有可见面，直接等槽。
 	if run != nil && run.Ref != "" && t.transcripts != nil {
@@ -635,23 +754,42 @@ func (t *TaskTool) runForeground(ctx context.Context, run *SubagentRun, fn func(
 }
 
 // mustSubReg 是 buildSubReg 的 nil 白名单形态（names 空 ⇒ 恒无未知名，
-// 不可能失败）：RunNew/runFollowUp 等宿主路径用，省一处不可达的 err 分支。
+// 不可能失败）：RunNew 等宿主路径用，省一处不可达的 err 分支。级别=1
+// （宿主派发的一代）；续跑（runFollowUp）按 run 的真实级别走 mustSubRegAt。
 func mustSubReg(t *TaskTool, names []string) *tool.Registry {
-	reg, err := t.buildSubReg(names, false)
+	reg, err := t.buildSubRegAt(names, false, 1)
 	if err != nil {
 		panic(fmt.Sprintf("task: nil whitelist must build cleanly: %v", err))
 	}
 	return reg
 }
 
+// mustSubRegAt 是 mustSubReg 的级别感知形态：续跑（runFollowUp）的注册表
+// 按被续 run 的真实级别建——level-2 的孙代续跑后仍是 level-2（可再派）。
+func mustSubRegAt(t *TaskTool, names []string, level int) *tool.Registry {
+	reg, err := t.buildSubRegAt(names, false, level)
+	if err != nil {
+		panic(fmt.Sprintf("task: nil whitelist must build cleanly: %v", err))
+	}
+	return reg
+}
+
+// buildSubReg 兼容形态：默认为一代（level 1）子代理建注册表。
 func (t *TaskTool) buildSubReg(names []string, readOnly bool) (*tool.Registry, error) {
+	return t.buildSubRegAt(names, readOnly, 1)
+}
+
+// buildSubRegAt 按子代理级别建注册表：级别达到深度上限时全量排除元工具
+// （平面工兵现行为），未达时开放协调四件（嵌套委派，metaExclusionForLevel）。
+func (t *TaskTool) buildSubRegAt(names []string, readOnly bool, level int) (*tool.Registry, error) {
+	excl := metaExclusionForLevel(t.effectiveMaxDepth(), level)
 	// dsh toolFilter 的 loud unknown-name 纪律（2026-10 蒸馏 P0-B）：模型给的
 	// 白名单错名此前被 FilterRegistry 静默跳过——子代理无声少工具、父模型
 	// 无从得知。改为显式报错列出，模型下一回合可自行纠正。
-	if unknown := UnknownToolNames(t.parentReg, names, SubagentMetaTools()...); len(unknown) > 0 {
+	if unknown := UnknownToolNames(t.parentReg, names, excl...); len(unknown) > 0 {
 		return nil, fmt.Errorf("unknown tools in sub-agent whitelist: %s (check the names; excluded meta-tools like task/run_skill are silently denied by design)", strings.Join(unknown, ", "))
 	}
-	reg := FilterRegistry(t.parentReg, names, SubagentMetaTools()...)
+	reg := FilterRegistry(t.parentReg, names, excl...)
 	// 只读形态（2026-11-08 众神殿裁决刀3）：注册表交集收窄到自报只读的工具，
 	// 再过已知写工具硬名单（名单优先于自报）。运行时拒绝=写工具不在注册表
 	// （模型面同步收窄见 runSubSession 的 ActiveSchemas 分支）。
@@ -852,6 +990,14 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	if id, _, _, _ := CallContext(ctx); id != "" {
 		run.SpawnCallID = id
 	}
+	// 深度记账（2026-11-18 嵌套委派）：宿主派发恒一代。
+	run.Depth = 1
+	// 嵌套缝：本 run 的子代理自身可再派孙代（完整智能体形态）——它的工具
+	// 调用 ctx 需要会话 ID（孙代 parentRef 落到本 run）与级别（深度闸/记账）。
+	// 必须在 ParentRef 盖章之后盖 ctx（否则 PersistedParentRef 读到刚盖的
+	// 会话 ID 会把本 run 误记成自己的父亲）。
+	ctx = withSubagentSessionID(ctx, ref)
+	ctx = withSubagentDepth(ctx, 1)
 	// D5 容量口径自检（上游 workflow maxConcurrentAgents 与 subagent 硬限两池
 	// 错配的 gaea 对应面）：宿主路径（DAG 节点执行器）此前绕过并发闸——同一
 	// 「每实例一条 LLM 循环」负载必须过同一扇门（单闸不变量），否则 DAG 波宽
@@ -942,7 +1088,16 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 	// PrepareContinue 拒绝，tab 状态点也永远转不回完成态。
 	stop()
 
-	subReg := mustSubReg(t, nil)
+	// 嵌套缝（2026-11-18）：续跑的注册表按被续 run 的真实级别建（level-2
+	// 孙代续跑后仍是 level-2，可再派自己的下一代）；工具调用 ctx 同步盖
+	// 会话 ID 与级别——孙代续跑后再派的重孙，parentRef/深度记账落到本 run。
+	level := run.Depth
+	if level < 1 {
+		level = 1 // 旧 meta 无 depth 字段：历史运行=主会话直派
+	}
+	ctx = withSubagentSessionID(ctx, run.Ref)
+	ctx = withSubagentDepth(ctx, level)
+	subReg := mustSubRegAt(t, nil, level)
 	maxSteps := t.maxSteps / 2
 	if maxSteps < 5 {
 		maxSteps = 5

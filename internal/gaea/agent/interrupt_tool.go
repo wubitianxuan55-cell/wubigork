@@ -21,11 +21,17 @@ import (
 //
 // 授权面：邻接即授权（模型只见自己回合产出的 sa_/job 引用；ref 含时间戳+
 // 随机段不可枚举），与 SteerSubagent（v4.243）同一暴露面、同一威胁模型。
-// 工具已入 subagentMetaTools——子代理不见此工具，中断权只属于父代理。
-type InterruptTool struct{}
+// 嵌套委派（2026-11-18 dsh 完整智能体形态）开放后子代理可见此工具，但按
+// 「自己的子树」收窄：只能中断自己的后代（AncestryContains 守卫），后台
+// job 面不开放（job 无子树所有权，兄弟任务不可越权杀）——原「中断权只属
+// 父代理」边界收窄为「中断权只及自己的后代」。
+type InterruptTool struct {
+	store *SubagentStore
+}
 
-// NewInterruptTool 装配 interrupt_agent（boot 注册点调用）。
-func NewInterruptTool() *InterruptTool { return &InterruptTool{} }
+// NewInterruptTool 装配 interrupt_agent（boot 注册点调用）。store 用于子代理
+// 调用面的子树守卫（血缘上溯），主会话面不消费。
+func NewInterruptTool(store *SubagentStore) *InterruptTool { return &InterruptTool{store: store} }
 
 func (t *InterruptTool) Name() string { return "interrupt_agent" }
 
@@ -70,6 +76,16 @@ func (t *InterruptTool) Execute(ctx context.Context, args json.RawMessage) (stri
 	ref := strings.TrimSpace(p.Ref)
 	if ref == "" {
 		return "", fmt.Errorf("ref is required")
+	}
+	// 子树守卫（2026-11-18 嵌套委派）：子代理调用只可中断自己子树内的 sa_
+	// 运行；job 面整个不开放（后台任务无子树所有权概念）。
+	if callerRef := SubagentRefFromContext(ctx); callerRef != "" {
+		if !IsSubagentRef(ref) {
+			return "", fmt.Errorf("background jobs can only be interrupted from the main session")
+		}
+		if t.store == nil || !t.store.AncestryContains(callerRef, ref) {
+			return "", fmt.Errorf("refusing to interrupt %s: not a descendant of your own sub-agent tree (see subagent_list for what is yours)", ref)
+		}
 	}
 	// ① 子代理（前台运行中/排队中）。
 	if err := InterruptSubagent(ref); err == nil {

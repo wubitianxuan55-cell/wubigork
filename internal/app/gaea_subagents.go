@@ -41,6 +41,9 @@ type SubagentRunView struct {
 	// 空（读端降级：拓扑按 root 挂载、统计不迁移）。
 	ParentRef     string    `json:"parentRef,omitempty"`
 	SpawnCallID   string    `json:"spawnCallId,omitempty"`
+	// Depth 是嵌套委派级别（2026-11-18，agent.SubagentMeta.Depth 透传）：
+	// 主会话直派=1、孙代=2……；0 = 旧 meta 未记录（读端按 1 降级）。
+	Depth         int       `json:"depth,omitempty"`
 	FollowUpError string    `json:"followUpError,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -87,6 +90,8 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		// ParentRef/SpawnCallID：派生血缘盖章（D1），空 = 旧 meta 未盖章。
 		ParentRef   string `json:"parentRef,omitempty"`
 		SpawnCallID string `json:"spawnCallId,omitempty"`
+		// Depth：嵌套委派级别（2026-11-18），0 = 旧 meta 未记录（读端降级 1）。
+		Depth int `json:"depth,omitempty"`
 		// FollowUpError：最近一次追问后台失败摘要（v4.66），空 = 无失败。
 		FollowUpError string `json:"followUpError,omitempty"`
 	}
@@ -113,6 +118,7 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 			ToolScope:     m.ToolScope,
 			ParentRef:     m.ParentRef,
 			SpawnCallID:   m.SpawnCallID,
+			Depth:         m.Depth,
 			FollowUpError: m.FollowUpError,
 			CreatedAt:     m.CreatedAt,
 			UpdatedAt:     m.UpdatedAt,

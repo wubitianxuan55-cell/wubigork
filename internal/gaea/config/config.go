@@ -759,6 +759,13 @@ type AgentConfig struct {
 	// 配置层一次性给出：task 调用时逐字对清单核验，未授权 fail-loud 点名
 	// 可用路由。窗口元数据缺省继承父（K1 溢出自学习兜真实窗口）。
 	SubagentRoutes []string `toml:"subagent_routes"`
+	// SubagentMaxDepth 是嵌套委派深度上限（2026-11-18，dsh 完整智能体形态：
+	// 子智能体可再派孙代，dsh 本机 maxDepth=10）。口径：主会话直派=级别 1，
+	// 允许派生判据=子代理自身级别 < 上限——3=主→子→孙三级；1=关闭（子代理
+	// 不见 task 等协调元工具，平面工兵现行为）。0/未配置=缺省 3；>10 钳到
+	// 硬帽 10（SubagentMaxDepth()）。嵌套层的容量语义=槽满快拒不排队（防
+	// 「持槽等后代」全树自锁，见 agent 包 subagent_limit.go 头注）。
+	SubagentMaxDepth int `toml:"subagent_max_depth"`
 	// ── 压缩阈值（阶段九 9.1「双阈值可配置」）────────────────────
 	// 三层水位（占 ContextWindow 比例）：Soft 预警通知 / Ratio 触发压缩 /
 	// Force 强制压缩（高水位）。0 值 = 用 agent 包内置缺省（0.5/0.8/0.9，
@@ -818,6 +825,23 @@ func (a AgentConfig) SubagentEffortVal() string {
 		return a.SubagentEffort
 	}
 	return a.Effort
+}
+
+// SubagentMaxDepthVal returns the effective nested-delegation depth cap.
+// 0/未配置 → 缺省 3（主→子→孙）；1=显式关闭；>10 钳到硬帽 10。装配在
+// agent.TaskTool.SetSubagentMaxDepth 再钳一次（防御 [1,10] 边界）。
+func (a AgentConfig) SubagentMaxDepthVal() int {
+	const (
+		defaultMaxDepth = 3
+		hardCap         = 10
+	)
+	if a.SubagentMaxDepth <= 0 {
+		return defaultMaxDepth
+	}
+	if a.SubagentMaxDepth > hardCap {
+		return hardCap
+	}
+	return a.SubagentMaxDepth
 }
 
 // ProviderEntry declares a model provider instance. ContextWindow is the model's

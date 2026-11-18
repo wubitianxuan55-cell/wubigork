@@ -36,6 +36,7 @@ func RunPersistedSubAgent(
 		}
 		defer releaseSubSlot()
 		opts = bindHooksToSession(opts, newEphemeralSubagentID())
+		ctx = withSubagentDepth(ctx, subagentDepthFromContext(ctx)+1)
 		return RunSubAgent(ctx, prov, reg, sysPrompt, prompt, opts, sink, subUsage)
 	}
 	run, err := store.PrepareFreshWithTitle(sysPrompt, SpaceFromContext(ctx), title)
@@ -53,7 +54,12 @@ func RunPersistedSubAgent(
 	if id, _, _, _ := CallContext(ctx); id != "" {
 		run.SpawnCallID = id
 	}
+	// 深度记账（2026-11-18 嵌套委派）：技能子代理级别=调用方级别+1；注册表
+	// 由调用方整体传入（技能装配面），深度闸对该面不作用——但记账要真，
+	// 编队树与后续续跑的级别都从这里读。
+	run.Depth = subagentDepthFromContext(ctx) + 1
 	ctx = withSubagentSessionID(ctx, run.Ref)
+	ctx = withSubagentDepth(ctx, run.Depth)
 	opts = bindHooksToSession(opts, run.Ref)
 	// 有限并行：排队先落 queued 侧车（分工面板如实显示「排队中」），起跑时
 	// MarkRunning 覆写；等槽期间 ctx 取消则补 failed 收口，不留永久排队态。

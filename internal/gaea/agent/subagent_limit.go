@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -18,11 +19,15 @@ import (
 // How：包级信号量（先例：subRunners sync.Map 同为包级）。容量在 boot 装配
 // 点由 [agent] subagent_max_parallel 设定（SetSubagentMaxParallel，负/零=
 // 默认 3，上限 8 与 runParallel 对齐）；运行期热调不保证（通道容量只在
-// Set 时重建，回合空闲期调用是约定）。获取路径只有顶层批次执行器的工具
-// goroutine——task/run_skill 的子代理注册表都排除元工具（SubagentMeta-
-// Tools），子代理内部不可能再获取槽位，故无嵌套获取、无死锁面。
+// Set 时重建，回合空闲期调用是约定）。
 //
-// 排队诚实化：拿不到槽的调用在等待前先把 transcript 侧车写成 queued
+// 嵌套语义（2026-11-18 嵌套委派开放后）：顶层派发（主会话发起）排队等槽；
+// 嵌套派发（子代理发起，caller 级别≥1）走 tryAcquireSubSlot 不排队、槽满
+// 快拒——调用方子代理自己持槽等本派生返回，排队会让「等后代的父级」等
+// 自己占的名额形成全树自锁（dsh ActivationPool 满拒绝同源洞察）。两路合取
+// 保证：任一时刻「持槽者都在推进或可取消」，无 hold-and-wait 死锁面。
+//
+// 排队诚实化：拿不到槽的顶层调用在等待前先把 transcript 侧车写成 queued
 // （MarkQueued），起跑时 MarkRunning 覆写，前端分工面板/会话 tab 如实
 // 显示「排队中」而不是假的 running 转轮。
 
@@ -98,6 +103,34 @@ func releaseSubSlot() {
 	}
 	if subSlots != nil && len(subSlots) > 0 {
 		<-subSlots
+	}
+}
+
+// errSubSlotsExhausted 是 tryAcquireSubSlot 的槽满信号（不排队，调用方负责
+// 换成带上下文的诚实文案）。
+var errSubSlotsExhausted = errors.New("sub-agent slots exhausted")
+
+// tryAcquireSubSlot 是 acquireSubSlot 的不排队形态（2026-11-18 嵌套派发防
+// 自锁）：槽满立即返回 errSubSlotsExhausted，不阻塞。Why：嵌套派发的调用方
+// 子代理自己正持槽等待本派生返回——若孙代排队等槽，而槽全被「等后代的父级」
+// 占着，全树互相等死（dsh ActivationPool「满拒绝不排队」同源洞察，TL;DR#7）。
+// gaea 只对嵌套层（caller 级别≥1）启用快拒；顶层派发维持排队语义不变。
+func tryAcquireSubSlot() error {
+	subSlotsMu.Lock()
+	ch := subSlots
+	if ch == nil {
+		ch = make(chan struct{}, DefaultSubagentMaxParallel)
+		subSlots = ch
+	}
+	subSlotsMu.Unlock()
+	select {
+	case ch <- struct{}{}:
+		subSlotsMu.Lock()
+		subSlotsActive++
+		subSlotsMu.Unlock()
+		return nil
+	default:
+		return errSubSlotsExhausted
 	}
 }
 

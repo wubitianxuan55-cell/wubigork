@@ -122,6 +122,13 @@ type SubagentMeta struct {
 	// 时长/token 统计据此迁移（替代任务前缀互含启发式，即前端 matchRun 与
 	// 后端 runMatchesNode 的同款病灶）。一次写定，同上。
 	SpawnCallID string `json:"spawnCallId,omitempty"`
+	// Depth 是嵌套委派级别（2026-11-18 dsh 完整智能体形态）：主会话直派=1，
+	// 子代自派=2……与 SubagentRun.Level 同源一次写定（applySnapshot 只填
+	// 零值；续跑/追问保原值——级别属血缘，发起方不改）。旧 meta 无字段=0，
+	// 读端按 1 降级（历史运行全部是「主会话直派」的平面工兵，恰好正确）。
+	// 0 值 omitempty 与「未记录」不可分：无碍——嵌套语义只关心 ≥maxDepth 的
+	// 截断面，读端降级后的 1 恒在闸内。
+	Depth int `json:"depth,omitempty"`
 }
 
 // SubagentRun holds a prepared sub-agent transcript ready to execute.
@@ -150,6 +157,8 @@ type SubagentRun struct {
 	// 派发方在 prepare 后、首个 meta 写（MarkQueued/MarkRunning）前填写。
 	ParentRef   string
 	SpawnCallID string
+	// Depth 是本运行的嵌套级别（语义见 SubagentMeta.Depth）：派发方盖章。
+	Depth int
 	store       *SubagentStore
 	release     func()
 }
@@ -303,6 +312,9 @@ func applySnapshot(meta *SubagentMeta, run *SubagentRun) {
 	if meta.SpawnCallID == "" {
 		meta.SpawnCallID = run.SpawnCallID
 	}
+	if meta.Depth == 0 && run.Depth > 0 {
+		meta.Depth = run.Depth
+	}
 }
 
 // PersistedParentRef 把当前 agent 会话 ID 归一为可落盘的 parentRef：只有持久
@@ -314,6 +326,44 @@ func PersistedParentRef(sessionID string) string {
 		return ""
 	}
 	return sessionID
+}
+
+// maxAncestryWalk 是 AncestryContains 的血缘上溯步数帽（防环：meta 由不同
+// 时期写入，理论上不该有环，帽值只作防御）。
+const maxAncestryWalk = 32
+
+// PeekStatus 读单个 ref 的当前状态（steer 绑定双语义分诊用，2026-11-18）：
+// 在跑→直穿插话；终态→走追问管道。只读，不参与任何 claim/写路径。
+// 无 meta（ephemeral/他会话 ref）返回错误——调用方如实上抛。
+func (s *SubagentStore) PeekStatus(ref string) (SubagentStatus, error) {
+	meta, err := s.loadMeta(ref)
+	if err != nil {
+		return "", fmt.Errorf("subagent %s not found in this session's store", ref)
+	}
+	return meta.Status, nil
+}
+
+// AncestryContains 报告 target 的 parentRef 血缘链是否上溯到 ancestor（嵌套
+// 委派开放后，协调元工具对子代理的「自己的子树」守卫用，2026-11-18）：兄弟
+// 运行与祖先链之外的 ref 一律 false——原「兄弟不可见」边界在嵌套形态下收窄
+// 为「只可见自己的后代」。fail-closed：无 meta/断链/ancestor 为空均 false。
+func (s *SubagentStore) AncestryContains(ancestor, target string) bool {
+	ancestor = strings.TrimSpace(ancestor)
+	if ancestor == "" || strings.TrimSpace(target) == "" || ancestor == target {
+		return false
+	}
+	cur := strings.TrimSpace(target)
+	for i := 0; i < maxAncestryWalk; i++ {
+		meta, err := s.loadMeta(cur)
+		if err != nil || meta.ParentRef == "" {
+			return false
+		}
+		if meta.ParentRef == ancestor {
+			return true
+		}
+		cur = meta.ParentRef
+	}
+	return false
 }
 
 // baseMeta loads an existing sidecar (ignoring absence/corruption) so the
@@ -574,8 +624,11 @@ func (s *SubagentStore) PrepareContinue(ref, space string) (*SubagentRun, error)
 		// 空位——原 spawn 记录保持权威。
 		WorkspaceRoot: cwdOrEmpty(),
 		ResumedFrom:   ref,
-		store:         s,
-		release:       func() { s.continueClaims.Delete(ref) },
+		// 深度记账（2026-11-18 嵌套委派）：续跑继承原 run 的级别（级别属血缘，
+		// 发起方不改）；旧 meta 无字段按 1 降级（历史运行=主会话直派）。
+		Depth:  meta.Depth,
+		store:  s,
+		release: func() { s.continueClaims.Delete(ref) },
 	}, nil
 }
 
@@ -901,6 +954,10 @@ type SubagentRunInfo struct {
 	Title     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// ParentRef/Depth 是血缘与嵌套级别（2026-11-18 嵌套委派）：旧 meta 无
+	// 字段分别按空/0（读端降级）。
+	ParentRef string
+	Depth     int
 }
 
 // listRunsLimit 是单次枚举的条数上限：对话窗口是稀缺资源，模型要找的
@@ -940,6 +997,8 @@ func (s *SubagentStore) ListRuns() ([]SubagentRunInfo, error) {
 			Title:     meta.Title,
 			CreatedAt: meta.CreatedAt,
 			UpdatedAt: meta.UpdatedAt,
+			ParentRef: meta.ParentRef,
+			Depth:     meta.Depth,
 		})
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt.After(runs[j].CreatedAt) })

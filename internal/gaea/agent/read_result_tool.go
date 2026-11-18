@@ -85,7 +85,7 @@ type readResultArgs struct {
 	LimitBytes  int64  `json:"limit_bytes"`
 }
 
-func (t *ReadSubagentResultTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
+func (t *ReadSubagentResultTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p readResultArgs
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid read_subagent_result arguments: %w", err)
@@ -100,6 +100,14 @@ func (t *ReadSubagentResultTool) Execute(_ context.Context, args json.RawMessage
 	}
 	if !IsSubagentRef(ref) {
 		return "", fmt.Errorf("invalid subagent reference %q: must be an sa_… ref (see subagent_list)", ref)
+	}
+	// 子树守卫（2026-11-18 嵌套委派）：子代理调用只可读自己后代的结果——
+	// 兄弟/主会话其它派生的结果体不进子代理上下文（原边界收窄为「自己的
+	// 子树」）。诚实文案（nil 返回）与可达性缺失同面，不诱导重试。
+	if callerRef := SubagentRefFromContext(ctx); callerRef != "" {
+		if t.store == nil || !t.store.AncestryContains(callerRef, ref) {
+			return "That ref is outside your own sub-agent tree — you can only read results of your own descendants (see subagent_list).", nil
+		}
 	}
 
 	meta, err := t.store.loadMeta(ref)

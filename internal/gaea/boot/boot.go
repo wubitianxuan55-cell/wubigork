@@ -420,6 +420,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 有限并行闸（2026-10）：task/run_skill 前台派生共享的并发上限，超出的
 	// 调用排队（queued 侧车可见）。≤0/超帽在 Set 内钳制，boot 一次装配。
 	agent.SetSubagentMaxParallel(cfg.Agent.SubagentMaxParallel)
+	// 嵌套委派深度上限（2026-11-18 dsh 完整智能体形态）：0/未配置=缺省 3
+	// （主→子→孙）；1=关闭（平面工兵现行为）；硬帽 10。嵌套层槽满快拒不
+	// 排队（防自锁，subagent_limit.go 头注）。
+	taskTool.SetSubagentMaxDepth(cfg.Agent.SubagentMaxDepthVal())
 	// 按调用路由授权清单（2026-11，dsh model-selection 蒸馏 P2）：空=路由
 	// 关闭（task engine/model 参数一律拒绝）；非空=逐字核验+CompactDescription
 	// 动态列出授权路由（发现面）。
@@ -454,7 +458,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// interrupt_agent（2026-10 P0-A，dsh 控制面蒸馏）：模型面中断——在跑/排队
 	// 子代理经 subRuns 句柄取消，后台任务转发 jobs.Kill。已入 subagentMetaTools
 	// （子代理不见此工具，中断权只属父代理）。
-	addGated(reg, opts.ToolFilter, agent.NewInterruptTool())
+	addGated(reg, opts.ToolFilter, agent.NewInterruptTool(subagentStore))
 	// subagent_list（2026-10 P1-D）：模型面枚举当前会话子代理运行（lazy store
 	// 跟随会话路径），为 interrupt_agent / continue_from 提供 ref 入口。
 	addGated(reg, opts.ToolFilter, agent.NewSubagentListTool(subagentStore))

@@ -55,6 +55,21 @@ func (t *SubagentListTool) Execute(ctx context.Context, args json.RawMessage) (s
 		// 空态——列不出东西时没有可纠错的动作，报错只会诱导无意义重试。
 		return "No sub-agent runs in this session yet.", nil
 	}
+	// 子树守卫（2026-11-18 嵌套委派）：子代理调用（SubagentRefFromContext
+	// 有盖）只枚举自己的后代——兄弟运行与主会话的其它派生不进子代理上下文。
+	// 原「兄弟清单不可见」边界收窄为「只可见自己的子树」。
+	if callerRef := SubagentRefFromContext(ctx); callerRef != "" {
+		own := runs[:0]
+		for _, r := range runs {
+			if t.store.AncestryContains(callerRef, r.Ref) {
+				own = append(own, r)
+			}
+		}
+		runs = own
+		if len(runs) == 0 {
+			return "No sub-agent runs under your own subtree yet (spawn one with task).", nil
+		}
+	}
 	var sb strings.Builder
 	sb.WriteString("Sub-agent runs in this session (newest first):\n")
 	for _, r := range runs {
