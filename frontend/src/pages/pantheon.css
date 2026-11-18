@@ -5636,14 +5636,25 @@
   color: var(--md-sys-color-text, var(--color-text));
 }
 
-.pantheon-agent-detail-tabs button[aria-pressed="true"] {
+.pantheon-agent-detail-tabs button:focus-visible,
+.pantheon-agent-detail-body:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.pantheon-agent-detail-tabs button[aria-selected="true"] {
   color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 62%, var(--md-sys-color-text, var(--color-text)));
   background: var(--pantheon-surface-raised);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--md-sys-color-bg-layout) 22%, transparent);
   font-weight: 680;
 }
 
-.pantheon-agent-detail-tabs button span {
+.pantheon-agent-detail-tabs button > .anticon {
+  font-size: 11px;
+  opacity: .78;
+}
+
+.pantheon-agent-detail-tabs .pantheon-agent-tab-count {
   display: inline-grid;
   min-width: 17px;
   height: 17px;
@@ -5666,6 +5677,55 @@
   display: flex;
   flex-direction: column;
   gap: 9px;
+}
+
+.pantheon-agent-output-view {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.pantheon-agent-output-toolbar {
+  display: flex;
+  min-height: 32px;
+  padding: 0 0 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-agent-output-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pantheon-agent-output-toolbar button {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pantheon-agent-output-toolbar button:hover:not(:disabled) {
+  color: var(--agent-accent, var(--pantheon-accent));
+}
+
+.pantheon-agent-output-toolbar button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.pantheon-agent-output-toolbar button:disabled {
+  opacity: .42;
+  cursor: default;
 }
 
 .pantheon-agent-output {
@@ -11171,13 +11231,13 @@ body:has(.pantheon-canvas.is-composing) {
   background: transparent;
 }
 
-.pantheon-agent-detail-tabs button[aria-pressed="true"] {
+.pantheon-agent-detail-tabs button[aria-selected="true"] {
   border-bottom-color: var(--agent-accent, var(--pantheon-accent));
   background: transparent;
   box-shadow: none;
 }
 
-.pantheon-agent-detail-tabs button span {
+.pantheon-agent-detail-tabs .pantheon-agent-tab-count {
   background: transparent;
 }
 
@@ -12619,5 +12679,777 @@ body:has(.pantheon-canvas.is-composing) {
 
   .pantheon-seat-context-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── 轨迹合并刀（2026-11-18）：席位轨迹 tab=办公轨迹 tab 同形态——记录行
+   折叠单行摘要，点击展开检查器（陈词 markdown / 工具入参·回执·错误）。
+   原独立「工具调用」tab 退役，时间线左轨（mark+连线）保留。 ── */
+.pantheon-seat-trajectory-fold {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  grid-template-columns: 25px minmax(0, 1fr) 14px;
+  gap: 10px;
+}
+
+.pantheon-seat-trajectory-fold > summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: start;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pantheon-seat-trajectory-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pantheon-seat-trajectory-fold > summary > .pantheon-seat-trajectory-mark {
+  grid-column: 1;
+}
+
+.pantheon-seat-trajectory-fold > summary > .pantheon-seat-trajectory-copy {
+  grid-column: 2;
+}
+
+.pantheon-seat-trajectory-chevron {
+  grid-column: 3;
+  margin-top: 6px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+  transition: transform .18s ease;
+}
+
+.pantheon-seat-trajectory-fold[open] .pantheon-seat-trajectory-chevron {
+  transform: rotate(180deg);
+}
+
+.pantheon-seat-trajectory-detail {
+  grid-column: 2;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pantheon-accent) 4%, var(--pantheon-surface));
+}
+
+.pantheon-seat-trajectory-detail > small {
+  display: block;
+  margin: 6px 0 3px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+
+.pantheon-seat-trajectory-detail > small:first-child {
+  margin-top: 0;
+}
+
+.pantheon-seat-trajectory-detail code,
+.pantheon-seat-trajectory-detail pre {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 7px;
+  background: var(--pantheon-surface);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── 上下文标签页（2026-11-18）：账本条移入 + 会话信息卡 + 逐轮账目表。 ── */
+.pantheon-seat-context-view {
+  display: flex;
+  margin-top: 8px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pantheon-seat-context-view .pantheon-seat-context-ledger {
+  margin: 0;
+}
+
+.pantheon-seat-context-card,
+.pantheon-seat-context-rounds {
+  padding: 11px 12px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 12px;
+  background: var(--pantheon-surface);
+}
+
+.pantheon-seat-context-card > header,
+.pantheon-seat-context-rounds > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pantheon-seat-context-card dl {
+  display: grid;
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 14px;
+}
+
+.pantheon-seat-context-card dl > div {
+  min-width: 0;
+}
+
+.pantheon-seat-context-card dt {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-seat-context-card dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-seat-context-empty {
+  margin: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+}
+
+.pantheon-seat-context-empty-state {
+  display: flex;
+  min-height: 78px;
+  padding: 13px 14px;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px dashed color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 24%, var(--pantheon-line));
+  border-radius: 12px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--pantheon-surface) 46%, transparent);
+}
+
+.pantheon-seat-context-empty-state > .anticon {
+  margin-top: 1px;
+  color: var(--agent-accent, var(--pantheon-accent));
+  font-size: 14px;
+}
+
+.pantheon-seat-context-empty-state > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pantheon-seat-context-empty-state strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pantheon-seat-context-empty-state small {
+  max-width: 54ch;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.pantheon-seat-context-rounds table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.pantheon-seat-context-rounds th,
+.pantheon-seat-context-rounds td {
+  padding: 5px 6px;
+  border-top: 1px solid var(--pantheon-line);
+  text-align: right;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  white-space: nowrap;
+}
+
+.pantheon-seat-context-rounds thead th,
+.pantheon-seat-context-rounds td:first-child,
+.pantheon-seat-context-rounds td:nth-child(2) {
+  text-align: left;
+}
+
+.pantheon-seat-context-rounds thead th {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+  letter-spacing: .05em;
+}
+
+.pantheon-seat-context-rounds tbody tr:hover td {
+  background: color-mix(in srgb, var(--pantheon-accent) 5%, transparent);
+}
+
+.pantheon-seat-context-rounds tfoot th,
+.pantheon-seat-context-rounds tfoot td {
+  border-top: 1px solid color-mix(in srgb, var(--pantheon-accent) 30%, var(--pantheon-line));
+  color: var(--md-sys-color-text, var(--color-text));
+  font-weight: 650;
+}
+
+/* ── 2026-11-18 独立 Agent 窗口收口：轨迹采用办公轨迹页的统计条/轮次概览/
+   搜索/分组折叠；上下文补齐构成、趋势和会话信息。 ── */
+.pantheon-seat-trajectory::before {
+  display: none;
+}
+
+.pantheon-seat-trajectory-toolbar {
+  display: flex;
+  min-width: 0;
+  margin-bottom: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.pantheon-seat-trajectory-facts,
+.pantheon-seat-trajectory-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px 10px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-seat-trajectory-facts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.pantheon-seat-trajectory-facts span + span::before {
+  margin-right: 5px;
+  color: var(--pantheon-line-strong);
+  content: "·";
+}
+
+.pantheon-seat-trajectory-facts b {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-weight: 650;
+}
+
+.pantheon-seat-trajectory-facts .is-error,
+.pantheon-seat-trajectory-facts .is-error b {
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+.pantheon-seat-trajectory-actions button,
+.pantheon-seat-trajectory-turn {
+  padding: 0;
+  border: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pantheon-seat-trajectory-actions button {
+  min-height: 28px;
+}
+
+.pantheon-seat-trajectory-actions button:hover {
+  color: var(--md-sys-color-text, var(--color-text));
+}
+
+.pantheon-seat-trajectory-actions button:focus-visible,
+.pantheon-seat-trajectory-turn:focus-visible,
+.pantheon-seat-trajectory-bars button:focus-visible,
+.pantheon-seat-trajectory-fold > summary:focus-visible,
+.pantheon-seat-trajectory-search:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.pantheon-seat-trajectory-search {
+  display: flex;
+  min-height: 34px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 9px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--pantheon-surface) 72%, transparent);
+}
+
+.pantheon-seat-trajectory-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--md-sys-color-text, var(--color-text));
+  background: transparent;
+  font-size: 9.5px;
+}
+
+.pantheon-seat-trajectory-search input::placeholder {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+}
+
+.pantheon-seat-trajectory-overview {
+  padding: 10px 12px 9px;
+  margin-bottom: 8px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--pantheon-surface) 74%, transparent);
+}
+
+.pantheon-seat-trajectory-overview > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pantheon-seat-trajectory-overview > header strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pantheon-seat-trajectory-overview > header small,
+.pantheon-seat-trajectory-legend {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-seat-trajectory-bars {
+  display: flex;
+  min-height: 46px;
+  margin-top: 7px;
+  padding: 2px 4px 0;
+  align-items: flex-end;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.pantheon-seat-trajectory-bars button {
+  display: flex;
+  width: 24px;
+  height: 46px;
+  flex: 0 0 24px;
+  padding: 0 2px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  background: transparent;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  cursor: pointer;
+}
+
+.pantheon-seat-trajectory-bars button:hover {
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 6%, transparent);
+}
+
+.pantheon-seat-trajectory-bars button i {
+  display: block;
+  width: 8px;
+  min-height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--md-sys-color-text-secondary, var(--color-text-secondary)) 42%, transparent);
+}
+
+.pantheon-seat-trajectory-bars button.has-tool i {
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 76%, transparent);
+}
+
+.pantheon-seat-trajectory-bars button.has-failure i {
+  background: var(--md-sys-color-destructive, var(--color-destructive));
+}
+
+.pantheon-seat-trajectory-legend {
+  display: block;
+  margin-top: 4px;
+}
+
+.pantheon-seat-trajectory-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pantheon-seat-trajectory-group {
+  overflow: hidden;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--pantheon-surface) 48%, transparent);
+  scroll-margin-top: 8px;
+}
+
+.pantheon-seat-trajectory-turn {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid transparent;
+  text-align: left;
+}
+
+.pantheon-seat-trajectory-turn:hover {
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 5%, transparent);
+}
+
+.pantheon-seat-trajectory-turn .anticon {
+  font-size: 8px;
+  transition: transform 160ms ease;
+}
+
+.pantheon-seat-trajectory-turn .anticon.is-open {
+  transform: rotate(180deg);
+}
+
+.pantheon-seat-trajectory-turn strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 9.5px;
+  font-weight: 660;
+}
+
+.pantheon-seat-trajectory-turn small {
+  margin-left: auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 8px;
+}
+
+.pantheon-seat-trajectory-list {
+  padding: 0 10px;
+  margin: 0;
+  border-top: 1px solid var(--pantheon-line);
+  list-style: none;
+}
+
+.pantheon-seat-trajectory-item {
+  padding: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--pantheon-line);
+}
+
+.pantheon-seat-trajectory-item:first-child {
+  border-top: 0;
+}
+
+.pantheon-seat-trajectory-fold > summary {
+  min-height: 35px;
+  padding: 5px 0;
+  grid-template-columns: 25px minmax(0, 1fr) 14px;
+  align-items: center;
+}
+
+.pantheon-seat-trajectory-fold {
+  display: block;
+}
+
+.pantheon-seat-trajectory-mark {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+
+.pantheon-seat-trajectory-recordline {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.pantheon-seat-trajectory-recordline strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 9.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pantheon-seat-trajectory-recordline time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-seat-trajectory-kind {
+  display: inline-flex;
+  min-height: 17px;
+  padding: 1px 5px;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 82%, var(--md-sys-color-text, var(--color-text)));
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 10%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+
+.pantheon-seat-trajectory-kind.is-tool {
+  color: var(--md-sys-color-info, var(--color-info));
+  background: color-mix(in srgb, var(--md-sys-color-info, var(--color-info)) 10%, transparent);
+}
+
+.pantheon-seat-trajectory-kind.is-failed {
+  color: var(--md-sys-color-destructive, var(--color-destructive));
+  background: color-mix(in srgb, var(--md-sys-color-destructive, var(--color-destructive)) 11%, transparent);
+}
+
+.pantheon-seat-trajectory-chevron {
+  margin-top: 0;
+}
+
+.pantheon-seat-trajectory-detail {
+  margin: 0 0 7px 35px;
+  padding: 9px 10px;
+  grid-column: auto;
+}
+
+.pantheon-seat-trajectory-detail-meta {
+  display: flex;
+  margin-bottom: 7px;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+}
+
+.pantheon-seat-trajectory-detail-meta span + span::before {
+  margin-right: 6px;
+  color: var(--pantheon-line-strong);
+  content: "/";
+}
+
+.pantheon-seat-trajectory-relation {
+  padding: 6px 8px;
+  margin: 0 0 7px;
+  border-left: 2px solid color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 46%, var(--pantheon-line));
+  background: color-mix(in srgb, var(--pantheon-surface) 58%, transparent);
+}
+
+.pantheon-seat-trajectory-no-detail {
+  margin: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+}
+
+.pantheon-seat-context-hero,
+.pantheon-seat-context-trend {
+  padding: 11px 12px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 12px;
+  background: var(--pantheon-surface);
+}
+
+.pantheon-seat-context-hero > header,
+.pantheon-seat-context-trend > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pantheon-seat-context-hero > header small,
+.pantheon-seat-context-trend > header small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-seat-context-hero-value {
+  display: flex;
+  margin-top: 7px;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pantheon-seat-context-hero-value strong {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-seat-context-hero-value span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+}
+
+.pantheon-seat-context-hero-value em {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 78%, var(--md-sys-color-text, var(--color-text)));
+  font-size: 9px;
+  font-style: normal;
+}
+
+.pantheon-seat-context-composition {
+  display: flex;
+  height: 9px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-sys-color-text-secondary, var(--color-text-secondary)) 11%, transparent);
+}
+
+.pantheon-seat-context-composition > i,
+.pantheon-seat-context-composition-legend i,
+.pantheon-seat-context-trend-track i {
+  display: block;
+  height: 100%;
+}
+
+.pantheon-seat-context-composition .is-input,
+.pantheon-seat-context-composition-legend .is-input,
+.pantheon-seat-context-trend-track .is-input {
+  background: var(--agent-accent, var(--pantheon-accent));
+}
+
+.pantheon-seat-context-composition .is-cache,
+.pantheon-seat-context-composition-legend .is-cache,
+.pantheon-seat-context-trend-track .is-cache {
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 48%, var(--md-sys-color-info, var(--color-info)));
+}
+
+.pantheon-seat-context-composition .is-output,
+.pantheon-seat-context-composition-legend .is-output,
+.pantheon-seat-context-trend-track .is-output {
+  background: color-mix(in srgb, var(--md-sys-color-success, var(--color-success)) 76%, var(--pantheon-line));
+}
+
+.pantheon-seat-context-composition-legend {
+  display: flex;
+  margin-top: 7px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-seat-context-composition-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pantheon-seat-context-composition-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+
+.pantheon-seat-context-composition-legend b {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 600;
+}
+
+.pantheon-seat-context-trend ol {
+  display: flex;
+  padding: 0;
+  margin: 8px 0 0;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+}
+
+.pantheon-seat-context-trend li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 46px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8px;
+}
+
+.pantheon-seat-context-trend li > span:first-child,
+.pantheon-seat-context-trend li code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.pantheon-seat-context-trend li code {
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  text-align: right;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantheon-seat-context-trend-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-sys-color-text-secondary, var(--color-text-secondary)) 9%, transparent);
+}
+
+.pantheon-seat-context-trend-track > span {
+  display: flex;
+  height: 100%;
+  min-width: 2px;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.pantheon-seat-context-trend-track i {
+  flex-basis: 0;
+}
+
+.pantheon-seat-context-table-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 620px) {
+  .pantheon-agent-output-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pantheon-seat-trajectory-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pantheon-seat-trajectory-facts {
+    flex-wrap: wrap;
+  }
+
+  .pantheon-seat-context-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-seat-trajectory-turn .anticon,
+  .pantheon-seat-trajectory-chevron {
+    transition: none;
   }
 }

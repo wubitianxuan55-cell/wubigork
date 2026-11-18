@@ -4,6 +4,8 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import {
+  buildDelegationNameMap,
+  delegationNameForOrdinal,
   fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity,
   hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, matchRunningCandidates,
   matchRunningRun, resolveTaskRef, setTaskCardActivityProvider,
@@ -31,6 +33,27 @@ const wrap = (node: React.ReactNode) => {
 
 const taskTool = (patch: Partial<ToolItem> = {}): ToolItem =>
   ({ kind: "tool", id: "t1", name: "task", args: JSON.stringify({ description: "梳理配置项", prompt: "把配置梳理成表" }), readOnly: false, status: "running", ...patch }) as ToolItem;
+
+describe("委派显示名", () => {
+  it("按调用顺序生成 A/B/C 名称，超过 26 个继续 A2/B2", () => {
+    expect(delegationNameForOrdinal(0)).toBe("子代理 A");
+    expect(delegationNameForOrdinal(2)).toBe("子代理 C");
+    expect(delegationNameForOrdinal(26)).toBe("子代理 A2");
+  });
+
+  it("只命名顶层 task/run_skill，parentId 子调用不单独占名", () => {
+    const names = buildDelegationNameMap([
+      { id: "t1", name: "task" },
+      { id: "nested", name: "task", parentId: "t1" },
+      { id: "b1", name: "bash" },
+      { id: "s1", name: "run_skill" },
+    ]);
+    expect(names.get("t1")).toBe("子代理 A");
+    expect(names.has("nested")).toBe(false);
+    expect(names.has("b1")).toBe(false);
+    expect(names.get("s1")).toBe("子代理 B");
+  });
+});
 
 describe("resolveTaskRef / taskResultSummary 纯函数", () => {
   it("args.continue_from 优先（续跑子代理运行前即可得 ref）", () => {
@@ -81,6 +104,12 @@ describe("setTaskCardActivityProvider 注入点契约", () => {
 });
 
 describe("ToolCard task 卡 live 行", () => {
+  it("委派卡显示稳定名称，不再所有卡都只标「子代理」", () => {
+    const view = render(wrap(<ToolCard item={taskTool()} delegationName="子代理 C" />));
+    expect(view.container.textContent).toContain("子代理 C");
+    expect(view.container.textContent).toContain("梳理配置项");
+  });
+
   it("未注入 provider（null）：live 行显示诚实等待态（2026-11-18 简化版契约）", () => {
     const view = render(wrap(<ToolCard item={taskTool()} />));
     // 简化版：live 行（summary 槽）常驻，无活动数据时只显等待态、不显预览文本

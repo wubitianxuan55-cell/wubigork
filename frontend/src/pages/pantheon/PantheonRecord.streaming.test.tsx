@@ -578,7 +578,11 @@ describe('PantheonRecord streaming', () => {
         ],
       },
     })
-    expect(screen.queryByTestId(/pantheon-shared-fold-/)).toBeNull()
+    // 2026-11-18 默认折叠刀：已完成观点一律默认折叠（预览+展开全文），
+    // 无论长短——流式中的发言仍保持全文不折叠。
+    const shortFold = screen.getByTestId(/pantheon-shared-fold-/)
+    expect(shortFold.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('.pantheon-shared-preview')).toBeTruthy()
   })
 
   it('运行超过两分钟没有新活动时提示等待时长并可重试当前席位', () => {
@@ -729,6 +733,8 @@ describe('PantheonRecord streaming', () => {
     expect(detail.textContent).not.toContain('**重点**')
 
     const stream = screen.getByTestId('pantheon-stream')
+    // 2026-11-18 默认折叠刀：共享观点先折叠为预览，展开后按 Markdown 渲染。
+    fireEvent.click(within(stream).getByTestId('pantheon-shared-fold-shared-output-contribution_markdown'))
     expect(stream.querySelector('.pantheon-shared-markdown h2')?.textContent).toBe('关键判断')
   })
 
@@ -787,7 +793,7 @@ describe('PantheonRecord streaming', () => {
     expect(onAddUserNote).toHaveBeenCalledTimes(1) // 空草稿不重复发送
   })
 
-  it('详情面板每轮输出默认只展开最新一轮，其余折叠（2026-11-03 反馈）', () => {
+  it('详情面板已完成观点默认全部折叠，并记住用户手动开合', () => {
     renderRecord({
       sessionOverrides: { status: 'completed' },
       contributions: [
@@ -816,11 +822,56 @@ describe('PantheonRecord streaming', () => {
     const first = screen.getByTestId('pantheon-agent-output-contribution_grok_r1')
     const second = screen.getByTestId('pantheon-agent-output-contribution_grok_r2')
     expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(false)
-    expect(second.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
+    expect(second.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(false)
+    const toolbar = screen.getByTestId('pantheon-agent-output-toolbar')
+    expect(toolbar.textContent).toContain('已展开 0/2')
 
     // 手动展开第一轮：状态被记录，重渲染不弹回
     fireEvent.click(first.querySelector('.pantheon-agent-output-summary')!)
     expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
+    expect(toolbar.textContent).toContain('已展开 1/2')
+
+    fireEvent.click(screen.getByTestId('pantheon-agent-output-expand-all'))
+    expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
+    expect(second.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(true)
+
+    fireEvent.click(screen.getByTestId('pantheon-agent-output-collapse-all'))
+    expect(first.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(false)
+    expect(second.querySelector('.pantheon-agent-output-fold')?.hasAttribute('open')).toBe(false)
+  })
+
+  it('详情标签页使用标准 tab 语义，并支持左右方向键切换', () => {
+    renderRecord({
+      contributions: [{
+        id: 'contribution_tabs',
+        phase: 'opening',
+        round: 1,
+        agentId: 'grok',
+        agentName: 'Grok',
+        content: '标签页键盘导航。',
+        createdAt: now,
+      }],
+    })
+
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const tablist = screen.getByRole('tablist', { name: 'Grok 详情分类' })
+    const outputTab = screen.getByRole('tab', { name: /观点/ })
+    const trajectoryTab = screen.getByRole('tab', { name: /轨迹/ })
+    const contextTab = screen.getByRole('tab', { name: /上下文/ })
+    expect(outputTab.getAttribute('aria-selected')).toBe('true')
+    expect(outputTab.getAttribute('tabindex')).toBe('0')
+    expect(trajectoryTab.getAttribute('tabindex')).toBe('-1')
+
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' })
+    expect(trajectoryTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tabpanel', { name: /轨迹/ })).toBeTruthy()
+
+    fireEvent.keyDown(tablist, { key: 'End' })
+    expect(contextTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tabpanel', { name: /上下文/ })).toBeTruthy()
+
+    fireEvent.keyDown(tablist, { key: 'Home' })
+    expect(outputTab.getAttribute('aria-selected')).toBe('true')
   })
 
   it('纯工具期（running 无正文直播流）显示工作卡，标注正在调用工具（2026-11-03 反馈）', () => {
@@ -1094,6 +1145,8 @@ describe('PantheonRecord seat context and trajectory', () => {
 
     fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
     const detail = screen.getByTestId('pantheon-agent-detail')
+    // 2026-11-18 上下文 tab 刀：账本+会话信息+逐轮账目都在「上下文」标签页。
+    fireEvent.click(within(detail).getByTestId('pantheon-agent-tab-context'))
     const context = within(detail).getByTestId('pantheon-agent-context')
     expect(context.textContent).toContain('输入 Tokens')
     expect(context.textContent).toContain('40.0k')
@@ -1105,6 +1158,110 @@ describe('PantheonRecord seat context and trajectory', () => {
     expect(trajectory.textContent).toContain('质疑')
     expect(trajectory.textContent).toContain('指向 Codex')
     expect(trajectory.textContent).toContain('read_file')
+  })
+
+  it('轨迹 tab 工具行可展开看入参回执，上下文 tab 出逐轮账目表与合计', () => {
+    renderRecord({
+      contributions: [{
+        id: 'contribution_ctxround',
+        phase: 'discussion',
+        round: 2,
+        agentId: 'grok',
+        agentName: 'Grok',
+        content: '逐轮账目检验观点。',
+        createdAt: now,
+        usage: {
+          engineSessionId: 'session-ctx-round',
+          steps: 3,
+          inputTokens: 2100,
+          cacheReadTokens: 900,
+          outputTokens: 260,
+        },
+        durationMs: 41000,
+      } as PantheonContribution],
+      sessionOverrides: {
+        participants: [
+          { agentId: 'grok', name: 'Grok', role: 'participant', status: 'finished' },
+        ],
+        events: [{
+          seq: 1, sessionId: 'pan_test', phase: 'discussion', round: 2, agentId: 'grok',
+          kind: 'tool_result', text: 'Grok 已完成 read_file', toolId: 'tool_round_1',
+          toolName: 'read_file', toolStatus: 'completed', toolInput: '{"path":"docs/a.md"}',
+          toolOutput: '文档全文在此', at: now - 1000,
+        }],
+      },
+    })
+
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const detail = screen.getByTestId('pantheon-agent-detail')
+
+    // 轨迹 tab：工具并入时间线，折叠单行摘要+展开检查器（办公轨迹 tab 形态）。
+    fireEvent.click(within(detail).getByTestId('pantheon-agent-tab-trajectory'))
+    const trajectory = within(detail).getByTestId('pantheon-agent-trajectory')
+    expect(trajectory.textContent).toContain('轮次概览')
+    expect(within(detail).getByLabelText('搜索席位轨迹')).toBeTruthy()
+    const toolRow = within(detail).getByTestId('pantheon-trajectory-tool-tool_round_1')
+    expect(toolRow.textContent).toContain('read_file')
+    expect(toolRow.querySelector('.pantheon-seat-trajectory-fold')).toBeTruthy()
+    const toolSummary = toolRow.querySelector('summary')
+    expect(toolSummary).toBeTruthy()
+    if (toolSummary) fireEvent.click(toolSummary)
+    expect(toolRow.textContent).toContain('文档全文在此')
+    expect(toolRow.textContent).toContain('docs/a.md')
+
+    fireEvent.click(within(detail).getByText('收起全部'))
+    expect(within(detail).queryByTestId('pantheon-trajectory-tool-tool_round_1')).toBeNull()
+    fireEvent.click(within(detail).getByText('展开全部'))
+    expect(within(detail).getByTestId('pantheon-trajectory-tool-tool_round_1')).toBeTruthy()
+
+    // 上下文 tab：逐轮账目表 + 合计行（本轮 usage 在场）。
+    fireEvent.click(within(detail).getByTestId('pantheon-agent-tab-context'))
+    const ctxPanel = within(detail).getByTestId('pantheon-agent-context')
+    expect(ctxPanel.textContent).toContain('逐轮账目')
+    expect(ctxPanel.textContent).toContain('第 2 轮')
+    expect(ctxPanel.textContent).toContain('合计')
+    expect(ctxPanel.textContent).toContain('2.1k')
+  })
+
+  it('失败工具在轨迹折叠态直接写明失败与错误摘要，不只依赖颜色', () => {
+    renderRecord({
+      contributions: [{
+        id: 'contribution_tool_failed',
+        phase: 'discussion',
+        round: 2,
+        agentId: 'grok',
+        agentName: 'Grok',
+        content: '失败工具可读性检验。',
+        createdAt: now,
+      }],
+      sessionOverrides: {
+        participants: [
+          { agentId: 'grok', name: 'Grok', role: 'participant', status: 'finished' },
+        ],
+        events: [{
+          seq: 1,
+          sessionId: 'pan_test',
+          phase: 'discussion',
+          round: 2,
+          agentId: 'grok',
+          kind: 'tool_result',
+          toolId: 'tool_failed_1',
+          toolName: 'read_file',
+          toolStatus: 'failed',
+          toolInput: '{"path":"secret.md"}',
+          error: '权限不足，文件不可读',
+          at: now,
+        }],
+      },
+    })
+
+    fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
+    const detail = screen.getByTestId('pantheon-agent-detail')
+    fireEvent.click(within(detail).getByTestId('pantheon-agent-tab-trajectory'))
+    const toolRow = within(detail).getByTestId('pantheon-trajectory-tool-tool_failed_1')
+    expect(toolRow.textContent).toContain('TOOL · 失败')
+    expect(toolRow.textContent).toContain('失败：权限不足，文件不可读')
+    expect(within(detail).getByTestId('pantheon-agent-trajectory').textContent).toContain('1 失败')
   })
 
   it('没有 usage 时上下文账本保持空白语义，不显示伪造的 0%', () => {
@@ -1122,8 +1279,12 @@ describe('PantheonRecord seat context and trajectory', () => {
     expect(screen.getByTestId('pantheon-topology-context-grok').textContent).toContain('上下文未上报')
 
     fireEvent.click(screen.getByTestId('pantheon-topology-node-grok'))
-    const context = screen.getByTestId('pantheon-agent-context')
+    const detail2 = screen.getByTestId('pantheon-agent-detail')
+    fireEvent.click(within(detail2).getByTestId('pantheon-agent-tab-context'))
+    const context = within(detail2).getByTestId('pantheon-agent-context')
     expect(context.textContent).toContain('引擎未上报')
+    expect(context.textContent).toContain('本席尚未上报 usage')
+    expect(context.textContent).not.toContain('逐轮账目')
     expect(context.textContent).not.toContain('0%')
   })
 })

@@ -61,6 +61,10 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     // 工具调用行与 tool 结果消息都可能含 web_fetch → 用 getAllByText
     expect(screen.getAllByText(/web_fetch/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/三家竞品表格交互结论/).length).toBeGreaterThan(0);
+    // 与父代理共用同一套对话层级：阅读列、用户气泡、过程卡。
+    expect(document.querySelector(".transcript .v3-reading")).toBeTruthy();
+    expect(document.querySelector(".office-user-message")).toBeTruthy();
+    expect(document.querySelector(".office-process-card")).toBeTruthy();
     // 头部：状态徽标 + 消息计数 + 刷新按钮
     expect(screen.getByText("进行中")).toBeTruthy();
     expect(screen.getByText("6 条")).toBeTruthy();

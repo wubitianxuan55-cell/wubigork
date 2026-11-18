@@ -89,6 +89,28 @@ describe("buildSegments", () => {
     expect(segs[1].processItems).toHaveLength(0);
     expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["a1"]);
   });
+
+  it("过滤后台 task/bash 启动回执，保留其他 notice", () => {
+    const items: Item[] = [
+      u("u1", "并行处理"),
+      { kind: "notice", id: "n-task", level: "info", text: "background task started: task-1" },
+      { kind: "notice", id: "n-bash", level: "info", text: "background bash started: bash-1 (log)" },
+      { kind: "notice", id: "n-custom", level: "info", text: "自定义提示" },
+      { kind: "assistant", id: "sub-reply", text: "子代理回执", reasoning: "", streaming: false, subagentRef: "sa_1" },
+      a("parent-reply", "父代理汇总", ""),
+      tool("t1", "read_file"),
+    ];
+    const segs = buildSegments(items, true);
+    const visibleIds = segs.flatMap((seg) => [
+      ...seg.processItems.map((item) => item.id),
+      ...seg.outsideItems.map((item) => item.id),
+    ]);
+    expect(visibleIds).not.toContain("n-task");
+    expect(visibleIds).not.toContain("n-bash");
+    expect(visibleIds).toContain("n-custom");
+    expect(visibleIds).not.toContain("sub-reply");
+    expect(visibleIds).toContain("parent-reply");
+  });
 });
 
 // ── v4.308 尾随工具段合并 ────────────────────────────────────────────────

@@ -44,6 +44,8 @@ export interface ToolCardProps {
   item: ToolItem;
   subcalls?: ToolItem[];
   isToolVisible?: (name: string) => boolean;
+  /** 同一会话内稳定的委派显示名（子代理 A/B/C…），由对话投影统一分配。 */
+  delegationName?: string;
 }
 
 function pretty(json: string): string {
@@ -94,11 +96,13 @@ function DelegationCard({
   nested,
   openTarget,
   ambiguous,
+  delegationName,
 }: {
   item: ToolItem;
   nested: ToolItem[];
   openTarget: string;
   ambiguous: boolean;
+  delegationName?: string;
 }) {
   const t = useT();
   const compact = useCompact();
@@ -159,6 +163,7 @@ function DelegationCard({
     ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length })
     : "";
   const waitingText = t("tool.delegateWaiting");
+  const displayName = delegationName || t("tool.delegateKind");
   const stateText = running
     ? activity?.lastText || waitingText
     : result || item.error || statusWord;
@@ -176,6 +181,7 @@ function DelegationCard({
       data-status={displayStatus}
       data-compact={compact ? "true" : "false"}
       data-clickable={clickable ? "true" : "false"}
+      data-delegation-name={delegationName}
     >
       <button
         type="button"
@@ -186,8 +192,8 @@ function DelegationCard({
         aria-label={ambiguous
           ? t("taskpick.cardAria")
           : clickable
-            ? t("tool.delegateOpenAria", { task: subject })
-            : `${t("tool.delegateKind")} · ${subject}`}
+            ? `${displayName} · ${t("tool.delegateOpenAria", { task: subject })}`
+            : `${displayName} · ${subject}`}
         disabled={!clickable}
       >
         <span className="office-delegate-card__lamp" data-status={displayStatus} title={statusWord} aria-hidden>
@@ -196,7 +202,7 @@ function DelegationCard({
         <span className="office-delegate-card__copy">
           <span className="office-delegate-card__title-line">
             <span className="office-delegate-card__kind">
-              {t("tool.delegateKind")}
+              {displayName}
             </span>
             <span className="office-delegate-card__title" title={engine ? `${subject} · ${engine}` : subject}>
               {subject || item.name}
@@ -245,7 +251,7 @@ function DelegationCard({
   );
 }
 
-export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible }: ToolCardProps) {
+export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible, delegationName }: ToolCardProps) {
   const t = useT();
   const compact = useCompact();
   const diffs = useMemo(() => diffsFor(item.name, item.args), [item.name, item.args]);
@@ -341,7 +347,15 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible }
   // 2026-11-18 重设计：委派家族走专属一等卡形态（交互语义不变，见
   // DelegationCard 头注释）；其余工具维持通用工具行。
   if (isSubagentCard) {
-    return <DelegationCard item={item} nested={nested} openTarget={openTarget} ambiguous={ambiguous} />;
+    return (
+      <DelegationCard
+        item={item}
+        nested={nested}
+        openTarget={openTarget}
+        ambiguous={ambiguous}
+        delegationName={delegationName}
+      />
+    );
   }
 
   // 工具行先回答“运行了什么、结果是什么”，再允许下钻输出。整行使用真实

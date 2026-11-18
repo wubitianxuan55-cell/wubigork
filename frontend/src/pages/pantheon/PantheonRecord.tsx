@@ -17,6 +17,7 @@ import {
   PictureOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
+  SearchOutlined,
   StopOutlined,
   StepForwardOutlined,
   TeamOutlined,
@@ -108,21 +109,15 @@ const ISSUE_ORIGIN_LABEL: Record<string, string> = {
   user: '用户插话',
 }
 
-const TOOL_TRACE_LIMIT = 60
 const PUBLIC_EVENT_LIMIT = 10
 const AGENT_SLOW_AFTER_MS = 60_000
 const STALL_AFTER_MS = 120_000
 // 共享流折叠：超过此长度的已完成发言默认收起只留预览；流式中的发言永不折叠。
-const FOLDABLE_CHARS = 160
-const FOLD_DEFAULT_CHARS = 420
 const FOLD_PREVIEW_CHARS = 72
 const WINDOW_PREVIEW_CHARS = 150
 
 type RecordView = 'topology' | 'shared' | 'agents' | 'ledger'
-
-function charCount(text: string): number {
-  return Array.from(text).length
-}
+type AgentDetailTab = 'output' | 'trajectory' | 'context'
 
 function previewText(text: string): string {
   const flat = text.replace(/\s+/g, ' ').trim()
@@ -236,6 +231,7 @@ interface ToolTraceView {
   output: string
   error: string
   at: number
+  round?: number
 }
 
 interface SharedEntry {
@@ -926,8 +922,9 @@ const SharedAgentBody: React.FC<{
     <MarkdownContent source={entry.text} className="md-content pantheon-shared-markdown" />
   )
   if (entry.streaming) return markdown
-  if (charCount(entry.text) <= FOLDABLE_CHARS) return markdown
-  const folded = foldedMap[entry.id] ?? charCount(entry.text) > FOLD_DEFAULT_CHARS
+  // 2026-11-18 用户拍板：共享窗口观点默认折叠（预览行+展开全文），方便
+  // 纵览全场；用户手动开合记录在 map，重渲染不弹回。流式中恒展开。
+  const folded = foldedMap[entry.id] ?? true
   if (folded) {
     return (
       <>
@@ -1227,60 +1224,6 @@ const ConclusionPanel: React.FC<{
   )
 }
 
-const ToolTraceList: React.FC<{ traces: ToolTraceView[] }> = ({ traces }) => {
-  if (traces.length === 0) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该 Agent 尚未调用工具" />
-  }
-  const visibleTraces = traces.slice(-TOOL_TRACE_LIMIT)
-  const foldedCount = traces.length - visibleTraces.length
-  return (
-    <section className="pantheon-agent-trace-list" aria-label="Agent 工具轨迹">
-      {foldedCount > 0 && (
-        <p className="pantheon-agent-trace-fold">更早 {foldedCount} 条工具轨迹已折叠</p>
-      )}
-      {visibleTraces.map((trace) => (
-        <details
-          key={trace.id}
-          className={`pantheon-agent-trace is-${trace.status}`}
-          data-testid={`pantheon-tool-${trace.id}`}
-          open={trace.status === 'started' ? true : undefined}
-        >
-          <summary>
-            <span className="pantheon-tool-trace-state" aria-hidden>
-              {trace.status === 'started' ? <ClockCircleOutlined /> : null}
-              {trace.status === 'completed' ? <CheckCircleFilled /> : null}
-              {trace.status === 'failed' ? <CloseCircleFilled /> : null}
-            </span>
-            <span>
-              <strong>{trace.toolName || '工具'}</strong>
-              <small>
-                {trace.status === 'started' ? '执行中' : trace.status === 'failed' ? '失败' : '已完成'}
-              </small>
-            </span>
-            <time>{formatClock(trace.at)}</time>
-            <DownOutlined className="pantheon-agent-trace-chevron" />
-          </summary>
-          <div className="pantheon-agent-trace-detail">
-            {trace.input && (
-              <>
-                <small>输入</small>
-                <code>{trace.input}</code>
-              </>
-            )}
-            {trace.error && <p className="pantheon-tool-trace-error">{trace.error}</p>}
-            {trace.output && (
-              <>
-                <small>结果</small>
-                <pre>{trace.output}</pre>
-              </>
-            )}
-          </div>
-        </details>
-      ))}
-    </section>
-  )
-}
-
 const SeatContextLedger: React.FC<{
   context: SeatContextSummary
   load: number
@@ -1288,7 +1231,7 @@ const SeatContextLedger: React.FC<{
   <section
     className="pantheon-seat-context-ledger"
     aria-label="席位上下文账本"
-    data-testid="pantheon-agent-context"
+    data-testid="pantheon-agent-ledger"
   >
     <header>
       <span>上下文账本</span>
@@ -1313,7 +1256,132 @@ const SeatContextLedger: React.FC<{
   </section>
 )
 
+interface SeatTrajectoryGroup {
+  key: string
+  round?: number
+  items: SeatTrajectoryItem[]
+  toolCount: number
+}
+
+function trajectorySearchText(item: SeatTrajectoryItem): string {
+  if (item.kind === 'statement') {
+    return [item.text, item.act, item.phase, item.relation].filter(Boolean).join('\n').toLowerCase()
+  }
+  return [item.text, item.input, item.output, item.error, item.status]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase()
+}
+
+function trajectoryStatusLabel(status: string): string {
+  switch (status) {
+    case 'started':
+    case 'running':
+      return '执行中'
+    case 'completed':
+      return '已完成'
+    case 'failed':
+    case 'error':
+      return '失败'
+    default:
+      return status || '未回报'
+  }
+}
+
+function trajectoryToolFailed(item: SeatTrajectoryItem): boolean {
+  return item.kind === 'tool' && (item.status === 'failed' || item.status === 'error')
+}
+
+function trajectoryDurationLabel(items: readonly SeatTrajectoryItem[]): string {
+  // 直播流用 Number.MAX_SAFE_INTEGER 占位「尚未定稿」；它不是真实时间，
+  // 不能把整场时长算成几百万年。
+  const times = items
+    .map((item) => item.at)
+    .filter((at) => Number.isFinite(at) && at > 0 && at < 8.64e15)
+  if (times.length < 2) return '—'
+  const durationMs = Math.max(...times) - Math.min(...times)
+  if (durationMs < 1000) return `${durationMs}ms`
+  if (durationMs < 60_000) return `${(durationMs / 1000).toFixed(1)}s`
+  return `${Math.floor(durationMs / 60_000)}m ${Math.round((durationMs % 60_000) / 1000)}s`
+}
+
 const SeatTrajectoryView: React.FC<{ items: SeatTrajectoryItem[] }> = ({ items }) => {
+  const [query, setQuery] = useState('')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
+  const [openItems, setOpenItems] = useState<Set<string>>(() => new Set())
+  const groups = useMemo(() => {
+    const ordered: SeatTrajectoryGroup[] = []
+    const byKey = new Map<string, SeatTrajectoryGroup>()
+    for (const item of items) {
+      const key = item.round ? `round-${item.round}` : 'loose'
+      let group = byKey.get(key)
+      if (!group) {
+        group = {
+          key,
+          ...(item.round ? { round: item.round } : {}),
+          items: [],
+          toolCount: 0,
+        }
+        byKey.set(key, group)
+        ordered.push(group)
+      }
+      group.items.push(item)
+      if (item.kind === 'tool') group.toolCount += 1
+    }
+    return ordered
+  }, [items])
+
+  const normalizedQuery = query.trim().toLowerCase()
+  const filteredGroups = useMemo(() => {
+    if (!normalizedQuery) return groups
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => trajectorySearchText(item).includes(normalizedQuery)),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [groups, normalizedQuery])
+
+  const toolCount = items.filter((item) => item.kind === 'tool').length
+  const failedToolCount = items.filter(trajectoryToolFailed).length
+  const roundCount = groups.filter((group) => group.round).length
+  const hasLooseGroup = groups.some((group) => !group.round)
+  const collapseAll = () => {
+    setCollapsedGroups(new Set(groups.map((group) => group.key)))
+    setOpenItems(new Set())
+  }
+  const expandAll = () => setCollapsedGroups(new Set())
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  const jumpToGroup = (key: string) => {
+    setCollapsedGroups((current) => {
+      if (!current.has(key)) return current
+      const next = new Set(current)
+      next.delete(key)
+      return next
+    })
+    requestAnimationFrame(() => {
+      document.getElementById(`pantheon-seat-trajectory-${key}`)?.scrollIntoView({
+        block: 'start',
+        behavior: 'smooth',
+      })
+    })
+  }
+  const setItemOpen = (id: string, open: boolean) => {
+    setOpenItems((current) => {
+      const next = new Set(current)
+      if (open) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
   if (items.length === 0) {
     return (
       <div className="pantheon-agent-detail-empty">
@@ -1323,49 +1391,370 @@ const SeatTrajectoryView: React.FC<{ items: SeatTrajectoryItem[] }> = ({ items }
       </div>
     )
   }
+
+  const maxGroupItems = Math.max(1, ...groups.map((group) => group.items.length))
   return (
-    <ol
+    <section
       className="pantheon-seat-trajectory"
       aria-label="席位逐轮轨迹"
       data-testid="pantheon-agent-trajectory"
     >
-      {items.map((item) => {
-        const act = item.kind === 'statement' && item.act
-          ? DISCUSSION_ACT_META[item.act]
-          : undefined
-        return (
-          <li
-            key={item.id}
-            className={`pantheon-seat-trajectory-item is-${item.kind}${item.kind === 'statement' && item.act ? ` is-${item.act}` : ''}`}
-            data-testid={`pantheon-trajectory-${item.id}`}
-          >
-            <span className="pantheon-seat-trajectory-mark" aria-hidden>
-              {item.kind === 'tool' ? <ToolOutlined /> : <CommentOutlined />}
-            </span>
-            <div className="pantheon-seat-trajectory-copy">
-              <header>
-                <strong>
-                  {item.kind === 'tool'
-                    ? '工具调用'
-                    : act?.label || (item.round ? `第 ${item.round} 轮` : '席位陈词')}
-                </strong>
-                <small>
-                  {item.kind === 'statement' && item.round ? `第 ${item.round} 轮 · ` : ''}
-                  {item.kind === 'tool' ? item.status : PHASE_LABEL[item.phase] || item.phase}
-                  {item.at > 0 ? ` · ${formatClock(item.at)}` : ''}
-                </small>
-              </header>
-              <p>{previewText(item.text)}</p>
-              {item.kind === 'statement' && item.relation ? (
-                <span className="pantheon-seat-trajectory-relation">{item.relation}</span>
-              ) : null}
-            </div>
-          </li>
-        )
-      })}
-    </ol>
+      <div className="pantheon-seat-trajectory-toolbar">
+        <div className="pantheon-seat-trajectory-facts" aria-label="轨迹统计">
+          <span><ClockCircleOutlined /> {trajectoryDurationLabel(items)}</span>
+          <span><b>{roundCount}</b> 轮</span>
+          <span><b>{items.length}</b> 条记录</span>
+          <span><b>{toolCount}</b> 次工具</span>
+          {failedToolCount > 0 && <span className="is-error"><b>{failedToolCount}</b> 失败</span>}
+        </div>
+        <div className="pantheon-seat-trajectory-actions">
+          <button type="button" onClick={collapseAll}>收起全部</button>
+          <span aria-hidden>/</span>
+          <button type="button" onClick={expandAll}>展开全部</button>
+        </div>
+      </div>
+
+      <label className="pantheon-seat-trajectory-search">
+        <SearchOutlined aria-hidden />
+        <input
+          type="search"
+          aria-label="搜索席位轨迹"
+          placeholder="搜索观点、工具、参数或回执"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
+
+      <section className="pantheon-seat-trajectory-overview" aria-label="轨迹轮次概览">
+        <header>
+          <strong>轮次概览</strong>
+          <small>{roundCount} 轮{hasLooseGroup ? ' + 轮外' : ''} · 点击柱定位</small>
+        </header>
+        <div className="pantheon-seat-trajectory-bars">
+          {groups.map((group) => {
+            const height = 28 + Math.round((group.items.length / maxGroupItems) * 72)
+            const hasFailure = group.items.some(trajectoryToolFailed)
+            const label = group.round ? `第 ${group.round} 轮` : '轮外'
+            return (
+              <button
+                key={group.key}
+                type="button"
+                className={`${group.toolCount > 0 ? 'has-tool' : ''}${hasFailure ? ' has-failure' : ''}`}
+                title={`${label} · ${group.items.length} 条记录 · ${group.toolCount} 次工具${hasFailure ? ' · 有失败' : ''}`}
+                aria-label={`定位${label}，${group.items.length} 条记录，${group.toolCount} 次工具`}
+                onClick={() => jumpToGroup(group.key)}
+              >
+                <i style={{ height: `${height}%` }} />
+                <span>{group.round ?? '—'}</span>
+              </button>
+            )
+          })}
+        </div>
+        <small className="pantheon-seat-trajectory-legend">
+          柱高 = 记录密度 · 高亮 = 含工具 · 红色 = 有失败
+        </small>
+      </section>
+
+      {filteredGroups.length === 0 ? (
+        <div className="pantheon-agent-detail-empty">
+          <SearchOutlined />
+          <strong>没有匹配的轨迹记录</strong>
+          <span>换个关键词搜索观点、工具名、参数或回执。</span>
+        </div>
+      ) : (
+        <div className="pantheon-seat-trajectory-groups">
+          {filteredGroups.map((group) => {
+            const open = normalizedQuery.length > 0 || !collapsedGroups.has(group.key)
+            const label = group.round ? `第 ${group.round} 轮` : '轮外记录'
+            return (
+              <section
+                key={group.key}
+                id={`pantheon-seat-trajectory-${group.key}`}
+                className="pantheon-seat-trajectory-group"
+              >
+                <button
+                  type="button"
+                  className="pantheon-seat-trajectory-turn"
+                  aria-expanded={open}
+                  onClick={() => toggleGroup(group.key)}
+                >
+                  <DownOutlined className={open ? 'is-open' : ''} aria-hidden />
+                  <strong>{label}</strong>
+                  <small>{group.items.length} 条记录 · {group.toolCount} 次工具</small>
+                </button>
+                {open && (
+                  <ol className="pantheon-seat-trajectory-list">
+                    {group.items.map((item) => {
+                      const act = item.kind === 'statement' && item.act
+                        ? DISCUSSION_ACT_META[item.act]
+                        : undefined
+                      const toolFailed = trajectoryToolFailed(item)
+                      const badgeLabel = item.kind === 'tool'
+                        ? `${toolFailed ? 'TOOL · 失败' : item.status === 'started' || item.status === 'running' ? 'TOOL · 执行中' : 'TOOL'}`
+                        : act?.label || '观点'
+                      const summary = item.kind === 'tool' && item.error
+                        ? `${item.text} → 失败：${previewText(item.error)}`
+                        : item.kind === 'tool' && item.output
+                          ? `${item.text} → ${previewText(item.output)}`
+                          : previewText(item.text)
+                      const expanded = openItems.has(item.id)
+                      return (
+                        <li
+                          key={item.id}
+                          className={`pantheon-seat-trajectory-item is-${item.kind}${item.kind === 'statement' && item.act ? ` is-${item.act}` : ''}`}
+                          data-testid={`pantheon-trajectory-${item.id}`}
+                        >
+                          <details
+                            className="pantheon-seat-trajectory-fold"
+                            open={expanded}
+                            onToggle={(event) => setItemOpen(item.id, event.currentTarget.open)}
+                          >
+                            <summary>
+                              <span className="pantheon-seat-trajectory-mark" aria-hidden>
+                                {item.kind === 'tool' ? <ToolOutlined /> : <CommentOutlined />}
+                              </span>
+                              <span className="pantheon-seat-trajectory-copy">
+                                <span className="pantheon-seat-trajectory-recordline">
+                                  <span className={`pantheon-seat-trajectory-kind is-${item.kind}${toolFailed ? ' is-failed' : ''}`}>
+                                    {badgeLabel}
+                                  </span>
+                                  <strong>{summary}</strong>
+                                  <time>{formatClock(item.at) || '—'}</time>
+                                </span>
+                              </span>
+                              <DownOutlined className="pantheon-seat-trajectory-chevron" aria-hidden />
+                            </summary>
+                            <div className="pantheon-seat-trajectory-detail">
+                              <div className="pantheon-seat-trajectory-detail-meta">
+                                <span>{item.round ? `第 ${item.round} 轮` : '轮外'}</span>
+                                <span>
+                                  {item.kind === 'tool'
+                                    ? trajectoryStatusLabel(item.status)
+                                    : PHASE_LABEL[item.phase] || item.phase}
+                                </span>
+                                <span>{item.at ? formatClock(item.at) : '时间未记录'}</span>
+                              </div>
+                              {item.kind === 'statement' ? (
+                                <>
+                                  {item.relation && (
+                                    <span className="pantheon-seat-trajectory-relation">{item.relation}</span>
+                                  )}
+                                  <MarkdownContent source={item.text} className="md-content" />
+                                </>
+                              ) : (
+                                <>
+                                  {item.input && (
+                                    <>
+                                      <small>输入</small>
+                                      <code>{item.input}</code>
+                                    </>
+                                  )}
+                                  {item.error && <p className="pantheon-tool-trace-error">{item.error}</p>}
+                                  {item.output && (
+                                    <>
+                                      <small>结果</small>
+                                      <pre>{item.output}</pre>
+                                    </>
+                                  )}
+                                  {!item.input && !item.output && !item.error && (
+                                    <p className="pantheon-seat-trajectory-no-detail">
+                                      该工具未上报可展开的入参或回执。
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </details>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
+
+// SeatContextView：上下文标签页（2026-11-18，对标办公板块上下文 tab 的形态
+// ——会话信息/总账/逐轮账目，数据源=席位 outputs 的 usage）。账本条（Ledger）
+// 从头部移入此处：速览与明细同源单面，避免两处重复。
+const SeatContextView: React.FC<{
+  context: SeatContextSummary
+  load: number
+  outputs: DiscussionOutput[]
+}> = ({ context, load, outputs }) => {
+  const promptTotal = context.cacheReadTokens + context.inputTokens
+  const tokenTotal = promptTotal + context.outputTokens
+  const reportedOutputs = outputs.filter((output) => output.usage)
+  const maxRoundTokens = Math.max(
+    1,
+    ...reportedOutputs.map((output) => (
+      (output.usage?.inputTokens ?? 0)
+      + (output.usage?.cacheReadTokens ?? 0)
+      + (output.usage?.outputTokens ?? 0)
+    )),
+  )
+  const roundCount = new Set(outputs.map((output) => output.round).filter(Boolean)).size
+  const cachePercent = tokenTotal > 0 ? (context.cacheReadTokens * 100) / tokenTotal : 0
+  const inputPercent = tokenTotal > 0 ? (context.inputTokens * 100) / tokenTotal : 0
+  const outputPercent = tokenTotal > 0 ? (context.outputTokens * 100) / tokenTotal : 0
+  return (
+    <section
+      className="pantheon-seat-context-view"
+      data-testid="pantheon-agent-context"
+      aria-label="席位上下文构成"
+    >
+      <SeatContextLedger context={context} load={load} />
+      <div className="pantheon-seat-context-hero">
+        <header>
+          <span className="pantheon-eyebrow">Prompt 构成</span>
+          <small>{context.hasReportedUsage ? `${reportedOutputs.length} 次上报` : '引擎未上报'}</small>
+        </header>
+        <div className="pantheon-seat-context-hero-value">
+          <strong>{context.hasReportedUsage ? compactTokenCount(tokenTotal) : '—'}</strong>
+          <span>tokens 合计</span>
+          <em>{context.cacheRate === null ? '缓存率 —' : `缓存率 ${context.cacheRate}%`}</em>
+        </div>
+        <div
+          className="pantheon-seat-context-composition"
+          role="img"
+          aria-label={context.hasReportedUsage
+            ? `新增输入 ${compactTokenCount(context.inputTokens)}，缓存读取 ${compactTokenCount(context.cacheReadTokens)}，输出 ${compactTokenCount(context.outputTokens)}`
+            : '本席未上报上下文用量'}
+        >
+          {tokenTotal > 0 ? (
+            <>
+              <i className="is-input" style={{ width: `${inputPercent}%` }} />
+              <i className="is-cache" style={{ width: `${cachePercent}%` }} />
+              <i className="is-output" style={{ width: `${outputPercent}%` }} />
+            </>
+          ) : null}
+        </div>
+        <div className="pantheon-seat-context-composition-legend">
+          <span><i className="is-input" /> 新增输入 <b>{context.hasReportedUsage ? compactTokenCount(context.inputTokens) : '—'}</b></span>
+          <span><i className="is-cache" /> 缓存读取 <b>{context.hasReportedUsage ? compactTokenCount(context.cacheReadTokens) : '—'}</b></span>
+          <span><i className="is-output" /> 输出 <b>{context.hasReportedUsage ? compactTokenCount(context.outputTokens) : '—'}</b></span>
+        </div>
+      </div>
+      <div className="pantheon-seat-context-card">
+        <header>
+          <span className="pantheon-eyebrow">会话信息</span>
+          <small>{roundCount} 轮 · {outputs.length} 次发言</small>
+        </header>
+        <dl>
+          <div>
+            <dt>引擎会话</dt>
+            <dd title={context.engineSessionId || undefined}>
+              {context.engineSessionId || '未上报'}
+            </dd>
+          </div>
+          <div>
+            <dt>累计用时</dt>
+            <dd>{(context.durationMs / 1000).toFixed(1)}s</dd>
+          </div>
+          <div>
+            <dt>缓存命中</dt>
+            <dd>
+              {context.cacheRate === null
+                ? '—'
+                : `${context.cacheRate}%（${compactTokenCount(context.cacheReadTokens)} / ${compactTokenCount(promptTotal)} prompt）`}
+            </dd>
+          </div>
+        </dl>
+      </div>
+      {reportedOutputs.length === 0 ? (
+        <div className="pantheon-seat-context-empty-state">
+          <InfoCircleOutlined aria-hidden />
+          <span>
+            <strong>本席尚未上报 usage</strong>
+            <small>上下文构成、缓存率和逐轮趋势都依赖引擎自报；这里不做估算，也不显示伪造的占用率。</small>
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="pantheon-seat-context-trend">
+            <header>
+              <span className="pantheon-eyebrow">上下文趋势</span>
+              <small>{reportedOutputs.length} 次上报 · 柱长按峰值归一</small>
+            </header>
+          <ol>
+            {reportedOutputs.map((output) => {
+              const input = output.usage?.inputTokens ?? 0
+              const cache = output.usage?.cacheReadTokens ?? 0
+              const result = output.usage?.outputTokens ?? 0
+              const total = input + cache + result
+              const width = total > 0 ? (total / maxRoundTokens) * 100 : 0
+              return (
+                <li key={output.id}>
+                  <span>{output.round ? `第 ${output.round} 轮` : '轮外'}</span>
+                  <span className="pantheon-seat-context-trend-track">
+                    <span style={{ width: `${width}%` }}>
+                      {input > 0 && <i className="is-input" style={{ flex: input }} />}
+                      {cache > 0 && <i className="is-cache" style={{ flex: cache }} />}
+                      {result > 0 && <i className="is-output" style={{ flex: result }} />}
+                    </span>
+                  </span>
+                  <code>{compactTokenCount(total)}</code>
+                </li>
+              )
+            })}
+          </ol>
+          </div>
+          <div className="pantheon-seat-context-rounds">
+            <header>
+              <span className="pantheon-eyebrow">逐轮账目</span>
+              <small>{outputs.length} 次发言</small>
+            </header>
+          <div className="pantheon-seat-context-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>轮次</th>
+                  <th>阶段</th>
+                  <th>新增 in</th>
+                  <th>缓存读</th>
+                  <th>输出</th>
+                  <th>步数</th>
+                  <th>用时</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outputs.map((output) => (
+                  <tr key={output.id} data-testid={`pantheon-seat-context-round-${output.id}`}>
+                    <td>{output.round ? `第 ${output.round} 轮` : '—'}</td>
+                    <td>{PHASE_LABEL[output.phase] || output.phase}</td>
+                    <td>{output.usage?.inputTokens != null ? compactTokenCount(output.usage.inputTokens) : '—'}</td>
+                    <td>{output.usage?.cacheReadTokens != null ? compactTokenCount(output.usage.cacheReadTokens) : '—'}</td>
+                    <td>{output.usage?.outputTokens != null ? compactTokenCount(output.usage.outputTokens) : '—'}</td>
+                    <td>{output.usage?.steps || '—'}</td>
+                    <td>{output.durationMs ? `${(output.durationMs / 1000).toFixed(1)}s` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>合计</th>
+                  <th aria-hidden />
+                  <th>{compactTokenCount(context.inputTokens)}</th>
+                  <th>{compactTokenCount(context.cacheReadTokens)}</th>
+                  <th>{compactTokenCount(context.outputTokens)}</th>
+                  <th>{context.steps || '—'}</th>
+                  <th>{(context.durationMs / 1000).toFixed(1)}s</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 
 const AgentDetailPanel: React.FC<{
   participant?: PantheonParticipant
@@ -1382,8 +1771,8 @@ const AgentDetailPanel: React.FC<{
   phase: string
   startedAt?: number
   now: number
-  tab: 'output' | 'trace' | 'trajectory'
-  onTab: (tab: 'output' | 'trace' | 'trajectory') => void
+  tab: AgentDetailTab
+  onTab: (tab: AgentDetailTab) => void
   onClose: () => void
   panelRef: React.RefObject<HTMLElement>
 }> = ({
@@ -1416,9 +1805,30 @@ const AgentDetailPanel: React.FC<{
     () => buildSeatTrajectory(outputs, traces, participantNameById, issues, allOutputs),
     [allOutputs, issues, outputs, participantNameById, traces],
   )
-  // 每轮输出折叠（2026-11-03 用户反馈「不要全部摊开」）：默认只展开最新一轮，
-  // 流式中的恒展开；用户手动开合记录在 map，重渲染不弹回。
+  // 已完成观点默认全部折叠；流式中恒展开。用户手动开合记录在 map，
+  // 重渲染不弹回，顶部批量控制只改已完成观点。
   const [openOutputs, setOpenOutputs] = useState<Record<string, boolean>>({})
+  const completedOutputs = outputs.filter((output) => !output.streaming)
+  const expandedOutputCount = completedOutputs.filter((output) => openOutputs[output.id]).length
+  const setAllOutputs = (open: boolean) => {
+    setOpenOutputs(Object.fromEntries(completedOutputs.map((output) => [output.id, open])))
+  }
+  const onDetailTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const tabs = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    )
+    if (tabs.length === 0) return
+    const current = tabs.findIndex((node) => node.getAttribute('aria-selected') === 'true')
+    let next = current
+    if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = tabs.length - 1
+    else if (current < 0) next = 0
+    else next = (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    tabs[next]?.focus()
+    tabs[next]?.click()
+  }
 
   return (
     <aside
@@ -1471,136 +1881,185 @@ const AgentDetailPanel: React.FC<{
         <span><strong>{PHASE_LABEL[phase] || phase}</strong> 当前阶段</span>
       </div>
 
-      <SeatContextLedger context={context} load={contextLoad} />
-
-      <div className="pantheon-agent-detail-tabs" role="group" aria-label={`${agentName} 详情分类`}>
+      <div
+        className="pantheon-agent-detail-tabs"
+        role="tablist"
+        aria-label={`${agentName} 详情分类`}
+        onKeyDown={onDetailTabsKeyDown}
+      >
         <button
           type="button"
-          aria-pressed={tab === 'output'}
+          role="tab"
+          id="pantheon-agent-tab-output"
+          aria-controls="pantheon-agent-panel-output"
+          aria-selected={tab === 'output'}
+          tabIndex={tab === 'output' ? 0 : -1}
           data-testid="pantheon-agent-tab-output"
           onClick={() => onTab('output')}
         >
+          <CommentOutlined aria-hidden />
           观点
-          <span>{outputs.length}</span>
+          <span className="pantheon-agent-tab-count">{outputs.length}</span>
         </button>
         <button
           type="button"
-          aria-pressed={tab === 'trace'}
-          data-testid="pantheon-agent-tab-trace"
-          onClick={() => onTab('trace')}
-        >
-          工具调用
-          <span>{traces.length}</span>
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === 'trajectory'}
+          role="tab"
+          id="pantheon-agent-tab-trajectory"
+          aria-controls="pantheon-agent-panel-trajectory"
+          aria-selected={tab === 'trajectory'}
+          tabIndex={tab === 'trajectory' ? 0 : -1}
           data-testid="pantheon-agent-tab-trajectory"
           onClick={() => onTab('trajectory')}
         >
+          <NodeIndexOutlined aria-hidden />
           轨迹
-          <span>{trajectory.length}</span>
+          <span className="pantheon-agent-tab-count">{trajectory.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="pantheon-agent-tab-context"
+          aria-controls="pantheon-agent-panel-context"
+          aria-selected={tab === 'context'}
+          tabIndex={tab === 'context' ? 0 : -1}
+          data-testid="pantheon-agent-tab-context"
+          onClick={() => onTab('context')}
+        >
+          <InfoCircleOutlined aria-hidden />
+          上下文
+          <span className="pantheon-agent-tab-count">{outputs.length}</span>
         </button>
       </div>
 
       <div
+        id={`pantheon-agent-panel-${tab}`}
         className="pantheon-agent-detail-body"
-        role="region"
-        aria-label={`${agentName} ${tab === 'output' ? '观点' : tab === 'trace' ? '工具调用' : '轨迹'}`}
+        role="tabpanel"
+        aria-labelledby={`pantheon-agent-tab-${tab}`}
+        tabIndex={0}
         aria-live={running && tab === 'output' ? 'polite' : undefined}
       >
         {tab === 'output' ? (
           outputs.length > 0 ? (
-            <div className="pantheon-agent-output-list">
-              {outputs.map((output, index) => {
-                const manuallyToggled = openOutputs[output.id]
-                const expanded = output.streaming
-                  ? true
-                  : manuallyToggled !== undefined
-                    ? manuallyToggled
-                    : index === outputs.length - 1
-                return (
-                  <article
-                    key={output.id}
-                    className={`pantheon-agent-output${output.streaming ? ' is-streaming' : ''}`}
-                    data-testid={`pantheon-agent-output-${output.id}`}
+            <div className="pantheon-agent-output-view">
+              <div className="pantheon-agent-output-toolbar" data-testid="pantheon-agent-output-toolbar">
+                <span>
+                  {outputs.length} 条观点 · 已展开 {expandedOutputCount}/{completedOutputs.length}
+                </span>
+                <div>
+                  <button
+                    type="button"
+                    data-testid="pantheon-agent-output-collapse-all"
+                    disabled={completedOutputs.length === 0 || expandedOutputCount === 0}
+                    onClick={() => setAllOutputs(false)}
                   >
-                    <details
-                      className="pantheon-agent-output-fold"
-                      open={expanded}
-                      onToggle={(event) => {
-                        if (output.streaming) return
-                        const next = (event.currentTarget as HTMLDetailsElement).open
-                        setOpenOutputs((current) => ({ ...current, [output.id]: next }))
-                      }}
+                    收起全部
+                  </button>
+                  <span aria-hidden>/</span>
+                  <button
+                    type="button"
+                    data-testid="pantheon-agent-output-expand-all"
+                    disabled={completedOutputs.length === 0 || expandedOutputCount === completedOutputs.length}
+                    onClick={() => setAllOutputs(true)}
+                  >
+                    展开全部
+                  </button>
+                </div>
+              </div>
+              <div className="pantheon-agent-output-list">
+                {outputs.map((output) => {
+                  const manuallyToggled = openOutputs[output.id]
+                  const expanded = output.streaming
+                    ? true
+                    : manuallyToggled === true
+                  return (
+                    <article
+                      key={output.id}
+                      className={`pantheon-agent-output${output.streaming ? ' is-streaming' : ''}`}
+                      data-testid={`pantheon-agent-output-${output.id}`}
                     >
-                      <summary className="pantheon-agent-output-summary">
-                        <header>
-                          <span>
-                            {output.round ? `第 ${output.round} 轮 · ` : ''}
-                            {PHASE_LABEL[output.phase] || output.phase}
-                            {output.discussionAct && (
-                              <>
-                                {' · '}
-                                <DiscussionActBadge
-                                  act={output.discussionAct}
-                                  testId={`pantheon-agent-discussion-act-${output.id}`}
-                                />
-                              </>
-                            )}
-                          </span>
-                          <small title={[seatUsageTitle(output.usage), seatToolEvidenceTitle(output.toolEvidence), seatPromptTitle(output.promptSha256, output.promptRunes)].filter(Boolean).join('\n')}>
-                            {output.streaming
-                              ? '正在输出'
-                              : [
-                                  output.durationMs ? `${(output.durationMs / 1000).toFixed(1)}s` : '独立观点',
-                                  seatUsageLabel(output.usage),
-                                  seatToolEvidenceLabel(output.toolEvidence),
-                                  seatMismatchLabel(output.toolEvidence, output.text),
-                                ].filter(Boolean).join(' · ')}
-                          </small>
-                        </header>
-                        <span className="pantheon-agent-output-chevron" aria-hidden />
-                      </summary>
-                      <div className={`pantheon-agent-output-markdown${output.streaming ? ' is-live' : ''}`}>
-                        <MarkdownContent source={output.text} className="md-content" />
-                        <DiscussionActDetail
-                          targetContributionId={output.targetContributionId}
-                          targetIssueId={output.targetIssueId}
-                          challengedClaim={output.challengedClaim}
-                          responseVerdict={output.responseVerdict}
-                        />
-                        {output.chairDecision && output.chairDecision.status !== 'continue' && (
-                          <p className="pantheon-chair-decision">
-                            主席终局：{chairDecisionLabel(output.chairDecision.status)}
-                            {output.chairDecision.detail ? `——${output.chairDecision.detail}` : ''}
-                          </p>
-                        )}
-                        {output.chairAssignments && output.chairAssignments.length > 0 && (
-                          <div className="pantheon-chair-block">
-                            <strong>主席派工</strong>
-                            <ul>
-                              {output.chairAssignments.map((assignment, index) => {
-                                const receipt = output.receipts?.find((item) => item.agentId === assignment.agentId)
-                                return (
-                                  <li key={`${assignment.agentId}-${index}`}>
-                                    <code>{receipt?.agentName || assignment.agentId}</code>
-                                    <span>{assignment.instruction}</span>
-                                    {receipt && <em title={receipt.detail}>{receiptStatusLabel(receipt.status)}</em>}
-                                  </li>
-                                )
-                              })}
-                            </ul>
-                          </div>
-                        )}
-                        {output.streaming && (
-                          <span className="pantheon-agent-output-caret pantheon-stream-caret" aria-label="正在输出" />
-                        )}
-                      </div>
-                    </details>
-                  </article>
-                )
-              })}
+                      <details
+                        className="pantheon-agent-output-fold"
+                        open={expanded}
+                      >
+                        <summary
+                          className="pantheon-agent-output-summary"
+                          onClick={(event) => {
+                            if (output.streaming) return
+                            event.preventDefault()
+                            setOpenOutputs((current) => ({
+                              ...current,
+                              [output.id]: !expanded,
+                            }))
+                          }}
+                        >
+                          <header>
+                            <span>
+                              {output.round ? `第 ${output.round} 轮 · ` : ''}
+                              {PHASE_LABEL[output.phase] || output.phase}
+                              {output.discussionAct && (
+                                <>
+                                  {' · '}
+                                  <DiscussionActBadge
+                                    act={output.discussionAct}
+                                    testId={`pantheon-agent-discussion-act-${output.id}`}
+                                  />
+                                </>
+                              )}
+                            </span>
+                            <small title={[seatUsageTitle(output.usage), seatToolEvidenceTitle(output.toolEvidence), seatPromptTitle(output.promptSha256, output.promptRunes)].filter(Boolean).join('\n')}>
+                              {output.streaming
+                                ? '正在输出'
+                                : [
+                                    output.durationMs ? `${(output.durationMs / 1000).toFixed(1)}s` : '独立观点',
+                                    seatUsageLabel(output.usage),
+                                    seatToolEvidenceLabel(output.toolEvidence),
+                                    seatMismatchLabel(output.toolEvidence, output.text),
+                                  ].filter(Boolean).join(' · ')}
+                            </small>
+                          </header>
+                          <span className="pantheon-agent-output-chevron" aria-hidden />
+                        </summary>
+                        <div className={`pantheon-agent-output-markdown${output.streaming ? ' is-live' : ''}`}>
+                          <MarkdownContent source={output.text} className="md-content" />
+                          <DiscussionActDetail
+                            targetContributionId={output.targetContributionId}
+                            targetIssueId={output.targetIssueId}
+                            challengedClaim={output.challengedClaim}
+                            responseVerdict={output.responseVerdict}
+                          />
+                          {output.chairDecision && output.chairDecision.status !== 'continue' && (
+                            <p className="pantheon-chair-decision">
+                              主席终局：{chairDecisionLabel(output.chairDecision.status)}
+                              {output.chairDecision.detail ? `——${output.chairDecision.detail}` : ''}
+                            </p>
+                          )}
+                          {output.chairAssignments && output.chairAssignments.length > 0 && (
+                            <div className="pantheon-chair-block">
+                              <strong>主席派工</strong>
+                              <ul>
+                                {output.chairAssignments.map((assignment, index) => {
+                                  const receipt = output.receipts?.find((item) => item.agentId === assignment.agentId)
+                                  return (
+                                    <li key={`${assignment.agentId}-${index}`}>
+                                      <code>{receipt?.agentName || assignment.agentId}</code>
+                                      <span>{assignment.instruction}</span>
+                                      {receipt && <em title={receipt.detail}>{receiptStatusLabel(receipt.status)}</em>}
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            </div>
+                          )}
+                          {output.streaming && (
+                            <span className="pantheon-agent-output-caret pantheon-stream-caret" aria-label="正在输出" />
+                          )}
+                        </div>
+                      </details>
+                    </article>
+                  )
+                })}
+              </div>
             </div>
           ) : (
             <div className="pantheon-agent-detail-empty">
@@ -1609,10 +2068,10 @@ const AgentDetailPanel: React.FC<{
               <span>推理过程、工具请求与结果只在这里展示。</span>
             </div>
           )
-        ) : tab === 'trace' ? (
-          <ToolTraceList traces={traces} />
-        ) : (
+        ) : tab === 'trajectory' ? (
           <SeatTrajectoryView items={trajectory} />
+        ) : (
+          <SeatContextView context={context} load={contextLoad} outputs={outputs} />
         )}
       </div>
 
@@ -1763,7 +2222,7 @@ export const PantheonRecord: React.FC<Props> = ({
   const [noteDraft, setNoteDraft] = useState('')
   const [noteSending, setNoteSending] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState('')
-  const [detailTab, setDetailTab] = useState<'output' | 'trace' | 'trajectory'>('output')
+  const [detailTab, setDetailTab] = useState<AgentDetailTab>('output')
   const [metaOpen, setMetaOpen] = useState(false)
   const [conclusionPreviewOpen, setConclusionPreviewOpen] = useState(false)
   const [recordView, setRecordView] = useState<RecordView>(() =>
@@ -1920,6 +2379,7 @@ export const PantheonRecord: React.FC<Props> = ({
           output: event.toolOutput || '',
           error: event.error || '',
           at: event.at,
+          ...(event.round ? { round: event.round } : {}),
           namedDone: false,
         }
         cards.push(card)
@@ -1935,6 +2395,7 @@ export const PantheonRecord: React.FC<Props> = ({
       card.output = card.output || event.toolOutput || ''
       card.error = card.error || event.error || ''
       card.at = event.at
+      card.round = event.round ?? card.round
     }
     return cards.slice(-80)
   }, [participants, session.events])

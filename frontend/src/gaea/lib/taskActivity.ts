@@ -35,6 +35,31 @@ export function isDelegationTool(name: string): boolean {
   return DELEGATION_TOOL_NAMES.has(name);
 }
 
+/** 同一会话内的委派显示名：A、B、C…；超过 26 个后使用 A2/B2…。 */
+export function delegationNameForOrdinal(index: number): string {
+  const safe = Math.max(0, Math.floor(index));
+  const letter = String.fromCharCode(65 + (safe % 26));
+  const cycle = Math.floor(safe / 26);
+  return `子代理 ${letter}${cycle > 0 ? cycle + 1 : ""}`;
+}
+
+/**
+ * 按工具调用顺序生成稳定的委派显示名。只命名顶层 task/run_skill；
+ * parentId 子调用仍归属父委派卡，不单独占用名称。
+ */
+export function buildDelegationNameMap(
+  items: readonly { id: string; name?: string; parentId?: string }[],
+): Map<string, string> {
+  const names = new Map<string, string>();
+  let ordinal = 0;
+  for (const item of items) {
+    if (!item.name || item.parentId || !isDelegationTool(item.name)) continue;
+    names.set(item.id, delegationNameForOrdinal(ordinal));
+    ordinal++;
+  }
+  return names;
+}
+
 /** task 卡 live 预览数据（字段全部可选，缺省按现状渲染）。 */
 export interface TaskCardActivity {
   /** 子代理最后一段 assistant 文本（Codex 式活动预览，单行截断）。 */

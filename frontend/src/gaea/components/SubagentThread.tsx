@@ -1,15 +1,57 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Ban, Loader2, Rollback, Save, X } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import { useToast } from "./Toast";
 import type { SubagentTranscriptView } from "../lib/types";
-import { buildRenderItems, toolStatus, unwrapEnvelopeText } from "../lib/subagentRender";
-import { AssistantMessage } from "./Message";
+import {
+  buildRenderItems,
+  toolStatus,
+  unwrapEnvelopeText,
+  type SubagentRenderItem,
+} from "../lib/subagentRender";
+import { AssistantMessage, UserMessage } from "./Message";
 import { ToolCard } from "./ToolCard";
 import type { Item } from "../lib/store";
+import { buildSegments, ProcessCard } from "./Transcript";
+import { buildDelegationNameMap } from "../lib/taskActivity";
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
+const EMPTY_SUBCALLS = new Map<string, ToolItem[]>();
+const EMPTY_THREAD_MESSAGES: SubagentTranscriptView["messages"] = [];
+
+function buildConversationItems(
+  items: SubagentRenderItem[],
+  running: boolean,
+  isMtTab: boolean,
+): Item[] {
+  return items.map((item, index) => {
+    if (item.type === "assistant") {
+      return {
+        kind: "assistant",
+        id: item.id,
+        text: isMtTab ? unwrapEnvelopeText(item.text) : item.text,
+        reasoning: item.reasoning ?? "",
+        streaming: item.live,
+      };
+    }
+    if (item.type === "tool") {
+      return {
+        kind: "tool",
+        id: item.id,
+        name: item.name,
+        args: item.args,
+        readOnly: false,
+        status: toolStatus(item, running),
+        output: item.output,
+      };
+    }
+    if (item.type === "user") {
+      return { kind: "user", id: `sub-user-${index}`, text: item.text };
+    }
+    return { kind: "notice", id: `sub-system-${index}`, level: "info", text: item.text };
+  });
+}
 
 // 耗时格式化（与 AgentTree nodeDuration/SubagentsPanel 同语义：秒/分/小时三档）。
 function fmtDur(ms: number, t: Translator): string {
@@ -282,11 +324,24 @@ export function SubagentThread({
   }, [transcript?.messages.length, running, transcript, streamBuf]);
 
   const meta = statusMeta(status, t);
-  const messages = transcript?.messages ?? [];
-  // Codex 式渲染项：tool 调用/结果按 toolCallId 配对成 ToolCard，正文/思考
-  // 走主对话 AssistantMessage（同款 Markdown/思考折叠/复制）。
+  const messages = transcript?.messages ?? EMPTY_THREAD_MESSAGES;
+  // 与父代理共用同一投影：配对工具项后先转成标准 Item[]，再走父对话的
+  // buildSegments。这样正文/思考/过程卡/工具分组/用户气泡的层级与父代理一致，
+  // 不再在子代理里另造一套扁平消息流。
   const isMtTab = target.startsWith("mt_");
-  const renderItems = buildRenderItems(messages, running);
+  const renderItems = useMemo(() => buildRenderItems(messages, running), [messages, running]);
+  const conversationItems = useMemo(
+    () => buildConversationItems(renderItems, running, isMtTab),
+    [isMtTab, renderItems, running],
+  );
+  const segments = useMemo(
+    () => buildSegments(conversationItems, running),
+    [conversationItems, running],
+  );
+  const delegationNames = useMemo(
+    () => buildDelegationNameMap(conversationItems),
+    [conversationItems],
+  );
   const toast = useToast();
 
   // ── 保存为新会话（v4.66，dsh Side Chat promote 语义）──────────
@@ -531,7 +586,7 @@ export function SubagentThread({
       </div>
 
       {/* 消息流 */}
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+      <div ref={scrollRef} onScroll={onScroll} className="transcript v3-zone flex-1 min-h-0" data-testid="agent-thread-scroll">
         {loading && messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             <Loader2 size={14} className="animate-spin" />
@@ -549,69 +604,82 @@ export function SubagentThread({
               {t("subagent.retry")}
             </button>
           </div>
-        ) : messages.length === 0 && !streamBuf ? (
+        ) : messages.length === 0 && !streamBuf && !followUpPending ? (
           <div className="flex h-full items-center justify-center text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             {t("subagent.noMessages")}
           </div>
         ) : (
-          <div className="flex flex-col gap-1.5">
-            {renderItems.map((it, idx) => {
-              if (it.type === "assistant") {
-                // mt_ 历史转录里可能存着 JSON 信封串（写端修复前的旧数据）：
-                // 渲染前同语义递归拆包，救回被转义墙埋掉的正文。
-                const text = isMtTab ? unwrapEnvelopeText(it.text) : it.text;
-                const asItem = { kind: "assistant" as const, id: it.id, text, reasoning: it.reasoning ?? "", streaming: it.live };
-                // Codex 式有界：mt_ 标签页（文档级输出）或超长文本默认限高滚动
-                if (!it.live && (isMtTab || it.text.length > OUTPUT_BOUND_CHARS)) {
-                  return <BoundedAssistantMessage key={it.id} item={asItem} chars={text.length} />;
-                }
-                return (
-                  <AssistantMessage
-                    key={it.id}
-                    item={asItem}
-                    deliverTail={false}
-                  />
+          <div className="w-full px-4 py-4">
+            <div className="v3-reading" data-testid="agent-thread-conversation">
+              {segments.map((seg, segIdx) => {
+                const visibleProcess = seg.processItems.filter(
+                  (it) => !(it.kind === "tool" && (it.name === "todo_write" || it.parentId)),
                 );
-              }
-              if (it.type === "tool") {
-                const item: ToolItem = {
-                  kind: "tool",
-                  id: it.id,
-                  name: it.name,
-                  args: it.args,
-                  readOnly: false,
-                  status: toolStatus(it, running),
-                  output: it.output,
-                };
-                return <ToolCard key={`${it.id}-${idx}`} item={item} />;
-              }
-              if (it.type === "system") {
+                const toolCount = visibleProcess.filter((it) => it.kind === "tool").length;
+                const thoughtCount = visibleProcess.filter(
+                  (it) => it.kind === "assistant" && it.reasoning,
+                ).length;
+                const isLast = segIdx === segments.length - 1;
+                const segKey = seg.processItems[0]?.id
+                  ?? seg.outsideItems[0]?.id
+                  ?? `thread-seg-${segIdx}`;
                 return (
-                  <div key={`s-${idx}`} className="px-2 py-0.5 text-center text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                    {it.text}
-                  </div>
+                  <Fragment key={segKey}>
+                    {visibleProcess.length > 0 && (
+                      <ProcessCard
+                        items={visibleProcess}
+                        toolCount={toolCount}
+                        thoughtCount={thoughtCount}
+                        running={running && isLast}
+                        small={running && !isLast}
+                        subcallsByParent={EMPTY_SUBCALLS}
+                      />
+                    )}
+                    {seg.outsideItems.map((it) => {
+                      if (it.kind === "user") {
+                        return <UserMessage key={it.id} text={it.text} />;
+                      }
+                      if (it.kind === "assistant") {
+                        if (!it.text) return null;
+                        if (!it.streaming && (isMtTab || it.text.length > OUTPUT_BOUND_CHARS)) {
+                          return (
+                            <BoundedAssistantMessage
+                              key={it.id}
+                              item={it}
+                              chars={it.text.length}
+                            />
+                          );
+                        }
+                        return <AssistantMessage key={it.id} item={it} deliverTail={false} />;
+                      }
+                      if (it.kind === "tool") {
+                        if (it.parentId || it.name === "todo_write") return null;
+                        return (
+                          <ToolCard
+                            key={it.id}
+                            item={it}
+                            subcalls={EMPTY_SUBCALLS.get(it.id)}
+                            delegationName={delegationNames.get(it.id)}
+                          />
+                        );
+                      }
+                      if (it.kind === "notice") {
+                        return <div key={it.id} className="notice">{it.text}</div>;
+                      }
+                      return null;
+                    })}
+                  </Fragment>
                 );
-              }
-              return (
-                <div key={`u-${idx}`} className="flex justify-end">
-                  <div
-                    className="max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed"
-                    style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent)", color: "var(--md-sys-color-text)" }}
-                  >
-                    {it.text}
-                  </div>
-                </div>
-              );
-            })}
+              })}
             {/* Side Chat 追问的乐观用户气泡：快照带回真实内容后清除；
                 失败态保留文本并内联「重试/撤销」，不留永久等待假象 */}
             {followUpPending && (
-              <div className="flex justify-end">
+              <div className="flex justify-end my-1.5">
                 <div
                   data-testid="agent-follow-up-pending"
                   data-failed={followUpPendingFailed || undefined}
                   className={
-                    "max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed " +
+                    "office-user-message max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-border-soft px-3.5 py-2 text-[13px] leading-relaxed " +
                     (followUpPendingFailed ? "" : "opacity-70")
                   }
                   style={
@@ -666,6 +734,7 @@ export function SubagentThread({
                 />
               </div>
             )}
+            </div>
           </div>
         )}
       </div>

@@ -80,7 +80,15 @@ describe('seatInsights', () => {
     const trajectory = buildSeatTrajectory(
       OUTPUTS,
       [
-        { id: 'trace-1', agentId: 'dsh', toolName: 'read_file', status: 'completed', input: 'topology.tsx', at: 150 },
+        {
+          id: 'trace-1',
+          agentId: 'dsh',
+          toolName: 'read_file',
+          status: 'completed',
+          input: 'topology.tsx',
+          output: 'file body',
+          at: 150,
+        },
       ],
       new Map([
         ['codex', 'Codex'],
@@ -90,6 +98,11 @@ describe('seatInsights', () => {
       [{ id: 'issue-1', agentId: 'codex', agentName: 'Codex' }],
     )
     expect(trajectory.map((item) => item.kind)).toEqual(['statement', 'tool', 'statement', 'statement'])
+    expect(trajectory[1]).toMatchObject({
+      kind: 'tool',
+      round: 1,
+      output: 'file body',
+    })
     expect(trajectory[2]).toMatchObject({
       kind: 'statement',
       relation: expect.stringContaining('指向 Codex'),
