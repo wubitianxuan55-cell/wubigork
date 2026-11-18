@@ -277,6 +277,114 @@ DSH 蒸馏计划 01 的 UI 尾款一批收口（`c8f0e2e9`，构建装机 exe �
   哈希不变，new PID 43256>构建时刻 00:56:29）。**未 push**。编队页新拓扑
   真机走查挂用户实弹（需真实多子代理会话）。
 
+## codex 蒸馏差距档案落地 · 四刀（2026-11-18）
+
+- **背景**：逆向第二轮（hotspot-12/13）产出四项 gaea 差距，用户拍板「四项全做+弹卡四选」。
+  MCP 修正案态经核实已被 persist_allow 覆盖（跨会话规则回写已有），不立项——漂移记录修正。
+- **刀1 网络闸逐主机修正案（1dc4e8c5）**：NetworkGate 挂 NetworkLedger/NetworkAmendment
+  双面台账（host 精确/子域后缀/工具名；url subject→host 复用 permission.Subject，无 url
+  退化工具名）；交互路径 networkAmender 复用审批卡通道（Source="gate"，决策串不新增，
+  persist_allow=永久此主机→回写 `[network].gate_host_allow`）；headless 走 NetworkLedgerOnly
+  只读台账；开关 `[network].gate_amendment` 默认 false=现状逐字节等价；四个换级点统一
+  `c.wrapNetworkGate` 出口；前端 gate 卡按钮4文案「永久此主机」（gaea/wenxue 单源复用）。
+  测试 5 例（台账命中不弹卡/AskFlow persist 传呼/拒绝文案/target 提取/headless 只读）。
+- **刀2 MCP per-server 超时（a51be17d）**：`startup_timeout_sec`/`tool_timeout_sec`
+  （*float64 秒，命名对齐 codex mcp_types.rs）全链贯通 PluginEntry→.mcp.json→Spec→指纹
+  （**改超时即换缓存键**）→三条启动路径（startWithDeadline/StartAll/热插拔）→
+  remoteTool.Execute（>0 包 ctx）；nil=包默认（启动 15s、工具不超时=现状逐字节等价，
+  不照抄 codex 300s 默认守铁律）；**顺修 GaeaAddMCPServer 丢 Transport/Headers 现存 bug**
+  （远端热加曾按 stdio 落盘）；表单加两可选秒数输入（gaea+wenxue 双副本+i18n 六文件；
+  models.ts 再生 +6 行，方法名/arity 不变 bindingNames 免再gen）。
+- **刀3 T5 轮转对齐（9602c422）**：budget.go 轮转字节步进→**rune 步进**（每轮每行 1
+  UTF-8 字符、首字符加计 `": "` 2 字节分隔成本、exhausted/预算不起永久出队——对齐上游
+  tools_budget.rs:100-112）；retained 保持字节口径（TruncateDescBytes 不动）；测试重写
+  （NameOverflow [1,0,-1×3]/FairShare [14,14,14]+分隔成本守恒）+新增 CJK rune 边界例。
+- **刀4 会话策略随行存档（d462c5aa）**：`BranchMeta.PolicySnapshot`（nil=旧会话现状
+  等价）记审批模式/权限级别/断网闸三面（bash 沙箱是装配期工具配置不在列）；四处会话
+  构造点接线——NewSession/SetSessionPath **回 boot 基线**（存档策略不泄漏进新会话）、
+  Fork 携带当前快照（否则 Resume 无快照回落基线静默重置）、Resume 有存档按 P5 出口
+  纪律重建闸门/无存档回基线；快照幂等回写 meta（fail-soft）。测试 2 例（round-trip+
+  恢复覆盖+回基线；legacy 无快照等价+幂等回写）。
+- **构建装机**：frontend build 36.05s 绿；ucrt64 `wails build -s -ldflags "-s -w"
+  -trimpath` 85.7s；smoke 200；`gaea_install.ps1 -Launch` INSTALL OK（exe
+  183F01B7CAED…，PID 55560 > 构建时刻）。版本不抬号随下版折入。
+- **余项**：实弹走查挂用户（弹卡四选流/per-server 超时生效/恢复旧会话策略徽标——
+  需配置 `[network].gate_amendment=true` + `[sandbox] network=false` 才见弹卡形态）。
+
+## codex 蒸馏 · 逆向第二轮 C 级推进（2026-11-18，只出逆向产物不改 gaea 代码）
+
+- **hotspot-07 §5 三件全闭合**（文档全在 `C:\AI\re\codex-0.165.0\docs\hotspot-12-jumptables-and-c-level-round2.md`）：
+  ①两枚枚举反序列化器跳转表手工解（objdump+表解析，不依赖 Ghidra）——`0x1410ca7b0`=ReviewDecision
+  序列化器 **8 变体全解**（approved/approved_execpolicy_amendment/approved_for_session/
+  approved_mcp_policy_amendment/network_policy_amendment/denied{rejection}/timed_out/abort，
+  单位变体占负域 niche `0x8000…+n`，表 `0x150782894`）；`0x141140580`=**app-server v2**
+  SandboxPolicy Deserialize（internally tagged `type`+camelCase，内部枚举 SandboxPolicyDeserialize
+  兼容 legacy `readOnlyAccess`/`access`，遇 restricted 显式报错「no longer supported; use
+  permissionProfile」两文案实锤）。
+  ②`0x147ce6880` **正名**：非压缩触发族，实为 guardian request_budget 异步状态机
+  （字节判别 `+0x30`→表 `0x150b95cd4` 15 态已解，span=`codex.guardian.context.section_cost`，
+  源 `core\src\guardian\request_budget.rs`）；反编译 4 次（3×300s+1×900s）全超时按预案 3 结案。
+  ③四热点锚点全定位：MCP connection_manager.rs 三函数、elicitation 族、网络策略
+  `0x1496b44b0`（归属 **exec-server** `network_policy_decisions.rs`，Deny 理由 "not_allowed"
+  movabs 内联）、持久化 `rollout_path` 三函数（**三份反编译成功**：行→JSON 序列化器/列名清单绑定）。
+- **负发现**：SQL 常量（INSERT INTO thread_items/turns 等 4 副本）零代码引用
+  （lea/.reloc DIR64 291,207 条/胖指针三路全扫）=嵌入资源形态。
+- **0.165 threads 行字段族实测**（迁移起点已过时）：`permission_profile/active_permission_profile`
+  （策略随行存档升级 profile 形态）、子代理树三列（parent_thread_id/depth/agent_nickname/
+  agent_role）、分叉两列（forked_from_id/forked_from_ordinal_exclusive）、comp_hash、
+  reuse_parent_compaction、dynamic_tools、ThreadGoal 四态。
+- **gaea 只读漂移核查**：T3/T10 七态与 codex 8 变体 **6/8 一一对应零漂移**（timeout 与 deny
+  可区分、拒绝带 reason、persist=前缀规则授予全对齐）；缺 `approved_mcp_policy_amendment` 与
+  `network_policy_amendment`（逐主机网络修正案，gaea 网络闸是全局布尔）——维持差距档案不立项。
+  MCP 全局 15s vs codex per-server startup/tool 超时（Duration 纳秒÷1e9）差距档案维持。
+- **工具沉淀**：`resolve_jumptables2.py`/`locate_pool_refs.py`（胖指针槽一级）/`DumpDecomp3.java`
+  （超时参数化）；配方=Ghidra jumptable 未恢复→objdump 手工解表；坑=Git Bash 内联
+  `cmd //c "set X=…&& …bat"` 炸引号，env+调用必落 .cmd 批文件。
+- **待用户拍板**：`docs/codex-distill/hotspot-07-*.md` 是逆向原始资料误入仓内的未跟踪副本
+  （正本在 RE 工作区且本轮已更新），仓内副本如何处置（删/留）待定。
+
+### 同日第二轮补刀（源码优先法，hotspot-12 §9）
+
+- **hotspot-06 §5 四个未证项全闭合**：tools_budget 算法全提（117 行：名字优先全额→溢出整行
+  omit 扣 omission_reserve→描述**字符轮转公平分配**，每轮每行 1 UTF-8 字符、首字符计 `": "`）；
+  age_score/invalidate_score=本地 schema 认识（池 0x15070d1b5）但本地源码零消费（服务端字段）；
+  prediction_preserve_parent_tools 真实语义=禁 MCP 标记+非新窗口跳过重建增量工具节
+  （**无预测窗口**，hotspot-06 §2 旧表述作废，flag Stable 默认开）；deferred_tool_world_state
+  默认关（UnderDevelopment）。
+- **AskForApproval 判别式闭合**（hotspot-09 挂开口）：声明序 UnlessTrusted=0/OnRequest=1/
+  Granular=2/Never=3；主函数 asm 实锤 `cmp $0x2`+五 bool 位打包（bit0=sandbox_approval）+
+  文案长度立即数 0x53=83 与源码逐字对上；GranularApprovalConfig 实为 5 bool（含
+  skill_approval/request_permissions/mcp_elicitations）。
+- **压缩窗口状态机全提**（auto_compact_window.rs）：UUIDv7 三元 id+advance 滚动+双一次性
+  claim（预算提醒/降级回退）+Estimated/ServerObserved prefill 基线（服务端观察值不可被估计
+  覆写）；analytics 事实层 CompactionTrigger{Manual,Auto}/CompactionReason 四变体——
+  hotspot-07「compaction_trigger 簇」正名闭环（真族名在 analytics 事实层）。
+- **`0x140a5dcb0`（17.5KB）定性**：模型目录 schema 字段匹配反序列化器 family（含 guardian/
+  slug/display_name/default_reasoning_level 与 network/external/restricted-token/elevated
+  档位字段），非压缩逻辑。
+- **版本跟进触发成立**：npm `@openai/codex` latest=**0.170.0**（基线 0.165.0 +5 minor），
+  按 ledger §6 diff 流程重跑待拍板。
+- **gaea T5 对照**：`tool/budget.go` 与上游同构，三处本地化差异（字节轮转 vs 字符轮转/
+  尾部省略+占位行/首字符分隔成本）不算漂移；对齐改动点只在轮转循环一处。
+
+### 同日版本对齐 0.165.0 → 0.170.0（用户拍板「对齐最新版」，hotspot-13）
+
+- **结论：C 级证据链整体平移成立，无需重做任何一轮逆向**。源码锚连行号未动
+  （ReviewDecision 8 变体/AskForApproval 4+5bool/SandboxPolicyDeserialize+legacy 两报错在
+  571/602/620/637/tools_budget 轮转/auto_compact_window/CompactionTrigger+Reason）；二进制
+  25/26 探针命中（0.170.0 win32 exe 385,571,120 B，比 0.165 大 28MB、带 gstreamer 语音资源新面）。
+- **变化面**：crate 122→**127**（+5 未覆盖：agent-message-board-host 261L / message-board-mcp
+  710L / plugin-host 396L / exec-server-cli 2877L / http-headers-helper 191L——前两个是 asset-04
+  消息板的宿主落地，后两个域判定不搬不变）；features flag 195→**225**（+30 删 0）；锚点 crate
+  全增长（core 596→655=**agent/host/ 14 文件准入 host 化**、codex-mcp 60→71=**connection_pool
+  共享连接**、thread-store +血缘读、state +nfs_migration、network-proxy +secret_substitution/
+  tcp_upstream、protocol +permissions/enforcement、analytics +turn_critical_path、tui 1140→1230）。
+- **唯一语义漂移命中已记档面**：`deferred_tool_world_state` 转正（UnderDevelopment/默认关 →
+  **Stable/默认开**）——hotspot-06「非默认行为」注记对 0.170 失效，已加修正注。
+- **台账 §2/§3 已按 §6 修订**（127 crate；新面 agent/host 与 connection_pool 记档不立项：
+  gaea 子代理闸/会话所有权重于共享，无对应痛点，待需求出现再读）。
+- **工作区**：`C:\AI\re\codex-0.170.0\`（源码 tarball+平台包），0.165 工作区保留不动。
+
 ## codex 蒸馏第四批 · Git 打包与桌面构建（2026-11-17）
 
 - **代码/交付点**：Wave 1 `0d42c3fb` + Wave 2+3 `2a11f08a`（本包锚定后者）+
@@ -5799,3 +5907,64 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - **抬号三处同步** 4.543.0→4.544.0（sync-version.ps1：app_info.go/wails.json/versioninfo.rc）；**CHANGELOG 折段**=新增 v4.544.0 段（文学板块系统性审查十批收官+质检/文风族开工，单段详述+详见 releases/v4.544.0.md）+两段文学未发布段（无限制档/破甲契约）随版折入并修正过期尾注；releases/v4.544.0.md 详版说明入库。
 - 装机 exe 8B588FA7AC71…冒烟 200（PID 10148）；提交 ad9d11cf 已推 origin（ahead 清零）。功能包 gaea-wenxue-v6（4.543.0 快照）留档不变。
 - **CHANGELOG 折段欠账余量**：v4.530~v4.543 旧版段仍缺（发版门欠账按 docs 台账继续挂）。
+
+## 子代理实弹四症状修复（2026-11-18 下午）
+
+- **症状① 3 子代理 6 卡**：编队页左右两列（拓扑卡+分工组卡）双投影是设计面；**真 bug**=嵌套层（级别≥2）SpawnCallID 盖本层原始 call id 而事件日志节点被 subSinkFor 重写为 `父call/本call` 复合，直等失配→legacy 节点成 orphan 与会话节点并存。修（349bd992）：buildSessionNetwork 建尾段索引+父 run 已认领 legacy 前缀消歧+CreatedAt 序保确定性；回归测试 NestedCompositeCallIDJoins。
+- **症状③ 前端无子代理卡**：编队 tab 非默认+自动切偏好默认关（2026-09-27 拍板）+顶栏按钮 `!sessionPath||runs=0` 隐藏。修（73d1a906）：自动切默认翻回开（触发面已收敛为「新任务/子代理首次出现」+≥1240px+设置中心可关——2026-09-27 拍板反转，注明可回退）。
+- **症状④ 点拓扑无右栏**：三层根因全修（同提交）——①卡身点击=选中+sa_ 节点直达右栏会话窗（此前仅 18px hover 钮）；②aside 钮只对 sa_ ref 出现（非 sa_ 直传被 ValidRunRef 拒）；③paneTabs sanitize 白名单补 viewId=subagent+保留 meta.subagentRef（此前刷新/切会话 pane 静默消失）；④SubagentThread sessionPath 空早退不再无限转圈。
+- **症状② 子代理无 bash 执行失败**：分形态定罪——普通 task 委派（未声明 readonly/write_paths）**有 bash**（names 空=继承父注册表全量）；办公 DAG 节点经 dagNodeScope 必走只读/containment 收窄，bash 被 subagentWriteDenylist+无 WritePathResolver 双重出局=**裁决刀设计行为**。待用户告知委派形态后处置（普通形态复现才是 bug）。
+- 构建装机：frontend 30.8s+wails+冒烟 200+INSTALL OK（exe 见装机输出，PID 59616>构建时刻）。
+
+## 子代理范式切换：专业工人→通用智能体（2026-11-18 下午，用户拍板）
+
+- **定案**：实测子代理连 bash 都没有执行失败=「受限专业工人」范式本身错了。对照 DSH
+  实测工具面（projcache 快照：standard 子会话 45-46 项通用箱，委派家族父侧专属 6 件，
+  无任何专用收窄工具；send_message 是唯一传话通道，无「读结果」工具），用户确认三层
+  理解+收窄形态彻底退场。
+- **落刀（9e366084，单提交）**：①task 模型面 13 参→5 参（prompt/description/
+  run_in_background/engine/model；八专业参数摘除，Execute 解析保留=干净退役）+
+  描述/系统提示对齐 DSH §7.2/7.3；②send_message 统一传话通道（running=steer/
+  queued=pending_messages 排队起跑 flush/终态=RunFollowUp；子树守卫；帽 8 满员可
+  执行文案）；③read_subagent_result 模型面退役（结果自动回投已闭环）；④
+  subagent_list 对齐 DSH list_agents（scope=children|descendants+parent/depth/model/
+  effort 身份行+`(no subagents)` 空态）；⑤DAG 收窄退场（dagNodeScope 只注入空间、
+  dag_plan 摘两字段、WaveFullyDeclared 降宽串行规则退役）+send_message RegistryMap
+  P0 契约行（census 守卫逮住补齐）。
+- **坑**：协调面 ctx 键两套并存（SubagentRefFromContext vs subagentSessionIDFromContext
+  ——守卫必须用前者）；SubagentFollowUpRunner 重复声明（复用既有）；boot census 守卫
+  逮新工具缺契约行；app 包 129s 长跑。
+- **构建装机**：frontend 33.2s+wails+冒烟 200+INSTALL OK（exe 706051b3eec525a0，
+  PID 30368>构建时刻）。版本不抬号。
+- **对照表**：模型可见面 before=task(13 参)+subagent_list+interrupt_agent+
+  read_subagent_result；after=task(5 参)+send_message+subagent_list(scope)+interrupt_agent
+  ——与 DSH A 类委派家族逐位对齐（gaea 无 subagent_fork 独立工具，fork 保留内部能力）。
+
+## 子代理委派体验五刀 + 父子通道实弹检测（2026-11-18 晚，ZCode 批）
+
+- **背景**：实弹报障「办公板块并行派发子代理时对话窗口没有子代理卡片」。
+- **刀1 委派卡上浮（0ec36ec5）**：task/run_skill 从过程卡 processItems 上浮
+  outsideItems 成一等对话卡（运行中折叠态只露最近 3 张尾巴、后台委派回合结束
+  整卡埋折叠体=无卡两层根因）；buildSubcalls 段级改轮级（sig 缓存不击穿 T7-4
+  memo）吸附 turn_done 后回投的子调用；wenxue 同刀。
+- **刀2 点击开右栏 pane（06fe3ee9）**：useTaskCards 注入点换 openSubagentAside
+  （编队卡同管道），主对话不被切走；主区 Tab 链路保留给目录树/面包屑。
+- **刀3 委派卡 UI 重设计（afaea9f5）→ 刀4 codex 简化定稿（f7dc3063）**：
+  DelegationCard 一等卡（状态灯轨/Bot·子代理徽标/任务描述标题/元芯片）→
+  codex 收敛一行任务简报形态（任务名+状态灯+一行实时进展/结果，点击整卡进
+  右栏子会话）；同批 OCRCard 优化。wenxue 样式 .wx-root 镜像（wx-* keyframes）。
+- **父子通道实弹检测+四修复（f7dc3063）**：通道 Go 测试族全绿；**主动性实弹
+  两层证否**（自然/点名均 0 委派，wire task_dispatch=0）→ 根因=用户 config
+  system_prompt 子代理段旧专业工人幽灵引导（site-survey 等四子代理已不存在）
+  → 按 DSH §7.2/7.3 口径改写（工作形态+动机+一句并发纪律，零领域场景；
+  备份 config.toml.bak-20261118-pre-delegate-prompt）→ 改后新会话**自发同消息
+  3 task 并发**；「派发即结束回合→结算 finished 注记自动开新回合」实弹全通。
+  四修复：task.go 后台回执附 Subagent reference 行（治假 done——回执无 sa_
+  引用时卡被翻 done 而子代理磁盘态 running）/displayStatus 以 runs 真态优先/
+  run.task 空串文本匹配不可达由 ref 直连绕开/taskResultSummary 剥 dsh-ops
+  信封。测试契约跟进+mock=subagents 场景收编；gaea+wenxue 2264/2264 全绿。
+- **构建装机**：f7dc3063 → frontend build 35.1s + wails build 85s → smoke 200
+  → INSTALL OK（exe 5E8AE1383E7B…，19:55:40）。**未 push**。
+- **余项**：主代理与子代理重复劳动（同主题自查一遍）=提示调优挂账；smoke
+  失败时 gaea_install.ps1 仍继续装=流程隐患挂拍板；wenxue 无 pane 管道（委派
+  卡点击仍主区 Tab）挂后续。
