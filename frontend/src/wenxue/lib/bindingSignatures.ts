@@ -384,6 +384,7 @@ export const bindingSignatures = {
   GaeaSubagentContextView: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   GaeaSubagentFollowUp: { argc: 3, variadic: false, params: "sessionPath string, ref string, prompt string" },
   GaeaSubagentRuns: { argc: 1, variadic: false, params: "sessionPath string" },
+  GaeaSubagentSteer: { argc: 3, variadic: false, params: "sessionPath string, ref string, prompt string" },
   GaeaSubagentStop: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   GaeaSubagentTranscript: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   GaeaSummarizeFile: { argc: 2, variadic: false, params: "rel string, focus string" },

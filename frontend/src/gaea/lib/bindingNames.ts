@@ -349,6 +349,7 @@ export const bindingNames = [
   "GaeaSubagentContextView",
   "GaeaSubagentFollowUp",
   "GaeaSubagentRuns",
+  "GaeaSubagentSteer",
   "GaeaSubagentStop",
   "GaeaSubagentTranscript",
   "GaeaSummarizeFile",

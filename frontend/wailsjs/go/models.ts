@@ -4351,6 +4351,7 @@ export namespace app {
 	    lastTool?: string;
 	    parentRef?: string;
 	    spawnCallId?: string;
+	    depth?: number;
 	    followUpError?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -4376,6 +4377,7 @@ export namespace app {
 	        this.lastTool = source["lastTool"];
 	        this.parentRef = source["parentRef"];
 	        this.spawnCallId = source["spawnCallId"];
+	        this.depth = source["depth"];
 	        this.followUpError = source["followUpError"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);

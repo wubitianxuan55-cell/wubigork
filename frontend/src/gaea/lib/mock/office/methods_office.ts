@@ -545,12 +545,25 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
           {
             ref: "sa_20260817_113000_0000000003_c3c3c3c3",
             status: "running" as const,
+            // 嵌套链（2026-11-18 完整智能体形态）：c3=b2b2 的二代、e5=三代。
+            parentRef: "sa_20260817_110000_0000000002_b2b2b2b2",
+            depth: 2,
             task: "子任务：对比三家竞品表格交互",
             lastText: "正在对比三家竞品的表格选中→图表链路…",
             lastTool: "web_fetch: https://example.com/table-agent",
             toolCalls: 2,
             createdAt: day(1, 40),
             updatedAt: day(0, 2),
+          },
+          {
+            ref: "sa_20260817_124000_0000000005_e5e5e5e5",
+            status: "queued" as const,
+            parentRef: "sa_20260817_113000_0000000003_c3c3c3c3",
+            depth: 3,
+            task: "孙任务：核对表格行列口径",
+            toolCalls: 0,
+            createdAt: day(0, 5),
+            updatedAt: day(0, 5),
           },
           {
             ref: "sa_20260817_110000_0000000002_b2b2b2b2",
@@ -591,7 +604,12 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
           task: "调研竞品表格 Agent 能力并总结可蒸馏点",
           status: "running",
         }
-      : {
+      : ref.endsWith("e5e5e5e5")
+        ? {
+            task: "孙任务：核对表格行列口径",
+            status: "queued",
+          }
+        : {
           task: "收集 2026 年办公 Agent 竞品更新信息",
           status: "completed",
         };
@@ -634,6 +652,17 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
       throw new Error(`仅子代理运行（sa_ 前缀）可停止: ${JSON.stringify(ref)}`);
     }
     return undefined;
+  },
+  async SubagentSteer(sessionPath: string, ref: string, prompt: string) {
+    // 插话/追问双语义（2026-11-18 dsh 完整智能体形态）：在跑直穿、终态走
+    // 追问。mock 无在跑面——受理即回（与 Stop 同款诚实注记）。
+    if (!sessionPath || !ref.startsWith("sa_")) {
+      throw new Error(`仅子代理运行（sa_ 前缀）可插话: ${JSON.stringify(ref)}`);
+    }
+    if (!prompt || !prompt.trim()) {
+      throw new Error("插话内容不能为空");
+    }
+    return "steered（mock 受理不执行）";
   },
   async DocumentLint(rel: string) {
     // 文档规范体检（批 46 NOT_MOCKED 收尾刀）：standard.LintReport 空报告——

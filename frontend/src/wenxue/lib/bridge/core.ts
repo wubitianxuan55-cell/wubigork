@@ -255,6 +255,8 @@ export interface CoreBindings {
   SubagentFollowUp(sessionPath: string, ref: string, prompt: string): Promise<string>;
   // D6 独立 Stop：中断运行中/排队中的子代理（ref 全局寻址，双引擎共用）。
   SubagentStop(sessionPath: string, ref: string): Promise<void>;
+  // 插话/追问双语义（wenxue 镜像；跨引擎全局寻址类绑定直用办公绑定不换锚）。
+  SubagentSteer(sessionPath: string, ref: string, prompt: string): Promise<string>;
   // PromoteSubagent 把子代理会话提升为独立顶层会话（dsh Side Chat promote 语义，
   // v4.66.0）：忠实投影 transcript 为新会话日志，返回新 sessionPath；不动原运行。
   PromoteSubagent(sessionPath: string, ref: string): Promise<string>;

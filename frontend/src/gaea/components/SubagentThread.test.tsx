@@ -23,6 +23,7 @@ const transcript: SubagentTranscriptView = {
 const mocks = vi.hoisted(() => ({
   SubagentTranscript: vi.fn(),
   SubagentFollowUp: vi.fn(),
+  SubagentSteer: vi.fn(),
   SubagentStop: vi.fn(),
   onEvent: vi.fn(() => () => {}),
   onSubagentText: vi.fn(() => () => {}),
@@ -287,6 +288,55 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     render(wrap(<SubagentThread sessionPath="s1.jsonl" target="mt_9" task="摘要" status="completed" onBack={() => {}} />));
     await screen.findByText("摘要");
     expect(screen.queryByTestId("agent-follow-up-input")).toBeNull();
+  });
+
+  // 双语义分诊（2026-11-18 dsh S4.4 Queue vs Steer）：running=插话直穿
+  //（SubagentSteer），终态=追问管道（SubagentFollowUp）。
+  it("运行中发送=插话直穿 SubagentSteer；queued 态发送钮禁用", async () => {
+    mocks.SubagentSteer.mockResolvedValue("steered");
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="running" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    const input = screen.getByTestId("agent-follow-up-input");
+    expect(input.getAttribute("placeholder")).toContain("插话");
+    fireEvent.change(input, { target: { value: "优先看 B 家的定价页" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    expect(mocks.SubagentSteer).toHaveBeenCalledWith("s1.jsonl", "sa_2_b2b2b2b2", "优先看 B 家的定价页");
+    expect(mocks.SubagentFollowUp).not.toHaveBeenCalled();
+
+    cleanup();
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="queued" onBack={() => {}} />));
+    await screen.findByText("任务");
+    const send = screen.getByTestId("agent-follow-up-send") as HTMLButtonElement;
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "x" } });
+    expect(send.disabled).toBe(true);
+  });
+
+  // 谱系面包屑（dsh S1）：祖先链渲染、点祖先回调 onOpenRef、本层不渲染自身。
+  it("lineage 面包屑：主会话 › 祖先（可点） › 当前；无链不渲染", async () => {
+    const onOpenRef = vi.fn();
+    render(wrap(
+      <SubagentThread
+        sessionPath="s1.jsonl"
+        target="sa_3"
+        task="三代任务"
+        status="completed"
+        lineage={[{ ref: "sa_1", task: "一代任务" }, { ref: "sa_2", task: "二代任务" }]}
+        onOpenRef={onOpenRef}
+        onBack={() => {}}
+      />,
+    ));
+    await screen.findByText("三代任务");
+    const nav = screen.getByTestId("agent-thread-lineage");
+    expect(nav.textContent).toContain("主 agent");
+    expect(nav.textContent).toContain("一代任务");
+    expect(nav.textContent).toContain("二代任务");
+    fireEvent.click(screen.getByText("一代任务"));
+    expect(onOpenRef).toHaveBeenCalledWith("sa_1");
+
+    cleanup();
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("任务");
+    expect(screen.queryByTestId("agent-thread-lineage")).toBeNull();
   });
 });
 

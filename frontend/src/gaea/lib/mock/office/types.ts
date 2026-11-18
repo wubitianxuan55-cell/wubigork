@@ -23,7 +23,7 @@ export type OfficeMethods = Pick<
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
   | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx" | "ScheduleImportMpp"
   | "ScheduleProjects" | "ScheduleProjectOpen" | "ScheduleProjectCreate" | "ScheduleProjectArchive" | "ScheduleProjectDelete" | "ScheduleProjectCopy"
-  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "SubagentStop" | "DeliverableRegistry" | "WriteFile"
+  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "PromoteSubagent" | "SubagentFollowUp" | "SubagentSteer" | "SubagentStop" | "DeliverableRegistry" | "WriteFile"
   // 文档 lint / PPT 大纲（批 46 NOT_MOCKED 收尾刀；Gaea 前缀经 mappings 映射）。
   | "DocumentLint" | "PptxOutline"
   // 众神殿刀3：搜索主源设置三绑定。

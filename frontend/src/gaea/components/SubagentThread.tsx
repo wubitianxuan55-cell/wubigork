@@ -141,6 +141,8 @@ export function SubagentThread({
   model,
   createdAt,
   updatedAt,
+  lineage,
+  onOpenRef,
   onBack,
 }: {
   sessionPath: string;
@@ -151,6 +153,11 @@ export function SubagentThread({
   /** ISO 时间戳（UA-1）：缺省=tab 打开瞬间快照未带，历时芯片隐藏。 */
   createdAt?: string;
   updatedAt?: string;
+  /** 谱系链（2026-11-18 嵌套委派导航，dsh S1 面包屑）：root→…→父 的
+      {ref,任务名} 链（不含本 ref）。空/缺省=单层派发，面包屑不渲染。 */
+  lineage?: { ref: string; task: string }[];
+  /** 点面包屑祖先：跳对应子代理会话 tab（App 层打开链）。 */
+  onOpenRef?: (ref: string) => void;
   onBack: () => void;
 }) {
   const t = useT();
@@ -346,8 +353,14 @@ export function SubagentThread({
     setFollowUpText("");
     setFollowUpBusy(true);
     setFollowUpErr("");
-    app
-      .SubagentFollowUp(sessionPath, target, text)
+    // 双语义分诊（2026-11-18 dsh S4.4 Queue vs Steer 蒸馏，走 GaeaSubagent-
+    // Steer 双语义绑定）：运行中=插话直穿（SteerSubagent，文本作为子代理下一
+    // 回合的 user 轮落 transcript——乐观气泡由快照增长清除）；终态=追问管道
+    // （SubagentFollowUp）。排队态在入口禁用（后端同拒：排队期插话无落点）。
+    const req = running
+      ? app.SubagentSteer(sessionPath, target, text)
+      : app.SubagentFollowUp(sessionPath, target, text);
+    req
       .then(() => load())
       .catch((e) => {
         setFollowUpErr(e instanceof Error ? e.message : String(e));
@@ -355,12 +368,12 @@ export function SubagentThread({
         setFollowUpPendingFailed(true);
       })
       .finally(() => setFollowUpBusy(false));
-  }, [messages.length, sessionPath, target, load]);
+  }, [messages.length, sessionPath, target, load, running]);
   const sendFollowUp = useCallback(() => {
     const text = followUpText.trim();
-    if (!text || followUpBusy || isMtTab) return;
+    if (!text || followUpBusy || isMtTab || status === "queued") return;
     dispatchFollowUp(text);
-  }, [followUpText, followUpBusy, isMtTab, dispatchFollowUp]);
+  }, [followUpText, followUpBusy, isMtTab, status, dispatchFollowUp]);
   // 失败气泡一键重试：重发同一文本（守卫与 sendFollowUp 相同的 busy 闸）
   const retryFollowUp = useCallback(() => {
     const text = followUpPending.trim();
@@ -414,6 +427,34 @@ export function SubagentThread({
           <Rollback size={12} aria-hidden />
           {t("subagent.title")}
         </button>
+        {/* 谱系面包屑（2026-11-18 嵌套委派导航，dsh S1）：主会话 › 父任务 ›
+            当前。祖先可点跳对应 tab（App 层打开链）；本层任务名在右侧标题。 */}
+        {lineage && lineage.length > 0 && (
+          <nav
+            data-testid="agent-thread-lineage"
+            className="flex min-w-0 shrink-0 items-center gap-0.5 text-[10px]"
+            aria-label="谱系"
+          >
+            <span className="shrink-0 rounded px-1 py-px" style={{ color: "var(--fg-faint)" }}>
+              {t("subagent.rootTitle")}
+            </span>
+            {lineage.map((node) => (
+              <span key={node.ref} className="flex min-w-0 items-center gap-0.5">
+                <span className="shrink-0" style={{ color: "var(--fg-faint)" }}>›</span>
+                <button
+                  type="button"
+                  className="max-w-[120px] shrink-0 cursor-pointer truncate rounded border-0 bg-transparent px-1 py-px transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+                  style={{ color: "var(--gaea-glow)" }}
+                  title={node.task || node.ref}
+                  onClick={() => onOpenRef?.(node.ref)}
+                >
+                  {node.task || node.ref}
+                </button>
+              </span>
+            ))}
+            <span className="shrink-0" style={{ color: "var(--fg-faint)" }}>›</span>
+          </nav>
+        )}
         <span className="v3-panel-title min-w-0 truncate" style={{ color: "var(--md-sys-color-text)" }}>{task || target}</span>
         <span
           className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-medium"
@@ -624,8 +665,10 @@ export function SubagentThread({
         )}
       </div>
 
-      {/* Side Chat 式追问输入框（v4.64）：仅 sa_ 真子代理；mt_ 是单次工具
-          调用没有可追问的线程。运行中禁用（后端同样拒绝 running 续跑）。 */}
+      {/* Side Chat 式追问/插话输入框（v4.64 + 2026-11-18 双语义）：仅 sa_ 真子
+          代理；mt_ 是单次工具调用没有可续的线程。running=插话直穿（Steer，
+          下一回合生效）；终态=追问管道（RunFollowUp）；queued 禁用（后端同
+          拒：排队期插话无落点）。 */}
       {!isMtTab && (
         <div className="shrink-0 px-2.5 pb-2" data-testid="agent-follow-up">
           {/* 失败可恢复（2b 调研回填，opencode 语义）：失败≠终点——输入新
@@ -653,7 +696,7 @@ export function SubagentThread({
                 border: "1px solid color-mix(in srgb, var(--md-sys-color-destructive) 30%, transparent)",
               }}
             >
-              {t("subagent.followUpFail", { msg: followUpErr })}
+              {t(running ? "subagent.steerFail" : "subagent.followUpFail", { msg: followUpErr })}
             </div>
           )}
           <div className="flex items-center gap-1.5">
@@ -666,7 +709,7 @@ export function SubagentThread({
                   sendFollowUp();
                 }
               }}
-              placeholder={t("subagent.followUpPh")}
+              placeholder={running ? t("subagent.steerPh") : t("subagent.followUpPh")}
               data-testid="agent-follow-up-input"
               className="min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-[12px] outline-none"
               style={{ borderColor: "var(--md-sys-color-outline-variant)", background: "var(--md-sys-color-surface-container-low)", color: "var(--md-sys-color-text)" }}
@@ -674,11 +717,11 @@ export function SubagentThread({
             <button
               type="button"
               data-testid="agent-follow-up-send"
-              aria-label={t("subagent.followUpSend")}
-              title={t("subagent.followUpSend")}
+              aria-label={running ? t("subagent.steerSend") : t("subagent.followUpSend")}
+              title={running ? t("subagent.steerSend") : t("subagent.followUpSend")}
               className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 disabled:cursor-not-allowed disabled:opacity-40"
               style={{ background: "var(--gaea-glow)", color: "var(--md-sys-color-surface-container-low)" }}
-              disabled={!followUpText.trim() || followUpBusy || running}
+              disabled={!followUpText.trim() || followUpBusy || status === "queued"}
               onClick={sendFollowUp}
             >
               {followUpBusy ? <Loader2 size={12} className="animate-spin" /> : <ArrowUp size={13} />}

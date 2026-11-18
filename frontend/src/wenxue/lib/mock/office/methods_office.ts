@@ -542,6 +542,17 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     }
     return undefined;
   },
+  async SubagentSteer(sessionPath: string, ref: string, prompt: string) {
+    // 插话/追问双语义（wenxue 镜像，直用办公全局寻址绑定）：mock 无在跑面
+    // ——受理即回（与 Stop 同款诚实注记）。
+    if (!sessionPath || !ref.startsWith("sa_")) {
+      throw new Error(`仅子代理运行（sa_ 前缀）可插话: ${JSON.stringify(ref)}`);
+    }
+    if (!prompt || !prompt.trim()) {
+      throw new Error("插话内容不能为空");
+    }
+    return "steered（mock 受理不执行）";
+  },
   async DeliverableRegistry(_sessionPath: string) {
     // 浏览器开发 mock：模拟会话权威产物登记表（写类 + 生成/导出类工具落盘）。
     return {

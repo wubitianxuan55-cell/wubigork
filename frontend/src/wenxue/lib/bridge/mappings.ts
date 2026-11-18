@@ -251,6 +251,7 @@ export const gaeaToGaea = {
   SubagentFollowUp: "WenxueSubagentFollowUp",
   // D6 独立 Stop：中断面按 ref 全局寻址（agent 包 subRuns 同进程双引擎共用），
   // 无会话路径锚，直用办公绑定，不设 Wenxue* 换锚。
+  SubagentSteer: "GaeaSubagentSteer",
   SubagentStop: "GaeaSubagentStop",
   TaskCancel: "GaeaTaskCancel",
   TaskKill: "GaeaTaskKill",

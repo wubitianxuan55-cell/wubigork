@@ -331,6 +331,7 @@ export const GAEA_METHOD_FACETS = {
   Steer: "work",
   GaeaRunning: "work",
   SubagentFollowUp: "work",
+  SubagentSteer: "work",
   SubagentStop: "work",
   Approve: "work",
   // codex 蒸馏 T3/T11：审批域同坐 work（办公引擎会话的审批面）。

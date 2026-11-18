@@ -256,6 +256,9 @@ export interface CoreBindings {
   // D6 独立 Stop（dsh 蒸馏计划 01 §4·D6）：中断运行中/排队中的子代理
   //（fire-and-return；终态 aborted 落账，前端轮询自校正）。
   SubagentStop(sessionPath: string, ref: string): Promise<void>;
+  // 插话/追问双语义（2026-11-18 dsh 完整智能体形态）：running=Steer 直穿
+  //（下一回合生效）；终态=走追问管道；queued 诚实拒绝。返回受理动词。
+  SubagentSteer(sessionPath: string, ref: string, prompt: string): Promise<string>;
   // PromoteSubagent 把子代理会话提升为独立顶层会话（dsh Side Chat promote 语义，
   // v4.66.0）：忠实投影 transcript 为新会话日志，返回新 sessionPath；不动原运行。
   PromoteSubagent(sessionPath: string, ref: string): Promise<string>;

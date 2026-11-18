@@ -42,6 +42,7 @@ import { Fleet } from "./components/context/Fleet";
 import { ContextModal, ContextPill } from "./components/ContextModal";
 import { TrajectoryView } from "./components/TrajectoryView";
 import { SubagentThread } from "./components/SubagentThread";
+import { SubagentCatalogButton } from "./components/SubagentCatalogButton";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
@@ -678,6 +679,32 @@ export default function App() {
     [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
   const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
+  // 谱系链（2026-11-18 嵌套委派导航，dsh S1 面包屑）：从当前子代理按
+  // parentRef 上溯到主会话；数据=useSubagentTabs 的共享 runs 快照（零新增轮询）。
+  const activeSubagentLineage = useMemo(() => {
+    if (!activeSubagent || subagentRuns.length === 0) return [];
+    const byRef = new Map(subagentRuns.map((r) => [r.ref, r]));
+    const chain: { ref: string; task: string }[] = [];
+    let cur = byRef.get(activeSubagent.ref)?.parentRef;
+    let guard = 0;
+    while (cur && guard < 16) {
+      const r = byRef.get(cur);
+      if (!r) break;
+      chain.unshift({ ref: r.ref, task: r.task || r.ref });
+      cur = r.parentRef;
+      guard++;
+    }
+    return chain;
+  }, [activeSubagent, subagentRuns]);
+  // 子代理打开链（目录树行/面包屑祖先共用）：主区会话 tab。
+  const openRunInMain = useCallback((r: { ref: string; task?: string; model?: string; status: "queued" | "running" | "completed" | "failed" | "aborted"; createdAt?: string; updatedAt?: string }) => {
+    openSubagentThread({ sessionPath: currentSessionPath ?? "", ref: r.ref, task: r.task, model: r.model, status: r.status, createdAt: r.createdAt, updatedAt: r.updatedAt });
+  }, [openSubagentThread, currentSessionPath]);
+  // 子代理右栏打开链（dsh S4「在侧边栏打开」）：pane tab + 亮出右栏。
+  const openRunInAside = useCallback((r: { ref: string; task?: string }) => {
+    setWorkspacePanel(true);
+    usePaneTabsStore.getState().openSubagentPane(r.ref, r.task || r.ref);
+  }, [setWorkspacePanel]);
   const showOfficeComposer = chatTab === "chat" && !activeSubagent;
   const showCenteredComposer =
     showOfficeComposer
@@ -772,6 +799,13 @@ export default function App() {
             />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
+              {/* 子智能体目录树（2026-11-18，dsh S2/S3/S4）：「N 个子智能体」
+                  触发器+血缘下拉树；行=主区打开，侧栏钮=右栏子会话 pane。 */}
+              <SubagentCatalogButton
+                sessionPath={currentSessionPath}
+                onOpenMain={openRunInMain}
+                onOpenAside={openRunInAside}
+              />
               {/* 2026-11-14 用户拍板：顶栏「工具」下拉退役——CAD 图纸/进度计划已是
                   右栏一级 Tab（欢迎网格/＋下拉/命令面板/文件打开链四入口派生），
                   输入框旁的工具钮（ComposerToolbar onOpenTool）保留为快捷入口。 */}
@@ -837,6 +871,11 @@ export default function App() {
                     model={activeSubagent.model}
                     createdAt={activeSubagent.createdAt}
                     updatedAt={activeSubagent.updatedAt}
+                    lineage={activeSubagentLineage}
+                    onOpenRef={(ref) => {
+                      const r = subagentRuns.find((x) => x.ref === ref);
+                      if (r) openRunInMain(r);
+                    }}
                     onBack={() => closeSubagentTab(activeSubagent.id)}
                   />
                 ) : (

@@ -26,6 +26,9 @@ export interface SubagentRunView {
   // 空（拓扑按 root 挂载降级）。
   parentRef?: string;
   spawnCallId?: string;
+  // 嵌套委派级别（2026-11-18 dsh 完整智能体形态，meta 透传）：主会话直派=1、
+  // 孙代=2……；缺省 = 旧 meta 未记录（读端按 1 降级）。
+  depth?: number;
   createdAt: string;
   updatedAt: string;
 }

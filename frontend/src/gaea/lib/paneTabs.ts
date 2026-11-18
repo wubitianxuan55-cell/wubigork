@@ -32,8 +32,8 @@ export interface PaneTab {
   path?: string;
   /** tab 条显示标题（视图名 / 文件名）。 */
   title: string;
-  /** 视图级附加状态（目前：浏览器视图当前 URL）。 */
-  meta?: { url?: string };
+  /** 视图级附加状态（浏览器当前 URL；子代理 pane=会话 ref）。 */
+  meta?: { url?: string; subagentRef?: string };
 }
 
 export interface PaneTabsState {
@@ -53,6 +53,10 @@ export interface PaneTabsState {
   reloadTicks: Record<string, number>;
   /** 打开视图 tab：同 viewId 已开则激活，否则追加激活。 */
   openView: (viewId: string, title: string) => void;
+  /** 打开子代理会话 pane tab（2026-11-18，dsh S4「在侧边栏打开」）：每 ref
+      单实例去重激活；内容=SubagentThread 右栏形态（WorkspacePane 特例渲染，
+      不走静态注册表——本 tab 由目录树按 ref 动态开）。 */
+  openSubagentPane: (ref: string, title: string) => void;
   /** 打开文件 tab：同路径已开则激活，否则追加激活。 */
   openFile: (path: string, title: string) => void;
   /** 请求刷新某路径的已打开预览（App 从写类工具成功回执派生，经防抖调度器调进）。 */
@@ -101,6 +105,23 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
       return;
     }
     const tab: PaneTab = { id, kind: "view", viewId, title };
+    set({
+      tabs: [...tabs, tab],
+      active: id,
+      order: touch(order, id),
+    });
+  },
+
+  openSubagentPane: (ref, title) => {
+    if (!ref) return;
+    const { tabs, order } = get();
+    const id = `sub:${ref}`;
+    const existing = tabs.find((t) => t.id === id);
+    if (existing) {
+      set({ active: id, order: touch(order, id) });
+      return;
+    }
+    const tab: PaneTab = { id, kind: "view", viewId: "subagent", title, meta: { subagentRef: ref } };
     set({
       tabs: [...tabs, tab],
       active: id,
