@@ -129,6 +129,49 @@ type SubagentMeta struct {
 	// 0 值 omitempty 与「未记录」不可分：无碍——嵌套语义只关心 ≥maxDepth 的
 	// 截断面，读端降级后的 1 恒在闸内。
 	Depth int `json:"depth,omitempty"`
+	// PendingMessages 是 queued 期的排队消息（2026-11-18 DSH 式 send_message
+	// 刀2，上游 queue 通道折算）：起跑前经 send_message 投递的补充指引排队
+	// 落盘，MarkRunning 起跑后由 runSubAgentInternal flush 逐条 steer 送达
+	// （DSH queue=「起跑后送达」语义）。帽 maxPendingMessages（超限投递方
+	// 拒绝并给可执行文案）；重启后 queued 已诚实结算，pending 随之无消费方
+	// （读端忽略），不迁移。
+	PendingMessages []string `json:"pendingMessages,omitempty"`
+}
+
+// maxPendingMessages 是单个 queued 运行的排队消息上限：排队期的补充指引是
+// 起跑后的第一批插话，不是无限收纳的邮箱——超限拒绝让发送方等起跑后直穿。
+const maxPendingMessages = 8
+
+// AppendPending 把一条排队消息追加到 queued 运行的 meta（带 persisted 状态
+// 校验：只有 queued 态收队——running 直穿不落盘、终态直接拒）。满员返回
+// 可执行错误文案（DSH 纪律：错误文案可操作）。
+func (s *SubagentStore) AppendPending(ref, text string) error {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return fmt.Errorf("message is required")
+	}
+	return s.updateMeta(ref, func(m *SubagentMeta) error {
+		if m.Status != SubagentQueued {
+			return fmt.Errorf("subagent %s is not queued (status=%s)", ref, m.Status)
+		}
+		if len(m.PendingMessages) >= maxPendingMessages {
+			return fmt.Errorf("queue full (%d pending): wait for it to start and steer directly, or deliver the essential part in its prompt", maxPendingMessages)
+		}
+		m.PendingMessages = append(m.PendingMessages, text)
+		return nil
+	})
+}
+
+// TakePending 取走并清空 queued 运行的排队消息（起跑 flush 专用：取空即
+// 清，重放不会重复投递）。
+func (s *SubagentStore) TakePending(ref string) []string {
+	var out []string
+	_ = s.updateMeta(ref, func(m *SubagentMeta) error {
+		out = m.PendingMessages
+		m.PendingMessages = nil
+		return nil
+	})
+	return out
 }
 
 // SubagentRun holds a prepared sub-agent transcript ready to execute.
@@ -926,6 +969,23 @@ func (s *SubagentStore) saveMeta(ref string, meta SubagentMeta) error {
 	return s.saveMetaUnlocked(meta)
 }
 
+// updateMeta 是 load→mutate→save 的读改写封装（排队消息等单字段场景）：
+// 互斥锁串行化，与 TrackProgress ticker 的全量快照写互斥（防丢更新——
+// pending 追加若被 ticker 旧快照覆盖会静默丢消息）。mutate 返回的错误
+// （如状态校验/满员）如实上抛，meta 不落盘。
+func (s *SubagentStore) updateMeta(ref string, mutate func(m *SubagentMeta) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta, err := s.loadMeta(ref)
+	if err != nil {
+		return fmt.Errorf("subagent %s not found in this session's store", ref)
+	}
+	if err := mutate(&meta); err != nil {
+		return err
+	}
+	return s.saveMetaUnlocked(meta)
+}
+
 func (s *SubagentStore) loadMeta(ref string) (SubagentMeta, error) {
 	dir, err := s.dirResolved()
 	if err != nil {
@@ -958,6 +1018,11 @@ type SubagentRunInfo struct {
 	// 字段分别按空/0（读端降级）。
 	ParentRef string
 	Depth     int
+	// Model/Effort 是身份面（2026-11-18 DSH 式工具集刀3，对齐上游 list_agents
+	// 的身份语义）：模型面枚举带路由身份，父代理据此做后续路由/续跑决策。
+	// 旧 meta 无字段为空。
+	Model  string
+	Effort string
 }
 
 // listRunsLimit 是单次枚举的条数上限：对话窗口是稀缺资源，模型要找的
@@ -999,6 +1064,8 @@ func (s *SubagentStore) ListRuns() ([]SubagentRunInfo, error) {
 			UpdatedAt: meta.UpdatedAt,
 			ParentRef: meta.ParentRef,
 			Depth:     meta.Depth,
+			Model:     meta.Model,
+			Effort:    meta.Effort,
 		})
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt.After(runs[j].CreatedAt) })

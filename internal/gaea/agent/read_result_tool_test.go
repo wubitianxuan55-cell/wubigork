@@ -287,7 +287,7 @@ func TestSubagentListStaleAnnotation(t *testing.T) {
 	if !strings.Contains(out, "[stale: no live handle") {
 		t.Fatalf("stale running entry must be annotated: %q", out)
 	}
-	if !strings.Contains(out, "read_subagent_result") {
-		t.Fatalf("list hint should mention the new read tool: %q", out)
+	if !strings.Contains(out, "send_message") {
+		t.Fatalf("list hint should mention the send_message channel: %q", out)
 	}
 }

@@ -464,9 +464,20 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// subagent_list（2026-10 P1-D）：模型面枚举当前会话子代理运行（lazy store
 	// 跟随会话路径），为 interrupt_agent / continue_from 提供 ref 入口。
 	addGated(reg, opts.ToolFilter, agent.NewSubagentListTool(subagentStore))
-	// read_subagent_result（2026-10 B2）：模型面按 ref 分页取回子代理最终
-	// 回答——聚合没送达/结果滚出上下文时不必重跑（省一次推理费）。
-	addGated(reg, opts.ToolFilter, agent.NewReadSubagentResultTool(subagentStore))
+	// send_message（2026-11-18 刀2，DSH tool-subagent-control send_message 对
+	// 齐）：统一传话通道——running steer / queued 排队 / 终态 followup 三态
+	// 自动路由。followUp 复用 EmitSubagentText 闭包（FollowUpSink 专用流式
+	// 通道，与用户追问同实现）；nil = 终态分支报可执行文案。
+	// read_subagent_result 模型面同批退役（结果自动回投；内部 API 保留给 UI）。
+	var msgFollowUp agent.SubagentFollowUpRunner
+	if opts.EmitSubagentText != nil {
+		emitText := opts.EmitSubagentText
+		msgFollowUp = func(ctx context.Context, ref, prompt string) error {
+			sink := agent.FollowUpSink(ref, func(text string) { emitText(ref, text) })
+			return taskTool.RunFollowUp(ctx, ref, prompt, sink)
+		}
+	}
+	addGated(reg, opts.ToolFilter, agent.NewSendMessageTool(subagentStore, msgFollowUp))
 	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
 	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。

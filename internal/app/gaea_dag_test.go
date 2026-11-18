@@ -960,35 +960,24 @@ func TestDagWaveDeclaredRunsParallel(t *testing.T) {
 	waitDagDone(t, id)
 }
 
-// TestDagNodeScope 2026-11-08 众神殿裁决刀4：节点作用域 ctx 装配——只读节点
-// → ReadOnly scope；声明写路径节点 → 绝对根 scope（cwd=工作区基准）；未声明
-// 且非只读 → 无盖；空间恒随行。
+// TestDagNodeScope 2026-11-18 范式切换退役版：dagNodeScope 不再做任何工具
+// 收窄（readonly/write_paths 收窄随「专业工人→通用智能体」范式切换退役，
+// 用户拍板收窄形态彻底退场）——只注入空间自描述，节点子代理一律全量通用
+// 工具集（bash 在场），节点读写约束由节点 prompt 表达。
 func TestDagNodeScope(t *testing.T) {
 	a := &App{}
-	// 只读节点。
-	ctx := a.dagNodeScope(context.Background(), dag.Node{ReadOnly: true})
-	sc, ok := gaeaAgent.SubagentScopeFromContext(ctx)
-	if !ok || !sc.ReadOnly || len(sc.WritePaths) != 0 {
-		t.Fatalf("只读节点应得 ReadOnly scope: ok=%v %+v", ok, sc)
-	}
-	// 声明节点：相对路径按 cwd 解析为绝对根。
-	ctx = a.dagNodeScope(context.Background(), dag.Node{WritePaths: []string{"docs/out.docx"}})
-	sc, ok = gaeaAgent.SubagentScopeFromContext(ctx)
-	if !ok || len(sc.WritePaths) != 1 {
-		t.Fatalf("声明节点应得写作用域: ok=%v %+v", ok, sc)
-	}
-	wd, _ := os.Getwd()
-	if want := filepath.Join(wd, "docs", "out.docx"); sc.WritePaths[0] != want {
-		t.Errorf("声明根应按 cwd 解析: got %q want %q", sc.WritePaths[0], want)
-	}
-	// glob 声明=无法判断 → 不盖作用域（该波由 WaveFullyDeclared 降宽串行）。
-	ctx = a.dagNodeScope(context.Background(), dag.Node{WritePaths: []string{"*.docx"}})
-	if _, ok = gaeaAgent.SubagentScopeFromContext(ctx); ok {
-		t.Error("glob 声明不应装配作用域")
-	}
-	// 未声明且非只读 → 无盖。
-	ctx = a.dagNodeScope(context.Background(), dag.Node{})
-	if _, ok = gaeaAgent.SubagentScopeFromContext(ctx); ok {
-		t.Error("未声明节点不应装配作用域")
+	for name, node := range map[string]dag.Node{
+		"只读节点":     {ReadOnly: true},
+		"声明写路径节点": {WritePaths: []string{"docs/out.docx"}},
+		"glob 节点":  {WritePaths: []string{"*.docx"}},
+		"未声明节点":    {},
+	} {
+		ctx := a.dagNodeScope(context.Background(), node)
+		if _, ok := gaeaAgent.SubagentScopeFromContext(ctx); ok {
+			t.Errorf("%s 不应再装配作用域（收窄已退役）", name)
+		}
+		if gaeaAgent.SpaceFromContext(ctx) == "" {
+			t.Errorf("%s 空间自描述应随行", name)
+		}
 	}
 }

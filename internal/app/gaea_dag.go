@@ -43,6 +43,10 @@ func (d dagPlanTool) Description() string {
 }
 
 func (d dagPlanTool) Schema() json.RawMessage {
+	// 2026-11-18 范式切换（用户拍板收窄形态彻底退场）：节点 write_paths/readonly
+	// 两字段从模型面退役——子代理一律全量通用工具集，节点任务约束改由 prompt
+	// 表达；并行调度改按依赖分波（无依赖同波并行），写路径重叠闸随字段退役
+	// 不再需要。Node 结构与解析保留（旧图兼容读取）。
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
@@ -51,10 +55,8 @@ func (d dagPlanTool) Schema() json.RawMessage {
   "nodes":{"type":"array","minItems":2,"items":{"type":"object","properties":{
     "id":{"type":"string","description":"节点短 id（ASCII kebab，如 read-reports）"},
     "title":{"type":"string","description":"节点名（3-8 字，验收后将作为记忆条目名）"},
-    "prompt":{"type":"string","description":"该节点的完整委托指令：输入文件（工作区相对路径）、加工动作、期望产物路径。子代理看不到对话，prompt 必须自包含"},
+    "prompt":{"type":"string","description":"该节点的完整委托指令：输入文件（工作区相对路径）、加工动作、期望产物路径。子代理看不到对话，prompt 必须自包含；节点的读写约束也写在这里（如「只读取，不改动任何文件」）"},
     "depends_on":{"type":"array","items":{"type":"string"},"description":"依赖的节点 id 列表（可空=无依赖）"},
-    "write_paths":{"type":"array","items":{"type":"string"},"description":"可选。该节点会写的工作区相对路径（目录含其下全部，不填 glob）。同一波（无依赖关系）的节点声明重叠会被拒绝；完全不声明写路径的节点所在波只能串行执行——独立并行节点建议都声明"},
-    "readonly":{"type":"boolean","description":"可选。纯读取/取证节点：以只读工具集执行（写工具硬拒），不得再声明 write_paths 或标 high 风险；所在波不因它缺写路径声明而串行"},
     "risk":{"type":"string","enum":["normal","high"],"description":"风险分级：覆盖/删除工作区既有文件、批量移动、全局性改动的节点标 high（起跑前会暂停等用户审批）；常规新增/编辑用 normal（缺省）"}}},
     "required":["id","title","prompt"]}}
 },
@@ -602,33 +604,14 @@ func (a *App) dagWaveWidth() int {
 	return width
 }
 
-// dagNodeScope 节点子代理作用域（2026-11-08 众神殿裁决刀4）：只读节点=只读
-// 收窄（写工具硬拒）；已声明字面写路径节点=containment 白名单+逐调用包含
-// 校验（绝对根按进程 cwd=工作区解析，与 PathAccessPolicy 对参数路径的解析
-// 同基准）；未声明且非只读节点=无盖（全量注册表+父策略，串行波今日行为）。
+// dagNodeScope 节点子代理上下文（2026-11-18 范式切换退役版）：**只注入空间
+// 自描述，不再做任何工具收窄**——readonly 收窄（2026-11-08 众神殿裁决刀4）
+// 与 write_paths containment（刀4 同批）随「专业子代理→通用智能体」范式切换
+// 一并退役（用户拍板收窄形态彻底退场），节点子代理一律全量通用工具集，任务
+// 约束由节点 prompt 表达。SubagentScope/WithSubagentScope 机制保留（无调用
+// 方，后续可删）；dag.Node 的 ReadOnly/WritePaths 字段保留读兼容（旧图）。
 func (a *App) dagNodeScope(ctx context.Context, node dag.Node) context.Context {
-	runCtx := gaeaAgent.WithSpace(ctx, gaeaSessionSpace())
-	switch {
-	case node.ReadOnly:
-		return gaeaAgent.WithSubagentScope(runCtx, gaeaAgent.SubagentScope{ReadOnly: true})
-	case len(node.WritePaths) > 0:
-		roots := make([]string, 0, len(node.WritePaths))
-		for _, p := range node.WritePaths {
-			if !dag.IsLiteralWritePath(p) {
-				continue
-			}
-			if !filepath.IsAbs(p) {
-				if wd, err := os.Getwd(); err == nil {
-					p = filepath.Join(wd, p)
-				}
-			}
-			roots = append(roots, p)
-		}
-		if len(roots) > 0 {
-			return gaeaAgent.WithSubagentScope(runCtx, gaeaAgent.SubagentScope{WritePaths: roots})
-		}
-	}
-	return runCtx
+	return gaeaAgent.WithSpace(ctx, gaeaSessionSpace())
 }
 
 func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
@@ -643,13 +626,12 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 		// 波内并发（2026-11-08 众神殿裁决冻结刀+刀2）：额度恒非空——缺省 1
 		//（波内串行），[dag].wave_concurrency 显式 N 放宽，[tasks].max_concurrent
 		// 显式 >0 时取小作合取上界（审计 P0#10：不绕过任务闸口无上界并发拉
-		// 子代理）；波内任一节点缺可判定写路径声明 → 降宽 1（裁决：缺失或无
-		// 法判断的写路径默认串行）。节点保持 pending 直至拿到额度，取消优先
-		// 于排队。
+		// 子代理）。2026-11-18 范式切换：write_paths 声明从模型面退役后，
+		// 「缺声明降宽 1」的保守串行规则一并退役——波宽直接取 dagWaveWidth
+		// （[dag].wave_concurrency 显式 N 放宽，[tasks].max_concurrent 钳制，
+		// 缺省 1 维持旧行为可并行化由显式配置开启）。节点保持 pending 直至
+		// 拿到额度，取消优先于排队。
 		width := a.dagWaveWidth()
-		if !dag.WaveFullyDeclared(wave) {
-			width = 1
-		}
 		sem := make(chan struct{}, width)
 		failed := false
 		held := false

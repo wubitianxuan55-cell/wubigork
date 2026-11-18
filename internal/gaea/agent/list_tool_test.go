@@ -143,7 +143,7 @@ func TestSubagentListToolExecute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	for _, want := range []string{a.Ref, "[completed]", "摘要文档", "interrupt_agent", "continue_from"} {
+	for _, want := range []string{a.Ref, "[completed]", "摘要文档", "interrupt_agent", "send_message"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("输出缺 %q:\n%s", want, out)
 		}
@@ -155,7 +155,7 @@ func TestSubagentListToolExecute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("空会话 Execute: %v", err)
 	}
-	if !strings.Contains(out, "No sub-agent runs") {
+	if !strings.Contains(out, "(no subagents)") {
 		t.Fatalf("空会话应给诚实空态: %s", out)
 	}
 }

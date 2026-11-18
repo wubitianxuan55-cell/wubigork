@@ -23,13 +23,17 @@ import (
 
 // DefaultTaskSystemPrompt steers a sub-agent toward focused, terse delivery —
 // it doesn't see the parent's conversation so it must self-contain.
-// Z15 写入纪律包（ZCode 蒸馏对话档第 2/6 轮收口）随公共提示词下发：
-// 禁报告文件（发现进最终回复，任务显式要文件交付物除外）+评审轮次预算
-// （每类缺陷至多一次修复尝试，不收敛如实上报——防评审回修自我供能）。
-const DefaultTaskSystemPrompt = `You are a sub-agent invoked by a parent engineering office assistant to carry out one focused task.
-Use the provided tools to investigate or act. Return a single final answer that is concise
+// 2026-11-18 范式切换（用户拍板「专业工人→通用智能体」）：开头口径对齐 DSH
+// SUBAGENT_DELEGATION 语境——子代理是通用智能体，工具集与主代理同源，任务
+// 交给它就完整自主跑完。Z15 写入纪律包（ZCode 蒸馏对话档第 2/6 轮收口）随
+// 公共提示词下发：禁报告文件（发现进最终回复，任务显式要文件交付物除外）
+// +评审轮次预算（每类缺陷至多一次修复尝试，不收敛如实上报——防评审回修自我
+// 供能）。
+const DefaultTaskSystemPrompt = `You are a general-purpose agent delegated a task by a parent agent. You have the same toolset as the parent conversation — use any of them to complete the task end to end.
+Work autonomously until the task is done; do not ask the parent questions mid-task. If the task
+cannot proceed without clarification, fail with a precise question instead of guessing.
+Return a single final answer that is concise
 and self-contained — the parent will see only that answer, not your tool calls or reasoning.
-If you need to ask for clarification, fail with a precise question instead of guessing.
 Do NOT write report/summary/findings/analysis files (e.g. .md) unless the task explicitly
 names a file as the deliverable — deliver findings directly in your final answer; the parent
 reads your text output, not files you create.
@@ -200,15 +204,17 @@ const (
 )
 
 // nestedDelegationTools 是深度闸开放给子代理的协调元工具（自身子树管理）：
-// task（再派孙代）/ interrupt_agent / subagent_list / read_subagent_result。
-// 四件对子代理按「自己的子树」收窄（list/interrupt/read 的 Execute 有
+// task（再派孙代）/ interrupt_agent / subagent_list / send_message。
+// 四件对子代理按「自己的子树」收窄（list/interrupt/send 的 Execute 有
 // ancestry 守卫；task 天然只产自己的下一代）——兄弟运行依旧不可见，原
 // subagentMetaTools 注释的可见性边界在兄弟面维持不变。
+// read_subagent_result 已从嵌套集合摘除并整体退役（2026-11-18 DSH 式通用
+// 智能体工具集刀2）：结果自动回投，模型面不再有「读结果」动作。
 var nestedDelegationTools = map[string]bool{
-	"task":                true,
-	"interrupt_agent":     true,
-	"subagent_list":       true,
-	"read_subagent_result": true,
+	"task":            true,
+	"interrupt_agent": true,
+	"subagent_list":   true,
+	"send_message":    true,
 }
 
 // metaExclusionForLevel 返回级别 level 的子代理注册表应排除的元工具清单：
@@ -216,6 +222,7 @@ var nestedDelegationTools = map[string]bool{
 //     子代理=平面工兵，一层深）；
 //   - 否则仅排除非委派面（run_skill/install_skill/exit_plan_mode——审批出
 //     口与技能装配属宿主面），协调四件保留：子代理=完整智能体。
+//     read_subagent_result 不在协调面（2026-11-18 刀2 退役：所有级别排除）。
 func metaExclusionForLevel(maxDepth, level int) []string {
 	if maxDepth <= 1 || level >= maxDepth {
 		return SubagentMetaTools()
@@ -270,8 +277,12 @@ var subagentMetaTools = []string{
 	// subagent_list（2026-10 P1-D）：兄弟运行清单不进子代理上下文；嵌套开放
 	// 后子代理可见**自己的子树**清单（子树守卫）。
 	"subagent_list",
-	// read_subagent_result（2026-10 B2）：兄弟运行的结果体不进子代理上下文；
-	// 嵌套开放后可读**自己的后代**结果（子树守卫）。
+	// send_message（2026-11-18 刀2）：统一传话通道，平面子代理不可见；嵌套
+	// 开放后可对**自己的后代**传话（子树守卫）。
+	"send_message",
+	// read_subagent_result（2026-10 B2 → 2026-11-18 刀2 退役）：模型面整体
+	// 退役——结果自动回投，所有级别排除；内部 API（ReadSubagentResultTool
+	// 结构与 store 读路径）保留给 UI 侧。
 	"read_subagent_result",
 }
 
@@ -434,25 +445,23 @@ func (t *TaskTool) SetSubagentJournalDir(dir string) { t.journalDir = dir }
 func (t *TaskTool) Name() string { return "task" }
 
 func (t *TaskTool) Description() string {
-	return "Spawn a sub-agent for a focused sub-task. The sub-agent runs in its own session with the same provider and a filtered tool list (defaults to every parent tool except subagent/skill meta-tools, so delegation stays one layer deep). Only its final answer is returned. Set output_schema to get structured JSON back (e.g. {files_modified: [...], key_decisions: [...]}). Use this to (a) keep long exploration sequences out of the parent's context budget, or (b) delegate self-contained work like 'find every place that calls X and summarise the patterns'. " +
-		"Parallelism: dispatching several task calls in the SAME message runs them concurrently, up to a bounded sub-agent slot limit (" + fmt.Sprintf("%d", SubagentMaxParallel()) + "); extra calls queue transparently and start as slots free up. Batch independent sub-tasks into one message; keep strictly ordered steps inside one prompt (or one call) instead."
+	return "Delegate a self-contained task to a subagent (a separate general-purpose agent that works in its own context with the same toolset as this conversation) to offload focused, independent work — research, a scoped implementation, an analysis — so it does not consume this conversation's context. The subagent returns its result, not its intermediate steps. " +
+		"Parallelism: dispatch several task calls in the SAME message and continue useful work while they run. When only waiting for their results remains, end your turn instead of sleeping or polling — each finished result starts a new turn automatically (bounded slot limit: " + fmt.Sprintf("%d", SubagentMaxParallel()) + "; extra calls queue transparently)."
 }
 
 func (t *TaskTool) Schema() json.RawMessage {
+	// 2026-11-18 范式切换（用户拍板「专业子代理工具→通用智能体工具集」）：模型面
+	// 收敛为 DSH 式四参（对照上游 backend.md §7.1 subagent：cwd/description/prompt/
+	// agent_preset/provider/model）。readonly/write_paths/tools/continue_from/fork/
+	// output_schema/retry_until/max_steps 专业收窄参数**从模型面退役**——
+	// ExecuteWithContext 解析保留（内部调用方已同步退场，见 dagNodeScope），历史
+	// 调用者传参仍可解析但不再是受支持的形态。
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "prompt":{"type":"string","description":"What the sub-agent should accomplish. Be specific about the deliverable — the sub-agent does not see this conversation."},
-  "description":{"type":"string","description":"Short label for the sub-task (3-7 words). Surfaced in the dispatch line so the user sees what's running."},
-  "write_paths":{"type":"array","items":{"type":"string"},"description":"Optional literal file/directory paths this writer may modify. Prefer file paths when known: a directory overlaps every path beneath it. Tasks with overlapping write_paths are rejected or serialized; disjoint scopes run in parallel. Globs and path escapes are rejected. Declaration is coordination metadata for parallel dispatch, not a security boundary."},
-  "tools":{"type":"array","items":{"type":"string"},"description":"Optional tool whitelist. Subagent/skill meta-tools are still excluded so delegation stays one layer deep."},
-  "readonly":{"type":"boolean","description":"Run the sub-agent with a read-only tool scope: only tools that self-report read-only are inherited (known writers stay hard-denied even if mislabeled) and the model-facing tool list matches that scope. Use for exploration/verification tasks that must not mutate anything."},
-  "max_steps":{"type":"integer","description":"Optional cap on tool-call rounds. Defaults to half the parent's cap (min 5).","minimum":1},
-  "run_in_background":{"type":"boolean","description":"Run the sub-agent asynchronously: returns a job id immediately and keeps working across turns. Collect its final answer with wait, and you'll be notified when it finishes. Use for long, independent sub-tasks you don't need to block on right now."},
-  "output_schema":{"type":"object","description":"Optional JSON Schema the sub-agent MUST return its result in. The schema is injected into the sub-agent's instructions, and if its final answer is not valid JSON the sub-agent is corrected in-session (bounded retries) before anything reaches you. Valid results are returned verbatim as JSON. Use when you need structured data from the sub-agent."},
-  "retry_until":{"type":"object","properties":{"check":{"type":"string","description":"Shell command to verify success, e.g. 'go test ./...'. Non-zero exit = retry."},"max_retries":{"type":"integer","description":"Maximum retry attempts (default 3, max 10).","minimum":1,"maximum":10}},"required":["check"]},
-  "continue_from":{"type":"string","description":"Continue a prior compatible subagent transcript in the current conversation context. Pass only the 'sa_...' value from the prior result's 'Subagent reference: ...' line."},
-  "fork":{"type":"boolean","description":"Seed the sub-agent with this conversation's full history so it works with complete context instead of a pasted summary. The parent request prefix is byte-identical, so the provider KV cache carries over (cheap first turn). Incompatible with run_in_background, continue_from and retry_until. Use when the sub-task depends on what happened in this conversation."},
+  "prompt":{"type":"string","description":"The complete, self-contained task for the subagent. It does not share this conversation's context, so include everything it needs."},
+  "description":{"type":"string","description":"A short (3-7 word) description of the delegated task, for display."},
+  "run_in_background":{"type":"boolean","description":"Run the subagent asynchronously: returns a reference immediately and keeps working across turns; you'll be notified when it finishes. Use for long, independent sub-tasks you don't need to block on right now."},
   "engine":{"type":"string","description":"Provider id for per-call model routing (e.g. 'xai'). Must be supplied together with model; both must match an authorized route verbatim or the call is rejected with the available routes listed."},
   "model":{"type":"string","description":"Model id for per-call model routing. Must be supplied together with engine; unauthorized routes are rejected fail-loud (no silent fallback to the parent route)."}
 },
@@ -467,13 +476,11 @@ func (t *TaskTool) ReadOnly() bool { return false }
 
 // CompactDescriptor — V10.11: compact task description for prompt efficiency.
 // CompactDescriptor 无条件替换 provider 面描述（tool.go Schemas()），模型只看
-// 这里——并行语义引导（2026-10 有限并行批）必须落在本行；写进 Description
-// 的版本到不了模型面前（该坑已修正）。末两段=dsh 蒸馏 2026-11（SA-E fork
-// 措辞分叉：续跑子代理已见原任务，prompt 只说新增——上游 providerWording
-// (inheritsParentContext=true) 同款；SA-D 被拒操作反重试指引：SUBAGENT_
-// DELEGATION_CONTEXT 纪律「范围 start 时定死，勿重试被拒操作，声明限制」）。
+// 这里。2026-11-18 范式切换：措辞对齐 DSH §7.2（自包含任务/返回结果而非过程）
+// + §7.3 并发委派与「只剩等待就结束回合」（完成注记自动开新回合）；专业收窄面
+// （write_paths/readonly/continue_from）措辞退役。
 func (t *TaskTool) CompactDescription() string {
-	s := fmt.Sprintf("派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)。同一消息里派发多个独立task即并行执行,并发上限%d路、超限自动排队等槽;要并行写文件的任务各自声明write_paths(字面路径,目录含其下全部,glob被拒)且互不重叠,重叠即拒绝;readonly=true只读子代理仅继承自报只读的工具(已知写工具硬拒),用于探索/取证/核验类不得改动的子任务;严格有序的步骤写进同一prompt或同一次调用;continue_from续跑的子代理已带原任务与transcript,prompt只补新增部分;工具或路径被拒属权限范围定死,勿重试同一操作,在答复里声明限制", SubagentMaxParallel())
+	s := fmt.Sprintf("派发自包含子任务给子智能体(独立上下文的通用智能体,工具集与本会话同源,只回最终结果不回过程)。同一消息里并发派发多个独立task,派发后继续自己的活;只剩等待结果时直接结束回合,每个结果完成会自动开新回合送达(并发上限%d路,超限自动排队)。跨轮的长任务加run_in_background立即返回引用稍后收结果", SubagentMaxParallel())
 	// 按调用路由的「发现」面（dsh model-selection 蒸馏 P2：授权路由动态
 	// 列给模型，零新增发现工具）。清单空=路由关闭，参数给了一律拒绝。
 	if routes := SubagentRoutes(); len(routes) > 0 {
@@ -482,7 +489,7 @@ func (t *TaskTool) CompactDescription() string {
 	return s
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"write_paths":{"type":"array","items":{"type":"string"}},"tools":{"type":"array","items":{"type":"string"}},"readonly":{"type":"boolean"},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"},"engine":{"type":"string"},"model":{"type":"string"}},"required":["prompt"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"run_in_background":{"type":"boolean"},"engine":{"type":"string"},"model":{"type":"string"}},"required":["prompt"]}`)
 }
 
 // Execute 满足 tool.Tool 接口（无父上下文的直接调用方——技能/测试路径）。
@@ -1152,8 +1159,15 @@ func (t *TaskTool) SetSubagentRouteFactory(f func(engine, model string) (provide
 
 // WithTranscripts wires the subagent transcript store for continue_from support.
 // When nil, sub-agents are ephemeral and cannot be continued across turns.
+// 附带注册排队消息 flush 钩子（刀2 send_message）：queued 期排队的补充指引在
+// 起跑（runSubAgentInternal）时经 TakePending 取空逐条 steer 送达。
 func (t *TaskTool) WithTranscripts(store *SubagentStore) *TaskTool {
 	t.transcripts = store
+	if store != nil {
+		pendingFlush = store.TakePending
+	} else {
+		pendingFlush = nil
+	}
 	return t
 }
 
@@ -1563,6 +1577,10 @@ func RunSubAgentWithSession(ctx context.Context, prov provider.LLMProvider, reg 
 // 都可取消，fire-and-return（信号发出即返回，目标在下一个取消点停）。
 var subRuns sync.Map // ref → *subRunHandle
 
+// pendingFlush 是排队消息 flush 钩子（刀2 send_message）：WithTranscripts
+// 注册 store.TakePending；nil = 无 store（ephemeral），无排队面。
+var pendingFlush func(ref string) []string
+
 type subRunHandle struct {
 	runner *AgentRunner
 	cancel context.CancelFunc
@@ -1631,6 +1649,14 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 	// （opts.SessionID 即运行引用——中断句柄 subRuns 以它为键），工具在 ref
 	// 字段缺失时从这里兜底取。
 	runCtx = WithSubagentRef(runCtx, opts.SessionID)
+	// 排队期消息 flush（刀2 send_message，DSH queue 通道「起跑后送达」语义）：
+	// queued 期经 send_message 排队的补充指引逐条 steer 送达（steer 队列首轮
+	// 即被消费；TakePending 取空保证重放不重复投递）。
+	if pendingFlush != nil && opts.SessionID != "" {
+		for _, m := range pendingFlush(opts.SessionID) {
+			sub.SteerParent(m)
+		}
+	}
 	_, runErr := sub.Run(runCtx, prompt)
 	// Populate subUsage from the sub-agent's last usage so SubUsage() reflects
 	// real token counts for cost tracking.

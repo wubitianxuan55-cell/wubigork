@@ -95,7 +95,8 @@ func TestNestedDepthCapContract(t *testing.T) {
 	// 协调四件入父注册表（嵌套开放的前提是它们存在于父面）。
 	reg.Add(NewInterruptTool(nil))
 	reg.Add(NewSubagentListTool(NewSubagentStore(t.TempDir())))
-	reg.Add(NewReadSubagentResultTool(NewSubagentStore(t.TempDir())))
+	// send_message 入父面（协调面新集合，刀2）；followUp 传 nil（测试只看路由）。
+	reg.Add(NewSendMessageTool(NewSubagentStore(t.TempDir()), nil))
 	prov := &mockProvider{name: "cap", chunks: []provider.Chunk{{Type: provider.ChunkDone}}}
 
 	// 关闭（未 Set = 零值 / 显式 1）：level1 就没有 task——现行为逐字节。
@@ -117,7 +118,7 @@ func TestNestedDepthCapContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("buildSubRegAt(level=%d): %v", level, err)
 		}
-		for _, want := range []string{"task", "interrupt_agent", "subagent_list", "read_subagent_result", "read_file"} {
+		for _, want := range []string{"task", "interrupt_agent", "subagent_list", "send_message", "read_file"} {
 			if _, ok := regN.Get(want); !ok {
 				t.Fatalf("level%d 应见 %q", level, want)
 			}

@@ -102,6 +102,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"forget":                {"build-internal", "shared", "write", "none", "PersistWrite：记忆删除可查"},
 	"install_skill":         {"build-internal", "shared", "write", "none", "PersistWrite：技能落盘可查"},
 	"interrupt_agent":       {"build-internal", "shared", "meta", "none", "中断信号送达"},
+	"send_message":          {"build-internal", "shared", "meta", "none", "传话按目标态路由：steer/排队/续聊"},
 	"memory_get":            {"build-internal", "shared", "read", "none", "记忆读取与库一致"},
 	"promote_session_facts": {"build-internal", "shared", "write", "none", "PersistWrite：事实晋升可查"},
 	"read_subagent_result":  {"build-internal", "shared", "read", "none", "子代理结果读取一致"},

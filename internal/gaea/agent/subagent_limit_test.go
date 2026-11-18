@@ -369,7 +369,7 @@ func TestTaskDescriptionMentionsSlotLimit(t *testing.T) {
 	setSlotsForTest(t, 4)
 	parentReg := tool.NewRegistry()
 	task := NewTaskTool(&mockProvider{name: "p"}, nil, parentReg, 10, 0, 0.0, "", "sys", nil)
-	if !strings.Contains(task.Description(), "slot limit (4)") {
-		t.Fatalf("Description 应随配置注入并发上限（slot limit (4)）: %s", task.Description())
+	if !strings.Contains(task.Description(), "bounded slot limit: 4") {
+		t.Fatalf("Description 应随配置注入并发上限（bounded slot limit: 4）: %s", task.Description())
 	}
 }
