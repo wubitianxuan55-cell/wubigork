@@ -4,7 +4,8 @@ import { normalizeWorkspaceTabId, WORKSPACE_TABS, WORKSPACE_TAB_IDS } from "./wo
 
 describe("Wenxue board isolation", () => {
   it("does not expose knowledge, CAD or schedule workspace tabs", () => {
-    expect(WORKSPACE_TAB_IDS).toEqual(["files", "deliverables", "browser", "git", "ui"]);
+    // 2026-11-18 起含 gallery（插图右栏 pane，wenxue 自有域；外部域仍禁）。
+    expect(WORKSPACE_TAB_IDS).toEqual(["files", "deliverables", "browser", "git", "ui", "gallery"]);
     expect(WORKSPACE_TABS.map((tab) => tab.label)).not.toEqual(
       expect.arrayContaining(["CAD 图纸", "进度计划"]),
     );

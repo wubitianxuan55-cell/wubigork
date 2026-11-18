@@ -18,7 +18,7 @@
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { Blocks, FileText, FolderTree, GitBranch, Globe } from "../icons";
+import { Blocks, FileText, FolderTree, GitBranch, Globe, Image } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
@@ -31,7 +31,7 @@ import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
  *  tasks/subagents 等退役值回默认「文件」。 */
 // 图文二次改造：文学工作台只保留文件、产物、浏览器、Git 与 UI 工作面板，
 // 不再暴露知识库、CAD 图纸或进度计划关联。
-export const WORKSPACE_TAB_IDS = ["files", "deliverables", "browser", "git", "ui"] as const;
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "browser", "git", "ui", "gallery"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 export interface WorkspaceTabDef {
@@ -59,6 +59,9 @@ export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   // 2b Git 面板最小集（分支/状态/暂存/提交/历史；仓库锚定工作区 cwd）。
   { id: "git", label: "Git", icon: GitBranch, keywords: ["git", "版本", "提交", "分支", "暂存", "diff", "commit", "history"], defaultEnabled: true },
   { id: "ui", label: "UI", icon: Blocks, keywords: ["genui", "ui", "面板", "交互", "dashboard", "看板"], defaultEnabled: true },
+  // 插图册（2026-11-18）：image_gen 封面/场景插图/角色立绘 + 粘贴图（落
+  // .gaea/uploads），数据面 WenxueGalleryList/Preview。右栏 pane 变体紧凑头。
+  { id: "gallery", label: "插图", icon: Image, keywords: ["gallery", "插图", "图册", "剧照", "image", "立绘"], defaultEnabled: true },
 ];
 
 // 历史持久化值只保留仍可安全映射的别名。tasks/subagents 随右栏任务退役，

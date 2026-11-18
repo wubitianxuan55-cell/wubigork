@@ -5,17 +5,17 @@ import { CHAT_VIEW_TAB_IDS, ChatTabs } from "./ChatTabs";
 // 2026-11-17 审查批4 自 gaea 树移植（tab 白名单事故族唯一自动化防线——
 // characters/reading/memory 三次真机定罪的回归锚）。
 
-describe("ChatTabs 对话标签栏（图文九 tab）", () => {
-  it("渲染 9 个 tab：对话/轨迹/上下文/洞察/角色/阅读/设定/记忆/插图，顺序一致", () => {
+describe("ChatTabs 对话标签栏（图文八 tab）", () => {
+  it("渲染 8 个 tab：对话/轨迹/上下文/洞察/角色/阅读/设定/记忆，顺序一致（插图移右栏 2026-11-18）", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
     const labels = Array.from(document.querySelectorAll("button")).map((b) => b.textContent);
-    expect(labels).toEqual(["对话", "轨迹", "上下文", "洞察", "角色", "阅读", "设定", "记忆", "插图"]);
+    expect(labels).toEqual(["对话", "轨迹", "上下文", "洞察", "角色", "阅读", "设定", "记忆"]);
   });
 
   it("CHAT_VIEW_TAB_IDS 单源与 TABS 渲染序一致（白名单漏名=tab 被当子代理 tab 吃掉）", () => {
-    expect(CHAT_VIEW_TAB_IDS).toHaveLength(9);
+    expect(CHAT_VIEW_TAB_IDS).toHaveLength(8);
     expect(CHAT_VIEW_TAB_IDS).toEqual([
-      "chat", "trajectory", "context", "insights", "characters", "reading", "settings", "memory", "gallery",
+      "chat", "trajectory", "context", "insights", "characters", "reading", "settings", "memory",
     ]);
   });
 
@@ -51,7 +51,7 @@ describe("ChatTabs 对话标签栏（图文九 tab）", () => {
     unmount();
     render(<ChatTabs active="chat" onChange={() => {}} />);
     expect(Array.from(document.querySelectorAll("button")).map((b) => b.textContent)).toEqual(
-      ["对话", "轨迹", "上下文", "洞察", "角色", "阅读", "设定", "记忆", "插图"],
+      ["对话", "轨迹", "上下文", "洞察", "角色", "阅读", "设定", "记忆"],
     );
   });
 
@@ -107,7 +107,7 @@ describe("ChatTabs tab 语义（a11y）", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
     const list = screen.getByRole("tablist");
     const tabs = within(list).getAllByRole("tab");
-    expect(tabs).toHaveLength(9);
+    expect(tabs).toHaveLength(8);
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     expect(tabs.slice(1).every((t) => t.getAttribute("aria-selected") === "false")).toBe(true);
     expect(tabs[0].tabIndex).toBe(0);
@@ -122,11 +122,11 @@ describe("ChatTabs tab 语义（a11y）", () => {
     expect(onChange).toHaveBeenCalledWith("trajectory");
   });
 
-  it("Home/End 导航到首尾 tab（图文末位=插图）", () => {
+  it("Home/End 导航到首尾 tab（图文末位=记忆）", () => {
     const onChange = vi.fn();
     render(<ChatTabs active="chat" onChange={onChange} />);
     fireEvent.keyDown(screen.getByRole("tablist"), { key: "End" });
-    expect(onChange).toHaveBeenCalledWith("gallery");
+    expect(onChange).toHaveBeenCalledWith("memory");
     fireEvent.keyDown(screen.getByRole("tablist"), { key: "Home" });
     expect(onChange).toHaveBeenCalledWith("chat");
   });

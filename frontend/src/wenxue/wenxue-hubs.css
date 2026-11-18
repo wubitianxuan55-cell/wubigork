@@ -2285,3 +2285,67 @@
   font-size: 16px;
   cursor: pointer;
 }
+
+/* 右栏 pane 紧凑形态（2026-11-18 移右栏）：细头 + 窄列网格；灯箱/筛选/网格
+   基础类与 page 形态共用。容器自身滚动（WorkspacePane 只给 overflow-hidden）。 */
+.wx-root .wx-gallery-pane {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 8px 10px 12px;
+}
+
+.wx-root .wx-gallery-pane-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.wx-root .wx-gallery-pane-title {
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.wx-root .wx-gallery-pane-count {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-root .wx-gallery-pane-refresh {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-soft, var(--md-sys-color-outline-variant));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-faint);
+  cursor: pointer;
+}
+
+.wx-root .wx-gallery-pane-refresh:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.wx-root .wx-gallery-pane .wx-gallery-grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+.wx-root .wx-gallery-pane .wx-gallery-thumb {
+  height: 96px;
+}
