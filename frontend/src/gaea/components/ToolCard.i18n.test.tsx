@@ -87,7 +87,7 @@ describe("ToolCard i18n 冒烟", () => {
     expect(screen.getByText(/展开全部 18 行/)).toBeTruthy();
   });
 
-  it("task 卡运行中显示「点击打开子代理会话」活动行（zh）", () => {
+  it("task 卡运行中显示当前活动与等待/查看入口（zh）", () => {
     setTaskCardActivityProvider(() => ({ lastText: "正在收集资料", state: "running" }));
     const taskItem: Item = {
       kind: "tool",
@@ -99,7 +99,7 @@ describe("ToolCard i18n 冒烟", () => {
     };
     renderT(<ToolCard item={taskItem} />);
     expect(screen.getByTestId("task-live")).toBeTruthy();
-    expect(screen.getByText("点击打开子代理会话")).toBeTruthy();
+    expect(screen.getByText("正在收集资料")).toBeTruthy();
   });
 
   // v4.503 bash 展开态去重：行内命令主体与 $ 命令块不再同时呈现同一命令
@@ -234,11 +234,11 @@ describe("ToolCard 子代理卡片点击跳转（v4.63）", () => {
     expect(opened).toEqual(["sa_abc123"]);
   });
 
-  it("无注入（解析不到 ref）：点击不跳转，维持展开折叠现状", () => {
+  it("无注入（解析不到 ref）：点击不跳转，只保留摘要", () => {
     renderT(<ToolCard item={taskCard} />);
     fireEvent.click(screen.getByTestId("delegate-head"));
-    // 展开行为：输出区可见（默认折叠，点击后展开）
-    expect(screen.getByText(/输出 · /)).toBeTruthy();
+    // 简化卡不在消息流内渲染输出；无会话目标时只保留摘要。
+    expect(screen.queryByText(/输出 · /)).toBeNull();
   });
 
   it("空 ref 回退：唯一 running 命中时由 App 解析器给出目标 ref", () => {
@@ -291,7 +291,7 @@ describe("ToolCard 多候选歧义点击（v4.68）", () => {
     expect(fired[0]).toContain("土壤修复技术调研");
   });
 
-  it("非歧义（resolver 判 false，模拟 0/1 候选）：卡不可点、点击不派发，维持展开折叠现状", () => {
+  it("非歧义（resolver 判 false，模拟 0/1 候选）：卡不可点、点击不派发，只保留摘要", () => {
     const fired: string[] = [];
     setTaskCardAmbiguityResolver(() => false);
     setTaskCardAmbiguityHandler((args) => { fired.push(String(args)); });
@@ -299,16 +299,15 @@ describe("ToolCard 多候选歧义点击（v4.68）", () => {
     expect(screen.queryByLabelText("多个运行中任务，点击选择")).toBeNull();
     fireEvent.click(screen.getByTestId("delegate-head"));
     expect(fired).toEqual([]);
-    expect(screen.getByText(/输出 · /)).toBeTruthy();
+    expect(screen.queryByText(/输出 · /)).toBeNull();
   });
 
-  it("只注册 resolver 未注册 handler：按现状渲染（不可点），绝不弹空选择器", () => {
+  it("只注册 resolver 未注册 handler：按摘要渲染（不可点），绝不弹空选择器", () => {
     setTaskCardAmbiguityResolver(() => true);
     renderT(<ToolCard item={ambiguousCard} />);
     expect(screen.queryByLabelText("多个运行中任务，点击选择")).toBeNull();
     fireEvent.click(screen.getByTestId("delegate-head"));
-    // 回退展开折叠现状
-    expect(screen.getByText(/输出 · /)).toBeTruthy();
+    expect(screen.queryByText(/输出 · /)).toBeNull();
   });
 
   it("已有唯一目标（openTarget 解析到 ref）时歧义槽位不介入：仍走直跳链路", () => {
@@ -340,9 +339,11 @@ describe("ToolCard 委派卡形态（DelegationCard 重设计）", () => {
   afterEach(() => {
     cleanup();
     setTaskCardActivityProvider(null);
+    setTaskCardOpenHandler(null);
+    setTaskCardOpenTarget(null);
   });
 
-  it("完成卡：子代理徽标 + 已完成状态词 + 结果条（不再渲染裸 task 名行）", () => {
+  it("完成卡：子代理徽标 + 已完成状态词 + 结果摘要（不再渲染裸 task 名行）", () => {
     const card: Item = {
       kind: "tool",
       id: "d1",
@@ -360,7 +361,7 @@ describe("ToolCard 委派卡形态（DelegationCard 重设计）", () => {
     expect(screen.queryByText("task")).toBeNull();
   });
 
-  it("运行卡：运行中状态词 + 活动条（provider 注入时）+ 元芯片含引擎名", () => {
+  it("运行卡：运行中状态词 + 当前活动；引擎保留在标题提示中", () => {
     setTaskCardActivityProvider(() => ({ lastText: "正在收集资料", state: "running" }));
     const card: Item = {
       kind: "tool",
@@ -372,8 +373,41 @@ describe("ToolCard 委派卡形态（DelegationCard 重设计）", () => {
     };
     renderT(<ToolCard item={card} />);
     expect(screen.getByText("运行中")).toBeTruthy();
-    expect(screen.getByText("qwen3.5")).toBeTruthy();
+    expect(screen.getByText("调研").getAttribute("title")).toContain("qwen3.5");
     expect(screen.getByTestId("task-live").textContent).toContain("正在收集资料");
-    expect(screen.getByText("点击打开子代理会话")).toBeTruthy();
+  });
+
+  it("运行卡无活动 provider 时显示等待回传，而不是空白活动条", () => {
+    const card: Item = {
+      kind: "tool",
+      id: "d2b",
+      name: "task",
+      args: '{"description":"法规检索","run_in_background":true}',
+      readOnly: false,
+      status: "running",
+    };
+    renderT(<ToolCard item={card} />);
+    expect(screen.getByTestId("task-live").textContent).toContain("已派发，等待子代理回传进展");
+    expect(screen.getByText("后台")).toBeTruthy();
+  });
+
+  it("有唯一会话目标时，点击卡片进入会话且不在卡内展开输出", () => {
+    const opened: string[] = [];
+    setTaskCardOpenHandler((ref) => opened.push(ref));
+    setTaskCardOpenTarget((ref) => ref);
+    const card: Item = {
+      kind: "tool",
+      id: "d3",
+      name: "task",
+      args: '{"description":"成本复核"}',
+      readOnly: false,
+      status: "done",
+      output: "成本复核完成。\nSubagent reference: sa_x3",
+    };
+    renderT(<ToolCard item={card} />);
+    expect(screen.getByText("查看详情")).toBeTruthy();
+    expect(screen.queryByText(/输出 · /)).toBeNull();
+    fireEvent.click(screen.getByTestId("delegate-head"));
+    expect(opened).toEqual(["sa_x3"]);
   });
 });

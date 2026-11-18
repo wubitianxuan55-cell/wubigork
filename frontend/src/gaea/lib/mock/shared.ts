@@ -210,8 +210,9 @@ export function delay(ms: number): Promise<void> {
 // （openTasksAuto→closeFilePreview）顶掉打开中的文件预览，走查预览链路用 calm。
 // subagents（2026-11-18 委派卡上浮）：并行派发 task ×3 + turn_done 后子代理
 // 事件回投（parentId 子调用/task_result 带 sa_ 引用）——委派卡上浮对话流的
-// 离线走查锚点。
-export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction" | "calm" | "subagents";
+// ocr（2026-11-18 OCR 卡重设计）：并行露出识别中、引擎拉起、缓存命中与失败
+// 四种作业态，作为办公 OCR 卡的稳定视觉走查锚点。
+export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction" | "calm" | "subagents" | "ocr";
 
 export function mockScenario(): MockScenario {
   if (typeof window === "undefined") return "demo";
@@ -223,6 +224,7 @@ export function mockScenario(): MockScenario {
   if (value === "compaction" || value === "compress") return "compaction";
   if (value === "calm" || value === "quiet") return "calm";
   if (value === "subagents" || value === "parallel") return "subagents";
+  if (value === "ocr" || value === "scan") return "ocr";
   return "demo";
 }
 

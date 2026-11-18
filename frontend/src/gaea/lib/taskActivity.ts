@@ -103,9 +103,23 @@ export function resolveTaskRef(args: string, output?: string): string {
 // 完成卡此前 summarize 返回空串，除嵌套步数外没有任何结果信息）。取第一条
 // 非空行（跳过 "Subagent reference:" 引用行），超 80 字截断；error 时由
 // 卡片错误区展示，这里返回空串。
+// 2026-11-18 后台委派实弹：run_in_background 的 task 立即回 dsh-ops 信封
+// （{"ok":true,…,"data":{"result":"Started background task …"}}）——先剥
+// 信封取 data.result；回执文本不是结果（真结果随结算注记开新回合送达、在
+// 右栏会话可见），返回空串不冒充结果。
 export function taskResultSummary(output?: string, error?: string): string {
   if (error || !output) return "";
-  for (const line of output.split("\n")) {
+  let text = output;
+  try {
+    const parsed = JSON.parse(output) as { data?: { result?: unknown } };
+    if (parsed && typeof parsed === "object" && parsed.data && typeof parsed.data.result === "string") {
+      text = parsed.data.result;
+      if (text.startsWith("Started background task")) return "";
+    }
+  } catch {
+    // 非 JSON：原文本走行提取
+  }
+  for (const line of text.split("\n")) {
     const t = line.trim();
     if (!t || t.startsWith("Subagent reference:")) continue;
     return t.length > 80 ? `${t.slice(0, 80)}…` : t;

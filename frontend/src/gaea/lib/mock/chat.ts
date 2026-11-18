@@ -170,6 +170,75 @@ async function runSubagentsTurn(input: string, cancelledRef: { v: boolean }) {
   emit({ kind: "tool_result", tool: { id: "task-m3", name: "task", output: `风险清单已整理（5 项）。\nSubagent reference: ${tasks[2].ref}`, readOnly: false } });
 }
 
+// OCR 场景（?mock=ocr）：一次展示 OCR 卡的四种作业态，供视觉与
+// 可访问性走查。真实环境由 docmd OCR 进度钩子驱动，字段保持同构。
+async function runOCRTurn(cancelledRef: { v: boolean }) {
+  const cancelled = () => cancelledRef.v;
+  emit({ kind: "turn_started" });
+  await delay(180);
+  emit({
+    kind: "ocr_progress",
+    ocr: {
+      path: "C:/projects/gaea/输入/施工组织设计_第二册.pdf",
+      name: "施工组织设计_第二册.pdf",
+      engine: "uocr2",
+      stage: "running",
+      done: 8,
+      total: 20,
+      chars: 0,
+      err: "",
+    },
+  });
+  emit({
+    kind: "ocr_progress",
+    ocr: {
+      path: "C:/projects/gaea/输入/现场签证单.png",
+      name: "现场签证单.png",
+      engine: "uocr2",
+      stage: "engine-start",
+      done: 0,
+      total: 1,
+      chars: 0,
+      err: "",
+    },
+  });
+  emit({
+    kind: "ocr_progress",
+    ocr: {
+      path: "C:/projects/gaea/输入/会议纪要_扫描.pdf",
+      name: "会议纪要_扫描.pdf",
+      engine: "uocr2",
+      stage: "cached",
+      done: 12,
+      total: 12,
+      chars: 5420,
+      err: "",
+    },
+  });
+  emit({
+    kind: "ocr_progress",
+    ocr: {
+      path: "C:/projects/gaea/输入/旧版合同.pdf",
+      name: "旧版合同.pdf",
+      engine: "uocr2",
+      stage: "failed",
+      done: 0,
+      total: 1,
+      chars: 0,
+      err: "OCR 运行时未就绪",
+    },
+  });
+  const reply = "已接收 4 个文件，正在并行提取可检索文字。";
+  for (const ch of reply) {
+    if (cancelled()) return;
+    emit({ kind: "text", text: ch });
+    await delay(8);
+  }
+  emit({ kind: "message", text: reply });
+  emitUsageTwice();
+  emit({ kind: "turn_done" });
+}
+
 // 压缩场景（?mock=compaction）：turn_started → 正文 → compaction_started →
 // compaction_done → 继续正文 → turn_done。
 async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
@@ -242,6 +311,7 @@ export function buildChat(s: MakeMockState): ChatMethods {
       if (scenario === "ask") { pendingFlow = "ask"; runAskTurn(input); return; }
       if (scenario === "compaction") { await runCompactionTurn(input, cancelledRef); return; }
       if (scenario === "subagents") { await runSubagentsTurn(input, cancelledRef); return; }
+      if (scenario === "ocr") { await runOCRTurn(cancelledRef); return; }
       await runDemoTurn(input, cancelledRef, runningMock);
     },
     async SubmitDisplay(_display, input) {

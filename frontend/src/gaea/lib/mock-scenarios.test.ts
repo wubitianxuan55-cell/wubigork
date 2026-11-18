@@ -148,3 +148,35 @@ describe("mock 场景 · 压缩卡（?mock=compaction）", () => {
     });
   });
 });
+
+describe("mock 场景 · OCR 作业卡（?mock=ocr）", () => {
+  beforeEach(() => { mockListeners.clear(); });
+
+  it("识别 ocr/scan 别名并发射四种作业态", async () => {
+    await withScenario("scan", async () => {
+      expect(mockScenario()).toBe("ocr");
+      const app = makeMockApp();
+      const ocrEvents: NonNullable<WireEvent["ocr"]>[] = [];
+      let resolve: () => void;
+      const done = new Promise<void>((r) => { resolve = r; });
+      const listener = (e: WireEvent) => {
+        if (e.kind === "ocr_progress" && e.ocr) ocrEvents.push(e.ocr);
+        if (e.kind === "turn_done") {
+          mockListeners.delete(listener);
+          resolve();
+        }
+      };
+      mockListeners.add(listener);
+      await app.Submit("识别这批扫描件");
+      await done;
+      expect(ocrEvents.map((e) => e.stage)).toEqual([
+        "running",
+        "engine-start",
+        "cached",
+        "failed",
+      ]);
+      expect(new Set(ocrEvents.map((e) => e.path)).size).toBe(4);
+      expect(ocrEvents[0]).toMatchObject({ done: 8, total: 20, engine: "uocr2" });
+    });
+  });
+});

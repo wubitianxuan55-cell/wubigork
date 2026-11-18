@@ -4,9 +4,9 @@ import {
   Bot,
   Check,
   ChevronRight,
+  Clock,
   LineChart,
   Loader2,
-  Users,
   X,
 } from "../icons";
 
@@ -29,7 +29,7 @@ import {
   unifiedRows,
 } from "../lib/tools";
 import type { DiffRow } from "../lib/diff";
-import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
+import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
 import { MemoryPeekModal } from "./MemoryPeekModal";
@@ -84,15 +84,11 @@ function DiffRowsView({ rows, folded }: { rows: DiffRow[]; folded: number }) {
   );
 }
 
-// ── 委派卡（2026-11-18 重设计）：task/run_skill 的一次委派 = 一张一等卡 ──
-// 形态（DSH tasks-card 两段式同构，gaea token 语言重述）：
-//   [状态灯] [Bot·子代理 徽标 + 任务描述]  [模型·步数·状态词·用时] [打开会话›]
-//   [活动条 running：脉冲点 + lastText + lastTool + 用时]
-//   [结果条 done：✓ 结果摘要]
-// 交互语义不变（v4.63 ~ 06fe3ee9）：整卡可点开右栏子会话 pane；空 ref 多候选
-// 点击派歧义处理器；无目标且可展开时点击展开 body（子步骤/输出）。
-// 活动条沿用 v4.26 注入点契约：provider 未注入（null）整条不渲染；ref 解析
-// 自 args.continue_from / output 引用行，空 ref 回退 args 文本唯一命中。
+// ── 委派卡（2026-11-18 简化重设计）：一次委派 = 一行任务简报 ──
+// 只保留任务名、状态和一行结果/实时进展；点击整卡进入子代理会话查看详情，
+// 不在消息流内展开输出。活动条沿用 v4.26 注入点契约，provider 未注入时
+// 显示诚实的等待态。
+// ref 解析自 args.continue_from / output 引用行，空 ref 回退 args 文本唯一命中。
 function DelegationCard({
   item,
   nested,
@@ -106,17 +102,26 @@ function DelegationCard({
 }) {
   const t = useT();
   const compact = useCompact();
-  const [open, setOpen] = useState(false);
-  const [showFullOutput, setShowFullOutput] = useState(false);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const bodyId = useId();
   // 起跑时刻：Item 契约无时间戳，以挂载时刻近似计时（运行中卡片常驻挂载；
   // 恢复历史会话时 running 一律还原为 stopped，不会进入计时面）。
   const startRef = useRef(Date.now());
-  const running = item.status === "running";
-  const now = useNow(running);
   const ref = useMemo(() => resolveTaskRef(item.args, item.output), [item.args, item.output]);
-  const activity = running ? getTaskCardActivity(ref, item.args) : undefined;
+  // 显示状态以 runs 真态优先（2026-11-18 后台委派实弹：回执即达把卡翻成
+  // done，而子代理磁盘态仍在 running——三卡假完成定罪）。provider 未注入/
+  // 查不到时回退 item.status（诚实维持现状）。
+  const activity = getTaskCardActivity(ref, item.args);
+  const runState = activity?.state;
+  const displayStatus = runState === "running" || runState === "queued"
+    ? "running"
+    : runState === "failed"
+      ? "error"
+      : runState === "aborted"
+        ? "stopped"
+        : runState === "completed"
+          ? "done"
+          : item.status;
+  const running = displayStatus === "running";
+  const now = useNow(running);
   const subject = useMemo(() => subjectOf(item.name, item.args), [item.name, item.args]);
   // 元信息芯片：模型/引擎名取自 args（五参模型面 engine/model 均可选）。
   const engine = useMemo(() => {
@@ -127,34 +132,48 @@ function DelegationCard({
       return "";
     }
   }, [item.args]);
+  const background = useMemo(() => {
+    try {
+      const a = JSON.parse(item.args || "{}") as { run_in_background?: boolean };
+      return a.run_in_background === true;
+    } catch {
+      return false;
+    }
+  }, [item.args]);
   const result = running ? "" : taskResultSummary(item.output, item.error);
-  const hasOutput = !!item.output;
-  const expandable = hasOutput || nested.length > 0 || !!item.error;
-  useGSAPCollapse(bodyRef, open && expandable);
   const clickable = !!openTarget || ambiguous;
   const headClick = clickable
     ? ambiguous
       ? () => { fireTaskCardAmbiguity(item.args); }
       : () => { openTaskCardSession(openTarget); }
-    : expandable
-      ? () => setOpen((v) => !v)
-      : undefined;
+    : undefined;
   const elapsed = running ? formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000))) : "";
-  const bounded = useMemo(() => boundedOutput(item.output, TOOL_CARD_OUTPUT_PREVIEW_LINES), [item.output]);
   const statusWord = running
     ? t("tool.delegateRunning")
-    : item.status === "error"
+    : displayStatus === "error"
       ? t("process.statusError")
-      : item.status === "stopped"
+      : displayStatus === "stopped"
         ? t("process.statusStopped")
         : t("tool.delegateDone");
-  const metaBits = [engine, nested.length > 0 ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length }) : "", statusWord].filter(Boolean);
+  const stepWord = nested.length > 0
+    ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length })
+    : "";
+  const waitingText = t("tool.delegateWaiting");
+  const stateText = running
+    ? activity?.lastText || waitingText
+    : result || item.error || statusWord;
+  const statusIcon = running
+    ? null
+    : displayStatus === "error"
+      ? <X size={11} />
+      : displayStatus === "stopped"
+        ? <Ban size={11} />
+        : <Check size={11} />;
 
   return (
     <div
       className="office-tool-card office-delegate-card"
-      data-status={item.status}
-      data-open={open && expandable ? "true" : "false"}
+      data-status={displayStatus}
       data-compact={compact ? "true" : "false"}
       data-clickable={clickable ? "true" : "false"}
     >
@@ -164,103 +183,64 @@ function DelegationCard({
         className={`office-delegate-card__head select-none ${clickable ? "cursor-pointer" : ""}`}
         onClick={headClick}
         title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
-        aria-label={ambiguous ? t("taskpick.cardAria") : `${t("tool.delegateKind")} · ${subject}`}
-        aria-expanded={!clickable && expandable ? open : undefined}
-        aria-controls={!clickable && expandable ? bodyId : undefined}
-        disabled={!clickable && !expandable}
+        aria-label={ambiguous
+          ? t("taskpick.cardAria")
+          : clickable
+            ? t("tool.delegateOpenAria", { task: subject })
+            : `${t("tool.delegateKind")} · ${subject}`}
+        disabled={!clickable}
       >
-        <span className="office-delegate-card__lamp" data-status={item.status} title={statusWord} aria-hidden>
-          {running ? <Loader2 size={13} className="animate-spin" /> : item.status === "error" ? <X size={13} /> : item.status === "stopped" ? <Ban size={13} /> : <Check size={13} />}
+        <span className="office-delegate-card__lamp" data-status={displayStatus} title={statusWord} aria-hidden>
+          <Bot size={compact ? 15 : 17} />
         </span>
-        <span className="office-delegate-card__identity">
-          <span className="office-delegate-card__kind">
-            <Bot size={11} aria-hidden />
-            {t("tool.delegateKind")}
-          </span>
-          <span className="office-delegate-card__title" title={subject}>{subject || item.name}</span>
-          {metaBits.length > 0 && (
-            <span className="office-delegate-card__meta">
-              {metaBits.map((b, i) => (
-                <span key={i} className="office-delegate-card__meta-bit">{b}{i < metaBits.length - 1 && <span className="office-delegate-card__meta-sep">·</span>}</span>
-              ))}
+        <span className="office-delegate-card__copy">
+          <span className="office-delegate-card__title-line">
+            <span className="office-delegate-card__kind">
+              {t("tool.delegateKind")}
             </span>
-          )}
+            <span className="office-delegate-card__title" title={engine ? `${subject} · ${engine}` : subject}>
+              {subject || item.name}
+            </span>
+            {background && (
+              <span className="office-delegate-card__background">
+                {t("tool.delegateBackground")}
+              </span>
+            )}
+            {stepWord && <span className="office-delegate-card__step">{stepWord}</span>}
+          </span>
+          <span
+            data-testid={running ? "task-live" : item.status === "done" ? "delegate-result" : undefined}
+            className="office-delegate-card__summary"
+            data-kind={running ? "running" : item.status}
+            role={running ? "status" : undefined}
+            aria-live={running ? "polite" : undefined}
+          >
+            {running && <span className="office-delegate-card__pulse" aria-hidden />}
+            <span className="office-delegate-card__summary-text" title={stateText}>{stateText}</span>
+            {running && activity?.lastTool && (
+              <span className="office-delegate-card__tool" title={activity.lastTool}>{activity.lastTool}</span>
+            )}
+            {running && elapsed && (
+              <span className="office-delegate-card__elapsed">
+                <Clock size={10} aria-hidden />
+                <span className="tabular-nums">{elapsed}</span>
+              </span>
+            )}
+          </span>
         </span>
-        <span className="office-delegate-card__trail">
+        <span className="office-delegate-card__aside">
+          <span className="office-delegate-card__status" data-status={item.status}>
+            {statusIcon}
+            <span>{statusWord}</span>
+          </span>
           {clickable && (
             <span className="office-delegate-card__open">
-              <Users size={11} aria-hidden />
-              {t("tool.delegateOpen")}
+              {t("tool.delegateView")}
+              <ChevronRight size={10} aria-hidden />
             </span>
           )}
-          <ChevronRight
-            size={compact ? 11 : 12}
-            className={`office-delegate-card__chevron shrink-0 ${!clickable && !expandable ? "invisible" : ""}`}
-            data-open={open ? "true" : "false"}
-            aria-hidden
-          />
         </span>
       </button>
-      {running && hasTaskCardActivityProvider() && (
-        <div
-          data-testid="task-live"
-          className={`office-delegate-card__live select-none ${clickable ? "cursor-pointer" : ""}`}
-          title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
-          onClick={clickable ? headClick : undefined}
-        >
-          <span className="office-delegate-card__pulse" aria-hidden />
-          {activity?.lastText && (
-            <span className="min-w-0 truncate text-fg-dim/80" title={activity.lastText}>{activity.lastText}</span>
-          )}
-          {activity?.lastTool && (
-            <span className="min-w-0 shrink-0 max-w-[28%] truncate font-mono" title={activity.lastTool}>{activity.lastTool}</span>
-          )}
-          <span className="ml-auto shrink-0 tabular-nums">{elapsed}</span>
-          <span className="inline-flex shrink-0 items-center gap-1">
-            <Users size={11} className="shrink-0" aria-hidden />
-            {t("tool.openSessionHint")}
-          </span>
-        </div>
-      )}
-      {!running && result && (
-        <div className="office-delegate-card__result" data-testid="delegate-result">
-          <Check size={12} className="shrink-0" aria-hidden />
-          <span className="min-w-0 truncate" title={result}>{result}</span>
-        </div>
-      )}
-      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
-        <div className="office-tool-card__body">
-          {nested.length > 0 && (
-            <div className="pl-3 border-l border-border-soft ml-3">
-              {nested.map((c) => (
-                <ToolCard key={c.id} item={c} />
-              ))}
-            </div>
-          )}
-          {hasOutput && (
-            <div className="px-2 pb-1.5">
-              <div className="office-tool-card__section-label select-none">{t("tool.outputHeader", { n: bounded.totalLines })}</div>
-              <pre className="office-tool-card__output px-3 py-2 overflow-auto max-h-72 whitespace-pre-wrap break-words text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
-              {bounded.preview !== bounded.full && (
-                <button
-                  type="button"
-                  className="mt-1 px-2 py-0.5 border border-border-soft rounded bg-bg-soft text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors"
-                  onClick={() => setShowFullOutput((v) => !v)}
-                >
-                  {showFullOutput
-                    ? t("tool.collapseOutput")
-                    : bounded.collapsed
-                      ? t("tool.expandAllLines", { n: bounded.hiddenLines })
-                      : t("tool.expandFullOutput")}
-                </button>
-              )}
-            </div>
-          )}
-          {item.error && (
-            <div className="office-tool-card__error" data-recoverable="false" role="alert">{item.error}</div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

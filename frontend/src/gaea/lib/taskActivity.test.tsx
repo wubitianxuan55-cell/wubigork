@@ -81,9 +81,12 @@ describe("setTaskCardActivityProvider 注入点契约", () => {
 });
 
 describe("ToolCard task 卡 live 行", () => {
-  it("未注入 provider（null）：按现状渲染，无 live 行", () => {
+  it("未注入 provider（null）：live 行显示诚实等待态（2026-11-18 简化版契约）", () => {
     const view = render(wrap(<ToolCard item={taskTool()} />));
-    expect(view.container.querySelector('[data-testid="task-live"]')).toBeNull();
+    // 简化版：live 行（summary 槽）常驻，无活动数据时只显等待态、不显预览文本
+    const live = view.container.querySelector('[data-testid="task-live"]');
+    expect(live).not.toBeNull();
+    expect(live?.textContent).not.toContain("正在核对");
   });
 
   it("注入后运行中显示活动预览 / 已用时 / 打开会话提示", () => {
@@ -97,7 +100,7 @@ describe("ToolCard task 卡 live 行", () => {
     expect(live).not.toBeNull();
     expect(live?.textContent).toContain("正在核对 config.json 的键位");
     expect(live?.textContent).toContain("read_file config.json");
-    expect(live?.textContent).toContain("点击打开子代理会话");
+    // 简化版：打开会话 hint 移至整卡 title/aria（不再内联 live 行文本）
     expect(live?.textContent).toMatch(/\d+s/);
   });
 
@@ -105,6 +108,7 @@ describe("ToolCard task 卡 live 行", () => {
     setTaskCardActivityProvider(() => undefined);
     const view = render(wrap(<ToolCard item={taskTool()} />));
     const live = view.container.querySelector('[data-testid="task-live"]');
+    // 简化版：无活动数据也有 live 行（等待态文案），但绝不显示预览文本
     expect(live).not.toBeNull();
     expect(live?.textContent).not.toContain("正在核对");
   });

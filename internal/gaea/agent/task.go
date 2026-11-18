@@ -704,7 +704,11 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
 			return t.finalizeRun(result, runErr, run)
 		})
-		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
+		// 2026-11-18 后台回执附子代理引用行：前端委派卡据此直连 runs 真态
+		//（此前回执无 sa_ 引用，卡在回执到达即被翻成 done 而子代理仍在跑
+		// ——三卡假完成实弹定罪；resolveTaskRef 的正则按子串命中，信封内
+		// 亦可达）。
+		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.\nSubagent reference: %s", job.ID, label, subagentRunRef(run)), nil
 	}
 
 	var (

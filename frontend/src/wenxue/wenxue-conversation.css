@@ -1961,209 +1961,246 @@
 }
 
 
-/* ── delegation card（子代理委派卡 · 2026-11-18 重设计）───────────────
-   gaea office-conversation.css 同名块的 .wx-root 作用域镜像（keyframes 按
-   本目录纪律改名 wx-*）：共享 ToolCard（gaea/components）渲染的
-   office-delegate-card 结构在文学板块的皮肤面。 */
+/* ── delegation card（子代理委派卡 · 2026-11-18 简化重设计）──────────
+   task/run_skill 的一次委派 = 两行任务摘要。点击整卡进入子代理会话查看详情，
+   不在消息流里叠二级展开。状态色仅用于身份图标、左轨、状态词和实时脉冲。 */
 
 .wx-root .office-delegate-card {
+  --delegate-state: var(--accent);
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--office-output-border));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--accent) 2%, transparent);
+  width: 100%;
+  max-width: 100%;
+  margin-block: 3px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--delegate-state) 17%, var(--office-output-border));
+  border-radius: 13px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--delegate-state) 5%, transparent), transparent 44%),
+    var(--office-output-surface);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 5%, transparent);
   transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
 }
 
-.wx-root .office-delegate-card[data-clickable="true"]:hover {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--office-output-border));
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
+.wx-root .office-delegate-card[data-status="done"] {
+  --delegate-state: var(--ok);
 }
 
-.wx-root .office-delegate-card[data-open="true"] {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--office-output-border));
+.wx-root .office-delegate-card[data-status="error"] {
+  --delegate-state: var(--err);
+}
+
+.wx-root .office-delegate-card[data-status="stopped"] {
+  --delegate-state: var(--warn);
+}
+
+.wx-root .office-delegate-card[data-clickable="true"]:hover {
+  border-color: color-mix(in srgb, var(--delegate-state) 34%, var(--office-output-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--delegate-state) 7%, transparent), transparent 48%),
+    var(--office-output-surface);
 }
 
 .wx-root .office-delegate-card::before {
   content: "";
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 2.5px;
-  border-radius: 12px 0 0 12px;
-  background: var(--accent);
-  opacity: 0.55;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--delegate-state) 92%, transparent),
+    color-mix(in srgb, var(--delegate-state) 32%, transparent)
+  );
   pointer-events: none;
-}
-
-.wx-root .office-delegate-card[data-status="done"]::before {
-  background: var(--ok);
-}
-
-.wx-root .office-delegate-card[data-status="error"]::before {
-  background: var(--err);
-}
-
-.wx-root .office-delegate-card[data-status="stopped"]::before {
-  background: var(--warn);
-}
-
-.wx-root .office-delegate-card[data-status="running"]::before {
-  opacity: 0.8;
 }
 
 .wx-root .office-delegate-card__head {
   display: grid;
   width: 100%;
-  min-height: 38px;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-width: 0;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px 5px 9px;
+  gap: 10px;
+  padding: 9px 12px 9px 14px;
   border: 0;
+  color: inherit;
   background: transparent;
+  font: inherit;
   text-align: left;
+}
+
+.wx-root .office-delegate-card[data-clickable="true"] .wx-root .office-delegate-card__head {
   cursor: pointer;
+}
+
+.wx-root .office-delegate-card__head:hover {
+  background: color-mix(in srgb, var(--delegate-state) 3.5%, transparent);
 }
 
 .wx-root .office-delegate-card__head:disabled {
   cursor: default;
+  opacity: 1;
 }
 
-.wx-root .office-delegate-card__head:hover {
-  background: color-mix(in srgb, var(--accent) 3.5%, transparent);
+.wx-root .office-delegate-card__head:focus-visible {
+  outline: 2px solid var(--delegate-state);
+  outline-offset: -3px;
 }
 
 .wx-root .office-delegate-card__lamp {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
+  width: 34px;
+  height: 34px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  color: var(--fg-faint);
-  background: color-mix(in srgb, var(--fg) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--delegate-state) 15%, var(--office-output-border));
+  border-radius: 9px;
+  color: var(--delegate-state);
+  background: color-mix(in srgb, var(--delegate-state) 9%, var(--office-output-surface));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent);
 }
 
-.wx-root .office-delegate-card__lamp[data-status="running"] {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+.wx-root .office-delegate-card__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
 }
 
-.wx-root .office-delegate-card__lamp[data-status="done"] {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 9%, transparent);
-}
-
-.wx-root .office-delegate-card__lamp[data-status="error"] {
-  color: var(--err);
-  background: color-mix(in srgb, var(--err) 9%, transparent);
-}
-
-.wx-root .office-delegate-card__lamp[data-status="stopped"] {
-  color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 9%, transparent);
-}
-
-.wx-root .office-delegate-card__identity {
+.wx-root .office-delegate-card__title-line,
+.wx-root .office-delegate-card__summary {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: 7px;
+  overflow: hidden;
+}
+
+.wx-root .office-delegate-card__kind,
+.wx-root .office-delegate-card__background {
+  flex: none;
+  border-radius: 5px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .wx-root .office-delegate-card__kind {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 7px;
-  border-radius: 999px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+}
+
+.wx-root .office-delegate-card__background {
+  padding: 1px 5px;
+  border: 1px solid var(--office-output-border);
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.wx-root .office-delegate-card__step {
+  flex: none;
+  padding-left: 7px;
+  border-left: 1px solid var(--office-output-border);
+  color: var(--fg-faint);
+  font-size: 9.5px;
   white-space: nowrap;
 }
 
 .wx-root .office-delegate-card__title {
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   color: var(--fg);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
   text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   white-space: nowrap;
 }
 
-.wx-root .office-delegate-card__meta {
+.wx-root .office-delegate-card__aside {
+  display: flex;
+  min-width: max-content;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.wx-root .office-delegate-card__status {
   display: inline-flex;
-  flex: none;
-  max-width: 42%;
   align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  color: var(--fg-faint);
-  font-size: 10.5px;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--delegate-state) 15%, transparent);
+  border-radius: 6px;
+  color: var(--delegate-state);
+  background: color-mix(in srgb, var(--delegate-state) 7%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.55;
   white-space: nowrap;
-}
-
-.wx-root .office-delegate-card__meta-bit {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wx-root .office-delegate-card__meta-sep {
-  padding-left: 5px;
-  opacity: 0.6;
-}
-
-.wx-root .office-delegate-card__trail {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 7px;
 }
 
 .wx-root .office-delegate-card__open {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: var(--accent);
+  gap: 1px;
+  color: color-mix(in srgb, var(--accent) 78%, var(--fg-dim));
   font-size: 10.5px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
-.wx-root .office-delegate-card__chevron {
-  color: var(--fg-faint);
-  transition: transform var(--dur-base) var(--ease-out);
-}
-
-.wx-root .office-delegate-card__chevron[data-open="true"] {
-  transform: rotate(90deg);
-}
-
-.wx-root .office-delegate-card__live {
-  display: flex;
-  min-height: 26px;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 8px 4px 41px;
-  border-top: 1px dashed color-mix(in srgb, var(--fg) 10%, transparent);
-  color: var(--fg-faint);
-  font-size: 11px;
-}
-
-.wx-root .office-delegate-card__live:hover {
+.wx-root .office-delegate-card__summary {
   color: var(--fg-dim);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.wx-root .office-delegate-card__summary-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-root .office-delegate-card__tool {
+  max-width: 28%;
+  flex: none;
+  overflow: hidden;
+  padding: 1px 5px;
+  border: 1px solid var(--office-output-border);
+  border-radius: 4px;
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--bg) 32%, transparent);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-root .office-delegate-card__elapsed {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  color: var(--fg-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .wx-root .office-delegate-card__pulse {
-  flex: none;
   width: 5px;
   height: 5px;
+  flex: none;
   border-radius: 999px;
   background: var(--accent);
   animation: wx-delegate-pulse 1.6s ease-in-out infinite;
@@ -2174,58 +2211,49 @@
   50% { opacity: 0.35; transform: scale(0.72); }
 }
 
-.wx-root .office-delegate-card__result {
-  display: flex;
-  min-height: 26px;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px 4px 41px;
-  border-top: 1px dashed color-mix(in srgb, var(--fg) 10%, transparent);
-  color: var(--fg-dim);
-  font-size: 11.5px;
+.wx-root .office-delegate-card[data-compact="true"] .wx-root .office-delegate-card__head {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 7px 9px 7px 11px;
 }
 
-.wx-root .office-delegate-card__result > svg {
-  color: var(--ok);
+.wx-root .office-delegate-card[data-compact="true"] .wx-root .office-delegate-card__lamp {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
 }
 
-.wx-root .office-delegate-card[data-status="error"] .office-delegate-card__result > svg,
-.wx-root .office-delegate-card[data-status="stopped"] .office-delegate-card__result > svg {
-  color: var(--warn);
+.wx-root .office-delegate-card[data-compact="true"] .wx-root .office-delegate-card__title {
+  font-size: 12px;
 }
 
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__head {
-  min-height: 32px;
-  grid-template-columns: 21px minmax(0, 1fr) auto;
-  gap: 6px;
-  padding: 3px 6px 3px 7px;
-}
-
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__lamp {
-  width: 21px;
-  height: 21px;
-  border-radius: 7px;
-}
-
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__kind {
-  font-size: 9.5px;
-  padding: 1px 6px;
-}
-
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__title {
-  font-size: 11px;
-}
-
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__meta,
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__open {
-  font-size: 10px;
-}
-
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__live,
-.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__result {
-  min-height: 23px;
-  padding-left: 34px;
+.wx-root .office-delegate-card[data-compact="true"] .wx-root .office-delegate-card__summary {
   font-size: 10.5px;
+}
+
+@media (max-width: 680px) {
+  .wx-root .office-delegate-card__head {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 7px 9px 7px 11px;
+  }
+
+  .wx-root .office-delegate-card__background,
+  .wx-root .office-delegate-card__step,
+  .wx-root .office-delegate-card__tool {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .wx-root .office-delegate-card__title {
+    display: -webkit-box;
+    overflow: hidden;
+    line-height: 1.35;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
