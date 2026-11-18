@@ -53,28 +53,31 @@ func (s *pantheonRoleSeat) ProbeRole(_ context.Context, role pantheon.RoleFile) 
 
 // CallRole 一次只读议事调用（非流式形态由流式核承载）。
 func (s *pantheonRoleSeat) CallRole(ctx context.Context, role pantheon.RoleFile, prompt string) (string, error) {
-	return s.StreamRole(ctx, role, prompt, nil)
+	text, _, err := s.StreamRole(ctx, role, prompt, nil)
+	return text, err
 }
 
 // StreamRole 把角色席位跑在办公 AgentRunner 上：persona=system prompt。
+// 返回的 *pantheon.SeatUsage 是执行核累计的引擎 usage（2026-11-18 上下文
+// 账本断链根修，与 grok 席同管道）。
 func (s *pantheonRoleSeat) StreamRole(
 	ctx context.Context,
 	role pantheon.RoleFile,
 	prompt string,
 	emit func(string),
-) (string, error) {
+) (string, *pantheon.SeatUsage, error) {
 	a := s.app
 	if a == nil || a.core == nil || a.engineMgr == nil {
-		return "", errors.New("引擎管理器未就绪")
+		return "", nil, errors.New("引擎管理器未就绪")
 	}
 	if a.cfg != nil && a.cfg.GetOfflineMode() {
-		return "", errors.New("离线模式下模型席位不可用")
+		return "", nil, errors.New("离线模式下模型席位不可用")
 	}
 	// 办公本地优先路由（与 dream/识图同口径）：本地引擎可用走本地，否则
 	// 回落办公对话引擎配置。
 	eng, model, _ := a.routeOfficeLocal("office")
 	if strings.TrimSpace(model) == "" {
-		return "", errors.New("办公对话模型不可用")
+		return "", nil, errors.New("办公对话模型不可用")
 	}
 	bridge.SetClient(a.clientRef())
 	prov, err := gaeaProvider.NewLLM(gaeaProvider.LLMKindWubigrok, gaeaProvider.Config{
@@ -84,12 +87,12 @@ func (s *pantheonRoleSeat) StreamRole(
 		Extra:  map[string]any{"feature": "pantheon"},
 	})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	workspace := gaeaCwd()
 	reg := (&pantheonGrokSeat{app: a}).officeToolRegistry(workspace)
 	if reg.Len() == 0 {
-		return "", fmt.Errorf("文件席位 %s 的办公工具注册表为空", role.Name)
+		return "", nil, fmt.Errorf("文件席位 %s 的办公工具注册表为空", role.Name)
 	}
 	// persona 即席位 system prompt；空 persona 回退办公工具基线提示。
 	system := strings.TrimSpace(role.Persona)
@@ -98,7 +101,7 @@ func (s *pantheonRoleSeat) StreamRole(
 	}
 	overrides, err := pantheon.LoadRoleOverrides(role)
 	if err != nil {
-		return "", fmt.Errorf("文件席位 %s 配置层无效: %w", role.Name, err)
+		return "", nil, fmt.Errorf("文件席位 %s 配置层无效: %w", role.Name, err)
 	}
 	return runPantheonAgentWithPrompt(
 		ctx, prov, reg, workspace, system, prompt, nil, emit, nil,

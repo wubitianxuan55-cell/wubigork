@@ -170,7 +170,7 @@ func (b *toolTraceGrokBackend) StreamGrokWithTools(
 	readPaths []string,
 	emit func(string),
 	onTool func(ToolTrace),
-) (string, error) {
+) (string, *SeatUsage, error) {
 	b.mu.Lock()
 	b.prompts = append(b.prompts, prompt)
 	b.workspace = workspace
@@ -188,7 +188,7 @@ func (b *toolTraceGrokBackend) StreamGrokWithTools(
 	if emit != nil {
 		emit(out)
 	}
-	return out, nil
+	return out, nil, nil
 }
 
 func idFromPrompt(prompt, fallback string) string {

@@ -36,7 +36,10 @@ type agentAdapter struct {
 	// invoke 非空 = Gaea 模型席位：不经本机 CLI。app 层用 xAI 模型驱动
 	// Gaea 办公 AgentRunner；build 为空，输出按纯文本处理。
 	invoke func(ctx context.Context, prompt string) (string, error)
-	stream func(ctx context.Context, prompt string, emit func(string)) (string, error)
+	// 2026-11-18 上下文账本断链根修：模型席位（grok/T15）执行核累计引擎
+	// Usage 事件随调用回传——此前模型席路径不经 parseSeatRunStats（那是 CLI
+	// 席管道），grok 席 usage 恒空、前端「上下文账本」恒显「上下文未上报」。
+	stream func(ctx context.Context, prompt string, emit func(string)) (string, *SeatUsage, error)
 	// streamWithTools is used by Gaea's model seat when it is backed by the
 	// office AgentRunner instead of a bare chat completion.
 	streamWithTools func(
@@ -46,10 +49,10 @@ type agentAdapter struct {
 		readPaths []string,
 		emit func(string),
 		onTool func(ToolTrace),
-	) (string, error)
+	) (string, *SeatUsage, error)
 	// streamWithToolsSession 非空 = 模型席位实现 GrokHistoryBackend，可携带
 	// 跨轮消息历史（A5③）。历史非空时宿主优先走这条路，并把提示词切换为
-	// seeded 形态（往轮梯度省掉，只发当轮与指令）。
+	// seeded 形态（往轮梯度省掉，只发当轮指令）。
 	streamWithToolsSession func(
 		ctx context.Context,
 		history []SeatMessage,
@@ -58,7 +61,7 @@ type agentAdapter struct {
 		readPaths []string,
 		emit func(string),
 		onTool func(ToolTrace),
-	) (string, error)
+	) (string, *SeatUsage, error)
 }
 
 // GrokBackend 是 Grok 模型席位的运行时后端。pantheon 不 import internal/app，
@@ -72,9 +75,10 @@ type GrokBackend interface {
 
 // GrokStreamingBackend is optional. When provided, Gaea model seats expose
 // provider deltas to the shared discussion stream instead of waiting for the
-// complete answer.
+// complete answer. The returned *SeatUsage carries the runner's cumulative
+// token telemetry for the context ledger (nil = seat can't report yet).
 type GrokStreamingBackend interface {
-	StreamGrok(ctx context.Context, prompt string, emit func(string)) (string, error)
+	StreamGrok(ctx context.Context, prompt string, emit func(string)) (string, *SeatUsage, error)
 }
 
 // GrokToolStreamingBackend is implemented by Gaea model seats that run through
@@ -87,7 +91,7 @@ type GrokToolStreamingBackend interface {
 		readPaths []string,
 		emit func(string),
 		onTool func(ToolTrace),
-	) (string, error)
+	) (string, *SeatUsage, error)
 }
 
 // SeatMessage 是模型席位跨轮历史的最小消息形状（2026-11-07 A5③）。Role 只取
@@ -112,7 +116,7 @@ type GrokHistoryBackend interface {
 		readPaths []string,
 		emit func(string),
 		onTool func(ToolTrace),
-	) (string, error)
+	) (string, *SeatUsage, error)
 }
 
 func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey string, roles []RoleFile, roleBackend RoleSeatBackend) map[string]agentAdapter {
@@ -163,7 +167,7 @@ type RoleSeatBackend interface {
 
 // RoleStreamingBackend 是可选的文件席位流式通道。
 type RoleStreamingBackend interface {
-	StreamRole(ctx context.Context, role RoleFile, prompt string, emit func(string)) (string, error)
+	StreamRole(ctx context.Context, role RoleFile, prompt string, emit func(string)) (string, *SeatUsage, error)
 }
 
 // newRoleAdapter 把一个文件角色装配成模型席位适配器（复用 grok 席的后端接口
@@ -187,7 +191,7 @@ func newRoleAdapter(role RoleFile, backend RoleSeatBackend) agentAdapter {
 		},
 	}
 	if streaming, ok := backend.(RoleStreamingBackend); ok {
-		adapter.stream = func(ctx context.Context, prompt string, emit func(string)) (string, error) {
+		adapter.stream = func(ctx context.Context, prompt string, emit func(string)) (string, *SeatUsage, error) {
 			return streaming.StreamRole(ctx, role, prompt, emit)
 		}
 	}
@@ -260,7 +264,7 @@ func newGrokAdapter(backend GrokBackend) agentAdapter {
 			readPaths []string,
 			emit func(string),
 			onTool func(ToolTrace),
-		) (string, error) {
+		) (string, *SeatUsage, error) {
 			return streaming.StreamGrokWithTools(ctx, prompt, workspace, readPaths, emit, onTool)
 		}
 	}

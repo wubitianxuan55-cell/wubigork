@@ -119,10 +119,11 @@ func TestParseSeatRunStatsReadsCodexThreadStarted(t *testing.T) {
 	if usage.EngineSessionID != "01a1b609-a539-74a0-aee5-f3e152643663" {
 		t.Fatalf("codex thread id 未被采集: %q", usage.EngineSessionID)
 	}
-	// codex token 账目暂无同形载体（input_tokens 蛇形命名未接），保持零值
-	// 而不是估算——「未上报」与「真的 0」是两回事。
-	if usage.InputTokens != 0 || usage.Steps != 0 {
-		t.Fatalf("codex token 账目应保持零值: %+v", usage)
+	// 2026-11-18 升级：codex turn.completed 的蛇形 usage 已接（本机 0.165
+	// 实锤）——input_tokens 含 cached（同 ZCode 口径），归一为未命中/命中
+	// 两栏，步数=turn.completed 事件数。
+	if usage.InputTokens != 1287 || usage.CacheReadTokens != 12800 || usage.OutputTokens != 2 || usage.Steps != 1 {
+		t.Fatalf("codex token 账目归一异常: %+v", usage)
 	}
 }
 

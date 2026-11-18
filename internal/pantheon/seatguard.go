@@ -266,6 +266,26 @@ func parseSeatRunStats(raw string) SeatUsage {
 			usage.InputTokens += traceInt64(payload["inputTokens"])
 			usage.CacheReadTokens += traceInt64(payload["cacheReadTokens"])
 			usage.OutputTokens += traceInt64(payload["outputTokens"])
+		case "turn.completed":
+			// codex exec --json 的收尾事件（2026-11-18 本机实锤 codex-cli
+			// 0.165：{"type":"turn.completed","usage":{"input_tokens":14098,
+			// "cached_input_tokens":13952,"cache_write_input_tokens":0,
+			// "output_tokens":2,…}}）。input_tokens 含 cached（同 ZCode/
+			// Anthropic 口径），多 turn 会话逐事件累加；此前只认 result，
+			// codex 席 token 恒零值。
+			payload, _ := obj["usage"].(map[string]interface{})
+			if payload == nil {
+				continue
+			}
+			input := traceInt64(payload["input_tokens"])
+			cached := traceInt64(payload["cached_input_tokens"])
+			if cached > input {
+				cached = input
+			}
+			usage.Steps++
+			usage.InputTokens += input - cached
+			usage.CacheReadTokens += cached
+			usage.OutputTokens += traceInt64(payload["output_tokens"])
 		case "result":
 			if id := traceString(obj["sessionId"]); id != "" {
 				usage.EngineSessionID = id

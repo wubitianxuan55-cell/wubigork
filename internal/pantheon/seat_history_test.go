@@ -141,7 +141,7 @@ func (b *sessionedGrokBackend) StreamGrokSession(
 	_ []string,
 	emit func(string),
 	_ func(ToolTrace),
-) (string, error) {
+) (string, *SeatUsage, error) {
 	b.muHist.Lock()
 	b.histories = append(b.histories, append([]SeatMessage(nil), history...))
 	b.promptsS = append(b.promptsS, prompt)
@@ -149,7 +149,8 @@ func (b *sessionedGrokBackend) StreamGrokSession(
 	if emit != nil {
 		emit("")
 	}
-	return b.CallGrok(context.Background(), prompt)
+	text, err := b.CallGrok(context.Background(), prompt)
+	return text, nil, err
 }
 
 func TestManagerModelSeatReceivesSeededHistory(t *testing.T) {

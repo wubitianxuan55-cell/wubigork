@@ -108,9 +108,9 @@ func runPantheonGrokAgent(
 	readPaths []string,
 	emitText func(string),
 	onTool func(pantheon.ToolTrace),
-) (string, error) {
+) (string, *pantheon.SeatUsage, error) {
 	if prov == nil || reg == nil {
-		return "", fmt.Errorf("Grok 办公 AgentRunner 未完成装配")
+		return "", nil, fmt.Errorf("Grok 办公 AgentRunner 未完成装配")
 	}
 	// 会话装配：单发提示词形态（A5③ Seed 实弹证伪后回退——往轮记忆由宿主
 	// 全量窗口内联进 prompt，见 pantheon.historyFullWindow；引擎侧会话对 grok
@@ -141,13 +141,19 @@ func runPantheonAgentWithPrompt(
 	emitText func(string),
 	onTool func(pantheon.ToolTrace),
 	opts pantheonAgentRunOptions,
-) (string, error) {
+) (string, *pantheon.SeatUsage, error) {
 	if prov == nil || reg == nil {
-		return "", fmt.Errorf("Grok 办公 AgentRunner 未完成装配")
+		return "", nil, fmt.Errorf("Grok 办公 AgentRunner 未完成装配")
 	}
 	var streamed strings.Builder
 	var finalMessage string
 	var mu sync.Mutex
+	// 2026-11-18 上下文账本断链根修：AgentRunner 每次模型往返发一条 Usage
+	// 事件（provider.Usage 单轮值）——这里累计成 SeatUsage（未命中/命中/
+	// 输出三栏+步数=模型请求数），模型席（grok/T15）的 usage 从此有数
+	// （此前模型席不经 CLI 解析管道，前端恒显「上下文未上报」）。
+	var usage pantheon.SeatUsage
+	sawUsage := false
 	sink := event.FuncSink(func(e event.Event) {
 		switch e.Kind {
 		case event.Text:
@@ -163,6 +169,27 @@ func runPantheonAgentWithPrompt(
 		case event.Message:
 			mu.Lock()
 			finalMessage = e.Text
+			mu.Unlock()
+		case event.Usage:
+			if e.Usage == nil {
+				return
+			}
+			mu.Lock()
+			sawUsage = true
+			usage.Steps++
+			// provider.Usage 口径：PromptTokens=该轮 prompt 总量，
+			// CacheHit/CacheMiss 是其中命中/未命中分栏。归一到 SeatUsage
+			// 的「未命中 / 命中」两栏（与 CLI 席 parseSeatRunStats 同口径）。
+			miss := e.Usage.CacheMissTokens
+			if miss <= 0 {
+				miss = e.Usage.PromptTokens - e.Usage.CacheHitTokens
+				if miss < 0 {
+					miss = 0
+				}
+			}
+			usage.InputTokens += int64(miss)
+			usage.CacheReadTokens += int64(e.Usage.CacheHitTokens)
+			usage.OutputTokens += int64(e.Usage.CompletionTokens)
 			mu.Unlock()
 		case event.ToolDispatch:
 			if e.Tool.Partial || onTool == nil {
@@ -211,11 +238,13 @@ func runPantheonAgentWithPrompt(
 	}, sink)
 	result, err := runner.Run(ctx, prompt)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	mu.Lock()
 	final := finalMessage
 	streamedText := streamed.String()
+	reported := sawUsage
+	seatUsage := usage
 	mu.Unlock()
 	if result != nil && strings.TrimSpace(result.Summary) != "" {
 		final = result.Summary
@@ -225,12 +254,15 @@ func runPantheonAgentWithPrompt(
 	}
 	final = strings.TrimSpace(final)
 	if final == "" {
-		return "", fmt.Errorf("Grok 办公席位返回空结果")
+		return "", nil, fmt.Errorf("Grok 办公席位返回空结果")
 	}
 	if strings.TrimSpace(streamedText) == "" && emitText != nil {
 		emitText(final)
 	}
-	return final, nil
+	if !reported {
+		return final, nil, nil
+	}
+	return final, &seatUsage, nil
 }
 
 func boundedGrokPreview(text string) string {

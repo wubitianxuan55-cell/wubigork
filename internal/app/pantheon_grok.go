@@ -84,10 +84,11 @@ func (s *pantheonGrokSeat) ProbeGrok(_ context.Context) pantheon.AgentStatus {
 // CallGrok 完成一次只读议事调用。它保留给旧适配器路径，实际同样经过
 // Gaea 办公 AgentRunner，不再直接裸调模型。
 func (s *pantheonGrokSeat) CallGrok(ctx context.Context, prompt string) (string, error) {
-	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, nil, nil)
+	text, _, err := s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, nil, nil)
+	return text, err
 }
 
-func (s *pantheonGrokSeat) StreamGrok(ctx context.Context, prompt string, emit func(string)) (string, error) {
+func (s *pantheonGrokSeat) StreamGrok(ctx context.Context, prompt string, emit func(string)) (string, *pantheon.SeatUsage, error) {
 	return s.StreamGrokWithTools(ctx, prompt, gaeaCwd(), nil, emit, nil)
 }
 
@@ -102,7 +103,7 @@ func (s *pantheonGrokSeat) StreamGrokWithTools(
 	readPaths []string,
 	emit func(string),
 	onTool func(pantheon.ToolTrace),
-) (string, error) {
+) (string, *pantheon.SeatUsage, error) {
 	return s.streamGrokAgent(ctx, prompt, workspace, readPaths, emit, onTool)
 }
 
@@ -113,21 +114,21 @@ func (s *pantheonGrokSeat) streamGrokAgent(
 	readPaths []string,
 	emit func(string),
 	onTool func(pantheon.ToolTrace),
-) (string, error) {
+) (string, *pantheon.SeatUsage, error) {
 	a := s.app
 	if a == nil || a.core == nil || a.engineMgr == nil {
-		return "", errors.New("引擎管理器未就绪")
+		return "", nil, errors.New("引擎管理器未就绪")
 	}
 	if a.cfg != nil && a.cfg.GetOfflineMode() {
-		return "", errors.New("离线模式下云端模型席位不可用")
+		return "", nil, errors.New("离线模式下云端模型席位不可用")
 	}
 	eng, ok := a.engineMgr.GetEngine("xai")
 	if !ok || !eng.Enabled {
-		return "", errors.New("xAI 引擎不可用")
+		return "", nil, errors.New("xAI 引擎不可用")
 	}
 	model, ok := grokChatModel(eng)
 	if !ok {
-		return "", errors.New("xAI 引擎下未找到 grok 对话模型")
+		return "", nil, errors.New("xAI 引擎下未找到 grok 对话模型")
 	}
 	bridge.SetClient(a.clientRef())
 	prov, err := gaeaProvider.NewLLM(gaeaProvider.LLMKindWubigrok, gaeaProvider.Config{
@@ -137,7 +138,7 @@ func (s *pantheonGrokSeat) streamGrokAgent(
 		Extra:  map[string]any{"feature": "pantheon"},
 	})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	workspace = strings.TrimSpace(workspace)
 	if workspace == "" {
@@ -145,7 +146,7 @@ func (s *pantheonGrokSeat) streamGrokAgent(
 	}
 	reg := s.officeToolRegistry(workspace)
 	if reg.Len() == 0 {
-		return "", fmt.Errorf("Grok 办公工具注册表为空")
+		return "", nil, fmt.Errorf("Grok 办公工具注册表为空")
 	}
 	return runPantheonGrokAgent(ctx, prov, reg, workspace, prompt, readPaths, emit, onTool)
 }

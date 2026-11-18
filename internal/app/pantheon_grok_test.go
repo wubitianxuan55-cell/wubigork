@@ -56,17 +56,23 @@ func (pantheonOfficeProbeTool) ReadOnly() bool { return true }
 
 func TestRunPantheonGrokAgentUsesOfficeToolLoop(t *testing.T) {
 	prov := testutil.NewMock("grok-office",
-		testutil.Turn{ToolCalls: []gaeaProvider.ToolCall{{
-			ID: "call_1", Name: "office_probe", Arguments: `{"scope":"docs"}`,
-		}}},
-		testutil.Turn{Text: "基于办公工具结果，建议继续验证。"},
+		testutil.Turn{
+			ToolCalls: []gaeaProvider.ToolCall{{
+				ID: "call_1", Name: "office_probe", Arguments: `{"scope":"docs"}`,
+			}},
+			Usage: &gaeaProvider.Usage{CacheHitTokens: 5600, CacheMissTokens: 600, CompletionTokens: 120, TotalTokens: 6320},
+		},
+		testutil.Turn{
+			Text:           "基于办公工具结果，建议继续验证。",
+			Usage: &gaeaProvider.Usage{CacheHitTokens: 7500, CacheMissTokens: 300, CompletionTokens: 80, TotalTokens: 7880},
+		},
 	)
 	reg := tool.NewRegistry()
 	reg.Add(pantheonOfficeProbeTool{})
 	var streamed strings.Builder
 	var traces []pantheon.ToolTrace
 
-	final, err := runPantheonGrokAgent(
+	final, usage, err := runPantheonGrokAgent(
 		context.Background(),
 		prov,
 		reg,
@@ -81,6 +87,14 @@ func TestRunPantheonGrokAgentUsesOfficeToolLoop(t *testing.T) {
 	}
 	if !strings.Contains(final, "继续验证") || !strings.Contains(streamed.String(), "继续验证") {
 		t.Fatalf("final=%q streamed=%q", final, streamed.String())
+	}
+	// 上下文账本链（2026-11-18 断链根修）：两轮 Usage 事件累计——未命中
+	// 600+300、命中 5600+7500、输出 120+80、步数=模型请求数 2。
+	if usage == nil {
+		t.Fatal("模型席 usage 应随调用回传（上下文账本数据源）")
+	}
+	if usage.Steps != 2 || usage.InputTokens != 900 || usage.CacheReadTokens != 13100 || usage.OutputTokens != 200 {
+		t.Fatalf("usage 累计异常: %+v", usage)
 	}
 	if prov.CallCount() != 2 {
 		t.Fatalf("provider calls = %d, want tool round + final", prov.CallCount())

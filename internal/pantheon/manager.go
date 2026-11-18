@@ -1837,7 +1837,7 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 		// M1 输入侧对账锚：哈希与字数锚 clampPrompt 后真正发出的任务书，
 		// 随 CallRef 流入贡献与定稿（retries 共用同一份任务书）。
 		call.PromptSha256, call.PromptRunes = seatPromptSnapshot(prompt)
-		text, duration, err := m.runModelSeat(
+		text, duration, usage, err := m.runModelSeat(
 			callCtx,
 			session,
 			status,
@@ -1851,7 +1851,7 @@ func (m *Manager) runOne(ctx context.Context, session *Session, status AgentStat
 			phase,
 			round,
 		)
-		return seatResult{Text: text, Duration: duration, CallRef: call.CallRef}, err
+		return seatResult{Text: text, Duration: duration, CallRef: call.CallRef, Usage: usage}, err
 	}
 	m.mu.Lock()
 	workDir := session.Request.Workspace
@@ -2041,7 +2041,7 @@ func (m *Manager) runModelSeat(
 	status AgentStatus,
 	call *activeAgentCall,
 	invoke func(context.Context, string) (string, error),
-	stream func(context.Context, string, func(string)) (string, error),
+	stream func(context.Context, string, func(string)) (string, *SeatUsage, error),
 	streamWithTools func(
 		context.Context,
 		string,
@@ -2049,7 +2049,7 @@ func (m *Manager) runModelSeat(
 		[]string,
 		func(string),
 		func(ToolTrace),
-	) (string, error),
+	) (string, *SeatUsage, error),
 	streamWithToolsSession func(
 		context.Context,
 		[]SeatMessage,
@@ -2058,16 +2058,17 @@ func (m *Manager) runModelSeat(
 		[]string,
 		func(string),
 		func(ToolTrace),
-	) (string, error),
+	) (string, *SeatUsage, error),
 	prompt string,
 	images []string,
 	phase string,
 	round int,
-) (string, time.Duration, error) {
+) (string, time.Duration, *SeatUsage, error) {
 	runCtx, cancel := context.WithTimeout(ctx, defaultAgentLimit)
 	defer cancel()
 	start := time.Now()
 	var text string
+	var usage *SeatUsage
 	var err error
 	onDelta := func(chunk string) {
 		if m.agentCallAborted(call) {
@@ -2087,7 +2088,7 @@ func (m *Manager) runModelSeat(
 		// 梯度省掉）。重建失败（历史为空）自动退回单发提示词路径。
 		history := buildSeatHistory(session, status.ID, buildBrief(session.Request, m.transcriptFor(session)), round)
 		readPaths := m.seatReadPaths(session, images)
-		text, err = streamWithToolsSession(
+		text, usage, err = streamWithToolsSession(
 			runCtx,
 			history,
 			clampPrompt(prompt),
@@ -2100,7 +2101,7 @@ func (m *Manager) runModelSeat(
 		// 归档发言全文路径注入 readPaths 白名单：提示词只带索引行与预览，
 		// grok 席需要引用往轮论证细节时按路径自读（2026-11-03 论证文件化）。
 		readPaths := m.seatReadPaths(session, images)
-		text, err = streamWithTools(
+		text, usage, err = streamWithTools(
 			runCtx,
 			clampPrompt(prompt),
 			session.Request.Workspace,
@@ -2109,36 +2110,36 @@ func (m *Manager) runModelSeat(
 			onTool,
 		)
 	} else if stream != nil {
-		text, err = stream(runCtx, clampPrompt(prompt), onDelta)
+		text, usage, err = stream(runCtx, clampPrompt(prompt), onDelta)
 	} else {
 		text, err = invoke(runCtx, clampPrompt(prompt))
 	}
 	duration := time.Since(start)
 	if m.agentCallSkipped(call) {
-		return "", duration, errAgentSkipped
+		return "", duration, nil, errAgentSkipped
 	}
 	if m.agentCallRetry(call) {
-		return "", duration, errAgentRetry
+		return "", duration, nil, errAgentRetry
 	}
 	if err != nil {
 		m.recordAgentError(session, status, phase, round, call, err)
-		return "", duration, err
+		return "", duration, nil, err
 	}
 	text = strings.TrimSpace(text)
 	if m.agentCallSkipped(call) {
-		return "", duration, errAgentSkipped
+		return "", duration, nil, errAgentSkipped
 	}
 	if m.agentCallRetry(call) {
-		return "", duration, errAgentRetry
+		return "", duration, nil, errAgentRetry
 	}
 	if text == "" {
 		err = errors.New("模型返回空结果")
 		m.recordAgentError(session, status, phase, round, call, err)
-		return "", duration, err
+		return "", duration, nil, err
 	}
 	text = trimRunes(text, maxAgentOutput)
 	m.recordAgentOutput(session, status, phase, round, call, text, duration)
-	return text, duration, nil
+	return text, duration, usage, nil
 }
 
 func (m *Manager) adapter(id string) agentAdapter {
