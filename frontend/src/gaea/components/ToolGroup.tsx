@@ -79,6 +79,15 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
 // opts.skipRunning（v4.26）：过程卡内只折叠「同名且全部非 running」的连续
 // 调用——运行中的调用保持独立卡（Claude Code 同款：执行中的动作不折叠，
 // 完成后的重复调用才聚合成 "Called X N times"）。
+// scanGroups walks items and replaces runs of ≥2 consecutive same-name tools
+// with a single synthetic "group" marker.
+// opts.skipRunning（v4.26）：过程卡内只折叠「同名且全部非 running」的连续
+// 调用——运行中的调用保持独立卡（Claude Code 同款：执行中的动作不折叠，
+// 完成后的重复调用才聚合成 "Called X N times"）。
+// 2026-11-18 子代理实弹修复：**委派家族不折叠**（task/run_skill）——每个
+// task 调用是独立的通用智能体（独立会话/独立结果回投），折叠成「task × N」
+// 普通组行会吞掉委派卡渲染（live 状态行/整卡可点开右栏会话）——实弹
+// 「对话窗口没有智能体卡」的直接根因。
 export type GroupItem =
   | { kind: "item"; item: Item }
   | { kind: "group"; id: string; name: string; tools: ToolItem[] };
@@ -103,7 +112,9 @@ export function scanGroups(items: Item[], opts?: { skipRunning?: boolean }): Gro
       j++;
     }
     const run = items.slice(i, j).filter((x): x is ToolItem => x.kind === "tool");
-    const foldable = run.length >= 2 && !(opts?.skipRunning && run.some((x) => x.status === "running"));
+    // 委派家族每调用独立成卡（不折叠）——见函数头注释。
+    const spawnFamily = t.name === "task" || t.name === "run_skill";
+    const foldable = run.length >= 2 && !spawnFamily && !(opts?.skipRunning && run.some((x) => x.status === "running"));
     if (foldable) {
       result.push({ kind: "group", id: `grp${i}`, name: t.name, tools: run });
     } else {
