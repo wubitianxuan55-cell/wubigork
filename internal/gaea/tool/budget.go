@@ -2,6 +2,7 @@ package tool
 
 import (
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
@@ -34,8 +35,9 @@ type BudgetRow struct {
 // （含截断尾标 "..." 的空间）。预算按 UTF-8 字节计；名字行固定成本
 // len("- ")+len(name)+len("\n") 先全额保留；名字总和超预算时从尾部整行省略，
 // 省略部分用一行「...还有 N 个工具」占位（吃 omissionReserve 预留）；剩余
-// 预算在保留行的描述间按轮次均分（每轮每行 +1 字节直到用尽），保证公平且
-// 同输入同结果。
+// 预算在保留行的描述间按字符轮转均分（每轮每行 1 个 UTF-8 字符，行首字符
+// 加计 ": " 分隔成本；预算不足或已取尽的行永久出队），保证公平且同输入同
+// 结果。对齐上游 tools_budget.rs 的字符轮转口径（T5 复核刀）。
 func TruncateRows(rows []BudgetRow, byteBudget, omissionReserve int) []int {
 	if byteBudget < 0 {
 		byteBudget = 0
@@ -84,14 +86,45 @@ func TruncateRows(rows []BudgetRow, byteBudget, omissionReserve int) []int {
 			out[i] = 0
 		}
 	}
+	// 字符轮转（对齐 tools_budget.rs）：每轮每个活跃行领取 1 个 UTF-8 字符
+	// （行首字符额外计 ": " 分隔成本）；预算不够或已取尽的行永久出队——剩余
+	// 预算只减不增，出队不会误伤后续可能。out[i] 记该行已保留的描述字节数。
+	type rowCursor struct {
+		desc  string
+		pos   int // 下一字符的字节偏移
+		first bool
+	}
+	cursors := make([]*rowCursor, n)
+	for i := range rows {
+		if keep[i] && rows[i].Desc != "" {
+			cursors[i] = &rowCursor{desc: rows[i].Desc, pos: 0, first: true}
+		}
+	}
 	for rest > 0 {
 		progress := false
 		for i := 0; i < n && rest > 0; i++ {
-			if keep[i] {
-				out[i]++
-				rest--
-				progress = true
+			cur := cursors[i]
+			if cur == nil {
+				continue
 			}
+			if cur.pos >= len(cur.desc) {
+				cursors[i] = nil // 已取尽
+				continue
+			}
+			_, size := utf8.DecodeRuneInString(cur.desc[cur.pos:])
+			extra := size
+			if cur.first {
+				extra += len(": ")
+			}
+			if extra > rest {
+				cursors[i] = nil // 预算不起，永久出队
+				continue
+			}
+			rest -= extra
+			cur.pos += size
+			cur.first = false
+			out[i] = cur.pos
+			progress = true
 		}
 		if !progress {
 			break

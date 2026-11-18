@@ -20,43 +20,66 @@ func TestTruncateRowsNameOverflow(t *testing.T) {
 	}
 	// 名字总额 90 > 可用（预算 60 - 预留 10 = 50）：3 行=54 仍超 → 从尾部
 	// 省略 3 行（2 行=36 ≤ 50）。剩余 = 60 - 36 - 占位行(21 字节) = 3 →
-	// 两保留行按轮次均分得 [2,1]。
+	// 字符轮转：行0 首字符 1+2(": ") = 3 恰好吃满，行1 得 0。
 	got := TruncateRows(rows, 60, 10)
 	for i := 2; i < 5; i++ {
 		if got[i] != omittedRow {
 			t.Fatalf("尾部三行应整行省略: %v", got)
 		}
 	}
-	for i := 0; i < 2; i++ {
-		if got[i] <= 0 {
-			t.Fatalf("保留行应有正份额: %v", got)
-		}
+	if got[0] != 1 || got[1] != 0 {
+		t.Fatalf("保留行份额应 [1 0]: %v", got)
 	}
 }
 
-// 剩余预算在描述间按轮次均分：总描述字节守恒且各行份额差 ≤1（同长名字）。
+// 剩余预算在描述间按字符轮转均分：每轮每行 1 字符（首字符加计 ": " 2 字节），
+// 同长 ASCII 描述三行各得相等份额，分隔成本计入预算但不计入保留字节数。
 func TestTruncateRowsFairShare(t *testing.T) {
 	rows := []BudgetRow{
 		{Name: "a", Desc: strings.Repeat("x", 100)},
 		{Name: "b", Desc: strings.Repeat("y", 100)},
 		{Name: "c", Desc: strings.Repeat("z", 100)},
 	}
-	// 名字成本 = 3 × (2+1+1) = 12；无省略 → 描述预算 = budget - 12。
+	// 名字成本 = 3 × (2+1+1) = 12；无省略 → 描述预算 = budget - 12 = 48。
+	// 首轮各领 1 字符（1+2），后 39 字节轮转 13 轮 → 每行 14 字节。
 	got := TruncateRows(rows, 60, 0)
 	sum := 0
-	for i, k := range got {
+	for _, k := range got {
 		if k == omittedRow {
 			t.Fatalf("不该省略: %v", got)
 		}
 		sum += k
-		_ = i
 	}
-	if sum != 60-12 {
-		t.Fatalf("描述预算总和 = %d, want %d", sum, 48)
+	if sum != 14*3 {
+		t.Fatalf("描述份额总和 = %d, want %d", sum, 42)
 	}
-	// 均分：三行同名额，差 ≤ 1。
-	if got[0]-got[2] > 1 || got[2]-got[0] > 1 {
-		t.Fatalf("份额不均: %v", got)
+	if got[0] != 14 || got[1] != 14 || got[2] != 14 {
+		t.Fatalf("份额应均等 [14 14 14]: %v", got)
+	}
+	if sum+len(": ")*3 != 60-12 {
+		t.Fatalf("预算守恒（含分隔成本）: %d + 6 != %d", sum, 48)
+	}
+}
+
+// 字符轮转不切 CJK：中文描述按 3 字节/rune 领取，retained 字节数始终落在
+// 字符边界上（下游 TruncateDescBytes 不再需要二次回退）。
+func TestTruncateRowsRuneAligned(t *testing.T) {
+	rows := []BudgetRow{
+		{Name: "a", Desc: strings.Repeat("工", 10)},
+		{Name: "b", Desc: strings.Repeat("乙", 10)},
+	}
+	got := TruncateRows(rows, 24, 0)
+	for i, k := range got {
+		if k <= 0 || k > 24 {
+			t.Fatalf("行 %d 份额异常: %v", i, got)
+		}
+		if k%3 != 0 {
+			t.Fatalf("份额应落在 rune 边界（3 的倍数）: %v", got)
+		}
+	}
+	// 轮转公平：两行 3 字节/rune 同节奏，份额差 ≤ 3。
+	if got[0]-got[1] > 3 || got[1]-got[0] > 3 {
+		t.Fatalf("CJK 份额不均: %v", got)
 	}
 }
 
