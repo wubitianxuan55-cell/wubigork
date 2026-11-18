@@ -39,7 +39,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
       seg, running: false, isLast: false, turnNo: 0, openTurn: null,
       onToggleTurn: noop, onRewindTurn: noop, onCollapse: noop,
       dismissedErrors: new Set<string>(), onDismissError: noop,
-      turnElsRef,
+      turnElsRef, subcalls: noSubcalls,
     };
     const { rerender } = render(<TurnBlock {...props} />);
     expect(userMock).toHaveBeenCalledTimes(1);
@@ -61,7 +61,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
       seg, running: false, isLast: true, turnNo: undefined, openTurn: null,
       onToggleTurn: noop, onRewindTurn: noop, onCollapse: noop,
       dismissedErrors: new Set<string>(), onDismissError: noop,
-      turnElsRef,
+      turnElsRef, subcalls: noSubcalls,
     };
     const { rerender } = render(<TurnBlock {...props} />);
     expect(assistantMock).toHaveBeenCalledTimes(1);
@@ -84,7 +84,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
         seg={seg} running={false} isLast={false} turnNo={1} openTurn={null}
         onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
         dismissedErrors={new Set<string>()} onDismissError={noop}
-        turnElsRef={turnElsRef}
+        turnElsRef={turnElsRef} subcalls={noSubcalls}
       />,
     );
     const divider = container.querySelector(".turn-divider");
@@ -100,7 +100,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
         seg={seg} running={false} isLast={false} turnNo={0} openTurn={null}
         onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
         dismissedErrors={new Set<string>()} onDismissError={noop}
-        turnElsRef={turnElsRef}
+        turnElsRef={turnElsRef} subcalls={noSubcalls}
       />,
     );
     expect(container.querySelector(".turn-divider")).toBeNull();
@@ -123,7 +123,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
           seg={seg} running={false} isLast={false} turnNo={0} openTurn={null}
           onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
           dismissedErrors={new Set<string>()} onDismissError={noop}
-          turnElsRef={turnElsRef}
+          turnElsRef={turnElsRef} subcalls={noSubcalls}
         />
       </LocaleProvider>,
     );
@@ -141,7 +141,7 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
         seg={seg} running={false} isLast={false} turnNo={0} openTurn={null}
         onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
         dismissedErrors={new Set<string>()} onDismissError={noop}
-        turnElsRef={turnElsRef}
+        turnElsRef={turnElsRef} subcalls={noSubcalls}
       />,
     );
     expect(container.querySelectorAll("button[aria-expanded]").length).toBe(0);

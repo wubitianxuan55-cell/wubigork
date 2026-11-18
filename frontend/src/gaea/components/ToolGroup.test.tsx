@@ -67,4 +67,18 @@ describe("scanGroups 分组语义（既有口径回归钉）", () => {
     expect(gs.filter((g) => g.kind === "group").length).toBe(1);
     expect(gs.filter((g) => g.kind === "item").length).toBe(1);
   });
+
+  // 2026-11-18 委派家族不折叠（ce5fc790 补钉）：并行派发=连续同名 task 调用，
+  // 折成「task × N」组行会吞掉委派卡渲染。skipRunning 两态都必须不折。
+  it("委派家族（task/run_skill）连续同名不折叠——每调用独立成卡", () => {
+    const mk = (id: string, name: string, status: "done" | "running" = "done") =>
+      ({ kind: "tool", id, name, args: "{}", readOnly: false, status } as Item);
+    for (const opts of [undefined, { skipRunning: true }]) {
+      for (const name of ["task", "run_skill"]) {
+        const gs = scanGroups([mk("t1", name), mk("t2", name), mk("t3", name)], opts);
+        expect(gs.every((g) => g.kind === "item"), `${name} ${JSON.stringify(opts)}`).toBe(true);
+        expect(gs.length).toBe(3);
+      }
+    }
+  });
 });

@@ -15,6 +15,7 @@ import { useEntranceAnimation } from "../lib/useEntranceAnimation";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { useNow } from "../lib/useNow";
 import { displayReasoningText } from "../lib/reasoningDisplay";
+import { isDelegationTool } from "../lib/taskActivity";
 
 
 // ── 滚动参数 ──────────────────────────────────────────────────────────
@@ -109,6 +110,16 @@ function alternatingSegments(turn: Item[]): Segment[] {
       }
       continue;
     }
+    // 2026-11-18 委派家族上浮：task/run_skill 不进过程卡——它们是一次委派的
+    // 一等对话卡（live 活动行 + 整卡可点开右栏会话），住过程卡时运行中折叠态
+    // 只露最近 3 张尾巴、后台委派回合结束后整卡埋进折叠体（并行派发实弹
+    // 「对话窗口没有子代理卡片」根因）。上浮到 outsideItems 常驻可见（并行
+    // 连续派发不经 outside-flush，同段累积）；parentId 委派（子代理嵌套委派）
+    // 仍是父卡内 subcall（轮级 buildSubcalls 吸附），不上浮。
+    if (it.kind === "tool" && !it.parentId && isDelegationTool(it.name)) {
+      curOutside.push(it);
+      continue;
+    }
     if (curOutside.length > 0) flush();
     // v4.26 phase 收编：phase 不再独立成行走消息流（此前堆叠成一行行
     // 「.phase」弱存在感文本）——统一进过程卡：最新 phase 由 WorkHeader
@@ -176,19 +187,39 @@ function segSig(seg: Segment): string {
   return s;
 }
 
-// buildSubcalls 收集段内的父子工具调用（parentId → 子调用列表），供本段的
-// 过程卡与外部工具卡渲染子调用。
-function buildSubcalls(seg: Segment): Map<string, ToolItem[]> {
-  const map = new Map<string, ToolItem[]>();
-  for (const it of [...seg.processItems, ...seg.outsideItems]) {
-    if (it.kind === "tool" && it.parentId) {
-      const arr = map.get(it.parentId) ?? [];
-      arr.push(it);
-      map.set(it.parentId, arr);
-    }
+// buildSubcalls 收集**轮内**父子工具调用（parentId → 子调用列表），供过程卡
+// 与外部工具卡渲染子调用。
+// 2026-11-18 委派家族上浮后改轮级（原段级）：task 卡上浮 outsideItems 后，
+// 其子代理内部调用（parentId 项）常落在**后续段**（派发与子事件之间隔着
+// 思考/正文，段级 map 会孤儿化子调用——展开 task 卡看不到子步骤）。
+// 后台子代理在 turn_done 后仍回投事件：按用户消息计轮（无新用户即同轮），
+// 子事件自然并入派发轮。sig 缓存保 map 对象身份稳定：流式只改最后一轮时，
+// 历史轮的 map 引用不变 → TurnBlock memo 不被击穿（T7-4 同纪律）。
+const EMPTY_SUBCALLS: Map<string, ToolItem[]> = new Map();
+function buildSubcalls(items: Item[]): Map<number, Map<string, ToolItem[]>> {
+  const acc = new Map<number, { sig: string; map: Map<string, ToolItem[]> }>();
+  let turn = -1; // 首条用户消息之前=轮外（与 turnNos 的 undefined 口径对齐）
+  for (const it of items) {
+    if (it.kind === "user") { turn++; continue; }
+    if (it.kind !== "tool" || !it.parentId) continue;
+    let cur = acc.get(turn);
+    if (!cur) { cur = { sig: "", map: new Map() }; acc.set(turn, cur); }
+    cur.sig += `${it.id}:${it.status}:${it.output?.length ?? 0};`;
+    const arr = cur.map.get(it.parentId) ?? [];
+    arr.push(it);
+    cur.map.set(it.parentId, arr);
   }
-  return map;
+  const out = new Map<number, Map<string, ToolItem[]>>();
+  for (const [tn, { sig, map }] of acc) {
+    const prev = subcallCache.get(tn);
+    if (prev && prev.sig === sig) out.set(tn, prev.map);
+    else { subcallCache.set(tn, { sig, map }); out.set(tn, map); }
+  }
+  // 会话切换防串：不在本次 items 里的轮号缓存作废
+  for (const k of subcallCache.keys()) if (!acc.has(k)) subcallCache.delete(k);
+  return out;
 }
+const subcallCache = new Map<number, { sig: string; map: Map<string, ToolItem[]> }>();
 
 // renderOutsideItems 渲染段内正文元素（用户/助手/工具/阶段/通知/压缩卡）。
 // 顶层纯函数 + TurnBlock 内 useMemo：段 props 不变时整棵子树跳过重渲染。
@@ -320,11 +351,13 @@ function renderOutsideItems(
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
+  dismissedErrors, onDismissError, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback, subcalls,
 }: {
   seg: Segment;
   running: boolean;
   isLast: boolean;
+  /** 轮级 subcall map（buildSubcalls，跨段吸附 parentId 子调用；身份按 sig 稳定）。 */
+  subcalls: Map<string, ToolItem[]>;
   turnNo?: number;
   /** 本段是否为所属轮的最后一段（登记-only 交付卡只挂轮尾）。 */
   turnTail?: boolean;
@@ -365,7 +398,6 @@ export const TurnBlock = memo(function TurnBlock({
   const toolCount = visibleProcess.filter((it) => it.kind === "tool" && !it.parentId).length;
   const thoughtCount = visibleProcess.filter((it) => it.kind === "assistant" && it.reasoning).length;
   const hasProcess = visibleProcess.length > 0;
-  const subcalls = useMemo(() => buildSubcalls(seg), [seg]);
   const setTurnEl = useCallback(
     (tn: number) => (el: HTMLElement | null) => {
       if (el) turnElsRef.current.set(tn, el);
@@ -949,6 +981,9 @@ export function Transcript({
     return map;
   }, [segments]);
 
+  // 轮级 subcall map（委派家族上浮的配套吸附层）：见 buildSubcalls 头注释。
+  const turnSubcalls = useMemo(() => buildSubcalls(merged), [merged]);
+
   // v4.26 工作态头部锚点：最后一轮的用户消息段。WorkHeader 只挂这一处——
   // 运行中常驻（spinner + 阶段 + 用时 + 步数），轮完成转「已完成 · 用时 · 步数」；
   // 新一轮发出后锚点随最后一条 user 消息移动，上一轮头部自然卸载。
@@ -1106,6 +1141,7 @@ export function Transcript({
                   onRegenerateTurn={handleRegenerateTurn}
                   onFeedback={onFeedback}
                   turnElsRef={turnEls}
+                  subcalls={turnSubcalls.get(turnNos.get(segIdx) ?? -1) ?? EMPTY_SUBCALLS}
                   workHeader={segIdx === lastUserSegIdx && !lastTurnHasProcess}
                   turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
                   tailOmitMentions={tailOmitBySeg.get(segIdx)}

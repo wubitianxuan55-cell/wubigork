@@ -27,6 +27,14 @@
 //    卡片回退到默认渲染。
 //  - 卡片侧以 1s tick（useNow）轮询取值，provider 内部数据更新后最迟 1s 上屏。
 
+/** 委派家族工具名：一次调用 = 一个独立子代理会话（task/run_skill）。 */
+export const DELEGATION_TOOL_NAMES = new Set(["task", "run_skill"]);
+
+/** 是否委派家族工具（task/run_skill）——一次委派一张卡：不折叠、上浮对话流。 */
+export function isDelegationTool(name: string): boolean {
+  return DELEGATION_TOOL_NAMES.has(name);
+}
+
 /** task 卡 live 预览数据（字段全部可选，缺省按现状渲染）。 */
 export interface TaskCardActivity {
   /** 子代理最后一段 assistant 文本（Codex 式活动预览，单行截断）。 */

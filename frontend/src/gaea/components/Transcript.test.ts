@@ -184,3 +184,58 @@ describe("v4.26 重复工具折叠（scanGroups skipRunning）", () => {
     expect(g.filter((x) => x.kind === "group")).toHaveLength(0);
   });
 });
+
+// ── 2026-11-18 委派家族上浮 ──────────────────────────────────────────────
+// 并行派发实弹「对话窗口没有子代理卡片」：task 住过程卡时，运行中折叠态只露
+// 最近 3 张尾巴、后台委派回合结束后整卡埋进折叠体。task/run_skill 上浮
+// outsideItems 成一等对话卡（一次委派一张卡，常驻可见、整卡可点开右栏会话）；
+// parentId 委派（子代理嵌套委派）仍是父卡内 subcall，不上浮。
+describe("委派家族上浮（task/run_skill 一等对话卡）", () => {
+  const taskTool = (id: string, status: "running" | "done" = "running", parentId?: string): Item =>
+    ({ kind: "tool", id, name: "task", args: "", readOnly: false, status, parentId });
+
+  it("并行派发多 task：全部上浮 outsideItems，不进过程卡", () => {
+    const items: Item[] = [
+      u("u1", "并行处理这三件事"),
+      a("a1", "", "分派三个子代理"),
+      taskTool("t1"), taskTool("t2"), taskTool("t3"),
+    ];
+    const segs = buildSegments(items, true);
+    // 过程卡只含思考；三个 task 卡同段上浮在消息流
+    expect(segs[1].processItems.map((x) => x.id)).toEqual(["a1"]);
+    expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["t1", "t2", "t3"]);
+  });
+
+  it("上浮卡不与后续过程混淆：task 后继续思考/正文分段时序不变", () => {
+    const items: Item[] = [
+      u("u1", "查一下"),
+      taskTool("t1", "done"),
+      a("a1", "", "再想想"),
+      a("a2", "安排好了", ""),
+    ];
+    const segs = buildSegments(items, false);
+    expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["t1"]);
+    expect(segs[1].processItems).toHaveLength(0);
+    expect(segs[2].processItems.map((x) => x.id)).toEqual(["a1"]);
+    expect(segs[2].outsideItems.map((x) => x.id)).toEqual(["a2"]);
+  });
+
+  it("parentId 委派（嵌套子代理调用）不上浮：仍归过程段，由轮级 subcall map 吸附到父卡", () => {
+    const items: Item[] = [
+      u("u1", "深挖"),
+      taskTool("t1", "running"),
+      taskTool("t1/nested", "running", "t1"),
+    ];
+    const segs = buildSegments(items, true);
+    expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["t1"]);
+    expect(segs[1].processItems).toHaveLength(0);
+    expect(segs[2].processItems.map((x) => x.id)).toEqual(["t1/nested"]);
+  });
+
+  it("普通工具仍进过程卡（回归钉：上浮只对委派家族）", () => {
+    const items: Item[] = [u("u1", "读"), tool("t1", "read_file")];
+    const segs = buildSegments(items, true);
+    expect(segs[1].processItems.map((x) => x.id)).toEqual(["t1"]);
+    expect(segs[1].outsideItems).toHaveLength(0);
+  });
+});
