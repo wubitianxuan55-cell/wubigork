@@ -29,7 +29,14 @@ func NewRememberTool(store Store, profile *ProfileStore) tool.Tool {
 func (rememberTool) Name() string { return "remember" }
 
 func (rememberTool) Description() string {
+	// 确认制句（2026-11-18 众神殿余项·与三处板块提示词统一）：全局工具描述
+	// 此前鼓励按「值得记」自行判断主动保存，与办公/文学身份稿和执行纪律的
+	// 确认制措辞打架（模型两处都读）。remember 执行时本就弹用户确认卡，这句
+	// 把描述口径对齐红线「未经确认不写持久化数据」。
 	return "Save a durable fact to project memory so it survives across sessions. " +
+		"Only call this when the user explicitly asks you to remember something, or corrects a fact/constraint " +
+		"and asks you to apply it going forward — do not proactively save facts on your own judgment " +
+		"(a user confirmation card is shown either way). " +
 		"Use for things worth remembering long-term: who the user is and their preferences (type \"user\"); " +
 		"guidance on how to work, including the why (type \"feedback\"); ongoing goals or constraints not " +
 		"derivable from the code (type \"project\"); or pointers to external resources (type \"reference\"). " +

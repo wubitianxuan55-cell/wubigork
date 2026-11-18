@@ -33,7 +33,7 @@ func writeSubagentFixture(t *testing.T) (sessionPath, sessionDir string) {
 	// 子代理 A：completed，带 transcript（任务 + 工具调用 + 回答）
 	refA := "sa_20260817_100000_0000000001_a1a1a1a1"
 	metaA := map[string]interface{}{
-		"ref": refA, "status": "completed",
+		"ref": refA, "status": "completed", "sessionPath": sessionPath,
 		"createdAt": time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339Nano),
 		"updatedAt": time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339Nano),
 		"model":     "deepseek-v4-flash", "toolScope": []string{"read_file", "grep"},
@@ -49,7 +49,7 @@ func writeSubagentFixture(t *testing.T) (sessionPath, sessionDir string) {
 	// 子代理 B：running，无 transcript（只有 meta）
 	refB := "sa_20260817_110000_0000000002_b2b2b2b2"
 	metaB := map[string]interface{}{
-		"ref": refB, "status": "running",
+		"ref": refB, "status": "running", "sessionPath": sessionPath,
 		"createdAt": time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339Nano),
 		"updatedAt": time.Now().Add(-1 * time.Minute).UTC().Format(time.RFC3339Nano),
 	}
@@ -143,6 +143,7 @@ func TestGaeaSubagentRuns_ModelTool(t *testing.T) {
 	ref := "mt_20260903_120000_0000000001_c3c3c3c3"
 	meta := map[string]interface{}{
 		"ref": ref, "status": "completed", "kind": "model_tool", "tool": "vision",
+		"sessionPath": sessionPath,
 		"title":     "vision · 识别图片 C:\\x.png",
 		"createdAt": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano),
 		"updatedAt": time.Now().Add(-time.Second).UTC().Format(time.RFC3339Nano),
@@ -210,6 +211,7 @@ func TestGaeaSubagentRuns_FollowUpError(t *testing.T) {
 	ref := "sa_20260901_090000_0000000003_c4c4c4c4"
 	writeJSON(t, filepath.Join(subDir, ref+".meta.json"), map[string]interface{}{
 		"ref": ref, "status": "completed", "title": "可追问的运行",
+		"sessionPath":  sessionPath,
 		"followUpError": "provider 掉线：context deadline exceeded",
 		"createdAt":     time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano),
 		"updatedAt":     time.Now().UTC().Format(time.RFC3339Nano),

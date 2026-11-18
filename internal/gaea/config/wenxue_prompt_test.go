@@ -58,3 +58,29 @@ func TestResolveWenxueSystemPrompt(t *testing.T) {
 		}
 	})
 }
+
+// TestWenxueSystemPromptV1FrozenBody 文学身份稿 v1.0 冻结锚（2026-11-18 众神殿
+// pan_1795007052552，DeepSeek r1 附录「文学 A」原样）：范围=各类小说（非小说
+// 体裁与办公域明确排除）、确认制记忆、workbench 指路句在场；旧「长篇小说
+// 创作助手」自称与办公工具手册不得回流。
+func TestWenxueSystemPromptV1FrozenBody(t *testing.T) {
+	p := DefaultWenxueSystemPrompt
+	for _, sub := range []string{
+		"长篇、中篇、短篇小说",
+		"不覆盖散文、剧本、诗歌和非小说评论",
+		"read_skill 读 wenxue-workbench",
+		"才调用 remember",
+	} {
+		if !strings.Contains(p, sub) {
+			t.Errorf("文学身份稿缺 v1.0 锚 %q", sub)
+		}
+	}
+	for _, banned := range []string{
+		"长篇小说创作助手", // 旧自称（范围已放宽到各类小说）
+		"format_convert", "semantic_search", "office_", "fact_add",
+	} {
+		if strings.Contains(p, banned) {
+			t.Errorf("文学身份稿含禁词 %q", banned)
+		}
+	}
+}

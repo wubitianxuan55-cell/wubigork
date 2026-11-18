@@ -205,6 +205,17 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		// 账目标签分列（2026-11-17 审查批5 刀1）：wx 全部 provider（主 agent+
 		// 子代理）用量标 "wenxue"，与办公 "gaea" 桶分列（PerFeature 分桶）。
 		Feature: "wenxue",
+		// 执行纪律板块缝（2026-11-18 众神殿 pan_1795007052552 v1.0）：图文
+		// executor 换 WenxueSingleModelPrompt 独立常量+跳过 officeLive 段，
+		// 不再吃办公执行后缀（此前文学最终串含办公事实底座/落盘/签退全段）。
+		// 中立交付段照常单源追加。
+		ExecBoard: "wenxue",
+		// 空间锚（2026-11-18 众神殿余项·play 装配洞根修）：图文引擎恒 work
+		// ——全局 session.space=play 时若跟随，AllowsSpace 会把基础读写工具
+		// 与全部 wenxue_*（SpaceTag 恒 work）滤成零写工具。锚定 work 后工具/
+		// 记忆读端按 work 装配（文学脑本就独立分池，SessionDir 已显式平铺，
+		// Journal 已硬编码书内 .gaea/work）。
+		SpaceAnchor: "work",
 		EmitSubagentText: func(ref, text string) {
 			a.emit(wenxueSubagentTextChannel, map[string]interface{}{
 				"kind": "subagent_text", "text": text, "subagentRef": ref,

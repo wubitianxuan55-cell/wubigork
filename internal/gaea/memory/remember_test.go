@@ -64,3 +64,18 @@ func TestRememberToolQueuesNote(t *testing.T) {
 		t.Fatalf("expected one queued note naming the saved memory, got %v", q.notes)
 	}
 }
+
+// TestRememberDescriptionConsentGate 确认制措辞（2026-11-18 众神殿余项）：
+// 全局工具描述与办公/文学身份稿及执行纪律统一为确认制——只读描述的模型
+// 不再被引导主动保存（红线「未经确认不写持久化数据」；确认卡机制本就在）。
+func TestRememberDescriptionConsentGate(t *testing.T) {
+	desc := rememberTool{}.Description()
+	for _, sub := range []string{
+		"Only call this when the user explicitly asks you to remember",
+		"do not proactively save",
+	} {
+		if !strings.Contains(desc, sub) {
+			t.Errorf("remember 描述缺确认制锚 %q", sub)
+		}
+	}
+}

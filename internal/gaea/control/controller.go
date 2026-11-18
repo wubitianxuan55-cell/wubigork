@@ -1210,6 +1210,18 @@ func (c *Controller) Tools() []tool.Tool {
 	return out
 }
 
+// Schemas returns the executor's visible tool-schema face — registration
+// order with hide (tool_search deferred) and schema-budget truncation applied,
+// i.e. what the model actually sees in a turn. Tools() is the registration
+// face (hidden tools stay callable by name); Schemas() is the visibility face
+// (2026-11-18 众神殿余项·办公 schema 三态验收的暴露面).
+func (c *Controller) Schemas() []provider.ToolSchema {
+	if c.reg == nil {
+		return nil
+	}
+	return c.reg.Schemas()
+}
+
 // AddMCPServer connects an MCP server live and persists it to the config file. Its
 // tools are registered immediately and become available on the next turn (the
 // agent reads the registry per turn). The raw entry — ${VARS} intact — is what's

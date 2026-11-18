@@ -100,6 +100,25 @@ type Options struct {
 	// "wenxue"，用量记账 PerFeature 分桶随标签分列（此前 wx 主 agent 用量全落
 	// "gaea" 桶）。空 = 现状逐字节（办公/CLI/TUI 不受影响）。
 	Feature string
+	// ExecBoard 是执行纪律板块缝（2026-11-18 众神殿 pan_1795007052552 v1.0
+	// 冻结包）：非空 "wenxue" = 图文引擎——执行纪律换 agent.
+	// WenxueSingleModelPrompt（独立常量，无空间渲染：wenxue_* 工具族恒 work
+	// 锚，play 下 AllowsSpace 全滤，渲染函数是死代码），并跳过 officeLive 段
+	// （COM 实时协同是办公域分工，图文无 office_ 工具）。中立交付段
+	// （deliveryPromptSection）仍单源追加（用户拍板 q341：交付链接规则留装配
+	// 层，不复制进两份正文）。空 = 现状逐字节（办公/CLI/TUI 用
+	// SingleModelPromptFor 双态渲染 + officeLive 探测追加）。
+	ExecBoard string
+	// SpaceAnchor 是装配空间锚定（2026-11-18 众神殿余项·文学 play 装配洞
+	// 根修）：非空时顶替 cfg.EffectiveSessionSpace() 作为本引擎的工具过滤/
+	// 记忆读端/space_profiles/权限规则的生效空间。文学引擎传 "work"——
+	// wenxue_* 工具族与基础读写工具的 SpaceTag 恒 work、SessionDir 平铺、
+	// Journal 与账本在书内 .gaea/work，全局 session.space=play 时不锚定则
+	// AllowsSpace 把它们全部滤掉（文学会话零写工具的装配洞；修复的前置
+	// 是产品要求文学进 play 时 SpaceTag/SessionDir/账本三处同改，本锚是
+	// 「文学恒 work」裁决的装配层兑现）。空 = 现状逐字节（办公/CLI/TUI
+	// 跟随全局 session.space 双态）。
+	SpaceAnchor string
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
 	ExtraTools []tool.Tool
@@ -187,7 +206,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// ""=space.mode=off（整体回退：不滤工具、模型与权限走现状路径）。
 	// 与桌面端 gaeaBuildController 的 SessionDir 空间同源（同一 cfg），因此
 	// GaeaSpaceActivate 的「重建生效」语义对工具/模型/权限装配一致成立。
+	// SpaceAnchor 非空时顶替（板块引擎恒定空间，见 Options.SpaceAnchor）。
 	space := cfg.EffectiveSessionSpace()
+	if opts.SpaceAnchor != "" {
+		space = opts.SpaceAnchor
+	}
 	// 记忆脑目录（2026-11-16 左右脑批）：effective 一处算好，四处消费点
 	//（sysprompt 主 Load / sessionquery / remember ProfileStore / 引用消毒）
 	// 统一取它——空值=现状 config.MemoryUserDir() 逐字节。
@@ -682,17 +705,27 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 
 	// S4 双空间：执行纪律文本按会话空间渲染 exports/work 路径根段（设计 §5）。
 	// work 缺省（含 space.mode=off 的 "" 生效值）输出与历史 const 逐字一致。
-	execPrompt := compiler.SystemPrompt() + "\n\n" + agent.SingleModelPromptFor(cfg.EffectiveSessionSpace())
+	// 板块缝（2026-11-18 众神殿 v1.0）：ExecBoard="wenxue" 的引擎换图文执行
+	// 常量（无空间渲染），办公/CLI/TUI 维持 SingleModelPromptFor 双态。
+	var execDiscipline string
+	if opts.ExecBoard == "wenxue" {
+		execDiscipline = agent.WenxueSingleModelPrompt
+	} else {
+		execDiscipline = agent.SingleModelPromptFor(space)
+	}
+	execPrompt := compiler.SystemPrompt() + "\n\n" + execDiscipline
 	// 交付与收尾纪律（灵犀 delivery_format/response_style/completion_criteria
 	// 蒸馏，docs/gaea-lingxi-advantages-2026-11.md #16/#19）：无条件追加，通用
-	// 规则在前、专项分工在后。同样不动 SingleModelPrompt 常量。
+	// 规则在前、专项分工在后。同样不动 SingleModelPrompt 常量。中立单源对两
+	// 板块同追加（q341 拍板：不复制进两份专属稿正文）。
 	execPrompt += "\n\n" + deliveryPromptSection
 	// 波3.5 preferLive 引导回（dsh-office 蒸馏，docs/gaea-dsh-office-distill-
 	// research-2026-11.md §6.3）：本机装了 Office/WPS（COM 档工具族已注册）
 	// 时追加实时协同分工段——Word/PPT 文档工作优先 office_ 工具而非 docx/
 	// pptx 技能造文件（上游 promptText 常驻段同形态；探测下沉 comhelper 供
-	// 内核可达）。SingleModelPrompt 常量逐字节红线不动。
-	if comhelper.ProbeSuiteAvailable() {
+	// 内核可达）。SingleModelPrompt 常量逐字节红线不动。图文引擎跳过（无
+	// office_ 工具，段内分工全不可执行——板块缝同批）。
+	if opts.ExecBoard != "wenxue" && comhelper.ProbeSuiteAvailable() {
 		execPrompt += "\n\n" + officeLivePromptSection
 	}
 	execSess := agent.NewSession(execPrompt)
