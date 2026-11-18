@@ -1,3 +1,42 @@
+## 办公子智能体升格完整智能体 · 嵌套委派+导航+插话（2026-11-18）
+
+用户指定对齐 dsh 子智能体全形态（子智能体=完整智能体：持久会话/可续聊/
+可再派孙代/面包屑导航/右栏聊天页/运行中插话；派生方=父代理非用户直建）。
+两批收官（`9475bed3` 批1 机制 + `06b2b3fd` 批2 UI/绑定），第七次装机
+（exe 构建 10:21:16，INSTALL OK 新 PID 32952>构建时刻，未 push）：
+
+- **批1 机制**：`[agent] subagent_max_depth`（缺省 3=主→子→孙，硬帽 10，
+  1=关闭逐字节现行为）+ctx 深度缝+buildSubRegAt 按级别开放协调四件
+  （task/interrupt_agent/subagent_list/read_subagent_result；
+  run_skill/install_skill/exit_plan_mode 恒排除）；SubagentMeta.Depth 四路
+  盖章（task/RunNew/runFollowUp/persisted_run，RunNew/runFollowUp 补 ctx
+  会话 ID+级别缝=孙代 parentRef 链落对续跑保级）；**容量防自锁**（dsh
+  ActivationPool 满拒绝同源洞察）：嵌套层槽满 tryAcquireSubSlot 快拒——
+  持槽等排队孙代会全树互锁；顶层排队语义逐字节不变；协调三工具子树守卫
+  （AncestryContains：只可见/可停/可读自己的后代，兄弟边界维持，job 面
+  对子代理不开放）。测试 task_nested_test 四例（三层血缘端到端/深度闸
+  契约/快拒+排队回归/守卫矩阵）；agent/config/boot/app 全量 CGO 绿。
+- **批2 UI**：GaeaSubagentSteer 绑定（running=Steer 直穿/queued 拒/终态
+  走追问；无主回合闸）六面+第七面 core.ts+legacy 再生（drift OK@713）；
+  SubagentThread 谱系面包屑+composer 双语义+wenxue 镜像逐字节+三语四键；
+  SubagentCatalogButton（顶栏「N 个子智能体」触发器+portal 血缘树 L 徽标
+  +行点击主区+侧栏钮）；右栏子会话 pane（openSubagentPane id=sub:<ref>+
+  SubagentPaneChat 壳，可插话/追问/停）；mock 嵌套链增稠。
+- **门禁**：全量 vitest 4490+/4493（三红例单跑全绿=负载期 flaky 零交集
+  定性：DatabaseLibrary/SchedulingSection 在册已知+ContextView skill 面
+  无关）；tsc -b 0、改动面 eslint 0、契约/spaceBindings/drift 绿；mock
+  走查五链（触发器计数/树 L1L2 徽标/主区面包屑/插话受理/右栏窗）显式
+  GAEA_WALK_PORT=9335+/json/list 核对（9333 纪律第三次执行）+截图
+  temp/fleet-walk/subagent-batch-20261118.png；wails build 1m50s+冒烟 200
+  +装机 INSTALL OK。
+- **偏离在案**：嵌套层容量=快拒不排队（vs dsh 全拒绝）只对 caller≥1；
+  冷恢复投递 demand-gated 维持；wenxue 面包屑/目录树未挂（无编队消费面，
+  组件已镜像）；fleet depthHue 仍按树位推导（meta.depth 已透传待消费）。
+- **坑**：fresh profile 无头 Edge 首跳被扩展页劫持（--no-first-run
+  --disable-extensions 后净）；上一批 WenxueGalleryList 只进 bindingNames
+  未进签名清单=契约锁本批逮住补齐（713 对齐）；镜像组件引用新 i18n 键
+  必须同批补 wenxue 三语字典（逐字节拷贝≠键集同源）。
+
 ## Git 打包 · gaea-vision-ocr-gallery-20261118-b3d994dc（2026-11-18）
 
 本日治理线全量（识图根修+OCR 大卡+插图标签+U5 徽标+DSH 蒸馏首批+编队 UI
