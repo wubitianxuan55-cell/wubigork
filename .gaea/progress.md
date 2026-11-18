@@ -1,3 +1,38 @@
+## 众神殿与子代理对话 UI 收口 + 桌面包（2026-11-18 夜）
+
+用户令「检查细节后 git 打包、做好文件记录和记忆更新、构建桌面端」。
+功能提交 `fc120738eac3c461d0d4448558c1541a249452f2`（13 files，
+1,973 insertions / 294 deletions），只含本轮相关源码/测试，不夹带主工作树
+其他在制业务改动。
+
+- **众神殿独立 Agent 窗口**：观点完成态默认折叠并支持批量控制；轨迹合并
+  工具记录，补统计、轮次概览、搜索、分组和失败文字；新增上下文标签页
+  （Prompt 构成/会话信息/趋势/逐轮账目），无 usage 使用单一诚实空态；
+  标签改为标准 tablist/tabpanel，支持方向键与 Home/End。
+- **子代理对话与父代理统一**：`SubagentThread` 复用父代理的 `.transcript`
+  / `.v3-reading` 阅读列、`buildSegments`、`ProcessCard`、`UserMessage`、
+  `AssistantMessage`、`ToolCard`；不再维护扁平私有消息流。
+- **去重与命名**：父对话过滤 `background task/bash started` 通知及带
+  `subagentRef` 的完成回执；委派卡按会话调用顺序显示 `子代理 A/B/C…`，
+  保留任务摘要和右栏打开入口。
+- **门禁**：5 个相关测试文件 **110/110**；`tsc -b` 0；改动面 ESLint 0；
+  Vite 20.95s（前端总门禁 46.400s）。
+- **干净树桌面构建**：`.worktrees/pkg-fc120738`（detached @`fc120738`，
+  node_modules junction）；UCRT64 GCC + `CGO_ENABLED=1` + 系统 TMP/TEMP，
+  `wails build -s -ldflags "-s -w" -trimpath` **44.2s**，
+  `Skip Bindings=false`；wailsjs 仅行尾变化，忽略行尾后内容漂移 0。
+- **交付**：`releases/gaea-pantheon-subagent-ui-20261118-fc120738/`；payload
+  `gaea.exe` 55,193,088 B SHA256 `86052955E1F5…B86CEF`，三 DLL 与基线
+  同哈希；正式路径冒烟 `/api/health` 200（PID 41464 回收）。
+- **装机**：`gaea_install.ps1 -SourceDir payload -Launch` → INSTALL OK，
+  新 PID 59568，启动时间 23:46:45 > 构建时间 23:46:15；装机四件与 payload
+  哈希逐项一致。
+- **归档**：二进制 ZIP 30,177,708 B；源码 TAR 43,815,614 B；源码 ZIP
+  47,969,713 B；四张走查图；`PACKAGE-INFO.md` + `SHA256SUMS.txt`；
+  11 项哈希复算全 OK。二进制 ZIP 仅含 exe+3 DLL。
+- **版本**：4.544.0 不抬号（日常构建）。主工作树仍保留与本包无关的在制
+  改动；本包构建点由独立干净树保证。
+
 ## 子智能体卡 · 点击右栏打开对话（2026-11-18 补刀）
 
 完整智能体形态两批之上的第三刀（用户令「新增子智能体卡，点击可在右侧
