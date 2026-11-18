@@ -259,6 +259,15 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		}
 		return filepath.Join(filepath.Dir(filepath.Clean(sp)), "subagents")
 	})
+	// 会话隔离（2026-11-18 实弹缺陷刀）：subagents/ 目录按会话目录共享，清单
+	// 不过滤会把「上一个会话的编队」串进来——运行按 meta.SessionPath 严格归
+	// 属当前会话（盖章同源 ctrlSessionPath）。
+	subagentStore.SetSessionPathFn(func() string {
+		if ctrlSessionPath == nil {
+			return ""
+		}
+		return ctrlSessionPath()
+	})
 
 	// effort 覆盖必须先于 NewProvider：NewProvider 构造即把 entry.Effort 逐值
 	// 拷进 provider.Config.Extra，构造后再赋值是静默失效（GA4-01）。与下方子

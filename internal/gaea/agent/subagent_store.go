@@ -129,6 +129,9 @@ type SubagentMeta struct {
 	// 0 值 omitempty 与「未记录」不可分：无碍——嵌套语义只关心 ≥maxDepth 的
 	// 截断面，读端降级后的 1 恒在闸内。
 	Depth int `json:"depth,omitempty"`
+	// SessionPath 是归属会话（会话隔离刀，一次写定 fill-empty）：spawn 时由
+	// store 的 sessionPathFn 盖章（saveMetaUnlocked 单点）。旧档无字段=空。
+	SessionPath string `json:"sessionPath,omitempty"`
 	// PendingMessages 是 queued 期的排队消息（2026-11-18 DSH 式 send_message
 	// 刀2，上游 queue 通道折算）：起跑前经 send_message 投递的补充指引排队
 	// 落盘，MarkRunning 起跑后由 runSubAgentInternal flush 逐条 steer 送达
@@ -219,6 +222,10 @@ func (r *SubagentRun) Release() {
 type SubagentStore struct {
 	dir   string
 	dirFn func() string
+	// sessionPathFn 是当前会话路径 getter（会话隔离刀）：非 nil 时写路径
+	// 单点盖章 meta.SessionPath、读路径按当前会话过滤。nil = 目录直连形态
+	// （不盖章不过滤）。
+	sessionPathFn func() string
 	// mu 串行化同一 store 上全部 transcript/meta 写（并行子代理各自写不同
 	// 文件，但 ticker 快照与终态写不能互相覆盖状态）。
 	mu sync.Mutex
@@ -242,6 +249,29 @@ func NewSubagentStore(dir string) *SubagentStore {
 // of pinning one session directory for the whole process lifetime.
 func NewLazySubagentStore(dirFn func() string) *SubagentStore {
 	return &SubagentStore{dirFn: dirFn}
+}
+
+// SetSessionPathFn 注入当前会话路径 getter（2026-11-18 会话隔离刀）：子代理
+// 运行按**会话**归属，不再按目录全局共享——同 dir 的所有会话文件曾共用一个
+// subagents/ 池，编队/清单把「上一个会话的编队」也列进来（实弹缺陷）。盖章
+// 语义：saveMetaUnlocked 单点 fill-empty（首个写入者盖章，续写不清空——
+// 运行归属属血缘，发起方不改）。getter 为 nil（测试/直连目录 store）=
+// 不盖章、不过滤（既有行为）。
+func (s *SubagentStore) SetSessionPathFn(fn func() string) { s.sessionPathFn = fn }
+
+// ScopedToSession 过滤：sessionPath 非空时只留该会话的运行（严格等于——
+// 旧档无 sessionPath 字段=不可见，磁盘数据不动，promote/续读按 ref 仍可达）。
+func (s *SubagentStore) ScopedToSession(runs []SubagentRunInfo, sessionPath string) []SubagentRunInfo {
+	if sessionPath == "" {
+		return runs
+	}
+	out := runs[:0]
+	for _, r := range runs {
+		if r.SessionPath == sessionPath {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // EphemeralSubagentRun returns a run with no backing store — it cannot be
@@ -946,6 +976,11 @@ func (s *SubagentStore) metaPath(ref string) string {
 // ── Meta persistence ────────────────────────────────────────────────
 
 func (s *SubagentStore) saveMetaUnlocked(meta SubagentMeta) error {
+	// 会话归属盖章（fill-empty，会话隔离刀）：首个写入者定归属，后续写不清
+	// 空（续跑/追问/排队追加都不改血缘）。dirFn 形态（无 fn）不盖章。
+	if meta.SessionPath == "" && s.sessionPathFn != nil {
+		meta.SessionPath = s.sessionPathFn()
+	}
 	dir, err := s.dirResolved()
 	if err != nil {
 		return err
@@ -1023,6 +1058,9 @@ type SubagentRunInfo struct {
 	// 旧 meta 无字段为空。
 	Model  string
 	Effort string
+	// SessionPath 是归属会话（2026-11-18 会话隔离刀）：运行按会话严格过滤，
+	// 跨会话不再串池。旧档无字段=不可见于编队/清单（磁盘不动）。
+	SessionPath string
 }
 
 // listRunsLimit 是单次枚举的条数上限：对话窗口是稀缺资源，模型要找的
@@ -1066,9 +1104,23 @@ func (s *SubagentStore) ListRuns() ([]SubagentRunInfo, error) {
 			Depth:     meta.Depth,
 			Model:     meta.Model,
 			Effort:    meta.Effort,
+			SessionPath: meta.SessionPath,
 		})
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt.After(runs[j].CreatedAt) })
+	// 会话隔离（刀）：lazy store（fn 在场）只列当前会话的运行——目录是共享
+	// 的，清单不按会话过滤会把「上一个会话的编队」列进来（实弹缺陷）。
+	if s.sessionPathFn != nil {
+		if cur := s.sessionPathFn(); cur != "" {
+			scoped := runs[:0]
+			for _, r := range runs {
+				if r.SessionPath == cur {
+					scoped = append(scoped, r)
+				}
+			}
+			runs = scoped
+		}
+	}
 	if len(runs) > listRunsLimit {
 		runs = runs[:listRunsLimit]
 	}

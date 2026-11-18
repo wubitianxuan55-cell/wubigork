@@ -50,6 +50,7 @@ func (a *App) GaeaSubagentFollowUp(sessionPath, ref, prompt string) (string, err
 	// 安全。best-effort：无会话目录/meta 时跳过，RunFollowUp 开跑清兜底。
 	if dir := sessionDirForPath(sessionPath); dir != "" && gaeaAgent.ValidRunRef(ref) {
 		store := gaeaAgent.NewSubagentStore(filepath.Join(dir, "subagents"))
+		store.SetSessionPathFn(func() string { return sessionPath })
 		_ = store.RecordFollowUpError(ref, "")
 	}
 

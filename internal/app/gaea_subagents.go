@@ -87,6 +87,11 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		Tool      string    `json:"tool,omitempty"`
 		ToolScope []string  `json:"toolScope,omitempty"`
 		Model     string    `json:"model,omitempty"`
+		// SessionPath：归属会话（2026-11-18 会话隔离刀）。subagents/ 目录按
+		// 会话目录共享，旧列表把所有会话的运行都列出来（实弹缺陷「编队里有
+		// 上一个会话的编队」）——按它严格过滤。空=旧档未盖章，不可见（磁盘
+		// 不动，promote/续读按 ref 仍可达）。
+		SessionPath string `json:"sessionPath,omitempty"`
 		// ParentRef/SpawnCallID：派生血缘盖章（D1），空 = 旧 meta 未盖章。
 		ParentRef   string `json:"parentRef,omitempty"`
 		SpawnCallID string `json:"spawnCallId,omitempty"`
@@ -107,6 +112,12 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		}
 		var m metaSide
 		if err := json.Unmarshal(b, &m); err != nil {
+			continue
+		}
+		// 会话隔离（2026-11-18 实弹缺陷刀）：subagents/ 池按会话目录共享，
+		// 严格只留归属当前会话的运行——旧档未盖章（空）不可见（磁盘不动，
+		// promote/续读按 ref 仍可达）。
+		if m.SessionPath != sessionPath {
 			continue
 		}
 		v := SubagentRunView{

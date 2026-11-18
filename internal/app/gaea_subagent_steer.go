@@ -41,6 +41,7 @@ func (a *App) GaeaSubagentSteer(sessionPath, ref, prompt string) (string, error)
 	//（ephemeral/他会话）诚实报错。
 	if dir := sessionDirForPath(sessionPath); dir != "" {
 		store := gaeaAgent.NewSubagentStore(filepath.Join(dir, "subagents"))
+		store.SetSessionPathFn(func() string { return sessionPath })
 		status, perr := store.PeekStatus(ref)
 		if perr != nil {
 			return "", fmt.Errorf("子代理 %s 不在运行，且本会话无其记录（未知或已回收）", ref)
@@ -74,6 +75,7 @@ func (a *App) GaeaSubagentSteer(sessionPath, ref, prompt string) (string, error)
 	// 轮询不会把旧失败误记到这一次）。
 	if dir := sessionDirForPath(sessionPath); dir != "" {
 		store := gaeaAgent.NewSubagentStore(filepath.Join(dir, "subagents"))
+		store.SetSessionPathFn(func() string { return sessionPath })
 		_ = store.RecordFollowUpError(ref, "")
 	}
 	go func() {
