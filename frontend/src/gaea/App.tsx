@@ -489,8 +489,15 @@ export default function App() {
     setEventSyncFetcher((afterSeq) => app.ResyncEvents(afterSeq));
     return () => setEventSyncFetcher(null);
   }, []);
+  // 对话流 task 卡点击 → 右栏子会话 pane（2026-11-18 与编队卡 e665c777 对齐：
+  // 主对话不被切走；主区会话 Tab 链路 openSubagentThread 保留给目录树/面包屑）。
+  const openSubagentAside = useCallback((p: { ref: string; task?: string }) => {
+    setWorkspacePanel(true);
+    usePaneTabsStore.getState().openSubagentPane(p.ref, p.task || p.ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch
+  }, [setWorkspacePanel]);
   // 子代理 task 卡 live 预览/跳转/歧义选择器注入 → app/useTaskCards
-  useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSessionPath, openSubagentThread });
+  useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSessionPath, openSubagentAside });
 
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
@@ -1184,7 +1191,7 @@ export default function App() {
 
       {/* v4.68 task 卡多候选歧义选择器：一张卡同时匹配 ≥2 个 running 子代理
           时（并行派发、任务文本相近），点击卡片弹此居中轻量弹层，人工挑一个
-          打开对应会话 tab。点行走既有 openSubagentThread；Esc/遮罩/关闭均取消。 */}
+          打开右栏子会话 pane（2026-11-18 与整卡点击同管道）。Esc/遮罩/关闭均取消。 */}
       <Modal
         open={taskPickCandidates !== null}
         onCancel={() => setTaskPickCandidates(null)}
@@ -1204,7 +1211,7 @@ export default function App() {
               aria-label={t("taskpick.rowAria", { task: r.task })}
               onClick={() => {
                 setTaskPickCandidates(null);
-                openSubagentThread({ sessionPath: currentSessionPath ?? "", ref: r.ref, task: r.task, status: r.status, model: r.model });
+                openSubagentAside({ ref: r.ref, task: r.task });
               }}
               className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border-soft bg-bg-soft px-2 py-1.5 text-left transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
             >

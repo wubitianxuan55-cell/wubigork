@@ -131,6 +131,45 @@ function runAskTurn(input: string) {
   });
 }
 
+// 并行委派场景（?mock=subagents，2026-11-18 委派卡上浮走查锚点）：
+// turn_started → reasoning → **一次批量 3 个 task 派发（并行=连续同名）** →
+// 正文 → turn_done（后台委派：回合先结束）→ turn_done **之后**子代理事件
+// 回投（parentId 子调用 + task_result 带 sa_ 引用行）——钉两件事：
+// ①连续同名 task 不折叠、上浮对话流常驻可见；②turn_done 后回投的子调用
+// 仍被轮级 subcall map 吸附进父卡（事件序对齐 batch_executor + subSinkFor）。
+async function runSubagentsTurn(input: string, cancelledRef: { v: boolean }) {
+  const cancelled = () => cancelledRef.v;
+  emit({ kind: "turn_started" });
+  await delay(300);
+  emit({ kind: "reasoning", reasoning: `用户请求"${input}"，拆成三路并行委派子代理处理。` });
+  await delay(200);
+  const tasks = [
+    { id: "task-m1", prompt: "汇总三季度经营数据", ref: "sa_mock0001" },
+    { id: "task-m2", prompt: "核对成本测算表", ref: "sa_mock0002" },
+    { id: "task-m3", prompt: "整理风险清单", ref: "sa_mock0003" },
+  ];
+  for (const t of tasks) {
+    emit({ kind: "tool_dispatch", tool: { id: t.id, name: "task", args: JSON.stringify({ prompt: t.prompt, description: t.prompt, run_in_background: true }), readOnly: false } });
+    await delay(60);
+  }
+  const reply = `已并行派发 ${tasks.length} 个子代理：${tasks.map((t) => t.prompt).join("／")}。`;
+  for (const ch of reply) { if (cancelled()) return; emit({ kind: "text", text: ch }); await delay(8); }
+  emit({ kind: "message", text: reply });
+  emitUsageTwice();
+  emit({ kind: "turn_done" }); // 后台委派：主回合到此结束，下面是子代理回投
+  await delay(800);
+  if (cancelled()) return;
+  // 子代理 m1 内部调用（subSinkFor 打 ParentID + "父/子" 复合 ID）——落在
+  // turn_done 之后的新段，验证轮级吸附。
+  emit({ kind: "tool_dispatch", tool: { id: "task-m1/read-1", name: "read_file", args: '{"path":"经营数据.xlsx"}', readOnly: true, parentId: "task-m1" } });
+  await delay(400);
+  emit({ kind: "tool_result", tool: { id: "task-m1/read-1", name: "read_file", output: "读取 3 个 sheet", readOnly: true, parentId: "task-m1" } });
+  await delay(600);
+  emit({ kind: "tool_result", tool: { id: "task-m1", name: "task", output: `三季度汇总完成。\nSubagent reference: ${tasks[0].ref}`, readOnly: false } });
+  emit({ kind: "tool_result", tool: { id: "task-m2", name: "task", output: `成本核对完成，2 处偏差。\nSubagent reference: ${tasks[1].ref}`, readOnly: false } });
+  emit({ kind: "tool_result", tool: { id: "task-m3", name: "task", output: `风险清单已整理（5 项）。\nSubagent reference: ${tasks[2].ref}`, readOnly: false } });
+}
+
 // 压缩场景（?mock=compaction）：turn_started → 正文 → compaction_started →
 // compaction_done → 继续正文 → turn_done。
 async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
@@ -202,6 +241,7 @@ export function buildChat(s: MakeMockState): ChatMethods {
       if (scenario === "approval") { pendingFlow = "approval"; runApprovalTurn(input); return; }
       if (scenario === "ask") { pendingFlow = "ask"; runAskTurn(input); return; }
       if (scenario === "compaction") { await runCompactionTurn(input, cancelledRef); return; }
+      if (scenario === "subagents") { await runSubagentsTurn(input, cancelledRef); return; }
       await runDemoTurn(input, cancelledRef, runningMock);
     },
     async SubmitDisplay(_display, input) {

@@ -208,7 +208,10 @@ export function delay(ms: number): Promise<void> {
 // calm（v4.123 走查发现）：无 running 子代理/无自动置前触发源的安静场景——
 // 办公冷挂载时 demo 恒有 running 子代理会触发「子代理任务自动置前」
 // （openTasksAuto→closeFilePreview）顶掉打开中的文件预览，走查预览链路用 calm。
-export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction" | "calm";
+// subagents（2026-11-18 委派卡上浮）：并行派发 task ×3 + turn_done 后子代理
+// 事件回投（parentId 子调用/task_result 带 sa_ 引用）——委派卡上浮对话流的
+// 离线走查锚点。
+export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction" | "calm" | "subagents";
 
 export function mockScenario(): MockScenario {
   if (typeof window === "undefined") return "demo";
@@ -219,6 +222,7 @@ export function mockScenario(): MockScenario {
   if (value === "ask" || value === "question") return "ask";
   if (value === "compaction" || value === "compress") return "compaction";
   if (value === "calm" || value === "quiet") return "calm";
+  if (value === "subagents" || value === "parallel") return "subagents";
   return "demo";
 }
 
