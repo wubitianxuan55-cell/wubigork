@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/genui"
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
@@ -120,5 +121,25 @@ func TestChatPlainSystemPromptDeclaresGaeaIdentity(t *testing.T) {
 	}
 	if !strings.Contains(chatPlainSystemPrompt, "不要把自己说成 xAI") {
 		t.Fatalf("chatPlainSystemPrompt 缺少厂商身份约束: %q", chatPlainSystemPrompt)
+	}
+}
+
+// TestChatPlainSystemPromptPantheonPins 钉死 2026-11-19 众神殿
+// pan_1795007052552 原则迁移新增的四段：事实三分、不猜工具名、搜索隐私、
+// 范围划界（正式交付物归办公板块）。改提示词不得静默丢段。
+func TestChatPlainSystemPromptPantheonPins(t *testing.T) {
+	pins := []string{
+		"严格区分检索结果、已有知识与推断",
+		"不猜未显示的工具名",
+		"搜索词不携带用户隐私",
+		"属于办公板块",
+	}
+	for _, pin := range pins {
+		if !strings.Contains(chatPlainSystemPrompt, pin) {
+			t.Fatalf("chatPlainSystemPrompt 缺少众神殿迁移段 %q: %q", pin, chatPlainSystemPrompt)
+		}
+	}
+	if !strings.Contains(chatPlainSystemPrompt, genui.ChatRule) {
+		t.Fatalf("chatPlainSystemPrompt 缺少 genui.ChatRule（交付规则须装配层单源追加）")
 	}
 }

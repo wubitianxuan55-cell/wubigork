@@ -23,7 +23,19 @@ import (
 // 众神殿刀1 三层契约第三层：删「不要说自己无法联网搜索」的反向施压——搜索
 // 状态由注入头如实携带（ok/empty/失败三分叉，chat_search_adapter.go），提示词
 // 只要求未获取到实时信息时如实说明。仅 plain 有这段联网说明，人格路径没有、勿加。
-var chatPlainSystemPrompt = "你是 Gaea 桌面 AI 助手，用中文与用户进行日常对话。用户问你是谁时，明确回答你是 Gaea 的 AI 助手；不要把自己说成 xAI、Grok、OpenAI 或任何底层模型厂商的官方助手。当联网功能开启时，你可以调用 web_search 工具获取实时信息（天气/新闻/价格/影视等时效性问题建议先搜索），基于检索结果作答并注明信息来源；搜索失败或无结果时如实告知用户未获取到实时信息，基于已有知识回答并注明不确定，不要假装已搜索到。联网关闭时直接基于已有知识回答并注明可能过时。你不具备 web_search 以外的任何工具，任何时候都不要在回复正文里输出工具调用格式的文本。\n\n" + genui.ChatRule
+// 2026-11-19 众神殿 pan_1795007052552 原则迁移（用户令「按论证完善」）：按
+// 办公 A 五段式重构为 身份/范围/事实与时效/边界——①身份补「不编造未核验的
+// 事实」（同款红线）；②范围段划界（正式交付物归办公板块，聊天不假装能做）；
+// ③事实段收拢三分（检索结果/已有知识/推断不混说）；④边界段=不猜工具名
+// （聊天仅 web_search 单工具且随开关装配，显式声明即单源，与办公「schema
+// 单源」不同源的刻意取舍）+搜索词不携带隐私。回归钉四句保留：Gaea 桌面
+// AI 助手/不要把自己说成 xAI/如实告知用户未获取到实时信息/（禁）不要说
+// 自己无法联网搜索。ChatRule 仍由装配层追加（交付规则单源）。
+var chatPlainSystemPrompt = "你是 Gaea 桌面 AI 助手，也是用户的日常 AI 伙伴——用中文自然、轻松地对话。\n" +
+	"你是 AI：不冒充人类，不编造未核验的事实、来源或完成状态。用户问你是谁时，明确回答你是 Gaea 的 AI 助手；不要把自己说成 xAI、Grok、OpenAI 或任何底层模型厂商的官方助手。\n\n" +
+	"【范围】日常对话、问答、闲聊与信息检索。正式交付物（文档、表格、演示文稿）属于办公板块——聊天里只做讨论与建议，不假装能产出文件；需要产出时建议用户到办公板块发起。\n\n" +
+	"【事实与时效】时效性问题（天气/新闻/价格/影视/版本）在联网开启时先用 web_search 检索，基于检索结果作答并注明信息来源；搜索失败或无结果时如实告知用户未获取到实时信息，再基于已有知识回答并注明不确定，不要假装已搜索到。联网关闭时直接基于已有知识回答并注明可能过时。严格区分检索结果、已有知识与推断，不把猜测说成事实。\n\n" +
+	"【边界】你只有 web_search 一个工具，且随联网开关启用——不猜未显示的工具名，任何时候都不在回复正文里输出工具调用格式的文本。搜索词不携带用户隐私或敏感内容。\n\n" + genui.ChatRule
 
 // ChatSend 统一聊天入口（聊天/轻语板块合并，后端）。
 // mode 为空或 "plain" → 普通对话；否则按人格 ID 走轻语 Orchestrator（记忆/情绪）。
@@ -796,8 +808,8 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 					// 不再对用户裸奔 error「请求已取消」。
 					break
 				}
-			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error, "code": classifyChatStreamError(chunk.Error)})
-			return
+				a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error, "code": classifyChatStreamError(chunk.Error)})
+				return
 			}
 			if chunk.Done {
 				usage = chunk.Usage
@@ -849,13 +861,13 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 			})
 			return
 		}
-	a.emit("chat-stream:"+runID, map[string]interface{}{
-		"type":  "error",
-		"error": "本轮未生成可交付正文，请重试",
-		"code":  "empty_reply",
-	})
-	return
-}
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type":  "error",
+			"error": "本轮未生成可交付正文，请重试",
+			"code":  "empty_reply",
+		})
+		return
+	}
 	// answered_by 回显：费用按本次实际 token（流结束块 usage）经 EstimateCostCNY
 	// 估算，汇率取配置（与 GaeaGetUsdCnyRate 同源；非法值由 EstimateCostCNY 内
 	// 回退默认 7.2）；usage 不可达时 cost_cny=0（诚实，不虚报）。

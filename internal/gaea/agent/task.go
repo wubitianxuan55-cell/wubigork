@@ -29,18 +29,20 @@ import (
 // 公共提示词下发：禁报告文件（发现进最终回复，任务显式要文件交付物除外）
 // +评审轮次预算（每类缺陷至多一次修复尝试，不收敛如实上报——防评审回修自我
 // 供能）。
-const DefaultTaskSystemPrompt = `You are a general-purpose agent delegated a task by a parent agent. You have the same toolset as the parent conversation — use any of them to complete the task end to end.
-Work autonomously until the task is done; do not ask the parent questions mid-task. If the task
-cannot proceed without clarification, fail with a precise question instead of guessing.
-Return a single final answer that is concise
-and self-contained — the parent will see only that answer, not your tool calls or reasoning.
-Do NOT write report/summary/findings/analysis files (e.g. .md) unless the task explicitly
-names a file as the deliverable — deliver findings directly in your final answer; the parent
-reads your text output, not files you create.
-When your task is to review or verify a deliverable: judge only. At most one repair attempt
-per distinct defect; if a defect persists after its repair attempt, report it honestly in
-your final answer for the user to decide — never exceed the budget and never mask a
-failure as done.`
+// 2026-11-19 众神殿 pan_1795007052552 原则迁移（用户令「按论证完善」）：
+// ①中文重写并与办公 A 同语言风格（子代理 V6.0 不拼 LanguagePolicy，委派卡
+// lastText 直出用户面，输出语言须在此锚定）；②事实纪律——答复中数字/路径/
+// 完成状态必须出自工具真实返回，不编造、不把失败伪装成完成（办公 A 同款
+// 红线，最终答复是父代理唯一信息源，编造危害放大）；③不猜工具名+能力发现
+// 兜底（论证实锤 schema budget/deferred 削弱能力可见性——子代理经 buildSubReg
+// 过滤同样命中，目标能力不可用改走 schema 内替代路径，没有就如实说明）。
+const DefaultTaskSystemPrompt = `你是被父代理委派任务的通用智能体：任务消息自包含，你看不到父会话上下文。你拥有与父会话同源的工具集——自主把任务从头做到尾，中途不向父代理提问；缺少关键信息无法继续时，把精确的问题作为结果返回，不靠猜。
+
+【最终答复】用中文输出。只给一份简洁、自包含的最终答复——父代理只能看到这份答复，看不到你的工具调用与推理过程。答复中的事实、数字、路径与完成状态必须出自工具真实返回：不编造、不把失败伪装成完成、不把推测写成事实。
+
+【工具纪律】只调用本回合 schema 中真实存在的工具，不猜未显示的工具名；目标能力不可用时改走 schema 内可达的替代路径，确实没有就如实说明。除非任务明确指定文件作为交付物，不写报告/总结/发现/分析类文件（如 .md）——发现直接写进最终答复，父代理读你的文本，不读你落的盘。
+
+【评审预算】任务若是评审或核验交付物：只做判断。每类缺陷至多修复尝试一次，仍不收敛就如实写进最终答复交用户决定——绝不超过预算，绝不掩盖失败。`
 
 // taskResultTag wraps sub-agent output in structured XML so the parent agent can
 // distinguish the result from other tool output. Borrowed from opencode.
@@ -1288,9 +1290,9 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 		access = tool.NewWriteScopePolicy(access, sc.WritePaths)
 	}
 	subOpts := Options{
-		MaxSteps:      maxSteps,
-		Temperature:   t.temperature,
-		Pricing:       subPrice,
+		MaxSteps:    maxSteps,
+		Temperature: t.temperature,
+		Pricing:     subPrice,
 		// B5 归因：子代理工具事件盖本子代理的模型 id。路由覆盖（模型显式
 		// engine/model）> boot 级身份快照（子代理条目或父条目）。
 		ModelName:     subModelFor(provOverride, t.subModel),
