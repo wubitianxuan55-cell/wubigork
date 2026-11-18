@@ -79,6 +79,18 @@ describe("AgentTopology 编队卡片拓扑", () => {
     expect(onViewContext).toHaveBeenCalledWith("sa_1");
   });
 
+  it("拓扑卡侧栏钮：hover 钮回调 onOpenAside（ref+label）", () => {
+    const onOpenAside = vi.fn();
+    const { container } = renderT(
+      <AgentTopology network={NETWORK} onOpenAside={onOpenAside} />,
+    );
+    const card = container.querySelector('[data-agent="sa_1"]') as HTMLElement;
+    const aside = card.querySelector('[data-testid="agent-topology-aside"]') as HTMLButtonElement;
+    expect(aside.tagName).toBe("BUTTON");
+    fireEvent.click(aside);
+    expect(onOpenAside).toHaveBeenCalledWith("sa_1", expect.any(String));
+  });
+
   it("会话骨架节点直接渲染活动行尾巴（lastTool 单行 + lastText 两行截断）", () => {
     const { container } = renderT(<AgentTopology network={NETWORK} />);
     const card = container.querySelector('[data-agent="sa_1"]') as HTMLElement;

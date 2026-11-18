@@ -435,6 +435,33 @@
   color: var(--err);
 }
 
+.fleet-task-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--fleet-task-hue) 36%, var(--border-soft));
+  border-radius: 6px;
+  color: var(--fleet-task-hue);
+  background: transparent;
+  font: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, background-color 140ms ease;
+}
+
+.fleet-task-item:hover .fleet-task-aside,
+.fleet-task-item:focus-within .fleet-task-aside,
+.fleet-task-aside:focus-visible {
+  opacity: 1;
+}
+
+.fleet-task-aside:hover {
+  background: color-mix(in srgb, var(--fleet-task-hue) 10%, transparent);
+}
+
 .fleet-task-open {
   display: inline-flex;
   align-items: center;

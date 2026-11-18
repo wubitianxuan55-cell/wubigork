@@ -23,10 +23,12 @@ function shortTask(task: string, max = 20): string {
   return one.length > max ? `${one.slice(0, max)}…` : one;
 }
 
-export function Fleet({ sessionPath, onViewContext }: {
+export function Fleet({ sessionPath, onViewContext, onOpenAside }: {
   running?: boolean;
   sessionPath?: string;
   onViewContext?: (ref: string) => void;
+  /** 「在侧边栏打开」（2026-11-18 分工卡/拓扑卡→右栏子会话窗）。 */
+  onOpenAside?: (ref: string, title?: string) => void;
 }) {
   const t = useT();
   const [net, setNet] = useState<AgentNetwork | null>(null);
@@ -141,6 +143,7 @@ export function Fleet({ sessionPath, onViewContext }: {
               selectedAgent={selectedAgent}
               onSelectAgent={chooseAgent}
               onViewContext={onViewContext}
+              onOpenAside={onOpenAside}
             />
           ) : (
             <section className="ctx-card fleet-network-empty">
@@ -174,6 +177,7 @@ export function Fleet({ sessionPath, onViewContext }: {
             selectedAgent={selectedAgent}
             onSelectAgent={chooseAgent}
             onViewContext={onViewContext}
+            onOpenAside={onOpenAside}
           />
         </div>
       </div>

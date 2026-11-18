@@ -925,6 +925,10 @@ export default function App() {
                           setCtxModalRef(ref);
                           setCtxModalOpen(true);
                         }}
+                        onOpenAside={(ref, title) => {
+                          setWorkspacePanel(true);
+                          usePaneTabsStore.getState().openSubagentPane(ref, title || ref);
+                        }}
                       />
                     )}
                     {chatTab === "memory" && (

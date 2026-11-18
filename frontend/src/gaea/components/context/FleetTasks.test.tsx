@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LocaleProvider } from "../../lib/i18n";
 import type { FamilyAgentRowView } from "../../lib/types/context";
@@ -92,6 +92,21 @@ describe("FleetTasks", () => {
     expect(screen.getByText("权限被拒")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /打开会话/ }));
     expect(props.onViewContext).toHaveBeenCalledWith("sa_2");
+  });
+
+  it("分工卡侧栏钮：不展开即点即回调（ref+task），右栏打开链", () => {
+    const onOpenAside = vi.fn();
+    renderTasks({ onOpenAside });
+    fireEvent.click(screen.getByTestId("fleet-task-status-failed"));
+    const aside = screen.getByTestId("fleet-task-aside");
+    fireEvent.click(aside);
+    expect(onOpenAside).toHaveBeenCalledTimes(1);
+    expect(onOpenAside.mock.calls[0][0]).toBe("sa_2");
+
+    cleanup();
+    renderTasks({ onOpenAside: undefined });
+    fireEvent.click(screen.getByTestId("fleet-task-status-all"));
+    expect(screen.queryByTestId("fleet-task-aside")).toBeNull();
   });
 
   it("selects and clears an owner filter from the group header", () => {

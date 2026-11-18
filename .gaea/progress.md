@@ -1,3 +1,22 @@
+## 子智能体卡 · 点击右栏打开对话（2026-11-18 补刀）
+
+完整智能体形态两批之上的第三刀（用户令「新增子智能体卡，点击可在右侧
+打开子智能体对话」）：编队页两张卡面接右栏子会话窗（SubagentPaneChat，
+复用上批 openSubagentPane id=sub:<ref> 管道，零新绑定）——
+
+- **分工卡（FleetTasks）**：每条运行行的 subline 加常驻 hover「在侧边栏
+  打开」钮（fleet-task-aside，margin-left:auto 靠右）+ 展开详情区加同款
+  文字钮（fleet-task-open 样式复用）；不展开即点即达。
+- **拓扑卡（AgentTopology）**：非 root 卡加 agent-topology-aside 钮（与
+  agent-topology-open 错位 right:25px，hover/选中/focus 显形），点击
+  stopPropagation 不触发选中链。
+- 接线：Fleet prop onOpenAside → 两卡面；App Fleet 挂载传
+  setWorkspacePanel(true)+openSubagentPane(ref, task)。
+- 门禁：tsc -b 0、改动面 eslint 0、FleetTasks/AgentTopology/Fleet 三测试
+  17/17（新增 aside 两例）；mock 走查实证（编队页 11 分工卡钮+3 拓扑卡
+  钮，点开右栏各一 tab，9335 显式口）；wails build+冒烟 200+装机
+  INSTALL OK（PID 18544）。
+
 ## 办公子智能体升格完整智能体 · 嵌套委派+导航+插话（2026-11-18）
 
 用户指定对齐 dsh 子智能体全形态（子智能体=完整智能体：持久会话/可续聊/

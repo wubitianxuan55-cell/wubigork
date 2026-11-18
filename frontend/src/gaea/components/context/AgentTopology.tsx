@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowUpRight, BarChart3, ChevronDown, ChevronRight, GitBranch, ListTree } from "../../icons";
+import { ArrowUpRight, BarChart3, ChevronDown, ChevronRight, GitBranch, ListTree, PanelRight } from "../../icons";
 import { useT } from "../../lib/i18n";
 import { fmtTokens } from "../../lib/stats";
 import type { AgentNetwork, AgentNode } from "../../lib/types";
@@ -51,12 +51,15 @@ export function AgentTopology({
   selectedAgent = null,
   onSelectAgent,
   onViewContext,
+  onOpenAside,
 }: {
   network: AgentNetwork;
   agents?: FamilyAgentRowView[];
   selectedAgent?: string | null;
   onSelectAgent?: (ref: string | null) => void;
   onViewContext?: (ref: string) => void;
+  /** 「在侧边栏打开」（2026-11-18 拓扑卡→右栏子会话窗）。 */
+  onOpenAside?: (ref: string, title?: string) => void;
 }) {
   const t = useT();
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -303,6 +306,7 @@ export function AgentTopology({
                 onChoose={() => choose(entry.node.id)}
                 onHover={setHovered}
                 onViewContext={onViewContext}
+                onOpenAside={onOpenAside}
                 infoOpen={infoId === entry.node.id}
                 onToggleInfo={() => setInfoId((prev) => (prev === entry.node.id ? null : entry.node.id))}
               />
@@ -435,6 +439,7 @@ function TopologyCard({
   onHover,
   onToggleInfo,
   onViewContext,
+  onOpenAside,
 }: {
   entry: FleetNode;
   x: number;
@@ -454,6 +459,7 @@ function TopologyCard({
   onHover: (ref: string | null) => void;
   onToggleInfo: () => void;
   onViewContext?: (ref: string) => void;
+  onOpenAside?: (ref: string, title?: string) => void;
 }) {
   const t = useT();
   const node = entry.node;
@@ -551,6 +557,21 @@ function TopologyCard({
           }}
         >
           <ArrowUpRight size={11} aria-hidden />
+        </button>
+      )}
+      {!root && onOpenAside !== undefined && (
+        <button
+          type="button"
+          className="agent-topology-aside"
+          data-testid="agent-topology-aside"
+          aria-label={t("subagent.openAside")}
+          title={t("subagent.openAside")}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenAside(node.id, label);
+          }}
+        >
+          <PanelRight size={11} aria-hidden />
         </button>
       )}
     </div>

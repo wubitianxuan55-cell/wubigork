@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ClipboardList,
   Clock,
+  PanelRight,
   Wrench,
 } from "../../icons";
 import { useT } from "../../lib/i18n";
@@ -25,6 +26,8 @@ export interface FleetTasksProps {
   selectedAgent: string | null;
   onSelectAgent: (ref: string | null) => void;
   onViewContext?: (ref: string) => void;
+  /** 「在侧边栏打开」（2026-11-18 分工卡→右栏子会话窗）：卡上主入口。 */
+  onOpenAside?: (ref: string, title?: string) => void;
 }
 
 interface RunGroup {
@@ -66,6 +69,7 @@ export function FleetTasks({
   selectedAgent,
   onSelectAgent,
   onViewContext,
+  onOpenAside,
 }: FleetTasksProps) {
   const t = useT();
   const [phase, setPhase] = useState<PhaseFilter>("all");
@@ -259,6 +263,19 @@ export function FleetTasks({
                         <span>→</span>
                         <span>{fmtTime(run.updatedAt)}</span>
                         {run.lastTool && <span className="fleet-task-last-tool">{run.lastTool}</span>}
+                        {onOpenAside && (
+                          <button
+                            type="button"
+                            data-testid="fleet-task-aside"
+                            className="fleet-task-aside"
+                            aria-label={t("subagent.openAside")}
+                            title={t("subagent.openAside")}
+                            onClick={() => onOpenAside(run.ref, run.task)}
+                          >
+                            <PanelRight size={10} aria-hidden />
+                            {t("subagent.openAside")}
+                          </button>
+                        )}
                       </div>
                       {open && (
                         <div className="fleet-task-detail">
@@ -278,6 +295,17 @@ export function FleetTasks({
                             >
                               <ArrowUpRight size={11} aria-hidden />
                               {t("fleet.open")}
+                            </button>
+                          )}
+                          {onOpenAside && (
+                            <button
+                              type="button"
+                              data-testid="fleet-task-detail-aside"
+                              className="fleet-task-open"
+                              onClick={() => onOpenAside(run.ref, run.task)}
+                            >
+                              <PanelRight size={11} aria-hidden />
+                              {t("subagent.openAside")}
                             </button>
                           )}
                         </div>
