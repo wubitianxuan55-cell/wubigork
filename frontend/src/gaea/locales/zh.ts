@@ -1117,6 +1117,10 @@ export const zh: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：ToolCard ──
   "tool.openSessionHint": "点击打开子代理会话",
+  "tool.delegateKind": "子代理",
+  "tool.delegateOpen": "打开会话",
+  "tool.delegateRunning": "运行中",
+  "tool.delegateDone": "已完成",
   "tool.diffStatTitle": "行级增减",
   "tool.outputHeader": "输出 · {n}L",
   "tool.collapseOutput": "收起输出",

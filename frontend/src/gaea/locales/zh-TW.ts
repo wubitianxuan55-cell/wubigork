@@ -1121,6 +1121,10 @@ export const zhTW: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：ToolCard ──
   "tool.openSessionHint": "點擊開啟子代理會話",
+  "tool.delegateKind": "子代理",
+  "tool.delegateOpen": "開啟會話",
+  "tool.delegateRunning": "執行中",
+  "tool.delegateDone": "已完成",
   "tool.diffStatTitle": "行級增減",
   "tool.outputHeader": "輸出 · {n}L",
   "tool.collapseOutput": "收起輸出",

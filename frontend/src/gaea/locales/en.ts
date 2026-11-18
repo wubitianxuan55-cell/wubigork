@@ -1116,6 +1116,10 @@ export const en = {
 
   // ── v4.57 i18n 收尾：ToolCard ──
   "tool.openSessionHint": "Click to open the subagent session",
+  "tool.delegateKind": "Subagent",
+  "tool.delegateOpen": "Open session",
+  "tool.delegateRunning": "Running",
+  "tool.delegateDone": "Finished",
   "tool.diffStatTitle": "Line-level additions/deletions",
   "tool.outputHeader": "Output · {n}L",
   "tool.collapseOutput": "Collapse output",

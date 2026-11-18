@@ -230,13 +230,13 @@ describe("ToolCard 子代理卡片点击跳转（v4.63）", () => {
     setTaskCardOpenHandler((ref) => opened.push(ref));
     setTaskCardOpenTarget((ref) => ref);
     renderT(<ToolCard item={taskCard} />);
-    fireEvent.click(screen.getByText("task"));
+    fireEvent.click(screen.getByTestId("delegate-head"));
     expect(opened).toEqual(["sa_abc123"]);
   });
 
   it("无注入（解析不到 ref）：点击不跳转，维持展开折叠现状", () => {
     renderT(<ToolCard item={taskCard} />);
-    fireEvent.click(screen.getByText("task"));
+    fireEvent.click(screen.getByTestId("delegate-head"));
     // 展开行为：输出区可见（默认折叠，点击后展开）
     expect(screen.getByText(/输出 · /)).toBeTruthy();
   });
@@ -250,7 +250,7 @@ describe("ToolCard 子代理卡片点击跳转（v4.63）", () => {
         item={{ ...taskCard, output: "", args: "{\"description\":\"土壤修复技术调研\"}", status: "running" }}
       />,
     );
-    fireEvent.click(screen.getByText("task"));
+    fireEvent.click(screen.getByTestId("delegate-head"));
     expect(opened).toEqual(["sa_running9"]);
   });
 });
@@ -297,7 +297,7 @@ describe("ToolCard 多候选歧义点击（v4.68）", () => {
     setTaskCardAmbiguityHandler((args) => { fired.push(String(args)); });
     renderT(<ToolCard item={ambiguousCard} />);
     expect(screen.queryByLabelText("多个运行中任务，点击选择")).toBeNull();
-    fireEvent.click(screen.getByText("task"));
+    fireEvent.click(screen.getByTestId("delegate-head"));
     expect(fired).toEqual([]);
     expect(screen.getByText(/输出 · /)).toBeTruthy();
   });
@@ -306,7 +306,7 @@ describe("ToolCard 多候选歧义点击（v4.68）", () => {
     setTaskCardAmbiguityResolver(() => true);
     renderT(<ToolCard item={ambiguousCard} />);
     expect(screen.queryByLabelText("多个运行中任务，点击选择")).toBeNull();
-    fireEvent.click(screen.getByText("task"));
+    fireEvent.click(screen.getByTestId("delegate-head"));
     // 回退展开折叠现状
     expect(screen.getByText(/输出 · /)).toBeTruthy();
   });
@@ -329,8 +329,51 @@ describe("ToolCard 多候选歧义点击（v4.68）", () => {
     setTaskCardAmbiguityResolver(() => true);
     setTaskCardAmbiguityHandler((args) => { fired.push(String(args)); });
     renderT(<ToolCard item={refCard} />);
-    fireEvent.click(screen.getByText("task"));
+    fireEvent.click(screen.getByTestId("delegate-head"));
     expect(opened).toEqual(["sa_abc123"]);
     expect(fired).toEqual([]);
+  });
+});
+
+// ── 2026-11-18 委派卡重设计（DelegationCard）：一等卡形态钉死 ──
+describe("ToolCard 委派卡形态（DelegationCard 重设计）", () => {
+  afterEach(() => {
+    cleanup();
+    setTaskCardActivityProvider(null);
+  });
+
+  it("完成卡：子代理徽标 + 已完成状态词 + 结果条（不再渲染裸 task 名行）", () => {
+    const card: Item = {
+      kind: "tool",
+      id: "d1",
+      name: "task",
+      args: '{"description":"土壤修复调研"}',
+      readOnly: false,
+      status: "done",
+      output: "调研完成。\nSubagent reference: sa_x1",
+    };
+    renderT(<ToolCard item={card} />);
+    expect(screen.getByTestId("delegate-head")).toBeTruthy();
+    expect(screen.getByText("子代理")).toBeTruthy();
+    expect(screen.getByText("已完成")).toBeTruthy();
+    expect(screen.getByTestId("delegate-result").textContent).toContain("调研完成。");
+    expect(screen.queryByText("task")).toBeNull();
+  });
+
+  it("运行卡：运行中状态词 + 活动条（provider 注入时）+ 元芯片含引擎名", () => {
+    setTaskCardActivityProvider(() => ({ lastText: "正在收集资料", state: "running" }));
+    const card: Item = {
+      kind: "tool",
+      id: "d2",
+      name: "task",
+      args: '{"description":"调研","engine":"qwen3.5"}',
+      readOnly: false,
+      status: "running",
+    };
+    renderT(<ToolCard item={card} />);
+    expect(screen.getByText("运行中")).toBeTruthy();
+    expect(screen.getByText("qwen3.5")).toBeTruthy();
+    expect(screen.getByTestId("task-live").textContent).toContain("正在收集资料");
+    expect(screen.getByText("点击打开子代理会话")).toBeTruthy();
   });
 });

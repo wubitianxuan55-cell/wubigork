@@ -1960,3 +1960,277 @@
   background: var(--md-sys-color-secondary);
 }
 
+
+/* ── delegation card（子代理委派卡 · 2026-11-18 重设计）───────────────
+   gaea office-conversation.css 同名块的 .wx-root 作用域镜像（keyframes 按
+   本目录纪律改名 wx-*）：共享 ToolCard（gaea/components）渲染的
+   office-delegate-card 结构在文学板块的皮肤面。 */
+
+.wx-root .office-delegate-card {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--office-output-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 2%, transparent);
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+
+.wx-root .office-delegate-card[data-clickable="true"]:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--office-output-border));
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.wx-root .office-delegate-card[data-open="true"] {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--office-output-border));
+}
+
+.wx-root .office-delegate-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2.5px;
+  border-radius: 12px 0 0 12px;
+  background: var(--accent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.wx-root .office-delegate-card[data-status="done"]::before {
+  background: var(--ok);
+}
+
+.wx-root .office-delegate-card[data-status="error"]::before {
+  background: var(--err);
+}
+
+.wx-root .office-delegate-card[data-status="stopped"]::before {
+  background: var(--warn);
+}
+
+.wx-root .office-delegate-card[data-status="running"]::before {
+  opacity: 0.8;
+}
+
+.wx-root .office-delegate-card__head {
+  display: grid;
+  width: 100%;
+  min-height: 38px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 9px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wx-root .office-delegate-card__head:disabled {
+  cursor: default;
+}
+
+.wx-root .office-delegate-card__head:hover {
+  background: color-mix(in srgb, var(--accent) 3.5%, transparent);
+}
+
+.wx-root .office-delegate-card__lamp {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+
+.wx-root .office-delegate-card__lamp[data-status="running"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.wx-root .office-delegate-card__lamp[data-status="done"] {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 9%, transparent);
+}
+
+.wx-root .office-delegate-card__lamp[data-status="error"] {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 9%, transparent);
+}
+
+.wx-root .office-delegate-card__lamp[data-status="stopped"] {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+
+.wx-root .office-delegate-card__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.wx-root .office-delegate-card__kind {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.wx-root .office-delegate-card__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-root .office-delegate-card__meta {
+  display: inline-flex;
+  flex: none;
+  max-width: 42%;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.wx-root .office-delegate-card__meta-bit {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wx-root .office-delegate-card__meta-sep {
+  padding-left: 5px;
+  opacity: 0.6;
+}
+
+.wx-root .office-delegate-card__trail {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+
+.wx-root .office-delegate-card__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.wx-root .office-delegate-card__chevron {
+  color: var(--fg-faint);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.wx-root .office-delegate-card__chevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.wx-root .office-delegate-card__live {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px 4px 41px;
+  border-top: 1px dashed color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg-faint);
+  font-size: 11px;
+}
+
+.wx-root .office-delegate-card__live:hover {
+  color: var(--fg-dim);
+}
+
+.wx-root .office-delegate-card__pulse {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: wx-delegate-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes wx-delegate-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.72); }
+}
+
+.wx-root .office-delegate-card__result {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 4px 41px;
+  border-top: 1px dashed color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg-dim);
+  font-size: 11.5px;
+}
+
+.wx-root .office-delegate-card__result > svg {
+  color: var(--ok);
+}
+
+.wx-root .office-delegate-card[data-status="error"] .office-delegate-card__result > svg,
+.wx-root .office-delegate-card[data-status="stopped"] .office-delegate-card__result > svg {
+  color: var(--warn);
+}
+
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__head {
+  min-height: 32px;
+  grid-template-columns: 21px minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 3px 6px 3px 7px;
+}
+
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__lamp {
+  width: 21px;
+  height: 21px;
+  border-radius: 7px;
+}
+
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__kind {
+  font-size: 9.5px;
+  padding: 1px 6px;
+}
+
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__title {
+  font-size: 11px;
+}
+
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__meta,
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__open {
+  font-size: 10px;
+}
+
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__live,
+.wx-root .office-delegate-card[data-compact="true"] .office-delegate-card__result {
+  min-height: 23px;
+  padding-left: 34px;
+  font-size: 10.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wx-root .office-delegate-card__pulse {
+    animation: none;
+    opacity: 0.7;
+  }
+}

@@ -1,6 +1,7 @@
 import { memo, useId, useMemo, useRef, useState } from "react";
 import {
   Ban,
+  Bot,
   Check,
   ChevronRight,
   LineChart,
@@ -83,58 +84,183 @@ function DiffRowsView({ rows, folded }: { rows: DiffRow[]; folded: number }) {
   );
 }
 
-// ── TaskLiveRow：task 工具卡运行中的实时活动行（v4.26 对齐 Codex）──────
-// Why：子代理跑起来后主窗此前只有一张静态「运行中」task 卡——子代理的
-// lastText/lastTool 只在右栏分工面板可见。本行把 GaeaAgentNetwork/SubagentRuns
-// 轮询数据经 setTaskCardActivityProvider 注入的动态渲染成 Codex 式活动预览
-// （单行截断），并补已用时 + 「查看分工」入口提示。
-// How：ref 解析（args.continue_from / output 引用行，派发初期为 ""）→
-// getTaskCardActivity 取动态；未注入 provider（null=按现状渲染契约）→ 整行
-// 不渲染；查不到动态 → 只显示已用时与提示，绝不报错。1s tick（useNow）内刷新。
-function TaskLiveRow({ item }: { item: ToolItem }) {
+// ── 委派卡（2026-11-18 重设计）：task/run_skill 的一次委派 = 一张一等卡 ──
+// 形态（DSH tasks-card 两段式同构，gaea token 语言重述）：
+//   [状态灯] [Bot·子代理 徽标 + 任务描述]  [模型·步数·状态词·用时] [打开会话›]
+//   [活动条 running：脉冲点 + lastText + lastTool + 用时]
+//   [结果条 done：✓ 结果摘要]
+// 交互语义不变（v4.63 ~ 06fe3ee9）：整卡可点开右栏子会话 pane；空 ref 多候选
+// 点击派歧义处理器；无目标且可展开时点击展开 body（子步骤/输出）。
+// 活动条沿用 v4.26 注入点契约：provider 未注入（null）整条不渲染；ref 解析
+// 自 args.continue_from / output 引用行，空 ref 回退 args 文本唯一命中。
+function DelegationCard({
+  item,
+  nested,
+  openTarget,
+  ambiguous,
+}: {
+  item: ToolItem;
+  nested: ToolItem[];
+  openTarget: string;
+  ambiguous: boolean;
+}) {
   const t = useT();
-  const now = useNow();
+  const compact = useCompact();
+  const [open, setOpen] = useState(false);
+  const [showFullOutput, setShowFullOutput] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
   // 起跑时刻：Item 契约无时间戳，以挂载时刻近似计时（运行中卡片常驻挂载；
-  // 恢复历史会话时 running 一律还原为 stopped，不会进入本行）。
+  // 恢复历史会话时 running 一律还原为 stopped，不会进入计时面）。
   const startRef = useRef(Date.now());
+  const running = item.status === "running";
+  const now = useNow(running);
   const ref = useMemo(() => resolveTaskRef(item.args, item.output), [item.args, item.output]);
-  // 1s tick 内取值：App 层轮询更新 provider 数据后最迟 1s 上屏。
-  // args 原样透传：派发初期 ref 为空串时，App 侧 provider 可用 args 里的
-  // 任务描述文本与并行各 run.task 做唯一命中匹配（taskActivity 契约）。
-  const activity = getTaskCardActivity(ref, item.args);
-  // v4.63：运行中活动行本身也是「打开会话」入口（与整卡点击同语义）。
-  // v4.68：空 ref 多候选歧义时同样可点——点击改派歧义处理器（App 弹选择器
-  // 人工挑一个），不自动跳转；0/1 候选走原 openRef 直跳链路，行为不变。
-  const openRef = ref || getTaskCardOpenTarget("", item.args);
-  const ambiguous = !openRef && getTaskCardAmbiguity("", item.args) && hasTaskCardAmbiguityHandler();
-  const rowClickable = !!openRef || ambiguous;
-  // 未注入活动数据源（null）：按现状渲染（v4.26 之前没有这一行）
-  if (!hasTaskCardActivityProvider()) return null;
-  const elapsed = formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000)));
+  const activity = running ? getTaskCardActivity(ref, item.args) : undefined;
+  const subject = useMemo(() => subjectOf(item.name, item.args), [item.name, item.args]);
+  // 元信息芯片：模型/引擎名取自 args（五参模型面 engine/model 均可选）。
+  const engine = useMemo(() => {
+    try {
+      const a = JSON.parse(item.args || "{}") as { engine?: string; model?: string };
+      return a.engine || a.model || "";
+    } catch {
+      return "";
+    }
+  }, [item.args]);
+  const result = running ? "" : taskResultSummary(item.output, item.error);
+  const hasOutput = !!item.output;
+  const expandable = hasOutput || nested.length > 0 || !!item.error;
+  useGSAPCollapse(bodyRef, open && expandable);
+  const clickable = !!openTarget || ambiguous;
+  const headClick = clickable
+    ? ambiguous
+      ? () => { fireTaskCardAmbiguity(item.args); }
+      : () => { openTaskCardSession(openTarget); }
+    : expandable
+      ? () => setOpen((v) => !v)
+      : undefined;
+  const elapsed = running ? formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000))) : "";
+  const bounded = useMemo(() => boundedOutput(item.output, TOOL_CARD_OUTPUT_PREVIEW_LINES), [item.output]);
+  const statusWord = running
+    ? t("tool.delegateRunning")
+    : item.status === "error"
+      ? t("process.statusError")
+      : item.status === "stopped"
+        ? t("process.statusStopped")
+        : t("tool.delegateDone");
+  const metaBits = [engine, nested.length > 0 ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length }) : "", statusWord].filter(Boolean);
 
   return (
     <div
-      data-testid="task-live"
-      className={`flex items-center gap-1.5 px-2 pb-1 pl-7 text-[11px] text-fg-faint select-none ${rowClickable ? "cursor-pointer hover:text-fg-dim" : ""}`}
-      title={ambiguous ? t("taskpick.cardAria") : openRef ? t("tool.openSessionHint") : undefined}
-      aria-label={ambiguous ? t("taskpick.cardAria") : undefined}
-      onClick={rowClickable ? () => { if (openRef) openTaskCardSession(openRef); else fireTaskCardAmbiguity(item.args); } : undefined}
+      className="office-tool-card office-delegate-card"
+      data-status={item.status}
+      data-open={open && expandable ? "true" : "false"}
+      data-compact={compact ? "true" : "false"}
+      data-clickable={clickable ? "true" : "false"}
     >
-      {activity?.lastText && (
-        <span className="min-w-0 truncate text-fg-dim/80" title={activity.lastText}>
-          {activity.lastText}
+      <button
+        type="button"
+        data-testid="delegate-head"
+        className={`office-delegate-card__head select-none ${clickable ? "cursor-pointer" : ""}`}
+        onClick={headClick}
+        title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
+        aria-label={ambiguous ? t("taskpick.cardAria") : `${t("tool.delegateKind")} · ${subject}`}
+        aria-expanded={!clickable && expandable ? open : undefined}
+        aria-controls={!clickable && expandable ? bodyId : undefined}
+        disabled={!clickable && !expandable}
+      >
+        <span className="office-delegate-card__lamp" data-status={item.status} title={statusWord} aria-hidden>
+          {running ? <Loader2 size={13} className="animate-spin" /> : item.status === "error" ? <X size={13} /> : item.status === "stopped" ? <Ban size={13} /> : <Check size={13} />}
         </span>
-      )}
-      {activity?.lastTool && (
-        <span className="min-w-0 shrink-0 max-w-[30%] truncate font-mono" title={activity.lastTool}>
-          {activity.lastTool}
+        <span className="office-delegate-card__identity">
+          <span className="office-delegate-card__kind">
+            <Bot size={11} aria-hidden />
+            {t("tool.delegateKind")}
+          </span>
+          <span className="office-delegate-card__title" title={subject}>{subject || item.name}</span>
+          {metaBits.length > 0 && (
+            <span className="office-delegate-card__meta">
+              {metaBits.map((b, i) => (
+                <span key={i} className="office-delegate-card__meta-bit">{b}{i < metaBits.length - 1 && <span className="office-delegate-card__meta-sep">·</span>}</span>
+              ))}
+            </span>
+          )}
         </span>
+        <span className="office-delegate-card__trail">
+          {clickable && (
+            <span className="office-delegate-card__open">
+              <Users size={11} aria-hidden />
+              {t("tool.delegateOpen")}
+            </span>
+          )}
+          <ChevronRight
+            size={compact ? 11 : 12}
+            className={`office-delegate-card__chevron shrink-0 ${!clickable && !expandable ? "invisible" : ""}`}
+            data-open={open ? "true" : "false"}
+            aria-hidden
+          />
+        </span>
+      </button>
+      {running && hasTaskCardActivityProvider() && (
+        <div
+          data-testid="task-live"
+          className={`office-delegate-card__live select-none ${clickable ? "cursor-pointer" : ""}`}
+          title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
+          onClick={clickable ? headClick : undefined}
+        >
+          <span className="office-delegate-card__pulse" aria-hidden />
+          {activity?.lastText && (
+            <span className="min-w-0 truncate text-fg-dim/80" title={activity.lastText}>{activity.lastText}</span>
+          )}
+          {activity?.lastTool && (
+            <span className="min-w-0 shrink-0 max-w-[28%] truncate font-mono" title={activity.lastTool}>{activity.lastTool}</span>
+          )}
+          <span className="ml-auto shrink-0 tabular-nums">{elapsed}</span>
+          <span className="inline-flex shrink-0 items-center gap-1">
+            <Users size={11} className="shrink-0" aria-hidden />
+            {t("tool.openSessionHint")}
+          </span>
+        </div>
       )}
-      <span className="ml-auto shrink-0 tabular-nums">{elapsed}</span>
-      <span className="inline-flex shrink-0 items-center gap-1">
-        <Users size={11} className="shrink-0" />
-        {t("tool.openSessionHint")}
-      </span>
+      {!running && result && (
+        <div className="office-delegate-card__result" data-testid="delegate-result">
+          <Check size={12} className="shrink-0" aria-hidden />
+          <span className="min-w-0 truncate" title={result}>{result}</span>
+        </div>
+      )}
+      <div id={bodyId} ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="office-tool-card__body">
+          {nested.length > 0 && (
+            <div className="pl-3 border-l border-border-soft ml-3">
+              {nested.map((c) => (
+                <ToolCard key={c.id} item={c} />
+              ))}
+            </div>
+          )}
+          {hasOutput && (
+            <div className="px-2 pb-1.5">
+              <div className="office-tool-card__section-label select-none">{t("tool.outputHeader", { n: bounded.totalLines })}</div>
+              <pre className="office-tool-card__output px-3 py-2 overflow-auto max-h-72 whitespace-pre-wrap break-words text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
+              {bounded.preview !== bounded.full && (
+                <button
+                  type="button"
+                  className="mt-1 px-2 py-0.5 border border-border-soft rounded bg-bg-soft text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors"
+                  onClick={() => setShowFullOutput((v) => !v)}
+                >
+                  {showFullOutput
+                    ? t("tool.collapseOutput")
+                    : bounded.collapsed
+                      ? t("tool.expandAllLines", { n: bounded.hiddenLines })
+                      : t("tool.expandFullOutput")}
+                </button>
+              )}
+            </div>
+          )}
+          {item.error && (
+            <div className="office-tool-card__error" data-recoverable="false" role="alert">{item.error}</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -232,8 +358,14 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible }
   const innerPb = compact ? "pb-1" : "pb-1.5";
   if (isToolVisible && !isToolVisible(item.name)) return null;
 
+  // 2026-11-18 重设计：委派家族走专属一等卡形态（交互语义不变，见
+  // DelegationCard 头注释）；其余工具维持通用工具行。
+  if (isSubagentCard) {
+    return <DelegationCard item={item} nested={nested} openTarget={openTarget} ambiguous={ambiguous} />;
+  }
+
   // 工具行先回答“运行了什么、结果是什么”，再允许下钻输出。整行使用真实
-  // button 语义，键盘与屏幕阅读器都能展开；子代理卡仍可直接打开会话。
+  // button 语义，键盘与屏幕阅读器都能展开。
   return (
     <div
       className={`office-tool-card ${item.status === "stopped" ? "opacity-70" : ""}`}
@@ -304,9 +436,6 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible }
         />
       </button>
 
-      {/* v4.26 子代理 task 卡 live 化：运行中在头部行下方渲染实时活动行
-          （活动预览 / 已用时 / 查看分工），不进折叠区、常驻可见。 */}
-      {item.name === "task" && item.status === "running" && <TaskLiveRow item={item} />}
       <ToolSources sources={item.sources} />
 
       {/* schedule_apply 回执卡常驻动作行（v4.146 刀A + 工具化 2026-10）：
