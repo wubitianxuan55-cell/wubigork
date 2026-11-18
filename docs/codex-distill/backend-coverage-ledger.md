@@ -101,6 +101,7 @@
 | `shell-command` | 9,920 | asset-10 | **覆盖** | |
 | `execpolicy` | 2,698 | asset-13 | **覆盖** | |
 | `exec-server-protocol` | 2,865 | asset-21 | **覆盖** | |
+| `exec-server-cli` | 2,877 | asset-21/56（域判定不搬） | **未覆盖** | 0.170 新增（hotspot-13） |
 
 ### E. 扩展与插件
 
@@ -109,6 +110,8 @@
 | `ext`（18 个子 crate） | 73,324 | 多篇分摊 | **部分** | 已覆盖：`skills`(19.7k)/`guardian-v2`(17.6k)/`memories`(2.4k)/`mcp`(4.1k 部分)。空白：`extension-api`(2.3k，**扩展 trait/能力/生命周期契约**)、`goal`(3.2k)、`queue`(0.6k)、`items`(0.5k)、`web-search`(0.8k)、`history-notes`(1.1k)、`image-generation`(1.6k)、`git-attribution`(0.4k)、`connectors`、`guardian-v3`、`multi-env-copy-file` |
 | `core-plugins` | 47,012 | **asset-57**（市场/来源策略/清单/升级） | **覆盖** | `remote`、`marketplace_add`/`upgrade`/`policy`、`manifest`（先语法后解析）、`command_migration`、`startup_sync`；容量：featured 3h、远程同步 120s、已加载 8 条 |
 | `plugin` | 892 | asset-17 | **覆盖** | 插件元数据 |
+| `plugin-host` | 396 | asset-17/57（域判定不搬） | **未覆盖** | 0.170 新增（hotspot-13） |
+| `http-headers-helper` | 191 | — | **未覆盖** | 0.170 新增小件（hotspot-13） |
 | `core-plugin-common` | 207 | — | 旁证 | 共享类型 |
 | `skills` | 2,488 | asset-01/15 | **覆盖** | |
 | `memories` | 5,962 | asset-03/14/24 | **覆盖** | |
@@ -117,6 +120,8 @@
 | `agent-graph-store` | 436 | asset-06（判定不搬） | 不搬 | |
 | `message-board` | 5,377 | asset-04 | **覆盖** | |
 | `agent-message-board-client` | 912 | asset-04 | **覆盖** | |
+| `agent-message-board-host` | 261 | — | **未覆盖** | 0.170 新增：消息板宿主落地（hotspot-13） |
+| `message-board-mcp` | 710 | — | **未覆盖** | 0.170 新增：消息板 over MCP（hotspot-13） |
 | `collaboration-mode-templates` | 2 | — | 不搬 | |
 | `features` | 3,758 | asset-39（提及） | 旁证 | 特性开关矩阵 |
 
@@ -179,16 +184,16 @@
 
 ---
 
-## 3. 判定分布（122 个 crate）
+## 3. 判定分布（127 个 crate；0.170 对齐 +5 见 hotspot-13）
 
 | 判定 | 数量（约） | 说明 |
 |---|---|---|
 | 覆盖（有独立资产文档、机制级） | **≈35** | 本轮新增：app-server 准入/关闭（47）+ 派发与脱敏（60）、transport/daemon（55）、thread-store/state（52）、core-plugins（57）、rmcp-client/codex-mcp（58）、http-client/model-provider 家族（53）、analytics/otel/rollout-trace（54）、exec-server（56）、core/tools（50）、core/session（49）、core/config+agent（61）、截断与模糊（48）、小件合集（59） |
 | 部分（只到协议/入口层，细节未逐行） | **≈6** | `app-server`（request_processors 细节）、`app-server-protocol`、`app-server-client`、`core`（除上述子系统外的边缘文件）、`tools` crate、`exec` |
-| 未覆盖 | **0** | 余项全部在 `asset-59` 里给出机制或"不搬 + 理由" |
+| 未覆盖 | **5** | 0.170 新增 crate（agent-message-board-host / message-board-mcp / plugin-host / exec-server-cli / http-headers-helper，见 hotspot-13；域判定不搬，暂不排期） |
 | 不搬（附理由） | **≈81** | 云/身份、OS 沙箱、终端载体、进程载体、样板与彩蛋（§5） |
 
-> 合计 122（`ext` 的 18 个子 crate 与 `utils` 的 25 个子 crate 按父目录计，明细见 §2 各行）。
+> 合计 127（`ext` 的 18 个子 crate 与 `utils` 的 25 个子 crate 按父目录计，明细见 §2 各行）。
 | 不搬（附理由） | ≈72 | 云/身份/OS 沙箱/终端载体/测试与样板（§5） |
 
 ---
