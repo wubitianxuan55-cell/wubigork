@@ -280,7 +280,9 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
 
 // ── 按会话持久化 ────────────────────────────────────────────────
 const PANE_STORAGE_PREFIX = "gaea.paneTabs.v1:";
-const VIEW_IDS = new Set<string>(WORKSPACE_TABS.map((t) => t.id));
+// 子代理会话页签（viewId="subagent"）是右栏一级视图：持久化净化必须认它，
+// 否则刷新/切会话回来 tab 被整条丢弃（子代理实弹修复）。
+const VIEW_IDS = new Set<string>([...WORKSPACE_TABS.map((t) => t.id), "subagent"]);
 
 export interface PaneTabsSnapshot {
   v: 1;
@@ -302,11 +304,12 @@ export function sanitizePaneTabsSnapshot(value: unknown): PaneTabsSnapshot {
     const raw = item as Record<string, unknown>;
     if (typeof raw.id !== "string" || typeof raw.title !== "string" || seen.has(raw.id)) continue;
     if (raw.kind === "view" && typeof raw.viewId === "string" && VIEW_IDS.has(raw.viewId)) {
-      const meta =
-        raw.meta !== null && typeof raw.meta === "object"
-          ? { url: typeof (raw.meta as Record<string, unknown>).url === "string" ? (raw.meta as Record<string, string>).url : undefined }
-          : undefined;
-      tabs.push({ id: raw.id, kind: "view", viewId: raw.viewId, title: raw.title, ...(meta?.url ? { meta } : {}) });
+      const rawMeta = raw.meta !== null && typeof raw.meta === "object" ? (raw.meta as Record<string, unknown>) : undefined;
+      const meta: { url?: string; subagentRef?: string } = {};
+      if (typeof rawMeta?.url === "string") meta.url = rawMeta.url;
+      // subagentRef 是 SubagentPaneChat 的取数键——净化丢它=页签在而窗渲染不出。
+      if (typeof rawMeta?.subagentRef === "string") meta.subagentRef = rawMeta.subagentRef;
+      tabs.push({ id: raw.id, kind: "view", viewId: raw.viewId, title: raw.title, ...(Object.keys(meta).length ? { meta } : {}) });
       seen.add(raw.id);
     } else if (raw.kind === "file" && typeof raw.path === "string" && raw.path !== "") {
       // dwg/dxf 文件 tab 是坏预览（二进制矢量图纸读不出内容；2026-11-14 起

@@ -476,6 +476,10 @@ function TopologyCard({
     row?.messages ? `${row.messages} ${t("fleet.kpiMessages")}` : null,
   ].filter((part): part is string => !!part);
   const tail = !root && (node.lastTool !== undefined || node.lastText !== undefined);
+  // 子代理会话节点的 id 就是 run ref（sa_ 前缀）；orphan/legacy 节点（call_x/
+  // 复合 ID）没有可拉取的会话——aside 钮与卡身直达只在 sa_ 形态出现（实弹
+  // 修复：非 sa_ id 直传 GaeaSubagentTranscript 会被 ValidRunRef 拒绝）。
+  const isSubagentRef = node.id.startsWith("sa_");
 
   return (
     <div
@@ -502,7 +506,12 @@ function TopologyCard({
         className="agent-topology-hit"
         aria-label={label}
         aria-pressed={selected}
-        onClick={onChoose}
+        onClick={() => {
+          // 实弹修复：点卡身=选中；子代理会话节点（sa_ ref）同时直达右栏
+          // 会话窗（此前仅 18px hover 钮可开，用户点了没反应）。
+          onChoose();
+          if (isSubagentRef && onOpenAside !== undefined) onOpenAside(node.id, label);
+        }}
       />
       <span className="agent-topology-card-top">
         <span className="agent-topology-avatar" aria-hidden>{avatarLabelOf(label)}</span>
@@ -559,7 +568,7 @@ function TopologyCard({
           <ArrowUpRight size={11} aria-hidden />
         </button>
       )}
-      {!root && onOpenAside !== undefined && (
+      {!root && isSubagentRef && onOpenAside !== undefined && (
         <button
           type="button"
           className="agent-topology-aside"

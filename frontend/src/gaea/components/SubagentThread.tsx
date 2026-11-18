@@ -177,7 +177,12 @@ export function SubagentThread({
   const transcriptRef = useRef<SubagentTranscriptView | null>(null);
 
   const load = useCallback(() => {
-    if (!sessionPath || !target) return;
+    if (!sessionPath || !target) {
+      // 实弹修复：会话未落盘（sessionPath 空）时早退不再留着 loading=true
+      // ——渲染层会落到「暂无消息」空态而不是无限转圈。
+      setLoading(false);
+      return;
+    }
     app
       .SubagentTranscript(sessionPath, target)
       .then((v) => {
