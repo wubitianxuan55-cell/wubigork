@@ -374,7 +374,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// P8 断网闸（codex 蒸馏 B6 折算）：[sandbox] network=false 时，网络能力
 	// 工具（web/浏览器/mcp__ 动态工具）在闸门层拒绝——此前断网只关 bash
 	// 子进程，web/浏览器照常出网是半开沙箱。network=true（默认）零介入。
-	gatedHeadless := agent.WrapNetworkGate(headlessGate, cfg.Sandbox.Network)
+	// 刀1：headless 无 UI，只挂只读台账（持久清单命中放行，其余照旧拒绝）。
+	gatedHeadless := agent.WrapNetworkGateWith(headlessGate, cfg.Sandbox.Network,
+		agent.NetworkLedgerOnly(cfg.Network.GateHostAllow))
 
 	// Hooks: load the global settings.json plus the project's (only when trusted —
 	// project hooks run arbitrary shell commands, so cloning a repo must not
@@ -845,6 +847,18 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Skills:         skills,
 		// P8 断网闸（交互路径四个换级点共用 newGate 后统一包装）。
 		DenyNetworkTools: !cfg.Sandbox.Network,
+		// 刀1 断网闸逐主机修正案：开关+持久台账快照+配置回写回调（headless
+		// 路径在 gatedHeadless 处只挂只读台账，不弹卡）。
+		NetworkGateAmendment: cfg.Network.GateAmendment,
+		NetworkHostAllow:     cfg.Network.GateHostAllow,
+		PersistNetworkHost: func(entry string) error {
+			pcfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			pcfg.Network.GateHostAllow = append(pcfg.Network.GateHostAllow, entry)
+			return pcfg.Save()
+		},
 		Hooks:          hookRunner,
 		Memory:         mem,
 		MemoryDisabled: !cfg.Memory.Enabled,

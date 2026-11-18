@@ -207,7 +207,13 @@ export function ApprovalModal({
               <PlanBtn num={3} decision="allow_session" title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => answerWithReason("allow_session")} />
             )}
             {!hardConfirm && (
-              <PlanBtn num={4} decision="persist_allow" title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => answerWithReason("persist_allow")} />
+              <PlanBtn
+                num={4}
+                decision="persist_allow"
+                title={approval.source === "gate" ? t("approval.persistHost") : t("approval.persistAlways")}
+                hint={approval.source === "gate" ? t("approval.persistHostHint") : t("approval.persistAlwaysHint")}
+                onClick={() => answerWithReason("persist_allow")}
+              />
             )}
             <PlanBtn num={hardConfirm ? 3 : 5} decision="abort" tone="danger" title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => answerWithReason("abort")} />
           </div>

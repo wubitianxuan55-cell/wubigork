@@ -209,6 +209,8 @@ export const zhTW: Record<DictKey, string> = {
   "approval.abortHint": "不執行這次呼叫，並終止當前回合",
   "approval.persistAlways": "始終允許",
   "approval.persistAlwaysHint": "寫入允許規則，以後這類呼叫不再詢問",
+  "approval.persistHost": "永久此主機",
+  "approval.persistHostHint": "斷網閘台賬放行該主機/工具，寫入 [network] 配置",
   "approval.requestTitle": "模型申請放開權限",
   "approval.requestNote": "模型主動申請一條權限規則。批准後相關呼叫仍走正常權限閘門，規則滿足則自然放行；拒絕則回合繼續。",
   "approval.ruleLabel": "申請規則",

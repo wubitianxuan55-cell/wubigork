@@ -541,6 +541,13 @@ type NetworkConfig struct {
 	// 重定向跨源剥凭据头。默认空=unrestricted，行为与现状逐字节等价。
 	OutboundMode         string   `toml:"outbound_mode"`          // unrestricted | restricted
 	OutboundAllowedHosts []string `toml:"outbound_allowed_hosts"` // 精确主机或子域后缀
+	// GateAmendment/GateHostAllow 是断网闸逐主机修正案（codex 蒸馏差距档案
+	// 刀1，NetworkPolicyAmendment 折算）：gate_amendment=true 时，[sandbox]
+	// network=false 拦截的网络工具弹卡四选（本次/本会话/永久此主机/拒绝），
+	// 「永久此主机」落 gate_host_allow 台账（精确主机或子域后缀，亦可记工具
+	// 名）。默认 false=拦截行为与现状逐字节等价。
+	GateAmendment bool     `toml:"gate_amendment"`
+	GateHostAllow []string `toml:"gate_host_allow"`
 }
 
 // NetworkProxyConfig is the structured form of proxy configuration.

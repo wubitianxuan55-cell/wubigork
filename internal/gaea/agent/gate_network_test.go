@@ -51,6 +51,118 @@ func TestNetworkGateBlocksNetworkToolsOnly(t *testing.T) {
 	}
 }
 
+// fakeAmender 是修正案的可编排桩：Allowed 走静态清单，Ask 返回编排值。
+type fakeAmender struct {
+	entries   []string
+	enabled   bool
+	askAllow  bool
+	askPersist bool
+	asks      int
+	persisted []string
+}
+
+func (f *fakeAmender) Allowed(toolName, target string) bool {
+	for _, e := range f.entries {
+		if e == toolName || (target != "" && (target == e || strings.HasSuffix(target, "."+e))) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *fakeAmender) Enabled() bool { return f.enabled }
+
+func (f *fakeAmender) Ask(context.Context, string, string) (bool, bool) {
+	f.asks++
+	return f.askAllow, f.askPersist
+}
+
+func (f *fakeAmender) Persist(entry string) error {
+	f.persisted = append(f.persisted, entry)
+	return nil
+}
+
+// 刀1（差距档案）验收：①开关关/Amendment nil = 现状拒绝逐字节等价；
+// ②台账命中（精确/子域/工具名）不弹卡放行且仍走内层闸；③Enabled+Ask
+// allow → 放行 + persist 传呼；Ask deny → 拒绝可解释；④target 提取
+// url→host，无 url 退化工具名。
+func TestNetworkGateAmendmentLedger(t *testing.T) {
+	args := json.RawMessage(`{"url":"https://docs.example.com/x?q=1"}`)
+	am := &fakeAmender{entries: []string{"example.com", "web_search"}}
+	g := WrapNetworkGateWith(allowAllGate{}, false, am).(*NetworkGate)
+
+	// 台账命中：host 子域匹配 + 工具名精确，不弹卡。
+	if am.asks != 0 {
+		t.Fatalf("前置弹卡次数应为 0")
+	}
+	if ok, _, err := g.Check(context.Background(), "web_fetch", args, false); err != nil || !ok {
+		t.Fatalf("台账 host 命中应放行: ok=%v err=%v", ok, err)
+	}
+	if ok, _, err := g.Check(context.Background(), "web_search", nil, false); err != nil || !ok {
+		t.Fatalf("台账工具名命中应放行: ok=%v err=%v", ok, err)
+	}
+	if am.asks != 0 {
+		t.Fatalf("台账命中不应弹卡, asks=%d", am.asks)
+	}
+	// 未命中 + 开关关：现状拒绝（不弹卡）。
+	if ok, reason, _ := g.Check(context.Background(), "browser_navigate", nil, false); ok || !strings.Contains(reason, "sandbox network is disabled") {
+		t.Fatalf("未命中且开关关应按现状拒绝: ok=%v reason=%q", ok, reason)
+	}
+	if am.asks != 0 {
+		t.Fatalf("开关关不应弹卡, asks=%d", am.asks)
+	}
+}
+
+func TestNetworkGateAmendmentAskFlow(t *testing.T) {
+	args := json.RawMessage(`{"url":"https://api.example.com/v1"}`)
+	am := &fakeAmender{enabled: true, askAllow: true, askPersist: true}
+	g := WrapNetworkGateWith(allowAllGate{}, false, am).(*NetworkGate)
+
+	ok, _, err := g.Check(context.Background(), "web_fetch", args, false)
+	if err != nil || !ok {
+		t.Fatalf("弹卡允许应放行: ok=%v err=%v", ok, err)
+	}
+	if am.asks != 1 || len(am.persisted) != 1 || am.persisted[0] != "api.example.com" {
+		t.Fatalf("persist 传呼不符: asks=%d persisted=%v", am.asks, am.persisted)
+	}
+
+	// 拒绝分支：文案可解释（带 declined）。
+	am2 := &fakeAmender{enabled: true, askAllow: false}
+	g2 := WrapNetworkGateWith(allowAllGate{}, false, am2).(*NetworkGate)
+	ok, reason, _ := g2.Check(context.Background(), "web_fetch", args, false)
+	if ok || !strings.Contains(reason, "declined") {
+		t.Fatalf("弹卡拒绝应给出可解释文案: ok=%v reason=%q", ok, reason)
+	}
+}
+
+func TestNetworkGateAmendmentTargetExtraction(t *testing.T) {
+	if got := amendmentTarget("web_fetch", json.RawMessage(`{"url":"https://Docs.Example.COM:443/a"}`)); got != "Docs.Example.COM" {
+		t.Fatalf("host 提取不符: %q", got)
+	}
+	if got := amendmentTarget("mcp__x__noargs", nil); got != "mcp__x__noargs" {
+		t.Fatalf("无 url 应退化工具名: %q", got)
+	}
+	if got := amendmentTarget("web_fetch", json.RawMessage(`{"path":"/tmp/a"}`)); got != "web_fetch" {
+		t.Fatalf("非 url subject 应退化工具名: %q", got)
+	}
+}
+
+// headless 只读台账：清单命中放行、Enabled 恒 false（永不弹卡）。
+func TestNetworkLedgerOnly(t *testing.T) {
+	am := NetworkLedgerOnly([]string{"example.com"})
+	g := WrapNetworkGateWith(allowAllGate{}, false, am).(*NetworkGate)
+	args := json.RawMessage(`{"url":"https://x.example.com/"}`)
+	if ok, _, _ := g.Check(context.Background(), "web_fetch", args, false); !ok {
+		t.Fatal("headless 台账命中应放行")
+	}
+	if ok, _, _ := g.Check(context.Background(), "browser_navigate", nil, false); ok {
+		t.Fatal("headless 未命中应拒绝（无卡可弹）")
+	}
+	if am.Enabled() {
+		t.Fatal("NetworkLedgerOnly 必须 Enabled=false")
+	}
+}
+
 // panic 工具：执行即 panic（P8 隔离面的注入源）。
 type panicTool struct{ name string }
 

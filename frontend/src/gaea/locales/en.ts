@@ -206,6 +206,8 @@ export const en = {
   "approval.abortHint": "Skip this call and stop the current turn",
   "approval.persistAlways": "Always allow",
   "approval.persistAlwaysHint": "Save an allow rule; this call won't ask again",
+  "approval.persistHost": "Always allow this host",
+  "approval.persistHostHint": "Gate ledger entry for this host/tool, saved to [network] config",
   "approval.requestTitle": "Model requests a permission",
   "approval.requestNote": "The model asks for a permission rule. Approved calls still go through the normal gate — matching ones pass; denying continues the turn.",
   "approval.ruleLabel": "Requested rule",

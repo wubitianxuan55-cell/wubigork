@@ -209,6 +209,8 @@ export const zh: Record<DictKey, string> = {
   "approval.abortHint": "不执行这次调用，并终止当前回合",
   "approval.persistAlways": "始终允许",
   "approval.persistAlwaysHint": "写入允许规则，以后这类调用不再询问",
+  "approval.persistHost": "永久此主机",
+  "approval.persistHostHint": "断网闸台账放行该主机/工具，写入 [network] 配置",
   "approval.requestTitle": "模型申请放开权限",
   "approval.requestNote": "模型主动申请一条权限规则。批准后相关调用仍走正常权限闸门，规则满足则自然放行；拒绝则回合继续。",
   "approval.ruleLabel": "申请规则",

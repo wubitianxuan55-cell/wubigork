@@ -143,6 +143,16 @@ type Controller struct {
 	approvalTimeout time.Duration
 	// persistAllowRule 是「始终允许」的策略回写回调（见 Options 同名字段）。
 	persistAllowRule func(rule string) error
+
+	// 断网闸逐主机修正案（刀1，codex NetworkPolicyAmendment 折算）：
+	// networkAmendment=[network].gate_amendment 开关；networkHostAllow 是
+	// 持久台账快照；两个 exempt map 是会话豁免（once 消费即删）。mu 保护；
+	// 会话豁免重启即失，持久台账走配置文件。
+	networkAmendment     bool
+	networkHostAllow     []string
+	persistNetworkHost   func(entry string) error
+	networkExemptOnce    map[string]bool
+	networkExemptSession map[string]bool
 	// deniedActions 是「待追认账本」（codex 蒸馏 T3）：拒绝/超时的审批动作
 	// 挂账留底，ApproveDenied 可按原参数重放一次审批（走正常闸门）。FIFO
 	// 封顶 deniedActionCap，超限滚掉最旧。由 mu 保护；重启即失（内存账本，
@@ -274,6 +284,16 @@ type Options struct {
 	// [sandbox] network=false 时网络能力工具（web/浏览器/mcp__）在闸门层
 	// 拒绝。newGate 的四个换级点统一包装（boot 注入）。
 	DenyNetworkTools bool
+	// NetworkGateAmendment 开启断网闸逐主机修正案（codex 蒸馏差距档案刀1，
+	// NetworkPolicyAmendment 折算）：gate_amendment=true 且交互路径下，被拦
+	// 网络工具弹卡四选（本次/本会话/永久此主机/拒绝）。
+	NetworkGateAmendment bool
+	// NetworkHostAllow 是持久台账快照（[network].gate_host_allow）：精确主机
+	// /子域后缀/工具名。headless 路径只读这份；交互路径在其上叠加会话豁免。
+	NetworkHostAllow []string
+	// PersistNetworkHost 是「永久此主机」的配置回写回调（Load→追加→Save）；
+	// nil = 不支持持久化（persist 退化为会话豁免）。回调失败仅记日志。
+	PersistNetworkHost func(entry string) error
 	// Guardian 是动作级自动评审器（codex 蒸馏 T11）：nil=关闭（默认）。开启后
 	// 常规 Ask 通道在用户卡之前先评审——allow 放行（guardian 账本）、deny 带
 	// 理由拒绝（可追认）、评审失败回落用户卡（红线：错误不冒充风险）。
@@ -355,9 +375,14 @@ func New(opts Options) *Controller {
 		pluginCtx:        pluginCtx,
 		ctxMgr:           opts.CtxMgr,
 		permLevel:        "ask",
-		sectionDiff:      opts.SectionDiff,
-		denyNetworkTools: opts.DenyNetworkTools,
-		guardian:         opts.Guardian,
+		sectionDiff:        opts.SectionDiff,
+		denyNetworkTools:   opts.DenyNetworkTools,
+		networkAmendment:   opts.NetworkGateAmendment,
+		networkHostAllow:   opts.NetworkHostAllow,
+		persistNetworkHost: opts.PersistNetworkHost,
+		networkExemptOnce:    map[string]bool{},
+		networkExemptSession: map[string]bool{},
+		guardian:           opts.Guardian,
 		sectionStore:     tiancontext.NewSectionStore(),
 		approvalTimeout:  opts.ApprovalTimeout,
 		persistAllowRule: opts.PersistAllowRule,
@@ -903,7 +928,7 @@ func (c *Controller) EnableInteractiveApproval() {
 	if c.executor != nil {
 		g := c.newGate()
 		// P8：断网闸统一在 SetGate 出口包装（四个换级点同一出口纪律）。
-		c.executor.SetGate(agent.WrapNetworkGate(g, !c.denyNetworkTools))
+		c.executor.SetGate(c.wrapNetworkGate(g))
 		c.executor.SetAsker(c)
 		// request_permission：把 controller 接线为 PermissionRequester——
 		// 权限升级申请经既有审批卡通道弹卡，与工具闸门共用同一应答/超时语义。

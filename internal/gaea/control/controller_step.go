@@ -18,7 +18,6 @@ package control
 import (
 	"fmt"
 
-	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/permission"
 )
 
@@ -69,7 +68,7 @@ func (c *Controller) applyPermLevelLocked(level string) {
 	case "auto":
 		c.policy.Mode = permission.Allow
 		if c.executor != nil {
-			c.executor.SetGate(agent.WrapNetworkGate(c.newGate(), !c.denyNetworkTools))
+			c.executor.SetGate(c.wrapNetworkGate(c.newGate()))
 		}
 	case "yolo":
 		if c.executor != nil {
@@ -77,12 +76,12 @@ func (c *Controller) applyPermLevelLocked(level string) {
 			// 用空策略 + AlwaysAsk 的 gate 替代 nil gate。
 			g := c.newGate()
 			g.Policy = permission.New("allow", nil, nil, nil)
-			c.executor.SetGate(agent.WrapNetworkGate(g, !c.denyNetworkTools))
+			c.executor.SetGate(c.wrapNetworkGate(g))
 		}
 	default: // "ask"
 		c.policy.Mode = permission.Ask
 		if c.executor != nil {
-			c.executor.SetGate(agent.WrapNetworkGate(c.newGate(), !c.denyNetworkTools))
+			c.executor.SetGate(c.wrapNetworkGate(c.newGate()))
 		}
 	}
 }
