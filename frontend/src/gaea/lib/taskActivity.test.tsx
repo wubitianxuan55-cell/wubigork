@@ -183,10 +183,16 @@ describe("matchRunningRun：空 ref 并行多 running 的文本匹配", () => {
     expect(matchRunningRun(args, mixed)?.ref).toBe("sa_4");
   });
 
-  it("非 running 的 run 不参与匹配", () => {
+  it("2026-11-18 起状态不再过滤：completed/failed 也参与文本匹配（后台完成卡可点，实弹修复）", () => {
     const runs = [runOf({ status: "completed" }), runOf({ ref: "sa_2", status: "failed" })];
     const args = JSON.stringify({ description: "梳理项目配置项" });
+    // 描述与任一 run.task 不沾边 → 仍零命中
     expect(matchRunningRun(args, runs)).toBeNull();
+    // 命中则不再因状态排除（completed 唯一命中返回该 run）
+    const runs2 = [runOf({ status: "completed", task: "梳理项目配置项" })];
+    const hit = matchRunningRun(JSON.stringify({ description: "梳理项目配置项" }), runs2);
+    expect(hit).not.toBeNull();
+    expect(hit?.status).toBe("completed");
   });
 
   it("args 为 ToolCard 原始 JSON 字符串形态（trim 后前后空白不阻断匹配）", () => {
@@ -258,10 +264,10 @@ describe("matchRunningCandidates：返回全部文本匹配的 running（多候�
     expect(hits[0]).toBe(runs[0]);
   });
 
-  it("零候选：空数组（含描述不沾边 / 非 running / 空 task 的情形）", () => {
+  it("零候选：空数组（描述不沾边 / 空 task 的情形；状态已不过滤）", () => {
     const runs = [
       runOf({ task: "抓取价格数据" }),
-      runOf({ ref: "sa_2", status: "completed" }),
+      runOf({ ref: "sa_2", status: "completed", task: "别的任务" }),
       runOf({ ref: "sa_3", task: "" }),
     ];
     expect(matchRunningCandidates(JSON.stringify({ description: "写发布公告" }), runs)).toEqual([]);

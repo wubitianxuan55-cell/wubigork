@@ -142,13 +142,16 @@ function taskDescOf(args: unknown): string {
 
 /**
  * matchRunningCandidates：args 任务描述 ↔ run.task 归一化（trim）双向包含
- * 匹配，返回全部命中的 running run（保序）。命中语义与 matchRunningRun
+ * 匹配，返回全部命中的 run（保序）。命中语义与 matchRunningRun
  * 同源：desc 包含 run.task 或 run.task 包含 desc 任一成立（覆盖模型短摘要
- * vs transcript 长首条消息两个方向）；非 running、task 空/缺失的 run 跳过。
+ * vs transcript 长首条消息两个方向）；task 空/缺失的 run 跳过。
  * Why 只有 trim：派发双方都以中文任务描述为主，大小写折叠收益极小反而
  * 扩大误配面。args 无描述文本 → 空数组（宁缺勿错，不炸）。
  * 消费方：App 侧「多候选歧义」链路（整卡可点 → 点击弹选择器人工挑一个），
  * 以及 matchRunningRun 的唯一命中判定。
+ * 2026-11-18 状态过滤上移到调用方：后台委派完成后卡要可点（实弹「对话窗
+ * 口没有智能体卡无法点击」）——打开目标解析需要在**全部运行**里唯一文本
+ * 命中，不再局限于 running；live 预览等 running-only 场景由调用方先筛。
  */
 export function matchRunningCandidates<T extends SubagentRunLike>(
   args: unknown,
@@ -158,7 +161,6 @@ export function matchRunningCandidates<T extends SubagentRunLike>(
   if (!desc) return [];
   const hits: T[] = [];
   for (const r of runs) {
-    if (r.status !== "running") continue;
     const t = typeof r.task === "string" ? r.task.trim() : "";
     if (!t) continue;
     if (t.includes(desc) || desc.includes(t)) hits.push(r);

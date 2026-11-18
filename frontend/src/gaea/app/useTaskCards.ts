@@ -60,8 +60,9 @@ export function useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSe
     // tab 的 task/status/model 由 runs 缓存预填，打开后 5s 轮询自校正。
     setTaskCardOpenTarget((ref, args) => {
       if (ref) return ref;
-      const running = subRunsCacheRef.current.filter((r) => r.status === "running");
-      return matchRunningRun(args, running)?.ref ?? "";
+      // 2026-11-18 实弹修复：后台委派完成后卡也要可点——打开目标在**全部
+      // 运行**里唯一文本命中（旧逻辑只匹配 running，后台完成卡永不可点）。
+      return matchRunningRun(args, subRunsCacheRef.current)?.ref ?? "";
     });
     // v4.68：空 ref 多候选（≥2 文本匹配 running）时 matchRunningRun 按宁缺
     // 勿错返回 ""，卡此前不可点、用户没有入口。歧义两槽位补上：渲染期判定
@@ -69,14 +70,10 @@ export function useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSe
     // 瞬间现算，数据最新鲜；0 候选不弹，绝不自动跳转）。
     setTaskCardAmbiguityResolver((ref, args) => {
       if (ref) return false; // 已有唯一目标：不歧义
-      const running = subRunsCacheRef.current.filter((r) => r.status === "running");
-      return matchRunningCandidates(args, running).length > 1;
+      return matchRunningCandidates(args, subRunsCacheRef.current).length > 1;
     });
     setTaskCardAmbiguityHandler((args) => {
-      const cands = matchRunningCandidates(
-        args,
-        subRunsCacheRef.current.filter((r) => r.status === "running"),
-      );
+      const cands = matchRunningCandidates(args, subRunsCacheRef.current);
       if (cands.length === 0) return; // 点击瞬间已无候选：维持现状，不弹空壳
       setTaskPickCandidates(cands);
     });
