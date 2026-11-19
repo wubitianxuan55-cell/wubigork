@@ -1,3 +1,26 @@
+## 设置中枢全线收官+闭环后增量五批（2026-11-20）
+
+接 11-19 深夜七批+尾批。今日 12 提交全推 origin（487f3333..c65c8a77 含 74 笔
+列车，ahead=0），装机四次同步（终态 PID 26064），挂账池空：
+
+- **模型中心直达回摆**（6cd9f0a3）：接入节功能绑定/引擎管理两 tab 回驻，
+  单源组件双宿主（设置页 model 组消费同组件）；rail-foot 摘要卡回 setCategory。
+- **UI 重设计四刀**（9fdb3d78）：内容头方位感/搜索零死端建议胶囊/导航精修
+  （zone tick+激活图标着色+n/total）/inspector 相关分组快跳；ui-ux-pro-max
+  只取结构性建议，配色字体否决保 md-sys 一致性。
+- **索引卡**（e9a5ae2c）：BoardIndexSection 边界留域+NAVIGATE 直达，板块区七组。
+- **键盘可达**（c06bfb20）：↑↓ 环绕/Home/End+`/` 聚焦搜索+Esc 清词。
+- **竞态根修**（d4c2892e）：void import(bridge) 无 .catch 翻牌用例实锤（挂数
+  每轮漂移 1/0/1/2），四处收编后两连跑零翻牌；EnvironmentTeardownError 日志
+  =vitest v4 已知局限挂池。
+- **搜索直达项**（c65c8a77）：命中段锚定 scrollIntoView+flash 轮询式（段标题
+  随 bridge 数据异步挂载，单次扫描必扑空）。
+- **验证面**：亮暗双主题目检+CDP 走查 17/17（scripts/gaea-settings-walk.mjs
+  转正入库）+全量 504 文件 4578 例+tsc+lint 绿。
+- **坑册**：gaea 壳因 --disable-features 被 Wails 连带默认开 127.0.0.1:9333
+  （实盘壳恒占口，CDP 走查前必先收壳）；测试漏 import waitFor 的 ReferenceError
+  189ms 秒抛被误读成超时挂（失败先看报错原文，时长≠超时）。
+
 ## 软件 Logo 明暗双原图全量替换 + 桌面构建（2026-11-19）
 
 用户补入 `logo浅色.jpg`（白底玻璃光效）与 `logo深色.jpg`（黑底发光版），
