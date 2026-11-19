@@ -85,10 +85,17 @@ function onGaeaEventKind(cb: (kind: string) => void): () => void {
   // 引用——静态环会炸 dev 加载序。事件订阅 API 见 lib/bridge/events.ts。
   let off: (() => void) | null = null;
   let cancelled = false;
-  void import("../lib/bridge").then((m) => {
-    if (cancelled) return;
-    off = m.onEvent((e) => cb(e.kind));
-  });
+  void import("../lib/bridge")
+    .then((m) => {
+      if (cancelled) return;
+      off = m.onEvent((e) => cb(e.kind));
+    })
+    // 测试环境 teardown 可打断在途动态 chunk（bridge→mock 全图），拒绝若不收编
+    // 即 vitest unhandled error 噪音且会翻牌同 worker 用例；生产侧降级为仅告警
+    // （订阅未建立= dock 收不到实时刷新，权限面只读不受影响）。
+    .catch((err) => {
+      if (!cancelled) console.warn("[DeniedActionsDock] bridge 动态加载失败，事件订阅未建立", err);
+    });
   return () => {
     cancelled = true;
     off?.();

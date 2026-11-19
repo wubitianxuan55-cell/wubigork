@@ -386,7 +386,10 @@ export function Insights({ running, onOpenSession }: {
 }
 
 function saveRange(r: InsightsRangeKey) {
-  void import("../../lib/contextPrefs").then((m) => m.saveContextPref("insightsRange", r));
+  // 拒绝收编：teardown 打断在途动态 chunk 时防 unhandled error（同 gaea 副本）
+  void import("../../lib/contextPrefs")
+    .then((m) => m.saveContextPref("insightsRange", r))
+    .catch((err) => console.warn("[Insights] contextPrefs 动态加载失败，偏好未保存", err));
 }
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {

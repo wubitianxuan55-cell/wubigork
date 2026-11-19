@@ -70,10 +70,16 @@ function clip(text: string, max: number): string {
 function onWenxueEventKind(cb: (kind: string) => void): () => void {
   let off: (() => void) | null = null;
   let cancelled = false;
-  void import("../lib/bridge").then((m) => {
-    if (cancelled) return;
-    off = m.onEvent((e) => cb(e.kind));
-  });
+  void import("../lib/bridge")
+    .then((m) => {
+      if (cancelled) return;
+      off = m.onEvent((e) => cb(e.kind));
+    })
+    // 同 gaea 副本：teardown 打断动态 chunk 的 rejection 必须收编（防 vitest
+    // unhandled error 噪音翻牌同 worker 用例），生产侧降级为告警。
+    .catch((err) => {
+      if (!cancelled) console.warn("[DeniedActionsDock] bridge 动态加载失败，事件订阅未建立", err);
+    });
   return () => {
     cancelled = true;
     off?.();
