@@ -28,6 +28,7 @@ const SettingsPage: React.FC = () => {
   const [activeKey, setActiveKey] = useState('general')
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const searchRef = useRef<InputRef>(null)
+  const panelRootRef = useRef<HTMLDivElement>(null)
   const pendingCategory = useAppStore((s) => s.pendingSettingsCategory)
   const clearPendingCategory = useAppStore((s) => s.clearPendingSettingsCategory)
 
@@ -112,6 +113,40 @@ const SettingsPage: React.FC = () => {
     e.preventDefault()
     next.focus()
   }
+
+  // 搜索命中段锚定：过滤态切组后扫描已挂面板的段标题（strong/h2~h4/mc-section-title，
+  // 各面板头部异构故走 DOM 扫描零面板耦合），首个命中查询词的段卡 scrollIntoView +
+  // 一闪 accent 环——搜索从「直达组」升到「直达项」；无命中静默回落组级语义。
+  // 仅过滤态触发（纯切组不滚屏）。段标题多随 bridge 数据异步挂载（OfficeMemorySection
+  // 等面板数据后置），单次扫描会扑空 → 短窗轮询（150ms×13≈2s）命中即停；
+  // jsdom 无 scrollIntoView 实现，try/catch 兜底。
+  useEffect(() => {
+    if (!q) return
+    let flashTimer = 0
+    const scan = () => {
+      const root = panelRootRef.current
+      if (!root) return false
+      const heads = root.querySelectorAll<HTMLElement>('strong, h2, h3, h4, .mc-section-title span, .mc-bind-title')
+      const hit = Array.from(heads).find((h) => (h.textContent || '').trim().toLowerCase().includes(q))
+      if (!hit) return false
+      const card = (hit.closest('.v3-card') as HTMLElement) || hit
+      try {
+        card.scrollIntoView({ block: 'start' })
+      } catch { /* jsdom 无实现 */ }
+      card.classList.add('settings-sec-flash')
+      flashTimer = window.setTimeout(() => card.classList.remove('settings-sec-flash'), 1700)
+      return true
+    }
+    let attempts = 0
+    const pollTimer = window.setInterval(() => {
+      attempts += 1
+      if (scan() || attempts >= 13) window.clearInterval(pollTimer)
+    }, 150)
+    return () => {
+      window.clearInterval(pollTimer)
+      if (flashTimer) window.clearTimeout(flashTimer)
+    }
+  }, [q, effectiveKey])
 
   return (
     <div className="settings-page" onKeyDown={onPageKeyDown}>
@@ -210,7 +245,7 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div key={effectiveKey} className="settings-panel-enter">
+            <div ref={panelRootRef} key={effectiveKey} className="settings-panel-enter">
               <div className="settings-head">
                 <span className="settings-head__icon" aria-hidden="true">{active.icon}</span>
                 <div className="settings-head__text">

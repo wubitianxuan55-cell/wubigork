@@ -623,6 +623,22 @@ html.gaea-raf-degraded .settings-panel-enter {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
 }
 
+/* 搜索命中段卡闪示：accent 环一闪即隐（scrollIntoView 直达项的视觉锚） */
+.settings-sec-flash {
+  animation: settingsSecFlash 1.6s ease-out both;
+}
+
+@keyframes settingsSecFlash {
+  0% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--gaea-glow) 55%, transparent),
+      0 0 0 7px color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gaea-glow) 0%, transparent);
+  }
+}
+
 /* ── 窄屏适配 ── */
 @media (max-width: 1100px) {
   .settings-nav { width: 196px; }
@@ -675,6 +691,7 @@ html.gaea-raf-degraded .settings-panel-enter {
   .settings-related-item,
   .settings-page__search.ant-input-affix-wrapper { transition: none; }
   .settings-panel-enter { animation: none; }
+  .settings-sec-flash { animation: none; }
 }
 
 .ui-reduced-motion .settings-nav-item,
@@ -684,3 +701,4 @@ html.gaea-raf-degraded .settings-panel-enter {
 .ui-reduced-motion .settings-empty__chip,
 .ui-reduced-motion .settings-related-item { transition: none; }
 .ui-reduced-motion .settings-panel-enter { animation: none; }
+.ui-reduced-motion .settings-sec-flash { animation: none; }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../gaea/lib/i18n'
 import { useAppStore } from '../stores/appStore'
 
@@ -238,5 +238,16 @@ describe('SettingsPage 键盘可达（2026-11-20：↑/↓/Home/End roving focus
     expect(container.querySelectorAll('.settings-nav-item').length).toBe(15)
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(document.activeElement).not.toBe(input)
+  })
+
+  it('搜索命中段锚定：过滤态切组后组内命中查询词的段卡出 settings-sec-flash', async () => {
+    const { container } = render(wrap(<SettingsPage />))
+    // 「记忆」命中办公组关键词 → 自动切办公组 → 面板内「办公记忆」strong 命中 → 段卡闪示
+    // （段标题随 bridge 数据异步挂载，组件侧短窗轮询，waitFor 容忍挂载延迟）
+    fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '记忆' } })
+    await waitFor(
+      () => expect(container.querySelector('.settings-sec-flash')).toBeTruthy(),
+      { timeout: 3000 },
+    )
   })
 })
