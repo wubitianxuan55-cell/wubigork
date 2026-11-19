@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Tooltip } from 'antd'
+import type { InputRef } from 'antd'
 import {
   SearchOutlined, QuestionCircleOutlined, CloseOutlined,
 } from '@ant-design/icons'
@@ -14,7 +15,9 @@ import { SETTINGS_CATEGORIES, SETTINGS_ZONES, type Category } from '../component
  *  头部（图标章+标题+描述+zone 徽标）给方位感；②搜索无匹配出建议分组胶囊
  *  （零死端）；③导航精修（zone tick/激活图标着色/过滤计数 n/total/去底部提示
  *  噪音）；④inspector 增「相关分组」快跳（注册表关键词交集，纯前端数据）。
- *  搜索跨分组过滤并自动切换；openSettings(category) 锚点直达（跨板块入口共用）。 */
+ *  键盘可达（ui-ux-pro-max Priority 1/2）：导航 ↑/↓/Home/End 移焦（Enter 原生
+ *  激活）、`/` 聚焦搜索（输入态不劫持）、Esc 清搜索。搜索跨分组过滤并自动切换；
+ *  openSettings(category) 锚点直达（跨板块入口共用）。 */
 
 /** 搜索无匹配时的建议分组（高频组；点击直达并清搜索） */
 const SUGGEST_KEYS = ['general', 'model', 'office', 'chat'] as const
@@ -24,6 +27,7 @@ const SettingsPage: React.FC = () => {
   const [query, setQuery] = useState('')
   const [activeKey, setActiveKey] = useState('general')
   const [inspectorOpen, setInspectorOpen] = useState(false)
+  const searchRef = useRef<InputRef>(null)
   const pendingCategory = useAppStore((s) => s.pendingSettingsCategory)
   const clearPendingCategory = useAppStore((s) => s.clearPendingSettingsCategory)
 
@@ -84,8 +88,33 @@ const SettingsPage: React.FC = () => {
     setActiveKey(key)
   }
 
+  // 键盘可达：`/` 聚焦搜索（输入框/可编辑区不劫持，避免打字冲突）
+  const onPageKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== '/') return
+    const el = e.target as HTMLElement
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return
+    e.preventDefault()
+    searchRef.current?.focus()
+  }
+
+  // 导航 ↑/↓/Home/End 移焦（roving focus：焦点移动、Enter 原生激活按钮）。
+  // 过滤态下列表变化，每次按键现场查询可见项，不缓存句柄。
+  const onNavKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('.settings-nav-item'))
+    if (items.length === 0) return
+    const idx = items.indexOf(document.activeElement as HTMLButtonElement)
+    let next: HTMLButtonElement
+    if (e.key === 'Home') next = items[0]
+    else if (e.key === 'End') next = items[items.length - 1]
+    else if (e.key === 'ArrowDown') next = idx < 0 || idx >= items.length - 1 ? items[0] : items[idx + 1]
+    else next = idx <= 0 ? items[items.length - 1] : items[idx - 1]
+    e.preventDefault()
+    next.focus()
+  }
+
   return (
-    <div className="settings-page">
+    <div className="settings-page" onKeyDown={onPageKeyDown}>
       {/* ── 细条头部：控制室标识 + 全局搜索 + 帮助开关 ── */}
       <header className="settings-bar">
         <div className="settings-bar__context">
@@ -100,6 +129,13 @@ const SettingsPage: React.FC = () => {
           placeholder={t('settings.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // Esc：有词清词（与 allowClear 同义），无词退焦回导航
+            if (e.key !== 'Escape') return
+            if (query) setQuery('')
+            else (e.target as HTMLInputElement).blur()
+          }}
+          ref={searchRef}
           className="settings-page__search"
           aria-label={t('settings.searchAria')}
         />
@@ -127,7 +163,7 @@ const SettingsPage: React.FC = () => {
               {q ? `${visible.length}/${SETTINGS_CATEGORIES.length}` : visible.length}
             </span>
           </div>
-          <nav className="settings-nav__list">
+          <nav className="settings-nav__list" onKeyDown={onNavKeyDown}>
             {zoneGroups.map((g) => (
               <React.Fragment key={g.key}>
                 {showZoneTitles && (

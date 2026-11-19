@@ -196,3 +196,47 @@ describe('SettingsPage UI 重设计（2026-11-20：内容头方位感/搜索零�
     }
   })
 })
+
+describe('SettingsPage 键盘可达（2026-11-20：↑/↓/Home/End roving focus + `/` 聚焦搜索 + Esc 清词）', () => {
+  it('导航方向键在可见导航项间移焦（↓/↑ 环绕，Home/End 跳端）', () => {
+    const { container } = render(wrap(<SettingsPage />))
+    const list = container.querySelector('.settings-nav__list') as HTMLElement
+    const items = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-nav-item'))
+    expect(items().length).toBe(15)
+    const first = items()[0]
+    first.focus()
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(list, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(items()[1])
+    fireEvent.keyDown(list, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(items()[0])
+    fireEvent.keyDown(list, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(items()[items().length - 1])
+    fireEvent.keyDown(list, { key: 'Home' })
+    expect(document.activeElement).toBe(items()[0])
+    fireEvent.keyDown(list, { key: 'End' })
+    expect(document.activeElement).toBe(items()[items().length - 1])
+  })
+
+  it('`/` 聚焦搜索框（页面级监听，输入态内不劫持）', () => {
+    const { container } = render(wrap(<SettingsPage />))
+    const nav = container.querySelector('.settings-nav__list') as HTMLElement
+    fireEvent.keyDown(nav, { key: '/' })
+    const input = container.querySelector('.settings-page__search input') as HTMLInputElement
+    expect(document.activeElement).toBe(input)
+    // 焦点已在输入框内再按 / 不重入（target=INPUT 被忽略，输入不被打断）
+    fireEvent.keyDown(input, { key: '/' })
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('Esc：有词清词恢复全量导航，无词退焦回页面', () => {
+    const { container } = render(wrap(<SettingsPage />))
+    const input = container.querySelector('.settings-page__search input') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '外观' } })
+    expect(container.querySelectorAll('.settings-nav-item').length).toBeLessThan(15)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(container.querySelectorAll('.settings-nav-item').length).toBe(15)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(document.activeElement).not.toBe(input)
+  })
+})
