@@ -775,6 +775,7 @@ export const zh: Record<DictKey, string> = {
   "settings.tip1": "左侧导航切换设置分组，当前项带主色光条",
   "settings.tip2": "顶部搜索可跨分组过滤设置项",
   "settings.tip3": "带「即时生效」标记的项保存后立刻生效",
+  "settings.related": "相关分组",
   "settings.cat.general": "通用",
   "settings.cat.generalDesc": "外观",
   "settings.cat.chat": "聊天",

@@ -779,6 +779,7 @@ export const zhTW: Record<DictKey, string> = {
   "settings.tip1": "左側導覽切換設定分組，目前項目帶主色光條",
   "settings.tip2": "頂部搜尋可跨分組篩選設定項",
   "settings.tip3": "帶「立即生效」標記的項目儲存後立刻生效",
+  "settings.related": "相關分組",
   "settings.cat.general": "一般",
   "settings.cat.generalDesc": "外觀",
   "settings.cat.chat": "聊天",

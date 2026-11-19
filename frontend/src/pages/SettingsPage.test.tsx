@@ -70,7 +70,8 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
 
   it('两级导航点亮（批 5 zone 归位）：全局/板块分区标题常驻，板块区含办公/绘梦/文学/微信/众神殿', () => {
     render(wrap(<SettingsPage />))
-    const zones = screen.getAllByText(/^(全局|板块)$/)
+    // 重设计后内容头也有 zone 徽标（settings-head__zone），此处只钉导航分区标题
+    const zones = screen.getAllByText(/^(全局|板块)$/, { selector: '.settings-nav__zone' })
     expect(zones.length).toBe(2)
     // 板块区五组（办公/绘梦归位 + 文学/微信/众神殿新入驻）+ 全局区现有组全部可达
     for (const label of ['办公', '绘梦', '文学', '微信', '众神殿', '通用', '模型', '代码图谱']) {
@@ -130,5 +131,37 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     expect(await screen.findByText('工位面板', { selector: 'strong' })).toBeTruthy()
     // MCP 能力区（原 CapabilitiesPanel 抽屉主体）：tab 栏常驻
     expect(await screen.findByRole('tab', { name: /连接器|服务器/ })).toBeTruthy()
+  })
+})
+
+describe('SettingsPage UI 重设计（2026-11-20：内容头方位感/搜索零死端/相关分组快跳）', () => {
+  it('内容头：激活组标题随导航切换，zone 徽标标注所属分区（全局/板块）', () => {
+    render(wrap(<SettingsPage />))
+    expect(screen.getByText('通用', { selector: '.settings-head__title' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /绘梦/ }))
+    expect(screen.getByText('绘梦', { selector: '.settings-head__title' })).toBeTruthy()
+    expect(screen.getByText('板块', { selector: '.settings-head__zone' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+    expect(screen.getByText('全局', { selector: '.settings-head__zone' })).toBeTruthy()
+  })
+
+  it('搜索无匹配零死端：出建议分组胶囊，点击直达并清空搜索恢复全量导航', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: 'zzzzq' } })
+    expect(screen.queryByText('通用', { selector: '.settings-nav-item__label' })).toBeNull()
+    fireEvent.click(screen.getByText('模型', { selector: '.settings-empty__chip' }))
+    expect(await screen.findByText('当前模型')).toBeTruthy()
+    // 直达同语义=清搜索（锚点直达同款），导航恢复全量
+    expect(screen.getByText('通用', { selector: '.settings-nav-item__label' })).toBeTruthy()
+    expect(screen.queryByText('模型', { selector: '.settings-empty__chip' })).toBeNull()
+  })
+
+  it('inspector 相关分组快跳：帮助面板内按关键词交集出胶囊，点击切组', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByLabelText('显示帮助面板'))
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+    expect(await screen.findByText('相关分组')).toBeTruthy()
+    fireEvent.click(screen.getByText('绘梦', { selector: '.settings-related-item' }))
+    expect(screen.getByText('绘梦', { selector: '.settings-head__title' })).toBeTruthy()
   })
 })

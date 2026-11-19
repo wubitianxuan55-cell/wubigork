@@ -774,6 +774,7 @@ export const en = {
   "settings.tip1": "Use left navigation to switch groups; the active item shows an accent bar",
   "settings.tip2": "Use the top search to filter items across groups",
   "settings.tip3": "Items marked “takes effect immediately” apply as soon as they are saved",
+  "settings.related": "Related groups",
   "settings.cat.general": "General",
   "settings.cat.generalDesc": "Appearance",
   "settings.cat.chat": "Chat",

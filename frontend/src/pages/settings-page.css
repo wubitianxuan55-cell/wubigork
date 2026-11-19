@@ -1,15 +1,16 @@
 /* ═══════════════════════════════════════════════════════════════════
-   设置中心「控制室」— 3 分区工作台（§2.9；v4.521 玄墨化）
+   设置中心「控制室」— 3 分区工作台（2026-11-20 UI 重设计）
    细条头部（控制室标识 + 全局搜索 + 帮助开关）
-   左 = 分类导航（v3-panel，激活项主色容器 + 左缘细线）
-   中 = 表单区（v3-zone，v3-card 分组卡片）
-   右 = 预留 inspector（帮助说明，可隐藏）
-   玄墨对策落地（BEM 类名保留=结构契约零动，仅视觉重画）：
-   ① 光效退场——标识灯去辉光、激活项 glow 光条/光晕影/呼吸 orb 动画退役
-     （orb 降为静态小点）、图标章金底辉光中性墨化；
-   ② 描边退场——搜索框去玻璃底、计数/关键词胶囊去描边改墨软底；
-   ③ 激活语义保留：primary-container 底不动，左缘 3px 光条降 2px 细线；
-   ④ hover 统一玄墨墨软底（text 4.5~5% 派生）。
+   左 = 分类导航（v3-panel，两级分区；激活项主色容器 + 左缘细线）
+   中 = 表单区（v3-zone；新增激活组头部给方位感）
+   右 = 帮助 inspector（当前组档案 + 相关分组快跳 + 提示，可隐藏）
+   重设计要点（ui-ux-pro-max 指南对齐）：
+   ① 方位感——中栏激活组头部（图标章+标题+描述+zone 徽标），
+     「当前在哪」不依赖左导航记忆（active state / location 指南）；
+   ② 搜索零死端——无匹配态升级为图标+建议分组胶囊（点击直达）；
+   ③ 导航精修——zone 标题带 accent tick，激活项图标章 accent 着色，
+     过滤态计数 n/total，底部提示行退役（降噪）；
+   ④ inspector 升级——相关分组快跳（注册表关键词交集，纯前端数据）。
    令牌纪律：仅消费 --md-sys-* / --gaea-* / --color-* / --v3-*，零硬编码色值。
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -39,7 +40,7 @@
   min-width: 0;
 }
 
-/* 控制室标识灯：去辉光，纯 accent 小点（点睛位） */
+/* 控制室标识灯：纯 accent 小点（点睛位） */
 .settings-bar__glow {
   width: 7px;
   height: 7px;
@@ -82,9 +83,9 @@
   background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
 }
 
-/* 搜索框：去玻璃底（焦点环沿用 antd 3px ring） */
+/* 搜索框（设置页主行动，宽度加大）；焦点环沿用 antd 3px ring */
 .settings-page__search {
-  width: 250px;
+  width: 300px;
 }
 
 .settings-page__search.ant-input-affix-wrapper {
@@ -124,7 +125,7 @@
 
 /* ── 左 = 分类导航（v3-panel） ── */
 .settings-nav {
-  width: 220px;
+  width: 224px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -132,7 +133,7 @@
   overflow: hidden;
 }
 
-/* 计数胶囊：去描边改墨软底（中性 mono，对齐玄墨 ml-card-count） */
+/* 计数胶囊：中性 mono 软底；过滤态由 TSX 切 n/total 文案 */
 .settings-nav__count {
   min-width: 20px;
   padding: 1px 7px;
@@ -151,22 +152,32 @@
   padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   scrollbar-width: thin;
 }
 
-/* 两级导航分区标题（全局/板块；单 zone 可见时整段不渲染） */
+/* 两级导航分区标题：accent 小 tick（呼应激活项左缘光条语汇） */
 .settings-nav__zone {
-  padding: 8px 6px 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 3px;
   font-size: 10.5px;
   letter-spacing: 0.08em;
   color: var(--color-text-secondary);
-  opacity: 0.75;
+}
+
+.settings-nav__zone::before {
+  content: '';
+  width: 2px;
+  height: 9px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--gaea-glow) 60%, transparent);
 }
 
 .settings-nav__zone:not(:first-child) {
   margin-top: 6px;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
 }
 
@@ -176,7 +187,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border: 1px solid transparent;
   border-radius: var(--radius-md, 12px);
   background: transparent;
@@ -199,7 +210,7 @@
   outline-offset: -1px;
 }
 
-/* 激活项：主色容器底（语义保留）+ 左缘 2px 细线（光效退场） */
+/* 激活项：主色容器底（语义保留）+ 左缘 2px 细线 */
 .settings-nav-item.is-active {
   background: var(--color-primary-container);
   color: var(--color-text);
@@ -216,7 +227,7 @@
   background: var(--gaea-glow);
 }
 
-/* 图标章：中性墨（金底辉光退役；激活态随容器墨色走） */
+/* 图标章：常态中性墨；激活态 accent 着色（active state 色彩反馈） */
 .settings-nav-item__icon {
   display: inline-flex;
   align-items: center;
@@ -234,8 +245,8 @@
 }
 
 .settings-nav-item.is-active .settings-nav-item__icon {
-  color: inherit;
-  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text));
+  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
 }
 
 .settings-nav-item__text {
@@ -261,32 +272,6 @@
   white-space: nowrap;
 }
 
-/* 激活 orb：呼吸辉光动画退役，降为静态 accent 小点（结构保留） */
-.settings-nav-item__orb {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-left: auto;
-  flex-shrink: 0;
-  background: var(--gaea-glow);
-  opacity: 0;
-  transition: opacity var(--md-sys-transition-fast, 200ms);
-}
-
-.settings-nav-item.is-active .settings-nav-item__orb {
-  opacity: 1;
-}
-
-.settings-nav__foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
 /* ── 中 = 表单区（v3-zone） ── */
 .settings-content {
   overflow-y: auto;
@@ -295,14 +280,137 @@
   scrollbar-width: thin;
 }
 
-.settings-empty {
+/* 激活组头部：方位感（图标章+标题+描述+zone 徽标）。
+   底色对齐 v3-card 信息层，但无 hover 光效（静态方位块非交互卡） */
+.settings-head {
   display: flex;
   align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.settings-head__icon {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  font-size: 19px;
+  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text));
+  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
+}
+
+.settings-head__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-head__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.settings-head__desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--color-text-secondary);
-  font-size: 13px;
+}
+
+/* zone 徽标：软底胶囊（所属分区 全局/板块） */
+.settings-head__zone {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+
+/* 无匹配空态：图标 + 文案 + 建议分组胶囊（零死端指南） */
+.settings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 56px 20px;
   text-align: center;
+}
+
+.settings-empty__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 20px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+
+.settings-empty__title {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.settings-empty__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.settings-empty__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--md-sys-transition-fast, 200ms),
+    border-color var(--md-sys-transition-fast, 200ms),
+    background var(--md-sys-transition-fast, 200ms);
+}
+
+.settings-empty__chip:hover {
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
+}
+
+.settings-empty__chip:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent);
+  outline-offset: 1px;
+}
+
+.settings-empty__chip-icon {
+  display: inline-flex;
+  font-size: 13px;
+  color: inherit;
 }
 
 .settings-panel-enter {
@@ -319,7 +427,7 @@ html.gaea-raf-degraded .settings-panel-enter {
   animation: none !important;
 }
 
-/* ── 右 = 预留 inspector（帮助说明，可隐藏） ── */
+/* ── 右 = 帮助 inspector ── */
 .settings-inspector {
   width: 252px;
   flex-shrink: 0;
@@ -375,7 +483,6 @@ html.gaea-raf-degraded .settings-panel-enter {
   gap: 8px;
 }
 
-/* 帮助图标章：中性墨（金底退役） */
 .settings-help-card__icon {
   display: inline-flex;
   align-items: center;
@@ -385,8 +492,8 @@ html.gaea-raf-degraded .settings-panel-enter {
   border-radius: 8px;
   flex-shrink: 0;
   font-size: 13px;
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  color: color-mix(in srgb, var(--gaea-glow) 80%, var(--color-text));
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
 }
 
 .settings-help-card__label {
@@ -408,13 +515,50 @@ html.gaea-raf-degraded .settings-panel-enter {
   gap: 6px;
 }
 
-/* 关键词胶囊：去描边改墨软底（玄墨 kbd 款） */
+/* 关键词胶囊：墨软底（玄墨 kbd 款） */
 .settings-keyword {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 10.5px;
   color: var(--color-text-secondary);
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+/* 相关分组快跳：可点胶囊（hover accent 呼应空态建议胶囊） */
+.settings-related-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--md-sys-transition-fast, 200ms),
+    border-color var(--md-sys-transition-fast, 200ms),
+    background var(--md-sys-transition-fast, 200ms);
+}
+
+.settings-related-item:hover {
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
+}
+
+.settings-related-item:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--gaea-glow) 72%, transparent);
+  outline-offset: 1px;
+}
+
+.settings-related-item__icon {
+  display: inline-flex;
+  font-size: 12px;
+  color: inherit;
 }
 
 .settings-help-card__title {
@@ -439,6 +583,7 @@ html.gaea-raf-degraded .settings-panel-enter {
 @media (max-width: 1100px) {
   .settings-nav { width: 196px; }
   .settings-inspector { width: 224px; }
+  .settings-page__search { width: 260px; }
 }
 
 @media (max-width: 900px) {
@@ -470,7 +615,9 @@ html.gaea-raf-degraded .settings-panel-enter {
     min-width: 132px;
   }
   .settings-nav-item__desc { display: none; }
-  .settings-nav__foot { display: none; }
+  .settings-head { padding: 11px 13px; }
+  .settings-head__icon { width: 34px; height: 34px; font-size: 16px; }
+  .settings-head__title { font-size: 15px; }
   .settings-content { overflow: visible; }
 }
 
@@ -478,16 +625,18 @@ html.gaea-raf-degraded .settings-panel-enter {
 @media (prefers-reduced-motion: reduce) {
   .settings-nav-item,
   .settings-nav-item__icon,
-  .settings-nav-item__orb,
   .settings-bar__toggle,
   .settings-inspector__close,
+  .settings-empty__chip,
+  .settings-related-item,
   .settings-page__search.ant-input-affix-wrapper { transition: none; }
   .settings-panel-enter { animation: none; }
 }
 
 .ui-reduced-motion .settings-nav-item,
 .ui-reduced-motion .settings-nav-item__icon,
-.ui-reduced-motion .settings-nav-item__orb,
 .ui-reduced-motion .settings-bar__toggle,
-.ui-reduced-motion .settings-inspector__close { transition: none; }
+.ui-reduced-motion .settings-inspector__close,
+.ui-reduced-motion .settings-empty__chip,
+.ui-reduced-motion .settings-related-item { transition: none; }
 .ui-reduced-motion .settings-panel-enter { animation: none; }
