@@ -101,6 +101,24 @@ P-c（模型两步内动作）留用户下次实弹观察：若模型见此错�
 「docx_apply/docx_accept/pptx_apply/**xlsx_apply** 走 ooxml.WriteAtomic（rename 收尾）
 → none」——实查 xlsxedit.ApplyOps 用 excelize `SaveAs`＝原地 `O_WRONLY|O_TRUNC`
 直写（docx/pptx 才走 WriteAtomic）。本次占用至在 open 阶段被锁挡住=无半写，但
-**中途写失败（盘满/崩溃）理论上可截断文件**（基线快照可救）。处置拍板挂用户：
-A) xlsxedit 改同目录临时文件+rename 收尾（对齐 docx/pptx 族，~15 行）；B) 仅改
-注释与 Effect 分类说明；C) 维持现状（有基线快照兜底）。
+**中途写失败（盘满/崩溃）理论上可截断文件**（基线快照可救）。~~处置拍板挂用户~~
+**→ 用户拍板 A 案，同日落地，见 §7。**
+
+## 7. A 案落地：xlsxedit 原子写（用户拍板）
+
+- `internal/office/xlsxedit/xlsxedit.go` 新增 `saveAtomic`（同目录临时文件
+  `.gaea-xlsxedit-*.xlsx` + `fileutil.RenameWithRetry` 原子替换，与
+  ooxml.WriteAtomic 同语义）接入 ApplyOps 落盘——中途写失败不再截断原文件，
+  失败即目标未动。
+- **归因不丢**：rename 被挡（Access is denied/sharing violation/used by
+  another process）时错误补占用归因「目标正被其他程序占用，如 Excel/WPS
+  打开中——关闭该文件后重试」——首轮实跑发现原子化后 P-a 从 true 退化成
+  false（只剩含糊 Access is denied），此句修回；占用 A/B 复验 excel/wps
+  各 ×3 clean-fail+P-a=true+零半写+原文件未动。
+- 回归测试 `save_atomic_test.go`：成功腿（目标更新+临时零残留）+Windows
+  只读目标失败腿（原文件 sha 逐字节未动+零残留；linux skip——rename 可替换
+  只读目标是 POSIX 语义）。
+- `execute_one.go` 原子性注释按实况改写（xlsx_apply 走 saveAtomic 非
+  WriteAtomic，同为 rename 收尾 → EffectNone 语义不变）。
+- 观察记档：`Recalc`（recalc.py/LibreOffice）写回是独立管线，不经 saveAtomic，
+  中途失败暴露面仍在（其失败只降级为回执备注不拦交付，风险低）——不在 A 案面。

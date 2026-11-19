@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/xuri/excelize/v2"
 )
@@ -170,10 +171,44 @@ func ApplyOps(path string, ops []Op) ([]string, error) {
 		}
 		summary = append(summary, desc)
 	}
-	if err := f.SaveAs(path); err != nil {
+	if err := saveAtomic(f, path); err != nil {
 		return nil, fmt.Errorf("保存 xlsx 失败: %w", err)
 	}
 	return summary, nil
+}
+
+// saveAtomic 原子落盘（2026-11-19 用户拍板 A 案；pan_1795058214142 action-2
+// 占用 A/B 挂账：excelize SaveAs 是原地 O_WRONLY|O_TRUNC 直写，中途写失败
+// 〔盘满/崩溃〕会截断原文件）：先写同目录临时文件再 RenameWithRetry 原子替换
+// ——与 docxedit/pptxedit 的 ooxml.WriteAtomic 同语义（rename 收尾，失败即
+// 目标未动）。目标被占用〔Excel/WPS 打开中〕时 rename 失败=原文件未动，
+// 占用 A/B 实测 clean-fail 同形（错误文案换成 rename 路径）。
+func saveAtomic(f *excelize.File, path string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".gaea-xlsxedit-*.xlsx")
+	if err != nil {
+		return fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("关闭临时文件失败: %w", err)
+	}
+	if err := f.SaveAs(tmpName); err != nil {
+		return err
+	}
+	if err := fileutil.RenameWithRetry(tmpName, path); err != nil {
+		// 占用归因不丢（P-a 谓词，占用 A/B 实测口径）：同目录临时文件已写好、
+		// 仅替换被挡时，Windows 的 Access is denied / sharing violation 几乎
+		// 必为目标文件被占用（Excel/WPS 打开中）——补归因，别让模型只看到
+		// 含糊的拒绝。
+		msg := err.Error()
+		if strings.Contains(msg, "Access is denied") || strings.Contains(msg, "used by another process") ||
+			strings.Contains(msg, "被另一") || strings.Contains(msg, "sharing violation") {
+			return fmt.Errorf("替换原文件失败（目标正被其他程序占用，如 Excel/WPS 打开中——关闭该文件后重试）: %w", err)
+		}
+		return fmt.Errorf("替换原文件失败: %w", err)
+	}
+	return nil
 }
 
 // ── 先规划后应用：临时副本试运行 + 单元格级 diff ──────────────

@@ -421,8 +421,10 @@ func isBackgroundTaskCall(args string) bool {
 //   - edit_file/multi_edit/edit_lines 走 fileutil.AtomicWrite / ooxml 同款
 //     ——rename 收尾，失败即目标未动 → none；
 //   - write_file 自 D4 起同走 atomicWriteEncoded（半写债收口）→ none；
-//   - docx_apply/docx_accept/pptx_apply/xlsx_apply 走 ooxml.WriteAtomic
-//     （rename 收尾）→ none（xlsx_apply 的预览失败已降级不报错）；
+//   - docx_apply/docx_accept/pptx_apply 走 ooxml.WriteAtomic（rename 收尾），
+//     xlsx_apply 走 xlsxedit.saveAtomic（同目录临时文件+RenameWithRetry，
+//     2026-11-19 A 案）——同为 rename 收尾，失败即目标未动 → none
+//     （xlsx_apply 的预览失败已降级不报错；占用 A/B 实测 clean-fail）；
 //   - move_file copy+remove 有中途态（删源失败有专门 applied 站点）→ unknown；
 //   - bash/生成导出族（format_convert/chart_gen/diagram_gen/office_generate）
 //     效果不可静态推断 → unknown；只读族 → none。
