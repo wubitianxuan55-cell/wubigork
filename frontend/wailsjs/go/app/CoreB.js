@@ -225,11 +225,3 @@ export function UpdateCustomEngine(arg1, arg2, arg3, arg4) {
 export function UpdateProjectMeta(arg1, arg2, arg3, arg4) {
   return window['go']['app']['CoreB']['UpdateProjectMeta'](arg1, arg2, arg3, arg4);
 }
-
-export function WenxuePromptGet() {
-  return window['go']['app']['CoreB']['WenxuePromptGet']();
-}
-
-export function WenxuePromptSet(arg1, arg2) {
-  return window['go']['app']['CoreB']['WenxuePromptSet'](arg1, arg2);
-}

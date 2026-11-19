@@ -115,7 +115,3 @@ export function TestEngineConnection(arg1:string):Promise<modelengine.EngineStat
 export function UpdateCustomEngine(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function UpdateProjectMeta(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
-
-export function WenxuePromptGet():Promise<app.WenxuePromptView>;
-
-export function WenxuePromptSet(arg1:string,arg2:string):Promise<void>;

@@ -156,6 +156,10 @@ export function WenxuePinnedMaterials():Promise<Array<app.FileSearchHit>>;
 
 export function WenxuePreview(arg1:string):Promise<app.PreviewResult>;
 
+export function WenxuePromptGet():Promise<app.WenxuePromptView>;
+
+export function WenxuePromptSet(arg1:string,arg2:string):Promise<void>;
+
 export function WenxueReadFile(arg1:string):Promise<app.FilePreview>;
 
 export function WenxueReadFilePage(arg1:string,arg2:number):Promise<workbench.TextPage>;

@@ -298,6 +298,14 @@ export function WenxuePreview(arg1) {
   return window['go']['app']['WenxueB']['WenxuePreview'](arg1);
 }
 
+export function WenxuePromptGet() {
+  return window['go']['app']['WenxueB']['WenxuePromptGet']();
+}
+
+export function WenxuePromptSet(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxuePromptSet'](arg1, arg2);
+}
+
 export function WenxueReadFile(arg1) {
   return window['go']['app']['WenxueB']['WenxueReadFile'](arg1);
 }
