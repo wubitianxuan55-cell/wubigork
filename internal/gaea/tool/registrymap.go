@@ -148,7 +148,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"docx_apply":               {"extra-app", "work", "write", "office-journal", "修订制写入；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2）"},
 	"docx_accept":              {"extra-app", "work", "write", "office-journal", "仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2）"},
 	"pptx_apply":               {"extra-app", "work", "write", "office-journal", "页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2）"},
-	"xlsx_apply":               {"extra-app", "work", "write", "office-journal", "公式重算零错误+引用级声明比对（P1a 升 agent 工具）"},
+	"xlsx_apply":               {"extra-app", "work", "write", "office-journal", "公式重算零错误+引用级声明比对；落盘前整文件基线快照+证据卡（P1a 升 agent 工具）"},
 	"xlsx_profile":             {"extra-app", "work", "read", "none", "列概况与库一致；只读不改文件（波2 扩面）"},
 	"xlsx_recalc":              {"extra-app", "work", "write", "none", "LibreOffice 重算写回缓存值（公式不动，派生数据刷新不落证据卡）；WritePaths=path（灵犀 P1-2）"},
 	"xlsx_audit":               {"extra-app", "work", "read", "none", "错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门）"},

@@ -4,12 +4,15 @@
 > 原则：**不动 COM 实时编辑主线**，只补灵犀证明有效的缺口；每项独立可回滚；不做无法本地化的云依赖。
 > 构建纪律：任何改动按 `docs/gaea-build-guide.md` 执行（前端先 `npm.cmd run build`，`CGO_ENABLED=1` + ucrt64，`wails build -s -ldflags "-s -w" -trimpath`，`scripts\smoke.ps1` 冒烟）。
 
-> **落地状态（2026-11-13 P0 批收官）**：P0-1/P0-2/P0-3/P0-4 已全部落地并装机（exe 装机位冒烟 200）。
+> **落地状态（2026-11-19 回写，终局）**：P0-1/P0-2/P0-3/P0-4 已全部落地并装机（exe 装机位冒烟 200）；
+> **P1 四项已于 2026-11-13 收官**（拍板=复用系统 Python，见 `.gaea/todos.md` 与 `docs/gaea-lingxi-batch2-plan-2026-11.md`）；
+> **P1-4 dock 同日晚撤项**（灵犀面板实为 kdocs 云 iframe，绑云不做，revert ec3f4f48）；
+> **batch2 五项亦于 2026-11-13 收官**。权威口径以 todos 与 batch2 计划档为准，**勿重开 Python 运行时决策或面板嵌入**。
 > 偏差与余项：① P0-2 取 **A 档受控宏**（`office_macro` 白名单→既有 ops），VBA/JSAPI 任意脚本路线弃用；
 > ② P0-3 的「前端已捕获选区胶囊」不做——改为 agent 按需调 `office_selection`，无面板捕获态；
 > ③ P0-5 steer 已有实锤（`steerQueue`+`MidTurnSteerPrefix`+intake 收尾闸），不立项、不加提示词；
 > ④ #12 参数错误三要素已补完（2026-11-13 续批：办公 COM 族 8 工具+通用文件族 10 工具统一「工具名+参数解析失败+json 字段路径」+双守卫测试；非高频 ~19 处留池）；
-> ⑤ deliver_result IM 语义仍留 P2 文档预留。P1 阻塞点=Python 运行时决策（等拍板）。
+> ⑤ deliver_result IM 语义仍留 P2 文档预留。
 
 ---
 
@@ -127,6 +130,8 @@
 > 自己的 WPS 窗口实时上屏（=灵犀 `ui:true` 语义）+ OfficeLiveBadge + office_render
 > 视觉验收。已 revert（ec3f4f48）；探针 `tools/wpsdock` 与本段留档防重蹈。
 
+以下为撤项前草拟的原步骤，**仅存档勿执行**（撤项定案见上横幅与 `.gaea/todos.md`）：
+
 - 已有探针 `tools/wpsdock`（list/dock/embed/restore，已实测本机 `XLMAIN` 窗口 dpi=96）。
 - 第一步 dock：`internal/office/wpshost/` + `bindings_office.go` 三个绑定 + `frontend/src/gaea/components/OfficePanel.tsx`（ResizeObserver 上报矩形）。
 - 第二步 embed（`SetParent`）默认关闭，开关 `office.panel.embed`。
@@ -160,7 +165,7 @@
 | P1 合计 | 7 | 12 |
 | P2 合计 | 6 | 9 |
 
-阻塞点：Python 运行时决策（影响 P1 全部）；VBA 信任策略（影响 P0-2 路线）。
+阻塞点（均已解除，留档勿重开）：Python 运行时决策→2026-11-13 拍板复用系统 Python；VBA 信任策略→P0-2 取 A 档受控宏。
 
 ---
 

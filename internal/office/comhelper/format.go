@@ -423,15 +423,28 @@ var precheckedCodes = map[string]bool{
 	"NOT_FOUND": true, "STYLE_MISSING": true, "BUSY": true,
 }
 
-// FormatEdit office_edit 回执文本（中止点与善后指引）。
-func FormatEdit(result EditResult) string {
+// UndoBoundary 撤销边界行（R2 分档诚实恢复契约，pan_1795058214142 裁决）：
+// office_edit 成功与失败回执都必须携带。Word 有 UndoRecord 整批撤销（仅当前
+// 会话）；Excel/PPT 助手不提供整批撤销，应用自身撤销粒度未核验——不得写成
+// 「可逐操作撤销」的过度承诺。三档均不能恢复编辑前版本。
+func UndoBoundary(kind AppKind) string {
+	if kind == KindWord {
+		return "撤销边界：本批修改可在 Word 里一次 Ctrl+Z 整批撤销，仅限当前文档与当前会话（关闭文档、退出 Word 后失效）；gaea 不能恢复编辑前版本。"
+	}
+	return "撤销边界：助手不提供整批撤销（undo 只对 Word 开放，应用自身能否撤销未核验——不要向用户保证可撤销）；gaea 不能恢复编辑前版本。"
+}
+
+// FormatEdit office_edit 回执文本（中止点与善后指引+分档撤销边界）。
+func FormatEdit(result EditResult, kind AppKind) string {
 	done := make([]string, len(result.Done))
 	for i, line := range result.Done {
 		done[i] = fmt.Sprintf("%d. %s", i+1, line)
 	}
+	boundary := UndoBoundary(kind)
 	if result.Failed == nil {
 		out := append([]string{fmt.Sprintf("All %d operation(s) applied (not saved yet):", result.Total)}, done...)
-		return strings.Join(append(out, "Before you finish, look at the pages you changed with office_render and fix what is off."), "\n")
+		out = append(out, "Before you finish, look at the pages you changed with office_render and fix what is off.")
+		return strings.Join(append(out, boundary), "\n")
 	}
 	f := result.Failed
 	var out []string
@@ -448,5 +461,5 @@ func FormatEdit(result EditResult) string {
 	if result.Total-f.Index-1 > 0 {
 		out = append(out, fmt.Sprintf("The %d operation(s) after it did not run.", result.Total-f.Index-1))
 	}
-	return strings.Join(out, "\n")
+	return strings.Join(append(out, boundary), "\n")
 }

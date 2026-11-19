@@ -756,7 +756,9 @@ func (officeComEditTool) ReadOnly() bool { return false }
 
 func (officeComEditTool) Description() string {
 	return "在打开中的 Word / Excel / PowerPoint / WPS 里按顺序执行一批修改（实时出现在窗口里，不落盘；保存用 office_save）。" +
-		"每个 op 形如 {\"op\": 操作名, ...字段}；某一步失败即停下并报告已完成哪些。Word 的一批修改在用户侧是一次 Ctrl+Z 可整体撤销。" +
+		"每个 op 形如 {\"op\": 操作名, ...字段}；某一步失败即停下并报告已完成哪些。" +
+		"撤销按应用分档：Word 的一批修改在用户侧是一次 Ctrl+Z 可整体撤销（仅限当前文档与当前会话——关闭文档、退出应用后失效，不能恢复编辑前版本）；" +
+		"Excel/PPT 助手不提供整批撤销（应用自身撤销能力未核验，不要向用户保证可撤销）。" +
 		"各应用的操作清单随首次 office_open/office_read 发放，office_help 可再取——写 op 前先读清单，不要猜操作名/字段。" +
 		"文本里的 $...$ / $$...$$ LaTeX 在 Word 会成为原生公式。这是办公文档的实时协同编辑档；无人值守批量仍用 docx_apply/xlsx_apply 等无头工具。"
 }
@@ -839,7 +841,7 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 		officeCom.unseen[officeComKey(kind, targetDoc)] = true
 		officeCom.unseenMu.Unlock()
 	}
-	return comhelper.FormatEdit(result) + officeCom.officeGuide(session, kind), nil
+	return comhelper.FormatEdit(result, kind) + officeCom.officeGuide(session, kind), nil
 }
 
 // argsOfOps 把 ops 原样还原成 JSON 数组文本（透传给 helper，不做字段级校验——
@@ -1098,7 +1100,7 @@ func (officeComSaveTool) ReadOnly() bool { return false }
 func (officeComSaveTool) Description() string {
 	return "保存打开中的文档到磁盘；给出 path 时另存为（扩展名 .pdf 导出 PDF 且原文档不动，其他扩展名=文档从此就是那个文件）。" +
 		"AI 的修改只在 office_save 时写入文件，不会替用户关闭文档。保存 Word 文档前会自动做一次排版补空（fill_gaps：图表移页留下的页尾空白把正文提上来填满）。" +
-		"保存后建议 office_render {overview:true} 总览核对再交付。落盘后自动登记证据卡（可复核）。"
+		"保存后建议 office_render {overview:true} 总览核对再交付。落盘后自动登记证据卡（仅可复核，无基线快照——保存后没有跨会话回滚）。"
 }
 
 func (officeComSaveTool) Schema() json.RawMessage {
@@ -1235,6 +1237,10 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 	if moved {
 		text += " The open document is now this file."
 	}
+	// R2 恢复契约（pan_1795058214142）：保存回执恒带恢复边界——证据卡仅可
+	// 复核、无基线快照，保存后没有跨会话回滚；改错只剩应用内撤销（仅 Word
+	// 整批、限当前会话）或重做。
+	text += "\n恢复边界：证据卡仅可复核、无基线快照，保存后没有跨会话回滚——改错只能靠应用内撤销（仅 Word 一次 Ctrl+Z 整批、限当前会话）或重做。"
 	// 波3.5 unseen 交付前检查（上游 finalCheck 同语义）：编辑后没看过渲染图
 	// 就保存 → 自动附整档总览+Final check 指令，逼模型逐页核对再宣告完成。
 	// 导出 PDF 不检查（那是导出不是交付核对）；excel 走区域渲染单图。
