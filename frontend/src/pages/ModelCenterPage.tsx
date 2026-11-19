@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Button, Drawer, message } from 'antd'
 import {
-  ThunderboltOutlined,
+  ThunderboltOutlined, SettingOutlined, LinkOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
   AppstoreOutlined, ExperimentOutlined, PieChartOutlined, MonitorOutlined,
 } from '@ant-design/icons'
@@ -10,13 +10,16 @@ import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { ModelCenterContext, ModelCenterStateContext, ModelCenterActionsContext } from './modelcenter/context'
 import { useModelCenterBundle } from './modelcenter/useModelCenterBundle'
 import { LLMSection } from './modelcenter/LLMSection'
+import { BindSection } from './modelcenter/BindSection'
 import { StatsSection } from './modelcenter/StatsSection'
+import { EngineSection } from './modelcenter/EngineSection'
 import { SpecialtySection } from './modelcenter/SpecialtySection'
 import { OverviewSection } from './modelcenter/OverviewSection'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
 import { RecommendSection } from './modelcenter/RecommendSection'
 import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
+import { SchedulingSection } from './modelcenter/SchedulingSection'
 import { AttributionSection } from './modelcenter/AttributionSection'
 import { FEATURES, type Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
@@ -76,10 +79,11 @@ const ModelCenterPage: React.FC = () => {
     }
   }, [category])
 
-  // 2026-10-27 瘦身重组：13 分类温和合并为 9。设置中枢批 7 退役刀：设置类 tab
-  // （图片生成/语音模型/功能绑定/引擎管理）已收编设置页对应组（imagegen/chat/
-  // model），rail 退役防双入口漂移——本页定位收窄为「状态与评测」（总览/模型/
-  // 模型库/测评/策略与成本[Attribution]）。设置直达=openSettings 锚点。
+  // 2026-10-27 瘦身重组：13 分类温和合并为 9。设置中枢批 7 曾把四个设置类 tab
+  // 整体退役（收编设置页）；2026-11-20 用户拍板回摆：「功能绑定/引擎管理」是
+  // 模型中心核心域操作，恢复「接入」节直达——Section 为单源组件（设置页 model
+  // 组经 ModelSettingsProvider 消费同组件，双宿主单源非漂移源）。图片生成/语音
+  // 模型仍收编设置页对应组；本页其余定位=状态与评测（总览/模型/模型库/测评/成本）。
   const TAB_GROUPS: { label: string | null; tabs: { key: Category; icon: React.ReactNode; label: string }[] }[] = [
     { label: '概览', tabs: [
       { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
@@ -91,6 +95,10 @@ const ModelCenterPage: React.FC = () => {
     { label: '质量与成本', tabs: [
       { key: 'eval', icon: <ExperimentOutlined />, label: '测评中心' },
       { key: 'governance', icon: <PieChartOutlined />, label: '策略与成本' },
+    ] },
+    { label: '接入', tabs: [
+      { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
+      { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
     ] },
   ]
 
@@ -199,8 +207,8 @@ const ModelCenterPage: React.FC = () => {
               <button
                 type="button"
                 className="mc-rail-foot-item"
-                onClick={() => useAppStore.getState().openSettings('model')}
-                aria-label={`查看功能绑定，${boundFeatures} / ${FEATURES.length} 已绑定`}
+                onClick={() => setCategory('bind')}
+                aria-label={`管理功能绑定，${boundFeatures} / ${FEATURES.length} 已绑定`}
               >
                 <span className="mc-rail-foot-dot" aria-hidden="true" />
                 {boundFeatures} / {FEATURES.length} 已绑定
@@ -219,6 +227,13 @@ const ModelCenterPage: React.FC = () => {
               </>
             )}
             {category === 'catalog' && <HerdsmanCatalogSection />}
+            {category === 'bind' && <BindSection />}
+            {category === 'engine' && (
+              <>
+                <SchedulingSection />
+                <EngineSection />
+              </>
+            )}
             {category === 'eval' && (
               <>
                 <BenchmarkSection />

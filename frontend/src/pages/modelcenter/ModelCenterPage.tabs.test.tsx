@@ -1,12 +1,13 @@
 /**
- * ModelCenterPage.tabs.test.tsx — 瘦身重组（2026-10-27）导航编排契约
+ * ModelCenterPage.tabs.test.tsx — 导航编排契约
  *
- * 13 分类温和合并为 9：rail 分四节（概览/模型/质量与成本/接入），合并 tab
- * 内纵向多段渲染。本文件钉死 ModelCenterPage 的编排映射——Section 一律轻打桩
- * （data-testid 探针，内部渲染归各自测试管），聚焦三件事：
- * 1. rail 9 项 + 4 节标结构；2. 合并 tab 的 Section 组合（models 三段 /
- *    eval 两段 / governance 两段 / engine 两段既有先例）；3. 非合并 tab 单段。
- * Hook 桩照 ModelCenterPage.failover.test.tsx 惯例。
+ * 13 分类温和合并为 9（2026-10-27）：合并 tab 内纵向多段渲染。批 7（2026-11-19）
+ * 曾把四个设置类 tab 退役收编设置页；2026-11-20 用户拍板回摆：「功能绑定/引擎
+ * 管理」恢复「接入」节直达（单源 Section 组件双宿主，设置页 model 组消费同
+ * 组件），rail 现 7 tab/4 节。本文件钉死编排映射——Section 一律轻打桩
+ * （data-testid 探针，内部渲染归各自测试管），聚焦：rail 项/节标结构、合并 tab
+ * 的 Section 组合（models 三段 / eval 两段 / governance 两段 / engine 两段先例）、
+ * 非合并 tab 单段。Hook 桩照 ModelCenterPage.failover.test.tsx 惯例。
  */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,18 +62,32 @@ beforeEach(() => {
   mocks.useBindState.mockImplementation(() => ({ featureCfg: {}, loadFeatureCfg: () => {}, refreshRoutes: () => {} }))
 })
 
-describe('ModelCenterPage · 瘦身重组导航编排（设置中枢批 7 后：9 tab → 5）', () => {
-  it('rail 渲染 5 个分类按钮与 3 个分节标题（设置类 tab 已收编设置页退役）', () => {
+describe('ModelCenterPage · 瘦身重组导航编排（批 7 回摆后：5 → 7，接入节直达恢复）', () => {
+  it('rail 渲染 7 个分类按钮与 4 个分节标题（功能绑定/引擎管理直达恢复，用户拍板 2026-11-20）', () => {
     render(<ModelCenterPage />)
-    const labels = ['总览', '模型一览', '模型库', '测评中心', '策略与成本']
+    const labels = ['总览', '模型一览', '模型库', '测评中心', '策略与成本', '功能绑定', '引擎管理']
     for (const label of labels) expect(screen.getByText(label, { selector: '.mc-rail-label' })).toBeTruthy()
-    for (const group of ['概览', '模型', '质量与成本']) {
+    for (const group of ['概览', '模型', '质量与成本', '接入']) {
       expect(screen.getByText(group, { selector: '.mc-rail-group' })).toBeTruthy()
     }
-    // 退役的设置类分类名不再出现在导航（批 7 收编设置页对应组）
-    for (const gone of ['图片生成', '语音模型', '功能绑定', '引擎管理', '语言模型', '专业模型', '推荐位', '受控测评', '检索质量', '空间策略', '成本归因']) {
+    // 仍退役的分类名不再出现在导航（图片生成/语音模型收编设置页 imagegen/chat 组）
+    for (const gone of ['图片生成', '语音模型', '语言模型', '专业模型', '推荐位', '受控测评', '检索质量', '空间策略', '成本归因']) {
       expect(screen.queryByText(gone, { selector: '.mc-rail-label' })).toBeNull()
     }
+  })
+
+  it('「功能绑定」= BindSection 单段；rail-foot 摘要卡点击直达本页绑定 tab', () => {
+    render(<ModelCenterPage />)
+    fireEvent.click(screen.getByText('功能绑定', { selector: '.mc-rail-label' }))
+    expect(visibleSections()).toEqual(['sec-bind'])
+    fireEvent.click(screen.getByLabelText(/管理功能绑定/))
+    expect(visibleSections()).toEqual(['sec-bind'])
+  })
+
+  it('「引擎管理」= 本地调度 + 引擎管理两段同屏（引擎域操作含保活/预载/故障转移先例）', () => {
+    render(<ModelCenterPage />)
+    fireEvent.click(screen.getByText('引擎管理', { selector: '.mc-rail-label' }))
+    expect(visibleSections()).toEqual(['sec-scheduling', 'sec-engine'])
   })
 
   it('「模型一览」= 语言 + 专业 + 选型参考三段同屏', () => {

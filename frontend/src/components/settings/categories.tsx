@@ -154,6 +154,8 @@ export const SETTINGS_CATEGORIES: Category[] = [
     // 引擎管理+Key+自定义引擎/自管引擎生命周期）整体迁入，本组从「跳转空壳」变
     // 完整控制面（ModelPanel 全局默认+汇率置顶）。评测统计（Benchmark/推荐/成本）
     // 留模型中心；同键同源，跨页变更经 model-changed/feature-model-changed 事件互同步。
+    // 2026-11-20 用户拍板：模型中心恢复「功能绑定/引擎管理」直达 tab——本组与
+    // 其消费同一批单源 Section 组件（双宿主单源，非复制漂移源）。
     keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'herdsman', 'xai', 'api', 'key', '绑定', '功能绑定', '调度', '保活', '预载', '故障转移', '转移', '空间策略', '自定义引擎', '启停', 'strata', 'llama', 'whirl', 'glm', 'opencode'],
     panel: (<>
       <ModelPanel />
