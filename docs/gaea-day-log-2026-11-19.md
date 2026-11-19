@@ -122,3 +122,17 @@ P-c（模型两步内动作）留用户下次实弹观察：若模型见此错�
   WriteAtomic，同为 rename 收尾 → EffectNone 语义不变）。
 - 观察记档：`Recalc`（recalc.py/LibreOffice）写回是独立管线，不经 saveAtomic，
   中途失败暴露面仍在（其失败只降级为回执备注不拦交付，风险低）——不在 A 案面。
+
+## 8. 收官包（用户令 git 打包）
+
+`releases/gaea-office-r2-recovery-20261119-316860cf/`——打包提交 `316860cf`
+（A 案），含本日三笔 `7cbf20f4`/`4958fbd0`/`316860cf`。干净工作树独立构建
+（`.tmp/gaea-office-r2-316860cf` detached；node_modules 走主树 junction 规避
+无 lockfile 全新 install 的 esbuild 坑；用后 cmd rmdir 摘链+worktree remove
+回收净）。产物=payload（exe+三 DLL，DLL 与装机位同源同哈希）+payload ZIP+
+源码 ZIP+SHA256SUMS+PACKAGE-INFO（`releases/…/PACKAGE-INFO.md`）。
+
+- payload exe `84ffb2ca7f70b3c8`（与当日装机位 `eb5c57ec` 同提交内容异构
+  哈希=构建时间戳；各自冒烟 200——payload 正式路径跑 `smoke.ps1` 过）。
+- ZIP `b1be43db39d29f02`；源码 zip `e1ab3ad513c5ee00`。
+- 测试底账与余项全录 PACKAGE-INFO；三笔本地未 push。
