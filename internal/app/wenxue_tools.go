@@ -547,8 +547,12 @@ func wenxueChapterWriteTool() *wenxueTool {
 			if ext := strings.ToLower(filepath.Ext(abs)); ext != ".md" && ext != ".markdown" && ext != ".txt" {
 				return "", fmt.Errorf("章节正文仅支持 md/markdown/txt，收到 %s", ext)
 			}
-			if info, err := os.Stat(abs); err == nil && !in.Overwrite {
-				return "", fmt.Errorf("目标已存在（%d 字节，%s）；确认覆盖请传 overwrite=true", info.Size(), info.ModTime().Format("15:04:05"))
+			existed := false
+			if info, err := os.Stat(abs); err == nil {
+				existed = true
+				if !in.Overwrite {
+					return "", fmt.Errorf("目标已存在（%d 字节，%s）；确认覆盖请传 overwrite=true", info.Size(), info.ModTime().Format("15:04:05"))
+				}
 			}
 			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 				return "", err
@@ -564,11 +568,13 @@ func wenxueChapterWriteTool() *wenxueTool {
 			chapters := wenxueListChapters(root)
 			next := map[string]any{}
 			prev := map[string]any{}
+			var prevMeta wenxueChapterMeta
 			for i, c := range chapters {
 				if c.Path != meta.Path {
 					continue
 				}
 				if i > 0 {
+					prevMeta = chapters[i-1]
 					prev["path"] = chapters[i-1].Path
 					prev["number"] = chapters[i-1].Number
 					prev["title"] = chapters[i-1].Title
@@ -580,12 +586,29 @@ func wenxueChapterWriteTool() *wenxueTool {
 				}
 				break
 			}
-			return wenxueJSON(map[string]any{
+			// 回写警告回执（众神殿 pan_1795084662473 P0）：前一章待办三态 +
+			// 仅 stale/dirty 时的 hint（替换原无条件静态句）；首章无前章省略整块。
+			wb := wenxueWritebackReceipt(root, prevMeta)
+			kind := "create"
+			if existed {
+				kind = "rewrite"
+			}
+			wenxueFunnelAppend(root, wenxueFunnelEvent{
+				Type: "body_write", Entry: "chapter_write", Kind: kind,
+				Chapter: meta.Number, Path: meta.Path, Words: meta.Words,
+				Delta: meta.Words - prevWords, Revision: wenxueRevision(in.Content),
+				Writeback: wb,
+			})
+			out := map[string]any{
 				"saved": meta, "words": meta.Words, "prevWords": prevWords,
 				"delta": meta.Words - prevWords, "prev": prev, "next": next,
+				"revision":     wenxueRevision(in.Content),
 				"contentChars": utf8.RuneCountInString(in.Content), "wordCountRule": wenxueWordCountRule,
-				"hint": "回写配套：更新相关角色卡「当前状态」与时间线事件（wenxue_character_write / wenxue_timeline_append）",
-			})
+			}
+			if wb != nil {
+				out["writeback"] = wb
+			}
+			return wenxueJSON(out)
 		},
 	}
 }
@@ -646,6 +669,10 @@ func wenxueCandidateWriteTool() *wenxueTool {
 			if err := os.WriteFile(abs, []byte(in.Content), 0o644); err != nil {
 				return "", err
 			}
+			wenxueFunnelAppend(root, wenxueFunnelEvent{
+				Type: "candidate_write", Chapter: chapter.Number,
+				Path: filepath.ToSlash(rel), Label: label,
+			})
 			return wenxueJSON(map[string]any{
 				"chapter": chapter.Path, "candidate": filepath.ToSlash(rel), "label": label,
 				"words": wenxueCountWords(in.Content), "contentChars": utf8.RuneCountInString(in.Content),
@@ -732,12 +759,32 @@ func wenxueCandidatePromoteTool() *wenxueTool {
 				return "", err
 			}
 			saved, _ := wenxueParseChapterFile(root, chapter.Path)
-			return wenxueJSON(map[string]any{
+			// 回写警告回执（与 chapter_write 同构，众神殿 pan_1795084662473 P0）：
+			// promote 也是正文入口（本函数体写回章节正文），共用同一 helper。
+			chapters := wenxueListChapters(root)
+			var prevMeta wenxueChapterMeta
+			for i, c := range chapters {
+				if c.Path == saved.Path && i > 0 {
+					prevMeta = chapters[i-1]
+					break
+				}
+			}
+			wb := wenxueWritebackReceipt(root, prevMeta)
+			wenxueFunnelAppend(root, wenxueFunnelEvent{
+				Type: "body_write", Entry: "promote", Kind: "rewrite",
+				Chapter: saved.Number, Path: saved.Path, Words: saved.Words,
+				Delta:    saved.Words - wenxueCountWords(currentBody),
+				Revision: wenxueRevision(candidateBody), Writeback: wb,
+			})
+			out := map[string]any{
 				"saved": saved, "candidate": candidateRel, "archivedPrevious": filepath.ToSlash(archiveRel),
 				"previousRevision": wenxueRevision(currentBody), "revision": wenxueRevision(candidateBody),
 				"wordCountRule": wenxueWordCountRule,
-				"hint":          "候选已提升为正文，旧稿已归档为候选；定稿目录未改动",
-			})
+			}
+			if wb != nil {
+				out["writeback"] = wb
+			}
+			return wenxueJSON(out)
 		},
 	}
 }
@@ -1573,6 +1620,9 @@ func wenxueFinalWriteTool() *wenxueTool {
 				return "", err
 			}
 			meta, _ := wenxueParseChapterFile(root, rel)
+			wenxueFunnelAppend(root, wenxueFunnelEvent{
+				Type: "final", Chapter: meta.Number, Path: meta.Path,
+			})
 			return wenxueJSON(map[string]any{
 				"saved": meta, "words": meta.Words, "prevWords": prevWords,
 				"delta":        meta.Words - prevWords,
@@ -1814,6 +1864,15 @@ func wenxueQualityCheckTool() *wenxueTool {
 				"chapters": len(chapters), "characters": len(wenxueListCharacters(root)),
 				"timeline": len(wenxueTimelineEntries(root)),
 			}
+			// M4 质检调用频次记账（全书 scope；只记频次证据，不称覆盖率）。
+			groupNames := make([]string, 0, len(groups))
+			for _, g := range groups {
+				groupNames = append(groupNames, g.Name)
+			}
+			wenxueFunnelAppend(root, wenxueFunnelEvent{
+				Type: "quality_check", Scope: "book",
+				Chapters: len(chapters), Groups: groupNames,
+			})
 			return wenxueJSON(map[string]any{"ok": true, "checked": checked, "groups": groups})
 		},
 	}

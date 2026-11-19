@@ -136,3 +136,42 @@ P-c（模型两步内动作）留用户下次实弹观察：若模型见此错�
   哈希=构建时间戳；各自冒烟 200——payload 正式路径跑 `smoke.ps1` 过）。
 - ZIP `b1be43db39d29f02`；源码 zip `e1ab3ad513c5ee00`。
 - 测试底账与余项全录 PACKAGE-INFO；三笔本地未 push。
+
+## 9. 文学板块 P0：回写警告回执 + 事件账本 + 漏斗（众神殿 pan_1795084662473）
+
+用户令「按论证实施」。裁决（主持 Codex，签注 accepted）：P0=本轮唯一施工项
+——chapter_write 与 candidate_promote 两条正文入口（施工前只读复核
+`wenxue_tools.go:560/:731` 成立）共用警告型回执 + 最小事件账本 + 共同漏斗，
+硬拒/长章分页/章节上下文包/通用写板级围栏均为条件项不进本刀。final_write
+边界只读复核：只写定稿目录（`:1555` 闸），不进正文分母；quality_check 全书
+scope 含 info 组（M4 只称频次）。
+
+施工四件：
+
+- `internal/app/wenxue_funnel.go`（新）：`wenxueWritebackReceipt` 共享回执
+  （前一章 characters/timeline/unobserved 三态 + 仅 stale/dirty 的 hint，首章
+  省略整块）+ 事件账本（`.gaea/stats/wenxue-funnel.jsonl`，一行一事件仅元数
+  据；开关=书内 `.gaea/stats/enable` 标记文件，**默认关闭**、仅本地、随书可
+  删——办公记忆写入确认红线的授权形态）+ `wenxueFunnelCompute` 指标纯函数
+  （M1 每书每周首写章数/M3 下一章入口回写待办率/M4 质检频次/M5 提升使用率
+  零候选 n/a/M6 旁路检出率零判定 n/a；M2 30 天续写率留 P1）。
+- `wenxue_tools.go` 五处：chapter_write 删无条件静态 hint、回执补 revision
+  +writeback 块+记账（kind=create/rewrite 防虚增）；promote 同构接入；candidate
+  _write/quality_check/final_write 三点记账。
+- unobserved 语义（ZCode r3 规格）：写第 N 章时前一章当前正文 sha256 vs 账本
+  最后一条 body_write.revision——无账本 unknown/一致 clean/不一致 dirty
+  （通用 write_file/edit_file 旁路低价检出，不改共享写面；旁路仅标 dirty
+  不当成零）。
+- RegistryMap 镜像谓词两行同步（两入口共用回执面）。
+
+验证：5 项夹具（`TestWenxueBodyWriteEvents|TestWenxueWritebackReceipt|
+TestWenxuePromoteReceiptParity|TestWenxueFunnelMetrics|TestWenxueSurfaceProbe`）
+绿——含裁决验收表四场景（首章无块/漏回写 stale+hint 指前一章/补回写 updated
+无 hint/缺失目录 none）+ 端到端旁路（直写第1章→写第2章=dirty）+ 事件行无正文
+红线断言；wenxue 全族 9.9s 绿；app 全包 172s 绿；全树编译+vet+gofmt 清
+（bindings_*.go 生成件不 gofmt 先例）。构建/装机未做：主树有另一并行线在途
+未提交批次（BootSplash/Pantheon/OfficeB 等约 30 文件），按打包不混入纪律
+（AGENTS.md §7）与双会话合流纪律不抢构建，挂并行线收官后补。
+
+P1 挂用户授权：真实长跑（≥20 有效写章+30 天观察）+ 账本开启拍板（现在默认
+关闭；开启=在书内 `.gaea/stats/` 建 enable 标记文件）。
