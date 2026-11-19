@@ -155,6 +155,21 @@
   scrollbar-width: thin;
 }
 
+/* 两级导航分区标题（全局/板块；单 zone 可见时整段不渲染） */
+.settings-nav__zone {
+  padding: 8px 6px 2px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+.settings-nav__zone:not(:first-child) {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
 .settings-nav-item {
   position: relative;
   display: flex;

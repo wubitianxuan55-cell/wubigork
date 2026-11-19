@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { LocaleProvider } from '../gaea/lib/i18n'
+import { useAppStore } from '../stores/appStore'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，面板里的数据请求经 gaea/lib/bridge
 // 的 dev mock 兜底（SettingsPage 全链路已走 bridge app；无需再 mock 具体绑定，仅
@@ -52,5 +53,36 @@ describe('SettingsPage 按功能板块组织', () => {
     fireEvent.click(screen.getByRole('button', { name: /关于/ }))
     expect(await screen.findByText('存储路径')).toBeTruthy()
     expect(screen.getByText('更新日志')).toBeTruthy()
+  })
+})
+
+describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）', () => {
+  beforeEach(() => {
+    // 锚点 pending 为一次性消费态，用例间清零防串扰
+    act(() => useAppStore.getState().clearPendingSettingsCategory())
+  })
+
+  it('单 zone 可见时不渲染分区标题（现状零 UI 变化，board 区批 5 挂入后才出现两级）', () => {
+    const { container } = render(wrap(<SettingsPage />))
+    expect(container.querySelector('.settings-nav__zone')).toBeNull()
+    // 现有 10 组全部仍可达（含用户拍板保留的代码图谱）
+    for (const label of ['代码图谱', '安全', '数据']) {
+      expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy()
+    }
+  })
+
+  it('openSettings(category) 锚点直达：挂载即定位目标分组并清空 pending', async () => {
+    act(() => useAppStore.getState().openSettings('model'))
+    render(wrap(<SettingsPage />))
+    expect(await screen.findByText('当前模型')).toBeTruthy()
+    expect(useAppStore.getState().pendingSettingsCategory).toBeNull()
+  })
+
+  it('openSettings 过滤态直达：先有搜索词也清空搜索再定位', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '外观' } })
+    act(() => useAppStore.getState().openSettings('data'))
+    expect(await screen.findByText('数据备份', { selector: 'strong' })).toBeTruthy()
+    expect(screen.queryByText('外观实时预览')).toBeNull()
   })
 })

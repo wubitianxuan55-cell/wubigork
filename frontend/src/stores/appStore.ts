@@ -1,6 +1,7 @@
 import { wailsApp } from '../lib/wailsApp';
 import { create } from 'zustand'
 import { isShellSpace, type ShellSpace } from '../boards/space'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 
 // ═══════════════════════════════════════════════════════════
 // Types（ProjectInfo/StatsData/ProjectCard 随小说板块退役拆除，2026-11-15）
@@ -326,6 +327,12 @@ interface AppState {
   setFontFamily: (f: string) => void
   setFontSize: (n: number) => void
   setSpace: (s: ShellSpace) => void
+  /** 设置中枢锚点直达（设置板块重规划批 1）：跨板块「打开设置并定位分组」。
+   *  pending 存 store 而非事件——切页后 SettingsPage 才挂载，纯 window 事件
+   *  会错过（MainLayout 收 NAVIGATE 切页时监听者尚未就位）。SettingsPage 消费后清空。 */
+  pendingSettingsCategory: string | null
+  openSettings: (category?: string) => void
+  clearPendingSettingsCategory: () => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -427,6 +434,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setLoggedIn: (v: boolean) => set({ loggedIn: v }),
+
+  pendingSettingsCategory: null,
+
+  openSettings: (category?: string) => {
+    // 切页走既有 NAVIGATE 白名单路径（MainLayout navigateBoard 自动换空间）；
+    // 定位分组经 pending 状态传信，SettingsPage 挂载/订阅时消费。
+    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'settings' })
+    set({ pendingSettingsCategory: category ?? null })
+  },
+
+  clearPendingSettingsCategory: () => set({ pendingSettingsCategory: null }),
 }))
 
 // system 显示模式：监听操作系统明暗变化，实时派生 darkMode
