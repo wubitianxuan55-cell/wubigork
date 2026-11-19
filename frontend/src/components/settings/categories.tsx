@@ -9,6 +9,13 @@ import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, A
 import ChatPanel from './ChatPanel'
 import ChatVoiceSection from './ChatVoiceSection'
 import VoiceSettingsPanel from '../VoiceSettingsPanel'
+import ModelSettingsProvider from '../../pages/modelcenter/ModelSettingsProvider'
+import { BindSection } from '../../pages/modelcenter/BindSection'
+import { StrategySection } from '../../pages/modelcenter/StrategySection'
+import { SchedulingSection } from '../../pages/modelcenter/SchedulingSection'
+import { EngineSection } from '../../pages/modelcenter/EngineSection'
+import { ImageSection } from '../../pages/modelcenter/ImageSection'
+import { VoiceSection } from '../../pages/modelcenter/VoiceSection'
 import ImageGenPanel from './ImageGenPanel'
 import OfficePanel from './OfficePanel'
 import SearchPanel from './SearchPanel'
@@ -74,9 +81,13 @@ export const SETTINGS_CATEGORIES: Category[] = [
     descKey: 'settings.cat.chatDesc',
     // 批 2 语音收编：ChatPage 语音设置 Modal 退役，VoiceSettingsPanel（引擎路由/
     // Breeze 克隆/麦克风/确认词）+ ChatVoiceSection（全局默认音色，从 ChatPanel
-    // 拆出）并入本组三段展示。独立语音组待 locales 并行线收官建键后一行拆出。
-    keywords: ['聊天', '伴侣', '称呼', '性别', '人格', '角色', '语音', '朗读', '音色', '克隆', '麦克风', '确认词', 'breeze', '实时', '对话', '识别', 'tts', 'asr', 'voice'],
-    panel: (<><ChatPanel /><ChatVoiceSection /><VoiceSettingsPanel /></>),
+    // 拆出）并入本组；批 3 增挂 VoiceSection（TTS/ASR/OCR 激活引擎，模型中心迁入）。
+    // 独立语音组待 locales 并行线收官建键后一行拆出。
+    keywords: ['聊天', '伴侣', '称呼', '性别', '人格', '角色', '语音', '朗读', '音色', '克隆', '麦克风', '确认词', 'breeze', '实时', '对话', '识别', 'tts', 'asr', 'ocr', 'voice'],
+    panel: (<>
+      <ChatPanel /><ChatVoiceSection /><VoiceSettingsPanel />
+      <ModelSettingsProvider><VoiceSection /></ModelSettingsProvider>
+    </>),
   },
   {
     key: 'imagegen',
@@ -86,8 +97,13 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.imagegen',
     desc: '图像后端',
     descKey: 'settings.cat.imagegenDesc',
-    keywords: ['绘梦', '图像', '图片', '生成', 'comfyui', '后端', '模型', '保存', 'xai', 'grok-imagine'],
-    panel: <ImageGenPanel />,
+    keywords: ['绘梦', '图像', '图片', '生成', 'comfyui', '后端', '模型', '保存', 'xai', 'grok-imagine', 'python'],
+    // 批 3：模型中心 ImageSection（图像后端+模型选择+ComfyUI 路径）迁入同组，
+    // 与 ImageGenPanel 同键同源；与绘梦页快捷开关构成「设置页完整面+原位高频」。
+    panel: (<>
+      <ImageGenPanel />
+      <ModelSettingsProvider><ImageSection /></ModelSettingsProvider>
+    </>),
   },
   {
     key: 'office',
@@ -110,8 +126,17 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.model',
     desc: '全局模型',
     descKey: 'settings.cat.modelDesc',
-    keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'herdsman', 'xai', 'api', 'key'],
-    panel: <ModelPanel />,
+    // 批 3 模型与引擎收编：模型中心设置类 Section（功能绑定/空间策略/本地调度/
+    // 引擎管理+Key+自定义引擎/自管引擎生命周期）整体迁入，本组从「跳转空壳」变
+    // 完整控制面（ModelPanel 全局默认+汇率置顶）。评测统计（Benchmark/推荐/成本）
+    // 留模型中心；同键同源，跨页变更经 model-changed/feature-model-changed 事件互同步。
+    keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'herdsman', 'xai', 'api', 'key', '绑定', '功能绑定', '调度', '保活', '预载', '故障转移', '转移', '空间策略', '自定义引擎', '启停', 'strata', 'llama', 'whirl', 'glm', 'opencode'],
+    panel: (<>
+      <ModelPanel />
+      <ModelSettingsProvider>
+        <BindSection /><StrategySection /><SchedulingSection /><EngineSection />
+      </ModelSettingsProvider>
+    </>),
   },
   {
     key: 'security',

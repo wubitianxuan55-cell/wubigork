@@ -47,8 +47,10 @@ describe('SettingsPage 按功能板块组织', () => {
   it('搜索可过滤分组并自动切换到匹配项', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '推理强度' } })
-    expect(screen.getByText('模型')).toBeTruthy()
-    expect(screen.queryByText('通用')).toBeNull()
+    // 批 3 后模型组挂 BindSection 等段，组内文本含「模型」字样——导航过滤断言
+    // 钉到导航 label（.settings-nav-item__label），与组面板内容解耦
+    expect(screen.getByText('模型', { selector: '.settings-nav-item__label' })).toBeTruthy()
+    expect(screen.queryByText('通用', { selector: '.settings-nav-item__label' })).toBeNull()
     expect(await screen.findByText('当前模型')).toBeTruthy()
   })
 
@@ -98,5 +100,16 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     expect((await screen.findAllByText('合成音色')).length).toBeGreaterThan(0)
     // VoiceSettingsPanel（原聊天页 Modal 迁入）：朗读引擎路由卡常驻
     expect(await screen.findByText('朗读引擎')).toBeTruthy()
+  })
+
+  it('模型与引擎收编（批 3）：模型组含功能绑定/空间策略/本地调度/引擎管理', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+    // BindSection 无大标题（区块名在模型中心 rail 上），以小节锚「聊天语音」证挂载；
+    // Strategy/Scheduling/Engine 用 SectionHead（mc-section-title span，非 strong）
+    expect(await screen.findByText(/聊天语音/, { selector: '.mc-bind-title' })).toBeTruthy()
+    for (const title of ['空间策略', '本地调度', '引擎管理']) {
+      expect(await screen.findByText(title, { selector: '.mc-section-title span' })).toBeTruthy()
+    }
   })
 })
