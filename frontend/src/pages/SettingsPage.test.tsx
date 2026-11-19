@@ -68,13 +68,13 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     act(() => useAppStore.getState().clearPendingSettingsCategory())
   })
 
-  it('两级导航点亮（批 5 zone 归位）：全局/板块分区标题常驻，板块区含办公/绘梦/文学/微信/众神殿', () => {
+  it('两级导航点亮（批 5 zone 归位）：全局/板块分区标题常驻，板块区含办公/绘梦/文学/微信/众神殿/进度计划/记忆中枢', () => {
     render(wrap(<SettingsPage />))
     // 重设计后内容头也有 zone 徽标（settings-head__zone），此处只钉导航分区标题
     const zones = screen.getAllByText(/^(全局|板块)$/, { selector: '.settings-nav__zone' })
     expect(zones.length).toBe(2)
-    // 板块区五组（办公/绘梦归位 + 文学/微信/众神殿新入驻）+ 全局区现有组全部可达
-    for (const label of ['办公', '绘梦', '文学', '微信', '众神殿', '通用', '模型', '代码图谱']) {
+    // 板块区七组（办公/绘梦归位 + 文学/微信/众神殿 + 进度计划/记忆中枢索引卡）+ 全局区现有组全部可达
+    for (const label of ['办公', '绘梦', '文学', '微信', '众神殿', '进度计划', '记忆中枢', '通用', '模型', '代码图谱']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy()
     }
   })
@@ -163,5 +163,36 @@ describe('SettingsPage UI 重设计（2026-11-20：内容头方位感/搜索零�
     expect(await screen.findByText('相关分组')).toBeTruthy()
     fireEvent.click(screen.getByText('绘梦', { selector: '.settings-related-item' }))
     expect(screen.getByText('绘梦', { selector: '.settings-head__title' })).toBeTruthy()
+  })
+
+  it('索引卡直达（批 7 挂账收口）：进度计划组出索引卡，跳转按钮发 NAVIGATE 事件到板块页', () => {
+    const handler = vi.fn()
+    window.addEventListener('navigate', handler)
+    try {
+      render(wrap(<SettingsPage />))
+      // 先点导航（此刻索引卡未挂载，按钮名不撞「打开进度计划」）
+      fireEvent.click(screen.getByRole('button', { name: /进度计划/ }))
+      expect(screen.getByText('进度计划偏好（板块内即时调）', { selector: 'strong' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: /打开进度计划/ }))
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect((handler.mock.calls[0][0] as CustomEvent).detail).toEqual({ page: 'schedule' })
+    } finally {
+      window.removeEventListener('navigate', handler)
+    }
+  })
+
+  it('索引卡直达：记忆中枢组同款（星图显示设置索引 + 跳转按钮）', () => {
+    const handler = vi.fn()
+    window.addEventListener('navigate', handler)
+    try {
+      render(wrap(<SettingsPage />))
+      fireEvent.click(screen.getByRole('button', { name: /记忆中枢/ }))
+      expect(screen.getByText('记忆中枢偏好（板块内即时调）', { selector: 'strong' })).toBeTruthy()
+      expect(screen.getByText('星图显示设置：轨道环 / 星尘 / 自动旋转', { selector: '.board-index-card__item' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: /打开记忆中枢/ }))
+      expect((handler.mock.calls[0][0] as CustomEvent).detail).toEqual({ page: 'memoryhub' })
+    } finally {
+      window.removeEventListener('navigate', handler)
+    }
   })
 })

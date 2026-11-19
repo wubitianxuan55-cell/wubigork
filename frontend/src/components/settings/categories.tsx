@@ -28,6 +28,8 @@ import WeixinServiceSection from './WeixinServiceSection'
 import PantheonAgentsSection from './PantheonAgentsSection'
 import WenxuePromptSection from './WenxuePromptSection'
 import AdvancedSection from './AdvancedSection'
+import BoardIndexSection from './BoardIndexSection'
+import { GaeaScheduleIcon, GaeaMemoryIcon } from '../../boards/boardIcons'
 import ImageGenPanel from './ImageGenPanel'
 import OfficePanel from './OfficePanel'
 import SearchPanel from './SearchPanel'
@@ -257,6 +259,56 @@ export const SETTINGS_CATEGORIES: Category[] = [
     descKey: 'settings.cat.pantheonDesc',
     keywords: ['众神殿', '参与者', 'agent', '路径', '可执行', '外部', '讨论'],
     panel: <PantheonAgentsSection />,
+  },
+  {
+    key: 'schedule',
+    zone: 'boards',
+    icon: <GaeaScheduleIcon />,
+    label: '进度计划',
+    labelKey: 'settings.cat.schedule',
+    desc: '网络图样式 · 项目设置',
+    descKey: 'settings.cat.scheduleDesc',
+    keywords: ['进度计划', '进度', '网络图', '图上内容', '节点时间', '工期', '六参数', '起止时间', '关系线', '横道', '甘特', '日历', '工作日历', '基线', '检视', '资源与成本', '项目设置', 'schedule'],
+    // 批 7 拍板挂账收口：进度板块显示/样式偏好属「使用中即时调」型，
+    // 边界留域（偏好面留驻板块=单一事实源），设置页给索引卡直达。
+    panel: (
+      <BoardIndexSection
+        title="进度计划偏好（板块内即时调）"
+        desc="进度板块的显示与样式偏好留驻板块内（单一事实源），设置页不复制副本；下方为板块内真实入口的索引直达。"
+        items={[
+          '网络图 · 图上内容（节点时间/工期/六参数/起止时间）',
+          '关系线布局与显隐',
+          '工作日历',
+          '检视 · 基线对比 · 资源与成本',
+          '项目设置',
+        ]}
+        page="schedule"
+        openLabel="打开进度计划"
+      />
+    ),
+  },
+  {
+    key: 'memoryhub',
+    zone: 'boards',
+    icon: <GaeaMemoryIcon />,
+    label: '记忆中枢',
+    labelKey: 'settings.cat.memoryhub',
+    desc: '星图显示设置',
+    descKey: 'settings.cat.memoryhubDesc',
+    keywords: ['记忆中枢', '记忆', '星图', '显示设置', '轨道环', '星尘', '自动旋转', '脑网格', '知识库', '画像', '记忆图谱', '关系', 'memory', 'atlas'],
+    // 同上：星图显示设置属「使用中即时调」型，边界留域+索引卡直达。
+    panel: (
+      <BoardIndexSection
+        title="记忆中枢偏好（板块内即时调）"
+        desc="星图显示设置留驻记忆中枢（单一事实源），设置页不复制副本；下方为板块内真实入口的索引直达。"
+        items={[
+          '星图显示设置：轨道环 / 星尘 / 自动旋转',
+          '交互：拖拽旋转 · 滚轮缩放 · 点击星辰',
+        ]}
+        page="memoryhub"
+        openLabel="打开记忆中枢"
+      />
+    ),
   },
   {
     key: 'advanced',
