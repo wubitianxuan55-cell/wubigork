@@ -9,6 +9,8 @@ import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, A
 import ChatPanel from './ChatPanel'
 import ChatVoiceSection from './ChatVoiceSection'
 import VoiceSettingsPanel from '../VoiceSettingsPanel'
+import OfficeMemorySection from './OfficeMemorySection'
+import PaneManagementSection from './PaneManagementSection'
 import ModelSettingsProvider from '../../pages/modelcenter/ModelSettingsProvider'
 import { BindSection } from '../../pages/modelcenter/BindSection'
 import { StrategySection } from '../../pages/modelcenter/StrategySection'
@@ -16,6 +18,9 @@ import { SchedulingSection } from '../../pages/modelcenter/SchedulingSection'
 import { EngineSection } from '../../pages/modelcenter/EngineSection'
 import { ImageSection } from '../../pages/modelcenter/ImageSection'
 import { VoiceSection } from '../../pages/modelcenter/VoiceSection'
+import { CapabilitiesInline } from '../../gaea/components/capabilities/CapabilitiesInline'
+import { WORKSPACE_TABS } from '../../gaea/lib/workspaceTabs'
+import { usePaneEnabledStore } from '../../gaea/lib/paneEnabled'
 import ImageGenPanel from './ImageGenPanel'
 import OfficePanel from './OfficePanel'
 import SearchPanel from './SearchPanel'
@@ -113,10 +118,22 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.office',
     desc: '引擎 · 方案',
     descKey: 'settings.cat.officeDesc',
-    keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', 'auto-open', 'auto expand', 'context', '网络搜索', '搜索', '联网', '主源', 'tavily', 'brave', 'searxng', 'web'],
+    keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', '记忆', '晨报', '项目本体', '做梦', '面板', 'cad', '图纸', 'mcp', '服务器', 'context7', 'auto-open', 'auto expand', 'context', '网络搜索', '搜索', '联网', '主源', 'tavily', 'brave', 'searxng', 'web'],
     // v4.65 欠账收口：办公工作台「自动展开/自动切换」偏好卡置顶（入口可发现性），
     // 2.5d 补上下文页偏好卡（默认粒度/模式/排序），后接办公引擎设置（config.toml）。
-    panel: (<><WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel /><SearchPanel /></>),
+    // 批 4：记忆四态（原右栏 MemoryPanel 胶囊）+ 工位面板启停（原「管理」弹层，
+    // CAD 可选卡常驻入口）+ MCP/工具/技能（原 CapabilitiesPanel 抽屉主体）收编。
+    panel: (<>
+      <WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel /><SearchPanel />
+      <OfficeMemorySection />
+      <PaneManagementSection
+        title="工位面板"
+        desc="办公右栏工作台面板启停：已打开的页面不因停用强关，启用集只管入口可见性（CAD 图纸等可选卡在此常驻可开）"
+        tabs={WORKSPACE_TABS}
+        useStore={usePaneEnabledStore}
+      />
+      <CapabilitiesInline />
+    </>),
   },
   {
     key: 'model',

@@ -112,4 +112,16 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
       expect(await screen.findByText(title, { selector: '.mc-section-title span' })).toBeTruthy()
     }
   })
+
+  it('办公扩容（批 4）：办公组含记忆四态/工位面板启停/MCP 能力区', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /办公/ }))
+    // 记忆四态段（原右栏 MemoryPanel 胶囊）
+    expect(await screen.findByText('办公记忆', { selector: 'strong' })).toBeTruthy()
+    expect(await screen.findByText('晨报预载')).toBeTruthy()
+    // 工位面板启停段（原「管理」弹层，CAD 可选卡常驻入口）
+    expect(await screen.findByText('工位面板', { selector: 'strong' })).toBeTruthy()
+    // MCP 能力区（原 CapabilitiesPanel 抽屉主体）：tab 栏常驻
+    expect(await screen.findByRole('tab', { name: /连接器|服务器/ })).toBeTruthy()
+  })
 })
