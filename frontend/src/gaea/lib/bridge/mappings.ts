@@ -67,6 +67,7 @@ export const gaeaToGaea = {
   GaeaListDirBatch: "GaeaListDirBatch",
   GaeaFileTreeWatch: "GaeaFileTreeWatch",
   GaeaRenameWorkspacePath: "GaeaRenameWorkspacePath",
+  CreateProject: "GaeaCreateProject",
   GaeaCreateWorkspaceFolder: "GaeaCreateWorkspaceFolder",
   GaeaCreateWorkspaceFile: "GaeaCreateWorkspaceFile",
   GaeaDeleteWorkspacePaths: "GaeaDeleteWorkspacePaths",
@@ -186,6 +187,7 @@ export const gaeaToGaea = {
   SetPermissionMode: "GaeaSetPermissionMode",
   AddPermissionRule: "GaeaAddPermissionRule",
   RemovePermissionRule: "GaeaRemovePermissionRule",
+  RemoveRecentWorkspace: "GaeaRemoveRecentWorkspace",
   SetSandbox: "GaeaSetSandbox",
   SetAgentParams: "GaeaSetAgentParams",
   // FE3-04：SetSubagentTemperature/SetEffort/SetSubagentModel 三个 mock-only 死名

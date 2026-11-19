@@ -88,13 +88,12 @@
   flex-shrink: 0;
 }
 .v3-rail-head img {
-  width: 22px;
-  height: 22px;
-  filter: drop-shadow(0 0 6px var(--gaea-glow));
-  transition: filter var(--md-sys-transition-normal, 300ms);
+  width: 34px;
+  height: 27px;
+  transition: transform var(--md-sys-transition-normal, 300ms);
 }
 .v3-rail:hover .v3-rail-head img {
-  filter: drop-shadow(0 0 9px var(--gaea-glow));
+  transform: scale(1.035);
 }
 
 /* 一级导航合一（2026-10-26 用户拍板）：空间指示徽标（v3-rail-space 竖排微章）
@@ -157,6 +156,11 @@
 .v3-rail-item .v3-rail-icon {
   font-size: 18px;
   line-height: 1;
+}
+.v3-rail-item .v3-rail-icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 /* 激活项：主色容器底 + 主色图标 + 底部指示光条（Windows 11 任务栏风） */
 .v3-rail-item.is-active {
@@ -274,14 +278,31 @@
 
 /* ── 遥测轨道 Telemetry Rail（底部） ─────────────────────────────── */
 .v3-telemetry {
+  --telemetry-tone: var(--color-text-secondary);
+  --telemetry-tone-soft: color-mix(in srgb, var(--color-text-secondary) 14%, transparent);
   position: relative;
-  background: var(--v3-rail-bg);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 0%, var(--telemetry-tone-soft), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 74%, transparent), var(--v3-rail-bg));
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   backdrop-filter: blur(20px) saturate(150%);
   border-top: var(--v3-split);
   flex-shrink: 0;
   transition: height var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
   z-index: 55;
+}
+.v3-telemetry[data-tone="normal"] {
+  --telemetry-tone: var(--color-success);
+  --telemetry-tone-soft: color-mix(in srgb, var(--color-success) 12%, transparent);
+}
+.v3-telemetry[data-tone="watch"] {
+  --telemetry-tone: var(--color-warning);
+  --telemetry-tone-soft: color-mix(in srgb, var(--color-warning) 13%, transparent);
+}
+.v3-telemetry[data-tone="hot"] {
+  --telemetry-tone: var(--color-destructive);
+  --telemetry-tone-soft: color-mix(in srgb, var(--color-destructive) 14%, transparent);
 }
 .v3-telemetry::after {
   content: '';
@@ -294,50 +315,97 @@
   pointer-events: none;
 }
 .v3-telemetry.is-collapsed {
-  height: 30px;
+  height: 36px;
 }
 .v3-telemetry:not(.is-collapsed) {
-  height: 132px;
+  height: 194px;
 }
 .v3-telemetry-inner {
   display: flex;
   align-items: center;
-  gap: 18px;
-  height: 30px;
-  padding: 0 14px;
-  font-size: 12px;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
   color: var(--color-text-secondary);
   overflow: hidden;
 }
 .v3-telemetry-toggle {
-  border: none;
-  background: transparent;
+  display: inline-flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface-container) 62%, transparent);
   color: var(--color-text-secondary);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
+  white-space: nowrap;
+  transition:
+    color var(--md-sys-transition-fast, 200ms),
+    border-color var(--md-sys-transition-fast, 200ms),
+    background-color var(--md-sys-transition-fast, 200ms);
+}
+.v3-telemetry-toggle:hover {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface-container-high);
+}
+.v3-telemetry-toggle:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.v3-telemetry-toggle-main {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  gap: 7px;
 }
-.v3-telemetry-toggle:hover { color: var(--color-text); background: var(--color-surface-container-high); }
-.v3-telemetry-toggle:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.v3-telemetry-toggle-label {
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: 0.06em;
+}
+.v3-telemetry-toggle-meta {
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  color: var(--telemetry-tone);
+  font-size: 9.5px;
+  font-weight: 620;
+}
+.v3-telemetry-toggle-chevron {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+.v3-telemetry-live-pip {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--telemetry-tone);
+  box-shadow: 0 0 0 3px var(--telemetry-tone-soft);
+}
+.v3-telemetry-engines {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
 /* 引擎 pod */
 .v3-engine-pod {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 9px;
   border-radius: 999px;
-  background: var(--color-surface-container-high);
-  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-container) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
   color: var(--color-text);
-  font-size: 11px;
-  cursor: pointer;
+  font-size: 10.5px;
   white-space: nowrap;
   /* 窄窗先截断 pod（模型名长），保右侧 CPU/内存/GPU 数值完整（v4.272） */
-  max-width: 240px;
+  max-width: 210px;
   flex-shrink: 1;
   min-width: 0;
 }
@@ -355,64 +423,311 @@
   box-shadow: 0 0 6px var(--color-success);
 }
 .v3-engine-pod.is-hot .v3-pod-dot { background: var(--color-warning); box-shadow: 0 0 6px var(--color-warning); }
-/* 遥测数值（右缘系统遥测组不被压缩——窄窗挤压优先落在 pod/工程名上） */
-.v3-tele-value {
+.v3-engine-pod--idle {
+  color: var(--color-text-secondary);
+  opacity: 0.72;
+}
+.v3-telemetry-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+.v3-telemetry-quick {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.v3-telemetry-quick-metric {
+  --metric-tone: var(--color-text-secondary);
+  --metric-tone-soft: color-mix(in srgb, var(--color-text-secondary) 14%, transparent);
+  display: grid;
+  min-width: 68px;
+  height: 26px;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto 3px;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 3px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 74%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-surface-container) 58%, transparent);
+}
+.v3-telemetry-quick-metric[data-tone="normal"] {
+  --metric-tone: var(--color-success);
+  --metric-tone-soft: color-mix(in srgb, var(--color-success) 16%, transparent);
+}
+.v3-telemetry-quick-metric[data-tone="watch"] {
+  --metric-tone: var(--color-warning);
+  --metric-tone-soft: color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+.v3-telemetry-quick-metric[data-tone="hot"] {
+  --metric-tone: var(--color-destructive);
+  --metric-tone-soft: color-mix(in srgb, var(--color-destructive) 16%, transparent);
+}
+.v3-telemetry-quick-label {
+  color: var(--color-text-secondary);
+  font-size: 8.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+.v3-telemetry-quick-value {
+  justify-self: end;
+  color: var(--color-text);
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-variant-numeric: tabular-nums;
-  color: var(--color-text);
-  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 650;
 }
-.v3-tele-key { color: var(--color-text-secondary); flex-shrink: 0; }
+.v3-telemetry-quick-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.v3-telemetry-quick-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--metric-tone);
+  transition: width var(--md-sys-transition-normal, 300ms) ease;
+}
 /* 展开态内容 */
 .v3-telemetry-body {
   display: none;
-  height: calc(100% - 30px);
-  padding: 8px 14px 10px;
-  gap: 16px;
+  height: calc(100% - 36px);
+  padding: 8px 12px 12px;
+  grid-template-columns: minmax(210px, 0.5fr) minmax(0, 1.8fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
   align-items: stretch;
+  overflow: hidden;
 }
 .v3-telemetry:not(.is-collapsed) .v3-telemetry-body {
+  display: grid;
+}
+.v3-telemetry-overview {
   display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--telemetry-tone) 18%, var(--color-border));
+  border-radius: 12px;
+  background:
+    linear-gradient(150deg, var(--telemetry-tone-soft), transparent 58%),
+    color-mix(in srgb, var(--color-surface-container) 84%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+.v3-telemetry-overview-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--telemetry-tone);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.v3-telemetry-overview > strong {
+  margin-top: 8px;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+.v3-telemetry-overview > p {
+  margin: 2px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+.v3-telemetry-overview-engines {
+  display: flex;
+  min-height: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 9px;
+  overflow: hidden;
+}
+.v3-engine-pod--overview {
+  max-width: 150px;
+  height: 21px;
+  padding-inline: 7px;
+  font-size: 9.5px;
+}
+.v3-engine-overflow {
+  display: inline-flex;
+  height: 21px;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 9px;
+}
+.v3-telemetry-overview-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  color: var(--color-text-secondary);
+  font-size: 8.5px;
+}
+.v3-telemetry-overview-foot > span:last-child {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  opacity: 0.72;
+}
+.v3-telemetry-metrics {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  overflow: hidden;
 }
 .v3-spark-card {
-  flex: 1;
-  min-width: 0;
+  --metric-tone: var(--color-text-secondary);
+  --metric-tone-soft: color-mix(in srgb, var(--color-text-secondary) 14%, transparent);
+  position: relative;
   display: flex;
+  min-width: 0;
+  min-height: 0;
   flex-direction: column;
-  gap: 4px;
-  background: var(--color-surface-container);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 12px);
-  padding: 8px 12px;
+  gap: 6px;
+  overflow: hidden;
+  padding: 10px 12px 9px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 88%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, var(--metric-tone-soft), transparent 36%),
+    color-mix(in srgb, var(--color-surface-container) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+.v3-spark-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, var(--metric-tone), transparent 72%);
+  opacity: 0.72;
+}
+.v3-spark-card[data-tone="normal"] {
+  --metric-tone: var(--color-success);
+  --metric-tone-soft: color-mix(in srgb, var(--color-success) 7%, transparent);
+}
+.v3-spark-card[data-tone="watch"] {
+  --metric-tone: var(--color-warning);
+  --metric-tone-soft: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+.v3-spark-card[data-tone="hot"] {
+  --metric-tone: var(--color-destructive);
+  --metric-tone-soft: color-mix(in srgb, var(--color-destructive) 9%, transparent);
 }
 .v3-spark-card .v3-spark-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  gap: 8px;
+  font-size: 10px;
   color: var(--color-text-secondary);
 }
-.v3-spark-card .v3-spark-val {
+.v3-spark-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v3-spark-pip {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--metric-tone);
+  box-shadow: 0 0 0 3px var(--metric-tone-soft);
+}
+.v3-spark-status {
+  flex: none;
+  color: var(--metric-tone);
+  font-size: 8.5px;
+  font-weight: 650;
+}
+.v3-spark-value {
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-variant-numeric: tabular-nums;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 680;
+  line-height: 1;
   color: var(--color-text);
 }
-.v3-spark-card svg {
+.v3-spark-chart {
+  min-height: 0;
+  flex: 1;
+  margin: 0 -3px -2px;
+}
+.v3-spark-chart svg {
   width: 100%;
-  height: 34px;
+  height: 100%;
+  min-height: 42px;
   display: block;
+  overflow: visible;
+}
+.v3-spark-guide {
+  stroke: color-mix(in srgb, var(--color-text) 12%, transparent);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 3;
 }
 .v3-spark-line {
   fill: none;
-  stroke: var(--v3-telemetry);
-  stroke-width: 1.6;
+  stroke: var(--metric-tone);
+  stroke-width: 1.8;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 .v3-spark-fill {
-  fill: var(--v3-telemetry-fill);
+  fill: var(--metric-tone-soft);
+}
+
+@media (max-width: 1120px) {
+  .v3-telemetry:not(.is-collapsed) {
+    height: 174px;
+  }
+  .v3-telemetry-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .v3-telemetry-overview {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .v3-telemetry-toggle-meta,
+  .v3-engine-pod:nth-child(n + 2) {
+    display: none;
+  }
+  .v3-telemetry-quick-metric {
+    min-width: 58px;
+    padding-inline: 6px;
+  }
+  .v3-telemetry-quick-metric[data-metric="gpu"] {
+    display: none;
+  }
+  .v3-telemetry:not(.is-collapsed) {
+    height: 164px;
+  }
+  .v3-telemetry-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+  }
 }
 
 /* ── 板块工作台原语 ──────────────────────────────────────────────── */
@@ -539,6 +854,7 @@
 /* ── reduced-motion / ui-reduced-motion 降级 ─────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .v3-rail, .v3-telemetry { transition: none; }
+  .v3-telemetry-quick-track > span { transition: none; }
   .v3-rail-item:hover,
   .v3-rail-item:active { transform: none; }
   .v3-model-pill .v3-pulse-dot { animation: none; }
@@ -547,6 +863,7 @@
 }
 .ui-reduced-motion .v3-rail-item:hover,
 .ui-reduced-motion .v3-rail-item:active { transform: none; }
+.ui-reduced-motion .v3-telemetry-quick-track > span { transition: none; }
 .ui-reduced-motion .v3-model-pill .v3-pulse-dot { animation: none; }
 .ui-reduced-motion .v3-rise, .ui-reduced-motion .page-enter { opacity: 1; transform: none; animation: none; }
 .ui-reduced-motion .v3-card.is-interactive:hover { transform: none; }

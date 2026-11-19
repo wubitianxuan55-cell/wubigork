@@ -302,6 +302,10 @@ export const GAEA_METHOD_FACETS = {
   // send/stream/clear/export-markdown）同批转正归 work（现有唯读三列
   // ChatTopicsList/MessagesList/AppendMessages 为 shared 基础设施，如需对齐随后续批次调整）。
   GetConfig: "work",
+  // 设置中枢尾批：文学提示词双键/高级组键读——设置页跨空间消费，independent
+  WenxuePromptGet: "independent",
+  WenxuePromptSet: "independent",
+  AdvancedConfigGet: "independent",
   SaveConfig: "work",
   ListSkills: "work",
   ChatTopicCreate: "work",
@@ -379,6 +383,7 @@ export const GAEA_METHOD_FACETS = {
   Capabilities: "work",
   AddMCPServer: "work",
   RemoveMCPServer: "work",
+  RemoveRecentWorkspace: "work",
   RetryMCPServer: "work",
   SetMCPServerEnabled: "work",
   SlashArgs: "work",
@@ -387,6 +392,7 @@ export const GAEA_METHOD_FACETS = {
   GaeaFileTreeWatch: "work",
   GaeaRenameWorkspacePath: "work",
   GaeaCreateWorkspaceFolder: "work",
+  CreateProject: "work",
   GaeaCreateWorkspaceFile: "work",
   GaeaDeleteWorkspacePaths: "work",
   GaeaWorkspaceUploadBegin: "work",

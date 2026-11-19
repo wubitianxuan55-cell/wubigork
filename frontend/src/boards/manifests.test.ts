@@ -33,16 +33,16 @@ const getBoardManifestsMock = app.GetBoardManifests as unknown as {
 // 业务板块子集（含 cost 造价数据库 + code 独立入口 + pantheon + D7 knowledge），
 // 无 home 壳层，weixin.page=""、label=微信助手（2026-10-31 去掉隐喻名）。
 const BACKEND_FIXTURE = [
-  { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
-  { id: 'wenxue', label: '文学', icon: 'ReadOutlined', page: 'WenxuePage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, featureModel: 'wenxue' },
-  { id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3', menuOrder: 3, inMenu: true, featureModel: 'imagegen' },
-  { id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4', menuOrder: 4, inMenu: true, featureModel: 'gaea' },
-  { id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true, featureModel: 'cost' },
-  { id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 6, inMenu: true, space: 'independent' },
-  { id: 'pantheon', label: '众神殿', icon: 'CrownOutlined', page: 'PantheonPage', lazy: true, keepAlive: true, layout: 'full', menuOrder: 6, inMenu: true },
-  { id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 7, inMenu: true },
-  { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
-  { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
+  { id: 'chat', label: '聊天', icon: 'GaeaChat', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
+  { id: 'wenxue', label: '文学', icon: 'GaeaLiterature', page: 'WenxuePage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, featureModel: 'wenxue' },
+  { id: 'imagegen', label: '绘梦', icon: 'GaeaDream', page: 'ImageGenPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3', menuOrder: 3, inMenu: true, featureModel: 'imagegen' },
+  { id: 'gaea', label: '办公', icon: 'GaeaOffice', page: 'GaeaPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4', menuOrder: 4, inMenu: true, featureModel: 'gaea' },
+  { id: 'cost', label: '造价数据库', icon: 'GaeaCost', page: 'CostLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true, featureModel: 'cost' },
+  { id: 'code', label: '编程', icon: 'GaeaCode', page: 'ProgrammingPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 6, inMenu: true, space: 'independent' },
+  { id: 'pantheon', label: '众神殿', icon: 'GaeaPantheon', page: 'PantheonPage', lazy: true, keepAlive: true, layout: 'full', menuOrder: 6, inMenu: true },
+  { id: 'memoryhub', label: '记忆中枢', icon: 'GaeaMemory', page: 'MemoryHubPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 7, inMenu: true },
+  { id: 'modelcenter', label: '模型中心', icon: 'GaeaModel', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
+  { id: 'characterlib', label: '角色库', icon: 'GaeaCharacter', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
   { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 10, inMenu: false },
   { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: '', lazy: false, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: false },
   { id: 'knowledge', label: '知识库', icon: 'BookOutlined', page: 'KnowledgePage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true, featureModel: 'knowledge' },
@@ -63,10 +63,10 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
     ])
   })
 
-  it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
-    const expected = ['MessageOutlined', 'ReadOutlined', 'PictureOutlined',
-      'ToolOutlined', 'AccountBookOutlined', 'CrownOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined',
-      'ScheduleOutlined', 'MonitorOutlined']
+  it('菜单图标名与 Gaea 专属图标注册表一致', () => {
+    const expected = ['GaeaChat', 'GaeaLiterature', 'GaeaDream',
+      'GaeaOffice', 'GaeaCost', 'GaeaPantheon', 'GaeaMemory', 'GaeaModel', 'GaeaCharacter', 'WechatOutlined',
+      'GaeaSchedule', 'GaeaRuntime']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
@@ -232,6 +232,12 @@ describe('normalizeManifests（板块差集归一：后端清单 + 静态字段�
   it('knowledge 已被过滤：一级导航不并入（记忆中枢承载），图标注册表仍可解析', () => {
     expect(resolveBoardIcon('BookOutlined')).not.toBeNull()
     expect(deriveBoard(normalizeManifests(BACKEND_FIXTURE), 'knowledge')).toBeUndefined()
+  })
+
+  it('旧 manifest 图标名兼容映射到新图形，不因升级出现空图标', () => {
+    expect(resolveBoardIcon('ToolOutlined')).toBe(resolveBoardIcon('GaeaOffice'))
+    expect(resolveBoardIcon('CrownOutlined')).toBe(resolveBoardIcon('GaeaPantheon'))
+    expect(resolveBoardIcon('DatabaseOutlined')).toBe(resolveBoardIcon('GaeaMemory'))
   })
 
   it('后端残留 home 清单时强制过滤（旧数据 fail-closed）', () => {

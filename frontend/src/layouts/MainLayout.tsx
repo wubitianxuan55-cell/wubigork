@@ -33,6 +33,12 @@ import {
   exceedsLocalEngineLimit,
   runningLocalEngineLabels,
 } from './telemetryOverload'
+import {
+  telemetryMeterWidth,
+  telemetryTone,
+  telemetryWorstTone,
+  type TelemetryTone,
+} from './telemetryPresentation'
 
 const { Content } = Layout
 
@@ -88,31 +94,45 @@ interface ModelMonitor {
 
 /** 实时面积 sparkline（SVG 自绘，无新依赖；--v3-telemetry 主色 + 20% 填充 + 数字，不只靠颜色） */
 function Sparkline({ data, max = 100 }: { data: number[]; max?: number }) {
-  const h = 34
+  const h = 38
   const n = Math.max(data.length - 1, 1)
   const pts = data.map((v, i) => `${(i / n) * 100},${h - 2 - (Math.min(v, max) / max) * (h - 5)}`)
   const line = pts.join(' ')
   const area = `0,${h} ${line} 100,${h}`
+  const guideY = h - 2 - 0.85 * (h - 5)
   if (data.length < 2) {
-    return <svg viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" aria-hidden="true" />
+    return (
+      <svg viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" aria-hidden="true">
+        <line className="v3-spark-guide" x1="0" x2="100" y1={guideY} y2={guideY} />
+      </svg>
+    )
   }
   return (
     <svg viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" aria-hidden="true">
+      <line className="v3-spark-guide" x1="0" x2="100" y1={guideY} y2={guideY} />
       <polyline className="v3-spark-fill" points={area} />
       <polyline className="v3-spark-line" points={line} />
     </svg>
   )
 }
 
-/** Spark 卡：标题 + 当前值 + sparkline */
-const SparkCard: React.FC<{ label: string; value: string; data: number[]; hint?: string }> = ({ label, value, data, hint }) => (
-  <div className="v3-spark-card" title={hint}>
+/** 指标卡：状态标题 + 当前值 + 阈值参考线 + sparkline */
+const SparkCard: React.FC<{
+  label: string
+  value: string
+  data: number[]
+  hint?: string
+  tone: TelemetryTone
+  status: string
+}> = ({ label, value, data, hint, tone, status }) => (
+  <article className="v3-spark-card" data-tone={tone} title={hint} aria-label={`${label}: ${value}, ${status}`}>
     <div className="v3-spark-head">
-      <span className="v3-tele-key">{label}</span>
-      <span className="v3-tele-value">{value}</span>
+      <span className="v3-spark-title"><span className="v3-spark-pip" aria-hidden />{label}</span>
+      <span className="v3-spark-status">{status}</span>
     </div>
-    <Sparkline data={data} />
-  </div>
+    <strong className="v3-spark-value">{value}</strong>
+    <div className="v3-spark-chart"><Sparkline data={data} /></div>
+  </article>
 )
 
 // ─── 遥测轨道（底部）────────────────────────────────────────
@@ -202,9 +222,52 @@ const TelemetryRail: React.FC = () => {
   const gpuOk = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
   // 只展示实际已连接的本地引擎；云端与仅启用但未连通的引擎不占本机资源。
   const engLabel = runningLocalEngineLabels(monitor?.engines || [])
+  const memValue = ms ? memPct : null
+  const gpuValue = ms?.gpuName ? gpuOk : null
+  const cpuTone = telemetryTone(cpuOk, 70, 85)
+  const memTone = telemetryTone(memValue, 75, 90)
+  const gpuTone = telemetryTone(gpuValue, 75, 88)
+  const systemTone = telemetryWorstTone([cpuTone, memTone, gpuTone])
+  const toneLabel = (tone: TelemetryTone) => {
+    if (tone === 'hot') return t('shell.tele.hot')
+    if (tone === 'watch') return t('shell.tele.watch')
+    if (tone === 'normal') return t('shell.tele.normal')
+    return t('shell.tele.waiting')
+  }
+  const systemStatus = toneLabel(systemTone)
+  const quickMetrics = [
+    {
+      key: 'CPU',
+      metric: 'cpu',
+      label: t('shell.tele.cpuUsage'),
+      value: cpuOk,
+      display: cpuOk != null ? `${cpuOk}%` : '--',
+      tone: cpuTone,
+    },
+    {
+      key: t('shell.tele.mem'),
+      metric: 'mem',
+      label: t('shell.tele.memUsage'),
+      value: memValue,
+      display: memValue != null ? `${memPct}%` : '--',
+      tone: memTone,
+    },
+    ...(gpuValue != null ? [{
+      key: 'GPU',
+      metric: 'gpu',
+      label: ms?.gpuName ? t('shell.tele.gpuNamed', { name: ms.gpuName }) : t('shell.tele.gpuUsage'),
+      value: gpuValue,
+      display: `${gpuOk}%`,
+      tone: gpuTone,
+    }] : []),
+  ]
 
   return (
-    <div className={`v3-telemetry${collapsed ? ' is-collapsed' : ''}`} aria-label={t('shell.tele.aria')}>
+    <div
+      className={`v3-telemetry${collapsed ? ' is-collapsed' : ''}`}
+      data-tone={systemTone}
+      aria-label={t('shell.tele.aria')}
+    >
       <div className="v3-telemetry-inner">
         <button
           className="v3-telemetry-toggle"
@@ -212,36 +275,98 @@ const TelemetryRail: React.FC = () => {
           aria-expanded={!collapsed}
           aria-label={collapsed ? t('shell.tele.expand') : t('shell.tele.collapse')}
         >
-          {collapsed ? <UpOutlined /> : <DownOutlined />}
-          <span style={{ marginLeft: 4 }}>{t('shell.tele.label')}</span>
+          <span className="v3-telemetry-toggle-main">
+            <span className="v3-telemetry-live-pip" aria-hidden />
+            <span className="v3-telemetry-toggle-label">{t('shell.tele.label')}</span>
+          </span>
+          <span className="v3-telemetry-toggle-meta">{systemStatus}</span>
+          <span className="v3-telemetry-toggle-chevron" aria-hidden>
+            {collapsed ? <UpOutlined /> : <DownOutlined />}
+          </span>
         </button>
-        {/* 引擎 pods */}
-        {engLabel.length ? (
-          engLabel.map((e) => (
-            <Tooltip key={e} title={t('shell.tele.enginesTip')}>
-              <span className="v3-engine-pod"><span className="v3-pod-dot" /><span className="v3-pod-text">{e}</span></span>
+        <div className="v3-telemetry-engines">
+          {engLabel.length ? (
+            engLabel.map((e) => (
+              <Tooltip key={e} title={t('shell.tele.enginesTip')}>
+                <span className="v3-engine-pod"><span className="v3-pod-dot" /><span className="v3-pod-text">{e}</span></span>
+              </Tooltip>
+            ))
+          ) : (
+            <Tooltip title={t('shell.tele.noEnginesTip')}>
+              <span className="v3-engine-pod v3-engine-pod--idle">
+                <ThunderboltOutlined style={{ fontSize: 10 }} />
+                <span className="v3-pod-text">{t('shell.tele.noEngines')}</span>
+              </span>
             </Tooltip>
-          ))
-        ) : (
-          <Tooltip title={t('shell.tele.noEnginesTip')}>
-            <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} /><span className="v3-pod-text">{t('shell.tele.noEngines')}</span></span>
-          </Tooltip>
-        )}
-        {/* 项目写作进度段随小说板块退役拆除（2026-11-15） */}
-        <span className="v3-telemetry-spacer" style={{ flex: 1 }} />
-        <span className="v3-tele-key">CPU</span><span className="v3-tele-value">{cpuOk != null ? cpuOk + '%' : '--'}</span>
-        <span className="v3-tele-key">{t('shell.tele.mem')}</span><span className="v3-tele-value">{ms ? memPct + '%' : '--'}</span>
-        {ms?.gpuName ? (
-          <>
-            <span className="v3-tele-key">GPU</span>
-            <span className="v3-tele-value">{gpuOk ? gpuOk + '%' : '--'}</span>
-          </>
-        ) : null}
+          )}
+        </div>
+        <span className="v3-telemetry-spacer" />
+        <div className="v3-telemetry-quick">
+          {quickMetrics.map((metric) => (
+            <span
+              key={metric.metric}
+              className="v3-telemetry-quick-metric"
+              data-metric={metric.metric}
+              data-tone={metric.tone}
+              title={`${metric.label}: ${metric.display} · ${toneLabel(metric.tone)}`}
+            >
+              <span className="v3-telemetry-quick-label">{metric.key}</span>
+              <span className="v3-telemetry-quick-value">{metric.display}</span>
+              <span className="v3-telemetry-quick-track" aria-hidden>
+                <span style={{ width: `${telemetryMeterWidth(metric.value)}%` }} />
+              </span>
+            </span>
+          ))}
+        </div>
       </div>
       <div className="v3-telemetry-body">
-        <SparkCard label={t('shell.tele.cpuUsage')} value={cpuOk != null ? `${cpuOk}%` : '--'} data={history.cpu} hint={t('shell.tele.cpuHint', { value: cpuOk != null ? cpuOk + '%' : '--' })} />
-        <SparkCard label={t('shell.tele.memUsage')} value={ms ? `${memPct}%` : '--'} data={history.mem} hint={t('shell.tele.memHint', { used: memPct, total: ms?.memTotal ?? '--' })} />
-        <SparkCard label={ms?.gpuName ? t('shell.tele.gpuNamed', { name: ms.gpuName }) : t('shell.tele.gpuUsage')} value={ms?.gpuName ? (gpuOk ? gpuOk + '%' : '--') : '--'} data={history.gpu} hint={t('shell.tele.gpuHint', { vram: vramPct })} />
+        <section className="v3-telemetry-overview" data-tone={systemTone}>
+          <div className="v3-telemetry-overview-kicker">
+            <span className="v3-telemetry-live-pip" aria-hidden />
+            <span>{t('shell.tele.live')}</span>
+          </div>
+          <strong>{systemStatus}</strong>
+          <p>{engLabel.length ? t('shell.tele.enginesOnline', { count: engLabel.length }) : t('shell.tele.noEngines')}</p>
+          <div className="v3-telemetry-overview-engines">
+            {engLabel.slice(0, 4).map((e) => (
+              <span className="v3-engine-pod v3-engine-pod--overview" key={e}>
+                <span className="v3-pod-dot" />
+                <span className="v3-pod-text">{e}</span>
+              </span>
+            ))}
+            {engLabel.length > 4 && <span className="v3-engine-overflow">+{engLabel.length - 4}</span>}
+          </div>
+          <div className="v3-telemetry-overview-foot">
+            <span>{t('shell.tele.overview')}</span>
+            <span>{t('shell.tele.updated')}</span>
+          </div>
+        </section>
+        <div className="v3-telemetry-metrics">
+          <SparkCard
+            label={t('shell.tele.cpuUsage')}
+            value={cpuOk != null ? `${cpuOk}%` : '--'}
+            data={history.cpu}
+            hint={t('shell.tele.cpuHint', { value: cpuOk != null ? cpuOk + '%' : '--' })}
+            tone={cpuTone}
+            status={toneLabel(cpuTone)}
+          />
+          <SparkCard
+            label={t('shell.tele.memUsage')}
+            value={memValue != null ? `${memPct}%` : '--'}
+            data={history.mem}
+            hint={t('shell.tele.memHint', { used: memPct, total: ms?.memTotal ?? '--' })}
+            tone={memTone}
+            status={toneLabel(memTone)}
+          />
+          <SparkCard
+            label={ms?.gpuName ? t('shell.tele.gpuNamed', { name: ms.gpuName }) : t('shell.tele.gpuUsage')}
+            value={gpuValue != null ? `${gpuOk}%` : '--'}
+            data={history.gpu}
+            hint={t('shell.tele.gpuHint', { vram: vramPct })}
+            tone={gpuTone}
+            status={toneLabel(gpuTone)}
+          />
+        </div>
       </div>
     </div>
   )
@@ -277,8 +402,9 @@ export const CommandRail: React.FC<{
       className="v3-rail"
       aria-label={t('shell.rail.aria')}
     >
-      <div className="v3-rail-head">
-        <img src="/favicon.svg" alt="gaea" />
+      <div className="v3-rail-head" role="img" aria-label="gaea">
+        <img src="/gaea-brand-light.jpg" alt="" className="gaea-brand-art gaea-brand-art--light" draggable={false} />
+        <img src="/gaea-brand-dark.jpg" alt="" className="gaea-brand-art gaea-brand-art--dark" draggable={false} />
       </div>
       <div className="v3-rail-nav" role="menubar" aria-label={t('shell.rail.nav')}>
         {boards.map((b, i) => {

@@ -60,6 +60,7 @@ func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextv
 func (b *OfficeB) GaeaContextSurface(seq int64, sessionPath string) (contextview.SurfaceSnapshot, error) { return b.a.GaeaContextSurface(seq, sessionPath) }
 func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
+func (b *OfficeB) GaeaCreateProject(parent string, name string) (string, error) { return b.a.GaeaCreateProject(parent, name) }
 func (b *OfficeB) GaeaCreateWorkspaceFile(parent string, name string) (workbench.MutationResult, error) { return b.a.GaeaCreateWorkspaceFile(parent, name) }
 func (b *OfficeB) GaeaCreateWorkspaceFolder(parent string, name string) (workbench.MutationResult, error) { return b.a.GaeaCreateWorkspaceFolder(parent, name) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
@@ -158,6 +159,7 @@ func (b *OfficeB) GaeaReload() (GaeaReloadResult, error) { return b.a.GaeaReload
 func (b *OfficeB) GaeaRemember(scope string, note string) (string, error) { return b.a.GaeaRemember(scope, note) }
 func (b *OfficeB) GaeaRemoveMCPServer(name string) error { return b.a.GaeaRemoveMCPServer(name) }
 func (b *OfficeB) GaeaRemovePermissionRule(list string, rule string) error { return b.a.GaeaRemovePermissionRule(list, rule) }
+func (b *OfficeB) GaeaRemoveRecentWorkspace(path string) error { return b.a.GaeaRemoveRecentWorkspace(path) }
 func (b *OfficeB) GaeaRenameSession(path string, title string) error { return b.a.GaeaRenameSession(path, title) }
 func (b *OfficeB) GaeaRenameWorkspacePath(rel string, name string) (workbench.MutationResult, error) { return b.a.GaeaRenameWorkspacePath(rel, name) }
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }

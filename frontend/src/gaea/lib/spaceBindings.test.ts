@@ -105,12 +105,15 @@ describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
       (k) => String(GAEA_METHOD_FACETS[k as keyof typeof GAEA_METHOD_FACETS]) === "independent",
     );
     expect(independent.sort()).toEqual([
+      "AdvancedConfigGet",
       "GetProgrammingWebPreflight",
       "GetProgrammingWebStatus",
       "OpenProgrammingWebExternal",
       "ProgrammingWebLogTail",
       "StartProgrammingWeb",
       "StopProgrammingWeb",
+      "WenxuePromptGet",
+      "WenxuePromptSet",
     ]);
     expect(work.size + play.size + shared.size + independent.length).toBe(
       Object.keys(GAEA_METHOD_FACETS).length,

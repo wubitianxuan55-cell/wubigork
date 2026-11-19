@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout, Modal } from "antd";
 import {
   Check, SquarePen, ChevronDown, FolderGit2, FileText,
-  PanelRight, MessageSquare, Trash2, X, Aim, Inbox,
+  MessageSquare, Trash2, X, Aim, Inbox,
   ClipboardList, Sparkles, BookOpen, Shield,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -28,6 +28,7 @@ import { DeniedActionsDock } from "./components/DeniedActionsDock";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
+import { WorkspacePanelToggleIcon } from "../components/WorkspacePanelToggleIcon";
 const WenxueCharacterHub = lazy(() => import("./components/WenxueCharacterHub").then(m => ({ default: m.WenxueCharacterHub })));
 const WenxueReadingHub = lazy(() => import("./components/WenxueReadingHub").then(m => ({ default: m.WenxueReadingHub })));
 const WenxueMemoryPanel = lazy(() => import("./components/WenxueMemoryPanel").then(m => ({ default: m.WenxueMemoryPanel })));
@@ -793,7 +794,7 @@ export default function App() {
                 </ToolbarButton>
               )}
               <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
-                <PanelRight size={13} />
+                <WorkspacePanelToggleIcon open={workspacePanelOpen} />
               </ToolbarButton>
             </div>
           </header>

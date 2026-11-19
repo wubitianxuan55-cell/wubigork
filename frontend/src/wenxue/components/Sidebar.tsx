@@ -4,8 +4,8 @@ import { List, type RowComponentProps } from "react-window";
 import {Input, Modal, Select } from "antd";
 import {
   Plus, Blocks, BookOpen, MessageSquare, Search,
-  PanelLeftClose, PanelLeftOpen, Loader2, ChevronDown,
-  Pin, Inbox, Rollback, X, Clock, Trash2,
+  Loader2, ChevronDown,
+  Pin, Inbox, Rollback, X, Clock, Trash2, SquarePen,
 } from "../icons";
 
 // 新建小说·成人等级白名单（与 Go wenxueAdultLevels 同源：存储值=展示值）。
@@ -17,9 +17,8 @@ const ADULT_LEVEL_HINT: Record<string, string> = {
   "成人（限制级）": "可直接描写，保持文学化表达与叙事必要。",
   "深度成人（无限制）": "无任何安全底线；性/暴力/黑暗/禁忌题材全部正面直写，不回避、不淡化、不审查。随书注入云端模型破甲契约。",
 };
-import logoSvg from "../assets/logo.svg";
-import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
+import { WorkspaceSidebarToggleIcon } from "../../components/WorkspaceSidebarToggleIcon";
 import { sessionTitle } from "../lib/session";
 import { relativeTime } from "../lib/time";
 import { filterProjectGroups } from "../lib/projectGroups";
@@ -899,8 +898,8 @@ export function Sidebar({
         {/* 工作区身份：产品、当前项目与侧栏开关 */}
         <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "flex-col gap-1.5" : ""}`}>
           <span className="office-sidebar__brand-mark" aria-hidden>
-            <img src={logoSvg} alt="" className="dark:hidden" />
-            <img src={logoLightSvg} alt="" className="hidden dark:block" />
+            <img src="/gaea-brand-light.jpg" alt="" className="gaea-brand-art gaea-brand-art--light" draggable={false} />
+            <img src="/gaea-brand-dark.jpg" alt="" className="gaea-brand-art gaea-brand-art--dark" draggable={false} />
           </span>
           {!collapsed && (
             <span className="office-sidebar__brand-copy">
@@ -925,7 +924,7 @@ export function Sidebar({
             aria-expanded={!collapsed}
             data-testid="global-sidebar-toggle"
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <WorkspaceSidebarToggleIcon collapsed={collapsed} />
             {!collapsed && (
               <span className="office-sidebar__collapse-label">{t("common.collapse")}</span>
             )}
@@ -934,15 +933,43 @@ export function Sidebar({
 
         {/* 新建会话（KUN 风命令行：展开态通栏胶囊，折叠态圆钮） */}
         {collapsed ? (
-          <button
-            className="office-sidebar__new office-sidebar__new--compact inline-flex items-center justify-center border-0 text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/22 active:scale-95 no-drag disabled:opacity-40 disabled:cursor-default"
-            onClick={openNovelDialog}
-            disabled={running}
-            title={running ? t("common.busyHint") : "新建小说"}
-            aria-label="新建小说"
-          >
-            <Plus size={15} />
-          </button>
+          <div className="office-sidebar__collapsed-actions">
+            <button
+              className="office-sidebar__new office-sidebar__new--compact inline-flex items-center justify-center border-0 text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/22 active:scale-95 no-drag disabled:opacity-40 disabled:cursor-default"
+              onClick={openNovelDialog}
+              disabled={running}
+              title={running ? t("common.busyHint") : "新建小说"}
+              aria-label="新建小说"
+            >
+              <Plus size={16} />
+            </button>
+            <button
+              className="office-sidebar__collapsed-action office-sidebar__collapsed-session no-drag"
+              onClick={() => void newSessionAndReset()}
+              disabled={running}
+              title={running ? t("common.busyHint") : t("topbar.newSession")}
+              aria-label={t("topbar.newSession")}
+              data-testid="sidebar-new-session-collapsed"
+            >
+              <SquarePen size={16} aria-hidden />
+            </button>
+            {currentSession && (() => {
+              const currentTitle = privacyMode ? "私密会话" : sessionTitle(currentSession, "当前会话");
+              return (
+                <button
+                  className="office-sidebar__current sidebar-current-chip flex items-center justify-center cursor-pointer transition-colors no-drag"
+                  title={`${currentTitle} · ${t("sidebar.expand")}`}
+                  aria-label={`${currentTitle} · ${t("sidebar.expand")}`}
+                  onClick={toggleSidebar}
+                  type="button"
+                  data-testid="sidebar-current-session-collapsed"
+                >
+                  <MessageSquare size={15} aria-hidden />
+                  <span className="office-sidebar__current-dot" aria-hidden />
+                </button>
+              );
+            })()}
+          </div>
         ) : (
           <button
             className="office-sidebar__new flex items-center w-full text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/18 active:scale-[0.98] no-drag disabled:opacity-40 disabled:cursor-default"
@@ -1022,17 +1049,6 @@ export function Sidebar({
               <div className="office-sidebar__workspace-error" role="alert">{novelError}</div>
             )}
           </section>
-        )}
-
-        {/* 折叠态当前会话指示 */}
-        {collapsed && currentSession && (
-          <button
-            className="office-sidebar__current sidebar-current-chip flex items-center justify-center cursor-pointer transition-colors no-drag"
-            title={privacyMode ? "私密会话" : sessionTitle(currentSession, "")}
-            type="button"
-          >
-            {privacyMode ? "隐" : (currentSession.title || currentSession.preview || "?").charAt(0).toUpperCase()}
-          </button>
         )}
 
         {!collapsed && (
@@ -1167,6 +1183,7 @@ export function Sidebar({
             className="office-sidebar__collapsed-action no-drag"
             onClick={() => void onOpenCaps()}
             title={t("caps.title")}
+            aria-label={t("caps.title")}
           >
             <Blocks size={15} />
           </button>

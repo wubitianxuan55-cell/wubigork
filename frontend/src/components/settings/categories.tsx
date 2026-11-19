@@ -3,7 +3,7 @@ import {
   AppstoreOutlined, MessageOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined,
   SafetyCertificateOutlined, DatabaseOutlined, ClusterOutlined,
-  ReadOutlined, WechatOutlined, ThunderboltOutlined,
+  ReadOutlined, WechatOutlined, ThunderboltOutlined, CodeOutlined,
 } from '@ant-design/icons'
 import type { DictKey } from '../../gaea/locales/en'
 import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel } from './AppearancePanel'
@@ -26,6 +26,8 @@ import { WORKSPACE_TABS as WENXUE_TABS } from '../../wenxue/lib/workspaceTabs'
 import { usePaneEnabledStore as useWenxuePaneEnabled } from '../../wenxue/lib/paneEnabled'
 import WeixinServiceSection from './WeixinServiceSection'
 import PantheonAgentsSection from './PantheonAgentsSection'
+import WenxuePromptSection from './WenxuePromptSection'
+import AdvancedSection from './AdvancedSection'
 import ImageGenPanel from './ImageGenPanel'
 import OfficePanel from './OfficePanel'
 import SearchPanel from './SearchPanel'
@@ -60,13 +62,11 @@ export interface Category {
   panel: React.ReactNode
 }
 
-/** 导航分区（批 5 点亮：office/imagegen 归位 boards 区 + 文学/微信/众神殿入驻，
- *  两级标题自此常驻；搜索过滤到单 zone 时自动隐藏标题）。
- *  zone 标题暂用 zh 兜底常量——locales 三文件当前有并行线在途改动（遥测/
- * 启动文案段），键（settings.zone.global/boards）待该线收官后补，避免混提交。 */
-export const SETTINGS_ZONES: { key: SettingsZone; label: string }[] = [
-  { key: 'global', label: '全局' },
-  { key: 'boards', label: '板块' },
+/** 导航分区（尾批回切：zone/组名三语键已入 locales，zh 兜底退役——
+ *  label 仍留作搜索关键词与键缺失时的最后兜底）。 */
+export const SETTINGS_ZONES: { key: SettingsZone; label: string; labelKey: DictKey }[] = [
+  { key: 'global', label: '全局', labelKey: 'settings.zone.global' },
+  { key: 'boards', label: '板块', labelKey: 'settings.zone.boards' },
 ]
 
 /** 设置分组：现有 10 组全部驻 global 区（含代码图谱，用户拍板保留）；
@@ -219,23 +219,29 @@ export const SETTINGS_CATEGORIES: Category[] = [
     zone: 'boards',
     icon: <ReadOutlined />,
     label: '文学',
-    desc: '面板 · 书斋',
-    keywords: ['文学', '书斋', '面板', '工作台', '阅读', '小说', '提示词', '分板'],
-    panel: (
+    labelKey: 'settings.cat.wenxue',
+    desc: '人格 · 面板',
+    descKey: 'settings.cat.wenxueDesc',
+    keywords: ['文学', '书斋', '面板', '工作台', '阅读', '小说', '提示词', '人格', '分板', 'system_prompt'],
+    // 尾批：身份提示词双键收编（此前仅手改 ga.cfg，CoreB WenxuePromptGet/Set 绑对）
+    panel: (<>
+      <WenxuePromptSection />
       <PaneManagementSection
         title="书斋面板"
         desc="文学壳层右栏工作台面板启停（与办公工位各自独立清单）"
         tabs={WENXUE_TABS}
         useStore={useWenxuePaneEnabled}
       />
-    ),
+    </>),
   },
   {
     key: 'weixin',
     zone: 'boards',
     icon: <WechatOutlined />,
     label: '微信',
+    labelKey: 'settings.cat.weixin',
     desc: '回推服务',
+    descKey: 'settings.cat.weixinDesc',
     keywords: ['微信', '回推', '提醒', '服务', '监听', '助手', 'wechat'],
     panel: <WeixinServiceSection />,
   },
@@ -244,8 +250,22 @@ export const SETTINGS_CATEGORIES: Category[] = [
     zone: 'boards',
     icon: <ThunderboltOutlined />,
     label: '众神殿',
+    labelKey: 'settings.cat.pantheon',
     desc: '外部参与者',
+    descKey: 'settings.cat.pantheonDesc',
     keywords: ['众神殿', '参与者', 'agent', '路径', '可执行', '外部', '讨论'],
     panel: <PantheonAgentsSection />,
+  },
+  {
+    key: 'advanced',
+    zone: 'global',
+    icon: <CodeOutlined />,
+    label: '高级',
+    labelKey: 'settings.cat.advanced',
+    desc: '路径 · 超时 · 兜底',
+    descKey: 'settings.cat.advancedDesc',
+    keywords: ['高级', '路径', '引擎路径', 'strata', 'whirl', 'breeze', 'comfyui', '空闲退出', '超时', '读屏', '意图', '兜底', 'glm', '目录', 'config', '配置文件'],
+    // 尾批：13 个无 UI config 键收编（读 AdvancedConfigGet/写 SaveConfig 宽写面）
+    panel: <AdvancedSection />,
   },
 ]

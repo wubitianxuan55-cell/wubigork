@@ -24,7 +24,8 @@ export interface BoardNav {
  * 板块 Manifest（导航白名单 / 菜单 / 快捷键 / 布局 / 面包屑全部由它派生）。
  * 约定：
  *  - label 同时服务菜单、面包屑、启动器显示名（单一来源）；
- *  - icon 为 antd 图标名（'MessageOutlined' 等），由图标注册表查表解析；
+ *  - icon 为板块图标名（'GaeaChat' 等），由图标注册表查表解析；
+ *    旧 antd 图标名保留兼容映射，避免旧清单在切换时退化成空图标；
  *  - page 为 PageRegistry 中注册的页面组件 key（替代 lazy import + pageComponents 两处登记）；
  *  - inMenu=false 不进顶栏菜单（settings/weixin 走隐式入口）。
  */

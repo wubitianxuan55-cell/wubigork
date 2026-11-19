@@ -89,6 +89,8 @@ func (b *WenxueB) WenxuePinMaterial(rel string) []FileSearchHit { return b.a.Wen
 func (b *WenxueB) WenxuePinSession(path string, pinned bool) error { return b.a.WenxuePinSession(path, pinned) }
 func (b *WenxueB) WenxuePinnedMaterials() []FileSearchHit { return b.a.WenxuePinnedMaterials() }
 func (b *WenxueB) WenxuePreview(rel string) PreviewResult { return b.a.WenxuePreview(rel) }
+func (b *WenxueB) WenxuePromptGet() (WenxuePromptView, error) { return b.a.WenxuePromptGet() }
+func (b *WenxueB) WenxuePromptSet(prompt string, file string) error { return b.a.WenxuePromptSet(prompt, file) }
 func (b *WenxueB) WenxueReadFile(rel string) FilePreview { return b.a.WenxueReadFile(rel) }
 func (b *WenxueB) WenxueReadFilePage(rel string, offset int64) (workbench.TextPage, error) { return b.a.WenxueReadFilePage(rel, offset) }
 func (b *WenxueB) WenxueReadTextFile(rel string) (workbench.TextFile, error) { return b.a.WenxueReadTextFile(rel) }

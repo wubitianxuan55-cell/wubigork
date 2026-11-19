@@ -43,6 +43,8 @@
 
 | 文档 | 一句话 |
 |---|---|
+| gaea-computer-use-landing-research-2026-11.md | 🆕 **电脑操控落地调研（2026-11-19，只调研不改码）**：codex 六层逆向（asset-62/63）→ gaea 现状盘点（截屏/工具抽象/权限闸/审批卡可复用，**主对话消息无图但 vision 旁路已能发图、改造成本 0.5 人日**、无输入注入）→ 三阶段刀路 + 树文法/双闸门/按 app 授权落点 + 风险红线 + 待拍板 |
+| gaea-computer-use-exec-brief-2026-11.md | 🆕 **电脑操控施工单（2026-11-19，W0~W7 八刀）**：W0 多模态通道（Message.Images / ChatMessage.MarshalJSON / toolOutcome.images 共 6 处改点 + 无图路径逐字节 golden）→ W1 包骨架 → W2 窗口+UIA 树 → W3 只读三工具（默认关）→ W4 按 app 授权 → W5 输入注入（双闸门/DPI/deny 表）→ W6 状态条 → W7 门禁；每刀带验收断言、回退矩阵、估时与禁区 |
 | gaea-dsh-office-distill-research-2026-11.md | 🆕 **dsh-office（COM 实时编辑 Office）蒸馏调研论证（2026-11-13，波1 已动刀）**：上游 v1.2.0 MIT 盘点（8 工具+9893 行 C# COM helper 坑册）+我方办公板块对照（零 COM 零 OMML 互补不替代）+本机 WPS/csc 实证+路线 A 分三波+拍板池 6 项 |
 | gaea-office-conversation-output-redesign-2026-11.md | 🆕 **办公对话输出 UI 重设计·五卡系统设计账（2026-11-11，已随 d3342e77 并入 main）**：思考卡/工具卡/过程卡/Ask 卡/审批卡五族+共享运行/完成/错误/决策四态；范围=前端呈现层（不动事件契约与会话模型） |
 | gaea-lingxi-re-distill-2026-11.md | 🆕 **灵犀（WPS 灵犀 1.3.36）逆向蒸馏事实源（2026-11-13，P0 已落地）**：asar 逆向（技能 16 个 MIT+交付契约三级组合+wpscli=30 工具 MCP 形态）+资产 S/A/B/C 分级+与 gaea 现状对照（COM 主线保留，补逃生舱/选区/交付契约）+不变量五条+明确不做四条 |

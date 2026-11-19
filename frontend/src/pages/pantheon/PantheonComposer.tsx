@@ -142,7 +142,8 @@ export const PantheonComposer: React.FC<Props> = ({
     if (available.length === 0) return
     if (!initialized.current && available.length > 0) {
       initialized.current = true
-      setSelected(available.slice(0, 3).map((agent) => agent.id))
+      // 2026-11-19 拍板：默认参会 4 席（列表序 grok/codex/zcode/dsh 全选）。
+      setSelected(available.slice(0, 4).map((agent) => agent.id))
     }
     const allowed = new Set(available.map((agent) => agent.id))
     setSelected((current) => current.filter((id) => allowed.has(id)))
@@ -153,9 +154,9 @@ export const PantheonComposer: React.FC<Props> = ({
       if (chairman) setChairman('')
       return
     }
-    // 汇总人默认优先 Grok；仅负责整理，不拥有最终决定权。
+    // 汇总人默认优先 Codex（2026-11-19 拍板，原为 Grok）；仅负责整理，不拥有最终决定权。
     if (!selected.includes(chairman)) {
-      setChairman(selected.includes('grok') ? 'grok' : selected[0])
+      setChairman(selected.includes('codex') ? 'codex' : selected[0])
     }
   }, [selected, chairman])
 
@@ -421,7 +422,7 @@ export const PantheonComposer: React.FC<Props> = ({
 
   return (
     <section
-      className="pantheon-composer pantheon-composer--studio"
+      className="pantheon-composer pantheon-composer--studio pantheon-composer--quiet"
       data-testid="pantheon-composer"
       aria-labelledby="pantheon-compose-title"
     >
@@ -431,26 +432,9 @@ export const PantheonComposer: React.FC<Props> = ({
             <SafetyCertificateOutlined aria-hidden />
             只读运行 · 不改动工作区
           </span>
-          <span className="pantheon-composer-kicker">New council · 立题</span>
-          <h2 id="pantheon-compose-title">
-            把问题说清楚，<br />让判断有处落脚。
-          </h2>
-          <p>先写下真正需要裁决的问题，再选择工作范围、参与席位与讨论路径。</p>
+          <h2 id="pantheon-compose-title">发起一场讨论</h2>
+          <p>写清要讨论的问题、判断标准和范围，再选择参与者。</p>
         </div>
-        <ol className="pantheon-composer-steps" aria-label="发起讨论步骤">
-          <li className="is-current">
-            <b>01</b>
-            <span>立题</span>
-          </li>
-          <li>
-            <b>02</b>
-            <span>组席</span>
-          </li>
-          <li>
-            <b>03</b>
-            <span>开议</span>
-          </li>
-        </ol>
       </header>
 
       {error && <Alert type="error" showIcon message={error} className="pantheon-alert" />}
@@ -464,13 +448,11 @@ export const PantheonComposer: React.FC<Props> = ({
           >
             <header className="pantheon-topic-sheet-head">
               <div>
-                <span className="pantheon-eyebrow">议题底稿 · Question 01</span>
                 <label id="pantheon-topic-label" htmlFor="pantheon-topic-field">
-                  我们要一起判断什么？
+                  讨论问题
                   <em>必填</em>
                 </label>
               </div>
-              <span className="pantheon-topic-sheet-mark" aria-hidden>?</span>
             </header>
             <Input.TextArea
               id="pantheon-topic-field"
@@ -760,7 +742,6 @@ export const PantheonComposer: React.FC<Props> = ({
         <aside className="pantheon-composer-config" aria-label="议事配置">
           <header className="pantheon-config-rail-head">
             <div>
-              <span className="pantheon-eyebrow">Council setup</span>
               <h3>议事配置</h3>
             </div>
             <span className="pantheon-config-ready">
@@ -776,7 +757,6 @@ export const PantheonComposer: React.FC<Props> = ({
               <FolderOpenOutlined />
             </span>
             <span>
-              <span className="pantheon-eyebrow">讨论范围</span>
               <strong id="pantheon-workspace-title">
                 {workspace ? workspaceName(workspace) : '选择工作空间'}
               </strong>

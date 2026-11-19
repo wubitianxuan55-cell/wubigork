@@ -304,7 +304,7 @@ describe('PantheonPage', () => {
     await waitFor(() => expect(start.disabled).toBe(false))
   })
 
-  it('提交议题时传递只读参与者与主席设置（Grok 入席则默认主持）', async () => {
+  it('提交议题时传递只读参与者与主席设置（Codex 在席则默认主持）', async () => {
     render(<PantheonPage />)
     await screen.findByRole('heading', { name: /在讨论中彼此补强/ })
     fireEvent.click(screen.getByTestId('pantheon-welcome-start'))
@@ -338,13 +338,14 @@ describe('PantheonPage', () => {
       successCriteria: '列出风险和适用条件',
       workspace: 'C:\\AI\\gaea-research',
       evidence: [{ name: '议事材料', content: '竞品已经验证议事形态。' }],
-      chairmanAgentId: 'grok',
+      chairmanAgentId: 'codex',
       rounds: 2,
       readOnly: true,
       protocol: 'independent', // 2026-10-31 拍板：默认独立开场（首轮各抒己见）
       preset: 'roundtable',
     })
-    expect(request.agentIds).toEqual(['codex', 'grok', 'zcode'])
+    // 2026-11-19 拍板：默认参会 4 席（可用席全选），Codex 前移后列首位。
+    expect(request.agentIds).toEqual(['codex', 'grok', 'zcode', 'dsh'])
     expect(await screen.findByTestId('pantheon-record')).toBeTruthy()
   })
 
@@ -362,9 +363,11 @@ describe('PantheonPage', () => {
       selector: '.ant-select-item-option-content',
     })
     fireEvent.click(option.closest('.ant-select-item-option')!)
-    // 只留 grok 一席（独立开场允许单席；圆桌接力则要求两位）
+    // 只留 grok 一席（独立开场允许单席；圆桌接力则要求两位）；
+    // 2026-11-19 起默认参会 4 席，三席都要点掉。
     fireEvent.click(screen.getByTestId('pantheon-agent-codex'))
     fireEvent.click(screen.getByTestId('pantheon-agent-zcode'))
+    fireEvent.click(screen.getByTestId('pantheon-agent-dsh'))
     fireEvent.change(screen.getByTestId('pantheon-topic'), {
       target: { value: '单席独立深答对照' },
     })
@@ -512,7 +515,7 @@ describe('PantheonPage', () => {
     fireEvent.change(await screen.findByTestId('pantheon-topic'), {
       target: { value: '图片能力必须与席位能力匹配。' },
     })
-    fireEvent.click(screen.getByTestId('pantheon-agent-dsh'))
+    // 2026-11-19 起默认参会 4 席已含 DSH，无需再显式勾选。
     fireEvent.click(screen.getByTestId('pantheon-pick-images'))
 
     expect(await screen.findByText(

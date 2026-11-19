@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { LocaleProvider } from "../lib/i18n";
 import { ToastProvider } from "./Toast";
 import { Sidebar } from "./Sidebar";
@@ -19,13 +19,17 @@ const group: ProjectGroup = {
   ],
 };
 
-function renderSidebar(groups: ProjectGroup[] = [group], sidebarWidth = 264) {
+function renderSidebar(groups: ProjectGroup[] = [group], sidebarWidth = 264, collapsed = false) {
   // Sidebar 走 useT：钉住 zh 让既有中文文案断言（当前/置顶/已归档/未完成…）继续成立
   localStorage.setItem("gaea-lang", "zh");
   const callbacks = {
     toggleSidebar: vi.fn(),
-    newSessionAndReset: vi.fn(),
+    onNewSession: vi.fn(),
+    onCreateProject: vi.fn().mockResolvedValue(undefined),
     onSearchChange: vi.fn(),
+    onSwitchProject: vi.fn(),
+    onNewSessionInProject: vi.fn(),
+    onRemoveProject: vi.fn(),
     onResumeSessionInProject: vi.fn(),
     onArchiveSession: vi.fn(),
     onRestoreSession: vi.fn(),
@@ -44,14 +48,18 @@ function renderSidebar(groups: ProjectGroup[] = [group], sidebarWidth = 264) {
     <LocaleProvider>
       <ToastProvider>
         <Sidebar
-          collapsed={false}
+          collapsed={collapsed}
           toggleSidebar={callbacks.toggleSidebar}
+          onNewSession={callbacks.onNewSession}
           running={false}
           jobs={[]}
-          newSessionAndReset={callbacks.newSessionAndReset}
+          onCreateProject={callbacks.onCreateProject}
           projectGroups={groups}
           searchQuery=""
           onSearchChange={callbacks.onSearchChange}
+          onSwitchProject={callbacks.onSwitchProject}
+          onNewSessionInProject={callbacks.onNewSessionInProject}
+          onRemoveProject={callbacks.onRemoveProject}
           onResumeSessionInProject={callbacks.onResumeSessionInProject}
           onArchiveSession={callbacks.onArchiveSession}
           onRestoreSession={callbacks.onRestoreSession}
@@ -98,6 +106,24 @@ describe("Sidebar 项目分组与会话操作", () => {
     expect(view.container.querySelector('aside')?.getAttribute("data-narrow")).toBe("true");
   });
 
+  it("折叠态使用统一工作台窄轨：开合图标、新建、当前会话和底部图标", () => {
+    const c = renderSidebar([group], 264, true);
+    const toggle = screen.getByTestId("global-sidebar-toggle");
+    expect(toggle.querySelector('[data-workspace-sidebar-toggle="expand"]')).not.toBeNull();
+
+    const current = screen.getByTestId("sidebar-current-session-collapsed");
+    expect(current.querySelector(".office-sidebar__current-dot")).not.toBeNull();
+    fireEvent.click(current);
+    expect(c.toggleSidebar).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByRole("button", { name: "新建项目" })).toBeTruthy();
+    fireEvent.click(screen.getByTestId("sidebar-new-session-collapsed"));
+    expect(c.onNewSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "知识库" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "MCP 与技能" })).toBeTruthy();
+    expect(c.view.container.querySelector(".office-sidebar__collapsed-actions")).not.toBeNull();
+  });
+
   it("渲染项目名称、当前会话与当前标记", () => {
     renderSidebar();
     expect(screen.getByText(/项目.*ws/)).toBeTruthy();
@@ -119,6 +145,64 @@ describe("Sidebar 项目分组与会话操作", () => {
     const restore = screen.getByTitle("恢复");
     fireEvent.click(restore);
     expect(c.onRestoreSession).toHaveBeenCalledWith("/ws/archive/a.jsonl", "/ws");
+  });
+
+  it("2026-11-19 双击非当前项目切换工作区；当前项目双击不切换", () => {
+    const other: ProjectGroup = {
+      path: "/other", name: "other", current: false, modTime: 8,
+      sessions: [{ path: "/other/s.jsonl", preview: "他项预览", turns: 1, modTime: 8, current: false }],
+      archived: [],
+    };
+    const c = renderSidebar([group, other]);
+    fireEvent.doubleClick(screen.getByText("other"));
+    expect(c.onSwitchProject).toHaveBeenCalledWith("/other");
+    fireEvent.doubleClick(screen.getByText("ws"));
+    expect(c.onSwitchProject).not.toHaveBeenCalledWith("/ws");
+  });
+
+  it("2026-11-19 项目归档：非当前项目可归档隐藏，恢复后回到列表", () => {
+    localStorage.removeItem("gaea.sidebar.archivedProjects");
+    const other: ProjectGroup = {
+      path: "/other", name: "other", current: false, modTime: 8,
+      sessions: [{ path: "/other/s.jsonl", preview: "他项预览", turns: 1, modTime: 8, current: false }],
+      archived: [],
+    };
+    renderSidebar([group, other]);
+    fireEvent.click(screen.getByTestId("sidebar-archive-project-other"));
+    // 归档后项目从主列表消失，尾部出现「已归档项目」区
+    expect(screen.queryByText("other")).toBeNull();
+    fireEvent.click(screen.getByText("已归档项目"));
+    fireEvent.click(screen.getByTestId("sidebar-restore-project-other"));
+    // 恢复后项目回到主列表，归档区收起
+    expect(screen.getByText("other")).toBeTruthy();
+    localStorage.removeItem("gaea.sidebar.archivedProjects");
+  });
+
+  it("2026-11-19 项目行操作组：+ 在项目中新建；删除调 onRemoveProject（当前项目只留新建）", () => {
+    const other: ProjectGroup = {
+      path: "/other", name: "other", current: false, modTime: 8,
+      sessions: [{ path: "/other/s.jsonl", preview: "他项预览", turns: 1, modTime: 8, current: false }],
+      archived: [],
+    };
+    const c = renderSidebar([group, other]);
+    fireEvent.click(screen.getByTestId("sidebar-new-in-project-other"));
+    expect(c.onNewSessionInProject).toHaveBeenCalledWith("/other", false);
+    fireEvent.click(screen.getByTestId("sidebar-new-in-project-ws"));
+    expect(c.onNewSessionInProject).toHaveBeenCalledWith("/ws", true);
+    fireEvent.click(screen.getByTestId("sidebar-remove-project-other"));
+    expect(c.onRemoveProject).toHaveBeenCalledWith("/other");
+    // 当前项目无删除/归档按钮
+    expect(screen.queryByTestId("sidebar-remove-project-ws")).toBeNull();
+    expect(screen.queryByTestId("sidebar-archive-project-ws")).toBeNull();
+  });
+
+  it("2026-11-19 顶部主按钮为「新建项目」：打开对话框提交 onCreateProject", async () => {
+    const c = renderSidebar();
+    fireEvent.click(screen.getByText("新建项目"));
+    const nameInput = await screen.findByLabelText("项目名");
+    fireEvent.change(nameInput, { target: { value: "造价审计" } });
+    fireEvent.click(screen.getByText("创建并进入"));
+    await waitFor(() => expect(c.onCreateProject).toHaveBeenCalledWith("D:\\新工作", "造价审计"));
   });
 
   it("interrupted 会话显示「未完成」徽标与提示", () => {

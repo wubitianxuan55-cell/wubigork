@@ -97,7 +97,7 @@ const SettingsPage: React.FC = () => {
             {zoneGroups.map((g) => (
               <React.Fragment key={g.key}>
                 {showZoneTitles && (
-                  <div className="settings-nav__zone" aria-hidden="true">{g.label}</div>
+                  <div className="settings-nav__zone" aria-hidden="true">{t(g.labelKey)}</div>
                 )}
                 {g.cats.map((it) => (
                   <button

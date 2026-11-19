@@ -16,10 +16,11 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 713 名（原生变参 19 名已收窄标注）。
+// 共 718 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
+  AdvancedConfigGet: { argc: 0, variadic: false, params: "" },
   BrainSearch: { argc: 2, variadic: false, params: "query string, brains string" },
   BreezeDeleteVoice: { argc: 1, variadic: false, params: "id string" },
   BreezeListVoices: { argc: 0, variadic: false, params: "" },
@@ -149,6 +150,7 @@ export const bindingSignatures = {
   GaeaCostSave: { argc: 1, variadic: false, params: "e CostEntry" },
   GaeaCostSearch: { argc: 3, variadic: false, params: "query string, category string, status string" },
   GaeaCostSearchPage: { argc: 7, variadic: false, params: "query string, category string, status string, sortKey string, sortDir int, limit int, offset int" },
+  GaeaCreateProject: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCrossEmbed: { argc: 1, variadic: false, params: "in CrossEmbedInput" },
@@ -296,6 +298,7 @@ export const bindingSignatures = {
   GaeaRemember: { argc: 2, variadic: false, params: "scope string, note string" },
   GaeaRemoveMCPServer: { argc: 1, variadic: false, params: "name string" },
   GaeaRemovePermissionRule: { argc: 2, variadic: false, params: "list string, rule string" },
+  GaeaRemoveRecentWorkspace: { argc: 1, variadic: false, params: "path string" },
   GaeaRenameSession: { argc: 2, variadic: false, params: "path string, title string" },
   GaeaRenameWorkspacePath: { argc: 2, variadic: false, params: "rel string, name string" },
   GaeaResumeSession: { argc: 1, variadic: false, params: "path string" },
@@ -633,8 +636,8 @@ export const bindingSignatures = {
   WenxueFileSearch: { argc: 3, variadic: false, params: "query string, limit int, exclude []string" },
   WenxueFileTreeWatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
   WenxueForget: { argc: 1, variadic: false, params: "name string" },
-  WenxueGalleryList: { argc: 0, variadic: false, params: "" },
   WenxueFork: { argc: 1, variadic: false, params: "turn int" },
+  WenxueGalleryList: { argc: 0, variadic: false, params: "" },
   WenxueGitCommit: { argc: 1, variadic: false, params: "message string" },
   WenxueGitCommitDetail: { argc: 1, variadic: false, params: "hash string" },
   WenxueGitDiff: { argc: 2, variadic: false, params: "path string, staged bool" },
@@ -674,6 +677,8 @@ export const bindingSignatures = {
   WenxuePinSession: { argc: 2, variadic: false, params: "path string, pinned bool" },
   WenxuePinnedMaterials: { argc: 0, variadic: false, params: "" },
   WenxuePreview: { argc: 1, variadic: false, params: "rel string" },
+  WenxuePromptGet: { argc: 0, variadic: false, params: "" },
+  WenxuePromptSet: { argc: 2, variadic: false, params: "prompt string, file string" },
   WenxueReadFile: { argc: 1, variadic: false, params: "rel string" },
   WenxueReadFilePage: { argc: 2, variadic: false, params: "rel string, offset int64" },
   WenxueReadTextFile: { argc: 1, variadic: false, params: "rel string" },
@@ -734,5 +739,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 713。
-export const bindingSignatureCount = 713;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 718。
+export const bindingSignatureCount = 718;

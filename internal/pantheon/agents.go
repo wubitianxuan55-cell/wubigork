@@ -126,7 +126,8 @@ func buildAdapters(overrides map[string]string, grok GrokBackend, deepseekKey st
 		newDSHAdapter(overrides["dsh"], deepseekKey),
 	}
 	if grok != nil {
-		// Grok 席位列首位：Gaea 办公 AgentRunner、秒级探测，适合作协作汇总人。
+		// Grok 席位：Gaea 办公 AgentRunner、秒级探测。Agents() 的 priority
+		// 排序仍将其列展示首位；默认汇总人 2026-11-19 起改为 Codex 优先。
 		adapters = append(adapters, newGrokAdapter(grok))
 	}
 	// T15 文件席位：角色文件定义的模型席位排在内建之后（Agents() 的 priority

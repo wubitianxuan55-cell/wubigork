@@ -221,29 +221,21 @@ const PantheonRecordSkeleton: React.FC = () => (
 )
 
 const CouncilProtocol: React.FC = () => (
-  <section className="pantheon-protocol" aria-labelledby="pantheon-protocol-title">
-    <header className="pantheon-protocol-head">
-      <span className="pantheon-eyebrow">议事守则 · Protocol</span>
-      <h3 id="pantheon-protocol-title">让每一种判断，都能经得起彼此校正。</h3>
-    </header>
+  <section className="pantheon-protocol pantheon-protocol--quiet" aria-label="议事流程">
     <ol className="pantheon-rule-list">
       <li>
-        <span className="pantheon-rule-index">01</span>
-        <span><b>有序发言</b><small>按指定顺序表达，让前文成为共同讨论基础。</small></span>
+        <span><b>独立开场</b></span>
       </li>
       <li>
-        <span className="pantheon-rule-index">02</span>
-        <span><b>多轮补强</b><small>补充证据、澄清假设、修正判断，不重复抬杠。</small></span>
+        <span><b>交叉补强</b></span>
       </li>
       <li>
-        <span className="pantheon-rule-index">03</span>
-        <span><b>协作综合</b><small>保留合理分歧，整理共识、开放问题与下一步。</small></span>
+        <span><b>协作汇总</b></span>
       </li>
     </ol>
     <div className="pantheon-protocol-boundary">
       <SafetyCertificateOutlined />
-      <span>只读运行</span>
-      <small>参与者不会修改工作区</small>
+      <span>只读，不修改工作区</span>
     </div>
   </section>
 )
@@ -257,33 +249,23 @@ const WelcomeCanvas: React.FC<{
   const available = agents.filter((agent) => agent.available).length
   return (
     <section
-      className="pantheon-welcome pantheon-welcome--hall"
+      className="pantheon-welcome pantheon-welcome--hall pantheon-welcome--quiet"
       aria-labelledby="pantheon-welcome-title"
     >
-      <span className="pantheon-chamber-watermark" aria-hidden>議</span>
       <div className="pantheon-welcome-copy">
         <div className="pantheon-welcome-kicker">
-          <span className="pantheon-eyebrow">Gaea Council</span>
-          <span className="pantheon-welcome-kicker-rule" aria-hidden />
           <span>本机议事厅</span>
           <span className="pantheon-welcome-read-only">
             <SafetyCertificateOutlined aria-hidden />
             只读
           </span>
         </div>
-        <div className="pantheon-welcome-title-row">
-          <span className="pantheon-chamber-seal" aria-hidden>
-            <CrownOutlined />
-            <small>議</small>
-          </span>
-          <h2 id="pantheon-welcome-title">
-            <span>让不同判断，</span>
-            <span>在讨论中彼此补强。</span>
-          </h2>
-        </div>
+        <h2 id="pantheon-welcome-title">
+          <span>让不同判断，</span>
+          <span>在讨论中彼此补强。</span>
+        </h2>
         <p>
-          把问题交给本机多位 Agent。它们独立开场、交替补强，最后收束共识、
-          保留分歧，一并标出尚未闭合的证据缺口。
+          多个本机 Agent 独立陈述、交叉补充，最后整理共识，并标出仍需核验的分歧。
         </p>
         <div className="pantheon-welcome-actions">
           <Button
@@ -302,44 +284,25 @@ const WelcomeCanvas: React.FC<{
             {probing ? '正在检测本机席位…' : `${available} 位可入席`}
           </span>
         </div>
-        <ol className="pantheon-welcome-sequence" aria-label="议事流程">
-          <li>
-            <span>01</span>
-            <strong>立题</strong>
-            <small>定义问题与证据</small>
-          </li>
-          <li>
-            <span>02</span>
-            <strong>众议</strong>
-            <small>独立判断，多轮补强</small>
-          </li>
-          <li>
-            <span>03</span>
-            <strong>汇断</strong>
-            <small>收束共识，保留分歧</small>
-          </li>
-        </ol>
       </div>
 
       <aside className="pantheon-council-preview" aria-label="本机讨论参与者">
-        <span className="pantheon-preview-orbit" aria-hidden />
         <div className="pantheon-council-preview-head">
           <div>
-            <span className="pantheon-eyebrow">Seat map · 本机席位</span>
-            <strong>一场讨论，四种视角。</strong>
+            <strong>本机席位</strong>
+            <span>发起讨论时可调整参会成员与顺序。</span>
           </div>
           <span className="pantheon-preview-count">
             <b>{probing ? '-' : String(available).padStart(2, '0')}</b>
-            <small>/ {String(seats.length).padStart(2, '0')} 入席</small>
+            <small>/ {String(seats.length).padStart(2, '0')} 就绪</small>
           </span>
         </div>
         <div className="pantheon-seat-map">
-          {seats.map((agent, index) => (
+          {seats.map((agent) => (
             <article
               key={agent.id}
               className={`pantheon-seat-card${agent.available ? ' is-ready' : ''}`}
               style={{
-                '--seat-order': index,
                 '--agent-accent': AGENT_ACCENTS[agent.id] || 'var(--pantheon-accent)',
               } as React.CSSProperties}
             >
@@ -349,9 +312,6 @@ const WelcomeCanvas: React.FC<{
                 status={probing ? undefined : agent.available ? 'online' : 'offline'}
               />
               <span className="pantheon-seat-card-copy">
-                <span className="pantheon-seat-number">
-                  席 {String(index + 1).padStart(2, '0')}
-                </span>
                 <strong>{agent.name}</strong>
                 <small>{agent.kind}</small>
               </span>
@@ -361,13 +321,6 @@ const WelcomeCanvas: React.FC<{
               </span>
             </article>
           ))}
-        </div>
-        <div className="pantheon-council-foot">
-          <span>开场陈述</span>
-          <ArrowRightOutlined aria-hidden />
-          <span>补充论证</span>
-          <ArrowRightOutlined aria-hidden />
-          <span>协作综合</span>
         </div>
       </aside>
     </section>
@@ -1290,7 +1243,6 @@ const PantheonPage: React.FC = () => {
             />
           ) : showComposer ? (
             <div className="pantheon-flow-stage pantheon-compose-stage">
-              <span className="pantheon-composer-watermark" aria-hidden>问</span>
               <PantheonComposer
                 agents={agents}
                 busy={busy}
@@ -1300,7 +1252,6 @@ const PantheonPage: React.FC = () => {
                 onRefreshAgents={() => void loadAgents()}
                 onConfigureAgent={openAgentPath}
               />
-              <CouncilProtocol />
             </div>
           ) : (
             <div className="pantheon-flow-stage pantheon-welcome-stage">

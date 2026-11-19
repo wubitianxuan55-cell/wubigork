@@ -12,6 +12,7 @@ import (
 type CoreB struct{ a *App }
 
 func (b *CoreB) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) { return b.a.AddCustomEngine(name, baseURL, apiKey) }
+func (b *CoreB) AdvancedConfigGet() map[string]string { return b.a.AdvancedConfigGet() }
 func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) { return b.a.CreateProject(dir, title, genre, style) }
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
 func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) { return b.a.GaeaSpaceActivate(space) }

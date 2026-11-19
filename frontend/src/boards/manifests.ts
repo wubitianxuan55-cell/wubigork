@@ -15,28 +15,62 @@
  * 启动页=DEFAULT_BOARD_ID（办公）；settings 入口=manifest.inMenu=false。
  */
 import {
-  MessageOutlined, ReadOutlined, PictureOutlined,
-  ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
-  ScheduleOutlined,
-  FireOutlined, MonitorOutlined, CodeOutlined,
-  CrownOutlined,
+  BookOutlined, FireOutlined, SettingOutlined, WechatOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
 import { app } from '../gaea/lib/bridge'
 import { isIndependentBoard, type BoardSpace } from './space'
+import {
+  GaeaCharacterIcon,
+  GaeaChatIcon,
+  GaeaCodeIcon,
+  GaeaCostIcon,
+  GaeaDreamIcon,
+  GaeaLiteratureIcon,
+  GaeaMemoryIcon,
+  GaeaModelIcon,
+  GaeaOfficeIcon,
+  GaeaPantheonIcon,
+  GaeaRuntimeIcon,
+  GaeaScheduleIcon,
+} from './boardIcons'
 
-// ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
+// ─── 图标注册表：Gaea 专属图标 + 旧 manifest 名兼容别名 ────────────────────
 const ICON_REGISTRY: Record<string, ComponentType> = {
-  MessageOutlined, ReadOutlined, PictureOutlined,
-  ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
-  ScheduleOutlined, FireOutlined, MonitorOutlined, CodeOutlined,
-  CrownOutlined,
+  GaeaChat: GaeaChatIcon,
+  GaeaLiterature: GaeaLiteratureIcon,
+  GaeaDream: GaeaDreamIcon,
+  GaeaOffice: GaeaOfficeIcon,
+  GaeaCost: GaeaCostIcon,
+  GaeaCode: GaeaCodeIcon,
+  GaeaPantheon: GaeaPantheonIcon,
+  GaeaMemory: GaeaMemoryIcon,
+  GaeaModel: GaeaModelIcon,
+  GaeaCharacter: GaeaCharacterIcon,
+  GaeaSchedule: GaeaScheduleIcon,
+  GaeaRuntime: GaeaRuntimeIcon,
+  WechatOutlined,
+
+  // 兼容旧后端清单/浏览器缓存；旧名仍解析为同一套新图形。
+  MessageOutlined: GaeaChatIcon,
+  ReadOutlined: GaeaLiteratureIcon,
+  PictureOutlined: GaeaDreamIcon,
+  ToolOutlined: GaeaOfficeIcon,
+  AccountBookOutlined: GaeaCostIcon,
+  CodeOutlined: GaeaCodeIcon,
+  CrownOutlined: GaeaPantheonIcon,
+  DatabaseOutlined: GaeaMemoryIcon,
+  ApiOutlined: GaeaModelIcon,
+  TeamOutlined: GaeaCharacterIcon,
+  ScheduleOutlined: GaeaScheduleIcon,
+  MonitorOutlined: GaeaRuntimeIcon,
+
+  // 非一级导航或非 Gaea 专属语义，继续使用现成矢量图标。
+  SettingOutlined, BookOutlined, FireOutlined,
 }
 
-/** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
+/** 查表解析板块图标；未知图标名返回 null（不抛错，渲染时退化） */
 export function resolveBoardIcon(name: string): ComponentType | null {
   return ICON_REGISTRY[name] ?? null
 }
@@ -71,59 +105,59 @@ const COST_NAV: BoardNavChild[] = [
  */
 export const canonicalBoards: BoardManifest[] = [
   {
-    id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage',
+    id: 'chat', label: '聊天', icon: 'GaeaChat', page: 'ChatPage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1',
     menuOrder: 1, inMenu: true, featureModel: 'chat', space: 'play', // §10.3 对话降为对话流（乐园=会客厅）
   },
   {
     // 文学板块（2026-11-15）：办公板块的完整前端拷贝（frontend/src/wenxue/），独立
     // 引擎装配（feature=wenxue 绑定）。2026-11-15 小说板块退役后接替其一级导航位
-    // （menuOrder 2 + ReadOutlined + ctrl+2，用户拍板「一级图标给文学板块」）；
+    // （menuOrder 2 + GaeaLiterature + ctrl+2，用户拍板「一级图标给文学板块」）；
     // 与 Go builtins.go 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
-    id: 'wenxue', label: '文学', icon: 'ReadOutlined', page: 'WenxuePage',
+    id: 'wenxue', label: '文学', icon: 'GaeaLiterature', page: 'WenxuePage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+2',
     menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'wenxue' },
     featureModel: 'wenxue', space: 'work',
   },
   {
-    id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage',
+    id: 'imagegen', label: '绘梦', icon: 'GaeaDream', page: 'ImageGenPage',
     lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3',
     menuOrder: 3, inMenu: true, space: 'play',
   },
   {
-    id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage',
+    id: 'gaea', label: '办公', icon: 'GaeaOffice', page: 'GaeaPage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4',
     menuOrder: 4, inMenu: true, featureModel: 'gaea', space: 'work',
   },
   {
-    id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage',
+    id: 'cost', label: '造价数据库', icon: 'GaeaCost', page: 'CostLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost', space: 'work',
   },
   {
     // 2026-11-08 用户恢复：编程回流为独立一级板块。页面只承载官方 Web 安装、
     // 隔离边界与插件适配入口，不恢复旧 DSH 进程管理绑定。
-    id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
+    id: 'code', label: '编程', icon: 'GaeaCode', page: 'ProgrammingPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 6, inMenu: true, space: 'independent',
   },
   {
-    id: 'pantheon', label: '众神殿', icon: 'CrownOutlined', page: 'PantheonPage',
+    id: 'pantheon', label: '众神殿', icon: 'GaeaPantheon', page: 'PantheonPage',
     lazy: true, keepAlive: true, layout: 'full',
     menuOrder: 6, inMenu: true, space: 'shared',
   },
   {
-    id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage',
+    id: 'memoryhub', label: '记忆中枢', icon: 'GaeaMemory', page: 'MemoryHubPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 7, inMenu: true, nav: { children: MEMORYHUB_NAV }, space: 'work',
   },
   {
-    id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage',
+    id: 'modelcenter', label: '模型中心', icon: 'GaeaModel', page: 'ModelCenterPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 8, inMenu: true, space: 'shared',
   },
   {
-    id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage',
+    id: 'characterlib', label: '角色库', icon: 'GaeaCharacter', page: 'CharacterLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 9, inMenu: true, featureModel: 'characterlib', space: 'play',
   },
@@ -138,7 +172,7 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 11, inMenu: true, space: 'work', // v4.4：触点落地，进 rail + 首页左翼
   },
   {
-    id: 'schedule', label: '进度计划', icon: 'ScheduleOutlined', page: 'SchedulePage',
+    id: 'schedule', label: '进度计划', icon: 'GaeaSchedule', page: 'SchedulePage',
     lazy: true, keepAlive: true, layout: 'padded',
     // 2026-11-14 用户拍板：进度板块从办公板块分离为一级板块（撤 v4.168.0 瘦身刀1 的
     // inMenu:false 合并语义）。办公侧承接入口保留：文件面 .gsched 摘要卡、命令面板项、
@@ -150,7 +184,7 @@ export const canonicalBoards: BoardManifest[] = [
   {
     // 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：系统资源 + 引擎状态 +
     // Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的聚合仪表盘。
-    id: 'runtime', label: '运行监测', icon: 'MonitorOutlined', page: 'RuntimePage',
+    id: 'runtime', label: '运行监测', icon: 'GaeaRuntime', page: 'RuntimePage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 14, inMenu: true, space: 'shared',
   },

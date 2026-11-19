@@ -473,6 +473,22 @@ export namespace app {
 	        this.compactLeft = source["compactLeft"];
 	    }
 	}
+	export class WenxuePromptView {
+	    prompt: string;
+	    file: string;
+	    effective: string;
+
+	    static createFrom(source: any = {}) {
+	        return new WenxuePromptView(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.prompt = source["prompt"];
+	        this.file = source["file"];
+	        this.effective = source["effective"];
+	    }
+	}
 	export class ConvertPdfResult {
 	    path: string;
 	    name: string;

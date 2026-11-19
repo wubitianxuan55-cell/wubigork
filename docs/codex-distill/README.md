@@ -4,6 +4,9 @@
 > **逆向原始资料不在仓库里**——证据包（264 万条串、crate 表、反编译伪代码、内嵌模型目录、
 > 上游源码树）全在仓库外：`C:\AI\re\codex-0.165.0\`（约 136 MB，勿复制进仓库）。
 > **跨轮次状态锚点**：`C:\AI\re\codex-0.165.0\docs\MEMORY-逆向状态.md`（进度、铁律、证据根、已确认机制、下一步）。
+> **第二证据根（桌面端插件包，2026-11-19 起）**：`asset-62`（电脑操控）不是从 `codex-0.165.0` 源码逆的，
+> 证据在 `%USERPROFILE%\.codex\zh-cn-patched\<hash>\app\resources\`（Electron 包解包 + `cua_node` 运行时 + `@oai/{sky,cua,cua-repl}`），
+> 原始证据包（含实测 helper 响应 JSON、PE 导入表、全量串表）在仓库外 `C:\AI\_distill\codex-computer-use\`。
 
 ## 文件
 
@@ -86,6 +89,8 @@
 | `asset-59-backend-roundup-small-crates.md` | 资产（收口）：**后端余项小件合集**——5 条口径（历史批量 128/64KiB、保留上下文族 8/16KiB/64KiB、git 5s 超时 + 禁 hooks、PTY 输出 1MiB、批次只记最后完成者）+ 判定不搬三类理由；使台账"未覆盖"清零 |
 | `asset-60-app-server-dispatch-and-redaction.md` | 资产（施工级）：**app-server 派发/订阅/脱敏**——三段式派发（连接前置 → 调度准入 → 域处理器）、线程解订阅三态（`NotLoaded`/`Unsubscribed`/幂等）、恢复响应按客户端名白名单脱敏（只改响应、`ImageGeneration` 整项丢弃）、接口级上限（sample 4KB/64KiB、扩展告警 256B） |
 | `asset-61-config-and-agent-runtime.md` | 资产（施工级）：**配置层与多智能体运行面**——默认值即口径（200 项 / 10MiB / 65% / 30s / 三处提示词各 2000B）、`toml_edit` 保注释改写、托管层优先、子代理三条资源上限（关停失败 64 / 根上下文 3 / 授权消息 16）、静态名称词表 |
+| `asset-62-computer-use-sky-windows.md` | 资产（施工级 · **新面**）：**电脑操控（Computer Use / `@oai/sky`）Windows 全链路**（B9）——三层结构（插件 + JS REPL + 原生 swift helper）、行 JSON 与 native pipe 双传输 + 超时表（10s / 15s）、17 个方法、UIA 树文本格式（含 75/73/163 截断几何）、索引与 `screenshotId` 失效闸门、WGC 截图与 DPI 复原失败即禁用坐标、按 app 授权闸门与四档确认策略、Escape→130 中断链路；含 gaea 三档落点与 10 条验收断言。**证据源是桌面端插件包，不在 `codex-0.165.0` 源码树里** |
+| `asset-63-computer-use-full-reverse.md` | 资产（**代码级还原清单**）：电脑操控六层全量逆向（B9 续）——Electron 前端（asar 19 791 文件的 offset 表、主进程 computer-use 桥/`cua_repl` env 组装/overlay 配置下发、renderer 设置与审批键族）、`@oai/{sky,cua,cua-repl}` 全量 dist、原生 helper 的 5 134 条 Swift 反射字段与 UIA/WGC 状态机、启动器反汇编、自建 capstone xref 反汇编法（无需 Ghidra）；含还原度诚实清单与复现命令 |
 | `asset-46-updates-notifications-daemon.md` | 资产：更新与运行面——更新动作由安装上下文八选一、版本不可比返回 `None`、`Older`/`Different` 分家、通知后端能力探测并回报生效项、恢复只做一次不循环 |
 
 ## 读到哪一层

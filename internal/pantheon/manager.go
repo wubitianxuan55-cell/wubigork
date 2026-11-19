@@ -3459,6 +3459,17 @@ func uniqueNonEmpty(in []string) []string {
 func orderedAgentIDs(requested []string, available map[string]AgentStatus) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(available))
+	// 2026-11-19 用户拍板：Codex 在席且可用时最先发言（第 1 轮开场即首位；
+	// 轮转公平语义保留，后续轮次照常轮转）。
+	if _, ok := available["codex"]; ok {
+		for _, id := range requested {
+			if id == "codex" {
+				out = append(out, "codex")
+				seen["codex"] = true
+				break
+			}
+		}
+	}
 	for _, id := range requested {
 		if _, ok := available[id]; !ok || seen[id] {
 			continue
@@ -3487,13 +3498,14 @@ func rotateAgentIDs(order []string, offset int) []string {
 	return out
 }
 
-// pickChairman 默认汇总人：从参会席位中选择，Grok 在席且可用时优先，
-// 仅用于整理共识与开放问题，不赋予最终裁决权。
+// pickChairman 默认汇总人：从参会席位中选择，Codex 在席且可用时优先
+// （2026-11-19 用户拍板，原为 Grok），仅用于整理共识与开放问题，
+// 不赋予最终裁决权。
 func pickChairman(selectedIDs []string, available map[string]AgentStatus) string {
-	if _, ok := available["grok"]; ok {
+	if _, ok := available["codex"]; ok {
 		for _, id := range selectedIDs {
-			if id == "grok" {
-				return "grok"
+			if id == "codex" {
+				return "codex"
 			}
 		}
 	}

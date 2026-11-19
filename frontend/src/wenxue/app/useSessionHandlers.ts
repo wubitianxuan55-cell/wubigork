@@ -67,9 +67,13 @@ export function useSessionHandlers(params: UseSessionHandlersParams) {
       setHistView(sessions);
       // 审计 2026-09 #7：列表中已无该会话（删除成功）才清理其 GenUI 交互状态。
       // handleDeleteSession 内部吞错（toast + 列表回滚），据此区分成败。
-      if (!sessions.some((s) => s.path === path)) purgeDeletedSessionGenui(path);
+      if (!sessions.some((s) => s.path === path)) {
+        purgeDeletedSessionGenui(path);
+        // 2026-11-19 一步删除（用户拍板去二次确认）：toast 反馈补回操作确认感。
+        toast.show(t("history.deleted"), "info");
+      }
     },
-    [handleDeleteSession, refreshSessions, setHistView],
+    [handleDeleteSession, refreshSessions, setHistView, toast, t],
   );
   const onRenameSession = useCallback(
     async (path: string, title: string) => { await handleRenameSession(path, title); setHistView(await refreshSessions()); },

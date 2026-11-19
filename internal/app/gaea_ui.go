@@ -465,6 +465,58 @@ func (a *App) GaeaDeleteSession(path string) error {
 	return deleteSessionFile(dir, path)
 }
 
+// GaeaRemoveRecentWorkspace 把工作区从「最近项目」注册表移除（侧边栏不再
+// 分组展示；会话文件与磁盘目录不动，重新打开该工作区即回来）。拒绝移除
+// 当前工作区——当前项目由「切换工作区」管理生命周期（2026-11-19 项目行
+// 删除按钮）。
+func (a *App) GaeaRemoveRecentWorkspace(path string) error {
+	if path = strings.TrimSpace(path); path == "" {
+		return errors.New("工作区路径不能为空")
+	}
+	if gaeaCwd() == path {
+		return errors.New("当前工作区不能从最近列表移除——先切换到其他项目")
+	}
+	paths := gaeaConfig.LoadRecentWorkspaces()
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if p == path {
+			continue
+		}
+		out = append(out, p)
+	}
+	return gaeaConfig.SaveRecentWorkspaces(out)
+}
+
+// GaeaCreateProject 在父目录下新建项目目录并切换为当前工作区（侧栏顶部
+// 「新建项目」，文学面新建小说同构）。目录已存在即拒绝；切换走既有
+// switchWorkspace（含 recent 注册表 Touch 与引擎重建）。
+func (a *App) GaeaCreateProject(parent string, name string) (string, error) {
+	parent = strings.TrimSpace(parent)
+	name = strings.TrimSpace(name)
+	if parent == "" || name == "" {
+		return "", errors.New("父目录与项目名不能为空")
+	}
+	if strings.ContainsAny(name, `\/:*?"<>|`) || name == "." || name == ".." {
+		return "", errors.New("项目名不能包含路径分隔符或非法字符")
+	}
+	abs, err := filepath.Abs(parent)
+	if err != nil {
+		return "", err
+	}
+	if info, err := os.Stat(abs); err == nil && !info.IsDir() {
+		return "", fmt.Errorf("父路径不是目录：%s", abs)
+	}
+	target := filepath.Join(abs, name)
+	if _, err := os.Stat(target); err == nil {
+		return "", fmt.Errorf("目录已存在：%s", target)
+	}
+	// MkdirAll 连父目录一并创建（默认父目录 D:\新工作 首次新建即自动落地）。
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		return "", err
+	}
+	return a.switchWorkspace(target), nil
+}
+
 // GaeaArchiveSession 归档已保存会话（移动至 <sessions>[/<space>]/archive/，
 // 可恢复）。拒绝归档当前会话——当前会话由「新建会话」管理生命周期。
 // S2：守卫放行空间分区目录（sessions/work|play/）——归档落在会话所在

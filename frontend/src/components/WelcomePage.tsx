@@ -22,11 +22,25 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
       boxShadow: '0 12px 48px rgba(0,0,0,0.28)',
       maxWidth: 440, width: 'calc(100% - 48px)',
     }}>
-      <div style={{ position: 'relative', marginBottom: 24 }}>
-        <img src="/favicon.svg" alt="gaea" style={{
-          width: 88, height: 88,
-          filter: 'drop-shadow(0 0 12px color-mix(in srgb, var(--gaea-glow) 35%, transparent))',
-        }} />
+      <div role="img" aria-label="gaea" style={{
+        position: 'relative',
+        width: 112,
+        height: 90,
+        marginBottom: 24,
+        overflow: 'hidden',
+      }}>
+        <img
+          src="/gaea-brand-light.jpg"
+          alt=""
+          className="gaea-brand-art gaea-brand-art--light"
+          draggable={false}
+        />
+        <img
+          src="/gaea-brand-dark.jpg"
+          alt=""
+          className="gaea-brand-art gaea-brand-art--dark"
+          draggable={false}
+        />
       </div>
       <Typography.Title level={1} style={{
         color: 'var(--md-sys-color-text)', margin: '0 0 6px', fontSize: 40,

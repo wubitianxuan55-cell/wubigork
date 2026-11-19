@@ -78,4 +78,16 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
     expect(active?.getAttribute('aria-label')).toBe('办公')
     expect(active?.getAttribute('aria-current')).toBe('page')
   })
+
+  it('一级导航均渲染矢量图标，微信助手使用品牌图标', () => {
+    renderRail()
+    const labels = navLabels().filter((label): label is string => Boolean(label))
+    expect(labels).toHaveLength(12)
+    for (const label of labels) {
+      const button = screen.getByLabelText(label)
+      expect(button.querySelector('.v3-rail-icon svg')).not.toBeNull()
+    }
+    expect(screen.getByLabelText('编程').querySelector('.v3-rail-icon svg')).not.toBeNull()
+    expect(screen.getByLabelText('微信助手').querySelector('.anticon-wechat')).not.toBeNull()
+  })
 })

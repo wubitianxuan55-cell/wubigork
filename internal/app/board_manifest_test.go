@@ -187,7 +187,7 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 	if !ok {
 		t.Fatal("code 编程板块应恢复为一级入口")
 	}
-	if code.Label != "编程" || code.Page != "ProgrammingPage" || code.Icon != "CodeOutlined" ||
+	if code.Label != "编程" || code.Page != "ProgrammingPage" || code.Icon != "GaeaCode" ||
 		code.Space != board.SpaceIndependent || code.InMenu == nil || !*code.InMenu ||
 		code.MenuOrder != 6 || len(code.Bindings) != 0 {
 		t.Errorf("编程板块 manifest 字段不齐: %+v", code)
@@ -197,7 +197,7 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 	if !ok {
 		t.Fatal("成本库一级板块缺失")
 	}
-	if ct.Label != "造价数据库" || ct.Page != "CostLibraryPage" || ct.Icon != "AccountBookOutlined" ||
+	if ct.Label != "造价数据库" || ct.Page != "CostLibraryPage" || ct.Icon != "GaeaCost" ||
 		ct.InMenu == nil || !*ct.InMenu || ct.MenuOrder != 5 ||
 		len(ct.Bindings) != 1 || ct.Bindings[0] != "CostB" {
 		t.Errorf("成本库板块 manifest 字段不齐: %+v", ct)
@@ -214,7 +214,7 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 	}
 	// chat 板块字段抽样对齐 TS schema
 	chat := byID["chat"]
-	if chat.Label != "聊天" || chat.Icon != "MessageOutlined" || chat.Page != "ChatPage" ||
+	if chat.Label != "聊天" || chat.Icon != "GaeaChat" || chat.Page != "ChatPage" ||
 		!chat.Lazy || chat.KeepAlive == nil || !*chat.KeepAlive || chat.Layout != "full" ||
 		chat.Shortcut != "ctrl+1" || chat.MenuOrder != 1 || chat.InMenu == nil || !*chat.InMenu ||
 		chat.FeatureModel != "chat" {

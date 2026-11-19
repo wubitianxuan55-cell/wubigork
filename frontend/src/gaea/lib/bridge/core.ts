@@ -128,6 +128,10 @@ export interface CoreBindings {
   ListWorkspaces(): Promise<WorkspaceView[]>;
   PickWorkspace(): Promise<string>;
   SwitchWorkspace(path: string): Promise<string>;
+  // 2026-11-19 项目行删除：从最近工作区注册表移除（不动磁盘/会话）。
+  RemoveRecentWorkspace(path: string): Promise<void>;
+  // 2026-11-19 顶部「新建项目」：父目录下建项目目录并切换为当前工作区。
+  CreateProject(parent: string, name: string): Promise<string>;
   // 双空间（S4，设计 §6）：work/play 静态枚举、当前生效空间、切换持久化。
   // Activate 只写配置（非法 space 拒绝）；生效时机为下次引擎重建/重启。
   GaeaSpaceList(): Promise<SpaceOption[]>;
@@ -409,6 +413,11 @@ export interface CoreBindings {
   // 只导出主线时传 onlyMainline=true，返回文件名 → 内容映射）。
   GetConfig(): Promise<Record<string, string>>;
   SaveConfig(key: string, value: string): Promise<void>;
+  // ── 设置中枢尾批（2026-11-19）：文学分板提示词双键绑对（此前仅手改 ga.cfg）
+  // 与高级组键回显（GetConfig 仅 3 会话键，此处为 13 个无 UI 键的读面）。──
+  WenxuePromptGet(): Promise<{ prompt: string; file: string; effective: string }>;
+  WenxuePromptSet(prompt: string, file: string): Promise<void>;
+  AdvancedConfigGet(): Promise<Record<string, string>>;
   ListSkills(): Promise<Array<Record<string, unknown>>>;
   // ── 批次三a legacy 直调转正（Go CoreB.ListProjects，同名前缀无需映射）──
   // ListProjects 书架工程卡片列表（api/characterlib.listShelfProjects 消费；

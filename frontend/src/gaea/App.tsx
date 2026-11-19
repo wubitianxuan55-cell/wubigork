@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout, Modal } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
-  PanelRight, MessageSquare, Trash2, X, Aim, Inbox,
+  MessageSquare, Trash2, X, Aim, Inbox,
   ClipboardList, Sparkles, Table,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -30,12 +30,13 @@ import { DeniedActionsDock } from "./components/DeniedActionsDock";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
+import { WorkspacePanelToggleIcon } from "../components/WorkspacePanelToggleIcon";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
-import { CHAT_VIEW_TAB_IDS, ChatTabs, type ChatTabId } from "./components/ChatTabs";
+import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { Insights } from "./components/context/Insights";
 import { Fleet } from "./components/context/Fleet";
@@ -98,13 +99,9 @@ export default function App() {
   // 2.5e /context 居中弹层（dsh 同名能力）。ctxModalRef 非空 = 查看该子代理。
   const [ctxModalOpen, setCtxModalOpen] = useState(false);
   const [ctxModalRef, setCtxModalRef] = useState<string | null>(null);
-  const [chatTab, setChatTab] = useState<ChatTabId>(() => {
-    try {
-      const saved = readWorkbenchValue("gaea.chatTab");
-      // 持久化校验走 CHAT_VIEW_TAB_IDS 单源（2026-11-17 审查批4 自 wenxue 回种）。
-      return saved != null && (CHAT_VIEW_TAB_IDS as string[]).includes(saved) ? saved as ChatTabId : "chat";
-    } catch { return "chat"; }
-  });
+  // 每次冷启动先落到新建会话的「对话」首页；页签持久化只服务本次运行内
+  // 的办公工作台切换，不再把上次停留的上下文/记忆等页签带到首屏。
+  const [chatTab, setChatTab] = useState<ChatTabId>("chat");
   useEffect(() => {
     writeWorkbenchValue("gaea.chatTab", chatTab);
   }, [chatTab]);
@@ -494,7 +491,6 @@ export default function App() {
   const openSubagentAside = useCallback((p: { ref: string; task?: string }) => {
     setWorkspacePanel(true);
     usePaneTabsStore.getState().openSubagentPane(p.ref, p.task || p.ref);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch
   }, [setWorkspacePanel]);
   // 子代理 task 卡 live 预览/跳转/歧义选择器注入 → app/useTaskCards
   useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSessionPath, openSubagentAside });
@@ -716,8 +712,7 @@ export default function App() {
   const showCenteredComposer =
     showOfficeComposer
     && state.items.length === 0
-    && !state.running
-    && state.meta?.ready === true;
+    && !state.running;
 
   return (
     <>
@@ -740,10 +735,42 @@ export default function App() {
         <Sidebar
           collapsed={sidebarCollapsed}
           toggleSidebar={toggleSidebar}
+          onNewSession={() => void newSessionAndReset()}
           running={state.running}
           jobs={state.jobs}
-          newSessionAndReset={newSessionAndReset}
+          onCreateProject={async (parent, name) => {
+            // 2026-11-19 顶部「新建项目」：后端建目录+切换；前端走 switchWorkspace
+            // 幂等复位（reset/引擎事件重挂）+ 预览关闭 + 列表刷新。
+            const p = await app.CreateProject(parent, name);
+            if (!p) return;
+            await switchWorkspace(p);
+            closeFilePreview();
+            setWorkspacePanel(false);
+            await refreshSessions();
+          }}
           projectGroups={projectGroups}
+          onSwitchProject={(path) => void switchFolder(path)}
+          onNewSessionInProject={(path, current) => {
+            void (async () => {
+              // 2026-11-19 项目行 +：非当前项目先切工作区（文学面 newSessionInGroup 同构），再新建。
+              if (!current) {
+                const picked = await switchFolder(path);
+                if (!picked) return;
+              }
+              await newSessionAndReset();
+            })();
+          }}
+          onRemoveProject={(path) => {
+            void (async () => {
+              try {
+                await app.RemoveRecentWorkspace(path);
+                await refreshSessions();
+                toast.show(t("sidebar.projectRemoved"), "info");
+              } catch (e) {
+                toast.show(e instanceof Error ? e.message : String(e), "warn");
+              }
+            })();
+          }}
           onResumeSessionInProject={resumeSessionInProject}
           onArchiveSession={onArchiveSession}
           onRestoreSession={onRestoreSession}
@@ -851,7 +878,7 @@ export default function App() {
                 </ToolbarButton>
               )}
               <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
-                <PanelRight size={13} />
+                <WorkspacePanelToggleIcon open={workspacePanelOpen} />
               </ToolbarButton>
             </div>
           </header>
@@ -864,7 +891,8 @@ export default function App() {
           <NewSessionToast done={newSessionDone} />
           <main className="main">
             <CompactContext.Provider value={compactMode}>
-            {(state.meta?.ready === false && !state.meta?.startupErr) || switchingModel ? (
+            {!showCenteredComposer
+              && ((state.meta?.ready === false && !state.meta?.startupErr) || switchingModel) ? (
               <Skeleton />
             ) : (
               <>

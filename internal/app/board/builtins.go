@@ -21,7 +21,7 @@ package board
 // 直接返回其拷贝，前端 MainLayout/ModuleLauncher 数据驱动）。
 var builtinManifests = []Manifest{
 	{
-		ID: "chat", Label: "聊天", Icon: "MessageOutlined",
+		ID: "chat", Label: "聊天", Icon: "GaeaChat",
 		Page: "ChatPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+1",
 		MenuOrder: 1, InMenu: Bool(true),
@@ -31,7 +31,7 @@ var builtinManifests = []Manifest{
 		Intents:      []IntentDecl{{ID: "chat", Handler: "WhisperChat"}},
 	},
 	{
-		ID: "imagegen", Label: "绘梦", Icon: "PictureOutlined",
+		ID: "imagegen", Label: "绘梦", Icon: "GaeaDream",
 		Page: "ImageGenPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded", Shortcut: "ctrl+3",
 		MenuOrder: 3, InMenu: Bool(true),
@@ -41,7 +41,7 @@ var builtinManifests = []Manifest{
 		Intents:      []IntentDecl{{ID: "generate", Handler: "GenerateFreeImage"}},
 	},
 	{
-		ID: "gaea", Label: "办公", Icon: "ToolOutlined",
+		ID: "gaea", Label: "办公", Icon: "GaeaOffice",
 		Page: "GaeaPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+4",
 		MenuOrder: 4, InMenu: Bool(true),
@@ -54,7 +54,7 @@ var builtinManifests = []Manifest{
 		},
 	},
 	{
-		ID: "cost", Label: "造价数据库", Icon: "AccountBookOutlined",
+		ID: "cost", Label: "造价数据库", Icon: "GaeaCost",
 		Page: "CostLibraryPage", Lazy: true, // 2026-08-19：成本库从记忆中枢二级分类提升为一级板块
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 5, InMenu: Bool(true),
@@ -69,14 +69,14 @@ var builtinManifests = []Manifest{
 		Bindings:     []string{"CostB"},
 	},
 	{
-		ID: "code", Label: "编程", Icon: "CodeOutlined",
+		ID: "code", Label: "编程", Icon: "GaeaCode",
 		Page: "ProgrammingPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 6, InMenu: Bool(true),
 		Space: SpaceIndependent, // 独立入口：不并入工位/乐园，也不共享工具面
 	},
 	{
-		ID: "pantheon", Label: "众神殿", Icon: "CrownOutlined",
+		ID: "pantheon", Label: "众神殿", Icon: "GaeaPantheon",
 		Page: "PantheonPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full",
 		MenuOrder: 6, InMenu: Bool(true),
@@ -84,7 +84,7 @@ var builtinManifests = []Manifest{
 		Bindings: []string{"PantheonB"},
 	},
 	{
-		ID: "memoryhub", Label: "记忆中枢", Icon: "DatabaseOutlined",
+		ID: "memoryhub", Label: "记忆中枢", Icon: "GaeaMemory",
 		Page: "MemoryHubPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 7, InMenu: Bool(true),
@@ -98,7 +98,7 @@ var builtinManifests = []Manifest{
 		Bindings: []string{"MemoryB", "CostB"}, // 记忆库聚合（成本库已独立为一级板块）
 	},
 	{
-		ID: "modelcenter", Label: "模型中心", Icon: "ApiOutlined",
+		ID: "modelcenter", Label: "模型中心", Icon: "GaeaModel",
 		Page: "ModelCenterPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 8, InMenu: Bool(true),
@@ -106,7 +106,7 @@ var builtinManifests = []Manifest{
 		Bindings: []string{"ModelB"},
 	},
 	{
-		ID: "characterlib", Label: "角色库", Icon: "TeamOutlined",
+		ID: "characterlib", Label: "角色库", Icon: "GaeaCharacter",
 		Page: "CharacterLibraryPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 9, InMenu: Bool(true),
@@ -147,7 +147,7 @@ var builtinManifests = []Manifest{
 		Bindings:     []string{"MemoryB"}, // 知识库能力经记忆域门面（§3.1 建议）
 	},
 	{
-		ID: "schedule", Label: "进度计划", Icon: "ScheduleOutlined",
+		ID: "schedule", Label: "进度计划", Icon: "GaeaSchedule",
 		Page: "SchedulePage", Lazy: true, // v4.110.0：工程进度计划（横道图/单代号/双代号三视图，前端自治）
 		KeepAlive: Bool(true), Layout: "padded",
 		// 2026-11-14 用户拍板：进度板块从办公板块分离为一级板块（撤 v4.168.0 瘦身刀1 的
@@ -162,10 +162,10 @@ var builtinManifests = []Manifest{
 		// 文学板块（2026-11-15 二次改造）：办公板块的完整前端拷贝（frontend/src/wenxue/），
 		// 文件面已隔离=WenxueB（工作空间限定 C:\AI\tuwen，每部小说一个子目录）；
 		// 会话/聊天引擎独立装配（案A，feature=wenxue 绑定）。2026-11-15 小说板块
-		// 退役后接替其一级导航位（menuOrder 2 + ReadOutlined + ctrl+2，用户拍板
+		// 退役后接替其一级导航位（menuOrder 2 + GaeaLiterature + ctrl+2，用户拍板
 		// 「一级图标给文学板块」）。与前端 manifests.ts 同步翻，防 normalizeManifests
 		// 后端字段优先导致真机/浏览器分裂。
-		ID: "wenxue", Label: "文学", Icon: "ReadOutlined",
+		ID: "wenxue", Label: "文学", Icon: "GaeaLiterature",
 		Page: "WenxuePage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+2",
 		MenuOrder: 2, InMenu: Bool(true),
@@ -182,7 +182,7 @@ var builtinManifests = []Manifest{
 		// 运行监测（2026-10-19，参照 Strata Monitor 仪表盘）：本机系统资源 +
 		// 引擎状态 + Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的
 		// 聚合仪表盘。数据源 App.RuntimeMonitor（runtime_monitor.go）。
-		ID: "runtime", Label: "运行监测", Icon: "MonitorOutlined",
+		ID: "runtime", Label: "运行监测", Icon: "GaeaRuntime",
 		Page: "RuntimePage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 14, InMenu: Bool(true),

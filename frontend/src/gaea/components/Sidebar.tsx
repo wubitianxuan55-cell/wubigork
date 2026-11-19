@@ -1,14 +1,14 @@
 import type { Dispatch, KeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { List, type RowComponentProps } from "react-window";
+import { Input, Modal } from "antd";
 import {
   Plus, Blocks, BookOpen, MessageSquare, Search,
-  PanelLeftClose, PanelLeftOpen, Loader2, ChevronDown, FolderGit2,
-  Pin, Inbox, Rollback, X,
+  Loader2, ChevronDown, FolderGit2,
+  Pin, Inbox, Rollback, X, Trash2, SquarePen,
 } from "../icons";
-import logoSvg from "../assets/logo.svg";
-import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
+import { WorkspaceSidebarToggleIcon } from "../../components/WorkspaceSidebarToggleIcon";
 import { sessionTitle } from "../lib/session";
 import { relativeTime } from "../lib/time";
 import { filterProjectGroups } from "../lib/projectGroups";
@@ -20,13 +20,18 @@ import type { SubagentThreadStatus } from "./SubagentThread";
 export interface SidebarProps {
   collapsed: boolean;
   toggleSidebar: () => void;
+  onNewSession: () => void;
   running: boolean;
   jobs: JobView[];
-  newSessionAndReset: () => void;
+  // 2026-11-19 顶部「新建项目」：父目录下建项目目录并切换工作区（文学面同构）。
+  onCreateProject: (parent: string, name: string) => Promise<void>;
   // 会话模块：按项目分组（当前工作区在前，其余为最近打开过的工作区）
   projectGroups: ProjectGroup[];
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onSwitchProject: (path: string) => void;
+  onNewSessionInProject: (path: string, current: boolean) => void;
+  onRemoveProject: (path: string) => void;
   onResumeSessionInProject: (path: string, projectPath: string) => void;
   onArchiveSession: (path: string) => void;
   onRestoreSession: (path: string, projectPath: string) => void;
@@ -52,6 +57,7 @@ export interface SidebarProps {
 }
 
 const PROJECTS_OPEN_KEY = "gaea.sidebar.projectsOpen";
+const ARCHIVED_PROJECTS_KEY = "gaea.sidebar.archivedProjects";
 const PER_PROJECT_PAGE = 8;
 
 /** 虚拟滚动固定行高（px）：会话项含预览两行约 46px，组头/归档行更矮，取整行估算 44px。 */
@@ -89,8 +95,6 @@ function subagentThreadStatus(r: SubagentRunView): SubagentThreadStatus {
 
 interface SessionRowUI {
   running: boolean;
-  deleteConfirm: string | null;
-  setDeleteConfirm: Dispatch<SetStateAction<string | null>>;
   renameTarget: string | null;
   renameDraft: string;
   setRenameDraft: Dispatch<SetStateAction<string>>;
@@ -101,6 +105,14 @@ interface SessionRowUI {
   setArchivedOpen: Dispatch<SetStateAction<Record<string, boolean>>>;
   toggleProject: (path: string, defaultOpen: boolean) => void;
   isProjectOpen: (g: ProjectGroup) => boolean;
+  // 2026-11-19：项目行双击切换到该项目工作区。
+  onSwitchProject: (path: string) => void;
+  // 2026-11-19 项目行 +：在指定项目新建会话（非当前先切工作区再新建）。
+  onNewSessionInProject: (path: string, current: boolean) => void;
+  // 2026-11-19 项目行删除：从最近列表移除（不动磁盘，重开工作区即回）。
+  onRemoveProject: (path: string) => void;
+  // 2026-11-19 项目归档：隐藏至「已归档项目」区（可恢复，不影响会话文件）。
+  onArchiveProject: (path: string) => void;
   onResumeSessionInProject: (path: string, projectPath: string) => void;
   onArchiveSession: (path: string) => void;
   onRestoreSession: (path: string, projectPath: string) => void;
@@ -131,11 +143,19 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 
   if (row.kind === "group") {
     return (
-      <div style={style} {...ariaAttributes} className="office-tree-row" data-sidebar-row="group">
+      <div style={style} {...ariaAttributes} className="office-tree-row group" data-sidebar-row="group">
         <button
-          className={`office-project-row no-drag ${row.g.current ? "is-current" : ""}`}
-          onClick={() => ui.toggleProject(row.g.path, row.g.current)}
-          title={row.g.path}
+          className={`office-project-row no-drag flex-1 min-w-0 ${row.g.current ? "is-current" : ""}`}
+          onClick={e => {
+            // 双击的第二次 click 不再 toggle（避免开→关回弹），切换交给 onDoubleClick。
+            if (e.detail === 2) return;
+            ui.toggleProject(row.g.path, row.g.current);
+          }}
+          onDoubleClick={e => {
+            e.stopPropagation();
+            if (!row.g.current) ui.onSwitchProject(row.g.path);
+          }}
+          title={`${row.g.path}${row.g.current ? "" : `\n${t("sidebar.switchProjectHint")}`}`}
         >
           <span
             className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
@@ -152,6 +172,42 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
           )}
           <span className="office-project-count shrink-0 text-fg-faint/55 font-mono text-[10px]">{row.g.sessions.length}</span>
         </button>
+        {/* 2026-11-19 项目行操作组（文学面形态）：+ 新建会话 / 删除（移出最近列表）/
+            归档（隐藏可恢复）。当前项目只留新建。 */}
+        <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+            title={ui.running ? t("common.busyHint") : t("sidebar.newSessionInProject", { name: row.g.name })}
+            aria-label={t("sidebar.newSessionInProject", { name: row.g.name })}
+            data-testid={`sidebar-new-in-project-${row.g.name}`}
+            disabled={ui.running}
+            onClick={e => { e.stopPropagation(); ui.onNewSessionInProject(row.g.path, row.g.current); }}
+          >
+            <Plus size={12} />
+          </button>
+          {!row.g.current && (
+            <>
+              <button
+                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
+                title={t("sidebar.removeProjectTitle")}
+                aria-label={t("sidebar.removeProjectTitle")}
+                data-testid={`sidebar-remove-project-${row.g.name}`}
+                onClick={e => { e.stopPropagation(); ui.onRemoveProject(row.g.path); }}
+              >
+                <Trash2 size={12} />
+              </button>
+              <button
+                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                title={t("sidebar.archiveProjectTitle")}
+                aria-label={t("sidebar.archiveProjectTitle")}
+                data-testid={`sidebar-archive-project-${row.g.name}`}
+                onClick={e => { e.stopPropagation(); ui.onArchiveProject(row.g.path); }}
+              >
+                <Inbox size={12} />
+              </button>
+            </>
+          )}
+        </span>
       </div>
     );
   }
@@ -293,40 +349,29 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             </span>
           </button>
           {!s.current && (
-            ui.deleteConfirm === s.path ? (
-              <span className="flex items-center gap-1 shrink-0 mt-1">
-                <button className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10" onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); ui.setDeleteConfirm(null); }}>
-                  {t("common.confirm")}
-                </button>
-                <button className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft" onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(null); }}>
-                  {t("common.cancel")}
-                </button>
-              </span>
-            ) : (
-              <span className="office-session-actions hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
-                <button
-                  className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-                  title={s.pinned ? t("sidebar.unpin") : t("sidebar.pin")}
-                  onClick={e => { e.stopPropagation(); ui.onPinSession(s.path, !s.pinned); }}
-                >
-                  <Pin size={12} className={s.pinned ? "text-accent" : ""} />
-                </button>
-                <button
-                  className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
-                  title={t("sidebar.archiveTitle")}
-                  onClick={e => { e.stopPropagation(); ui.onArchiveSession(s.path); }}
-                >
-                  <Inbox size={12} />
-                </button>
-                <button
-                  className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-                  title={t("common.delete")}
-                  onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )
+            <span className="office-session-actions hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
+              <button
+                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                title={s.pinned ? t("sidebar.unpin") : t("sidebar.pin")}
+                onClick={e => { e.stopPropagation(); ui.onPinSession(s.path, !s.pinned); }}
+              >
+                <Pin size={12} className={s.pinned ? "text-accent" : ""} />
+              </button>
+              <button
+                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                title={t("sidebar.archiveTitle")}
+                onClick={e => { e.stopPropagation(); ui.onArchiveSession(s.path); }}
+              >
+                <Inbox size={12} />
+              </button>
+              <button
+                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
+                title={t("common.delete")}
+                onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); }}
+              >
+                <X size={12} />
+              </button>
+            </span>
           )}
         </div>
       </div>
@@ -443,39 +488,22 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
           )}
           <span className="shrink-0 text-fg-faint/50 font-mono text-[10px]">{relativeTime(s.modTime)}</span>
         </button>
-        {ui.deleteConfirm === s.path ? (
-          <span className="flex items-center gap-1 shrink-0">
-            <button
-              className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10"
-              onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); ui.setDeleteConfirm(null); }}
-            >
-              {t("common.confirm")}
-            </button>
-            <button
-              className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft"
-              onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(null); }}
-            >
-              {t("common.cancel")}
-            </button>
-          </span>
-        ) : (
-          <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-            <button
-              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-              title={t("sidebar.restoreTitle")}
-              onClick={() => ui.onRestoreSession(s.path, row.g.path)}
-            >
-              <Rollback size={12} />
-            </button>
-            <button
-              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-              title={t("sidebar.deleteForever")}
-              onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
-            >
-              <X size={12} />
-            </button>
-          </span>
-        )}
+        <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+            title={t("sidebar.restoreTitle")}
+            onClick={() => ui.onRestoreSession(s.path, row.g.path)}
+          >
+            <Rollback size={12} />
+          </button>
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
+            title={t("sidebar.deleteForever")}
+            onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); }}
+          >
+            <X size={12} />
+          </button>
+        </span>
       </div>
     </div>
   );
@@ -484,13 +512,17 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
 export function Sidebar({
   collapsed,
   toggleSidebar,
+  onNewSession,
   running,
   jobs,
-  newSessionAndReset,
+  onCreateProject,
   projectGroups,
   searchQuery,
   onSearchChange,
   onResumeSessionInProject,
+  onSwitchProject,
+  onNewSessionInProject,
+  onRemoveProject,
   onArchiveSession,
   onRestoreSession,
   onPinSession,
@@ -509,7 +541,32 @@ export function Sidebar({
 }: SidebarProps) {
   const t = useT();
   const toggleTitle = collapsed ? t("sidebar.expand") : t("sidebar.collapse");
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  // 2026-11-19 顶部「新建项目」对话框（文学面新建小说同构）
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectParent, setProjectParent] = useState("D:\\新工作");
+  const [projectBusy, setProjectBusy] = useState(false);
+  const [projectError, setProjectError] = useState("");
+  const openProjectDialog = useCallback(() => {
+    if (running) return;
+    setProjectError("");
+    setProjectDialogOpen(true);
+  }, [running]);
+  const createProject = useCallback(async () => {
+    const name = projectName.trim();
+    if (!name || projectBusy) return;
+    setProjectBusy(true);
+    setProjectError("");
+    try {
+      await onCreateProject(projectParent.trim(), name);
+      setProjectDialogOpen(false);
+      setProjectName("");
+    } catch (err) {
+      setProjectError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [projectName, projectParent, projectBusy, onCreateProject]);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [localQuery, setLocalQuery] = useState(searchQuery);
@@ -524,6 +581,39 @@ export function Sidebar({
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   // 各项目「已归档」分组默认折叠
   const [archivedOpen, setArchivedOpen] = useState<Record<string, boolean>>({});
+  // 2026-11-19 项目归档：隐藏清单（localStorage 持久化；只影响侧栏展示，
+  // 不动会话文件与 recent workspaces，恢复即取消隐藏）。当前项目强制可见。
+  const [archivedProjects, setArchivedProjects] = useState<Record<string, true>>(() => {
+    try {
+      const raw = localStorage.getItem(ARCHIVED_PROJECTS_KEY);
+      if (raw) return JSON.parse(raw) as Record<string, true>;
+    } catch { /* ignore */ }
+    return {};
+  });
+  const [archivedProjectsOpen, setArchivedProjectsOpen] = useState(false);
+  const archiveProject = useCallback((path: string) => {
+    setArchivedProjects((prev) => {
+      if (prev[path]) return prev;
+      const next = { ...prev, [path]: true as const };
+      try { localStorage.setItem(ARCHIVED_PROJECTS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+  const restoreProject = useCallback((path: string) => {
+    setArchivedProjects((prev) => {
+      if (!prev[path]) return prev;
+      const next = { ...prev };
+      delete next[path];
+      try { localStorage.setItem(ARCHIVED_PROJECTS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+  // 恢复后默认展开该项目分组（projectsOpen 无记录时回落 current 逻辑不适用
+  // 非当前项目，显式置 true 让用户立刻看到会话）。
+  const restoreProjectAndOpen = useCallback((path: string) => {
+    restoreProject(path);
+    setProjectsOpen((prev) => ({ ...prev, [path]: true }));
+  }, [restoreProject]);
   // 父会话行展开状态（better-sidebar 子代理入口：会话 → 子代理子行）
   const [subagentOpen, setSubagentOpen] = useState<Record<string, boolean>>({});
   // 各展开行的 GaeaSubagentRuns 快照（v4.64 迁共享单轮询 store：本组件不再
@@ -616,9 +706,19 @@ export function Sidebar({
   );
 
   const searching = debouncedQuery.trim().length > 0;
+  // 2026-11-19 项目归档：可见分组 = 未归档 + 当前项目（强制可见）；归档分组
+  // 单独派生给尾部「已归档项目」区。
+  const visibleGroups = useMemo(
+    () => projectGroups.filter((g) => g.current || !archivedProjects[g.path]),
+    [projectGroups, archivedProjects],
+  );
+  const archivedGroups = useMemo(
+    () => projectGroups.filter((g) => !g.current && archivedProjects[g.path]),
+    [projectGroups, archivedProjects],
+  );
   const filteredGroups = useMemo(
-    () => filterProjectGroups(projectGroups, debouncedQuery),
-    [projectGroups, debouncedQuery],
+    () => filterProjectGroups(visibleGroups, debouncedQuery),
+    [visibleGroups, debouncedQuery],
   );
 
   // 虚拟滚动：把当前可见的「分组头/空态/会话/显示更多/归档头/归档项」拍平成等高行
@@ -684,8 +784,6 @@ export function Sidebar({
 
   const ui: SessionRowUI = {
     running,
-    deleteConfirm,
-    setDeleteConfirm,
     renameTarget,
     renameDraft,
     setRenameDraft,
@@ -696,6 +794,10 @@ export function Sidebar({
     setArchivedOpen,
     toggleProject,
     isProjectOpen,
+    onSwitchProject,
+    onNewSessionInProject,
+    onRemoveProject,
+    onArchiveProject: archiveProject,
     onResumeSessionInProject,
     onArchiveSession,
     onRestoreSession,
@@ -723,8 +825,8 @@ export function Sidebar({
         {/* 工作区身份：产品、当前项目与侧栏开关 */}
         <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "flex-col gap-1.5" : ""}`}>
           <span className="office-sidebar__brand-mark" aria-hidden>
-            <img src={logoSvg} alt="" className="dark:hidden" />
-            <img src={logoLightSvg} alt="" className="hidden dark:block" />
+            <img src="/gaea-brand-light.jpg" alt="" className="gaea-brand-art gaea-brand-art--light" draggable={false} />
+            <img src="/gaea-brand-dark.jpg" alt="" className="gaea-brand-art gaea-brand-art--dark" draggable={false} />
           </span>
           {!collapsed && (
             <span className="office-sidebar__brand-copy">
@@ -746,33 +848,62 @@ export function Sidebar({
             aria-expanded={!collapsed}
             data-testid="global-sidebar-toggle"
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <WorkspaceSidebarToggleIcon collapsed={collapsed} />
             {!collapsed && (
               <span className="office-sidebar__collapse-label">{t("common.collapse")}</span>
             )}
           </button>
         </div>
 
-        {/* 新建会话（KUN 风命令行：展开态通栏胶囊，折叠态圆钮） */}
+        {/* 新建项目（2026-11-19 用户拍板：文学面「新建小说」同构，顶部主按钮
+            从「新建会话」改为「新建项目」；会话级新建在项目行 + 按钮） */}
         {collapsed ? (
-          <button
-            className="office-sidebar__new office-sidebar__new--compact inline-flex items-center justify-center border-0 text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/22 active:scale-95 no-drag disabled:opacity-40 disabled:cursor-default"
-            onClick={() => void newSessionAndReset()}
-            disabled={running}
-            title={running ? t("common.busyHint") : t("topbar.newSession")}
-            aria-label={t("topbar.newSession")}
-          >
-            <Plus size={15} />
-          </button>
+          <div className="office-sidebar__collapsed-actions">
+            <button
+              className="office-sidebar__new office-sidebar__new--compact inline-flex items-center justify-center border-0 text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/22 active:scale-95 no-drag disabled:opacity-40 disabled:cursor-default"
+              onClick={openProjectDialog}
+              disabled={running}
+              title={running ? t("common.busyHint") : t("sidebar.newProject")}
+              aria-label={t("sidebar.newProject")}
+            >
+              <Plus size={16} />
+            </button>
+            <button
+              className="office-sidebar__collapsed-action office-sidebar__collapsed-session no-drag"
+              onClick={() => void onNewSession()}
+              disabled={running}
+              title={running ? t("common.busyHint") : t("topbar.newSession")}
+              aria-label={t("topbar.newSession")}
+              data-testid="sidebar-new-session-collapsed"
+            >
+              <SquarePen size={16} aria-hidden />
+            </button>
+            {currentSession && (() => {
+              const currentTitle = sessionTitle(currentSession, t("history.current"));
+              return (
+                <button
+                  className="office-sidebar__current sidebar-current-chip flex items-center justify-center cursor-pointer transition-colors no-drag"
+                  title={`${currentTitle} · ${t("sidebar.expand")}`}
+                  aria-label={`${currentTitle} · ${t("sidebar.expand")}`}
+                  onClick={toggleSidebar}
+                  type="button"
+                  data-testid="sidebar-current-session-collapsed"
+                >
+                  <MessageSquare size={15} aria-hidden />
+                  <span className="office-sidebar__current-dot" aria-hidden />
+                </button>
+              );
+            })()}
+          </div>
         ) : (
           <button
             className="office-sidebar__new flex items-center w-full text-accent cursor-pointer transition-[color,background,transform] duration-[var(--dur-fast)] hover:bg-accent/18 active:scale-[0.98] no-drag disabled:opacity-40 disabled:cursor-default"
-            onClick={() => void newSessionAndReset()}
+            onClick={openProjectDialog}
             disabled={running}
-            title={running ? t("common.busyHint") : t("topbar.newSession")}
+            title={running ? t("common.busyHint") : t("sidebar.newProject")}
           >
             <span className="office-sidebar__new-icon"><Plus size={14} /></span>
-            <span className="office-sidebar__new-label">{t("topbar.newSession")}</span>
+            <span className="office-sidebar__new-label">{t("sidebar.newProject")}</span>
           </button>
         )}
 
@@ -796,17 +927,6 @@ export function Sidebar({
               <span className="flex-1 min-w-0 truncate text-left">{t("caps.title")}</span>
             </button>
           </div>
-        )}
-
-        {/* 折叠态当前会话指示 */}
-        {collapsed && currentSession && (
-          <button
-            className="office-sidebar__current sidebar-current-chip flex items-center justify-center cursor-pointer transition-colors no-drag"
-            title={sessionTitle(currentSession, "")}
-            type="button"
-          >
-            {(currentSession.title || currentSession.preview || "?").charAt(0).toUpperCase()}
-          </button>
         )}
 
         {/* 会话区（展开态，占主要空间） */}
@@ -868,6 +988,44 @@ export function Sidebar({
                 />
               )}
             </div>
+
+            {/* 2026-11-19 已归档项目：仅展示+恢复，不占虚拟滚动（数量少） */}
+            {!searching && archivedGroups.length > 0 && (
+              <div className="office-sidebar__archived-projects shrink-0 border-t border-border-soft/60 pt-1 mt-1" data-testid="sidebar-archived-projects">
+                <button
+                  className="office-archive-row no-drag w-full"
+                  onClick={() => setArchivedProjectsOpen((v) => !v)}
+                  title={t("sidebar.archivedProjectsTitle")}
+                >
+                  <span
+                    className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
+                    style={{ transform: archivedProjectsOpen ? "rotate(90deg)" : "none" }}
+                  >
+                    <ChevronDown size={12} />
+                  </span>
+                  <Inbox size={13} className="shrink-0 text-fg-faint/70" />
+                  <span className="flex-1 min-w-0 truncate text-left text-fg-faint text-[11.5px]">
+                    {t("sidebar.archivedProjects")}
+                  </span>
+                  <span className="shrink-0 text-fg-faint/55 font-mono text-[10px]">{archivedGroups.length}</span>
+                </button>
+                {archivedProjectsOpen && archivedGroups.map((g) => (
+                  <div key={`ap:${g.path}`} className="flex items-center gap-1 pl-4 pr-1 group/ap" data-testid="sidebar-archived-project-row">
+                    <FolderGit2 size={12} className="shrink-0 text-fg-faint/50" />
+                    <span className="flex-1 min-w-0 truncate text-[11.5px] text-fg-faint" title={g.path}>{g.name}</span>
+                    <button
+                      className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint opacity-0 group-hover/ap:opacity-100 cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                      title={t("sidebar.restoreProjectTitle")}
+                      aria-label={t("sidebar.restoreProjectTitle")}
+                      data-testid={`sidebar-restore-project-${g.name}`}
+                      onClick={() => restoreProjectAndOpen(g.path)}
+                    >
+                      <Rollback size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -912,6 +1070,7 @@ export function Sidebar({
             className="office-sidebar__collapsed-action no-drag"
             onClick={() => void onOpenKnowledge()}
             title={t("topbar.knowledge")}
+            aria-label={t("topbar.knowledge")}
           >
             <BookOpen size={15} />
           </button>
@@ -919,12 +1078,58 @@ export function Sidebar({
             className="office-sidebar__collapsed-action no-drag"
             onClick={() => void onOpenCaps()}
             title={t("caps.title")}
+            aria-label={t("caps.title")}
           >
             <Blocks size={15} />
           </button>
         </nav>
         )}
       </aside>
+
+      {/* 新建项目对话框（文学面新建小说同构；rootClassName 挂 md 令牌域） */}
+      <Modal
+        open={projectDialogOpen}
+        title={t("sidebar.newProject")}
+        okText={t("sidebar.createProjectOk")}
+        cancelText={t("common.cancel")}
+        confirmLoading={projectBusy}
+        okButtonProps={{ disabled: projectName.trim() === "" }}
+        onCancel={() => { if (!projectBusy) setProjectDialogOpen(false); }}
+        onOk={() => void createProject()}
+        destroyOnHidden
+      >
+        <label className="block text-[12px] font-medium text-fg" htmlFor="gaea-project-name">
+          {t("sidebar.projectNameLabel")}
+        </label>
+        <Input
+          id="gaea-project-name"
+          autoFocus
+          value={projectName}
+          onChange={(e) => setProjectName(e.target.value)}
+          onPressEnter={() => void createProject()}
+          placeholder={t("sidebar.projectNamePlaceholder")}
+          maxLength={64}
+          spellCheck={false}
+          aria-label={t("sidebar.projectNameLabel")}
+        />
+        <label className="mt-3 block text-[12px] font-medium text-fg" htmlFor="gaea-project-parent">
+          {t("sidebar.projectParentLabel")}
+        </label>
+        <Input
+          id="gaea-project-parent"
+          value={projectParent}
+          onChange={(e) => setProjectParent(e.target.value)}
+          onPressEnter={() => void createProject()}
+          spellCheck={false}
+          aria-label={t("sidebar.projectParentLabel")}
+        />
+        <div className="mt-2 text-[11px] leading-relaxed text-fg-faint">
+          {t("sidebar.createProjectHint")}
+        </div>
+        {projectError && (
+          <div className="mt-2 text-[11px] text-err" role="alert">{projectError}</div>
+        )}
+      </Modal>
 
       {/* Resizer handle */}
       <button

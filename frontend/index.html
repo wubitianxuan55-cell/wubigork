@@ -2,490 +2,165 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link id="gaea-favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>gaea · 多功能 AI 助手</title>
     <style>
-      /* Static first paint. React BootSplash removes this layer as soon as the
-         bundle mounts. Both versions share the Earthseed composition. */
       html,
       body {
         margin: 0;
         min-height: 100%;
-        background: #071013;
+        overflow: hidden;
+        background: #010409;
+      }
+
+      #boot-splash,
+      .st-frame {
+        position: fixed;
+        z-index: 1400;
       }
 
       #boot-splash {
-        --st-bg: #071013;
-        --st-bg-soft: #0b171b;
-        --st-ink: #e8f1ed;
-        --st-muted: #829891;
-        --st-dim: #465b55;
-        --st-accent: #55d9b6;
-        --st-accent-rgb: 85, 217, 182;
-        --st-line: rgba(165, 207, 196, 0.11);
-        --st-line-strong: rgba(165, 207, 196, 0.24);
-        --st-shadow: rgba(0, 11, 14, 0.42);
-        --st-sans: 'Bahnschrift', 'Microsoft YaHei UI', 'Segoe UI', sans-serif;
-        --st-mono: 'Cascadia Mono', 'Consolas', monospace;
-        --st-ease: cubic-bezier(0.16, 1, 0.3, 1);
-        position: fixed;
         inset: 0;
-        z-index: 1400;
         overflow: hidden;
-        display: grid;
-        place-items: center;
-        background:
-          radial-gradient(ellipse 80% 72% at 50% 43%, rgba(var(--st-accent-rgb), 0.055), transparent 66%),
-          linear-gradient(180deg, var(--st-bg-soft), var(--st-bg) 52%, var(--st-bg));
-        color: var(--st-ink);
-        font-family: var(--st-sans);
-        -webkit-font-smoothing: antialiased;
+        background: #010409;
       }
 
-      html[data-bs-light] body {
-        background: #edf2ee;
-      }
-
-      html[data-bs-light] #boot-splash {
-        --st-bg: #edf2ee;
-        --st-bg-soft: #f6f9f6;
-        --st-ink: #11211c;
-        --st-muted: #687a73;
-        --st-dim: #9aa9a3;
-        --st-accent: #087664;
-        --st-accent-rgb: 8, 118, 100;
-        --st-line: rgba(17, 33, 28, 0.1);
-        --st-line-strong: rgba(17, 33, 28, 0.22);
-        --st-shadow: rgba(44, 66, 57, 0.14);
-        background:
-          radial-gradient(ellipse 80% 72% at 50% 43%, rgba(var(--st-accent-rgb), 0.08), transparent 66%),
-          linear-gradient(180deg, var(--st-bg-soft), var(--st-bg) 52%, var(--st-bg));
-      }
-
-      #boot-splash * {
-        box-sizing: border-box;
-      }
-
-      #boot-splash .st-grid,
-      #boot-splash .st-aura,
-      #boot-splash .st-contours,
-      #boot-splash .st-vignette {
-        position: absolute;
-        pointer-events: none;
-      }
-
-      #boot-splash .st-grid {
-        inset: -2px;
-        background-image:
-          linear-gradient(to right, var(--st-line) 1px, transparent 1px),
-          linear-gradient(to bottom, var(--st-line) 1px, transparent 1px);
-        background-size: 80px 80px;
-        opacity: 0.55;
-        -webkit-mask-image: radial-gradient(ellipse 66% 68% at 50% 45%, #000 8%, rgba(0, 0, 0, 0.72) 44%, transparent 84%);
-        mask-image: radial-gradient(ellipse 66% 68% at 50% 45%, #000 8%, rgba(0, 0, 0, 0.72) 44%, transparent 84%);
-      }
-
-      #boot-splash .st-aura {
-        top: 40%;
+      .st-frame {
+        top: 50%;
         left: 50%;
-        width: min(760px, 78vmin);
-        aspect-ratio: 1;
-        border-radius: 50%;
-        background:
-          radial-gradient(circle, transparent 24%, rgba(var(--st-accent-rgb), 0.08) 42%, transparent 69%),
-          radial-gradient(circle at 50% 47%, rgba(var(--st-accent-rgb), 0.18), transparent 37%);
-        filter: blur(18px);
+        width: min(100vw, 177.68vh);
+        aspect-ratio: 1672 / 941;
+        overflow: hidden;
+        background: #010409;
         transform: translate(-50%, -50%);
       }
 
-      #boot-splash .st-contours {
-        left: 0;
-        bottom: -9%;
+      .st-scenes,
+      .st-scene {
+        position: absolute;
+        inset: 0;
+      }
+
+      .st-scene {
+        opacity: 1;
+        transition: opacity 1050ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .st-scene--gaia {
+        opacity: 0;
+      }
+
+      #boot-splash[data-scene="gaia"] .st-scene--earth {
+        opacity: 0;
+      }
+
+      #boot-splash[data-scene="gaia"] .st-scene--gaia {
+        opacity: 1;
+      }
+
+      .st-scene img {
+        display: block;
         width: 100%;
-        height: 68%;
-        opacity: 0.78;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
       }
 
-      #boot-splash .st-contours path {
-        fill: none;
-        stroke: var(--st-line-strong);
-        stroke-width: 1;
-        vector-effect: non-scaling-stroke;
-      }
-
-      #boot-splash .st-contours path.is-accent {
-        stroke: color-mix(in srgb, var(--st-accent) 55%, var(--st-line-strong));
-      }
-
-      #boot-splash .st-vignette {
-        inset: 0;
-        background:
-          linear-gradient(90deg, var(--st-bg) 0, transparent 14%, transparent 86%, var(--st-bg) 100%),
-          linear-gradient(180deg, var(--st-bg) 0, transparent 14%, transparent 82%, var(--st-bg) 100%);
-        opacity: 0.84;
-      }
-
-      #boot-splash .st-topbar {
+      .st-progress {
+        --st-progress: 0.68;
+        --st-progress-plate: rgba(3, 18, 28, 0.7);
+        --st-progress-plate-border: rgba(112, 213, 239, 0.15);
+        --st-progress-track-bg: rgba(1, 9, 15, 0.94);
+        --st-progress-label-bg: rgba(2, 15, 24, 0.95);
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 30px 36px;
-        color: var(--st-ink);
-        font: 500 8.5px/1 var(--st-mono);
-        letter-spacing: 0.15em;
-      }
-
-      #boot-splash .st-topbar i {
-        width: 2px;
-        height: 13px;
-        background: var(--st-accent);
-        box-shadow: 0 0 14px rgba(var(--st-accent-rgb), 0.55);
-      }
-
-      #boot-splash .st-mode {
-        padding-left: 12px;
-        border-left: 1px solid var(--st-line);
-        color: var(--st-dim);
-      }
-
-      #boot-splash .st-main {
-        position: relative;
+        top: 86.4%;
+        left: 33.5%;
         z-index: 2;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 76px 24px 96px;
-        text-align: center;
-        transform: translateY(-0.7vh);
-      }
-
-      #boot-splash .st-core {
-        position: relative;
-        width: clamp(286px, 29vw, 382px);
-        aspect-ratio: 1;
-        margin-bottom: clamp(22px, 3.2vh, 38px);
-      }
-
-      #boot-splash .st-halo {
-        position: absolute;
-        inset: 18%;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(var(--st-accent-rgb), 0.22), rgba(var(--st-accent-rgb), 0.06) 42%, transparent 70%);
-        filter: blur(17px);
-      }
-
-      #boot-splash .st-orbit {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 124%;
-        height: 43%;
-        border: 1px solid var(--st-line);
-        border-radius: 50%;
-        transform: translate(-50%, -50%) rotate(-17deg);
-      }
-
-      #boot-splash .st-orbit::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        right: -2px;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: var(--st-accent);
-        box-shadow: 0 0 12px rgba(var(--st-accent-rgb), 0.55);
-      }
-
-      #boot-splash .st-ring {
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        background: conic-gradient(from -90deg, var(--st-accent) 0 21.6deg, var(--st-line) 21.6deg 360deg);
-        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
-        mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
-      }
-
-      #boot-splash .st-core-shell {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 178px;
-        height: 178px;
-        display: grid;
-        place-items: center;
-        overflow: hidden;
-        border: 1px solid var(--st-line-strong);
-        border-radius: 50%;
-        background:
-          radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.12), transparent 24%),
-          radial-gradient(circle at 50% 54%, color-mix(in srgb, var(--st-bg-soft) 84%, var(--st-accent)), var(--st-bg) 72%);
-        box-shadow:
-          0 0 0 10px color-mix(in srgb, var(--st-bg) 70%, transparent),
-          0 0 0 11px var(--st-line),
-          0 32px 90px var(--st-shadow),
-          inset 0 1px 0 color-mix(in srgb, var(--st-ink) 14%, transparent);
-        transform: translate(-50%, -50%);
-      }
-
-      #boot-splash .st-core-shell::before {
-        content: '';
-        position: absolute;
-        inset: 15px;
-        border: 1px solid var(--st-line);
-        border-radius: 50%;
-      }
-
-      #boot-splash .st-core-shell img {
-        position: relative;
-        z-index: 1;
-        width: 126px;
-        height: 126px;
-        object-fit: contain;
-        filter: drop-shadow(0 0 18px rgba(45, 212, 168, 0.28));
-      }
-
-      #boot-splash .st-wordmark {
-        margin: 0;
-        padding-left: 0.2em;
-        color: var(--st-ink);
-        font: 600 clamp(48px, 5.65vw, 82px)/0.92 var(--st-sans);
-        letter-spacing: 0.2em;
-        text-indent: 0.2em;
-      }
-
-      #boot-splash .st-tagline {
+        width: 32.8%;
         display: flex;
         align-items: center;
-        gap: 14px;
-        margin-top: 18px;
-        color: var(--st-muted);
-        font: 500 clamp(8px, 0.72vw, 9.5px)/1 var(--st-mono);
-        letter-spacing: 0.29em;
+        gap: 1.2%;
+        color: #f2fbff;
+        font: 500 clamp(11px, 1.05vw, 17px)/1 'Cascadia Mono', Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        transform: translateY(-50%);
+        isolation: isolate;
       }
 
-      #boot-splash .st-tagline::before,
-      #boot-splash .st-tagline::after {
+      #boot-splash[data-scene="gaia"] .st-progress {
+        --st-progress-plate: rgba(7, 23, 25, 0.64);
+        --st-progress-plate-border: rgba(139, 228, 221, 0.16);
+        --st-progress-track-bg: rgba(4, 16, 19, 0.93);
+        --st-progress-label-bg: rgba(6, 20, 22, 0.95);
+      }
+
+      .st-progress::before {
         content: '';
-        width: 34px;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--st-line-strong));
-      }
-
-      #boot-splash .st-tagline::after {
-        background: linear-gradient(90deg, var(--st-line-strong), transparent);
-      }
-
-      #boot-splash .st-status {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        margin-top: 25px;
-        color: var(--st-muted);
-        font-size: 13px;
-        letter-spacing: 0.03em;
-      }
-
-      #boot-splash .st-status b {
-        color: var(--st-accent);
-        font: 500 8px/1 var(--st-mono);
-        letter-spacing: 0.13em;
-      }
-
-      #boot-splash .st-status i {
-        width: 22px;
-        height: 1px;
-        background: var(--st-line-strong);
-      }
-
-      #boot-splash .st-footer {
         position: absolute;
-        left: 50%;
-        bottom: 30px;
-        z-index: 2;
-        width: min(820px, calc(100% - 72px));
-        transform: translateX(-50%);
+        inset: -8px -30px -8px -10px;
+        z-index: -1;
+        border-radius: 9px;
+        border: 1px solid var(--st-progress-plate-border);
+        background-color: var(--st-progress-plate);
+        box-shadow: 0 8px 22px rgba(0, 4, 9, 0.34), inset 0 1px 0 rgba(224, 251, 255, 0.035);
+        -webkit-backdrop-filter: blur(10px) saturate(1.15);
+        backdrop-filter: blur(10px) saturate(1.15);
+        -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
+        mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
+        transition: background-color 900ms cubic-bezier(0.16, 1, 0.3, 1), border-color 900ms cubic-bezier(0.16, 1, 0.3, 1);
       }
 
-      #boot-splash .st-progress-copy {
-        display: flex;
-        justify-content: space-between;
-        color: var(--st-dim);
-        font: 500 8px/1 var(--st-mono);
-        letter-spacing: 0.13em;
-      }
-
-      #boot-splash .st-progress-copy strong {
-        color: var(--st-ink);
-        font-weight: 400;
-      }
-
-      #boot-splash .st-progress {
+      .st-progress-track {
         position: relative;
-        height: 1px;
-        margin-top: 10px;
-        background: var(--st-line);
+        flex: 1;
+        height: 6px;
+        border: 1px solid rgba(124, 213, 237, 0.2);
+        border-radius: 999px;
+        background-color: var(--st-progress-track-bg);
+        transition: background-color 900ms cubic-bezier(0.16, 1, 0.3, 1);
       }
 
-      #boot-splash .st-progress::before {
-        content: '';
+      .st-progress-track i {
         position: absolute;
         inset: 0 auto 0 0;
-        width: 8%;
-        background: var(--st-accent);
-        box-shadow: 0 0 12px rgba(var(--st-accent-rgb), 0.38);
+        width: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #10c6bd, #31e6d6 64%, #75f8eb);
+        box-shadow: 0 0 8px rgba(50, 228, 219, 0.6), 0 0 20px rgba(50, 228, 219, 0.2);
+        transform: scaleX(var(--st-progress));
+        transform-origin: left;
+        transition: transform 760ms cubic-bezier(0.16, 1, 0.3, 1);
       }
 
-      #boot-splash .st-progress::after {
-        content: '';
+      .st-progress-track span {
         position: absolute;
-        top: -2px;
-        left: 8%;
+        top: 50%;
+        left: var(--st-progress-left, 68%);
         width: 5px;
         height: 5px;
         border-radius: 50%;
-        background: var(--st-accent);
-        box-shadow: 0 0 12px rgba(var(--st-accent-rgb), 0.75);
+        background: #d9fffb;
+        box-shadow: 0 0 7px rgba(188, 255, 250, 0.96), 0 0 18px rgba(50, 228, 219, 0.68);
+        transform: translate(-50%, -50%);
+        transition: left 760ms cubic-bezier(0.16, 1, 0.3, 1);
       }
 
-      @media (max-width: 760px) {
-        #boot-splash .st-topbar {
-          padding: 20px 18px;
-        }
-
-        #boot-splash .st-mode {
-          display: none;
-        }
-
-        #boot-splash .st-main {
-          padding: 70px 18px 92px;
-        }
-
-        #boot-splash .st-core {
-          width: min(74vw, 310px);
-          margin-bottom: 22px;
-        }
-
-        #boot-splash .st-core-shell {
-          width: 150px;
-          height: 150px;
-        }
-
-        #boot-splash .st-core-shell img {
-          width: 106px;
-          height: 106px;
-        }
-
-        #boot-splash .st-wordmark {
-          font-size: clamp(42px, 13vw, 64px);
-        }
-
-        #boot-splash .st-tagline {
-          gap: 9px;
-          margin-top: 14px;
-          letter-spacing: 0.2em;
-        }
-
-        #boot-splash .st-tagline::before,
-        #boot-splash .st-tagline::after {
-          width: 20px;
-        }
-
-        #boot-splash .st-status {
-          gap: 9px;
-          margin-top: 20px;
-          font-size: 12px;
-        }
-
-        #boot-splash .st-footer {
-          bottom: 20px;
-          width: calc(100% - 36px);
-        }
-      }
-
-      @media (max-height: 760px) {
-        #boot-splash .st-main {
-          padding-bottom: 82px;
-        }
-
-        #boot-splash .st-core {
-          width: min(40vh, 318px);
-          margin-bottom: 18px;
-        }
-
-        #boot-splash .st-core-shell {
-          width: 154px;
-          height: 154px;
-        }
-
-        #boot-splash .st-core-shell img {
-          width: 108px;
-          height: 108px;
-        }
-
-        #boot-splash .st-wordmark {
-          font-size: clamp(44px, 7.5vh, 66px);
-        }
-
-        #boot-splash .st-tagline {
-          margin-top: 13px;
-        }
-
-        #boot-splash .st-status {
-          margin-top: 17px;
-        }
-
-        #boot-splash .st-footer {
-          bottom: 20px;
-        }
-      }
-
-      @media (max-height: 600px) {
-        #boot-splash .st-main {
-          padding-block: 54px 66px;
-        }
-
-        #boot-splash .st-core {
-          width: min(34vh, 224px);
-          margin-bottom: 12px;
-        }
-
-        #boot-splash .st-core-shell {
-          width: 112px;
-          height: 112px;
-        }
-
-        #boot-splash .st-core-shell img {
-          width: 78px;
-          height: 78px;
-        }
-
-        #boot-splash .st-wordmark {
-          font-size: 42px;
-        }
-
-        #boot-splash .st-tagline {
-          display: none;
-        }
-
-        #boot-splash .st-status {
-          margin-top: 10px;
-        }
-
-        #boot-splash .st-footer {
-          bottom: 11px;
-        }
+      .st-progress strong {
+        min-width: 2.7em;
+        margin-right: -6px;
+        padding: 4px 6px;
+        border-radius: 5px;
+        background-color: var(--st-progress-label-bg);
+        box-shadow: -8px 0 10px var(--st-progress-label-bg);
+        transition: background-color 900ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 900ms cubic-bezier(0.16, 1, 0.3, 1);
+        font-weight: 500;
+        text-align: right;
       }
 
       @media (prefers-reduced-motion: reduce) {
-        #boot-splash .st-aura {
-          animation: none;
+        .st-scene {
+          transition-duration: 0.01ms;
         }
       }
     </style>
@@ -493,15 +168,15 @@
   <body>
     <script>try { performance.mark('gaea:boot') } catch { /* Marking is optional. */ }</script>
     <script>
-      // Match appStore.loadMode before React injects live tokens.
+      // Seed the runtime theme before React mounts.
       try {
-        var m = '';
-        try { m = localStorage.getItem('gaea-display-mode') || '' } catch (e) {}
-        var light = m === 'light';
-        if (!light && m === 'system') {
+        var mode = '';
+        try { mode = localStorage.getItem('gaea-display-mode') || '' } catch (e) {}
+        var light = mode === 'light';
+        if (!light && mode === 'system') {
           try { light = !window.matchMedia('(prefers-color-scheme: dark)').matches } catch (e) {}
         }
-        if (!light && m === '') {
+        if (!light && mode === '') {
           var legacy = '';
           try { legacy = localStorage.getItem('gaea-dark') ?? localStorage.getItem('wubigork-dark') ?? '' } catch (e) {}
           light = legacy === '0';
@@ -509,43 +184,35 @@
         if (light) document.documentElement.setAttribute('data-bs-light', '');
       } catch (e) { /* Dark is the safe fallback. */ }
     </script>
-    <div id="boot-splash" aria-hidden="true">
-      <div class="st-grid"></div>
-      <div class="st-aura"></div>
-      <svg class="st-contours" viewBox="0 0 1600 960" preserveAspectRatio="xMidYMid slice">
-        <path d="M-120 735C150 653 323 700 524 640C727 580 828 482 1038 504C1261 528 1421 636 1720 566" />
-        <path d="M-120 781C155 701 337 749 539 690C733 634 852 536 1057 559C1273 584 1450 681 1720 616" />
-        <path d="M-120 827C171 755 349 800 555 741C755 684 881 589 1082 610C1292 633 1481 726 1720 670" />
-        <path d="M-120 875C177 811 375 850 575 794C773 738 907 644 1102 665C1311 687 1505 772 1720 722" />
-        <path d="M-120 925C193 865 399 901 599 846C792 793 939 701 1123 720C1329 741 1538 820 1720 780" />
-        <path class="is-accent" d="M220 930C398 853 566 857 737 787C881 728 971 655 1095 659" />
-      </svg>
-      <div class="st-vignette"></div>
-
-      <div class="st-topbar">
-        <i></i>
-        <span>GAEA</span>
-        <span class="st-mode">LOCAL INTELLIGENCE</span>
-      </div>
-
-      <main class="st-main">
-        <div class="st-core">
-          <div class="st-halo"></div>
-          <div class="st-orbit"></div>
-          <div class="st-ring"></div>
-          <div class="st-core-shell">
-            <img src="/favicon.svg" alt="" draggable="false" />
+    <div id="boot-splash" data-scene="earth" aria-hidden="true">
+      <div class="st-frame">
+        <div class="st-scenes">
+          <div class="st-scene st-scene--earth">
+            <img src="/boot-earthrise-original.png" alt="" draggable="false" />
+          </div>
+          <div class="st-scene st-scene--gaia">
+            <img src="/boot-gaia-original.png" alt="" draggable="false" />
           </div>
         </div>
-        <h1 class="st-wordmark">GAEA</h1>
-        <div class="st-tagline"><span>EARTHBORN INTELLIGENCE</span></div>
-        <div class="st-status"><b>01 / 02</b><i></i><span>INITIALIZING</span></div>
-      </main>
-
-      <div class="st-footer">
-        <div class="st-progress-copy"><span>STARTUP SEQUENCE</span><strong>008%</strong></div>
-        <div class="st-progress"></div>
+        <div class="st-progress" id="st-progress">
+          <div class="st-progress-track">
+            <i></i>
+            <span></span>
+          </div>
+          <strong>68%</strong>
+        </div>
       </div>
+      <script>
+        window.setTimeout(function () {
+          try {
+            document.getElementById('boot-splash')?.setAttribute('data-scene', 'gaia')
+            document.getElementById('st-progress')?.style.setProperty('--st-progress', '0.72')
+            document.getElementById('st-progress')?.style.setProperty('--st-progress-left', '72%')
+            var label = document.querySelector('#st-progress strong')
+            if (label) label.textContent = '72%'
+          } catch (e) {}
+        }, 1596)
+      </script>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

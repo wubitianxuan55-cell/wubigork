@@ -13453,3 +13453,686 @@ body:has(.pantheon-canvas.is-composing) {
     transition: none;
   }
 }
+
+/* ═══ 安静的议事厅首屏 · 2026-11-19 ═══════════════════════════════════
+   首页只承担两件事：说明如何发起讨论，确认哪些席位可用。去掉网格、
+   巨型水印、轨道装饰、异形圆角与循环脉冲，让内容和操作先说话。 */
+
+.pantheon-shell {
+  background: var(--md-sys-color-bg-layout, var(--color-bg-layout));
+}
+
+.pantheon-shell::before,
+.pantheon-welcome-stage::before {
+  display: none;
+}
+
+.pantheon-welcome-stage {
+  gap: 28px;
+  padding-top: clamp(30px, 4.5vh, 52px);
+  padding-bottom: clamp(24px, 3.5vh, 40px);
+  overflow: visible;
+}
+
+.pantheon-welcome--quiet {
+  max-width: 1180px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.82fr);
+  align-items: start;
+  gap: clamp(34px, 5vw, 76px);
+  text-align: left;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-copy {
+  align-items: flex-start;
+  padding: 4px 0 0;
+  text-align: left;
+  animation: none;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-kicker {
+  gap: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-kicker > span:first-child {
+  color: var(--pantheon-accent);
+  font-weight: 650;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-read-only {
+  margin-left: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--pantheon-line);
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+
+.pantheon-welcome--quiet h2,
+.pantheon-welcome--quiet .pantheon-welcome-copy h2 {
+  max-width: 13em;
+  margin: clamp(18px, 3vh, 28px) 0 0;
+  color: var(--md-sys-color-text, var(--color-text));
+  font-family: var(--font-sans, inherit);
+  font-size: clamp(32px, 3.2vw, 42px);
+  font-weight: 660;
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.pantheon-welcome--quiet h2 span {
+  display: block;
+  white-space: nowrap;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-copy > p {
+  max-width: 52ch;
+  margin: 20px 0 0;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 13px;
+  line-height: 1.75;
+  text-align: left;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-actions {
+  justify-content: flex-start;
+  gap: 14px;
+  margin: 26px 0 0;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-start.ant-btn {
+  min-width: 140px;
+  height: 42px;
+  padding-inline: 18px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--md-sys-color-on-primary, var(--color-on-primary));
+  background: var(--pantheon-accent-strong);
+  box-shadow: none;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-start.ant-btn:not(:disabled):hover {
+  border: 0;
+  color: var(--md-sys-color-on-primary, var(--color-on-primary));
+  background: var(--pantheon-accent);
+  box-shadow: none;
+  transform: none;
+}
+
+.pantheon-welcome--quiet .pantheon-welcome-start.ant-btn:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+.pantheon-welcome--quiet .pantheon-readiness {
+  padding: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 10.5px;
+}
+
+.pantheon-welcome--quiet .pantheon-readiness i {
+  width: 5px;
+  height: 5px;
+  box-shadow: none;
+}
+
+.pantheon-welcome--quiet .pantheon-council-preview {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 14px;
+  background: var(--pantheon-surface);
+  box-shadow: none;
+  animation: none;
+}
+
+.pantheon-welcome--quiet .pantheon-council-preview::before {
+  display: none;
+}
+
+.pantheon-welcome--quiet .pantheon-council-preview-head {
+  align-items: flex-start;
+  gap: 16px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--pantheon-line);
+}
+
+.pantheon-welcome--quiet .pantheon-council-preview-head > div {
+  gap: 4px;
+}
+
+.pantheon-welcome--quiet .pantheon-council-preview-head strong {
+  max-width: none;
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.pantheon-welcome--quiet .pantheon-council-preview-head > div > span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.pantheon-welcome--quiet .pantheon-preview-count {
+  gap: 2px;
+}
+
+.pantheon-welcome--quiet .pantheon-preview-count b {
+  color: var(--md-sys-color-text, var(--color-text));
+  font-size: 15px;
+  font-weight: 560;
+}
+
+.pantheon-welcome--quiet .pantheon-preview-count small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-map {
+  display: grid;
+  padding: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border: 0;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card,
+.pantheon-welcome--quiet .pantheon-seat-card:nth-child(odd),
+.pantheon-welcome--quiet .pantheon-seat-card:nth-child(even) {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 52px;
+  padding: 10px 0;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-top: 1px solid var(--pantheon-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card:first-child {
+  border-top: 0;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card.is-ready {
+  border-color: var(--pantheon-line);
+  background: transparent;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-monogram {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card-copy {
+  gap: 1px;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card-copy strong {
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card-copy small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-state,
+.pantheon-welcome--quiet .pantheon-seat-card:nth-child(odd) .pantheon-seat-state {
+  position: static;
+  justify-self: end;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card.is-ready .pantheon-seat-state {
+  color: var(--md-sys-color-success, var(--color-success));
+}
+
+.pantheon-welcome--quiet .pantheon-seat-card.is-ready .pantheon-seat-state i {
+  box-shadow: none;
+  animation: none;
+}
+
+.pantheon-protocol--quiet {
+  max-width: 1180px;
+  padding-top: 18px;
+  grid-template-columns: minmax(0, 2.55fr) minmax(220px, 0.9fr);
+  align-items: center;
+  gap: 28px;
+}
+
+.pantheon-protocol--quiet .pantheon-rule-list {
+  gap: 22px;
+}
+
+.pantheon-protocol--quiet .pantheon-rule-list li {
+  display: block;
+}
+
+.pantheon-protocol--quiet .pantheon-rule-list li > span:last-child {
+  gap: 0;
+}
+
+.pantheon-protocol--quiet .pantheon-rule-list b {
+  font-size: 10.5px;
+}
+
+.pantheon-protocol--quiet .pantheon-rule-list small {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+}
+
+.pantheon-protocol--quiet .pantheon-protocol-boundary {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  justify-self: end;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+}
+
+.pantheon-protocol--quiet .pantheon-protocol-boundary > span {
+  color: inherit;
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+@container pantheon-canvas (max-width: 960px) {
+  .pantheon-welcome--quiet {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 30px;
+  }
+
+  .pantheon-welcome--quiet .pantheon-council-preview {
+    max-width: 640px;
+  }
+
+  .pantheon-protocol--quiet {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .pantheon-protocol--quiet .pantheon-protocol-boundary {
+    justify-self: start;
+  }
+}
+
+@container pantheon-canvas (max-width: 680px) {
+  .pantheon-welcome--quiet h2,
+  .pantheon-welcome--quiet .pantheon-welcome-copy h2 {
+    font-size: clamp(30px, 7cqw, 40px);
+  }
+
+  .pantheon-welcome--quiet h2 span {
+    white-space: normal;
+  }
+
+  .pantheon-welcome--quiet .pantheon-welcome-actions {
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+
+  .pantheon-protocol--quiet .pantheon-rule-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantheon-welcome--quiet .pantheon-welcome-start.ant-btn:not(:disabled):active {
+    transform: none;
+  }
+}
+
+/* ═══ 安静的立题工作台 · 2026-11-19 ═══════════════════════════════════
+   表单只保留说明、问题输入、配置和提交四个层级。去掉题签水印、步骤
+   装饰、异形卡片和彩色投影，让字段与操作本身承担视觉重心。 */
+
+.pantheon-compose-stage {
+  justify-content: flex-start;
+  gap: 18px;
+  padding-top: clamp(24px, 3.5vh, 40px);
+  overflow: visible;
+}
+
+.pantheon-composer-watermark {
+  display: none;
+}
+
+.pantheon-composer--quiet {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.pantheon-composer--quiet .pantheon-composer-head {
+  display: block;
+  padding: 0;
+}
+
+.pantheon-composer--quiet .pantheon-hero-note {
+  padding: 0;
+  border: 0;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.pantheon-composer--quiet .pantheon-hero-note .anticon {
+  color: var(--pantheon-accent);
+}
+
+.pantheon-composer--quiet .pantheon-composer-head h2 {
+  max-width: none;
+  margin: 15px 0 0;
+  font-family: var(--font-sans, inherit);
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 660;
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+
+.pantheon-composer--quiet .pantheon-composer-head p {
+  max-width: 54ch;
+  margin: 10px 0 0;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.pantheon-composer--quiet .pantheon-composer-studio {
+  margin-top: 18px;
+  gap: 14px;
+}
+
+.pantheon-composer--quiet .pantheon-topic-sheet,
+.pantheon-composer--quiet .pantheon-topic-sheet:focus-within {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 12px;
+  background: var(--pantheon-surface);
+  box-shadow: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.pantheon-composer--quiet .pantheon-topic-sheet:focus-within {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 48%, var(--pantheon-line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pantheon-accent) 8%, transparent);
+}
+
+.pantheon-composer--quiet .pantheon-topic-sheet-head {
+  padding: 18px 20px 0;
+}
+
+.pantheon-composer--quiet .pantheon-topic-sheet-head label {
+  gap: 8px;
+  font-family: var(--font-sans, inherit);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.pantheon-composer--quiet .pantheon-topic-sheet-head label em {
+  padding-left: 8px;
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.pantheon-composer--quiet .pantheon-topic-input.ant-input,
+.pantheon-composer--quiet .pantheon-topic-input.ant-input:focus {
+  min-height: 132px;
+  padding: 14px 20px 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-sans, inherit);
+  font-size: 15.5px;
+  line-height: 1.7;
+}
+
+.pantheon-composer--quiet .pantheon-topic-help,
+.pantheon-composer--quiet .pantheon-topic-error {
+  margin-inline: 20px;
+  font-size: 10px;
+}
+
+.pantheon-composer--quiet .pantheon-compose-meta {
+  gap: 12px;
+  padding: 8px 20px 12px;
+  font-family: var(--font-sans, inherit);
+  font-size: 9px;
+}
+
+.pantheon-composer--quiet .pantheon-compose-meta span + span::before {
+  display: none;
+}
+
+.pantheon-composer--quiet .pantheon-chatbar {
+  border-top: 1px solid var(--pantheon-line);
+  background: transparent;
+}
+
+.pantheon-composer--quiet .pantheon-toolbar-options {
+  display: grid;
+  padding: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pantheon-composer--quiet .pantheon-setting-card {
+  height: 100%;
+  padding: 10px;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pantheon-composer--quiet .pantheon-setting-card-head {
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--pantheon-line);
+}
+
+.pantheon-composer--quiet .pantheon-setting-card-head strong {
+  font-size: 10.5px;
+  font-weight: 620;
+}
+
+.pantheon-composer--quiet .pantheon-setting-card-head small {
+  display: none;
+}
+
+.pantheon-composer--quiet .pantheon-setting-card-controls,
+.pantheon-composer--quiet .pantheon-setting-card-controls--selects,
+.pantheon-composer--quiet .pantheon-setting-card-controls--pace {
+  margin-top: 8px;
+  gap: 7px;
+}
+
+.pantheon-composer--quiet .pantheon-setting-control > span {
+  color: var(--md-sys-color-text-tertiary, var(--color-text-secondary));
+  font-size: 8.5px;
+}
+
+.pantheon-composer--quiet .pantheon-toolbar-options .pantheon-chatbar-select,
+.pantheon-composer--quiet .pantheon-round-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.pantheon-composer--quiet .pantheon-toolbar-launch {
+  padding: 10px 12px;
+  border-top: 1px solid var(--pantheon-line);
+  background: transparent;
+}
+
+.pantheon-composer--quiet .pantheon-start.ant-btn {
+  min-width: 112px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--md-sys-color-on-primary, var(--color-on-primary));
+  background: var(--pantheon-accent-strong);
+  box-shadow: none;
+  font-weight: 650;
+}
+
+.pantheon-composer--quiet .pantheon-start.ant-btn:not(:disabled):hover {
+  color: var(--md-sys-color-on-primary, var(--color-on-primary));
+  background: var(--pantheon-accent);
+  box-shadow: none;
+  transform: none;
+}
+
+.pantheon-composer--quiet .pantheon-start.ant-btn:disabled {
+  border: 0;
+  background: color-mix(in srgb, var(--pantheon-surface) 60%, var(--pantheon-line));
+  box-shadow: none;
+}
+
+.pantheon-composer--quiet .pantheon-composer-config {
+  overflow: hidden;
+  border: 1px solid var(--pantheon-line);
+  border-radius: 12px;
+  background: var(--pantheon-surface);
+  box-shadow: none;
+}
+
+.pantheon-composer--quiet .pantheon-config-rail-head {
+  padding: 15px 16px 13px;
+}
+
+.pantheon-composer--quiet .pantheon-config-rail-head h3 {
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.pantheon-composer--quiet .pantheon-config-ready i {
+  box-shadow: none;
+}
+
+.pantheon-composer--quiet .pantheon-composer-config > section {
+  padding: 13px 16px;
+}
+
+.pantheon-composer--quiet .pantheon-composer-config > section::before {
+  display: none;
+}
+
+.pantheon-composer--quiet .pantheon-workspace-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pantheon-accent) 8%, transparent);
+}
+
+.pantheon-composer--quiet .pantheon-workspace-title strong {
+  font-size: 11px;
+}
+
+.pantheon-composer--quiet .pantheon-workspace-title small {
+  max-width: 220px;
+  font-size: 8.5px;
+}
+
+.pantheon-composer--quiet .pantheon-workspace-option {
+  border-radius: 8px;
+  background: transparent;
+}
+
+.pantheon-composer--quiet .pantheon-workspace-option.is-selected {
+  border-color: color-mix(in srgb, var(--pantheon-accent) 44%, var(--pantheon-line));
+  background: color-mix(in srgb, var(--pantheon-accent) 7%, transparent);
+}
+
+.pantheon-composer--quiet .pantheon-seat-section-head h3,
+.pantheon-composer--quiet .pantheon-speaking-order-head h3 {
+  font-size: 11px;
+}
+
+.pantheon-composer--quiet .pantheon-seat-chip {
+  min-height: 50px;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.pantheon-composer--quiet .pantheon-seat-chip.is-selected {
+  background: color-mix(in srgb, var(--agent-accent, var(--pantheon-accent)) 7%, transparent);
+  box-shadow: none;
+}
+
+.pantheon-composer--quiet .pantheon-seat-chip .pantheon-seat-monogram {
+  border-radius: 7px;
+}
+
+.pantheon-composer--quiet .pantheon-speaking-order li {
+  min-height: 32px;
+}
+
+.pantheon-composer--quiet .pantheon-composer-extra > .pantheon-disclose,
+.pantheon-composer--quiet .pantheon-image-evidence {
+  border-radius: 10px;
+  background: var(--pantheon-surface);
+}
+
+@container pantheon-canvas (max-width: 979px) {
+  .pantheon-composer--quiet .pantheon-composer-head {
+    display: block;
+  }
+
+  .pantheon-composer--quiet .pantheon-composer-head h2 {
+    font-size: clamp(30px, 5cqw, 38px);
+  }
+}
+
+@container pantheon-canvas (max-width: 640px) {
+  .pantheon-composer--quiet .pantheon-toolbar-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pantheon-composer--quiet .pantheon-topic-input.ant-input,
+  .pantheon-composer--quiet .pantheon-topic-input.ant-input:focus {
+    min-height: 120px;
+    font-size: 15px;
+  }
+
+  .pantheon-composer--quiet .pantheon-toolbar-launch {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pantheon-composer--quiet .pantheon-start.ant-btn {
+    width: 100%;
+  }
+}

@@ -35,7 +35,8 @@ interface UseSessionHandlersParams {
   updateFact: (name: string, body: string) => Promise<void>;
   fetchMemory: () => Promise<MemoryView>;
   setMemView: (v: MemoryView | null) => void;
-  setHistView: (v: SessionMeta[] | null) => void;
+  // 兼容函数式更新（2026-11-19：删除/重命名只刷新已打开的历史面板，不强制弹开）。
+  setHistView: (v: SessionMeta[] | null | ((prev: SessionMeta[] | null) => SessionMeta[] | null)) => void;
   setDeleteConfirm: (v: boolean) => void;
   closeFilePreview: () => void;
   setWorkspacePanel: (v: boolean) => void;
@@ -64,15 +65,26 @@ export function useSessionHandlers(params: UseSessionHandlersParams) {
     async (path: string) => {
       await handleDeleteSession(path);
       const sessions = await refreshSessions();
-      setHistView(sessions);
+      // 2026-11-19：函数式更新——历史面板没开时保持关闭（此前无条件 set 会
+      // 把右侧面板强制弹开）；开着则原地刷新列表。
+      setHistView((prev) => (prev === null ? null : sessions));
       // 审计 2026-09 #7：列表中已无该会话（删除成功）才清理其 GenUI 交互状态。
       // handleDeleteSession 内部吞错（toast + 列表回滚），据此区分成败。
-      if (!sessions.some((s) => s.path === path)) purgeDeletedSessionGenui(path);
+      if (!sessions.some((s) => s.path === path)) {
+        purgeDeletedSessionGenui(path);
+        // 2026-11-19 一步删除（用户拍板去二次确认）：toast 反馈补回操作确认感。
+        toast.show(t("history.deleted"), "info");
+      }
     },
-    [handleDeleteSession, refreshSessions, setHistView],
+    [handleDeleteSession, refreshSessions, setHistView, toast, t],
   );
   const onRenameSession = useCallback(
-    async (path: string, title: string) => { await handleRenameSession(path, title); setHistView(await refreshSessions()); },
+    async (path: string, title: string) => {
+      await handleRenameSession(path, title);
+      // 同 onDeleteSession：仅刷新已打开的历史面板，不强制弹开。
+      const sessions = await refreshSessions();
+      setHistView((prev) => (prev === null ? null : sessions));
+    },
     [handleRenameSession, refreshSessions, setHistView],
   );
 

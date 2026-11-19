@@ -158,6 +158,10 @@ export function GaeaConvertToPdf(arg1) {
   return window['go']['app']['OfficeB']['GaeaConvertToPdf'](arg1);
 }
 
+export function GaeaCreateProject(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaCreateProject'](arg1, arg2);
+}
+
 export function GaeaCreateWorkspaceFile(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaCreateWorkspaceFile'](arg1, arg2);
 }
@@ -548,6 +552,10 @@ export function GaeaRemoveMCPServer(arg1) {
 
 export function GaeaRemovePermissionRule(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaRemovePermissionRule'](arg1, arg2);
+}
+
+export function GaeaRemoveRecentWorkspace(arg1) {
+  return window['go']['app']['OfficeB']['GaeaRemoveRecentWorkspace'](arg1);
 }
 
 export function GaeaRenameSession(arg1, arg2) {

@@ -1,6 +1,7 @@
 // bindingNames.ts — Go 侧全部导出绑定方法名（由 scripts/gen_bindings -names 生成；勿手改）。
 export const bindingNames = [
   "AddCustomEngine",
+  "AdvancedConfigGet",
   "BrainSearch",
   "BreezeDeleteVoice",
   "BreezeListVoices",
@@ -130,6 +131,7 @@ export const bindingNames = [
   "GaeaCostSave",
   "GaeaCostSearch",
   "GaeaCostSearchPage",
+  "GaeaCreateProject",
   "GaeaCreateWorkspaceFile",
   "GaeaCreateWorkspaceFolder",
   "GaeaCrossEmbed",
@@ -277,6 +279,7 @@ export const bindingNames = [
   "GaeaRemember",
   "GaeaRemoveMCPServer",
   "GaeaRemovePermissionRule",
+  "GaeaRemoveRecentWorkspace",
   "GaeaRenameSession",
   "GaeaRenameWorkspacePath",
   "GaeaResumeSession",
@@ -647,6 +650,8 @@ export const bindingNames = [
   "WenxueOpenWorkspacePath",
   "WenxuePendingDeniedActions",
   "WenxuePermLevel",
+  "WenxuePromptGet",
+  "WenxuePromptSet",
   "WenxuePickWorkspace",
   "WenxuePickWorkspaceUploadFiles",
   "WenxuePickWorkspaceUploadFolder",

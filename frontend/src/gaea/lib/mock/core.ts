@@ -24,11 +24,12 @@ let mockSpaceProfiles: SpaceProfileView[] = mockSpaceProfilesInit.map((p) => ({ 
 
 type CoreMethods = Pick<
   AppBindings,
-  | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
+  | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace" | "RemoveRecentWorkspace" | "CreateProject"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
   | "ContextUsage" | "ContextView" | "ContextDna" | "ContextCommands" | "ContextNodeDetail" | "ContextSurface" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights" | "FamilyEvents"
   | "GaeaBrowserObserve" | "GaeaSubagentContextView"
   | "Meta" | "Commands" | "Capabilities"
+  | "WenxuePromptGet" | "WenxuePromptSet" | "AdvancedConfigGet"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
   | "SlashArgs"
   | "Version" | "CheckUpdate" | "ApplyUpdate" | "OpenDownloadPage" | "SaveWindowState"
@@ -60,6 +61,16 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async SwitchWorkspace(path: string) {
       return switchWorkspace(s, path);
+    },
+    async RemoveRecentWorkspace(path: string) {
+      // 2026-11-19 项目行删除：mock 只把工作区移出最近列表（与真机同语义，
+      // 不动会话）。当前工作区拒绝——与后端 GaeaRemoveRecentWorkspace 对齐。
+      if (path === s.cwd) throw new Error("当前工作区不能从最近列表移除");
+      s.workspaces = s.workspaces.filter((p) => p !== path);
+    },
+    async CreateProject(parent: string, name: string) {
+      // 2026-11-19 顶部「新建项目」：mock 复用切换语义（新目录视作已建）。
+      return switchWorkspace(s, `${parent.replace(/\/+$/, "")}/${name}`);
     },
     async ContextUsage() {
       return { used: 1280, window: 1_000_000 };
@@ -868,6 +879,16 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async SaveConfig(_key: string, _value: string) {
       // mock：浏览器开发环境不落盘（no-op；真实实现写入 ~/.gaea_config.json）。
+    },
+    // 设置中枢尾批：文学提示词双键/高级组键读（浏览器 dev 无 ga.cfg，空态诚实
+    // 口径——effective 空让面板显示「读取中/默认」，不编造人格内容）。
+    async WenxuePromptGet() {
+      return { prompt: "", file: "", effective: "" };
+    },
+    async WenxuePromptSet(_prompt: string, _file: string) {
+    },
+    async AdvancedConfigGet() {
+      return {};
     },
     async ListSkills() {
       // 技能清单样例（CreateInspector 消费；浏览器无真实技能注册 → 空数组

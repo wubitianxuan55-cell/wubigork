@@ -42,13 +42,24 @@ const AboutPanel: React.FC = () => {
           background: 'var(--md-sys-color-surface-container)',
           border: '1px solid var(--md-sys-color-outline-variant)',
         }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'color-mix(in srgb, var(--gaea-glow) 16%, var(--md-sys-color-surface-container-high))',
-            border: '1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
-            fontSize: 18, fontWeight: 700, color: 'var(--gaea-glow)',
-          }}>{t('settings.about.logoGlyph')}</div>
+          <span
+            role="img"
+            aria-label="gaea"
+            style={{ width: 56, height: 46, flexShrink: 0 }}
+          >
+            <img
+              src="/gaea-brand-light.jpg"
+              alt=""
+              className="gaea-brand-art gaea-brand-art--light"
+              draggable={false}
+            />
+            <img
+              src="/gaea-brand-dark.jpg"
+              alt=""
+              className="gaea-brand-art gaea-brand-art--dark"
+              draggable={false}
+            />
+          </span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Typography.Text strong style={{ color: 'var(--md-sys-color-text)', fontSize: 15 }}>gaea</Typography.Text>

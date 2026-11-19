@@ -1994,15 +1994,84 @@ func TestStoreRejectsPathTraversal(t *testing.T) {
 	}
 }
 
+// 2026-11-19 用户拍板：默认主席改 Codex 优先（原 Grok），Codex 在席且可用时
+// 最先发言——不依赖 requested 传入顺序；不可用时按原顺序回落。
+func TestOrderedAgentIDsPutsCodexFirst(t *testing.T) {
+	available := map[string]AgentStatus{
+		"grok":  {ID: "grok", Available: true},
+		"codex": {ID: "codex", Available: true},
+		"alpha": {ID: "alpha", Available: true},
+	}
+	got := orderedAgentIDs([]string{"grok", "alpha", "codex"}, available)
+	want := []string{"codex", "grok", "alpha"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("orderedAgentIDs = %v, want %v", got, want)
+	}
+	delete(available, "codex")
+	got = orderedAgentIDs([]string{"grok", "alpha", "codex"}, available)
+	want = []string{"grok", "alpha"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("orderedAgentIDs without codex = %v, want %v", got, want)
+	}
+}
+
+func TestDefaultChairmanPrefersCodex(t *testing.T) {
+	codexPath := codexOverride(t)
+	runner := defaultFakeRunner()
+	runner.outputs[codexPath] = func(spec commandSpec) (string, error) {
+		if strings.Contains(spec.Stdin, "你的职责是协助整理，不是裁判") {
+			// codex CLI 的 JSONL 事件信封，text 内是汇总 JSON（与
+			// fakeOutputFor 汇总分支同构）。
+			inner, _ := json.Marshal(map[string]any{
+				"summary":        "两份意见都认为应先完成自动验证。",
+				"recommendation": "先做小范围只读验证，再决定是否扩大。",
+				"conditions":     []string{"Agent 均可无头调用"},
+				"disagreements":  []string{"验证范围尚未完全一致"},
+				"risks":          []string{"外部 Agent 可能不可用"},
+				"evidenceNotes":  []string{"材料没有给出历史成功率"},
+			})
+			envelope, _ := json.Marshal(map[string]any{
+				"type": "item.completed",
+				"item": map[string]any{"type": "agent_message", "text": string(inner)},
+			})
+			return string(envelope), nil
+		}
+		return fakeOutputFor("codex", spec.Stdin), nil
+	}
+	m := newTestManager(t, runner, fakeAdapter("alpha"), newCodexAdapter(codexPath))
+	defer m.Close()
+
+	session, err := m.Start(StartRequest{
+		// codex 故意放 requested 末位：默认主席与发言顺位都不依赖传入顺序。
+		Topic: "默认主席顺位", AgentIDs: []string{"alpha", "codex"}, Rounds: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.Request.ChairmanAgentID != "codex" {
+		t.Fatalf("default chairman = %q, want codex", session.Request.ChairmanAgentID)
+	}
+	done := waitForStatus(t, m, session.ID, StatusCompleted)
+	if done.Verdict == nil || done.Verdict.Chairman != "Codex" {
+		t.Fatalf("verdict chairman = %+v", done.Verdict)
+	}
+	if findContribution(done, "codex") == nil {
+		t.Fatal("codex seat produced no contribution")
+	}
+}
+
 func TestGrokSeatJoinsCouncilAndChairs(t *testing.T) {
 	backend := &fakeGrokBackend{}
 	m := newTestManager(t, defaultFakeRunner(), fakeAdapter("alpha"), fakeAdapter("beta"), newGrokAdapter(backend))
 	defer m.Close()
 
 	session, err := m.Start(StartRequest{
-		Topic:    "Grok 主持可行性",
-		AgentIDs: []string{"alpha", "beta", "grok"},
-		Rounds:   2, // 显式两轮：单轮现已放行，不再隐式抬高
+		Topic: "Grok 主持可行性",
+		// 2026-11-19 默认主席改为 Codex 优先后，本测试改为显式指定 Grok
+		// 主持，链路语义（开场/轮间小结/汇总调用计数）不变。
+		AgentIDs:        []string{"alpha", "beta", "grok"},
+		ChairmanAgentID: "grok",
+		Rounds:          2, // 显式两轮：单轮现已放行，不再隐式抬高
 	})
 	if err != nil {
 		t.Fatal(err)

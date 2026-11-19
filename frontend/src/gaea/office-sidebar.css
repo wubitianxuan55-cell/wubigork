@@ -21,21 +21,18 @@
 
 .office-sidebar__brand-mark {
   display: inline-flex;
-  width: 31px;
-  height: 31px;
+  width: 38px;
+  height: 30px;
   align-items: center;
   justify-content: center;
   flex: none;
-  border: 1px solid var(--office-line);
-  border-radius: 9px;
-  background: var(--office-panel);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent);
+  isolation: isolate;
 }
 
 .office-sidebar__brand-mark img {
-  width: 21px !important;
-  height: 21px !important;
-  border-radius: 6px !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
 }
 
 .office-sidebar__brand-copy {
@@ -726,8 +723,8 @@
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__brand-mark {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 28px;
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
@@ -759,4 +756,126 @@
 
 .office-sidebar[data-narrow="true"] .office-sidebar__utilities {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* ── Collapsed workbench rail ─────────────────────────────────────────────
+   The collapsed left panel is an intentional 68px dock rather than a clipped
+   copy of the expanded tree: one identity stack, one action group, and one
+   bottom utility group. */
+.office-sidebar[data-collapsed="true"] {
+  padding: 46px 6px 8px !important;
+  background-image:
+    radial-gradient(circle at 50% 9%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--office-panel) 24%, transparent), transparent 34%);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__brand {
+  min-height: 80px;
+  gap: 7px;
+  padding: 7px 0 9px !important;
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__brand-mark {
+  width: 32px;
+  height: 26px;
+  opacity: 0.94;
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
+  width: 38px;
+  min-width: 38px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft)) !important;
+  border-radius: 10px !important;
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 9%, transparent) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.office-sidebar__collapsed-actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--office-line);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__new--compact {
+  width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--office-accent-line) !important;
+  border-radius: 10px !important;
+  background: var(--office-accent-wash) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-session {
+  border-color: var(--office-line);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--office-panel) 82%, transparent);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-session:hover {
+  border-color: var(--office-accent-line);
+  background: var(--office-accent-wash);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-session:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__current {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  margin: 0;
+  border: 1px solid var(--office-line) !important;
+  border-radius: 10px !important;
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--office-panel) 82%, transparent) !important;
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__current:hover {
+  border-color: var(--office-accent-line) !important;
+  background: var(--office-accent-wash) !important;
+}
+
+.office-sidebar__current-dot {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--office-panel);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-nav {
+  gap: 6px;
+  padding: 12px 0 4px;
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-action {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: var(--fg-dim);
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-action > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-action:hover {
+  color: var(--accent);
+  border-color: var(--office-accent-line);
+  background: var(--office-accent-wash);
 }

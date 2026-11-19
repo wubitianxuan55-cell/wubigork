@@ -92,6 +92,8 @@ export function GaeaContextView(arg1:string):Promise<contextview.ContextTimeline
 
 export function GaeaConvertToPdf(arg1:string):Promise<app.ConvertPdfResult>;
 
+export function GaeaCreateProject(arg1:string,arg2:string):Promise<string>;
+
 export function GaeaCreateWorkspaceFile(arg1:string,arg2:string):Promise<workbench.MutationResult>;
 
 export function GaeaCreateWorkspaceFolder(arg1:string,arg2:string):Promise<workbench.MutationResult>;
@@ -287,6 +289,8 @@ export function GaeaRemember(arg1:string,arg2:string):Promise<string>;
 export function GaeaRemoveMCPServer(arg1:string):Promise<void>;
 
 export function GaeaRemovePermissionRule(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaRemoveRecentWorkspace(arg1:string):Promise<void>;
 
 export function GaeaRenameSession(arg1:string,arg2:string):Promise<void>;
 

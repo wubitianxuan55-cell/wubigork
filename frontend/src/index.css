@@ -10,6 +10,31 @@
   --font-size-xl: 20px;
 }
 
+/* 用户提供的官方明暗品牌原图：不裁切、不改比例，仅按运行时主题切换。
+ * multiply/screen 让白底与黑底分别融入当前表面，避免出现矩形图片底板。 */
+.gaea-brand-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.gaea-brand-art--light {
+  display: none;
+  mix-blend-mode: multiply;
+}
+.gaea-brand-art--dark {
+  display: block;
+  mix-blend-mode: screen;
+}
+html[data-bs-light] .gaea-brand-art--light {
+  display: block;
+}
+html[data-bs-light] .gaea-brand-art--dark {
+  display: none;
+}
+
 #root {
   width: 100%;
   min-height: 100dvh;

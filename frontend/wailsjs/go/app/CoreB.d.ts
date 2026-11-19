@@ -6,6 +6,8 @@ import {modelengine} from '../models';
 
 export function AddCustomEngine(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function AdvancedConfigGet():Promise<Record<string, string>>;
+
 export function CreateProject(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
 
 export function DeleteProject(arg1:string):Promise<void>;
@@ -113,3 +115,7 @@ export function TestEngineConnection(arg1:string):Promise<modelengine.EngineStat
 export function UpdateCustomEngine(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function UpdateProjectMeta(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function WenxuePromptGet():Promise<app.WenxuePromptView>;
+
+export function WenxuePromptSet(arg1:string,arg2:string):Promise<void>;

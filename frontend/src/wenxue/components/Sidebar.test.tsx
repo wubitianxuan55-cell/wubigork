@@ -14,6 +14,7 @@ const currentNovel: ProjectGroup = {
 };
 
 function renderSidebar(overrides: Partial<SidebarProps> = {}) {
+  localStorage.setItem("gaea-lang", "zh");
   const props: SidebarProps = {
     collapsed: false,
     toggleSidebar: vi.fn(),
@@ -144,5 +145,34 @@ describe("Wenxue Sidebar novel workspaces", () => {
     expect(screen.queryByText("长夜灯火")).toBeNull();
     expect(screen.queryByText("必须保密的情节")).toBeNull();
     expect(screen.queryByTitle(privateNovel.path)).toBeNull();
+  });
+
+  it("折叠态保留统一开合图标、当前会话活动点和底部能力入口", () => {
+    const novelWithSession: ProjectGroup = {
+      ...currentNovel,
+      sessions: [{
+        path: "C:\\AI\\tuwen\\长夜灯火\\.gaea\\sessions\\current.jsonl",
+        preview: "当前章节",
+        title: "长夜灯火 第一章",
+        turns: 1,
+        modTime: Date.now(),
+        current: true,
+      }],
+    };
+    const props = renderSidebar({ collapsed: true, projectGroups: [novelWithSession] });
+
+    const toggle = screen.getByTestId("global-sidebar-toggle");
+    expect(toggle.querySelector('[data-workspace-sidebar-toggle="expand"]')).not.toBeNull();
+
+    const current = screen.getByTestId("sidebar-current-session-collapsed");
+    expect(current.querySelector(".office-sidebar__current-dot")).not.toBeNull();
+    fireEvent.click(current);
+    expect(props.toggleSidebar).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByRole("button", { name: "新建小说" })).toBeTruthy();
+    fireEvent.click(screen.getByTestId("sidebar-new-session-collapsed"));
+    expect(props.newSessionAndReset).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "MCP 与技能" })).toBeTruthy();
+    expect(document.querySelector(".office-sidebar__collapsed-actions")).not.toBeNull();
   });
 });

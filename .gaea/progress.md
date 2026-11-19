@@ -1,3 +1,71 @@
+## 软件 Logo 明暗双原图全量替换 + 桌面构建（2026-11-19）
+
+用户补入 `logo浅色.jpg`（白底玻璃光效）与 `logo深色.jpg`（黑底发光版），
+要求软件品牌全面替换。两张源图均 1568×1264；本轮不再用旧母图提取重绘，
+UI 的可见 Logo 直接使用这两张原图，按运行时明暗切换，并保留原始比例与
+完整留白。
+
+- **原始资产**：两张 JPG 字节复制为
+  `frontend/public/gaea-brand-light.jpg`、
+  `frontend/public/gaea-brand-dark.jpg`，SHA256 分别与源文件逐字节相等：
+  `D06366EC…0134B773`、`004680E4…4133FF9AC2`。
+- **主题映射**：统一 `.gaea-brand-art--light/--dark` 资产层，以
+  `data-bs-light` 切换；白底图用 `multiply`、黑底图用 `screen` 融合到
+  当前表面，不出现矩形图片底板。首帧、运行时切主题、系统模式同步生效。
+- **替换面**：办公/文学侧栏、指挥轨道、欢迎页、设置“关于”全部改用
+  同一对原图；关于页原有“盖/G”文字占位及六条 `logoGlyph` 三语键退役；
+  四个旧 `src/**/assets/logo*.svg` 引用与文件退役。favicon 随明暗切到
+  `favicon-light.svg` / `favicon-dark.svg`。
+- **桌面图标**：从深色原图取可见品牌区生成 1024 圆角主图标与紧凑小图标；
+  ICO 七档 16/24/32/48/64/128/256。`build/appicon.png` SHA256
+  `8821ECFF…3644D5E7`，`build/windows/icon.ico` SHA256
+  `6280CCB9…A5B83C9`。exe 内嵌七档图标与 ICO 对应帧逐字节比对
+  **7/7 exact**。
+- **视觉走查**：1366×约 890 实页完成办公亮/暗、文学亮色、设置关于
+  亮/暗走查；侧栏 Logo 无偏移、无畸变、无白/黑矩形底板，指挥轨道与
+  关于页切换一致。使用 `ui-ux-pro-max` 检查图标比例、明暗对比、
+  reduced-motion 与无障碍标签。
+- **门禁**：Sidebar 两文件 **22/22**；改动面 ESLint 0；`tsc -b` 0；
+  正式前端构建 **35.16s** 绿（仓库既有 Wenxue CSS syntax 与
+  chunk-size warning 仍在，非本轮文件）。
+- **桌面构建/验收**：UCRT64 GCC、`CGO_ENABLED=1`、系统默认 TMP/TEMP，
+  `wails build -s -ldflags "-s -w" -trimpath` **42.031s**，
+  `Skip Bindings=false`；exe **60,460,032 B** SHA256
+  `DC354710C0205B79A27E7DB8647E0185E5B31ADAD5578F1AA2D5A51B7DE84A35`；
+  三 DLL 同目录。正式路径冒烟 `/api/health` **200**（PID 4680 已回收）。
+- **范围**：未提交、未装机；工作树内其他在制业务改动未触碰。
+
+## 开机动画双场景品牌化重设计（2026-11-19）
+
+用户先后给出两张最终画面，并明确要求直接使用原图、自动完成“天空 →
+人间”转场。本轮不再拆图重绘 Logo、文字、背景或进度，不调用 Three.js；
+两张原始 PNG 作为全屏场景直接使用，在 1.596s 进行 1050ms 整幅交叉
+淡变（原图进度分别为 68%、72%）。
+
+- **场景实现**：两层全屏原图常驻，`data-scene` 随语音阶段从 `earth`
+  自动切到 `gaia`；`object-fit: contain` 保持原始比例且不裁切画面。
+  静态首屏同样内置 1.596s 自动切换。
+- **原始资产**：直接字节复制工作空间中的
+  `盖亚智能星际启动界面.png`、`盖亚智能世界启动界面.png`（均
+  1672×941），目标文件 SHA256 分别为
+  `60C71A31…394D74A4`、`68EBE841…1F52A336`，与源文件逐一相等。
+- **交互/无障碍**：原图中的 Logo、字标、进度与状态不再 DOM 重绘；
+  页面保留隐藏标题、状态、声音与 ESC 跳过能力。原图进度区域按
+  1672×941 坐标覆盖为真实动态进度条：0% 平滑增长到 68%，阶段切换后
+  继续到 72%，数字与轨道同步；覆盖底采用场景自适应玻璃层（天空深蓝、
+  人间青绿），背景随底图交叉变化并遮净原百分比。声音入口常驻左下角并
+  显示 `PLAY/AUDIO/MUTED`；自动播放被拦截时首次点击直接重试播放而不是
+  误切换成静音。
+- **视觉走查**：1366×886 暗色双场景、375×812 竖屏自动转场；
+  `temp/gaea-boot-earthrise-final.png` 与
+  `temp/gaea-boot-gaia-final.png` 留存终态截图。
+- **门禁**：`BootSplash.test.tsx` 8/8；`tsc -b` 0；改动面 ESLint 0；
+  前端 `npm run build` 绿（仓库既有 Wenxue CSS syntax 与 chunk-size
+  warning 仍在，非本轮文件）。
+- **范围**：`frontend/index.html`、`BootSplash.tsx`、`BootSplash.test.tsx`、
+  `boot-splash.css`、三语 boot 文案及两张 public 原图；未提交、未构建
+  Wails、未装机。
+
 ## 众神殿与子代理对话 UI 收口 + 桌面包（2026-11-18 夜）
 
 用户令「检查细节后 git 打包、做好文件记录和记忆更新、构建桌面端」。
