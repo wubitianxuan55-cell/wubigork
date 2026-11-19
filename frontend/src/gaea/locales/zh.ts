@@ -759,7 +759,7 @@ export const zh: Record<DictKey, string> = {
   // settings 页外壳（S2.2b 切片；面板组件文案另片）
   "settings.controlRoom": "控制室",
   "settings.groupsHint": "设置中心 · {count} 个分组",
-  "settings.searchPlaceholder": "搜索设置项，如：主题 / 模型 / 存储",
+  "settings.searchPlaceholder": "搜索设置项，如：主题 / 模型 / 存储（按 / 快速聚焦）",
   "settings.searchAria": "搜索设置项",
   "settings.inspectorHide": "隐藏帮助面板",
   "settings.inspectorShow": "显示帮助面板",

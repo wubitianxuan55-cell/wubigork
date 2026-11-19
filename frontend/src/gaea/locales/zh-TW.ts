@@ -763,7 +763,7 @@ export const zhTW: Record<DictKey, string> = {
   // settings 頁外殼（S2.2b 切片；面板元件文案另片）
   "settings.controlRoom": "控制室",
   "settings.groupsHint": "設定中心 · {count} 個分組",
-  "settings.searchPlaceholder": "搜尋設定項，如：主題 / 模型 / 儲存",
+  "settings.searchPlaceholder": "搜尋設定項，如：主題 / 模型 / 儲存（按 / 快速聚焦）",
   "settings.searchAria": "搜尋設定項",
   "settings.inspectorHide": "隱藏說明面板",
   "settings.inspectorShow": "顯示說明面板",

@@ -758,7 +758,7 @@ export const en = {
   // settings 页外壳（S2.2b 切片；面板组件文案另片）
   "settings.controlRoom": "Control room",
   "settings.groupsHint": "Settings center · {count} groups",
-  "settings.searchPlaceholder": "Search settings, e.g. theme / model / storage",
+  "settings.searchPlaceholder": "Search settings, e.g. theme / model / storage (press / to focus)",
   "settings.searchAria": "Search settings",
   "settings.inspectorHide": "Hide help panel",
   "settings.inspectorShow": "Show help panel",
