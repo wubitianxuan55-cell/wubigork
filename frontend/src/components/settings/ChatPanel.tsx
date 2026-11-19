@@ -125,15 +125,14 @@ const ChatPanel: React.FC = () => {
           )}
         </div>
       </SettingsSection>
-
-      <ChatDataSection />
     </>
   )
 }
 
 /** ChatDataSection — E 档数据管理：历史 ZIP 导出/导入（导入前自动备份、
- *  原子替换；成功后广播 gaea-chat-history-replaced 让聊天页即时刷新）。 */
-const ChatDataSection: React.FC = () => {
+ *  原子替换；成功后广播 gaea-chat-history-replaced 让聊天页即时刷新）。
+ *  批 6 归位数据组（与备份恢复同域），经 categories 注册表挂载。 */
+export const ChatDataSection: React.FC = () => {
   const [busy, setBusy] = useState<'export' | 'import' | null>(null)
 
   const handleExport = async () => {

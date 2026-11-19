@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons'
 import type { DictKey } from '../../gaea/locales/en'
 import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel } from './AppearancePanel'
-import ChatPanel from './ChatPanel'
+import ChatPanel, { ChatDataSection } from './ChatPanel'
 import ChatVoiceSection from './ChatVoiceSection'
 import VoiceSettingsPanel from '../VoiceSettingsPanel'
 import OfficeMemorySection from './OfficeMemorySection'
@@ -125,13 +125,13 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.office',
     desc: '引擎 · 方案',
     descKey: 'settings.cat.officeDesc',
-    keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', '记忆', '晨报', '项目本体', '做梦', '面板', 'cad', '图纸', 'mcp', '服务器', 'context7', 'auto-open', 'auto expand', 'context', '网络搜索', '搜索', '联网', '主源', 'tavily', 'brave', 'searxng', 'web'],
+    keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', '记忆', '晨报', '项目本体', '做梦', '面板', 'cad', '图纸', 'mcp', '服务器', 'context7', 'auto-open', 'auto expand', 'context'],
     // v4.65 欠账收口：办公工作台「自动展开/自动切换」偏好卡置顶（入口可发现性），
     // 2.5d 补上下文页偏好卡（默认粒度/模式/排序），后接办公引擎设置（config.toml）。
     // 批 4：记忆四态（原右栏 MemoryPanel 胶囊）+ 工位面板启停（原「管理」弹层，
     // CAD 可选卡常驻入口）+ MCP/工具/技能（原 CapabilitiesPanel 抽屉主体）收编。
     panel: (<>
-      <WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel /><SearchPanel />
+      <WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel />
       <OfficeMemorySection />
       <PaneManagementSection
         title="工位面板"
@@ -168,10 +168,12 @@ export const SETTINGS_CATEGORIES: Category[] = [
     icon: <SafetyCertificateOutlined />,
     label: '安全',
     labelKey: 'settings.cat.security',
-    desc: '隐私 · 调试',
+    desc: '隐私 · 网络',
     descKey: 'settings.cat.securityDesc',
-    keywords: ['安全', '隐私', '敏感', '本地化', '本地', '局域网', '暴露', 'lan', '调试', 'webview', '远程', 'token', '报价', '成本'],
-    panel: <SecurityPanel />,
+    // 批 6 重组：SearchPanel（网络搜索主源/Key）从办公组归位本组=隐私与网络同域
+    //（desc i18n 键文案「隐私 · 调试」待 locales 解锁后随新键更新）。
+    keywords: ['安全', '隐私', '敏感', '本地化', '本地', '局域网', '暴露', 'lan', '调试', 'webview', '远程', 'token', '报价', '成本', '网络搜索', '搜索', '联网', '主源', 'tavily', 'brave', 'searxng'],
+    panel: (<><SecurityPanel /><SearchPanel /></>),
   },
   {
     key: 'data',
@@ -181,8 +183,10 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.data',
     desc: '备份 · 恢复',
     descKey: 'settings.cat.dataDesc',
-    keywords: ['数据', '备份', '恢复', '迁移', '导出', '导入', 'zip', '换机', '重装', '防丢', '存档', '快照'],
-    panel: <DataPanel />,
+    // 批 6 归位：ChatDataSection（聊天历史 ZIP 导出/导入）从 chat 组归位本组
+    //（数据操作与备份恢复同域）。
+    keywords: ['数据', '备份', '恢复', '迁移', '导出', '导入', 'zip', '换机', '重装', '防丢', '存档', '快照', '聊天', '历史'],
+    panel: (<><DataPanel /><ChatDataSection /></>),
   },
   {
     key: 'codeatlas',

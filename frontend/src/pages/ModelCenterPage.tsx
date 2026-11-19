@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Button, Drawer, message } from 'antd'
 import {
-  ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
+  ThunderboltOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
   AppstoreOutlined, ExperimentOutlined, PieChartOutlined, MonitorOutlined,
 } from '@ant-design/icons'
@@ -10,19 +10,13 @@ import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
 import { ModelCenterContext, ModelCenterStateContext, ModelCenterActionsContext } from './modelcenter/context'
 import { useModelCenterBundle } from './modelcenter/useModelCenterBundle'
 import { LLMSection } from './modelcenter/LLMSection'
-import { BindSection } from './modelcenter/BindSection'
-import { StrategySection } from './modelcenter/StrategySection'
 import { StatsSection } from './modelcenter/StatsSection'
-import { ImageSection } from './modelcenter/ImageSection'
-import { VoiceSection } from './modelcenter/VoiceSection'
-import { EngineSection } from './modelcenter/EngineSection'
 import { SpecialtySection } from './modelcenter/SpecialtySection'
 import { OverviewSection } from './modelcenter/OverviewSection'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
 import { RecommendSection } from './modelcenter/RecommendSection'
 import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
-import { SchedulingSection } from './modelcenter/SchedulingSection'
 import { AttributionSection } from './modelcenter/AttributionSection'
 import { FEATURES, type Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
@@ -82,10 +76,10 @@ const ModelCenterPage: React.FC = () => {
     }
   }, [category])
 
-  // 2026-10-27 瘦身重组：13 分类温和合并为 9（llm+specialty+recommend→models、
-  // benchmark+retrieval→eval、strategy+attribution→governance），rail 按语义分四节
-  // （概览/模型/质量与成本/接入）。Section 组件全部保留，合并 tab 内纵向多段渲染
-  // （与 engine tab 的 Scheduling+Engine 两段先例同构）。
+  // 2026-10-27 瘦身重组：13 分类温和合并为 9。设置中枢批 7 退役刀：设置类 tab
+  // （图片生成/语音模型/功能绑定/引擎管理）已收编设置页对应组（imagegen/chat/
+  // model），rail 退役防双入口漂移——本页定位收窄为「状态与评测」（总览/模型/
+  // 模型库/测评/策略与成本[Attribution]）。设置直达=openSettings 锚点。
   const TAB_GROUPS: { label: string | null; tabs: { key: Category; icon: React.ReactNode; label: string }[] }[] = [
     { label: '概览', tabs: [
       { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
@@ -93,16 +87,10 @@ const ModelCenterPage: React.FC = () => {
     { label: '模型', tabs: [
       { key: 'models', icon: <ThunderboltOutlined />, label: '模型一览' },
       { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
-      { key: 'image', icon: <PictureOutlined />, label: '图片生成' },
-      { key: 'tts', icon: <SoundOutlined />, label: '语音模型' },
     ] },
     { label: '质量与成本', tabs: [
       { key: 'eval', icon: <ExperimentOutlined />, label: '测评中心' },
       { key: 'governance', icon: <PieChartOutlined />, label: '策略与成本' },
-    ] },
-    { label: '接入', tabs: [
-      { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
-      { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
     ] },
   ]
 
@@ -211,7 +199,7 @@ const ModelCenterPage: React.FC = () => {
               <button
                 type="button"
                 className="mc-rail-foot-item"
-                onClick={() => setCategory('bind')}
+                onClick={() => useAppStore.getState().openSettings('model')}
                 aria-label={`查看功能绑定，${boundFeatures} / ${FEATURES.length} 已绑定`}
               >
                 <span className="mc-rail-foot-dot" aria-hidden="true" />
@@ -230,8 +218,6 @@ const ModelCenterPage: React.FC = () => {
                 <RecommendSection />
               </>
             )}
-            {category === 'image' && <ImageSection />}
-            {category === 'tts' && <VoiceSection />}
             {category === 'catalog' && <HerdsmanCatalogSection />}
             {category === 'eval' && (
               <>
@@ -239,16 +225,8 @@ const ModelCenterPage: React.FC = () => {
                 <RetrievalEvalSection />
               </>
             )}
-            {category === 'engine' && (
-              <>
-                <SchedulingSection />
-                <EngineSection />
-              </>
-            )}
-            {category === 'bind' && <BindSection />}
             {category === 'governance' && (
               <>
-                <StrategySection />
                 <AttributionSection />
               </>
             )}

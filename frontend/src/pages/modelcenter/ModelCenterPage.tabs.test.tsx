@@ -61,17 +61,16 @@ beforeEach(() => {
   mocks.useBindState.mockImplementation(() => ({ featureCfg: {}, loadFeatureCfg: () => {}, refreshRoutes: () => {} }))
 })
 
-describe('ModelCenterPage · 瘦身重组导航编排（13 tab → 9）', () => {
-  it('rail 渲染 9 个分类按钮与 4 个分节标题', () => {
+describe('ModelCenterPage · 瘦身重组导航编排（设置中枢批 7 后：9 tab → 5）', () => {
+  it('rail 渲染 5 个分类按钮与 3 个分节标题（设置类 tab 已收编设置页退役）', () => {
     render(<ModelCenterPage />)
-    // 「功能绑定」与 rail-foot 摘要标题撞名，label 查询收窄到 rail 按钮 label span
-    const labels = ['总览', '模型一览', '模型库', '图片生成', '语音模型', '测评中心', '策略与成本', '功能绑定', '引擎管理']
+    const labels = ['总览', '模型一览', '模型库', '测评中心', '策略与成本']
     for (const label of labels) expect(screen.getByText(label, { selector: '.mc-rail-label' })).toBeTruthy()
-    for (const group of ['概览', '模型', '质量与成本', '接入']) {
+    for (const group of ['概览', '模型', '质量与成本']) {
       expect(screen.getByText(group, { selector: '.mc-rail-group' })).toBeTruthy()
     }
-    // 退役的旧分类名不再出现在导航
-    for (const gone of ['语言模型', '专业模型', '推荐位', '受控测评', '检索质量', '空间策略', '成本归因']) {
+    // 退役的设置类分类名不再出现在导航（批 7 收编设置页对应组）
+    for (const gone of ['图片生成', '语音模型', '功能绑定', '引擎管理', '语言模型', '专业模型', '推荐位', '受控测评', '检索质量', '空间策略', '成本归因']) {
       expect(screen.queryByText(gone, { selector: '.mc-rail-label' })).toBeNull()
     }
   })
@@ -88,16 +87,10 @@ describe('ModelCenterPage · 瘦身重组导航编排（13 tab → 9）', () => 
     expect(visibleSections()).toEqual(['sec-benchmark', 'sec-retrieval'])
   })
 
-  it('「策略与成本」= 空间策略 + 成本归因两段同屏', () => {
+  it('「策略与成本」= 仅成本归因（空间策略已收编设置页模型组）；非合并 tab 单段渲染', () => {
     render(<ModelCenterPage />)
     fireEvent.click(screen.getByText('策略与成本', { selector: '.mc-rail-label' }))
-    expect(visibleSections()).toEqual(['sec-strategy', 'sec-attribution'])
-  })
-
-  it('「引擎管理」两段既有先例随批钉死；非合并 tab 单段渲染', () => {
-    render(<ModelCenterPage />)
-    fireEvent.click(screen.getByText('引擎管理', { selector: '.mc-rail-label' }))
-    expect(visibleSections()).toEqual(['sec-scheduling', 'sec-engine'])
+    expect(visibleSections()).toEqual(['sec-attribution'])
     fireEvent.click(screen.getByText('模型库', { selector: '.mc-rail-label' }))
     expect(visibleSections()).toEqual(['sec-catalog'])
     fireEvent.click(screen.getByText('总览', { selector: '.mc-rail-label' }))
