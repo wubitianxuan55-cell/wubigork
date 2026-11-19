@@ -109,8 +109,8 @@ const SettingsPage: React.FC = () => {
                   >
                     <span className="settings-nav-item__icon" aria-hidden="true">{it.icon}</span>
                     <span className="settings-nav-item__text">
-                      <span className="settings-nav-item__label">{t(it.labelKey)}</span>
-                      <span className="settings-nav-item__desc">{t(it.descKey)}</span>
+                      <span className="settings-nav-item__label">{it.labelKey ? t(it.labelKey) : it.label}</span>
+                      <span className="settings-nav-item__desc">{it.descKey ? t(it.descKey) : it.desc}</span>
                     </span>
                     <span className="settings-nav-item__orb" aria-hidden="true" />
                   </button>
@@ -156,9 +156,9 @@ const SettingsPage: React.FC = () => {
               <section className="v3-card settings-help-card">
                 <div className="settings-help-card__row">
                   <span className="settings-help-card__icon" aria-hidden="true">{active.icon}</span>
-                  <span className="settings-help-card__label">{t('settings.currentCategory', { label: t(active.labelKey) })}</span>
+                  <span className="settings-help-card__label">{t('settings.currentCategory', { label: active.labelKey ? t(active.labelKey) : active.label })}</span>
                 </div>
-                <p className="settings-help-card__desc">{t(active.descKey)}</p>
+                <p className="settings-help-card__desc">{active.descKey ? t(active.descKey) : active.desc}</p>
                 <div className="settings-help-card__keywords">
                   {active.keywords.slice(0, 8).map((k) => (
                     <span key={k} className="settings-keyword">{k}</span>

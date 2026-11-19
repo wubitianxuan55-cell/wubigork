@@ -68,13 +68,20 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     act(() => useAppStore.getState().clearPendingSettingsCategory())
   })
 
-  it('单 zone 可见时不渲染分区标题（现状零 UI 变化，board 区批 5 挂入后才出现两级）', () => {
-    const { container } = render(wrap(<SettingsPage />))
-    expect(container.querySelector('.settings-nav__zone')).toBeNull()
-    // 现有 10 组全部仍可达（含用户拍板保留的代码图谱）
-    for (const label of ['代码图谱', '安全', '数据']) {
+  it('两级导航点亮（批 5 zone 归位）：全局/板块分区标题常驻，板块区含办公/绘梦/文学/微信/众神殿', () => {
+    render(wrap(<SettingsPage />))
+    const zones = screen.getAllByText(/^(全局|板块)$/)
+    expect(zones.length).toBe(2)
+    // 板块区五组（办公/绘梦归位 + 文学/微信/众神殿新入驻）+ 全局区现有组全部可达
+    for (const label of ['办公', '绘梦', '文学', '微信', '众神殿', '通用', '模型', '代码图谱']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy()
     }
+  })
+
+  it('板块薄组可达（批 5）：微信组含回推服务开关段', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /微信/ }))
+    expect(await screen.findByText('回推服务', { selector: 'strong' })).toBeTruthy()
   })
 
   it('openSettings(category) 锚点直达：挂载即定位目标分组并清空 pending', async () => {

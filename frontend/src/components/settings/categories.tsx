@@ -3,6 +3,7 @@ import {
   AppstoreOutlined, MessageOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined,
   SafetyCertificateOutlined, DatabaseOutlined, ClusterOutlined,
+  ReadOutlined, WechatOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import type { DictKey } from '../../gaea/locales/en'
 import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel } from './AppearancePanel'
@@ -21,6 +22,10 @@ import { VoiceSection } from '../../pages/modelcenter/VoiceSection'
 import { CapabilitiesInline } from '../../gaea/components/capabilities/CapabilitiesInline'
 import { WORKSPACE_TABS } from '../../gaea/lib/workspaceTabs'
 import { usePaneEnabledStore } from '../../gaea/lib/paneEnabled'
+import { WORKSPACE_TABS as WENXUE_TABS } from '../../wenxue/lib/workspaceTabs'
+import { usePaneEnabledStore as useWenxuePaneEnabled } from '../../wenxue/lib/paneEnabled'
+import WeixinServiceSection from './WeixinServiceSection'
+import PantheonAgentsSection from './PantheonAgentsSection'
 import ImageGenPanel from './ImageGenPanel'
 import OfficePanel from './OfficePanel'
 import SearchPanel from './SearchPanel'
@@ -44,17 +49,19 @@ export interface Category {
   key: string
   zone: SettingsZone
   icon: React.ReactNode
-  /** zh 兜底文案（搜索关键词用，数据层不可 use hook） */
+  /** zh 兜底文案（搜索关键词用，数据层不可 use hook；批 5 起亦作 labelKey 缺省时的渲染兜底） */
   label: string
   desc: string
-  /** i18n 渲染 key */
-  labelKey: DictKey
-  descKey: DictKey
+  /** i18n 渲染 key（可选：locales 并行线在途期间新增组暂缺键，渲染走 zh 兜底，
+   *  键待并行线收官后补齐回切——与批 1 zone 标题同款过渡模式） */
+  labelKey?: DictKey
+  descKey?: DictKey
   keywords: string[]
   panel: React.ReactNode
 }
 
-/** 导航分区（批 1 仅结构就位：board 区为空时整区不渲染，单 zone 不出标题）。
+/** 导航分区（批 5 点亮：office/imagegen 归位 boards 区 + 文学/微信/众神殿入驻，
+ *  两级标题自此常驻；搜索过滤到单 zone 时自动隐藏标题）。
  *  zone 标题暂用 zh 兜底常量——locales 三文件当前有并行线在途改动（遥测/
  * 启动文案段），键（settings.zone.global/boards）待该线收官后补，避免混提交。 */
 export const SETTINGS_ZONES: { key: SettingsZone; label: string }[] = [
@@ -96,7 +103,7 @@ export const SETTINGS_CATEGORIES: Category[] = [
   },
   {
     key: 'imagegen',
-    zone: 'global',
+    zone: 'boards',
     icon: <PictureOutlined />,
     label: '绘梦',
     labelKey: 'settings.cat.imagegen',
@@ -112,7 +119,7 @@ export const SETTINGS_CATEGORIES: Category[] = [
   },
   {
     key: 'office',
-    zone: 'global',
+    zone: 'boards',
     icon: <SettingOutlined />,
     label: '办公',
     labelKey: 'settings.cat.office',
@@ -198,5 +205,43 @@ export const SETTINGS_CATEGORIES: Category[] = [
     descKey: 'settings.cat.aboutDesc',
     keywords: ['关于', '版本', '更新', '日志', '系统', '信息', '路径', '配置', '存储', 'token', '凭证'],
     panel: <AboutPanel />,
+  },
+
+  // ── 板块区（批 5）：板块域设置薄组。label/desc 暂走 zh 兜底（labelKey 缺省），
+  //     locales 并行线收官后补三语键回切。进度计划/记忆中枢的显示偏好为
+  //     「使用中即时调」型，按不收编边界留域（批 7 索引卡直达）。──
+  {
+    key: 'wenxue',
+    zone: 'boards',
+    icon: <ReadOutlined />,
+    label: '文学',
+    desc: '面板 · 书斋',
+    keywords: ['文学', '书斋', '面板', '工作台', '阅读', '小说', '提示词', '分板'],
+    panel: (
+      <PaneManagementSection
+        title="书斋面板"
+        desc="文学壳层右栏工作台面板启停（与办公工位各自独立清单）"
+        tabs={WENXUE_TABS}
+        useStore={useWenxuePaneEnabled}
+      />
+    ),
+  },
+  {
+    key: 'weixin',
+    zone: 'boards',
+    icon: <WechatOutlined />,
+    label: '微信',
+    desc: '回推服务',
+    keywords: ['微信', '回推', '提醒', '服务', '监听', '助手', 'wechat'],
+    panel: <WeixinServiceSection />,
+  },
+  {
+    key: 'pantheon',
+    zone: 'boards',
+    icon: <ThunderboltOutlined />,
+    label: '众神殿',
+    desc: '外部参与者',
+    keywords: ['众神殿', '参与者', 'agent', '路径', '可执行', '外部', '讨论'],
+    panel: <PantheonAgentsSection />,
   },
 ]
