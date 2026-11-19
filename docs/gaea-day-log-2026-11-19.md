@@ -67,9 +67,40 @@
 
 ## 5. 余项（裁决后置，勿擅自提前）
 
-- **action-2 打开中 xlsx 观察 A/B**：R2 落地后真机跑（Excel 与 WPS 各 ≥3 次关/开态
-  对照，记录原始回执+模型两步内动作；反例金标=静默半写立即升级）；zcode-r3 七步设计
-  在最终文档。**先 A/B 后改提示词**，不得倒置。
+- ~~**action-2 打开中 xlsx 观察 A/B**~~ **同日已跑，见 §6**（工具层 9/9 至；模型两步
+  内动作一腿留用户实弹）。
 - **action-3 R1 保存前快照**：另立需求，用户先定义「未保存修改」语义（有改动/无改动/
   大文件三例）再评估实现。
 - Excel/PPT 应用自身撤销粒度真机演练（临时文件单批修改+逐次 Ctrl+Z 比对，约 1 小时/应用）。
+
+## 6. action-2 占用 A/B 实测（工具层）
+
+载体=新 env 门控 live 测试 `internal/app/xlsx_occupy_ab_test.go`（`GAEA_XLSX_OCCUPY_AB=1`，
+同 PANTHEON_LIVE_SMOKE/GAEA_AB_EVAL 纪律；夹具全用可丢弃临时目录，COM 实例由专用
+powershell 进程 marker 握手持有、超时只杀自己的树不碰用户 Office）。臂=closed/excel
+（Excel.Application）/wps（Ket.Application）各 3 次，走 `officeXlsxApplyTool` 全链。
+
+**结果（9/9 干净）**：
+
+| 臂 | 结果 | 回执/错误原文 |
+|---|---|---|
+| closed ×3 | success | `xlsx 已应用 1 个操作：…（写入值 E2=AB合计；证据卡已落账，可复核/回滚。）` |
+| excel ×3 | **clean-fail** | `保存 xlsx 失败: open <path>: The process cannot access the file because it is being used by another process.` |
+| wps ×3 | **clean-fail** | 同上（WPS ET 锁同形） |
+
+判定谓词：**P-a 占用归因=true**（错误文案自带 used by another process）；**P-b 指路=false**
+（不提 office_open/关闭后重试）；**半写金标未命中**（全部 sha 未动+excelize 可重开，
+不升级 P1 补丁）；基线快照在失败臂也有落（ReadFile 先于锁写）。
+
+**结论（按裁决定策树）**：占用=干净失败且归因明确，无产品损失——**不改提示词**
+（裁决 disagreements #2 维持：无「模型高频误走且不自愈」证据不动 office_live_prompt）。
+P-c（模型两步内动作）留用户下次实弹观察：若模型见此错误后不自愈，再议一行占用
+回退句。证据档=`.tmp/xlsx-occupy-ab-1795067110/`（不入库）。
+
+**顺带发现（新刀挂账）**：`internal/gaea/agent/execute_one.go:424` 注释称
+「docx_apply/docx_accept/pptx_apply/**xlsx_apply** 走 ooxml.WriteAtomic（rename 收尾）
+→ none」——实查 xlsxedit.ApplyOps 用 excelize `SaveAs`＝原地 `O_WRONLY|O_TRUNC`
+直写（docx/pptx 才走 WriteAtomic）。本次占用至在 open 阶段被锁挡住=无半写，但
+**中途写失败（盘满/崩溃）理论上可截断文件**（基线快照可救）。处置拍板挂用户：
+A) xlsxedit 改同目录临时文件+rename 收尾（对齐 docx/pptx 族，~15 行）；B) 仅改
+注释与 Effect 分类说明；C) 维持现状（有基线快照兜底）。
