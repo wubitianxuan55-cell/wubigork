@@ -119,7 +119,6 @@ vi.mock('../components/CompanionAvatar', () => ({ CompanionAvatar: () => <div da
 vi.mock('../components/ParticleFlow', () => ({ ParticleFlow: () => null }))
 vi.mock('../components/SoundWaveOverlay', () => ({ SoundWaveOverlay: () => null }))
 vi.mock('../components/PersonaPicker', () => ({ default: () => null }))
-vi.mock('../components/VoiceSettingsPanel', () => ({ default: () => null }))
 
 import ChatPage, {
   CHAT_ENGINE_START_TIMEOUT_MS, STREAM_HARD_TIMEOUT_MS, STREAM_INACTIVITY_TIMEOUT_MS,

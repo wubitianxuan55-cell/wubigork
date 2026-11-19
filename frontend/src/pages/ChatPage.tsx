@@ -3,7 +3,7 @@
 // （useChatTopics）、语音集成（useChatVoice）与纯展示组件拆分见各产物文件。
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Typography, Modal, message, Input } from 'antd'
+import { Typography, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import { b64ToBytes } from '../gaea/lib/bytes'
@@ -13,11 +13,11 @@ import { useFollowScroll } from '../utils/followScroll'
 import { useBoardActive } from '../lib/boardActive'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
+import { useAppStore } from '../stores/appStore'
 import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/ChatTopicSidebar'
 import { mdStyles } from '../components/MarkdownContent'
 import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
-import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
 import { useChatTopics } from '../hooks/useChatTopics'
 import { useChatStream } from '../hooks/useChatStream'
 import { ChatModeBar } from '../components/chat/ChatModeBar'
@@ -97,7 +97,6 @@ const ChatPage: React.FC = () => {
   const [thinking, setThinking] = useState(false)
   const [forceSearch, setForceSearch] = useState(false)
 
-  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [voiceConsoleOpen, setVoiceConsoleOpen] = useState(false)
   // Voice V2 档（M4 产品接入刀）：v2=实时 sidecar（VoiceConsoleV2）；读取一次，
   // 设置面板切档下次打开语音台生效（V1 全保留，回退=切回 v1）。
@@ -175,7 +174,9 @@ const ChatPage: React.FC = () => {
   }), [])
   const handleToggleForceSearch = useCallback(() => setForceSearch(v => !v), [])
   const handleToggleThinking = useCallback(() => setThinking(v => !v), [])
-  const handleOpenVoiceSettings = useCallback(() => setShowVoiceSettings(true), [])
+  // 语音设置入口（设置中枢批 2）：原页内 Modal 退役，统一跳设置页聊天组
+  // （语音三段：伴侣/人格 + 全局音色 + VoiceSettingsPanel 引擎路由与克隆深配）。
+  const handleOpenVoiceSettings = useCallback(() => useAppStore.getState().openSettings('chat'), [])
   const toggleChatInspector = useCallback(() => {
     setInspectorCollapsed((c) => {
       const next = !c
@@ -866,11 +867,6 @@ const ChatPage: React.FC = () => {
       )}
 
       {/* 模型状态统一由顶栏轨道条展示（3.0 定制：移除左下角悬浮模型卡） */}
-
-      <Modal title="语音设置" open={showVoiceSettings} onCancel={() => setShowVoiceSettings(false)} footer={null} width={480} centered
-        destroyOnHidden transitionName="" maskTransitionName="">
-        <VoiceSettingsPanel />
-      </Modal>
 
       {/* 顶栏模式切换条（T6-10.2：portal 进 MainLayout 的 v3-strip 宿主） */}
       {modeBarHost !== null && !voiceConsoleOpen && createPortal(modeBar, modeBarHost)}

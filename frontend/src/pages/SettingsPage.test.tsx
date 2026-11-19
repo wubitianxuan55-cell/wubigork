@@ -11,6 +11,10 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   return { ...actual }
 })
 
+// 批 2 语音收编：chat 组挂 VoiceSettingsPanel，其订阅 tts-service-status 需
+// wails EventsOn（jsdom 无 runtime，mock 成空订阅——同 VoiceSettingsPanel.test）
+vi.mock('../../wailsjs/runtime/runtime', () => ({ EventsOn: vi.fn(() => () => {}) }))
+
 import SettingsPage from './SettingsPage'
 
 // S2.2b i18n：壳层组件经 useT 读字典，测试需包 LocaleProvider（zh 为默认语言）。
@@ -84,5 +88,15 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     act(() => useAppStore.getState().openSettings('data'))
     expect(await screen.findByText('数据备份', { selector: 'strong' })).toBeTruthy()
     expect(screen.queryByText('外观实时预览')).toBeNull()
+  })
+
+  it('语音收编（批 2）：聊天组含全局音色段与 VoiceSettingsPanel 朗读引擎深配', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /聊天/ }))
+    // ChatVoiceSection（从 ChatPanel 拆出的 tts_voice 全局默认音色）；与面板内
+    // 「合成音色」字样并存，用 findAllByText 容重复
+    expect((await screen.findAllByText('合成音色')).length).toBeGreaterThan(0)
+    // VoiceSettingsPanel（原聊天页 Modal 迁入）：朗读引擎路由卡常驻
+    expect(await screen.findByText('朗读引擎')).toBeTruthy()
   })
 })

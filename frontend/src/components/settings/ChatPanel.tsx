@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, Input, Modal, Radio, Select, Typography, message } from 'antd'
-import { TeamOutlined, SmileOutlined, AudioOutlined, DatabaseOutlined } from '@ant-design/icons'
+import { TeamOutlined, SmileOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
-import { applyVoiceSettings, getVoiceSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import { useT } from '../../gaea/lib/i18n'
 
@@ -23,27 +22,8 @@ interface CompanionSettings {
   companionGender: 'male' | 'female'
 }
 
-/** GetVoicePipelineConfig 动态载荷中 TTS 模型读取面（bridge Record<string, unknown> 收窄） */
-interface VoicePipelineInfo {
-  chatTts?: { model?: string }
-  tts?: { model?: string }
-}
-
-// 微软 Edge TTS 中文音色（label 经 i18n，组件内派生；value 为服务端标识不变）
-const TTS_VOICE_VALUES = [
-  { value: 'zh-CN-YunxiNeural', key: 'settings.chat.ttsYunxi' },
-  { value: 'zh-CN-XiaoxiaoNeural', key: 'settings.chat.ttsXiaoxiao' },
-  { value: 'zh-CN-YunjianNeural', key: 'settings.chat.ttsYunjian' },
-  { value: 'zh-CN-XiaoyiNeural', key: 'settings.chat.ttsXiaoyi' },
-] as const
-
-const HERDSMAN_VOICES = ['serena', 'vivian', 'sohee', 'aiden', 'dylan', 'eric', 'ono_anna', 'ryan', 'uncle_fu']
-
-// xAI Grok TTS 音色单一来源（模型中心 modelcenter/utils.tsx，T6-6.4 单源收敛）
-import { XAI_VOICES } from '../../pages/modelcenter/utils'
-
-// CosyVoice2 内置音色（本地服务端 /v1/audio/info 返回，查询失败时兜底；value 为服务端标识保持中文）
-const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男']
+/** ChatVoiceSection（全局 TTS 默认音色）已随设置中枢批 2 拆出归入语音组
+ *  （./ChatVoiceSection.tsx），与 VoiceSettingsPanel 同组互补展示。 */
 
 function loadSettings(): CompanionSettings {
   try {
@@ -71,9 +51,6 @@ const ChatPanel: React.FC = () => {
   const [activePersonality, setActivePersonality] = useState<string>(() => {
     try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea' } catch { return 'gaea' }
   })
-  const [voice, setVoice] = useState<Record<string, unknown>>({})
-  const [herdsmanVoices, setHerdsmanVoices] = useState<string[]>([])
-  const [ttsModel, setTtsModel] = useState('')
 
   useEffect(() => {
     try {
@@ -81,65 +58,8 @@ const ChatPanel: React.FC = () => {
       app.WhisperGetPersonalities().then((p) => setPersonalities(p || [])).catch(() => {
         message.error(t('settings.chat.personalitiesLoadFailed'))
       })
-    } catch (_) { /* 未初始化时静默 */ }
-    getVoiceSettings().then((v) => setVoice(v || {})).catch(() => {})
-    // bridge 调用在浏览器/?mock=1 下走 dev mock（空态返回、不同步抛），`?.` 去
-    // （类型已保证存在）；保留整体 try/catch 兜底——chat 管道防 ErrorBoundary
-    // 白屏的既有防御原样，一处异常不会被兜成整个设置板块白屏。
-    try {
-      app.GetVoicePipelineConfig().then((p) => {
-        const pipeline = p as VoicePipelineInfo | undefined
-        const model = pipeline?.chatTts?.model || pipeline?.tts?.model || ''
-        setTtsModel(model)
-        const lower = model.toLowerCase()
-        if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
-          app.GetTTSSpeakers(model).then((speakers: string[]) => {
-            if (Array.isArray(speakers) && speakers.length > 0) setHerdsmanVoices(speakers)
-          }).catch(() => {})
-        }
-      }).catch(() => {})
-    } catch (_) { /* 未初始化时静默 */ }
+    } catch { /* 未初始化时静默 */ }
   }, [t])
-
-  const isHerdsmanVoice = ttsModel.toLowerCase().includes('qwen3') || ttsModel.toLowerCase().includes('customvoice')
-  const isXaiVoice = ttsModel.toLowerCase().includes('grok-tts')
-  const isCosyvoiceVoice = ttsModel.toLowerCase().includes('cosyvoice')
-  // 音色 label 经 i18n 组件内派生（原为模块级 TTS_VOICES / VOICE_LABELS 常量）
-  const ttsVoices = TTS_VOICE_VALUES.map((v) => ({ value: v.value, label: t(v.key) }))
-  const herdsmanLabels: Record<string, string> = {
-    serena: `Serena (${t('settings.chat.tagFemale')})`,
-    vivian: `Vivian (${t('settings.chat.tagFemale')})`,
-    sohee: `Sohee (${t('settings.chat.tagFemale')})`,
-    aiden: `Aiden (${t('settings.chat.tagMale')})`,
-    dylan: `Dylan (${t('settings.chat.tagMale')})`,
-    eric: `Eric (${t('settings.chat.tagMale')})`,
-    ryan: `Ryan (${t('settings.chat.tagMale')})`,
-    ono_anna: `Anna (${t('settings.chat.tagFemale')})`,
-    uncle_fu: `Uncle Fu (${t('settings.chat.tagMale')})`,
-  }
-  const cosyLabels: Record<string, string> = {
-    中文女: t('settings.chat.cosyZhF'),
-    中文男: t('settings.chat.cosyZhM'),
-    英文女: t('settings.chat.cosyEnF'),
-    英文男: t('settings.chat.cosyEnM'),
-  }
-  const voiceOptions = isHerdsmanVoice
-    ? (herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES).map(v => ({ value: v, label: herdsmanLabels[v] || v }))
-    : isXaiVoice
-      ? XAI_VOICES
-      : isCosyvoiceVoice
-        ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).map(v => ({ value: v, label: cosyLabels[v] || v }))
-        : ttsVoices
-  const ttsVoice = (voice.ttsVoice as string) || ''
-  const effectiveVoice = isHerdsmanVoice
-    ? (herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES).includes(ttsVoice)
-      ? ttsVoice
-      : 'serena'
-    : isXaiVoice
-      ? XAI_VOICES.some(v => v.value === ttsVoice) ? ttsVoice : 'eve'
-      : isCosyvoiceVoice
-        ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).includes(ttsVoice) ? ttsVoice : '中文女'
-        : ttsVoice
 
   const updateSettings = (patch: Partial<CompanionSettings>) => {
     const next = { ...settings, ...patch }
@@ -153,11 +73,6 @@ const ChatPanel: React.FC = () => {
     try { localStorage.setItem(PERSONALITY_KEY, id) } catch (_) { /* 忽略 */ }
     message.success(t('settings.chat.personaSwitched', { name: personalities.find((p) => p.id === id)?.label || id }))
   }
-
-  const patchVoice = useCallback((key: string, value: unknown) => {
-    setVoice((prev) => ({ ...prev, [key]: value }))
-    applyVoiceSettings({ [key]: value }).catch(() => message.warning(t('settings.chat.voiceSaveFailed')))
-  }, [t])
 
   const currentPersonality = personalities.find((p) => p.id === activePersonality)
 
@@ -195,7 +110,7 @@ const ChatPanel: React.FC = () => {
           <Select size="small" value={activePersonality} style={{ width: 200 }}
             onChange={handleSwitchPersonality}
             options={personalities.map((p) => ({ value: p.id, label: `${p.gender === 'male' ? '♂' : '♀'} ${p.label}` }))} />
-          {currentPersonality && (
+          {currentPersonality?.dims && (
             <span style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
               {['T', 'I', 'S', 'O', 'R'].map((dim, i) => {
                 const vals = [currentPersonality.dims.T, currentPersonality.dims.I, currentPersonality.dims.S, currentPersonality.dims.O, currentPersonality.dims.R]
@@ -208,30 +123,6 @@ const ChatPanel: React.FC = () => {
               })}
             </span>
           )}
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        icon={<span style={{ fontSize: 15 }}><AudioOutlined /></span>}
-        title={t('settings.chat.voiceTitle')}
-        desc={t('settings.chat.voiceDesc')}
-        instant
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>{t('settings.chat.voiceSelRow')}</div>
-              <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>{t('settings.chat.voiceSelDesc')}</div>
-            </div>
-            <Select
-              size="small"
-              value={effectiveVoice || undefined}
-              placeholder={t('settings.chat.voicePlaceholder')}
-              onChange={(v) => patchVoice('ttsVoice', v)}
-              style={{ width: 180 }}
-              options={voiceOptions}
-            />
-          </div>
         </div>
       </SettingsSection>
 
