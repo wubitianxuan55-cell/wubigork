@@ -314,3 +314,5 @@ chr(92) 配方或 Write/Edit 工具直改。
   令 qwen35 退回旧构建。终局拆分（1bc05a48）：**bin/ 恢复 mainline 归 qwen35**
   （llama 更新追踪语义不变），**docmd exe 钉 bin-ocr-0.8.0-dev**（bak 改名转正），
   live 复测单页 16.8s ✓；重建装机 14:04:58 冒烟 200。
+- **终态装机（§17 更正）**：HEAD ca805455 全量重建（Vite 39.98s+Wails 32.96s），
+  exe `EF1C2AB5B94A8EF8…`，PID 43432 > 构建时刻 14:16:19，INSTALL OK+冒烟 200。
