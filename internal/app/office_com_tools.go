@@ -202,6 +202,13 @@ func officeComWrapErr(err error) error {
 	case "BAD_ARGS":
 		return sem("参数不合法：对照该工具 schema 修正参数后重试一次；连续两次同类错误就停下向用户说明")
 	case "ANCHOR_MISMATCH", "STYLE_MISSING", "OFFICE_ERROR":
+		// 2026-11-20 实测（能力自检轻量版）：COM 崩溃类（RPC_E_SERVERFAULT/
+		// E_FAIL）此前归入泛泛的「应用侧拒绝」，模型连试 6 种变体全崩、连带
+		// 子代理 6 次重试。崩溃类单独给降级出口：本 op 在本机不可用 → 换
+		// op/换通道，不要继续试变体。
+		if m := err.Error(); strings.Contains(m, "0x80010105") || strings.Contains(m, "0x80004005") || strings.Contains(m, "SERVERFAULT") {
+			return sem("本机 Office/COM 在此操作上崩溃（进程内故障，重试同形操作大概率仍崩）：不要继续试参数变体。改用等价路径——表格可用 format_table/set_cell 处理已有表、整段生成换 docx_apply/office_generate（结构化入口）或 office_render 核对后分段 insert_paragraphs；拿不准就告知用户此操作在本机实时档不可用")
+		}
 		return sem("应用侧拒绝了该操作：不要原样重试；先 office_read 看当前实际内容再决定怎么改，拿不准就问用户")
 	}
 	msg := err.Error()
@@ -253,7 +260,10 @@ func (s *officeComState) officeGuide(session, kind string) string {
 	if !ok {
 		guide = officeGuidesPptBasic // ppt：基础 ops 清单（成品版式教学摘除）
 	}
-	return fmt.Sprintf("\n\n%s operations for office_edit (this list is given once; office_help {app: \"%s\"} gives it again):\n%s",
+	// 2026-11-20 实测：模型曾把 items 写成 [{op:...}] 嵌套被拒「op is
+	// required」——附可复制的请求形状（ops 在最外层；items 里是正文/图/表
+	// 对象，不嵌 op）。
+	return fmt.Sprintf("\n\n%s operations for office_edit (this list is given once; office_help {app: \"%s\"} gives it again):\n%s\noffice_edit 请求形状（可复制骨架）：{\"doc\":\"D:\\\\路径\\\\文件.docx\",\"ops\":[{\"op\":\"insert_paragraphs\",\"items\":[{\"text\":\"一段正文\"}]},{\"op\":\"insert_table\",\"data\":[[\"列A\",\"列B\"],[\"1\",\"2\"]],\"caption\":\"表格标题\"}]}——ops 在最外层；insert_paragraphs 的 items 里是 {text,…}/{path,…}/{data,…}（正文/图/表对象），不嵌 op；一次给多个 op 时表/图会使其后段号偏移，按文档从后往前排或分次调用。\n",
 		comhelper.AppDisplayName(kind, ""), kind, guide)
 }
 
@@ -371,6 +381,12 @@ func officeComAppOf(app, path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if kind, ok := officeComExts[ext]; ok {
 		return kind, nil
+	}
+	// 2026-11-20 实测修正：不支持的扩展名（如 .html/.txt/.md）此前只报
+	// 「请指明应用：传 app」——用户已传 app=word 仍见此错，真因（扩展名
+	// 不在支持列表）被掩盖。现在点名扩展名并列出支持面。
+	if ext != "" {
+		return "", fmt.Errorf("%s 的扩展名 %q 不在 Office 实时档支持列表（doc/docx/docm/rtf/dotx/xlsx/xls/xlsm/xlsb/csv/pptx/ppt/pptm）；请换用支持的文件，或转格式（format_convert）后再开", path, ext)
 	}
 	return "", fmt.Errorf("请指明应用：传 app（word/excel/ppt），或用带扩展名的文件名（doc）")
 }

@@ -697,8 +697,24 @@ var protectedTools = map[string]bool{
 	"remember":      true, // memory facts should survive compaction
 }
 
+// protectDelegationReceipt 委派回执（task/run_skill 的 tool result）按大小
+// 限额保护（2026-11-20 实测）：父代理只能看到子代理的最终答复——回执被
+// prune 换成占位符后，父侧等于丢失整路委派成果，只能整跑重派。小回执
+//（≤8KB，覆盖绝大多数「结论+要点」型答复）进保护面；超大回执仍走既有
+// prune（上下文纪律优先，重跑成本换上下文预算是正确取舍）。
+const delegationReceiptProtectMax = 8 << 10
+
 func isProtectedToolResult(m provider.Message) bool {
-	return m.Role == provider.RoleTool && protectedTools[m.Name]
+	if m.Role != provider.RoleTool {
+		return false
+	}
+	if protectedTools[m.Name] {
+		return true
+	}
+	if (m.Name == "task" || m.Name == "run_skill") && len(m.Content) <= delegationReceiptProtectMax {
+		return true
+	}
+	return false
 }
 
 // keepIndexes returns a bool slice indicating which messages in region should be

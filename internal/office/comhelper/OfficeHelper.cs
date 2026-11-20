@@ -3359,11 +3359,31 @@ static class Program
             Follow(doc, p.Range);
             string cellLint = "";
             dynamic table = doc.Tables.Add(p.Range, rows, cols);
+            // 边框必须紧随 Tables.Add（原始晚位在此 Word 版本上必崩：格式化
+            // 链后访问 table.Borders 即 RPC_E_SERVERFAULT；建表后立刻设置则
+            // 稳定——Reset/Font 系列不碰表格边框，语义等价）。
+            Rules(table, op.Str("borders", "grid"));
+            // 2026-11-20 表存活改造（实机定罪，三个独立致命点）：
+            //  ① ParagraphFormat.Reset() 碰表格即毁表——整表 Range 上调用会
+            //     **静默毁表**（表对象当场死亡、文档残留 1×0 空表+每格一空段，
+            //     11 行表=66 空段，与用户实测回滚 debris 完全吻合）；改为逐段
+            //     Reset 同样下毒（表存活但 Cell() 访问 E_FAIL）。终案=表格路径
+            //     **彻底不用 Reset**，只做定向归零（缩进/对齐/字体逐项 set，全部
+            //     实测安全）。上游 Unformat 注释只给 WPS 分支防了这行为，MS
+            //     Word 同样中招。
+            //  ② Table.Borders.Enable 的 set 在本机 Word 上进程内崩
+            //     （RPC_E_SERVERFAULT，grid=1/none=0 两态皆崩）——Rules 已改
+            //     走 OutsideLineStyle/InsideLineStyle（见其注释）。
+            //  ③ 失败清理：Tables.Add 之后的任何异常都尝试删除已建的表再
+            //     抛出——失败回执不再留 1×0 残骸（此前「Nothing before it was
+            //     applied」的承诺与实际残留不符）。
+            try
+            {
             // The cells take the formatting of the paragraph that follows (a heading, say): make them plain.
             SetStyle(table.Range, "Normal");
             try
             {
-                table.Range.Font.Reset(); Unformat(table.Range);
+                table.Range.Font.Reset();
                 table.Range.ParagraphFormat.CharacterUnitFirstLineIndent = 0; table.Range.ParagraphFormat.FirstLineIndent = 0;
             }
             catch (COMException) { }
@@ -3383,7 +3403,6 @@ static class Program
                 // WPS: cell by cell.
                 try { for (int r = 1; r <= rows; r++) for (int c = 1; c <= cols; c++) table.Cell(r, c).VerticalAlignment = 1; } catch (Exception) { }
             }
-            Rules(table, op.Str("borders", "grid"));
             try { table.AutoFitBehavior(2); } catch (COMException) { }
             if (data != null)
             {
@@ -3422,6 +3441,15 @@ static class Program
             bool nested = false;
             try { nested = (int)table.NestingLevel > 1; } catch (Exception) { }
             return (nested ? "table inserted inside a cell of table " + (int)doc.Range(0, table.Range.End).Tables.Count : "table " + (int)doc.Range(0, table.Range.End).Tables.Count + " inserted") + " (" + rows + "×" + cols + "), now paragraphs " + (tableEnd - (int)table.Range.Paragraphs.Count + 1) + "–" + tableEnd + " of " + (int)doc.Paragraphs.Count + cellLint;
+            }
+            catch (Exception)
+            {
+                // ③ 失败清理：表已建但后续失败——尽力删除，不让回执的「本次
+                // 未应用任何操作」与文档残留（1×0 空表/空段）不符。表对象已
+                // 僵死时 Delete 会再抛，吞掉交由上层如实报错。
+                try { table.Delete(); } catch (Exception) { }
+                throw;
+            }
         }
         if (type == "set_cell")
         {
@@ -3545,8 +3573,13 @@ static class Program
     static void Rules(dynamic table, string style)
     {
         string kind = style.Trim().ToLowerInvariant();
-        if (kind == "grid" || kind == "all" || kind == "true") { table.Borders.Enable = 1; return; }
-        table.Borders.Enable = 0;
+        // 2026-11-20：Table.Borders.Enable 在部分 Word 版本上进程内崩
+        //（RPC_E_SERVERFAULT 0x80010105，实机复现 grid=1/none=0 两态皆崩，
+        // Tables.Add/SetStyle 均存活、崩点定格在此 set）——改走文档化的
+        // 分组属性 OutsideLineStyle/InsideLineStyle（wdLineStyleSingle=1 /
+        // wdLineStyleNone=0），与 three-line 的 per-side LineStyle 同族路径。
+        if (kind == "grid" || kind == "all" || kind == "true") { table.Borders.OutsideLineStyle = 1; table.Borders.InsideLineStyle = 1; return; }
+        table.Borders.OutsideLineStyle = 0; table.Borders.InsideLineStyle = 0;
         if (kind == "none" || kind == "false") return;
         if (kind != "three-line" && kind != "threeline" && kind != "three_line" && kind != "booktabs" && kind != "三线表")
             throw new Fail("BAD_ARGS", "\"borders\" must be grid, three-line or none.");

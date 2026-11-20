@@ -522,6 +522,10 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			Err:         fmt.Errorf("command timed out (> %s)", bashTimeout),
 			Retryable:   true,
 			EffectState: tool.EffectUnknown,
+			// 2026-11-20 实测（静默杀+副作用未知）：补行动指引——先核实已
+			// 落盘的中间产物再决定重试方式，长任务改分片（每片远小于上限）
+			// 或后台运行，防死循环脚本带 checkpoint 续跑。
+			NextAction:  "命令被 5 分钟硬超时杀掉，副作用状态未知：先核实已产出的中间文件（部分写入/半成品要清理或续用），不要盲目原样重跑；长任务改成小分片逐段跑（每段留断点），脚本加防死循环保护",
 		}
 	}
 	if err != nil {

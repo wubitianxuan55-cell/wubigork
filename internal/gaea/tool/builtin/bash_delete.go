@@ -566,6 +566,8 @@ func workDirOrCwd(workDir string) string {
 func rejectDelete(raw, resolved, what string) deleteVerdict {
 	return deleteVerdict{reject: true, reason: fmt.Sprintf(
 		"refusing recursive delete of %q (resolves to %s): this is %s. "+
-			"Delete specific subdirectories or files instead; if the whole workspace must be "+
+			"Delete specific subdirectories or files instead; to retire files safely move them "+
+			"into the workspace's .trash/ directory (a move_file to any path inside the workspace "+
+			"root is allowed); if the whole workspace must be "+
 			"reset, ask the user to do it", raw, resolved, what)}
 }
