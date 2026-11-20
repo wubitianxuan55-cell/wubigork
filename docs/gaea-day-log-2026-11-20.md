@@ -154,3 +154,49 @@ getComputedStyle 读 --md-sys-color-surface-container/text=#EDEAE3/#1E1C18）→
   1m56s 绿（exe SHA256 `7302bee3bf5c…e2c376`，三 DLL 同目录）；冒烟
   `/api/health` 200；装机 `C:\AI\gaea-app` 四件哈希一致，新壳 PID 64900
   （09:06:23 > 构建时刻 09:06:04）`INSTALL OK`。
+
+---
+
+## 13. 电脑操控八刀落地（施工单 W0~W7 全清，2026-11-20 下午）
+
+> 施工单 docs/gaea-computer-use-exec-brief-2026-11.md（11-19 写）当日实施收官。
+> 依据=asset-62（协议规格）/asset-63（代码级还原）/落地调研。一刀一提交，全默认关，
+> 关闭即回现状。装机位 exe SHA256 F0BC39E4…（干净树 75891a56 构建）冒烟 200。
+
+| 刀 | 提交 | 内容 |
+|---|---|---|
+| W0 | bd37782a | 多模态旁路：provider.Message.Images（存路径）+ai.ChatMessage.MarshalJSON（无图逐字节 golden；有图 content parts）+bridge 编码（CatmullRom≤1280+JPEG q70+每请求 4 张保最新）+ImageSink ctx 收集→executeBatch 返回 (results,images) 同长同序+dedup 清图 |
+| W1 前置 | 0844ed0d | permission linux 桩（dangerous_windows.go 缺对侧，GOOS=linux 全树交叉编译被拦，f416e223 起预存） |
+| W1 | 0049ee30 | computer 包骨架：五错误哨兵+Session（版次/绑定/TTL 懒回收假时钟）+双平台 init 装配 platformObserve |
+| W2 | 71ef7280 | 窗口枚举+UIA 树：SDK 头文件钉 vtable 序（不凭记忆）+codex 文法渲染（163 截断/32KB 行帽）+golden 夹具+真机双窗实证（ZCode 236 行/WPS 256 行，中文角色） |
+| W3 | 8cd8b80e | 只读三工具+［computer_use］配置段：默认关=boot 不注册（Schemas 逐字节现状）+白名单闸（未授权连读树都拒）+契约三表同批 |
+| W4 | ea4b29bb | 按 app 授权：subjectKeys 头插 app+WindowSubjectResolver 钩子（window_id→process:<exe>，「始终允许」落窄粒度）+computer_key 进默认硬问集+审批卡 exe 名缩写 |
+| W5 | c216b8ab | 输入注入：UIA 元素缓存（Invoke 优先/包围盒回落）+双闸门（元素版次/坐标版次 shotRevision）+DPI 切换复原失败即整体禁用坐标+deny 表（Win 键族/终端/密码/认证/安全软件/自身）+click/type/key 动作后强制回新树；INPUT 结构体 40 stride 逐字段对齐 |
+| W6 | fc51233b | 状态条+截图给人看：computer-status 事件四键（app.Startup 装 core.emit）+capture 落 .gaea/uploads+shot_markdown+前端胶囊状态条（reduced-motion 停脉冲） |
+| W7 | 75891a56+装机 | 门禁全绿+check-docs 补账（三 day-log 索引+releases 计数 54→56 既有欠账）+干净树构建装机（exe F0BC39E42A53，PID 12628>构建时刻，/api/health 200） |
+
+### 大坑五条
+
+1. **vtable 错序=CFG fastfail 进程无痕死亡**：ControlViewWalker 槽位 13→14
+   （CreateTreeWalker 后），错序调用直接被 Windows CFG 毙掉，无 traceback 无
+   panic——W2 真机探针才现形。UIA COM vtable 序一律取本机 SDK 头文件
+   C++ 类声明序。
+2. **VARIANT_BOOL 是 16 位**：按 int32 读会把 union 高位垃圾读成真
+   （全树 selectable,selected 刷屏）。BSTR 长度同理走 lstrlenW，避开头部
+   指针算术（vet unsafeptr 干净）。
+3. **QueryFullProcessImageNameW 返回 BOOL 非 HRESULT**：hr==0 判成功把全部
+   窗口的进程路径判丢（app 全空）。
+4. **executeBatch 签名扩双返回** ([]string, [][]string)：8 处测试调用点机械
+   修补；cancel 闸预执行结果图片随行；dedup 命中清图防过期帧回灌。
+5. **构建双坑复踩预防**：unset TMP=wails 0xc0000135（要系统默认值不是删）；
+   干净树三 DLL 缺失（从主树 build/bin 拷入再装）+node_modules 用 junction。
+
+### 余项
+
+- live 实弹：GAEA_LIVE_COMPUTER_TEST=1（只读观察真机门控测试已转正）；
+  GAEA_LIVE_VISION_TEST=1 主对话通道真模型吃 parts 体（用户实弹）。
+- 记事本端到端（click 元素→type→Return）与多显示器 125% 缩放误差 ≤2px
+  手验挂用户（W5 验收 2/4）。
+- 设置页 computer_use UI 分组：config 段已可用（直编 gaea.toml），UI 挂
+  设置域并行线（settings/modelcenter 21 文件在途）收官后补，避免同文件双线。
+- p2 池：per-window 抓屏（WGC）/多区域 screenshotId/Esc 键盘钩子/drag。
