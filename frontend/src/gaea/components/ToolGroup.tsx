@@ -6,7 +6,7 @@ import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { subjectOf, SUBJECT_CAP, truncateSubject } from "../lib/tools";
 import { useT } from "../lib/i18n";
-import { isDelegationTool } from "../lib/taskActivity";
+import { isDelegationCall } from "../lib/taskActivity";
 import type { Item } from "../lib/store";
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
@@ -109,8 +109,11 @@ export function scanGroups(items: Item[], opts?: { skipRunning?: boolean }): Gro
       j++;
     }
     const run = items.slice(i, j).filter((x): x is ToolItem => x.kind === "tool");
-    // 委派家族每调用独立成卡（不折叠）——见函数头注释。
-    const foldable = run.length >= 2 && !isDelegationTool(t.name) && !(opts?.skipRunning && run.some((x) => x.status === "running"));
+    // 委派调用每张独立成卡（不折叠）——判定走调用级证据（isDelegationCall）：
+    // run 里任一调用带子代理引用行即整组不折，防升级后委派卡被组行吞掉。
+    const foldable = run.length >= 2
+      && !run.some((x) => isDelegationCall(x.name, x.output))
+      && !(opts?.skipRunning && run.some((x) => x.status === "running"));
     if (foldable) {
       result.push({ kind: "group", id: `grp${i}`, name: t.name, tools: run });
     } else {

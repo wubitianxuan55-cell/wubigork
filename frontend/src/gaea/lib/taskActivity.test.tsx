@@ -7,7 +7,7 @@ import {
   buildDelegationNameMap,
   delegationNameForOrdinal,
   fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity,
-  hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, matchRunningCandidates,
+  hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, isDelegationCall, matchRunningCandidates,
   matchRunningRun, resolveTaskRef, setTaskCardActivityProvider,
   setTaskCardAmbiguityHandler, setTaskCardAmbiguityResolver, taskResultSummary,
 } from "./taskActivity";
@@ -41,17 +41,41 @@ describe("委派显示名", () => {
     expect(delegationNameForOrdinal(26)).toBe("子代理 A2");
   });
 
-  it("只命名顶层 task/run_skill，parentId 子调用不单独占名", () => {
+  it("只命名顶层委派调用，parentId 子调用不单独占名", () => {
     const names = buildDelegationNameMap([
       { id: "t1", name: "task" },
       { id: "nested", name: "task", parentId: "t1" },
       { id: "b1", name: "bash" },
-      { id: "s1", name: "run_skill" },
+      // run_skill 带子代理引用行（subagent 形态回执）才占名；inline 无回执不占
+      { id: "s1", name: "run_skill", output: "done\nSubagent reference: sa_20261120_1" },
+      { id: "s2", name: "run_skill" },
     ]);
     expect(names.get("t1")).toBe("子代理 A");
     expect(names.has("nested")).toBe(false);
     expect(names.has("b1")).toBe(false);
     expect(names.get("s1")).toBe("子代理 B");
+    expect(names.has("s2")).toBe(false);
+  });
+});
+
+// ── 2026-11-20 委派家族收窄：isDelegationCall 调用级判定 ────────────────
+describe("isDelegationCall（run_skill 按回执证据分派）", () => {
+  it("task 恒委派（无回执也是——派发期即可上浮）", () => {
+    expect(isDelegationCall("task")).toBe(true);
+    expect(isDelegationCall("task", undefined)).toBe(true);
+  });
+  it("run_skill 仅当回执携带 Subagent reference 行（subagent 形态）", () => {
+    expect(isDelegationCall("run_skill", "结果正文\nSubagent reference: sa_20261120_093000_1")).toBe(true);
+    // dsh-ops 信封包裹下子串仍可达
+    expect(isDelegationCall("run_skill", "{\"ok\":true,\"data\":{\"result\":\"…\nSubagent reference: sa_x\"}}")).toBe(true);
+  });
+  it("run_skill 无回执（运行中）/inline/pipeline 形态按普通工具", () => {
+    expect(isDelegationCall("run_skill")).toBe(false);
+    expect(isDelegationCall("run_skill", "技能正文折叠结果，无引用行")).toBe(false);
+  });
+  it("其他工具名恒否", () => {
+    expect(isDelegationCall("bash", "Subagent reference: sa_x")).toBe(false);
+    expect(isDelegationCall("read_file")).toBe(false);
   });
 });
 

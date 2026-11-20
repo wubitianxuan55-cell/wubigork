@@ -16,8 +16,10 @@ import (
 // executes, and closing with SaveCompleted/SaveFailed.
 //
 // title 是任务摘要（技能调用方传 task 本体而非 sk.Body+task 拼合串，UI 标题
-// 不会以技能正文开头）；存 meta.Title。与 TaskTool 的差异：结果不带
-// "Subagent reference" 尾巴——技能子代理没有 continue_from 入口，噪音无益。
+// 不会以技能正文开头）；存 meta.Title。成功结果附 "Subagent reference" 尾巴
+//（与 TaskTool 回执同款）：它不只是 continue_from 的引用——对话流前端靠这行
+// 把 run_skill 调用升级成委派卡（inline 技能无此行，按普通工具渲染，
+// 2026-11-20 委派家族收窄），缺行会让技能子代理卡既无徽标也不可点。
 func RunPersistedSubAgent(
 	ctx context.Context,
 	prov provider.LLMProvider,
@@ -96,7 +98,7 @@ func RunPersistedSubAgent(
 	if err := store.SaveCompleted(run); err != nil {
 		return "", fmt.Errorf("save subagent transcript: %w", err)
 	}
-	return result, nil
+	return result + FormatSubagentReference(run), nil
 }
 
 func bindHooksToSession(opts Options, sessionID string) Options {

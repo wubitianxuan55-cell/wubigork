@@ -260,4 +260,28 @@ describe("委派家族上浮（task/run_skill 一等对话卡）", () => {
     expect(segs[1].processItems.map((x) => x.id)).toEqual(["t1"]);
     expect(segs[1].outsideItems).toHaveLength(0);
   });
+
+  // 2026-11-20 家族收窄：run_skill 按回执证据分派——inline（无引用行）不
+  // 上浮（普通工具行，住过程卡），subagent 形态回执带上浮成一等委派卡。
+  it("run_skill inline（无引用行）不上浮：进过程卡按普通工具渲染", () => {
+    const items: Item[] = [
+      u("u1", "转 docx"),
+      a("a1", "", "调技能"),
+      { kind: "tool", id: "s1", name: "run_skill", args: "{}", readOnly: false, status: "done", output: "技能正文折叠结果" } as Item,
+    ];
+    const segs = buildSegments(items, true);
+    expect(segs[1].processItems.map((x) => x.id)).toEqual(["a1", "s1"]);
+    expect(segs[1].outsideItems).toHaveLength(0);
+  });
+
+  it("run_skill subagent（回执带 Subagent reference 行）上浮成一等委派卡", () => {
+    const items: Item[] = [
+      u("u1", "深挖"),
+      a("a1", "", "派子代理技能"),
+      { kind: "tool", id: "s1", name: "run_skill", args: "{}", readOnly: false, status: "done", output: "结论…\nSubagent reference: sa_20261120_1" } as Item,
+    ];
+    const segs = buildSegments(items, true);
+    expect(segs[1].processItems.map((x) => x.id)).toEqual(["a1"]);
+    expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["s1"]);
+  });
 });

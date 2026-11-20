@@ -29,7 +29,7 @@ import {
   unifiedRows,
 } from "../lib/tools";
 import type { DiffRow } from "../lib/diff";
-import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
+import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardAmbiguityHandler, isDelegationCall, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
 import { MemoryPeekModal } from "./MemoryPeekModal";
@@ -321,7 +321,11 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible, 
   // 点击派发歧义处理器由 App 弹轻量选择器人工挑一个（宁缺勿错：绝不自动
   // 跳转；0/1 候选行为与 v4.63 完全一致）。可达性：cursor-pointer +
   // aria-label 说明「多个运行中任务，点击选择」。
-  const isSubagentCard = item.name === "task" || item.name === "run_skill";
+  // 委派卡分派走调用级判定（2026-11-20 家族收窄）：task 恒委派；run_skill
+  // 仅当回执携带 "Subagent reference: sa_…"（真起了隔离子会话）。inline/
+  // pipeline 形态按普通工具行渲染；运行中（无回执）同为普通行，回执落地后
+  // 段签名变更自然升级——宁迟半拍勿错标。
+  const isSubagentCard = isDelegationCall(item.name, item.output);
   const resolvedRef = isSubagentCard ? resolveTaskRef(item.args, item.output) : "";
   const openTarget = isSubagentCard
     ? getTaskCardOpenTarget(resolvedRef, item.args)

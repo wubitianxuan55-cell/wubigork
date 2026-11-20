@@ -27,12 +27,28 @@
 //    卡片回退到默认渲染。
 //  - 卡片侧以 1s tick（useNow）轮询取值，provider 内部数据更新后最迟 1s 上屏。
 
-/** 委派家族工具名：一次调用 = 一个独立子代理会话（task/run_skill）。 */
+/** 委派家族候选工具名（家族判定以 isDelegationCall 调用级证据为准）。 */
 export const DELEGATION_TOOL_NAMES = new Set(["task", "run_skill"]);
 
-/** 是否委派家族工具（task/run_skill）——一次委派一张卡：不折叠、上浮对话流。 */
+/** 是否委派家族候选工具（task/run_skill）。上浮/免折叠/委派卡渲染一律走
+ *  isDelegationCall 调用级判定，不要直接用本函数分派形态。 */
 export function isDelegationTool(name: string): boolean {
   return DELEGATION_TOOL_NAMES.has(name);
+}
+
+// ── 委派家族收窄（2026-11-20 实测，与 gaea 同源镜像）──────────────
+// 病根：run_skill 有三种后端形态（internal/gaea/skill/tools.go）——
+// runAs=subagent 真起隔离子会话 / runAs=inline 技能正文折叠进工具结果 /
+// runAs=pipeline 走 RunDAG。旧判定按工具名整族上浮，把 inline 技能也挂上
+// 「子代理」徽标。证据：子代理形态的成功回执带 "Subagent reference: sa_…"
+// 行（RunPersistedSubAgent 附尾，与 task 回执同款；信封包裹下子串仍可达）。
+// task 不看证据恒委派；run_skill 无回执（运行中）按普通工具卡渲染，回执
+// 落地带引用行后经段签名变更自然升级为委派卡（宁迟半拍勿错标）。
+/** 调用级委派判定：task 恒委派；run_skill 仅当回执携带子代理引用行。 */
+export function isDelegationCall(name: string, output?: string): boolean {
+  if (name === "task") return true;
+  if (name !== "run_skill") return false;
+  return /Subagent reference:\s*sa_[A-Za-z0-9_.-]+/.test(output ?? "");
 }
 
 /** task 卡 live 预览数据（字段全部可选，缺省按现状渲染）。 */

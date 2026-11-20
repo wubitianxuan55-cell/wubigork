@@ -355,6 +355,19 @@ export default function App() {
 
   useEffect(() => { void refreshSessions(); }, [cwd, refreshSessions]);
 
+  // 回合启动沿刷新会话列表（2026-11-20 DeepSeek 切换面板全空根修）：引擎
+  // 重装（功能位换绑）后首次发送会**隐式轮转**出新会话（.jsonl 回合结束才
+  // 落盘，列表扫不到）——侧栏缓存的 current 停在旧空壳会话，上下文/轨迹/
+  // 编队三面板显式传旧路径拿到空快照。后端 listSessionsForDir 已有内核
+  // current 合成项，这里在每个回合 false→true 沿补一次刷新，current 对齐
+  // 内核后陈旧项自然退场（刷新幂等，代价=每回合一次轻量列表调用）。
+  const prevRunningRef = useRef(false);
+  useEffect(() => {
+    const started = state.running && !prevRunningRef.current;
+    prevRunningRef.current = state.running;
+    if (started) void refreshSessions();
+  }, [state.running, refreshSessions]);
+
   // 会话级回源（7.3-1 收口）：冷启态消费 pending；keepAlive 已挂载态走事件直达。
   // resumeRecentSession 依赖 projectGroups 快照（异步加载）——ref 保最新回调，
   // 订阅 effect 只跑一次不重建，避免过期闭包拿到空分组。

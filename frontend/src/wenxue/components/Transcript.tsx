@@ -15,7 +15,7 @@ import { useEntranceAnimation } from "../lib/useEntranceAnimation";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { useNow } from "../lib/useNow";
 import { displayReasoningText } from "../lib/reasoningDisplay";
-import { isDelegationTool } from "../lib/taskActivity";
+import { isDelegationCall } from "../lib/taskActivity";
 
 
 // ── 滚动参数 ──────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ function alternatingSegments(turn: Item[]): Segment[] {
     // 「对话窗口没有子代理卡片」根因）。上浮到 outsideItems 常驻可见（并行
     // 连续派发不经 outside-flush，同段累积）；parentId 委派（子代理嵌套委派）
     // 仍是父卡内 subcall（轮级 buildSubcalls 吸附），不上浮。
-    if (it.kind === "tool" && !it.parentId && isDelegationTool(it.name)) {
+    if (it.kind === "tool" && !it.parentId && isDelegationCall(it.name, it.output)) {
       curOutside.push(it);
       continue;
     }

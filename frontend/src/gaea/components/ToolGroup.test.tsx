@@ -70,15 +70,23 @@ describe("scanGroups 分组语义（既有口径回归钉）", () => {
 
   // 2026-11-18 委派家族不折叠（ce5fc790 补钉）：并行派发=连续同名 task 调用，
   // 折成「task × N」组行会吞掉委派卡渲染。skipRunning 两态都必须不折。
-  it("委派家族（task/run_skill）连续同名不折叠——每调用独立成卡", () => {
-    const mk = (id: string, name: string, status: "done" | "running" = "done") =>
-      ({ kind: "tool", id, name, args: "{}", readOnly: false, status } as Item);
+  // 2026-11-20 家族收窄：task 恒委派不折；run_skill 走调用级证据——无回执
+  //（inline/运行中）按普通工具可折，任一调用带子代理引用行整组不折。
+  it("task 连续同名不折叠（每调用独立成卡）；run_skill 无回执可折、带引用行不折", () => {
+    const mk = (id: string, name: string, output?: string, status: "done" | "running" = "done") =>
+      ({ kind: "tool", id, name, args: "{}", readOnly: false, status, output } as Item);
     for (const opts of [undefined, { skipRunning: true }]) {
-      for (const name of ["task", "run_skill"]) {
-        const gs = scanGroups([mk("t1", name), mk("t2", name), mk("t3", name)], opts);
-        expect(gs.every((g) => g.kind === "item"), `${name} ${JSON.stringify(opts)}`).toBe(true);
-        expect(gs.length).toBe(3);
-      }
+      const gs = scanGroups([mk("t1", "task"), mk("t2", "task"), mk("t3", "task")], opts);
+      expect(gs.every((g) => g.kind === "item"), `task ${JSON.stringify(opts)}`).toBe(true);
+      expect(gs.length).toBe(3);
     }
+    // run_skill 无回执（inline 形态）：普通折叠语义
+    const inline = scanGroups([mk("s1", "run_skill"), mk("s2", "run_skill")]);
+    expect(inline).toHaveLength(1);
+    expect(inline[0].kind).toBe("group");
+    // run_skill 带引用行（subagent 形态回执）：委派卡不折
+    const sub = scanGroups([mk("s1", "run_skill", "ok\nSubagent reference: sa_1"), mk("s2", "run_skill")]);
+    expect(sub.every((g) => g.kind === "item")).toBe(true);
+    expect(sub).toHaveLength(2);
   });
 });
