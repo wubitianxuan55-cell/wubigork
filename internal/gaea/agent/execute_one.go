@@ -20,9 +20,13 @@ import (
 
 // executeOneTimed 包装 executeOne 补执行耗时（P7 观测：工具 p95 数据源；
 // 含闸门/缓存命中等前置判定——它们也是「这次调用花了多久」的一部分）。
+// W0 多模态旁路：每次调用注入一个图片收集器，调用后随 outcome 带回
+//（工具经 tool.ImageSinkFromContext(ctx) 登记；不登记=无图=零影响）。
 func (a *AgentRunner) executeOneTimed(ctx context.Context, call provider.ToolCall) toolOutcome {
 	start := time.Now()
-	out := a.executeOne(ctx, call)
+	sink := &tool.ImageSink{}
+	out := a.executeOne(tool.WithImageSink(ctx, sink), call)
+	out.images = sink.Paths()
 	out.durMS = time.Since(start).Milliseconds()
 	return out
 }

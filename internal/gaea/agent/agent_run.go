@@ -402,7 +402,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("paused after %d tool-call rounds (agent.max_steps) — the model continued calling tools during the grace round; the work so far is saved. Send another message to continue, or increase max_steps", a.maxSteps)
 		}
 		a.preWG.Wait()
-		results := a.executeBatch(ctx, calls)
+		results, resultImages := a.executeBatch(ctx, calls)
 		// P0-2: deterministic pruning — skip duplicate tool results.
 		// only dedup ReadOnly tools — bash/git_commit etc. may produce
 		// different results on repeated calls (state changed between calls).
@@ -435,6 +435,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				a.session.Add(provider.Message{
 					Role:       provider.RoleTool,
 					Content:    results[i],
+					Images:     resultImages[i],
 					ToolCallID: call.ID,
 					Name:       call.Name,
 				})
@@ -462,6 +463,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				}
 				if a.dedupHashes[dk] {
 					results[i] = "[cached — byte-identical result for the same " + call.Name + " call earlier in this turn]"
+					resultImages[i] = nil // 缓存命中只回提示文本，旧截图不再随行（防过期帧回灌）
 				} else {
 					a.dedupHashes[dk] = true
 				}
@@ -469,6 +471,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			a.session.Add(provider.Message{
 				Role:       provider.RoleTool,
 				Content:    results[i],
+				Images:     resultImages[i],
 				ToolCallID: call.ID,
 				Name:       call.Name,
 			})
@@ -563,6 +566,7 @@ func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason 
 		a.session.Add(provider.Message{
 			Role:       provider.RoleTool,
 			Content:    out.output,
+			Images:     out.images,
 			ToolCallID: c.ID,
 			Name:       c.Name,
 		})

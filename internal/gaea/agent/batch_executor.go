@@ -15,7 +15,9 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
-func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCall) []string {
+// executeBatch 执行一批工具调用，返回 (结果文本, 结果图片)——两个切片同长同序
+// （W0 多模态旁路：图片只在工具产出时非空；无图调用一律 nil，零行为变化）。
+func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCall) ([]string, [][]string) {
 	// D7-B 取消执行闸·入口带（dsh-ops 超代对账审计落点，2026-11-10）：ctx 已
 	// 取消时**未执行的调用不再派发**（写族不查 ctx，盲派发=用户按停止后写仍
 	// 落盘）；已流式预执行完成的只读结果照常消费（preOutcomes 消费在前）。
@@ -23,6 +25,7 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 	// 可重发）。与 agent_stream 出口带互为双闸（那边拦源头，这边兜残余路径）。
 	if ctx.Err() != nil && len(calls) > 0 {
 		results := make([]string, 0, len(calls))
+		imgs := make([][]string, 0, len(calls))
 		cancelled := 0
 		for _, c := range calls {
 			a.preMu.Lock()
@@ -30,6 +33,7 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 			a.preMu.Unlock()
 			if done {
 				results = append(results, pre.output)
+				imgs = append(imgs, pre.images)
 				continue
 			}
 			const msg = "stream interrupted: this call was received but not executed (context cancelled); re-issue it if still needed"
@@ -42,13 +46,14 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 				NextAction:  "未执行零副作用：按需重发原调用",
 			}, msg, map[string]any{"tool": c.Name})
 			results = append(results, env)
+			imgs = append(imgs, nil)
 			cancelled++
 		}
 		if cancelled > 0 {
 			a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
 				Text: fmt.Sprintf("cancel gate: %d tool call(s) not dispatched (context cancelled, zero side effects)", cancelled)})
 		}
-		return results
+		return results, imgs
 	}
 	// V7.7.1: repair always runs first — executeOne no longer repeats it.
 	for i := range calls {
@@ -192,7 +197,13 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 	// 的因果链，提前阻止注定失败的操作或注入一致性警告。
 	a.postBatchCoherenceCheck(calls, results)
 	a.applyStormBreaker(calls, outcomes, results)
-	return results
+	// W0 多模态旁路：结果图片与 results 同长同序（correspondence guard 之后取，
+	// 合成错误项的 images 为零值 nil）。
+	resultImages := make([][]string, len(calls))
+	for i := range calls {
+		resultImages[i] = outcomes[i].images
+	}
+	return results, resultImages
 }
 
 // hasToolErrorPrefix mirrors runDirect's tool-error detection used for turn
@@ -490,6 +501,9 @@ type toolOutcome struct {
 	truncMsg    string
 	// durMS 是本次调用执行耗时（P7 观测：工具 p95 的数据源；0=未计）。
 	durMS int64
+	// images 是本调用产出的本地图片路径（W0 多模态旁路：随 tool 结果消息
+	// 进主对话请求，bridge 层统一编码+限量；空=无图，逐字节走旧路径）。
+	images []string
 }
 
 // boolTag 是观测维度的布尔串形态（低基数两值）。

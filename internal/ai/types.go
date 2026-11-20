@@ -4,11 +4,47 @@ import "encoding/json"
 
 // ChatMessage OpenAI 兼容消息格式
 type ChatMessage struct {
-	Role       string         `json:"role"`
-	Content    string         `json:"content"`
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	// Images 是本条消息附带的多模态图片（data URL，provider 层序列化前编码）。
+	// 不占 JSON 键：有图时 MarshalJSON 把 Content 展开为 content parts
+	// （[{type:text},{type:image_url},…]），无图路径与旧结构体序列化逐字节一致。
+	Images     []string       `json:"-"`
 	ToolCalls  []ChatToolCall `json:"tool_calls,omitempty"`   // assistant：模型请求的工具调用
 	ToolCallID string         `json:"tool_call_id,omitempty"` // tool：回传的工具调用 ID
 	Name       string         `json:"name,omitempty"`         // tool：工具名（部分 API 需要）
+}
+
+// MarshalJSON 有图时把 Content 展开为 OpenAI 多模态 content parts；无图路径
+// 与旧结构体序列化逐字节一致（golden 测试钉死）。"images" 键永不出现。
+func (m ChatMessage) MarshalJSON() ([]byte, error) {
+	if len(m.Images) == 0 {
+		// 别名类型绕开 MarshalJSON 递归，走原生字段序列化（零行为变化）。
+		type chatMessagePlain ChatMessage
+		return json.Marshal(chatMessagePlain(m))
+	}
+	parts := make([]map[string]any, 0, 1+len(m.Images))
+	parts = append(parts, map[string]any{"type": "text", "text": m.Content})
+	for _, img := range m.Images {
+		parts = append(parts, map[string]any{
+			"type":      "image_url",
+			"image_url": map[string]string{"url": img},
+		})
+	}
+	// 显式镜像字段（不内嵌原结构体：Content 的 string/parts 两型靠这层区分）。
+	return json.Marshal(struct {
+		Role       string           `json:"role"`
+		Content    []map[string]any `json:"content"`
+		ToolCalls  []ChatToolCall   `json:"tool_calls,omitempty"`
+		ToolCallID string           `json:"tool_call_id,omitempty"`
+		Name       string           `json:"name,omitempty"`
+	}{
+		Role:       m.Role,
+		Content:    parts,
+		ToolCalls:  m.ToolCalls,
+		ToolCallID: m.ToolCallID,
+		Name:       m.Name,
+	})
 }
 
 // ChatToolCall OpenAI 兼容工具调用（assistant 消息内）。

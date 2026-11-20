@@ -175,14 +175,14 @@ func TestIntegrationParamStormBreaker(t *testing.T) {
 
 	// 前2次正常执行（threshold=3 → 第3次抑制）
 	for i := 0; i < 2; i++ {
-		result := a.executeBatch(context.Background(), []provider.ToolCall{call})
+		result, _ := a.executeBatch(context.Background(), []provider.ToolCall{call})
 		if strings.Contains(result[0], "suppressed") {
 			t.Fatalf("call %d should execute normally, got: %s", i+1, result[0])
 		}
 	}
 
 	// 第3次被抑制
-	result := a.executeBatch(context.Background(), []provider.ToolCall{call})
+	result, _ := a.executeBatch(context.Background(), []provider.ToolCall{call})
 	if !strings.Contains(result[0], "suppressed") {
 		t.Fatalf("3rd call should be suppressed, got: %s", result[0])
 	}

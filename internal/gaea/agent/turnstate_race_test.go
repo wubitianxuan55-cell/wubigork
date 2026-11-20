@@ -66,7 +66,7 @@ func TestTurnStateConcurrent(t *testing.T) {
 				{ID: fmt.Sprintf("b-%d", r), Name: "bash", Arguments: `{"command":"go test ./...","run_in_background":true}`},
 				{ID: fmt.Sprintf("k-%d", r), Name: "kill_shell", Arguments: `{}`},
 			}
-			results := a.executeBatch(context.Background(), calls)
+			results, _ := a.executeBatch(context.Background(), calls)
 			if len(results) != len(calls) {
 				t.Errorf("round %d: got %d results for %d calls", r, len(results), len(calls))
 			}

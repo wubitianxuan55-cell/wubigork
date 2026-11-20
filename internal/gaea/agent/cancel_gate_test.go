@@ -44,7 +44,7 @@ func TestCancelGateBlocksDispatch(t *testing.T) {
 		{ID: "c1", Name: "writer_x", Arguments: `{}`},
 		{ID: "c2", Name: "writer_x", Arguments: `{}`},
 	}
-	results := a.executeBatch(ctx, calls)
+	results, _ := a.executeBatch(ctx, calls)
 	if n := execCount.Load(); n != 0 {
 		t.Fatalf("取消后不得派发（零副作用）: executed=%d", n)
 	}
@@ -61,7 +61,7 @@ func TestCancelGateBlocksDispatch(t *testing.T) {
 	a.preMu.Lock()
 	a.preOutcomes = map[string]toolOutcome{"c3": {output: tool.WrapResult(tool.CodeOK, map[string]any{"pre": true})}}
 	a.preMu.Unlock()
-	results2 := a.executeBatch(ctx, []provider.ToolCall{{ID: "c3", Name: "writer_x", Arguments: `{}`}})
+	results2, _ := a.executeBatch(ctx, []provider.ToolCall{{ID: "c3", Name: "writer_x", Arguments: `{}`}})
 	if !strings.Contains(results2[0], `"pre":true`) {
 		t.Fatalf("已完成预执行结果应消费: %q", results2[0])
 	}

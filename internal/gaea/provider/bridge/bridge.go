@@ -221,13 +221,38 @@ func init() {
 	})
 }
 
-// toChatMessages 转换 gaea 消息为 OpenAI 兼容消息。
+// maxImagesPerRequest 单请求图片张数上限（电脑操控施工单 W0：每回合 4 张）。
+const maxImagesPerRequest = 4
+
+// toChatMessages 转换 gaea 消息为 OpenAI 兼容消息。消息携带 Images（本地路径）
+// 时在此序列化边界编码为 data URL（缩边+JPEG），无图路径零额外工作。
 func toChatMessages(msgs []provider.Message) []ai.ChatMessage {
+	// 图片预算：全请求最多 maxImagesPerRequest 张。超限从最旧的消息整组丢弃
+	//（旧帧是过期观察，最新观察才驱动下一次动作；不拆散单次结果的图片组）。
+	remaining := maxImagesPerRequest
+	encodedImgs := make([][]string, len(msgs))
+	for i := len(msgs) - 1; i >= 0 && remaining > 0; i-- {
+		n := len(msgs[i].Images)
+		if n == 0 || n > remaining {
+			continue
+		}
+		set := make([]string, 0, n)
+		for _, p := range msgs[i].Images {
+			u, err := provider.EncodeImagePart(p, provider.DefaultImageMaxEdge)
+			if err != nil {
+				continue // 单张失败跳过（文本里仍有落盘路径），不拖垮请求
+			}
+			set = append(set, u)
+		}
+		remaining -= n
+		encodedImgs[i] = set
+	}
 	out := make([]ai.ChatMessage, 0, len(msgs))
-	for _, m := range msgs {
+	for i, m := range msgs {
 		cm := ai.ChatMessage{
 			Role:       string(m.Role),
 			Content:    m.Content,
+			Images:     encodedImgs[i],
 			ToolCallID: m.ToolCallID,
 			Name:       m.Name,
 		}

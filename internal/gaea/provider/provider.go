@@ -37,10 +37,14 @@ type Message struct {
 	// replayed on the next turn when a tool call followed thinking; providers
 	// without signed reasoning (e.g. the openai-compatible ones) leave it empty.
 	// Round-tripped alongside ReasoningContent.
-	ReasoningSignature string     `json:"reasoning_signature,omitempty"`
-	ToolCalls          []ToolCall `json:"tool_calls,omitempty"`   // set by assistant
-	ToolCallID         string     `json:"tool_call_id,omitempty"` // links a tool result to its call
-	Name               string     `json:"name,omitempty"`         // tool message: tool name
+	ReasoningSignature string `json:"reasoning_signature,omitempty"`
+	// Images 是本条消息附带的本地图片绝对路径（工具结果旁路，电脑操控截图等）。
+	// 会话存储只存路径（小）；编码成 data URL 多模态 parts 只发生在请求序列化
+	// 时（bridge → ai.ChatMessage），且全请求有张数上限（见 bridge 层）。
+	Images     []string   `json:"images,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // set by assistant
+	ToolCallID string     `json:"tool_call_id,omitempty"` // links a tool result to its call
+	Name       string     `json:"name,omitempty"`         // tool message: tool name
 }
 
 // ToolCall is a tool invocation requested by the model. Arguments is raw JSON.
