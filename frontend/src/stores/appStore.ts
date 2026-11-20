@@ -331,7 +331,9 @@ interface AppState {
    *  pending 存 store 而非事件——切页后 SettingsPage 才挂载，纯 window 事件
    *  会错过（MainLayout 收 NAVIGATE 切页时监听者尚未就位）。SettingsPage 消费后清空。 */
   pendingSettingsCategory: string | null
-  openSettings: (category?: string) => void
+  /** 可选内部任务页签，供「语音设置」等深层入口直达对应任务，不落在分类首页。 */
+  pendingSettingsTab: string | null
+  openSettings: (category?: string, tab?: string) => void
   clearPendingSettingsCategory: () => void
 }
 
@@ -436,15 +438,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoggedIn: (v: boolean) => set({ loggedIn: v }),
 
   pendingSettingsCategory: null,
+  pendingSettingsTab: null,
 
-  openSettings: (category?: string) => {
+  openSettings: (category?: string, tab?: string) => {
     // 切页走既有 NAVIGATE 白名单路径（MainLayout navigateBoard 自动换空间）；
     // 定位分组经 pending 状态传信，SettingsPage 挂载/订阅时消费。
     emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'settings' })
-    set({ pendingSettingsCategory: category ?? null })
+    set({ pendingSettingsCategory: category ?? null, pendingSettingsTab: tab ?? null })
   },
 
-  clearPendingSettingsCategory: () => set({ pendingSettingsCategory: null }),
+  clearPendingSettingsCategory: () => set({ pendingSettingsCategory: null, pendingSettingsTab: null }),
 }))
 
 // system 显示模式：监听操作系统明暗变化，实时派生 darkMode

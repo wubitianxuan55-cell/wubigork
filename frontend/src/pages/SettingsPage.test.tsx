@@ -40,6 +40,7 @@ describe('SettingsPage 按功能板块组织', () => {
 
   it('通用分组含界面语言切换', () => {
     render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('tab', { name: '动效与语言' }))
     expect(screen.getByText('界面语言')).toBeTruthy()
     expect(screen.getAllByText(/跟随系统（当前 简体中文）/).length).toBeGreaterThan(0)
   })
@@ -90,6 +91,16 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     render(wrap(<SettingsPage />))
     expect(await screen.findByText('当前模型')).toBeTruthy()
     expect(useAppStore.getState().pendingSettingsCategory).toBeNull()
+    expect(useAppStore.getState().pendingSettingsTab).toBeNull()
+  })
+
+  it('openSettings(category, tab) 锚点到内部任务页签：语音设置直达朗读引擎', async () => {
+    act(() => useAppStore.getState().openSettings('chat', 'speech-engine'))
+    render(wrap(<SettingsPage />))
+    const tab = await screen.findByRole('tab', { name: '朗读引擎' })
+    expect(tab.getAttribute('aria-selected')).toBe('true')
+    expect((await screen.findAllByText('朗读引擎')).length).toBeGreaterThan(1)
+    expect(useAppStore.getState().pendingSettingsTab).toBeNull()
   })
 
   it('openSettings 过滤态直达：先有搜索词也清空搜索再定位', async () => {
@@ -103,34 +114,110 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
   it('语音收编（批 2）：聊天组含全局音色段与 VoiceSettingsPanel 朗读引擎深配', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /聊天/ }))
+    expect(await screen.findByRole('tab', { name: '角色与人格' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '默认音色' }))
     // ChatVoiceSection（从 ChatPanel 拆出的 tts_voice 全局默认音色）；与面板内
     // 「合成音色」字样并存，用 findAllByText 容重复
     expect((await screen.findAllByText('合成音色')).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('tab', { name: '朗读引擎' }))
     // VoiceSettingsPanel（原聊天页 Modal 迁入）：朗读引擎路由卡常驻
-    expect(await screen.findByText('朗读引擎')).toBeTruthy()
+    expect((await screen.findAllByText('朗读引擎')).length).toBeGreaterThan(1)
   })
 
   it('模型与引擎收编（批 3）：模型组含功能绑定/空间策略/本地调度/引擎管理', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /模型/ }))
-    // BindSection 无大标题（区块名在模型中心 rail 上），以小节锚「聊天语音」证挂载；
-    // Strategy/Scheduling/Engine 用 SectionHead（mc-section-title span，非 strong）
+    expect(await screen.findByText('当前模型')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '功能绑定' }))
+    // BindSection 无大标题（区块名在模型中心 rail 上），以小节锚「聊天语音」证挂载
     expect(await screen.findByText(/聊天语音/, { selector: '.mc-bind-title' })).toBeTruthy()
-    for (const title of ['空间策略', '本地调度', '引擎管理']) {
-      expect(await screen.findByText(title, { selector: '.mc-section-title span' })).toBeTruthy()
-    }
+    fireEvent.click(screen.getByRole('tab', { name: '空间策略' }))
+    expect(await screen.findByText('空间策略', { selector: '.mc-section-title span' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '本地调度' }))
+    expect(await screen.findByText('本地调度', { selector: '.mc-section-title span' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '引擎管理' }))
+    expect(await screen.findByText('引擎管理', { selector: '.mc-section-title span' })).toBeTruthy()
   })
 
   it('办公扩容（批 4）：办公组含记忆四态/工位面板启停/MCP 能力区', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /办公/ }))
+    fireEvent.click(await screen.findByRole('tab', { name: '记忆与面板' }))
     // 记忆四态段（原右栏 MemoryPanel 胶囊）
     expect(await screen.findByText('办公记忆', { selector: 'strong' })).toBeTruthy()
     expect(await screen.findByText('晨报预载')).toBeTruthy()
     // 工位面板启停段（原「管理」弹层，CAD 可选卡常驻入口）
     expect(await screen.findByText('工位面板', { selector: 'strong' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '工具与技能' }))
     // MCP 能力区（原 CapabilitiesPanel 抽屉主体）：tab 栏常驻
     expect(await screen.findByRole('tab', { name: /连接器|服务器/ })).toBeTruthy()
+  })
+})
+
+describe('SettingsPage 密集设置任务分栏（2026-11-20 第二轮 UI 重设计）', () => {
+  it('模型组只显示一个任务域，页签切换后再显示对应分区', async () => {
+    const { container } = render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+
+    expect((await screen.findByRole('tab', { name: '概览' })).getAttribute('aria-selected')).toBe('true')
+    for (const label of ['功能绑定', '空间策略', '本地调度', '引擎管理']) {
+      expect(screen.getByRole('tab', { name: label })).toBeTruthy()
+    }
+    expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('tab', { name: '功能绑定' }))
+    expect(screen.getByRole('tab', { name: '功能绑定' }).getAttribute('aria-selected')).toBe('true')
+    expect(await screen.findByText(/聊天语音/, { selector: '.mc-bind-title' })).toBeTruthy()
+    expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1)
+  })
+
+  it('全局搜索命中内部任务关键词时自动切到对应任务页签', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '故障转移' } })
+
+    expect((await screen.findByRole('tab', { name: '本地调度' })).getAttribute('aria-selected')).toBe('true')
+    expect(await screen.findByText('本地调度', { selector: '.mc-section-title span' })).toBeTruthy()
+  })
+
+  it('内部页签支持方向键/Home/End 标准 tablist 键盘语义', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+    const overview = await screen.findByRole('tab', { name: '概览' })
+    overview.focus()
+
+    fireEvent.keyDown(overview, { key: 'ArrowRight' })
+    expect(screen.getByRole('tab', { name: '功能绑定' }).getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: '功能绑定' }))
+
+    fireEvent.keyDown(document.activeElement as Element, { key: 'End' })
+    expect(screen.getByRole('tab', { name: '引擎管理' }).getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: '引擎管理' }))
+
+    fireEvent.keyDown(document.activeElement as Element, { key: 'Home' })
+    expect(screen.getByRole('tab', { name: '概览' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('访问过的任务页签保持挂载：切换页签不丢未保存草稿', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /聊天/ }))
+    const companionName = await screen.findByPlaceholderText(/给 AI 起个名字/)
+    fireEvent.change(companionName, { target: { value: '临时称呼' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: '默认音色' }))
+    fireEvent.click(screen.getByRole('tab', { name: '角色与人格' }))
+    expect((screen.getByPlaceholderText(/给 AI 起个名字/) as HTMLInputElement).value).toBe('临时称呼')
+  })
+
+  it('离开分类后记住上次任务页签：模型页返回仍在引擎管理', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+    fireEvent.click(await screen.findByRole('tab', { name: '引擎管理' }))
+    expect(screen.getByRole('tab', { name: '引擎管理' }).getAttribute('aria-selected')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: /通用/ }))
+    fireEvent.click(screen.getByRole('button', { name: /模型/ }))
+    const restored = await screen.findByRole('tab', { name: '引擎管理' })
+    expect(restored.getAttribute('aria-selected')).toBe('true')
   })
 })
 

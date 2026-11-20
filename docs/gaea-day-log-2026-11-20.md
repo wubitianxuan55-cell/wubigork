@@ -1,4 +1,4 @@
-# gaea Day Log · 2026-11-20 · 设置中枢全线收官 + 闭环后增量五批（重设计/索引卡/键盘/竞态根修/搜索直达项）
+# gaea Day Log · 2026-11-20 · 设置中枢全线收官 + 设置板块整板二次重设计
 
 > 接 11-19 深夜设置中枢七批+尾批（装机 PID 38556）。今日用户连发「继续」驱动：
 > ①模型中心直达回摆（拍板推翻批 7 tab 退役）②UI 重设计四刀（点名用技能）③进度/
@@ -113,3 +113,40 @@ getComputedStyle 读 --md-sys-color-surface-container/text=#EDEAE3/#1E1C18）→
   4578 用例+tsc+lint 绿；装机同步（PID 26064）；挂账池空（余=TTS 死键不收编〔拍板
   不做〕+双入口单源保留〔设计如此〕+EnvironmentTeardownError 观察池）。
 - 板块验证面：暗色+亮色+键盘+4578 用例+CDP 17 断言，全在案。板块进入纯实弹期。
+
+## 12. 设置板块整板 UI 二次重设计（工作树，未提交）
+
+用户追加反馈「整个设置板块的 UI」「模型把以前多个标签的内容挤在一起」。本轮不重做
+底层配置与绑定契约，重画 15 个分类共用的控制台外壳，并把多任务分类的旧纵向堆叠
+改成任务页签。
+
+- **整板外壳**：命令栏（控制台标识/搜索/帮助）+ 两级分类轨道 + 当前分区画布；
+  分类轨道改为紧凑单行标签，分类说明集中到内容头；统一实底卡、标题/说明/状态、
+  ISO 键盘焦点、skip link、reduced-motion。亮暗主题全部消费现有 md-sys/gaea 令牌。
+- **任务分栏**：通用 3 / 聊天 4 / 绘梦 2 / 办公 4 / 模型 5 / 安全 2 / 数据 2 /
+  文学 2 / 高级 2；关于、代码图谱、微信、众神殿、进度计划、记忆中枢保持单页。
+  访问过的页签保持挂载，未保存草稿切页不丢；标准 tablist 支持左右方向键/Home/End。
+- **模型专项**：全局概览、功能绑定、空间策略、本地调度、引擎管理分栏；1280×720
+  mock 实页连续滚动高度从 3155px 收到 801px。补设置页 `--mc-*` 令牌作用域，修掉
+  此前依赖模型中心懒加载 CSS 时空间策略等区域可能退回无样式纯文本的问题。
+- **搜索/深链**：分类搜索可驱动内部任务页签，再在目标面板内锚定段卡闪示；语音入口
+  经 `openSettings(category, tab)` 直达「朗读引擎」，不再落到聊天首页。
+- **导航连续性续刀**：切换分类回内容顶部；分类轨道无论竖排还是窄窗横排都自动把
+  激活项滚入视野；离开分类后记住上次任务页签；430px 横栏自动把当前任务页签带回
+  可视区。页签记忆走 ref 写入，避免 effect→父 state→受控页签的重复渲染环（定向
+  测试曾实锤整组用例挂起，修后 27/27）。
+- **零引擎空态**：模型「引擎管理」在无引擎或筛选无结果时显示原因和添加入口，
+  不再出现大面积空白；新增空态测试，EngineSection 11/11。
+- **可访问性/响应式**：tablist 的 `aria-selected`/`aria-controls`/tabpanel 关系
+  完整；1280 亮/暗、1024、720、390 实页走查无页面级横向溢出；亮暗正文对比度
+  ≥14.16:1，次级文字 ≥6.59:1（浏览器计算值）。
+- **验证**：定向 7 文件 76/76 绿；全量 503/504 文件、4583/4585 用例通过。失败仅
+  `DatabaseLibrary` 两例全量并发 flaky，单跑 6/6 绿；另命中既有
+  `wenxue/components/ToolCard.test.tsx` `EnvironmentTeardownError`，单跑 2/2 绿，
+  均与设置域零交集。`tsc -b` 0；改动面 ESLint 0 error（ChatPage 两条既有
+  exhaustive-deps warning）；`npm run build` 36.28s 绿（既有 Wenxue CSS syntax/chunk
+  体积 warning）。`scripts/gaea-settings-walk.mjs` 扩至 24 断言并通过 node syntax
+  check。
+- **产物**：`C:/AI/wubigrok/.tmp/settings-redesign/settings-model-dark.png`、
+  `settings-model-light.png` 与 `settings-engine-empty-dark.png`。未提交、未 Wails
+  构建、未装机。

@@ -9,7 +9,8 @@ import { useT } from '../../gaea/lib/i18n'
 // 默认美元→人民币汇率（与后端 internal/config usd_cny_rate 默认值一致）
 const DEFAULT_USD_CNY = 7.2
 
-/** ModelPanel — 全局模型设置：当前模型 + 推理强度 + 费用汇率（引擎管理在「模型中心」） */
+/** ModelPanel — 模型任务页签的概览：当前模型 + 推理强度 + 费用汇率。
+ *  功能绑定、空间策略、本地调度与引擎管理在相邻任务页签。 */
 const ModelPanel: React.FC = () => {
   const t = useT()
   const [activeModel, setActiveModel] = useState('')
@@ -68,17 +69,13 @@ const ModelPanel: React.FC = () => {
         title={t('settings.model.currentTitle')}
         desc={t('settings.model.currentDesc')}
       >
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-          padding: '12px 14px', borderRadius: 'var(--md-sys-radius-md)',
-          background: 'var(--md-sys-color-surface-container)',
-          border: '1px solid var(--md-sys-color-outline-variant)',
-        }}>
-          <span className="live-dot" />
-          <Typography.Text strong style={{ fontSize: 15, color: 'var(--md-sys-color-text)' }}>
-            {activeModel || t('settings.model.notConfigured')}
-          </Typography.Text>
-          <span style={{ flex: 1 }} />
+        <div className={`model-current-card${activeModel ? ' is-configured' : ' is-empty'}`}>
+          <span className="model-current-card__dot" aria-hidden="true" />
+          <div className="model-current-card__copy">
+            <Typography.Text strong className="model-current-card__name">
+              {activeModel || t('settings.model.notConfigured')}
+            </Typography.Text>
+          </div>
           <Button size="small" icon={<ArrowRightOutlined />} onClick={goModelCenter}>{t('settings.model.goModelCenter')}</Button>
         </div>
       </SettingsSection>

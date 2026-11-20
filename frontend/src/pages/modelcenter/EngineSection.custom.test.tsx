@@ -73,6 +73,7 @@ const ENGINES: EngineConfig[] = [
 ]
 
 function renderSection(opts: {
+  engines?: EngineConfig[]
   engineStatuses?: Record<string, EngineStatus>
   llamaStatus?: Awaited<ReturnType<typeof getLlamaEngineStatus>>
 } = {}) {
@@ -88,7 +89,7 @@ function renderSection(opts: {
   const handleUpdateCustomEngine = vi.fn().mockResolvedValue(true)
   const handleRemoveCustomEngine = vi.fn().mockResolvedValue(undefined)
   const value = {
-    engines: ENGINES,
+    engines: opts.engines ?? ENGINES,
     engineStatuses: opts.engineStatuses ?? {},
     editingURLs: {},
     setEditingURLs: () => {},
@@ -134,6 +135,13 @@ function openAddForm() {
 }
 
 describe('EngineSection · 自定义引擎', () => {
+  it('无引擎时显示明确空态与添加入口，不留下空白区', () => {
+    renderSection({ engines: [] })
+    const empty = screen.getByTestId('engine-empty')
+    expect(empty.textContent).toContain('尚未配置引擎')
+    expect(screen.getByRole('button', { name: /添加自定义引擎/ })).toBeTruthy()
+  })
+
   it('⑤ 防线回归锁：内置云端引擎不露地址框（Key 输入不受影响），custom 引擎地址框可见', () => {
     renderSection()
 

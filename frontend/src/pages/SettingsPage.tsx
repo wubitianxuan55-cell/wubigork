@@ -2,22 +2,21 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Tooltip } from 'antd'
 import type { InputRef } from 'antd'
 import {
-  SearchOutlined, QuestionCircleOutlined, CloseOutlined,
+  SearchOutlined, QuestionCircleOutlined, CloseOutlined, ControlOutlined,
 } from '@ant-design/icons'
 import './settings-page.css'
 import { useT } from '../gaea/lib/i18n'
 import { useAppStore } from '../stores/appStore'
 import { SETTINGS_CATEGORIES, SETTINGS_ZONES, type Category } from '../components/settings/categories'
 
-/** SettingsPage —「控制室」3 分区工作台（2026-11-20 UI 重设计）：细条头部 +
- *  左两级分类导航（全局/板块，分组定义单源在 components/settings/categories.tsx
- *  注册表）+ 中表单区 + 右帮助 inspector（可隐藏）。重设计四点：①中栏激活组
- *  头部（图标章+标题+描述+zone 徽标）给方位感；②搜索无匹配出建议分组胶囊
- *  （零死端）；③导航精修（zone tick/激活图标着色/过滤计数 n/total/去底部提示
- *  噪音）；④inspector 增「相关分组」快跳（注册表关键词交集，纯前端数据）。
- *  键盘可达（ui-ux-pro-max Priority 1/2）：导航 ↑/↓/Home/End 移焦（Enter 原生
- *  激活）、`/` 聚焦搜索（输入态不劫持）、Esc 清搜索。搜索跨分组过滤并自动切换；
- *  openSettings(category) 锚点直达（跨板块入口共用）。 */
+/** SettingsPage — 桌面设置控制台。
+ *
+ *  结构：紧凑命令栏 + 两级分类轨道 + 当前分区画布 + 可隐藏帮助 inspector。
+ *  多任务分组在面板内部使用任务页签（通用/聊天/绘梦/办公/模型/安全/数据/文学/高级），
+ *  避免把多个旧标签页纵向压进同一个滚动面。搜索既能直达分类，也能驱动内部任务页签，
+ *  再锚定具体段。
+ *  键盘：导航 ↑/↓/Home/End，`/` 聚焦搜索，Esc 清词；内部页签提供标准 tablist
+ *  方向键/Home/End 语义。 */
 
 /** 搜索无匹配时的建议分组（高频组；点击直达并清搜索） */
 const SUGGEST_KEYS = ['general', 'model', 'office', 'chat'] as const
@@ -26,10 +25,15 @@ const SettingsPage: React.FC = () => {
   const t = useT()
   const [query, setQuery] = useState('')
   const [activeKey, setActiveKey] = useState('general')
+  const [directTab, setDirectTab] = useState<string | undefined>()
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const searchRef = useRef<InputRef>(null)
   const panelRootRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLElement>(null)
+  const navRef = useRef<HTMLElement>(null)
+  const tabMemoryRef = useRef<Record<string, string>>({})
   const pendingCategory = useAppStore((s) => s.pendingSettingsCategory)
+  const pendingTab = useAppStore((s) => s.pendingSettingsTab)
   const clearPendingCategory = useAppStore((s) => s.clearPendingSettingsCategory)
 
   // 锚点直达（批 1）：openSettings(category) 经 store pending 传信——挂载消费 +
@@ -39,10 +43,13 @@ const SettingsPage: React.FC = () => {
     if (!pendingCategory) return
     if (SETTINGS_CATEGORIES.some((c) => c.key === pendingCategory)) {
       setActiveKey(pendingCategory)
+      setDirectTab(pendingTab || undefined)
       setQuery('')
+    } else {
+      setDirectTab(undefined)
     }
     clearPendingCategory()
-  }, [pendingCategory, clearPendingCategory])
+  }, [pendingCategory, pendingTab, clearPendingCategory])
 
   const q = query.trim().toLowerCase()
   const visible = useMemo(() => {
@@ -67,6 +74,41 @@ const SettingsPage: React.FC = () => {
   const catLabel = (c: Category) => (c.labelKey ? t(c.labelKey) : c.label)
   const catDesc = (c: Category) => (c.descKey ? t(c.descKey) : c.desc)
 
+  // 分类切换是新的阅读上下文：回到内容顶部。搜索驱动的切组随后仍可把命中段
+  // 滚到视口内；纯导航切换不再继承上一分类的滚动位置。
+  useEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+    if (typeof content.scrollTo === 'function') {
+      content.scrollTo({ top: 0, behavior: 'auto' })
+    } else {
+      content.scrollTop = 0
+    }
+  }, [effectiveKey])
+
+  // 竖栏与窄窗横栏共用：让当前分类保持在分类轨道可视区内，不牵动页面滚动。
+  useEffect(() => {
+    const nav = navRef.current
+    const item = nav?.querySelector<HTMLElement>('.settings-nav-item.is-active')
+    if (!nav || !item) return
+    const navRect = nav.getBoundingClientRect()
+    const itemRect = item.getBoundingClientRect()
+    if (nav.scrollHeight > nav.clientHeight + 1) {
+      if (itemRect.top < navRect.top || itemRect.bottom > navRect.bottom) {
+        nav.scrollTop += itemRect.top - navRect.top - (nav.clientHeight - itemRect.height) / 2
+      }
+    }
+    if (nav.scrollWidth > nav.clientWidth + 1) {
+      if (itemRect.left < navRect.left || itemRect.right > navRect.right) {
+        nav.scrollLeft += itemRect.left - navRect.left - (nav.clientWidth - itemRect.width) / 2
+      }
+    }
+  }, [effectiveKey, q, visible.length])
+
+  const rememberTab = (category: string, tab: string) => {
+    tabMemoryRef.current[category] = tab
+  }
+
   // 内容头 zone 徽标：激活组所属分区（全局/板块）
   const activeZone = SETTINGS_ZONES.find((z) => z.key === active.zone)
 
@@ -87,6 +129,7 @@ const SettingsPage: React.FC = () => {
   const jumpTo = (key: string) => {
     setQuery('')
     setActiveKey(key)
+    setDirectTab(undefined)
   }
 
   // 键盘可达：`/` 聚焦搜索（输入框/可编辑区不劫持，避免打字冲突）
@@ -126,10 +169,11 @@ const SettingsPage: React.FC = () => {
     const scan = () => {
       const root = panelRootRef.current
       if (!root) return false
-      const heads = root.querySelectorAll<HTMLElement>('strong, h2, h3, h4, .mc-section-title span, .mc-bind-title')
+      const activePanel = root.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden])') || root
+      const heads = activePanel.querySelectorAll<HTMLElement>('strong, h2, h3, h4, .mc-section-title span, .mc-bind-title')
       const hit = Array.from(heads).find((h) => (h.textContent || '').trim().toLowerCase().includes(q))
       if (!hit) return false
-      const card = (hit.closest('.v3-card') as HTMLElement) || hit
+      const card = (hit.closest('.v3-card, .mc-bind-card, .mc-section') as HTMLElement) || hit
       try {
         card.scrollIntoView({ block: 'start' })
       } catch { /* jsdom 无实现 */ }
@@ -150,12 +194,16 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="settings-page" onKeyDown={onPageKeyDown}>
-      {/* ── 细条头部：控制室标识 + 全局搜索 + 帮助开关 ── */}
+      <a className="settings-skip" href="#settings-content">{t('settings.skipToContent')}</a>
+
+      {/* ── 命令栏：控制台标识 + 全局搜索 + 帮助开关 ── */}
       <header className="settings-bar">
         <div className="settings-bar__context">
-          <span className="settings-bar__glow" aria-hidden="true" />
-          <strong className="settings-bar__title">{t('settings.controlRoom')}</strong>
-          <span className="settings-bar__hint">{t('settings.groupsHint', { count: SETTINGS_CATEGORIES.length })}</span>
+          <span className="settings-bar__mark" aria-hidden="true"><ControlOutlined /></span>
+          <span className="settings-bar__identity">
+            <strong className="settings-bar__title">{t('settings.controlRoom')}</strong>
+            <span className="settings-bar__hint">{t('settings.groupsHint', { count: SETTINGS_CATEGORIES.length })}</span>
+          </span>
         </div>
         <div className="settings-bar__spacer" />
         <Input
@@ -163,7 +211,10 @@ const SettingsPage: React.FC = () => {
           prefix={<SearchOutlined />}
           placeholder={t('settings.searchPlaceholder')}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            if (e.target.value) setDirectTab(undefined)
+          }}
           onKeyDown={(e) => {
             // Esc：有词清词（与 allowClear 同义），无词退焦回导航
             if (e.key !== 'Escape') return
@@ -186,19 +237,18 @@ const SettingsPage: React.FC = () => {
         </Tooltip>
       </header>
 
-      {/* ── 3 分区工作台：两级分类导航 | 表单区 | 帮助 inspector ── */}
+      {/* ── 工作台：分类轨道 | 当前分区 | 帮助 inspector ── */}
       <div className="settings-workbench">
         {/* 左 = 分类导航（竖向，两级分区） */}
         <aside className="v3-panel settings-nav" aria-label={t('settings.navAria')}>
           <div className="v3-panel-head">
             <span className="v3-panel-title">{t('settings.groups')}</span>
             <span className="v3-panel-spacer" />
-            {/* 过滤态显示 n/total（命中数有语义），常态只显总数 */}
             <span className="settings-nav__count">
               {q ? `${visible.length}/${SETTINGS_CATEGORIES.length}` : visible.length}
             </span>
           </div>
-          <nav className="settings-nav__list" onKeyDown={onNavKeyDown}>
+          <nav ref={navRef} className="settings-nav__list" onKeyDown={onNavKeyDown}>
             {zoneGroups.map((g) => (
               <React.Fragment key={g.key}>
                 {showZoneTitles && (
@@ -209,7 +259,11 @@ const SettingsPage: React.FC = () => {
                     key={it.key}
                     type="button"
                     className={`settings-nav-item${it.key === effectiveKey ? ' is-active' : ''}`}
-                    onClick={() => setActiveKey(it.key)}
+                    onClick={() => {
+                      setActiveKey(it.key)
+                      setDirectTab(undefined)
+                    }}
+                    title={catDesc(it)}
                     aria-current={it.key === effectiveKey ? 'page' : undefined}
                   >
                     <span className="settings-nav-item__icon" aria-hidden="true">{it.icon}</span>
@@ -224,8 +278,8 @@ const SettingsPage: React.FC = () => {
           </nav>
         </aside>
 
-        {/* 中 = 表单区（v3-zone）：激活组头部给方位感，其下分组卡片 */}
-        <main className="v3-zone settings-content">
+        {/* 中 = 当前分区画布 */}
+        <main ref={contentRef} id="settings-content" className="v3-zone settings-content" tabIndex={-1}>
           {visible.length === 0 ? (
             <div className="v3-card settings-empty">
               <span className="settings-empty__icon" aria-hidden="true"><SearchOutlined /></span>
@@ -247,16 +301,29 @@ const SettingsPage: React.FC = () => {
           ) : (
             <div ref={panelRootRef} key={effectiveKey} className="settings-panel-enter">
               <div className="settings-head">
-                <span className="settings-head__icon" aria-hidden="true">{active.icon}</span>
-                <div className="settings-head__text">
-                  <h2 className="settings-head__title">{catLabel(active)}</h2>
+                <div className="settings-head__intro">
+                  <div className="settings-head__eyebrow">
+                    <span>{t('settings.controlRoom')}</span>
+                    <span aria-hidden="true">/</span>
+                    <span>{catLabel(active)}</span>
+                  </div>
+                  <div className="settings-head__title-row">
+                    <span className="settings-head__icon" aria-hidden="true">{active.icon}</span>
+                    <h2 className="settings-head__title">{catLabel(active)}</h2>
+                  </div>
                   <p className="settings-head__desc">{catDesc(active)}</p>
                 </div>
                 {activeZone && (
                   <span className="settings-head__zone">{t(activeZone.labelKey)}</span>
                 )}
               </div>
-              {active.panel}
+              {typeof active.panel === 'function'
+                ? active.panel(
+                  q,
+                  directTab ?? tabMemoryRef.current[effectiveKey],
+                  (tab) => rememberTab(effectiveKey, tab),
+                )
+                : active.panel}
             </div>
           )}
         </main>

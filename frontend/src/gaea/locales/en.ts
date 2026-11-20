@@ -757,6 +757,7 @@ export const en = {
   "shell.search.count": "{count} items",
   // settings 页外壳（S2.2b 切片；面板组件文案另片）
   "settings.controlRoom": "Control room",
+  "settings.skipToContent": "Skip to settings content",
   "settings.groupsHint": "Settings center · {count} groups",
   "settings.searchPlaceholder": "Search settings, e.g. theme / model / storage (press / to focus)",
   "settings.searchAria": "Search settings",
@@ -886,7 +887,7 @@ export const en = {
   "settings.chat.cosyEnM": "English (male)",
   // ModelPanel — 当前模型 / 推理强度 / 汇率
   "settings.model.currentTitle": "Current model",
-  "settings.model.currentDesc": "The inference engine and model the global AI assistant actually uses; manage engine toggles, keys and feature bindings in Model Center.",
+  "settings.model.currentDesc": "The inference engine and model used by the global AI assistant. Manage feature bindings, space policies, and engine toggles in the task tabs above; Model Center remains the home for the model catalog, evaluations, and usage statistics.",
   "settings.model.notConfigured": "Not configured",
   "settings.model.goModelCenter": "Open Model Center",
   "settings.model.effortTitle": "Reasoning effort",

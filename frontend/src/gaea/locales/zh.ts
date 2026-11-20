@@ -758,6 +758,7 @@ export const zh: Record<DictKey, string> = {
   "shell.search.count": "{count} 条",
   // settings 页外壳（S2.2b 切片；面板组件文案另片）
   "settings.controlRoom": "控制室",
+  "settings.skipToContent": "跳到设置内容",
   "settings.groupsHint": "设置中心 · {count} 个分组",
   "settings.searchPlaceholder": "搜索设置项，如：主题 / 模型 / 存储（按 / 快速聚焦）",
   "settings.searchAria": "搜索设置项",
@@ -887,7 +888,7 @@ export const zh: Record<DictKey, string> = {
   "settings.chat.cosyEnM": "英文男",
   // ModelPanel — 当前模型 / 推理强度 / 汇率
   "settings.model.currentTitle": "当前模型",
-  "settings.model.currentDesc": "全局 AI 助手实际使用的推理引擎与模型；引擎启停、密钥与功能绑定请在「模型中心」管理。",
+  "settings.model.currentDesc": "全局 AI 助手实际使用的推理引擎与模型。功能绑定、空间策略与引擎启停可在上方任务页签管理；模型中心保留模型一览、测评与调用统计。",
   "settings.model.notConfigured": "未配置",
   "settings.model.goModelCenter": "前往模型中心",
   "settings.model.effortTitle": "推理强度",

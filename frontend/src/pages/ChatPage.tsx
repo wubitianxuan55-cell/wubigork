@@ -174,9 +174,11 @@ const ChatPage: React.FC = () => {
   }), [])
   const handleToggleForceSearch = useCallback(() => setForceSearch(v => !v), [])
   const handleToggleThinking = useCallback(() => setThinking(v => !v), [])
-  // 语音设置入口（设置中枢批 2）：原页内 Modal 退役，统一跳设置页聊天组
-  // （语音三段：伴侣/人格 + 全局音色 + VoiceSettingsPanel 引擎路由与克隆深配）。
-  const handleOpenVoiceSettings = useCallback(() => useAppStore.getState().openSettings('chat'), [])
+  // 语音设置入口：直达聊天组的「朗读引擎」任务页签。
+  const handleOpenVoiceSettings = useCallback(
+    () => useAppStore.getState().openSettings('chat', 'speech-engine'),
+    [],
+  )
   const toggleChatInspector = useCallback(() => {
     setInspectorCollapsed((c) => {
       const next = !c

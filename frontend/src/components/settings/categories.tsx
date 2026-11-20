@@ -6,40 +6,23 @@ import {
   ReadOutlined, WechatOutlined, ThunderboltOutlined, CodeOutlined,
 } from '@ant-design/icons'
 import type { DictKey } from '../../gaea/locales/en'
-import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel } from './AppearancePanel'
-import ChatPanel, { ChatDataSection } from './ChatPanel'
-import ChatVoiceSection from './ChatVoiceSection'
-import VoiceSettingsPanel from '../VoiceSettingsPanel'
-import OfficeMemorySection from './OfficeMemorySection'
-import PaneManagementSection from './PaneManagementSection'
-import ModelSettingsProvider from '../../pages/modelcenter/ModelSettingsProvider'
-import { BindSection } from '../../pages/modelcenter/BindSection'
-import { StrategySection } from '../../pages/modelcenter/StrategySection'
-import { SchedulingSection } from '../../pages/modelcenter/SchedulingSection'
-import { EngineSection } from '../../pages/modelcenter/EngineSection'
-import { ImageSection } from '../../pages/modelcenter/ImageSection'
-import { VoiceSection } from '../../pages/modelcenter/VoiceSection'
-import { CapabilitiesInline } from '../../gaea/components/capabilities/CapabilitiesInline'
-import { WORKSPACE_TABS } from '../../gaea/lib/workspaceTabs'
-import { usePaneEnabledStore } from '../../gaea/lib/paneEnabled'
-import { WORKSPACE_TABS as WENXUE_TABS } from '../../wenxue/lib/workspaceTabs'
-import { usePaneEnabledStore as useWenxuePaneEnabled } from '../../wenxue/lib/paneEnabled'
 import WeixinServiceSection from './WeixinServiceSection'
 import PantheonAgentsSection from './PantheonAgentsSection'
-import WenxuePromptSection from './WenxuePromptSection'
 import AdvancedSection from './AdvancedSection'
 import BoardIndexSection from './BoardIndexSection'
 import { GaeaScheduleIcon, GaeaMemoryIcon } from '../../boards/boardIcons'
-import ImageGenPanel from './ImageGenPanel'
-import OfficePanel from './OfficePanel'
-import SearchPanel from './SearchPanel'
-import WorkbenchPrefsPanel from './WorkbenchPrefsPanel'
-import ContextPrefsPanel from './ContextPrefsPanel'
-import ModelPanel from './ModelPanel'
-import SecurityPanel from './SecurityPanel'
-import DataPanel from './DataPanel'
 import CodeAtlasPanel from './CodeAtlasPanel'
 import AboutPanel from './AboutPanel'
+import {
+  ChatSettingsPanel,
+  DataSettingsPanel,
+  GeneralSettingsPanel,
+  ImageSettingsPanel,
+  ModelSettingsPanel,
+  OfficeSettingsPanel,
+  SecuritySettingsPanel,
+  WenxueSettingsPanel,
+} from './DenseSettingsPanels'
 
 /**
  * 设置中枢注册表（设置板块重规划批 1）：分组定义单源，SettingsPage 只负责
@@ -61,7 +44,12 @@ export interface Category {
   labelKey?: DictKey
   descKey?: DictKey
   keywords: string[]
-  panel: React.ReactNode
+  /** 静态面板，或按全局搜索词返回面板（密集组据此自动切换内部任务页签）。 */
+  panel: React.ReactNode | ((
+    query: string,
+    initialTab?: string,
+    onTabChange?: (tab: string) => void,
+  ) => React.ReactNode)
 }
 
 /** 导航分区（尾批回切：zone/组名三语键已入 locales，zh 兜底退役——
@@ -83,7 +71,9 @@ export const SETTINGS_CATEGORIES: Category[] = [
     desc: '外观',
     descKey: 'settings.cat.generalDesc',
     keywords: ['通用', '外观', '主题', '暗色', '亮色', '深色', '浅色', '模式', '字体', '字号', '密度', '动效', '动画', '强调色', '颜色', '显示', '语言', '界面语言', '英文', '繁体', 'language'],
-    panel: (<><AppearancePanel /><DarkModePanel /><FontPanel /><DensityPanel /><MotionPanel /><AccentPanel /><LanguagePanel /></>),
+    panel: (query, tab, onTabChange) => (
+      <GeneralSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'chat',
@@ -93,15 +83,12 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.chat',
     desc: '伴侣 · 语音',
     descKey: 'settings.cat.chatDesc',
-    // 批 2 语音收编：ChatPage 语音设置 Modal 退役，VoiceSettingsPanel（引擎路由/
-    // Breeze 克隆/麦克风/确认词）+ ChatVoiceSection（全局默认音色，从 ChatPanel
-    // 拆出）并入本组；批 3 增挂 VoiceSection（TTS/ASR/OCR 激活引擎，模型中心迁入）。
-    // 独立语音组待 locales 并行线收官建键后一行拆出。
+    // 聊天组的四个旧设置面按任务拆为内部页签：角色与人格 / 默认音色 /
+    // 朗读引擎 / 语音模型。状态保留在当前面板内，不再纵向堆叠。
     keywords: ['聊天', '伴侣', '称呼', '性别', '人格', '角色', '语音', '朗读', '音色', '克隆', '麦克风', '确认词', 'breeze', '实时', '对话', '识别', 'tts', 'asr', 'ocr', 'voice'],
-    panel: (<>
-      <ChatPanel /><ChatVoiceSection /><VoiceSettingsPanel />
-      <ModelSettingsProvider><VoiceSection /></ModelSettingsProvider>
-    </>),
+    panel: (query, tab, onTabChange) => (
+      <ChatSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'imagegen',
@@ -112,12 +99,10 @@ export const SETTINGS_CATEGORIES: Category[] = [
     desc: '图像后端',
     descKey: 'settings.cat.imagegenDesc',
     keywords: ['绘梦', '图像', '图片', '生成', 'comfyui', '后端', '模型', '保存', 'xai', 'grok-imagine', 'python'],
-    // 批 3：模型中心 ImageSection（图像后端+模型选择+ComfyUI 路径）迁入同组，
-    // 与 ImageGenPanel 同键同源；与绘梦页快捷开关构成「设置页完整面+原位高频」。
-    panel: (<>
-      <ImageGenPanel />
-      <ModelSettingsProvider><ImageSection /></ModelSettingsProvider>
-    </>),
+    // 图像生成配置与底层后端/模型分为两个任务页签，同键同源。
+    panel: (query, tab, onTabChange) => (
+      <ImageSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'office',
@@ -128,21 +113,10 @@ export const SETTINGS_CATEGORIES: Category[] = [
     desc: '引擎 · 方案',
     descKey: 'settings.cat.officeDesc',
     keywords: ['办公', '工作台', '偏好', '自动展开', '自动弹出', '自动切换', '任务视图', '上下文', '粒度', '排序', '趋势', '浏览器', '文件活动', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度', '记忆', '晨报', '项目本体', '做梦', '面板', 'cad', '图纸', 'mcp', '服务器', 'context7', 'auto-open', 'auto expand', 'context'],
-    // v4.65 欠账收口：办公工作台「自动展开/自动切换」偏好卡置顶（入口可发现性），
-    // 2.5d 补上下文页偏好卡（默认粒度/模式/排序），后接办公引擎设置（config.toml）。
-    // 批 4：记忆四态（原右栏 MemoryPanel 胶囊）+ 工位面板启停（原「管理」弹层，
-    // CAD 可选卡常驻入口）+ MCP/工具/技能（原 CapabilitiesPanel 抽屉主体）收编。
-    panel: (<>
-      <WorkbenchPrefsPanel /><ContextPrefsPanel /><OfficePanel />
-      <OfficeMemorySection />
-      <PaneManagementSection
-        title="工位面板"
-        desc="办公右栏工作台面板启停：已打开的页面不因停用强关，启用集只管入口可见性（CAD 图纸等可选卡在此常驻可开）"
-        tabs={WORKSPACE_TABS}
-        useStore={usePaneEnabledStore}
-      />
-      <CapabilitiesInline />
-    </>),
+    // 办公设置按工作台 / 办公引擎 / 记忆与面板 / 工具与技能四域分栏。
+    panel: (query, tab, onTabChange) => (
+      <OfficeSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'model',
@@ -152,19 +126,12 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.model',
     desc: '全局模型',
     descKey: 'settings.cat.modelDesc',
-    // 批 3 模型与引擎收编：模型中心设置类 Section（功能绑定/空间策略/本地调度/
-    // 引擎管理+Key+自定义引擎/自管引擎生命周期）整体迁入，本组从「跳转空壳」变
-    // 完整控制面（ModelPanel 全局默认+汇率置顶）。评测统计（Benchmark/推荐/成本）
-    // 留模型中心；同键同源，跨页变更经 model-changed/feature-model-changed 事件互同步。
-    // 2026-11-20 用户拍板：模型中心恢复「功能绑定/引擎管理」直达 tab——本组与
-    // 其消费同一批单源 Section 组件（双宿主单源，非复制漂移源）。
+    // 模型组用五个任务页签承载概览 / 功能绑定 / 空间策略 / 本地调度 / 引擎管理；
+    // 与模型中心消费同一批单源 Section，跨页变更经既有事件互同步。
     keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'herdsman', 'xai', 'api', 'key', '绑定', '功能绑定', '调度', '保活', '预载', '故障转移', '转移', '空间策略', '自定义引擎', '启停', 'strata', 'llama', 'whirl', 'glm', 'opencode'],
-    panel: (<>
-      <ModelPanel />
-      <ModelSettingsProvider>
-        <BindSection /><StrategySection /><SchedulingSection /><EngineSection />
-      </ModelSettingsProvider>
-    </>),
+    panel: (query, tab, onTabChange) => (
+      <ModelSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'security',
@@ -177,7 +144,9 @@ export const SETTINGS_CATEGORIES: Category[] = [
     // 批 6 重组：SearchPanel（网络搜索主源/Key）从办公组归位本组=隐私与网络同域
     //（desc i18n 键文案「隐私 · 调试」待 locales 解锁后随新键更新）。
     keywords: ['安全', '隐私', '敏感', '本地化', '本地', '局域网', '暴露', 'lan', '调试', 'webview', '远程', 'token', '报价', '成本', '网络搜索', '搜索', '联网', '主源', 'tavily', 'brave', 'searxng'],
-    panel: (<><SecurityPanel /><SearchPanel /></>),
+    panel: (query, tab, onTabChange) => (
+      <SecuritySettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'data',
@@ -190,7 +159,9 @@ export const SETTINGS_CATEGORIES: Category[] = [
     // 批 6 归位：ChatDataSection（聊天历史 ZIP 导出/导入）从 chat 组归位本组
     //（数据操作与备份恢复同域）。
     keywords: ['数据', '备份', '恢复', '迁移', '导出', '导入', 'zip', '换机', '重装', '防丢', '存档', '快照', '聊天', '历史'],
-    panel: (<><DataPanel /><ChatDataSection /></>),
+    panel: (query, tab, onTabChange) => (
+      <DataSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'codeatlas',
@@ -228,15 +199,9 @@ export const SETTINGS_CATEGORIES: Category[] = [
     descKey: 'settings.cat.wenxueDesc',
     keywords: ['文学', '书斋', '面板', '工作台', '阅读', '小说', '提示词', '人格', '分板', 'system_prompt'],
     // 尾批：身份提示词双键收编（此前仅手改 ga.cfg，CoreB WenxuePromptGet/Set 绑对）
-    panel: (<>
-      <WenxuePromptSection />
-      <PaneManagementSection
-        title="书斋面板"
-        desc="文学壳层右栏工作台面板启停（与办公工位各自独立清单）"
-        tabs={WENXUE_TABS}
-        useStore={useWenxuePaneEnabled}
-      />
-    </>),
+    panel: (query, tab, onTabChange) => (
+      <WenxueSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
   {
     key: 'weixin',
@@ -319,7 +284,10 @@ export const SETTINGS_CATEGORIES: Category[] = [
     desc: '路径 · 超时 · 兜底',
     descKey: 'settings.cat.advancedDesc',
     keywords: ['高级', '路径', '引擎路径', 'strata', 'whirl', 'breeze', 'comfyui', '空闲退出', '超时', '读屏', '意图', '兜底', 'glm', '目录', 'config', '配置文件'],
-    // 尾批：13 个无 UI config 键收编（读 AdvancedConfigGet/写 SaveConfig 宽写面）
-    panel: <AdvancedSection />,
+    // 尾批：无 UI config 键收编（读 AdvancedConfigGet/写 SaveConfig 宽写面）；
+    // 本轮再按运行策略与路径目录拆为内部任务页签。
+    panel: (query, tab, onTabChange) => (
+      <AdvancedSection query={query} initialTab={tab} onTabChange={onTabChange} />
+    ),
   },
 ]

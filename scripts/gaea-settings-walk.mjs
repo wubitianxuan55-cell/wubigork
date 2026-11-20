@@ -9,7 +9,7 @@
 //        GAEA_WALKTHROUGH=1 GAEA_WEBVIEW_DEBUG=1 build\bin\gaea.exe
 //   3. node scripts/gaea-settings-walk.mjs   （仓根执行；截图落 .tmp/）
 //   4. 跑完回收走查壳，再 gaea_install.ps1 -Launch 装回实盘。
-// 断言 17 条，FAIL 时 exit 1；两条历史口径注意：NAVIGATE 断言钉「最后一条事件」
+// 断言 24 条，FAIL 时 exit 1；两条历史口径注意：NAVIGATE 断言钉「最后一条事件」
 //（__navSeen 累积）、SectionHead 标题过滤空 span 噪音后比对。
 import { readFileSync, writeFileSync } from 'node:fs'
 
@@ -107,6 +107,10 @@ await waitEq(`(document.querySelector('.settings-empty__title')||{}).textContent
 await evalJs(`[...document.querySelectorAll('.settings-empty__chip')].find(b => b.textContent.includes('模型'))?.click()`, true)
 await waitEq(`!!document.querySelector('.settings-empty__chip')`, 'false', '点击胶囊清搜索恢复')
 await waitEq(`(document.querySelector('.settings-head__title')||{}).textContent`, '模型', '直达后内容头=模型')
+await waitEq(`document.querySelectorAll('.settings-panel-tabs__tab').length`, 5, '模型=5 个任务页签')
+check('模型只显示一个任务域', (await evalJs(`document.querySelectorAll('[role=tabpanel]:not([hidden])').length`)) === 1)
+await evalJs(`[...document.querySelectorAll('.settings-panel-tabs__tab')].find(b => b.textContent.includes('功能绑定'))?.click()`, true)
+await waitEq(`[...document.querySelectorAll('[role=tabpanel]:not([hidden]) .mc-bind-title')].some(b => b.textContent.includes('聊天语音'))`, 'true', '功能绑定页签内容挂载')
 
 // ── 4. inspector 相关分组快跳 ──
 await evalJs(`document.querySelector('.settings-bar__toggle')?.click()`, true)
@@ -114,7 +118,32 @@ await sleep(300)
 await waitEq(`[...document.querySelectorAll('.settings-help-card__title')].some(h => h.textContent === '相关分组')`, 'true', '相关分组卡在（模型组关键词交集非空）')
 check('相关分组胶囊>0', (await evalJs(`document.querySelectorAll('.settings-related-item').length`)) > 0)
 await evalJs(`document.querySelector('.settings-inspector__close')?.click()`, true)
+// 搜索命中内部任务关键词 → 自动切到「本地调度」并锚定对应设置段
+await evalJs(`(() => {
+  const input = document.querySelector('.settings-page__search input')
+  if (!input) return 'no-input'
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+  setter.call(input, '故障转移')
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  return 'ok'
+})()`, true)
+await waitEq(`(document.querySelector('.settings-panel-tabs__tab[aria-selected="true"]')||{}).textContent.trim()`, '本地调度', '搜索驱动内部页签=本地调度')
+await waitEq(`!!document.querySelector('[role=tabpanel]:not([hidden]) .settings-sec-flash')`, 'true', '搜索命中段锚定到任务面板')
+// 清搜索 → 内容滚离顶部 → 切到通用：分类切换必须回到内容顶部
+await evalJs(`(() => {
+  const input = document.querySelector('.settings-page__search input')
+  if (!input) return 'no-input'
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+  setter.call(input, '')
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  document.querySelector('.settings-content').scrollTop = 500
+  return 'ok'
+})()`, true)
 await evalJs(`[...document.querySelectorAll('.settings-nav-item')].find(b => b.textContent.includes('通用'))?.click()`, true)
+await waitEq(`document.querySelector('.settings-content')?.scrollTop`, 0, '切分类回到内容顶部')
+// 模型组上次任务页签记忆：回到模型仍落在「本地调度」
+await evalJs(`[...document.querySelectorAll('.settings-nav-item')].find(b => b.textContent.includes('模型'))?.click()`, true)
+await waitEq(`(document.querySelector('.settings-panel-tabs__tab[aria-selected="true"]')||{}).textContent.trim()`, '本地调度', '分类往返记住任务页签')
 
 await shot('settings')
 

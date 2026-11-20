@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons'
-import { SectionHead } from './ui'
+import { EmptyState, SectionHead } from './ui'
 import { filterEnginesByEnabled } from './utils'
 import type { EngineConfig } from '../../api/engines'
 import { useModelCenterActions, useModelCenterState } from './context'
@@ -67,6 +67,18 @@ export function EngineSection() {
       />
 
       {showAddForm && <AddCustomEngineForm onClose={() => setShowAddForm(false)} />}
+
+      {visibleEngines.length === 0 && (
+        <div data-testid="engine-empty">
+          <EmptyState
+            icon={<SettingOutlined />}
+            title={showEnabledOnly ? '没有已启用的引擎' : '尚未配置引擎'}
+            hint={showEnabledOnly
+              ? '切换到「全部」可查看已停用的引擎，或先启用一个引擎再使用功能绑定。'
+              : '点击「添加自定义引擎」接入云端或本地模型服务；启用后可继续配置功能绑定。'}
+          />
+        </div>
+      )}
 
       {visibleEngines.map(engine => (
         <EngineCard
