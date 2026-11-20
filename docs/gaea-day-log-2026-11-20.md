@@ -242,3 +242,28 @@ codex（并行执行体）停止，遗留未提交工作树。接手处置：
 - **已推 origin**（2065da8e..8be0d548，16 笔 ahead=0）；GH 对入库存 source.zip
   53.83MB 发超 50MB 建议上限告警（<100MB 硬限已收）——**后续包口径再收紧：
   source 包（zip/tar）一律留盘不入库**，只入库 PACKAGE-INFO+SHA256SUMS。
+
+
+---
+
+## 16. 工作空间与 C:\AI 清理（2026-11-20 午后；wuyuyang 未触碰）
+
+**绑定地图（代码默认路径权威盘点，internal/config/config_keys.go 与各引擎 proc）**：
+models（135GB，llama qwen35 活跃引擎）/ ComfyUI（86.9GB）/ strata（10.7GB）/
+unlimited-ocr2（15.2GB）/ uocr2-llama（3.9GB）/ dsh（3.7GB，DSH_HOME）/
+breeze-tts2（3.7GB，活跃 TTS）/ gaea-voice-v2（2GB）/ gaea-ocr（820MB）/
+whirl（124MB）/ tuwen / gaea-app（装机位）——**全部保留**。
+证据与研究面保留：_distill（76MB，asset-62/63 证据包）、re（803MB，codex 逆向
+工作区）、dsh-src（136MB，DSH pnpm patch 源头）、tmp/dsh-context-v0.84.1
+（135MB，已装机 DSH context 回滚源）、bangong（今日活跃+权限规则引用）。
+
+**已删（约 2.4GB）**：
+- C:\AI：tmp/OpenMausBot 410MB（蒸馏已并入 61694638）+tmp/codex-re 383MB
+  （codex 仓 scratch 检出，正主在 re/codex-0.170.0）+tmp/codex-probe+
+  dsh-subagent-reverse（0MB 残壳）+zpert-re 35MB（斑马逆向已收官）+nul 垃圾文件
+  ——tmp 677→135MB。
+- wubigrok：.tmp 1479→2MB（清分批日志/旧 exe/上游检出/voice 截图海；仅留
+  settings-redesign+今日走查五图）+backups/ 121MB（2026-08 时代迁移备份，
+  cost schema 已 V34）+nul 式垃圾文件+.worktrees/pkg-* 空壳×5。
+- **未触碰**：wuyuyang（40GB，用户明令）、其余全部绑定目录、仓内 .gaea 会话/
+  skills 等运行时数据。
