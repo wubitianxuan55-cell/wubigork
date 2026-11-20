@@ -1,4 +1,4 @@
-## 设置板块整板 UI 二次重设计（2026-11-20，工作树候选）
+## 设置板块整板 UI 二次重设计（2026-11-20，a7ea2ac4）
 
 用户追加「整个设置板块的 UI」「模型把以前多个标签的内容挤在一起」。本轮保留全部
 配置/绑定契约，重画 15 个分类共用的控制台外壳，并把多任务分类改为内部任务页签：
@@ -21,7 +21,9 @@
   `DatabaseLibrary` 并发 flaky 单跑 6/6，`ToolCard` 既有 `EnvironmentTeardownError`
   单跑 2/2；`tsc -b` 0、改动面 ESLint 0 error、`npm run build` 36.28s 绿
   （既有 Wenxue CSS/chunk warning）；走查脚本扩至 24 断言并通过 syntax check。
-- **状态**：未提交、未 Wails 构建、未装机；截图见 `.tmp/settings-redesign/`。
+- **状态**：已提交 a7ea2ac4；Wails 构建 1m56s 绿（exe SHA256 `7302bee3…e2c376`），
+  冒烟 `/api/health` 200，装机 `C:\AI\gaea-app` 四件哈希一致，新壳 PID 64900
+  （09:06:23 > 构建时刻 09:06:04）`INSTALL OK`；截图见 `.tmp/settings-redesign/`。
 
 ## 设置中枢全线收官+闭环后增量五批（2026-11-20）
 

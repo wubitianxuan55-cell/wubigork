@@ -114,7 +114,7 @@ getComputedStyle 读 --md-sys-color-surface-container/text=#EDEAE3/#1E1C18）→
   不做〕+双入口单源保留〔设计如此〕+EnvironmentTeardownError 观察池）。
 - 板块验证面：暗色+亮色+键盘+4578 用例+CDP 17 断言，全在案。板块进入纯实弹期。
 
-## 12. 设置板块整板 UI 二次重设计（工作树，未提交）
+## 12. 设置板块整板 UI 二次重设计（a7ea2ac4）
 
 用户追加反馈「整个设置板块的 UI」「模型把以前多个标签的内容挤在一起」。本轮不重做
 底层配置与绑定契约，重画 15 个分类共用的控制台外壳，并把多任务分类的旧纵向堆叠
@@ -148,5 +148,9 @@ getComputedStyle 读 --md-sys-color-surface-container/text=#EDEAE3/#1E1C18）→
   体积 warning）。`scripts/gaea-settings-walk.mjs` 扩至 24 断言并通过 node syntax
   check。
 - **产物**：`C:/AI/wubigrok/.tmp/settings-redesign/settings-model-dark.png`、
-  `settings-model-light.png` 与 `settings-engine-empty-dark.png`。未提交、未 Wails
-  构建、未装机。
+  `settings-model-light.png` 与 `settings-engine-empty-dark.png`。
+- **收官（2026-11-20）**：20 文件提交 a7ea2ac4（+1994/−519，含
+  `SettingsPanelTabs.tsx`/`DenseSettingsPanels.tsx` 两个新组件）；Wails 构建
+  1m56s 绿（exe SHA256 `7302bee3bf5c…e2c376`，三 DLL 同目录）；冒烟
+  `/api/health` 200；装机 `C:\AI\gaea-app` 四件哈希一致，新壳 PID 64900
+  （09:06:23 > 构建时刻 09:06:04）`INSTALL OK`。
