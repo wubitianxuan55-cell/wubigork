@@ -1,0 +1,49 @@
+{
+  "window": { "id": 6560800, "app": "process:C:\\AI\\wubigrok\\build\\bin\\gaea.exe", "title": "gaea · 多功能 AI 助手", "x": 0, "y": 0, "w": 1920, "h": 1032 },
+  "tree": {
+    "role": "窗口",
+    "name": "gaea · 多功能 AI 助手",
+    "secondary": ["Raise"],
+    "children": [
+      {
+        "role": "窗格",
+        "name": "gaea · 多功能 AI 助手",
+        "children": [
+          {
+            "role": "文档",
+            "name": "gaea · 多功能 AI 助手",
+            "value": "http://wails.localhost/",
+            "id": "RootWebArea",
+            "children": [
+              {
+                "role": "按钮",
+                "name": "切换主题（当前 暗夜紫）",
+                "states": ["collapsed"],
+                "secondary": ["Expand"]
+              },
+              {
+                "role": "编辑",
+                "name": "搜索会话名称",
+                "states": ["settable", "string"]
+              },
+              {
+                "role": "树项目",
+                "name": "进行中 逆向蒸馏 Codex 电脑操控能力 3分钟",
+                "states": ["selectable"]
+              },
+              {
+                "role": "树项目",
+                "name": "进行中 设置中枢重构线 12分钟",
+                "states": ["selected"]
+              },
+              {
+                "role": "文本",
+                "name": "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

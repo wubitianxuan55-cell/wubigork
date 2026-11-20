@@ -12,3 +12,8 @@ func init() { platformObserve = observeUnsupported }
 func observeUnsupported(windowID int, opt ObserveOpt) (*Snapshot, error) {
 	return nil, ErrUnsupported
 }
+
+// ListWindows 平台桩。
+func ListWindows() ([]Window, error) {
+	return nil, ErrUnsupported
+}
