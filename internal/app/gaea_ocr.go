@@ -58,7 +58,14 @@ func (a *App) GaeaOCRText(imagePath string) (string, error) {
 		{"herdsman /v1/ocr", func() (string, error) { return a.herdsmanOCR(imagePath) }},
 		{"herdsman parse", func() (string, error) { return a.herdsmanParseImage(imagePath) }},
 	}
-	localLeg := ocrLeg{"本地 OCR", func() (string, error) { return docmd.OCRImageText(imagePath) }}
+	localLeg := ocrLeg{"本地 OCR", func() (string, error) {
+		// 模型中心「设为 OCR（本地）」定点：active_ocr_local 非空时把 docmd
+		// auto 链收窄到指定引擎（仅该引擎 fail-closed，语义同 GAEA_OCR_ENGINE）。
+		if kind := strings.TrimSpace(a.activeOCRLocal); kind != "" {
+			return docmd.OCRImageTextWithEngine(imagePath, kind)
+		}
+		return docmd.OCRImageText(imagePath)
+	}}
 
 	// 审计 P1 IN3-08：腿链逐层收集真实错误——此前只判 err==nil 且从不保留 err，
 	// 全部不可用时只回最后一层的错误，排障看不到前面各腿为何失败。

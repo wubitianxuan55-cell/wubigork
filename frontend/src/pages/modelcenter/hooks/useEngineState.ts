@@ -17,6 +17,7 @@ import { app } from '../../../gaea/lib/bridge'
 import {
   getEngines, saveEngine, testEngineConnection, refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
+  getLocalServiceModels, type LocalServiceModel,
   setGlmKey, getGlmKeyStatus, setGlmEndpoint,
   setOpencodeGoKey, getOpencodeGoKeyStatus,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
@@ -48,6 +49,7 @@ export interface EngineState {
   loadAll: () => Promise<void>
   refreshLocalModels: () => Promise<void>
   llmModels: ModelCardData[]
+  localModels: LocalServiceModel[]
   ttsModels: ModelCardData[]
   sttModels: ModelCardData[]
   imageModels: ModelCardData[]
@@ -71,6 +73,7 @@ export interface EngineState {
 
 export function useEngineState(category: Category): EngineState {
   const [engines, setEngines] = useState<EngineConfig[]>([])
+  const [localModels, setLocalModels] = useState<LocalServiceModel[]>([])
   const [loading, setLoading] = useState(true)
   const [activeEngine, setActiveEngineState] = useState('xai')
   const [activeModel, setActiveModel] = useState('')
@@ -97,6 +100,12 @@ export function useEngineState(category: Category): EngineState {
       const list = await getEngines()
       if (seq !== loadAllSeq.current) return // 已有更新的加载请求，丢弃过期结果
       setEngines(list)
+      // 本地服务目录（OCR 三档/本地识图/本地 STT）：被动探活，失败静默（列空即可）
+      try {
+        const lm = await getLocalServiceModels()
+        if (seq !== loadAllSeq.current) return
+        setLocalModels(lm || [])
+      } catch (_) { /* 本地服务目录非关键路径 */ }
       // 引擎最近连接状态缓存（后端随 engines.json 持久化，重启后仍可见）
       const st: Record<string, EngineStatus> = {}
       list.forEach(e => { if (e.status) st[e.id] = e.status })
@@ -310,12 +319,19 @@ export function useEngineState(category: Category): EngineState {
       }
     })
 
-  const allModels = engines.filter(e => e.enabled).flatMap(e => makeModels(e))
+  const catalogModels = engines.filter(e => e.enabled).flatMap(e => makeModels(e))
+  // 本地服务卡（engineId=local:<kind>）：engineLabel 走 label 字段展示「本机服务」名。
+  const localCards: ModelCardData[] = localModels.map(m => ({
+    modelId: m.modelId, modelName: m.name, engineId: m.engineId, engineName: '本机服务',
+    label: m.name, engineType: 'local', engineEnabled: true,
+    status: m.ready ? 'running' : 'stopped', kind: m.kind, detail: m.detail,
+  }))
+  const allModels = [...catalogModels, ...localCards]
   const llmModels = allModels.filter(m => kindOf(m) === 'llm')
   const ttsModels = allModels.filter(m => kindOf(m) === 'tts')
   const sttModels = allModels.filter(m => kindOf(m) === 'stt')
   const imageModels = allModels.filter(m => kindOf(m) === 'image')
-  const specialtyModels = allModels.filter(m => ['embedding', 'rerank', 'ocr'].includes(kindOf(m)))
+  const specialtyModels = allModels.filter(m => ['embedding', 'rerank', 'ocr', 'vision'].includes(kindOf(m)))
 
   return {
     loading,
@@ -340,7 +356,7 @@ export function useEngineState(category: Category): EngineState {
     handleSetGlmEndpoint,
     loadAll,
     refreshLocalModels,
-    llmModels, ttsModels, sttModels, imageModels, specialtyModels,
+    llmModels, ttsModels, sttModels, imageModels, specialtyModels, localModels,
     makeModels,
     isModelActive,
     handleTestConnection,

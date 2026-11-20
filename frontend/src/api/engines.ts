@@ -561,6 +561,21 @@ export async function setActiveOCRModel(engineID: string, modelID: string): Prom
   await App().SetActiveOCRModel(engineID, modelID)
 }
 
+/** 本地服务模型卡（OCR 三档/本地识图/本地 STT，被动探活） */
+export interface LocalServiceModel {
+  engineId: string
+  modelId: string
+  name: string
+  kind: string
+  detail: string
+  ready: boolean
+}
+
+/** 获取本机内嵌/直连服务的模型卡 */
+export async function getLocalServiceModels(): Promise<LocalServiceModel[]> {
+  return (await App().GaeaLocalServiceModels()) as LocalServiceModel[]
+}
+
 /** 获取当前 OCR 激活模型（空=自动选择） */
 export async function getActiveOCRModel(): Promise<{ engine: string; model: string }> {
   const result = await App().GetActiveOCRModel()

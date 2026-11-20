@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Button, Input } from 'antd'
-import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, EyeOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip, type StatusTone } from './ui'
 import { engineLabel, filterModelsBySearch, formatCtx, formatPrice, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
@@ -11,6 +11,7 @@ const KIND_META: Record<string, { label: string; icon: ReactNode; tone: StatusTo
   embedding: { label: 'Embedding', icon: <NumberOutlined />, tone: 'accent' },
   rerank: { label: 'Rerank', icon: <SearchOutlined />, tone: 'warn' },
   ocr: { label: 'OCR', icon: <FileTextOutlined />, tone: 'ok' },
+  vision: { label: '本地识图', icon: <EyeOutlined />, tone: 'ok' },
 }
 
 export function SpecialtySection() {
@@ -25,7 +26,7 @@ export function SpecialtySection() {
       <SectionHead
         icon={<FileTextOutlined />}
         title="专业模型"
-        desc="Embedding / Rerank 用于本地检索，OCR 模型可设为办公「提取文字」的默认通道"
+        desc="Embedding / Rerank 用于本地检索；OCR 云端模型与本地三档（OvisOCR2 / Unlimited-OCR-2）可设为办公「提取文字」默认通道；本地识图随 llama 引擎"
         extra={ocrCfg.model && (
           <Button size="small" onClick={() => handleSetOCRModel('', '')}>恢复自动选择</Button>
         )}
@@ -34,8 +35,8 @@ export function SpecialtySection() {
       {specialtyModels.length === 0 ? (
         <EmptyState
           icon={<SearchOutlined />}
-          title="暂无 Embedding / Rerank / OCR 模型"
-          hint="在「引擎管理」中刷新本地 Herdsman 模型后，这里会显示 bge-m3、bge-reranker-v2-m3 等检索/OCR 模型（2026-10-29 起 MinerU/PaddleOCR 已退役，本地文字识别走内置 OCR 引擎）"
+          title="暂无专业模型"
+          hint="刷新本地 Herdsman 模型后会显示 bge-m3、bge-reranker-v2-m3 等检索模型与 glm-ocr；本地 OCR 三档与本地识图/STT 常驻列表（未就绪时状态列会标注）。2026-10-29 起 MinerU/PaddleOCR 已退役。"
         />
       ) : (
         <>

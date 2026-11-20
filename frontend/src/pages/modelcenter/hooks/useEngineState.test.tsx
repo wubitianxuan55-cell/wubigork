@@ -10,6 +10,7 @@ import type { Category } from '../utils'
 
 vi.mock('../../../api/engines', () => ({
   getEngines: vi.fn(),
+  getLocalServiceModels: vi.fn(),
   getActiveEngine: vi.fn(),
   getDeepseekKeyStatus: vi.fn(),
   getOpencodeGoKeyStatus: vi.fn(),
@@ -34,7 +35,7 @@ vi.mock('../../../gaea/lib/bridge', async (importOriginal) => ({
 }))
 
 import {
-  getEngines, getActiveEngine, getDeepseekKeyStatus,
+  getEngines, getLocalServiceModels, getActiveEngine, getDeepseekKeyStatus,
   getOpencodeGoKeyStatus, refreshEngineModels,
   setActiveEngine, setEngineDefaultModel,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
@@ -52,6 +53,7 @@ const mRemoveCustom = vi.mocked(removeCustomEngine)
 beforeEach(() => {
   vi.clearAllMocks()
   mGetEngines.mockResolvedValue([])
+  vi.mocked(getLocalServiceModels).mockResolvedValue([])
   vi.mocked(getActiveEngine).mockResolvedValue('xai')
   vi.mocked(getDeepseekKeyStatus).mockResolvedValue({ configured: false, masked: '' })
   vi.mocked(getOpencodeGoKeyStatus).mockResolvedValue({ configured: false, masked: '' })
@@ -216,5 +218,32 @@ describe('useEngineState · 受管模型绑定（按需启动）', () => {
     expect(setEngineDefaultModel).toHaveBeenCalledWith('strata', card.modelId)
     // 刻意不接手动逐模型启动（原 startStrataModel 包装已删）：模型卡只写绑定，
     // 实际启停走引擎页的 StrataEngineStart/Stop 档位路径。
+  })
+})
+
+describe('useEngineState · 本地服务目录 merge', () => {
+  it('local:<kind> 卡并入专业/STT 列表，标签走本机服务名', async () => {
+    mGetEngines.mockResolvedValue([
+      { id: 'herdsman', name: 'Herdsman', type: 'herdsman', enabled: true, models: [
+        { id: 'bge-m3', name: 'bge-m3', kind: 'embedding', status: 'running' },
+      ] } as unknown as EngineConfig,
+    ])
+    vi.mocked(getLocalServiceModels).mockResolvedValue([
+      { engineId: 'local:ovis', modelId: 'ovis-ocr2', name: 'OvisOCR2（本地·8137）', kind: 'ocr', detail: 'd', ready: true },
+      { engineId: 'local:vision', modelId: 'qwen35-mmproj', name: '本地识图（qwen35 mmproj）', kind: 'vision', detail: 'd', ready: false },
+      { engineId: 'local:stt', modelId: 'sherpa-zipformer-int8', name: '本地语音识别（sherpa int8）', kind: 'stt', detail: 'd', ready: true },
+    ])
+    const { result } = renderHook(() => useEngineState('overview'))
+    await act(async () => { await Promise.resolve() })
+    const spec = result.current.specialtyModels
+    const ids = spec.map(m => m.engineId + ':' + m.modelId)
+    expect(ids).toContain('herdsman:bge-m3')
+    expect(ids).toContain('local:ovis:ovis-ocr2')
+    expect(ids).toContain('local:vision:qwen35-mmproj')
+    const ovis = spec.find(m => m.engineId === 'local:ovis')
+    expect(ovis?.status).toBe('running')
+    const stt = result.current.sttModels.map(m => m.engineId + ':' + m.modelId)
+    expect(stt).toContain('local:stt:sherpa-zipformer-int8')
+    expect(result.current.llmModels).toHaveLength(0)
   })
 })

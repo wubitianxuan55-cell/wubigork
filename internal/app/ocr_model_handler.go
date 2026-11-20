@@ -6,22 +6,45 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 // SetActiveOCRModel 设置办公「提取文字」使用的 OCR 引擎与模型。
 // 两个参数都为空时清除绑定，回退到自动选择。
 func (c *core) SetActiveOCRModel(engineID, modelID string) error {
-	if c.engineMgr == nil {
-		return errNoEngineMgr
+	// 本地服务目录（电脑操控配套刀）：engineID=local:<docmd kind>。定点
+	// docmd 本地链（见 gaea_ocr.go 本地腿），不占 herdsman 腿 1——两链配置
+	// 名词同名不同物（docmd/ocr.go 口径边界段），持久化键独立。该支不依赖
+	// engineMgr，置于判空之前。
+	if strings.HasPrefix(engineID, "local:") {
+		kind := strings.TrimPrefix(engineID, "local:")
+		switch kind {
+		case docmd.OCRKindOvis, docmd.OCRKindUocr2, docmd.OCRKindTesseract:
+		default:
+			return &appError{"未知本地 OCR 引擎: " + kind}
+		}
+		c.activeOCRLocal = kind
+		if err := config.Save(config.KeyActiveOCRLocal, kind); err != nil {
+			slog.Warn("保存本地 OCR 引擎配置失败", "error", err)
+		}
+		c.emit("ocr-model-changed", map[string]interface{}{"engine": engineID, "model": modelID})
+		slog.Info("本地 OCR 引擎已定点", "kind", kind)
+		return nil
 	}
 
 	if strings.TrimSpace(engineID) == "" && strings.TrimSpace(modelID) == "" {
 		c.activeOCREngine = ""
 		c.activeOCRModel = ""
+		c.activeOCRLocal = ""
 		_ = config.Save(config.KeyActiveOCREngine, "")
 		_ = config.Save(config.KeyActiveOCRModel, "")
+		_ = config.Save(config.KeyActiveOCRLocal, "")
 		c.emit("ocr-model-changed", map[string]interface{}{"engine": "", "model": ""})
 		return nil
+	}
+
+	if c.engineMgr == nil {
+		return errNoEngineMgr
 	}
 
 	eng, ok := c.engineMgr.GetEngine(engineID)
@@ -61,6 +84,13 @@ func (c *core) SetActiveOCRModel(engineID, modelID string) error {
 
 // GetActiveOCRModel 获取当前 OCR 激活模型（空=自动选择）。
 func (c *core) GetActiveOCRModel() map[string]string {
+	if c.activeOCRLocal != "" {
+		// 本地定点：engine 回 local:<kind>，前端专业页按卡面 engineId 高亮。
+		return map[string]string{
+			"engine": "local:" + c.activeOCRLocal,
+			"model":  c.activeOCRLocal,
+		}
+	}
 	return map[string]string{
 		"engine": c.activeOCREngine,
 		"model":  c.activeOCRModel,

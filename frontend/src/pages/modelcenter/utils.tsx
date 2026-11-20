@@ -29,12 +29,15 @@ export interface ModelCardData {
   engineId: string; engineName: string
   engineType: string; engineEnabled: boolean
   status: string
+  /** 本地服务目录卡（engineId=local:<kind>）自带展示名与说明 */
+  label?: string
+  detail?: string
   kind?: string
   /** B 刀：模型元数据（目录未下发/无任一字段时不构造，保持零破坏） */
   meta?: ModelMeta
 }
 
-export type ModelKind = 'llm' | 'tts' | 'stt' | 'image' | 'embedding' | 'rerank' | 'ocr'
+export type ModelKind = 'llm' | 'tts' | 'stt' | 'image' | 'embedding' | 'rerank' | 'ocr' | 'vision'
 
 export function classifyModel(id: string): ModelKind {
   const lid = id.toLowerCase()
