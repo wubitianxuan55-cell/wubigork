@@ -9,6 +9,8 @@ import { AssistantMessage, UserMessage } from "./Message";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { WorkHeader } from "./WorkHeader";
 import { ToolCard } from "./ToolCard";
+import { ImageGenCard } from "./ImageGenCard";
+import "../../gaea/components/imagegen-card.css";
 import { ToolGroup, scanGroups } from "./ToolGroup";
 import { ErrorCard } from "./ErrorCard";
 import { useEntranceAnimation } from "../lib/useEntranceAnimation";
@@ -182,6 +184,7 @@ function segSig(seg: Segment): string {
   for (const it of [...seg.processItems, ...seg.outsideItems]) {
     if (it.kind === "assistant") s += `${it.id}:${it.text.length}:${it.reasoning.length}:${it.streaming ? 1 : 0};`;
     else if (it.kind === "tool") s += `${it.id}:${it.status}:${it.output?.length ?? 0};`;
+    else if (it.kind === "imagegen") s += `${it.id}:${it.stage}:${it.files.length};`;
     else s += `${it.id};`;
   }
   return s;
@@ -311,6 +314,14 @@ function renderOutsideItems(
         return (
           <div key={it.id} data-entrance={it.id}>
             <ToolCard item={it} subcalls={ctx.subcalls.get(it.id)} />
+          </div>
+        );
+      case "imagegen":
+        // 生图大卡（2026-11-20，与办公同源）：image_gen 进度面（工具内置
+        // wire 事件，按 id 原地 upsert）。
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <ImageGenCard item={it} />
           </div>
         );
       case "phase":

@@ -1641,4 +1641,9 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.trendActual": "實際 {prompt} 入 · {out} 出 · {cache} 快取",
 
   // ── v4.542 刀5：編隊頁（對標 dsh-context Fleet）──
+  // 生图大卡（2026-11-20，与办公同源）
+  "imagegenCard.kind": "生圖",
+  "imagegenCard.stageRunning": "生成中",
+  "imagegenCard.stageDone": "生成完成",
+  "imagegenCard.stageFailed": "失敗",
 };

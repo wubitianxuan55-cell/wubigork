@@ -1640,5 +1640,11 @@ export const en = {
   "contextview.trendActual": "Actual {prompt} in · {out} out · {cache} cached",
 
   // ── v4.542 刀5：编队页（对标 dsh-context Fleet）──
+  // 生图大卡（2026-11-20，与办公同源）
+  "imagegenCard.kind": "Image",
+  "imagegenCard.stageRunning": "Generating",
+  "imagegenCard.stageDone": "Done",
+  "imagegenCard.stageFailed": "Failed",
 };
+
 export type DictKey = keyof typeof en;

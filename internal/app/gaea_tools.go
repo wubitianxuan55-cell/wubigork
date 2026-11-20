@@ -111,15 +111,36 @@ func (t imageGenTool) Execute(ctx context.Context, args json.RawMessage) (string
 	if t.a.cfg.ImageBackend != ai.ImageBackendKindComfyUI {
 		req.Size = ""
 	}
+	// 生图卡（2026-11-20 用户拍板：办公/文学板块生图+前端状态卡）：wire-only
+	// 事件驱动（与 OCR 大卡同通道 a.emit，不进账本不消费 seq），前端按 id
+	// upsert 一张卡：running（数十秒到分钟级）→ done（文件清单）/failed。
+	genID := fmt.Sprintf("imggen-%d", time.Now().UnixNano())
+	emitGen := func(stage string, files []string, errMsg string) {
+		promptClip := p.Prompt
+		if r := []rune(promptClip); len(r) > 120 {
+			promptClip = string(r[:120]) + "…"
+		}
+		t.a.emit("gaea-event", map[string]interface{}{
+			"kind": "imagegen_progress",
+			"imagegen": map[string]interface{}{
+				"id": genID, "prompt": promptClip, "model": model, "n": p.N,
+				"stage": stage, "files": files, "err": errMsg,
+			},
+		})
+	}
+	emitGen("running", nil, "")
 	resp, err := t.a.clientRef().GenerateImage(ctx, req)
 	if err != nil {
+		emitGen("failed", nil, err.Error())
 		return "", fmt.Errorf("生图失败: %w", err)
 	}
 	if len(resp.Data) == 0 {
+		emitGen("failed", nil, "API 返回空结果")
 		return "", fmt.Errorf("生图失败：API 返回空结果")
 	}
 
 	var out []string
+	var files []string
 	for i, d := range resp.Data {
 		dataURL := d.URL
 		if dataURL == "" {
@@ -134,12 +155,14 @@ func (t imageGenTool) Execute(ctx context.Context, args json.RawMessage) (string
 			out = append(out, fmt.Sprintf("[%d] 保存失败: %v", i+1, err))
 			continue
 		}
+		files = append(files, rel)
 		extra := ""
 		if d.RevisedPrompt != "" {
 			extra = "（模型润色提示词）"
 		}
 		out = append(out, fmt.Sprintf("[%d] [%s](%s)%s", i+1, filepath.Base(rel), rel, extra))
 	}
+	emitGen("done", files, "")
 	return "生图完成，文件：\n" + strings.Join(out, "\n"), nil
 }
 

@@ -44,13 +44,15 @@ func TestToolSpaceClassification(t *testing.T) {
 			t.Errorf("ToolSpace(%q) = %q, want work", name, got)
 		}
 	}
-	play := []string{"image_gen"}
+	// 2026-11-20：image_gen 由 play 收归 shared（办公/文学也要生图）——play
+	// 专属面暂空，保留断言骨架。
+	play := []string{}
 	for _, name := range play {
 		if got := ToolSpace(name); got != "play" {
 			t.Errorf("ToolSpace(%q) = %q, want play", name, got)
 		}
 	}
-	shared := []string{"ask", "complete_step", "todo_write", "memory_search", "remember", "task", "run_skill"}
+	shared := []string{"ask", "complete_step", "todo_write", "memory_search", "remember", "task", "run_skill", "image_gen"}
 	for _, name := range shared {
 		if got := ToolSpace(name); got != "shared" {
 			t.Errorf("ToolSpace(%q) = %q, want shared", name, got)
@@ -74,7 +76,7 @@ func TestAllowsSpaceMatrix(t *testing.T) {
 		wantAllow bool
 	}{
 		{"work 保留 edit_file", "work", "edit_file", true},
-		{"work 排除 image_gen", "work", "image_gen", false},
+		{"work 保留 image_gen（2026-11-20 收归 shared）", "work", "image_gen", true},
 		{"work 保留 ask", "work", "ask", true},
 		{"play 排除 edit_file", "play", "edit_file", false},
 		{"play 排除 bash", "play", "bash", false},

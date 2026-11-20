@@ -22,6 +22,7 @@ export type EventKind =
   | "approval_auto"
   | "subagent_message"
   | "ocr_progress"
+  | "imagegen_progress"
   | "turn_done"
   | "compaction_started"
   | "compaction_done"
@@ -88,6 +89,19 @@ export interface WireOCRProgress {
   done?: number;
   total?: number;
   chars?: number;
+  err?: string;
+}
+
+// WireImageGenProgress 是一次生图作业的进度快照（id=作业键，前端按它去重
+// 原地更新同一张卡）。stage 词汇：running/done/failed（工具内置 wire 事件，
+// 与 OCR ocr_progress 同通道：不进账本不消费 seq）。
+export interface WireImageGenProgress {
+  id: string;
+  prompt?: string;
+  model?: string;
+  n?: number;
+  stage: "running" | "done" | "failed";
+  files?: string[];
   err?: string;
 }
 
@@ -160,6 +174,9 @@ export interface WireEvent {
   // OCR 专属大卡（2026-11-18）：docmd OCR 进度（引擎拉起/页粒度/缓存命中/
   // 终态）经包级钩子转发。reducer 按 path 原地 upsert 一张 ocr 卡。
   ocr?: WireOCRProgress;
+  // 生图大卡（2026-11-20）：image_gen 工具内置进度事件。reducer 按 id 原地
+  // upsert 一张 imagegen 卡。
+  imagegen?: WireImageGenProgress;
   // v4.26：message 事件可选携带子代理来源引用（后端把子代理最终答复回投主
   // 回合时标注）；reducer 落到 assistant item 上，渲染层据此画「子代理」徽标。
   subagentRef?: string;

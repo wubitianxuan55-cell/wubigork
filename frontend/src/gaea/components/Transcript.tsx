@@ -10,6 +10,8 @@ import { StreamingIndicator } from "./StreamingIndicator";
 import { WorkHeader } from "./WorkHeader";
 import { ToolCard } from "./ToolCard";
 import { OCRCard } from "./OCRCard";
+import { ImageGenCard } from "./ImageGenCard";
+import "./imagegen-card.css";
 import "./ocr-card.css";
 import { ToolGroup, scanGroups } from "./ToolGroup";
 import { ErrorCard } from "./ErrorCard";
@@ -202,6 +204,7 @@ function segSig(seg: Segment): string {
     // OCR 大卡进度事件原地 upsert：签名带 stage/done/chars，进度更新才触发
     // 段重渲染（memo 缓存否则吞掉活进度）。
     else if (it.kind === "ocr") s += `${it.id}:${it.stage}:${it.done}:${it.chars};`;
+    else if (it.kind === "imagegen") s += `${it.id}:${it.stage}:${it.files.length};`;
     else s += `${it.id};`;
   }
   return s;
@@ -336,6 +339,14 @@ function renderOutsideItems(
               subcalls={ctx.subcalls.get(it.id)}
               delegationName={ctx.delegationNames.get(it.id)}
             />
+          </div>
+        );
+      case "imagegen":
+        // 生图大卡（2026-11-20）：image_gen 进度面（工具内置 wire 事件，按 id
+        // 原地 upsert）。
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <ImageGenCard item={it} />
           </div>
         );
       case "ocr":

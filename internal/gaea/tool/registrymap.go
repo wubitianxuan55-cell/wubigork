@@ -123,7 +123,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"discover_tools":        {"build-internal", "shared", "meta", "none", "A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册）"},
 
 	// ── extra-app：gaeaExtraTools 装配单点 ──
-	"image_gen": {"extra-app", "play", "produce", "none", "图片落 .gaea/uploads 系统路径可查"},
+	"image_gen": {"extra-app", "shared", "produce", "none", "图片落 .gaea/uploads 系统路径可查（2026-11-20 play→shared：办公/文学也生图，办公媒体根=gaeaCwd、文学锚小说目录）"},
 	// ── extra-app·wenxue：图文专属工具四族（2026-11-15 刀3，仅装配进图文独立
 	// 引擎 wenxueExtraTools；办公引擎 ExtraTools 不含 → 办公会话零出现）──
 	"wenxue_chapter_list":      {"extra-app", "work", "read", "none", "清单与约定章节目录实况一致（章号/标题/字数）"},

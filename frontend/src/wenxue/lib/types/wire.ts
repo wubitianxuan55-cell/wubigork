@@ -21,6 +21,7 @@ export type EventKind =
   | "ask_resolved"
   | "approval_auto"
   | "subagent_message"
+  | "imagegen_progress"
   | "turn_done"
   | "compaction_started"
   | "compaction_done"
@@ -124,6 +125,17 @@ export interface QuestionAnswer {
   selected: string[];
 }
 
+// WireImageGenProgress 生图作业进度快照（running/done/failed）。
+export interface WireImageGenProgress {
+  id: string;
+  prompt?: string;
+  model?: string;
+  n?: number;
+  stage: "running" | "done" | "failed";
+  files?: string[];
+  err?: string;
+}
+
 export interface WireEvent {
   kind: EventKind;
   text?: string;
@@ -143,6 +155,8 @@ export interface WireEvent {
   // v4.26：message 事件可选携带子代理来源引用（后端把子代理最终答复回投主
   // 回合时标注）；reducer 落到 assistant item 上，渲染层据此画「子代理」徽标。
   subagentRef?: string;
+  // 生图大卡（2026-11-20，与办公同源）：reducer 按 id 原地 upsert。
+  imagegen?: WireImageGenProgress;
 }
 
 // Bound-method payloads (desktop/app.go).

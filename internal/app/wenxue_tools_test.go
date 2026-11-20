@@ -230,7 +230,8 @@ func wenxueContains(s, sub string) bool {
 
 // TestWenxueBaseToolsImageGenWorkTagged 图文生图面回归（2026-11-16）：媒体根
 // 分档裁决的 image_gen 此前被 work 空间闸静默过滤（play 名表），wxWorkSpaceTool
-// 适配后图文装配面在场；办公 gaeaExtraTools 原样 play 语义不变（红线）。
+// 适配后图文装配面在场；办公 gaeaExtraTools 2026-11-20 由 play 收归 shared
+//（用户拍板：办公/文学都生图，前端生图卡双板块同批）。
 func TestWenxueBaseToolsImageGenWorkTagged(t *testing.T) {
 	_ = wenxueToolsTestRoot(t)
 	var wxTag, officeTag string
@@ -247,8 +248,8 @@ func TestWenxueBaseToolsImageGenWorkTagged(t *testing.T) {
 	if wxTag != "work" {
 		t.Fatalf("图文 image_gen 空间标签 = %q, want work（生图面应装配）", wxTag)
 	}
-	if officeTag != "play" {
-		t.Fatalf("办公 image_gen 空间标签 = %q, want play（办公语义不变红线）", officeTag)
+	if officeTag != "shared" {
+		t.Fatalf("办公 image_gen 空间标签 = %q, want shared（2026-11-20 拍板：办公也生图）", officeTag)
 	}
 }
 

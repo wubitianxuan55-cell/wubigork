@@ -23,7 +23,9 @@ export type Item =
   | { kind: "notice"; id: string; level: "info" | "warn"; text: string }
   | { kind: "compaction"; id: string; pending: boolean; trigger: string; messages: number; summary: string; archive: string }
   | { kind: "tool"; id: string; name: string; args: string; readOnly: boolean; status: ToolStatus; output?: string; error?: string; truncated?: boolean; recoverable?: boolean; parentId?: string; sources?: ToolSource[] }
-  | { kind: "ocr"; id: string; path: string; name: string; engine: string; stage: "engine-start" | "running" | "cached" | "done" | "failed"; done: number; total: number; chars: number; err: string };
+  | { kind: "ocr"; id: string; path: string; name: string; engine: string; stage: "engine-start" | "running" | "cached" | "done" | "failed"; done: number; total: number; chars: number; err: string }
+  // 生图大卡（2026-11-20）：image_gen 工具进度事件驱动，按 id upsert。
+  | { kind: "imagegen"; id: string; prompt: string; model: string; stage: "running" | "done" | "failed"; files: string[]; err: string };
 
 export interface ControllerState {
   items: Item[]; running: boolean; turnActive: boolean; approval?: WireApproval; ask?: WireAsk;
@@ -323,6 +325,24 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
         name: o.name ?? o.path.split(/[\\/]/).pop() ?? o.path,
         engine: o.engine ?? "", stage: o.stage,
         done: o.done ?? 0, total: o.total ?? 0, chars: o.chars ?? 0, err: o.err ?? "",
+      };
+      const idx = s.items.findIndex((it) => it.id === id);
+      const items = idx >= 0 ? s.items.map((it, i) => (i === idx ? item : it)) : [...s.items, item];
+      return { ...s, seq: s.seq + 1, items };
+    }
+    case "imagegen_progress": {
+      // 生图大卡（2026-11-20）：按 id 原地 upsert——同一作业的进度事件更新
+      // 同一张卡（running→done/failed），不堆叠历史行。
+      const g = e.imagegen;
+      if (!g || !g.id) return { ...s, seq: s.seq + 1 };
+      const id = `imagegen:${g.id}`;
+      const item: Item = {
+        kind: "imagegen", id,
+        prompt: g.prompt ?? "",
+        model: g.model ?? "",
+        stage: g.stage,
+        files: g.files ?? [],
+        err: g.err ?? "",
       };
       const idx = s.items.findIndex((it) => it.id === id);
       const items = idx >= 0 ? s.items.map((it, i) => (i === idx ? item : it)) : [...s.items, item];

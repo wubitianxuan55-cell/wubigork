@@ -111,9 +111,12 @@ var spaceTags = map[string]string{
 	"computer_click":     spaces.SpaceWork,
 	"computer_type":      spaces.SpaceWork,
 	"computer_key":       spaces.SpaceWork,
-	// ── play：生图/轻语/小说/角色域 ──────────────────────────────
-	"image_gen": spaces.SpacePlay,
+	// ── play：轻语/小说/角色域 ────────────────────────────────────
 	// ── shared：通用编排/记忆/任务（显式入表便于核对，缺省同为 shared）──
+	// image_gen 2026-11-20 由 play 收归 shared（用户拍板：办公/文学板块都要
+	// 生图）：同一工具同一管线（模型中心 image 后端），办公落工作区
+	// .gaea/uploads、文学锚小说目录（媒体根分档不变）；play 空间保留。
+	"image_gen": SpaceShared,
 	// GA2-04：全部已注册 builtin 必须显式入表（TestSpaceTagsCoversAllBuiltins
 	// 双向守卫）——靠 fail-open 缺省混过分类面的工具会静默漂移。
 	"ask":              SpaceShared,

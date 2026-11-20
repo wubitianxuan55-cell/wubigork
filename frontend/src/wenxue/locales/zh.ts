@@ -1637,4 +1637,9 @@ export const zh: Record<DictKey, string> = {
   "contextview.trendActual": "实际 {prompt} 入 · {out} 出 · {cache} 缓存",
 
   // ── v4.542 刀5：编队页（对标 dsh-context Fleet）──
+  // 生图大卡（2026-11-20，与办公同源）
+  "imagegenCard.kind": "生图",
+  "imagegenCard.stageRunning": "生成中",
+  "imagegenCard.stageDone": "生成完成",
+  "imagegenCard.stageFailed": "失败",
 };
