@@ -4,12 +4,12 @@ package docmd
 // 血统 3B MoE + SR-SWA，MIT）。双后端（2026-10-29 拍板：llama 主、python 兜底）：
 //
 //   - llama 后端（默认）：常驻 llama-server（b11980+unlimited-ocr2.patch + Q8_0 GGUF，
-//     工件 C:\AI\uocr2-llama，见该目录 README），8060S Vulkan 实测单页 6s/15 页
+//     工件 C:\AI\gaea-OCR\uocr2-llama，见该目录 README），8060S Vulkan 实测单页 6s/15 页
 //     106s（python CPU 的 10~14 倍），SR-SWA 跨页续排完整保住。协议=OpenAI chat
 //     completions；GAEA_UOCR2_LLAMA_URL/_PORT/_DIR/_MODEL/_MMPROJ 配置（默认
-//     127.0.0.1:8139 / C:\AI\uocr2-llama）。
+//     127.0.0.1:8139 / C:\AI\gaea-OCR\uocr2-llama）。
 //   - python 后端（兜底）：transformers server.py（scripts/uocr2 为版本控制副本，
-//     运行实例 C:\AI\unlimited-ocr2），协议=/ocr+/ocr_batch；GAEA_UOCR2_URL/_PORT/
+//     运行实例 C:\AI\gaea-OCR\unlimited），协议=/ocr+/ocr_batch；GAEA_UOCR2_URL/_PORT/
 //     _DIR/_PY 配置（默认 8138）。
 //
 // GAEA_UOCR2_BACKEND 驱动腿序：空/auto = llama→python 自动回退；显式 llama/python
@@ -204,7 +204,7 @@ var uocr2LlamaBuildCmd = buildUocr2LlamaServerCmd
 func buildUocr2ServerCmd() (*exec.Cmd, *os.File, bool) {
 	dir := os.Getenv("GAEA_UOCR2_DIR")
 	if dir == "" {
-		dir = `C:\AI\unlimited-ocr2`
+		dir = `C:\AI\gaea-OCR\unlimited`
 	}
 	py := os.Getenv("GAEA_UOCR2_PY")
 	if py == "" {
@@ -235,7 +235,7 @@ func buildUocr2ServerCmd() (*exec.Cmd, *os.File, bool) {
 // buildUocr2LlamaServerCmd 按 GAEA_UOCR2_LLAMA_* 配置构造 llama-server 命令与其
 // 日志文件。返回 ok=false 表示工件缺失（bin\llama-server.exe / 模型 / mmproj）。
 //
-// 启动口径逐字来自 2026-10-29 实弹验证（C:\AI\uocr2-llama\README.md）：
+// 启动口径逐字来自 2026-10-29 实弹验证（C:\AI\gaea-OCR\uocr2-llama\README.md）：
 //   - --ubatch-size 4096 = 铁律二：默认 512+flash-attn 下多图请求丢前面的图
 //     （实测 2 页只转写第 2 页且不报错；-fa 0 亦可修复但更慢），4096 保证图片
 //     嵌入块不被 ubatch 切割，勿删；
@@ -245,7 +245,7 @@ func buildUocr2ServerCmd() (*exec.Cmd, *os.File, bool) {
 func buildUocr2LlamaServerCmd() (*exec.Cmd, *os.File, bool) {
 	dir := os.Getenv("GAEA_UOCR2_LLAMA_DIR")
 	if dir == "" {
-		dir = `C:\AI\uocr2-llama`
+		dir = `C:\AI\gaea-OCR\uocr2-llama`
 	}
 	model := os.Getenv("GAEA_UOCR2_LLAMA_MODEL")
 	if model == "" {

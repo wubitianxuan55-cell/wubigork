@@ -43,7 +43,7 @@ func qwen35ModelPath() string {
 	if p := filepath.Join(voiceV2ModelsRoot, "qwen35-uncensored", qwen35ModelFile); voiceV2FileExists(p) {
 		return p
 	}
-	return filepath.Join(voiceV2LegacyBaseRoot, "models", qwen35ModelFile)
+	return filepath.Join(voiceV2BaseRootDefault, "models", qwen35ModelFile)
 }
 
 func qwen35Running() bool {

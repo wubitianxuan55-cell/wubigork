@@ -38,6 +38,7 @@ const (
 	KeyTTSVoice            = "tts_voice"              // 语音合成音色（Herdsman / Edge）
 	KeyActiveOCREngine     = "active_ocr_engine"      // OCR 激活引擎
 	KeyActiveOCRModel      = "active_ocr_model"       // OCR 激活模型
+	KeyActiveOCRLocal      = "active_ocr_local"       // OCR 本地引擎定点（空=docmd auto 链；值=docmd kind，如 ovis/uocr2）
 	KeyVoicePersonality    = "voice_personality"      // 语音对话角色（首页语音固定 gaea；聊天板块内语音跟随所选人格）
 	KeyFuncChatVoiceEngine = "func_chat_voice_engine" // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	KeyFuncChatVoiceModel  = "func_chat_voice_model"  // 聊天语音合成模型
@@ -175,7 +176,7 @@ const (
 const DefaultTianxuanPath = `C:\AI\tianxuan`
 
 // strata 引擎独立工作区默认值（repo 根，内含 .venv / serve / 档位 JSON）。
-const DefaultStrataPath = `C:\AI\strata\repo`
+const DefaultStrataPath = `C:\AI\gaea-ENGINES\strata\repo`
 
 // whirl 引擎安装目录默认值（whirl-server.exe 与 ROCm 运行库 DLL 同驻）。
-const DefaultWhirlPath = `C:\AI\whirl`
+const DefaultWhirlPath = `C:\AI\gaea-ENGINES\whirl`

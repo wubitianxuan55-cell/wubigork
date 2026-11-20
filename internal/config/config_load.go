@@ -302,6 +302,9 @@ func applyConfigFile(cfg *Config, home string) {
 			if cf.ActiveOCREngine != "" {
 				cfg.ActiveOCREngine = cf.ActiveOCREngine
 			}
+			if cf.ActiveOCRLocal != "" {
+				cfg.ActiveOCRLocal = cf.ActiveOCRLocal
+			}
 			if cf.ActiveOCRModel != "" {
 				cfg.ActiveOCRModel = cf.ActiveOCRModel
 			}

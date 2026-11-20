@@ -67,7 +67,7 @@ func ovisServerHealthy(c *http.Client, base string) bool {
 	return strings.Contains(string(body), "ok")
 }
 
-// startOvisServer 按 GAEA_OCR_* 环境变量或默认 C:\AI\gaea-ocr 拉起 llama-server
+// startOvisServer 按 GAEA_OCR_* 环境变量或默认 C:\AI\gaea-OCR\ovis 拉起 llama-server
 // （隐藏窗口，Vulkan，Job Object 跟踪）。等待就绪（≤ovisStartWait，默认 60s）。
 // 启动成功返回 true 且进程保留存活（常驻服务继续使用）；任何失败路径（配置缺失、
 // 启动失败、超时未就绪）都会在返回 false 前用 proc.KillTracked 杀掉整棵进程树
@@ -119,7 +119,7 @@ var ovisBuildCmd = buildOvisServerCmd
 func buildOvisServerCmd() (*exec.Cmd, *os.File, bool) {
 	dir := os.Getenv("GAEA_OCR_DIR")
 	if dir == "" {
-		dir = `C:\AI\gaea-ocr`
+		dir = `C:\AI\gaea-OCR\ovis`
 	}
 	exe := os.Getenv("GAEA_OCR_LLAMA")
 	if exe == "" {
@@ -270,9 +270,9 @@ var (
 //     auto=llama→python，2026-10-29 拍板：llama-server+Q8 快 10~14 倍，python
 //     transformers 降兜底，见 ocr_uocr2.go）；
 //   GAEA_UOCR2_LLAMA_URL/_PORT/_DIR/_MODEL/_MMPROJ — llama 后端工件与地址
-//     （默认 8139 / C:\AI\uocr2-llama）；
+//     （默认 8139 / C:\AI\gaea-OCR\uocr2-llama）；
 //   GAEA_UOCR2_URL/_PORT/_DIR/_PY — python 后端服务地址与工件（默认 8138 /
-//     C:\AI\unlimited-ocr2）；
+//     C:\AI\gaea-OCR\unlimited）；
 //   HERDSMAN_OCR_MODEL/HERDSMAN_PARSE_MODEL — 远端模型 ID，与 GAEA_OCR_MODEL
 //     （本地 gguf 文件路径）同名词不同物。
 
@@ -484,8 +484,8 @@ func ocrUnavailableError(kinds []string) error {
 		return fmt.Errorf("OCR 引擎 %q 不可用（未安装或无法运行）。请安装该引擎或检查 GAEA_OCR_ENGINE 配置。", kinds[0])
 	}
 	return fmt.Errorf("本地 OCR 不可用（未安装或服务无法拉起），且未找到 tesseract。" +
-		"请安装其一：\n  - Unlimited-OCR-2（本地首选，C:\\AI\\unlimited-ocr2 或 GAEA_UOCR2_DIR）\n" +
-		"  - OvisOCR2（本地次选，C:\\AI\\gaea-ocr 或 GAEA_OCR_DIR）\n" +
+		"请安装其一：\n  - Unlimited-OCR-2（本地首选，C:\\AI\\gaea-OCR\\unlimited 或 GAEA_UOCR2_DIR）\n" +
+		"  - OvisOCR2（本地次选，C:\\AI\\gaea-OCR\\ovis 或 GAEA_OCR_DIR）\n" +
 		"  - tesseract: https://github.com/tesseract-ocr/tesseract")
 }
 
@@ -497,8 +497,8 @@ func ocrPDFUnavailableError(kinds []string) error {
 			"请检查 GAEA_OCR_ENGINE 配置或安装该引擎，或使用文本 PDF（非扫描件）。", kinds[0])
 	}
 	return fmt.Errorf("扫描件 PDF 需要 OCR 引擎，但未找到 Unlimited-OCR-2 / OvisOCR2 / tesseract。" +
-		"请安装其一：\n  - Unlimited-OCR-2（本地首选，C:\\AI\\unlimited-ocr2）\n" +
-		"  - OvisOCR2（本地次选，C:\\AI\\gaea-ocr）\n" +
+		"请安装其一：\n  - Unlimited-OCR-2（本地首选，C:\\AI\\gaea-OCR\\unlimited）\n" +
+		"  - OvisOCR2（本地次选，C:\\AI\\gaea-OCR\\ovis）\n" +
 		"  - tesseract: https://github.com/tesseract-ocr/tesseract\n\n" +
 		"或者使用文本 PDF（非扫描件）")
 }

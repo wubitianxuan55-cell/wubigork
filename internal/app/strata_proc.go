@@ -1,6 +1,6 @@
 package app
 
-// strata_proc.go — Strata 引擎（独立项目 C:\AI\strata\repo，8091）进程生命周期：
+// strata_proc.go — Strata 引擎（独立项目 C:\AI\gaea-ENGINES\strata\repo，8091）进程生命周期：
 // 状态探测 / 启动 / 停止。集成边界与天璇一致：gaea 只引用外部项目的
 // serve/server.py 与档位 JSON，不在 Go 常量里复制模型路径和引擎参数。
 // 停止走「启动器进程树 → 8091 监听 PID」两级路径，外部启动的实例也能停。
@@ -30,7 +30,7 @@ const (
 	strataStopPollStep = 500 * time.Millisecond
 )
 
-// strataProfiles 对齐 C:\AI\strata\repo 现有档位 JSON。
+// strataProfiles 对齐 C:\AI\gaea-ENGINES\strata\repo 现有档位 JSON。
 // 8091 由 gaea 统一传入，JSON 里的 port 字段只作项目自身默认值。
 // 2026-11-04 用户拍板：现阶段只接 flash-next 档（tianxuan 遗产
 // qwen3.8-flash-next-uncensored，177B MoE Heretic 消融 UD-IQ4_XS 41 分片 +

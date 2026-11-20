@@ -52,7 +52,7 @@ type engineProfileOption struct {
 // 优先、历史 base 根回退（llama qwen35 双布局兼容）；两处都缺=空串（纯文本
 // 档位，识图不得跟随）。whirl/llama 共用单副本文件。
 func managedProfileMmprojPath(p engineProfileOption) string {
-	return managedProfileMmprojPathIn(voiceV2ModelsRoot, filepath.Join(voiceV2LegacyBaseRoot, "models"), p)
+	return managedProfileMmprojPathIn(voiceV2ModelsRoot, filepath.Join(voiceV2BaseRootDefault, "models"), p)
 }
 
 func managedProfileMmprojPathIn(root, legacyRoot string, p engineProfileOption) string {

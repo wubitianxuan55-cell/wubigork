@@ -29,8 +29,9 @@ const (
 	voiceV2LLMPort     = 8123
 	voiceV2BreezePort  = 8012
 	// 历史装机路径（P3 打包工程化前）：降级为 base 根缺失时的回退值。
-	voiceV2LegacyLLMBin   = `C:\AI\uocr2-llama\bin\llama-server.exe`
-	voiceV2LegacyBaseRoot = `C:\AI\gaea-voice-v2`
+	// 2026-11-20 目录归一：uocr2-llama 并入 gaea-OCR 根，回退路径随之更新。
+	voiceV2LegacyLLMBin   = `C:\AI\gaea-OCR\uocr2-llama\bin\llama-server.exe`
+	voiceV2BaseRootDefault = `C:\AI\gaea-VOICE\voice-v2`
 	// 模型统一根（P3 2026-11-05 用户拍板）：所有本地模型只存这一处，多处引用
 	// 不复制（消除 26.8GB×N 重复）。llama/strata/herdsman 档位均指此根。
 	voiceV2ModelsRoot  = `C:\AI\models`
@@ -49,7 +50,7 @@ func voiceV2BaseRoot() string {
 	if v := strings.TrimSpace(os.Getenv(voiceV2BaseRootEnv)); v != "" {
 		return v
 	}
-	return voiceV2LegacyBaseRoot
+	return voiceV2BaseRootDefault
 }
 
 func voiceV2FileExists(path string) bool {

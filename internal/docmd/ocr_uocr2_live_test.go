@@ -22,8 +22,8 @@ func TestUocr2LlamaLiveSingleAndBatch(t *testing.T) {
 	t.Setenv("GAEA_UOCR2_BACKEND", "llama") // 实弹只验 llama 主后端
 	p := &uocr2OCRProvider{}
 
-	fj2 := `C:\AI\unlimited-ocr2\testimg\fj-02.png`
-	fj3 := `C:\AI\unlimited-ocr2\testimg\fj-03.png`
+	fj2 := `C:\AI\gaea-OCR\unlimited\testimg\fj-02.png`
+	fj3 := `C:\AI\gaea-OCR\unlimited\testimg\fj-03.png`
 	for _, f := range []string{fj2, fj3} {
 		if _, err := os.Stat(f); err != nil {
 			t.Skipf("实弹素材缺失: %v", err)

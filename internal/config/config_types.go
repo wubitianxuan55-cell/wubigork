@@ -40,6 +40,7 @@ type configFile struct {
 	TTSVoice            string            `json:"tts_voice,omitempty"`              // 语音合成音色
 	ActiveOCREngine     string            `json:"active_ocr_engine,omitempty"`      // OCR 激活引擎
 	ActiveOCRModel      string            `json:"active_ocr_model,omitempty"`       // OCR 激活模型
+	ActiveOCRLocal      string            `json:"active_ocr_local,omitempty"`       // OCR 本地引擎定点（空=docmd auto 链）
 	VoicePersonality    string            `json:"voice_personality,omitempty"`      // 语音对话角色
 	FuncChatVoiceEngine string            `json:"func_chat_voice_engine,omitempty"` // 聊天语音合成引擎
 	FuncChatVoiceModel  string            `json:"func_chat_voice_model,omitempty"`  // 聊天语音合成模型
@@ -175,9 +176,9 @@ type Config struct {
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
 	// tianxuan 独立引擎项目根目录（C:\AI\tianxuan）。
 	TianxuanPath string
-	// strata 独立引擎项目根目录（C:\AI\strata\repo）。
+	// strata 独立引擎项目根目录（C:\AI\gaea-ENGINES\strata\repo）。
 	StrataPath string
-	// whirl 引擎安装目录（C:\AI\whirl）。
+	// whirl 引擎安装目录（C:\AI\gaea-ENGINES\whirl）。
 	WhirlPath string
 
 	// 活跃模型引擎 ID（"xai" | "herdsman" | "deepseek" 等）
@@ -206,6 +207,7 @@ type Config struct {
 	TTSVoice            string // 语音合成音色（来自设置面板，空=按模型默认）
 	ActiveOCREngine     string // OCR 激活引擎（空=自动）
 	ActiveOCRModel      string // OCR 激活模型（空=自动）
+	ActiveOCRLocal      string // OCR 本地引擎定点（docmd kind，空=docmd auto 链）
 	VoicePersonality    string // 语音对话角色（与聊天板块一致，空=gaea）
 	FuncChatVoiceEngine string // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	FuncChatVoiceModel  string // 聊天语音合成模型

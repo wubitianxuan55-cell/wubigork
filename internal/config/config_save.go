@@ -234,6 +234,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyTTSVoice:            func(cf *configFile, v string) error { cf.TTSVoice = v; return nil },
 	KeyActiveOCREngine:     func(cf *configFile, v string) error { cf.ActiveOCREngine = v; return nil },
 	KeyActiveOCRModel:      func(cf *configFile, v string) error { cf.ActiveOCRModel = v; return nil },
+	KeyActiveOCRLocal:      func(cf *configFile, v string) error { cf.ActiveOCRLocal = v; return nil },
 	KeyVoicePersonality:    func(cf *configFile, v string) error { cf.VoicePersonality = v; return nil },
 	KeyFuncChatVoiceEngine: func(cf *configFile, v string) error { cf.FuncChatVoiceEngine = v; return nil },
 	KeyFuncChatVoiceModel:  func(cf *configFile, v string) error { cf.FuncChatVoiceModel = v; return nil },
