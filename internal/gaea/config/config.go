@@ -33,6 +33,10 @@ type Config struct {
 	SpaceProfiles map[string]SpaceProfile `toml:"space_profiles"`
 	Providers     []ProviderEntry         `toml:"providers"`
 	Tools         ToolsConfig             `toml:"tools"`
+	// ComputerUse 是电脑操控配置（施工单 W3，2026-11-20）：[computer_use] 段。
+	// 默认关——Enabled=false 时 computer_windows/state/launch 三件不注册，
+	// Registry.Schemas() 与现状逐字节一致；关闭即回现状。
+	ComputerUse ComputerUseConfig `toml:"computer_use"`
 	Permissions   PermissionsConfig       `toml:"permissions"`
 	// Guardian 是动作级自动评审配置（codex 蒸馏 T11）：[guardian] 段。默认
 	// 关——关时审批仍是纯人工（现状逐字节）。
@@ -950,6 +954,20 @@ type ToolsSearchConfig struct {
 	Enabled bool `toml:"enabled"`
 	// Limit 是单次检索默认返回数；<=0 用内置 8。
 	Limit int `toml:"limit"`
+}
+
+// ComputerUseConfig 是 [computer_use] 段（电脑操控施工单 W3）。
+type ComputerUseConfig struct {
+	// Enabled 总开关：开启后注册 computer_windows / computer_state /
+	// computer_launch 三件（输入注入族 W5 另行）。
+	Enabled bool `toml:"enabled"`
+	// Apps 是可操控 app 白名单（process:<exe 全路径>）。空=不限制（读树与
+	// 启动全量可见）；非空时 computer_state 与 computer_launch 对白名单外的
+	// app 拒绝（对齐 codex「未授权 app 连读树都拒」语义；computer_windows
+	// 仅标题清单，保留可发现性）。
+	Apps []string `toml:"apps"`
+	// IdleTTLSeconds 会话空闲释放（懒回收）秒；<=0 用包默认 600。
+	IdleTTLSeconds int `toml:"idle_ttl_sec"`
 }
 
 // GuardianConfig 是 [guardian] 段（codex 蒸馏 T11）。零值 = 关闭（审批纯人工）。

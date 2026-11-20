@@ -22,6 +22,9 @@
 | `browser_tabs` | builtin-domain | work | read | none | tab 清单与实况一致（自声明 work） |
 | `browser_type` | builtin-domain | work | interactive | none | 输入后快照反映文本（自声明 work） |
 | `cad_ask` | builtin-domain | work | read | none | 图框质量闸+vision 读图结论；T0 effect 已复核豁免 |
+| `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册，施工单 W3） |
+| `computer_state` | builtin-domain | work | read | none | 树文本/截图与实况一致（revision 失效闸门+白名单闸） |
+| `computer_launch` | builtin-domain | work | write | none | 启动后窗口出现在枚举（白名单约束） |
 | `chart_gen` | builtin-workspace | work | produce | agent-produce | 图片落点存在（单系列图回归钉） |
 | `complete_step` | builtin-domain | shared | meta | none | 步骤裁决与计划一致 |
 | `cost_compose` | builtin-domain | work | produce | none | 组价结果与定额飞轮口径一致 |

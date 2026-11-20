@@ -105,6 +105,9 @@ var spaceTags = map[string]string{
 	"browser_tabs":       spaces.SpaceWork,
 	"browser_type":       spaces.SpaceWork,
 	"sidebar_open":       spaces.SpaceWork,
+	"computer_windows":   spaces.SpaceWork,
+	"computer_state":     spaces.SpaceWork,
+	"computer_launch":    spaces.SpaceWork,
 	// ── play：生图/轻语/小说/角色域 ──────────────────────────────
 	"image_gen": spaces.SpacePlay,
 	// ── shared：通用编排/记忆/任务（显式入表便于核对，缺省同为 shared）──

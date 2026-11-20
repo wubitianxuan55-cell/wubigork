@@ -94,6 +94,21 @@ func Default() *Session {
 	return defaultSession
 }
 
+// Configure 装配点（boot 侧 [computer_use] 接线用）：落单例 TTL。
+// 单例未建时先按给定 TTL 建好；已建则原位改 TTL（IdleTTL<=0 视为默认）。
+func Configure(opts Options) {
+	defaultMu.Lock()
+	defer defaultMu.Unlock()
+	if opts.IdleTTL <= 0 {
+		opts.IdleTTL = defaultIdleTTL
+	}
+	if defaultSession == nil {
+		defaultSession = NewSession(opts)
+		return
+	}
+	defaultSession.opts.IdleTTL = opts.IdleTTL
+}
+
 // SetForTest 替换单例（返回旧实例），照 browser.Manager 范式。
 func SetForTest(s *Session) *Session {
 	defaultMu.Lock()

@@ -17,3 +17,8 @@ func observeUnsupported(windowID int, opt ObserveOpt) (*Snapshot, error) {
 func ListWindows() ([]Window, error) {
 	return nil, ErrUnsupported
 }
+
+// LaunchApp 平台桩。
+func LaunchApp(app string) (Window, error) {
+	return Window{}, ErrUnsupported
+}

@@ -336,6 +336,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			_, _ = fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
 		})
 	}
+	// 电脑操控（施工单 W3，2026-11-20）：[computer_use] enabled=true 才注册
+	// 只读三件——默认关=Registry.Schemas() 与现状逐字节一致；输入注入族 W5。
+	if cfg.ComputerUse.Enabled {
+		builtin.RegisterComputerTools(cfg.ComputerUse.Apps, time.Duration(cfg.ComputerUse.IdleTTLSeconds)*time.Second)
+	}
 	addBuiltins(reg, cwd, cfg.Tools.Enabled, writeRoots, bashSpec, cfg.NetworkProxySpec(), stderr, space, opts.ToolFilter)
 	// 2026-11-15 刀2：read_skill 实例化注册（替换内置全局同名件——Registry.Add
 	// 同名覆盖语义）。resolver 走 sysprompt 产出的过滤闭包：双引擎（办公+图文）
