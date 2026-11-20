@@ -182,18 +182,23 @@ func (computerStateTool) Execute(ctx context.Context, raw json.RawMessage) (stri
 		return computerFail(err)
 	}
 	// 截图走 W0 多模态旁路：本地路径随 tool 结果消息进主对话请求
-	//（bridge 层统一编码 data URL + 每请求 4 张上限）。
+	//（bridge 层统一编码 data URL + 每请求 4 张上限）；落盘相对路径另给
+	// markdown 链接（W6：前端按工作区相对路径渲染给人看）。
 	shotInfo := "（未请求截图）"
+	shotMarkdown := ""
 	if snap.Shot != nil {
 		tool.ImageSinkFromContext(ctx).AddImage(snap.Shot.Path)
 		shotInfo = snap.Shot.Path
+		shotMarkdown = "![" + snap.Window.Title + "](" + snap.Shot.Path + ")"
+		computer.NotifyStatus("using", snap.Window.App, snap.Window.Title)
 	}
 	return tool.WrapResult("ok", map[string]any{
-		"window":       snap.Window,
-		"revision":     snap.Revision,
-		"text":         snap.Text,
-		"shot":         shotInfo,
-		"element_hint": "文本里每行行首数字=element_index，只对本次观察（revision）有效；再次观察后全部失效",
+		"window":        snap.Window,
+		"revision":      snap.Revision,
+		"text":          snap.Text,
+		"shot":          shotInfo,
+		"shot_markdown": shotMarkdown,
+		"element_hint":  "文本里每行行首数字=element_index，只对本次观察（revision）有效；再次观察后全部失效",
 	}), nil
 }
 
@@ -352,6 +357,7 @@ func (computerClickTool) Execute(_ context.Context, raw json.RawMessage) (string
 	if err := sess.CheckBoundWindow(win.ID); err != nil {
 		return computerFailAction(err)
 	}
+	computer.NotifyStatus("using", win.App, win.Title)
 	var actErr error
 	if args.ElementIndex != nil {
 		actErr = sess.ClickWindowElement(*args.ElementIndex)
@@ -361,7 +367,9 @@ func (computerClickTool) Execute(_ context.Context, raw json.RawMessage) (string
 	if actErr != nil {
 		return computerFailAction(actErr)
 	}
-	return computerActionEnvelope(sess, win, map[string]any{"action": "click"})
+	env, err := computerActionEnvelope(sess, win, map[string]any{"action": "click"})
+	computer.NotifyStatus("idle", win.App, win.Title)
+	return env, err
 }
 
 type computerTypeTool struct{}
@@ -396,10 +404,13 @@ func (computerTypeTool) Execute(_ context.Context, raw json.RawMessage) (string,
 	if err := sess.CheckBoundWindow(win.ID); err != nil {
 		return computerFailAction(err)
 	}
+	computer.NotifyStatus("using", win.App, win.Title)
 	if err := sess.TypeInto(args.Text); err != nil {
 		return computerFailAction(err)
 	}
-	return computerActionEnvelope(sess, win, map[string]any{"action": "type"})
+	env, err := computerActionEnvelope(sess, win, map[string]any{"action": "type"})
+	computer.NotifyStatus("idle", win.App, win.Title)
+	return env, err
 }
 
 type computerKeyTool struct{}
@@ -434,8 +445,11 @@ func (computerKeyTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 	if err := sess.CheckBoundWindow(win.ID); err != nil {
 		return computerFailAction(err)
 	}
+	computer.NotifyStatus("using", win.App, win.Title)
 	if err := sess.PressKeyOn(args.Key); err != nil {
 		return computerFailAction(err)
 	}
-	return computerActionEnvelope(sess, win, map[string]any{"action": "key"})
+	env, err := computerActionEnvelope(sess, win, map[string]any{"action": "key"})
+	computer.NotifyStatus("idle", win.App, win.Title)
+	return env, err
 }

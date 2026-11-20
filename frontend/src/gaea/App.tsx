@@ -51,6 +51,7 @@ import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
+import { ComputerStatusBar } from "./components/ComputerStatusBar";
 
 import { exportAsMarkdown } from "./lib/export";
 import type { MemoryView, SessionMeta, TaskTemplate } from "./lib/types";
@@ -717,6 +718,7 @@ export default function App() {
   return (
     <>
     <JobDoneNotifier jobs={state.jobs} />
+    <ComputerStatusBar />
     <Layout className="gaea-app-layout">
       <div
         className={[

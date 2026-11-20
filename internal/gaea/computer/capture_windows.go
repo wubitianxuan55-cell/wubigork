@@ -17,7 +17,9 @@ import (
 )
 
 // captureFullScreen 全屏截图 → Shot（Width/Height=快照像素；P0 全屏单区域，
-// 窗口相对坐标换算在输入注入层处理）。
+// 窗口相对坐标换算在输入注入层处理）。落盘工作区 .gaea/uploads/
+// computer-<ts>.jpg（照 screenshot.go saveScreenshot 范式；W6 起给人看+
+// 工具回执 markdown 链接，bridge 编码进对话）。
 func captureFullScreen() (*Shot, error) {
 	img, err := screen.Capture()
 	if err != nil {
@@ -28,23 +30,27 @@ func captureFullScreen() (*Shot, error) {
 	if w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("computer: capture: empty frame")
 	}
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("computer-%d.jpg", time.Now().UnixNano()))
-	f, err := os.Create(path)
+	dir := filepath.Join(".gaea", "uploads")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("computer: capture mkdir: %w", err)
+	}
+	rel := filepath.ToSlash(filepath.Join(".gaea", "uploads", fmt.Sprintf("computer-%d.jpg", time.Now().UnixNano())))
+	f, err := os.Create(rel)
 	if err != nil {
 		return nil, fmt.Errorf("computer: capture save: %w", err)
 	}
 	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 70}); err != nil {
 		f.Close()
-		os.Remove(path)
+		os.Remove(rel)
 		return nil, fmt.Errorf("computer: capture encode: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(path)
+		os.Remove(rel)
 		return nil, fmt.Errorf("computer: capture save: %w", err)
 	}
 	return &Shot{
 		ID:           newUUID() + "-0",
-		Path:         path,
+		Path:         rel,
 		Width:        w,
 		Height:       h,
 		NativeWidth:  w,

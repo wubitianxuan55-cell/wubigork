@@ -1,0 +1,49 @@
+/* ComputerStatusBar（施工单 W6）：动作期间右上角胶囊状态条。
+   令牌消费现有 md-sys 变量（App 运行时注入），带字面量兜底——预览壳等
+   无令牌环境不致黑底白字不可读。 */
+.computer-status-bar {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--md-sys-color-surface-container-high, rgba(24, 24, 28, 0.88));
+  color: var(--md-sys-color-on-surface, #ececf1);
+  font-size: 12.5px;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.computer-status-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--md-sys-color-primary, #339cff);
+  animation: computer-status-pulse 1.2s ease-in-out infinite;
+}
+
+.computer-status-bar__app {
+  opacity: 0.66;
+  font-size: 11.5px;
+}
+
+@keyframes computer-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .computer-status-bar__dot {
+    animation: none;
+  }
+}

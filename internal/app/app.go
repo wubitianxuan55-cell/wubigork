@@ -25,6 +25,7 @@ import (
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/computer"
 	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/filewatch"
@@ -352,6 +353,12 @@ func New() *App {
 }
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// 电脑操控状态条（施工单 W6）：动作工具经 NotifyStatus → core.emit
+	// （Wails + httpbridge 双通道）。开关默认关=工具不注册=永不发射。
+	computer.SetStatusHook(func(state, appName, window string) {
+		a.emit("computer-status", computer.StatusHookPayload(state, appName, window))
+	})
 
 	// P7 本地观测最小集（codex 蒸馏 B10 折算）：[telemetry] enabled（默认
 	// 关）时开启事实流，落 whisperDataRoot/telemetry 按日 ndjson、保留 14 天。
