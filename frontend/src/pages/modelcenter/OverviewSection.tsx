@@ -4,8 +4,8 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   DashboardOutlined,
+  LinkOutlined,
   SettingOutlined,
-  ThunderboltOutlined,
 } from '@ant-design/icons'
 import { EmptyState, KpiTile, ModelCard, SectionHead, StatusChip } from './ui'
 import { engineLabel, modelDisplayName } from './utils'
@@ -20,7 +20,7 @@ function checkedAtTitle(iso?: string): string | undefined {
   return `巡检 ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-export function OverviewSection() {
+export function OverviewSection({ showActions = true }: { showActions?: boolean }) {
     const { engines, engineStatuses, callStats, activeEngine } = useModelCenterState()
   const { setCategory } = useModelCenterActions()
   const enabled = engines.filter(e => e.enabled)
@@ -127,11 +127,12 @@ export function OverviewSection() {
         </div>
       </div>
 
-      <div className="mc-overview-actions">
-        <Button icon={<ThunderboltOutlined />} onClick={() => setCategory('models')}>管理语言模型</Button>
-        <Button icon={<DashboardOutlined />} onClick={() => setCategory('models')}>查看专业模型</Button>
-        <Button icon={<SettingOutlined />} onClick={() => setCategory('engine')}>测试引擎连接</Button>
-      </div>
+      {showActions && (
+        <div className="mc-overview-actions">
+          <Button icon={<SettingOutlined />} onClick={() => setCategory('engine')}>管理引擎与模型</Button>
+          <Button icon={<LinkOutlined />} onClick={() => setCategory('bind')}>配置功能绑定</Button>
+        </div>
+      )}
     </section>
   )
 }

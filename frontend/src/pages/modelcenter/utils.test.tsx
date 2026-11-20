@@ -20,6 +20,7 @@ import {
   sortComfyModelsQuantFirst,
   modelOptionsForEngine,
   filterEnginesByEnabled,
+  isLocalEngine,
   glmEndpointFamily,
   glmAliasNote,
   billingModeLabel,
@@ -203,6 +204,25 @@ describe('模型中心 filterEnginesByEnabled', () => {
 
   it('onlyEnabled=false 保留全部引擎', () => {
     expect(filterEnginesByEnabled(engines, false).map(e => e.id)).toEqual(['xai', 'herdsman'])
+  })
+})
+
+describe('模型中心 isLocalEngine', () => {
+  it('id 与完整配置两种入口都识别内置本地运行时', () => {
+    expect(isLocalEngine('strata')).toBe(true)
+    expect(isLocalEngine('xai')).toBe(false)
+    expect(isLocalEngine({
+      type: 'llama', base_url: '',
+    })).toBe(true)
+  })
+
+  it('旧配置缺少 is_local 时按回环地址兜底分组', () => {
+    expect(isLocalEngine({
+      type: 'custom', base_url: 'http://127.0.0.1:9000/v1',
+    })).toBe(true)
+    expect(isLocalEngine({
+      type: 'custom', base_url: 'https://api.example.com/v1',
+    })).toBe(false)
   })
 })
 

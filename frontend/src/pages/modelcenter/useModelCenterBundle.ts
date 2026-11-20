@@ -148,6 +148,7 @@ export function useModelCenterBundle(
     setPortraitDraft: bind.setPortraitDraft,
     setSinImageDraft: bind.setSinImageDraft,
     makeModels: engine.makeModels, isModelActive: engine.isModelActive,
+    reloadEngines: engine.loadAll,
     handleTestConnection: engine.handleTestConnection,
     handleRefreshModels: engine.handleRefreshModels,
     handleStartModel: engine.handleStartModel,

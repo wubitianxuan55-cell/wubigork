@@ -4,7 +4,7 @@
  * 归集模型调用统计抽屉的全部状态（汇总、排序、趋势范围）与加载/重置逻辑。
  * 调用统计抽屉打开时每 15s 定时刷新（statsOpen 由顶层传入）。
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { message } from 'antd'
 import { getModelCallStats, resetModelCallStats, type ModelStatsSummary } from '../../../api/engines'
 import { type StatsSort, type TrendDatum, type TrendRange } from '../charts'
@@ -22,21 +22,26 @@ export interface StatsState {
   handleResetCallStats: () => Promise<void>
 }
 
-export function useStatsState(statsOpen: boolean): StatsState {
+export function useStatsState(statsOpen: boolean, pollingEnabled = true): StatsState {
   const [callStats, setCallStats] = useState<ModelStatsSummary | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [statsSort, setStatsSort] = useState<StatsSort>('calls')
   const [trendRange, setTrendRange] = useState<TrendRange>('7d')
+  const loadInFlight = useRef(false)
   // v4.5.2：统计轮询接入系统级后台轮询门控（页面不可见时空转零成本）
   const gate = usePollingGate()
 
   const loadCallStats = useCallback(async () => {
+    if (loadInFlight.current) return
+    loadInFlight.current = true
     try {
       const s = await getModelCallStats()
       setCallStats(s ?? null)
       setLoadError(null)
     } catch (err: unknown) {
       setLoadError(err instanceof Error ? err.message : '加载调用统计失败')
+    } finally {
+      loadInFlight.current = false
     }
   }, [])
 
@@ -45,11 +50,11 @@ export function useStatsState(statsOpen: boolean): StatsState {
   // 页面 keep-alive 常驻，统计需自行定期刷新——基础 30s 轮询，
   // 统计抽屉打开期间加快到 15s。
   useEffect(() => {
-    const tick = () => { if (gate) void loadCallStats() }
+    const tick = () => { if (gate && pollingEnabled) void loadCallStats() }
     tick()
     const timer = window.setInterval(tick, statsOpen ? 15000 : 30000)
     return () => window.clearInterval(timer)
-  }, [statsOpen, loadCallStats, gate])
+  }, [statsOpen, loadCallStats, gate, pollingEnabled])
 
   const handleResetCallStats = async () => {
     try {

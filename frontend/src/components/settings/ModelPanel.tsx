@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Button, InputNumber, Select, Tag, Typography, message } from 'antd'
-import { ApiOutlined, ArrowRightOutlined, RobotOutlined, MoneyCollectOutlined } from '@ant-design/icons'
+import { Button, InputNumber, Select, Typography, message } from 'antd'
+import {
+  ApiOutlined, ArrowRightOutlined, MoneyCollectOutlined, RobotOutlined,
+} from '@ant-design/icons'
 import { getActiveModel, getConfig, saveConfig } from '../../api/settings'
 import { getUsdCnyRate, setUsdCnyRate } from '../../api/engines'
 import SettingsSection from './SettingsSection'
@@ -10,7 +12,7 @@ import { useT } from '../../gaea/lib/i18n'
 const DEFAULT_USD_CNY = 7.2
 
 /** ModelPanel — 模型任务页签的概览：当前模型 + 推理强度 + 费用汇率。
- *  功能绑定、空间策略、本地调度与引擎管理在相邻任务页签。 */
+ *  模型一览、功能绑定与引擎管理归模型中心；设置侧只承载全局参数和低频策略。 */
 const ModelPanel: React.FC = () => {
   const t = useT()
   const [activeModel, setActiveModel] = useState('')
@@ -27,7 +29,10 @@ const ModelPanel: React.FC = () => {
     try {
       const r = await getUsdCnyRate()
       setRate(Number.isFinite(r) && r > 0 ? r : DEFAULT_USD_CNY)
-    } catch { /* 引擎未就绪时回退默认汇率 7.2 */ }
+    } catch {
+      // 引擎未就绪时仍展示可用默认值；保存操作会显式校验并提示失败原因。
+      setRate(DEFAULT_USD_CNY)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -72,66 +77,88 @@ const ModelPanel: React.FC = () => {
         <div className={`model-current-card${activeModel ? ' is-configured' : ' is-empty'}`}>
           <span className="model-current-card__dot" aria-hidden="true" />
           <div className="model-current-card__copy">
+            <span className="model-current-card__eyebrow">全局路由</span>
             <Typography.Text strong className="model-current-card__name">
               {activeModel || t('settings.model.notConfigured')}
             </Typography.Text>
+            <span className="model-current-card__meta">
+              {activeModel ? '当前对话与通用任务使用此模型' : '完成功能绑定后，这里会显示全局活动模型'}
+            </span>
           </div>
-          <Button size="small" icon={<ArrowRightOutlined />} onClick={goModelCenter}>{t('settings.model.goModelCenter')}</Button>
+          <div className="model-current-card__actions">
+            <Button size="small" icon={<ArrowRightOutlined />} onClick={goModelCenter}>
+              {t('settings.model.goModelCenter')}
+            </Button>
+          </div>
+        </div>
+        <div className="model-signal-grid" aria-label="模型概览">
+          <div className="model-signal">
+            <span>配置状态</span>
+            <strong>{activeModel ? '已配置' : '待配置'}</strong>
+          </div>
+          <div className="model-signal">
+            <span>推理策略</span>
+            <strong>{effort || '提供方默认'}</strong>
+          </div>
+          <div className="model-signal">
+            <span>费用折算</span>
+            <strong>{rate == null ? '读取中' : `1 USD ≈ ¥${rate.toFixed(2)}`}</strong>
+          </div>
         </div>
       </SettingsSection>
 
-      <SettingsSection
-        icon={<span style={{ fontSize: 15 }}><RobotOutlined /></span>}
-        title={t('settings.model.effortTitle')}
-        desc={t('settings.model.effortDesc')}
-        instant
-      >
-        <Select
-          value={effort || undefined}
-          placeholder={t('settings.model.effortPlaceholder')}
-          onChange={handleEffort}
-          style={{ width: 220 }}
-          allowClear
-          options={[
-            { value: 'low', label: t('settings.model.effortLow') },
-            { value: 'medium', label: t('settings.model.effortMedium') },
-            { value: 'high', label: t('settings.model.effortHigh') },
-          ]}
-        />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-          <Tag style={{ margin: 0, fontSize: 11 }}>deepseek</Tag>
-          <Typography.Text style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
+      <div className="settings-model-controls">
+        <SettingsSection
+          icon={<RobotOutlined />}
+          title={t('settings.model.effortTitle')}
+          desc={t('settings.model.effortDesc')}
+          instant
+        >
+          <div className="model-control-row">
+            <Select
+              value={effort || undefined}
+              placeholder={t('settings.model.effortPlaceholder')}
+              onChange={handleEffort}
+              className="model-control-row__select"
+              allowClear
+              options={[
+                { value: 'low', label: t('settings.model.effortLow') },
+                { value: 'medium', label: t('settings.model.effortMedium') },
+                { value: 'high', label: t('settings.model.effortHigh') },
+              ]}
+            />
+            <span className="model-control-tag">deepseek</span>
+          </div>
+          <Typography.Text className="model-control-note">
             {t('settings.model.effortNote')}
           </Typography.Text>
-        </div>
-      </SettingsSection>
+        </SettingsSection>
 
-      <SettingsSection
-        icon={<span style={{ fontSize: 15 }}><MoneyCollectOutlined /></span>}
-        title={t('settings.model.rateTitle')}
-        desc={t('settings.model.rateDesc')}
-        instant
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <InputNumber
-            aria-label={t('settings.model.rateAria')}
-            min={0.01}
-            step={0.1}
-            precision={2}
-            value={rate ?? undefined}
-            onChange={(v) => setRate(v === null || v === undefined ? null : Number(v))}
-            placeholder="7.2"
-            style={{ width: 160 }}
-          />
-          <Button type="primary" size="small" onClick={handleSaveRate}>{t('settings.model.rateSave')}</Button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-          <Tag style={{ margin: 0, fontSize: 11 }}>USD → CNY</Tag>
-          <Typography.Text style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
+        <SettingsSection
+          icon={<MoneyCollectOutlined />}
+          title={t('settings.model.rateTitle')}
+          desc={t('settings.model.rateDesc')}
+          instant
+        >
+          <div className="model-control-row">
+            <InputNumber
+              aria-label={t('settings.model.rateAria')}
+              min={0.01}
+              step={0.1}
+              precision={2}
+              value={rate ?? undefined}
+              onChange={(v) => setRate(v === null || v === undefined ? null : Number(v))}
+              placeholder="7.2"
+              className="model-control-row__number"
+            />
+            <Button type="primary" size="small" onClick={handleSaveRate}>{t('settings.model.rateSave')}</Button>
+            <span className="model-control-tag">USD → CNY</span>
+          </div>
+          <Typography.Text className="model-control-note">
             {t('settings.model.rateNote')}
           </Typography.Text>
-        </div>
-      </SettingsSection>
+        </SettingsSection>
+      </div>
     </>
   )
 }

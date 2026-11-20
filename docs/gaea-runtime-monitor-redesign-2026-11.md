@@ -93,3 +93,52 @@
 - 时间范围 KPI 只覆盖趋势桶已有数据；更早历史受 `GetModelCallStats` 返回窗口约束。
 - 平均耗时、P95 与耗时桶来自最近请求样本，适合发现近期异常，不作为全量 SLA。
 - 模型明细为累计口径，页面已明确标注，不随范围切换。
+
+## 10. 2026-11-20 第二轮：可执行监测
+
+第一轮解决了信息架构，第二轮继续处理“看见异常后能做什么”以及同步状态是否可信。
+
+### 页面判定
+
+- 顶部改为“健康摘要 + 当前判定”双区。桌面并排，900px 以下先展示当前判定，再展示四个健康指标。
+- 关注清单由引擎掉线、资源压力、上下文压力、低成功率、近期失败与统计读取失败实时派生。
+- 每个关注项都有明确动作：检查引擎、查看资源、查看失败请求或重新读取统计。
+
+### 实时同步
+
+- 用户可暂停和恢复自动刷新；暂停同时停用调用统计的后台轮询，手动刷新仍保留。
+- 快照轮询增加请求防重入，避免慢请求重叠后旧结果覆盖新结果。
+- 快照失败时保留最后成功数据，但状态明确切换为“同步中断”，并显示最后成功时间。
+- 页面不可见时显示“后台暂停”，不再把停拉误报为正在实时更新。
+
+### 下钻与可访问性
+
+- 近期错误可直接打开对应失败请求；“需关注”模型也能定位到该模型的失败样本。
+- 最近请求增加模型、引擎、功能与错误文本搜索，聚焦条件可清除。
+- 模型明细补充可排序失败列，修复旧文案声称支持失败排序但表格没有该列的问题。
+- 资源条改为 `progressbar` 语义，高压状态同时显示“偏高/超载”文字。
+- 跳转目标使用可见焦点环；错误、状态和筛选结果使用 `role="alert"` / `aria-live` 播报。
+
+### 文件与视觉记录
+
+- 页面规范：`design-system/gaea/pages/runtime.md`
+- 页面：`frontend/src/pages/RuntimePage.tsx`
+- 样式：`frontend/src/pages/runtime.css`
+- 测试：`frontend/src/pages/RuntimePage.test.tsx`、`frontend/src/pages/modelcenter/hooks/useStatsState.test.ts`
+- 暗色：`docs/snapshots/runtime-monitor-2026-11-ui-v2/desktop-dark.png`
+- 亮色：`docs/snapshots/runtime-monitor-2026-11-ui-v2/desktop-light.png`
+- 模型与运行详情：`docs/snapshots/runtime-monitor-2026-11-ui-v2/desktop-models-dark.png`
+- 390px：`docs/snapshots/runtime-monitor-2026-11-ui-v2/mobile-390-light.png`
+
+截图使用注入的演示数据，只验证层级、状态、交互和响应式，不代表用户真实统计。
+
+### 验证
+
+- 定向测试：20/20 通过，覆盖暂停、统计轮询停用与并发请求合并、快照中断、错误下钻、最近请求搜索与引擎掉线处置。
+- `tsc -b`、定向 ESLint：通过。
+- Vite 生产构建：37.14s 通过（既有 Wenxue CSS/chunk 警告）。
+- 实页走查：1416px 桌面暗/亮、780px 与 390px 无页面级横向溢出；关注项在窄屏提前展示。
+- Wails 桌面构建：1m19.037s 通过，bindings 未跳过；exe 60,845,568 B，
+  SHA256 `873342C5DB5EA64FE8E757F24B29F9F1429ACE15D72E683663301E9E823DAFDC`，
+  三枚语音 DLL 同目录；`build/bin/gaea.exe` 冒烟 `/api/health` 200。
+- 边界：未新增后端绑定，未装机。

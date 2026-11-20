@@ -76,4 +76,63 @@ describe('useStatsState 趋势聚合', () => {
     expect(result.current.trendData.length).toBe(2) // 只有今天两小时
     expect(result.current.trendData[0].label).toMatch(/^\d{2}:\d{2}$/)
   })
+
+  it('显式停用轮询时不自动读取统计，手动读取仍可用', async () => {
+    getStatsMock.mockResolvedValue({
+      total_calls: 1,
+      success_calls: 1,
+      fail_calls: 0,
+      total_tokens: 10,
+      input_tokens: 8,
+      output_tokens: 2,
+      total_duration_ms: 10,
+      avg_duration_ms: 10,
+      total_cost: 0,
+      trend: [],
+      per_model: [],
+    })
+    const { result } = renderHook(() => useStatsState(false, false))
+    await Promise.resolve()
+    expect(getStatsMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await result.current.loadCallStats()
+    })
+    expect(getStatsMock).toHaveBeenCalledTimes(1)
+    expect(result.current.callStats?.total_calls).toBe(1)
+  })
+
+  it('并发读取统计时只发一次请求，避免慢请求互相覆盖', async () => {
+    let resolveStats: ((value: unknown) => void) | undefined
+    getStatsMock.mockImplementation(() => new Promise((resolve) => {
+      resolveStats = resolve
+    }))
+    const { result } = renderHook(() => useStatsState(false, false))
+
+    let first: Promise<void> | undefined
+    let second: Promise<void> | undefined
+    act(() => {
+      first = result.current.loadCallStats()
+      second = result.current.loadCallStats()
+    })
+    expect(getStatsMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveStats?.({
+        total_calls: 2,
+        success_calls: 2,
+        fail_calls: 0,
+        total_tokens: 20,
+        input_tokens: 15,
+        output_tokens: 5,
+        total_duration_ms: 20,
+        avg_duration_ms: 10,
+        total_cost: 0,
+        trend: [],
+        per_model: [],
+      })
+      await Promise.all([first, second])
+    })
+    expect(result.current.callStats?.total_calls).toBe(2)
+  })
 })

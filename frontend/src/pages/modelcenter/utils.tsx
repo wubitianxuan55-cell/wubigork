@@ -187,6 +187,7 @@ export const engineColor = (e: { id?: string; engineId?: string; color?: string;
 // 引擎图标：按 id 命中内置映射；custom-* 动态 id 未命中时按 type 兜底。
 export const engineIcon = (e: { id?: string; type?: string }): ReactNode | undefined =>
   engineIcons[e.id || ''] ?? (isCustomEngine(e) ? engineIcons.custom : undefined)
+
 // 模型分类：优先使用后端 kind，缺失时回退旧名称启发式。
 export const kindOf = (m: ModelCardData): ModelKind => (m.kind as ModelKind) || classifyModel(m.modelId)
 
@@ -390,7 +391,21 @@ export const fmtCompact = (v: number): string => {
   if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`
   return `${Math.round(v)}`
 }
-export const isLocalEngine = (id: string) => id === 'herdsman' || id === 'breeze' || id === 'strata' || id === 'llama' || id === 'whirl'
+// 本机引擎判定：调用方既可传 engine id（运行监测/统计），也可传完整配置
+// （引擎管理态）。完整配置优先信后端 is_local，并对旧配置与测试夹具按内置
+// 类型、回环地址兜底，避免本地运行时被错误分到「云端服务」。
+export function isLocalEngine(
+  engine: string | Pick<EngineConfig, 'type' | 'is_local' | 'base_url'>,
+): boolean {
+  if (typeof engine === 'string') {
+    return engine === 'herdsman' || engine === 'breeze' || engine === 'strata'
+      || engine === 'llama' || engine === 'whirl'
+  }
+  if (engine.is_local) return true
+  if (engine.type === 'herdsman' || engine.type === 'breeze' || engine.type === 'strata'
+    || engine.type === 'llama' || engine.type === 'whirl') return true
+  return /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::|\/|$)/i.test(engine.base_url || '')
+}
 
 // 受管本地引擎（gaea 代启代停、按需拉起一族）。散落判定统一引此常量，
 // 防止「=== 'xxx' ||」链再造天璇退役漏网（2026-11-11 knip 批教训）。

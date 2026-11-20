@@ -753,8 +753,8 @@ const MainLayout: React.FC = () => {
             <Tooltip title={t('shell.strip.settings')}>
               <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setPage('settings')} aria-label={t('shell.strip.settingsAria')} style={{ color: 'var(--color-text-secondary)' }} />
             </Tooltip>
-            {/* 登录状态 */}
-            {loggedIn ? (
+            {/* 登录状态：模型中心统一在「引擎管理」内处理 xAI，不在顶栏重复出现 */}
+            {page !== 'modelcenter' && (loggedIn ? (
               <Tooltip title={t('shell.strip.loggedIn')}>
                 <Button type="text" size="small" icon={<LoginOutlined />} aria-label={t('shell.strip.loggedIn')} style={{ color: 'var(--color-success)' }} />
               </Tooltip>
@@ -762,7 +762,7 @@ const MainLayout: React.FC = () => {
               <Button type="link" size="small" icon={<LoginOutlined />} onClick={login} style={{ color: 'var(--color-primary)', fontSize: 12 }}>
                 {t('shell.strip.login')}
               </Button>
-            )}
+            ))}
           </header>
 
           {/* Herdsman LAN 暴露安全告警 */}

@@ -887,7 +887,7 @@ export const en = {
   "settings.chat.cosyEnM": "English (male)",
   // ModelPanel — 当前模型 / 推理强度 / 汇率
   "settings.model.currentTitle": "Current model",
-  "settings.model.currentDesc": "The inference engine and model used by the global AI assistant. Manage feature bindings, space policies, and engine toggles in the task tabs above; Model Center remains the home for the model catalog, evaluations, and usage statistics.",
+  "settings.model.currentDesc": "The inference engine and model used by the global AI assistant. Model Center covers language, image, voice, and specialty models, plus feature bindings and engines; this page manages global parameters, the model catalog, selection guidance, quality and cost, plus runtime and space policies.",
   "settings.model.notConfigured": "Not configured",
   "settings.model.goModelCenter": "Open Model Center",
   "settings.model.effortTitle": "Reasoning effort",

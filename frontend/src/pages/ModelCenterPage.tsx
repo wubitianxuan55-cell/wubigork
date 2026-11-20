@@ -1,73 +1,35 @@
 import React, { useState, useEffect } from 'react'
-import { Button, Drawer, message } from 'antd'
+import { Button } from 'antd'
 import {
-  ThunderboltOutlined, SettingOutlined, LinkOutlined,
-  CheckCircleOutlined, LoginOutlined, LogoutOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
-  AppstoreOutlined, ExperimentOutlined, PieChartOutlined, MonitorOutlined,
+  SettingOutlined, LinkOutlined, ThunderboltOutlined,
+  ReloadOutlined, MonitorOutlined,
 } from '@ant-design/icons'
-import { useAppStore } from '../stores/appStore'
-import { emitFrontendEvent, FRONTEND_EVENTS, OPEN_STATS_FLAG } from '../events'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { ModelCenterContext, ModelCenterStateContext, ModelCenterActionsContext } from './modelcenter/context'
 import { useModelCenterBundle } from './modelcenter/useModelCenterBundle'
+import { ModelGroupNav } from './modelcenter/ModelGroupNav'
 import { LLMSection } from './modelcenter/LLMSection'
-import { BindSection } from './modelcenter/BindSection'
-import { StatsSection } from './modelcenter/StatsSection'
-import { EngineSection } from './modelcenter/EngineSection'
+import { ImageSection } from './modelcenter/ImageSection'
+import { VoiceSection } from './modelcenter/VoiceSection'
 import { SpecialtySection } from './modelcenter/SpecialtySection'
-import { OverviewSection } from './modelcenter/OverviewSection'
-import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
-import { BenchmarkSection } from './modelcenter/BenchmarkSection'
-import { RecommendSection } from './modelcenter/RecommendSection'
-import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
-import { SchedulingSection } from './modelcenter/SchedulingSection'
-import { AttributionSection } from './modelcenter/AttributionSection'
-import { FEATURES, type Category } from './modelcenter/utils'
+import { BindSection } from './modelcenter/BindSection'
+import { EngineSection } from './modelcenter/EngineSection'
+import type { Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
 
-// gaea 3.0「引擎控制台」：2 分区工作台（§2.7，2026-10 检查器合并刀）——
-// 左 = 分类导航栏（v3-panel，激活项 = 主色容器 + 光条 + 光晕 orb；2026-10-27
-// 瘦身重组 13 分类温和合并为 9，按概览/模型/质量与成本/接入四节分组）；
-// 中 = 主区（KPI 卡行 + 引擎卡网格，各 Section 渲染；合并 tab 为纵向多段）。
-// 右侧「统计与资源」检查器已并入运行监测板块（资源指标卡/引擎卡/ComfyUI
-// 标记/调用趋势同源呈现），本页头部保留「详细统计」抽屉与「运行监测」跳转。
-// 头部收敛为细条：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作。
+// 模型中心首页：只保留三条高频操作入口——模型一览、功能绑定、引擎管理。
+// 运行概览、模型库、测评、成本归因与运行策略统一迁入“设置 → 模型”。
 const ModelCenterPage: React.FC = () => {
-  // v4.365：粗订阅改选择器
-  const loggedIn = useAppStore((s) => s.loggedIn)
-  const login = useAppStore((s) => s.login)
-  const logout = useAppStore((s) => s.logout)
-  // T6-6.4：顶层仅保留全局状态（分类/统计抽屉/登录中），
+  // T6-6.4：顶层仅保留全局状态（分类/统计抽屉），
   // 42 个 useState 按 5 分类（引擎管理/调用统计/图片生成/语音模型/功能绑定）
   // 下沉到独立 Hook；各 Section 经共享 Context 消费同一份状态。
-  const [category, setCategory] = useState<Category>('overview')
-  const [statsOpen, setStatsOpen] = useState(false)
-  const [loggingIn, setLoggingIn] = useState(false)
-
-  // 「按模型明细」跨板跳转联动（运行监测）：已挂载（keepAlive 常驻）听事件
-  // 即开抽屉；首次未挂载场景 navigate 才懒加载本页，事件已错过 → 挂载效应
-  // 消费 sessionStorage 标记补开，读后即清（一次性）。事件直达=已挂载场景，
-  // 发射方写入的标记已无用——监听里顺带清除，杜绝残留到 webview reload 后
-  // 重挂载误开抽屉（与 OPEN_TOOL_FLAG 监听双清同款，刀6 一致性收口）。
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem(OPEN_STATS_FLAG) === '1') {
-        sessionStorage.removeItem(OPEN_STATS_FLAG)
-        setStatsOpen(true)
-      }
-    } catch { /* sessionStorage 不可用（隐私模式等）静默跳过 */ }
-    const open = () => {
-      try { sessionStorage.removeItem(OPEN_STATS_FLAG) } catch { /* 同上 */ }
-      setStatsOpen(true)
-    }
-    window.addEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
-    return () => window.removeEventListener(FRONTEND_EVENTS.OPEN_STATS_DRAWER, open)
-  }, [])
+  const [category, setCategory] = useState<Category>('models')
 
   // 五 hook 组装+同步 effects+三 Context 值单源（设置中枢批 3 抽出
   // useModelCenterBundle，与设置页 ModelSettingsProvider 共享同一份组装）
-  const { ctx, stateCtx, actionsCtx, engine, bind } = useModelCenterBundle(category, statsOpen, {
+  const { ctx, stateCtx, actionsCtx, engine } = useModelCenterBundle(category, false, {
     setCategory,
-    openStatsDrawer: () => setStatsOpen(true),
+    openStatsDrawer: () => {},
   })
 
   // 模型中心左侧分类切换后，把主区滚动容器回到顶部，避免上一分类的滚动位置
@@ -79,34 +41,11 @@ const ModelCenterPage: React.FC = () => {
     }
   }, [category])
 
-  // 2026-10-27 瘦身重组：13 分类温和合并为 9。设置中枢批 7 曾把四个设置类 tab
-  // 整体退役（收编设置页）；2026-11-20 用户拍板回摆：「功能绑定/引擎管理」是
-  // 模型中心核心域操作，恢复「接入」节直达——Section 为单源组件（设置页 model
-  // 组经 ModelSettingsProvider 消费同组件，双宿主单源非漂移源）。图片生成/语音
-  // 模型仍收编设置页对应组；本页其余定位=状态与评测（总览/模型/模型库/测评/成本）。
-  const TAB_GROUPS: { label: string | null; tabs: { key: Category; icon: React.ReactNode; label: string }[] }[] = [
-    { label: '概览', tabs: [
-      { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
-    ] },
-    { label: '模型', tabs: [
-      { key: 'models', icon: <ThunderboltOutlined />, label: '模型一览' },
-      { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
-    ] },
-    { label: '质量与成本', tabs: [
-      { key: 'eval', icon: <ExperimentOutlined />, label: '测评中心' },
-      { key: 'governance', icon: <PieChartOutlined />, label: '策略与成本' },
-    ] },
-    { label: '接入', tabs: [
-      { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
-      { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
-    ] },
+  const TABS: { key: Category; icon: React.ReactNode; label: string }[] = [
+    { key: 'models', icon: <ThunderboltOutlined />, label: '模型一览' },
+    { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
+    { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
   ]
-
-  // 左栏「绑定状态」摘要：已绑定（引擎+模型齐全）的功能数
-  const boundFeatures = FEATURES.filter(f => {
-    const c = bind.featureCfg[f.key]
-    return !!c?.engine && !!c?.model
-  }).length
 
   if (engine.loading) {
     return (
@@ -128,38 +67,9 @@ const ModelCenterPage: React.FC = () => {
 
   return (
     <div className="mc-page">
-      {/* 细条头部：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作 */}
+      {/* 细条头部：低频账号与模型维护入口不再占用主路径，仅保留全局动作 */}
       <header className="mc-header">
-        <span className={`mc-account${loggedIn ? ' is-online' : ''}`}>
-          {loggedIn ? <CheckCircleOutlined /> : <LoginOutlined />}
-          {loggedIn ? 'xAI 已连接' : '未登录 xAI'}
-        </span>
         <div className="mc-header-actions">
-          {loggedIn ? (
-            <Button size="small" icon={<LogoutOutlined />} onClick={() => logout()}>退出</Button>
-          ) : (
-            <Button
-              size="small"
-              type="primary"
-              icon={<LoginOutlined />}
-              loading={loggingIn}
-              onClick={async () => {
-                setLoggingIn(true)
-                try {
-                  await login()
-                  message.success('xAI 登录成功')
-                  await engine.loadAll()
-                } catch (err: unknown) {
-                  message.error('登录失败：' + (err instanceof Error ? err.message : (typeof err === 'string' ? err : '未知错误，请检查浏览器是否完成了 xAI 授权')))
-                } finally {
-                  setLoggingIn(false)
-                }
-              }}
-            >
-              登录 xAI
-            </Button>
-          )}
-          <Button size="small" icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)}>详细统计</Button>
           <Button
             size="small"
             icon={<MonitorOutlined />}
@@ -175,85 +85,50 @@ const ModelCenterPage: React.FC = () => {
       <ModelCenterActionsContext.Provider value={actionsCtx}>
       <ModelCenterContext.Provider value={ctx}>
         <div className="mc-workbench">
-          {/* 左：分类导航栏（v3-panel；激活项 = 主色容器 + 左缘光条 + 光晕 orb） */}
-          <nav className="v3-panel mc-rail" aria-label="引擎控制台分类导航">
+          {/* 左：三条高频一级入口 */}
+          <nav className="v3-panel mc-rail" aria-label="模型中心一级导航">
             <div className="v3-panel-head">
-              <span className="v3-panel-title">引擎控制台</span>
+              <span className="v3-panel-title">模型中心</span>
             </div>
             <div className="mc-rail-nav">
-              {TAB_GROUPS.map(group => (
-                <React.Fragment key={group.label ?? group.tabs[0].key}>
-                  <div className="mc-rail-group" aria-hidden="true">{group.label}</div>
-                  {group.tabs.map(tab => (
-                    <button
-                      type="button"
-                      key={tab.key}
-                      className={`mc-rail-item${category === tab.key ? ' is-active' : ''}`}
-                      // aria-selected 只允许出现在 tab/radio/option/gridcell 等角色上；此处
-                      // 分区按钮无 tablist 结构，用 aria-pressed（合法且语义同为「已选中」）
-                      aria-pressed={category === tab.key}
-                      onClick={() => setCategory(tab.key)}
-                    >
-                      <span className="mc-rail-icon" aria-hidden="true">{tab.icon}</span>
-                      <span className="mc-rail-label">{tab.label}</span>
-                      <span className="mc-rail-orb" aria-hidden="true" />
-                    </button>
-                  ))}
-                </React.Fragment>
+              {TABS.map(tab => (
+                <button
+                  type="button"
+                  key={tab.key}
+                  className={`mc-rail-item${category === tab.key ? ' is-active' : ''}`}
+                  // 一级分区按钮无 tablist 结构，用 aria-pressed 表达当前态。
+                  aria-pressed={category === tab.key}
+                  onClick={() => setCategory(tab.key)}
+                >
+                  <span className="mc-rail-icon" aria-hidden="true">{tab.icon}</span>
+                  <span className="mc-rail-label">{tab.label}</span>
+                  <span className="mc-rail-orb" aria-hidden="true" />
+                </button>
               ))}
-            </div>
-            <div className="mc-rail-foot">
-              <span className="mc-rail-foot-title">功能绑定</span>
-              <button
-                type="button"
-                className="mc-rail-foot-item"
-                onClick={() => setCategory('bind')}
-                aria-label={`管理功能绑定，${boundFeatures} / ${FEATURES.length} 已绑定`}
-              >
-                <span className="mc-rail-foot-dot" aria-hidden="true" />
-                {boundFeatures} / {FEATURES.length} 已绑定
-              </button>
             </div>
           </nav>
 
-          {/* 中：主区（各分类 Section：KPI 卡行 + 引擎卡网格等） */}
-          <main className="mc-main" aria-label="引擎控制台内容">
-            {category === 'overview' && <OverviewSection />}
+          {/* 中：主区 */}
+          <main className="mc-main" aria-label="模型中心内容">
             {category === 'models' && (
               <>
-                <LLMSection />
-                <SpecialtySection />
-                <RecommendSection />
+                <ModelGroupNav />
+                <div id="mc-model-group-llm" className="mc-model-group-anchor">
+                  <LLMSection />
+                </div>
+                <div id="mc-model-group-image" className="mc-model-group-anchor">
+                  <ImageSection catalogMode />
+                </div>
+                <div id="mc-model-group-voice" className="mc-model-group-anchor">
+                  <VoiceSection catalogMode />
+                </div>
+                <div id="mc-model-group-specialty" className="mc-model-group-anchor">
+                  <SpecialtySection />
+                </div>
               </>
             )}
-            {category === 'catalog' && <HerdsmanCatalogSection />}
             {category === 'bind' && <BindSection />}
-            {category === 'engine' && (
-              <>
-                <SchedulingSection />
-                <EngineSection />
-              </>
-            )}
-            {category === 'eval' && (
-              <>
-                <BenchmarkSection />
-                <RetrievalEvalSection />
-              </>
-            )}
-            {category === 'governance' && (
-              <>
-                <AttributionSection />
-              </>
-            )}
-            <Drawer
-              title="模型调用统计"
-              open={statsOpen}
-              onClose={() => setStatsOpen(false)}
-              width={860}
-              styles={{ body: { padding: 0 } }}
-            >
-              <StatsSection />
-            </Drawer>
+            {category === 'engine' && <EngineSection />}
           </main>
         </div>
       </ModelCenterContext.Provider>

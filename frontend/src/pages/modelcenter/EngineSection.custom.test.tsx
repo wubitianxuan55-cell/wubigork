@@ -15,7 +15,7 @@
  *    失焦钳制防线挡下（负价无法入库）。
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { EngineSection } from './EngineSection'
 import {
@@ -24,6 +24,14 @@ import {
   startStrataEngine,
   type EngineConfig, type EngineStatus,
 } from '../../api/engines'
+import { useAppStore } from '../../stores/appStore'
+
+const defaultLogin = useAppStore.getState().login
+const defaultLogout = useAppStore.getState().logout
+
+afterEach(() => {
+  useAppStore.setState({ loggedIn: false, login: defaultLogin, logout: defaultLogout })
+})
 
 // 价目 v1：价目保存走既有 SaveEngine 通道（不经 context handler），mock 掉
 // api 层以便断言保存载荷（数字=设置、0=清除）。
@@ -77,6 +85,7 @@ function renderSection(opts: {
   engineStatuses?: Record<string, EngineStatus>
   llamaStatus?: Awaited<ReturnType<typeof getLlamaEngineStatus>>
 } = {}) {
+  useAppStore.setState({ loggedIn: false })
   mSaveEngine.mockClear()
   mSaveEngine.mockResolvedValue(undefined)
   mStartStrata.mockClear()
@@ -88,6 +97,7 @@ function renderSection(opts: {
   const handleAddCustomEngine = vi.fn().mockResolvedValue(true)
   const handleUpdateCustomEngine = vi.fn().mockResolvedValue(true)
   const handleRemoveCustomEngine = vi.fn().mockResolvedValue(undefined)
+  const reloadEngines = vi.fn().mockResolvedValue(undefined)
   const value = {
     engines: opts.engines ?? ENGINES,
     engineStatuses: opts.engineStatuses ?? {},
@@ -112,6 +122,7 @@ function renderSection(opts: {
     handleAddCustomEngine,
     handleUpdateCustomEngine,
     handleRemoveCustomEngine,
+    reloadEngines,
     makeModels: (engine: EngineConfig) => engine.models || [],
   } as unknown as ModelCenterContextValue
   render(
@@ -119,7 +130,7 @@ function renderSection(opts: {
       <EngineSection />
     </ModelCenterContext.Provider></ModelCenterActionsContext.Provider></ModelCenterStateContext.Provider>,
   )
-  return { handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine, saveEngine: mSaveEngine }
+  return { handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine, reloadEngines, saveEngine: mSaveEngine }
 }
 
 /** 打开「添加自定义引擎」行内表单，返回表单控件与作用域化的保存按钮 */
@@ -140,6 +151,48 @@ describe('EngineSection · 自定义引擎', () => {
     const empty = screen.getByTestId('engine-empty')
     expect(empty.textContent).toContain('尚未配置引擎')
     expect(screen.getByRole('button', { name: /添加自定义引擎/ })).toBeTruthy()
+  })
+
+  it('引擎按本地/云端分组为卡片网格，并可切换范围筛选', () => {
+    renderSection()
+
+    const localGrid = screen.getByTestId('engine-grid-local')
+    const cloudGrid = screen.getByTestId('engine-grid-cloud')
+    expect(within(localGrid).getByText('Llama')).toBeTruthy()
+    expect(within(localGrid).getByText('Strata')).toBeTruthy()
+    expect(within(cloudGrid).getByText('DeepSeek')).toBeTruthy()
+    expect(within(cloudGrid).getByText('硅基流动')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('radio', { name: '本地' }))
+    expect(screen.getByTestId('engine-grid-local')).toBeTruthy()
+    expect(screen.queryByTestId('engine-grid-cloud')).toBeNull()
+    expect(screen.queryByText('DeepSeek')).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: '云端' }))
+    expect(screen.getByTestId('engine-grid-cloud')).toBeTruthy()
+    expect(screen.queryByTestId('engine-grid-local')).toBeNull()
+    expect(screen.queryByText('Llama')).toBeNull()
+  })
+
+  it('xAI 账号位于引擎管理，登录成功后刷新引擎并切换为已连接', async () => {
+    const login = vi.fn(async () => {
+      useAppStore.setState({ loggedIn: true })
+    })
+    const logout = vi.fn(async () => {
+      useAppStore.setState({ loggedIn: false })
+    })
+    useAppStore.setState({ loggedIn: false, login, logout })
+    const { reloadEngines } = renderSection()
+
+    const account = screen.getByTestId('xai-account')
+    expect(account.textContent).toContain('xAI 账号')
+    expect(account.textContent).toContain('未登录')
+    fireEvent.click(within(account).getByRole('button', { name: /登录 xAI/ }))
+
+    await waitFor(() => expect(login).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(reloadEngines).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByTestId('xai-account').textContent).toContain('已连接'))
+    expect(within(screen.getByTestId('xai-account')).getByRole('button', { name: /退出 xAI/ })).toBeTruthy()
   })
 
   it('⑤ 防线回归锁：内置云端引擎不露地址框（Key 输入不受影响），custom 引擎地址框可见', () => {

@@ -888,7 +888,7 @@ export const zh: Record<DictKey, string> = {
   "settings.chat.cosyEnM": "英文男",
   // ModelPanel — 当前模型 / 推理强度 / 汇率
   "settings.model.currentTitle": "当前模型",
-  "settings.model.currentDesc": "全局 AI 助手实际使用的推理引擎与模型。功能绑定、空间策略与引擎启停可在上方任务页签管理；模型中心保留模型一览、测评与调用统计。",
+  "settings.model.currentDesc": "全局 AI 助手实际使用的推理引擎与模型。模型中心负责语言、图像、语音与专业模型一览，以及功能绑定和引擎管理；这里集中管理全局参数、模型库、选型参考、质量与成本，以及运行和空间策略。",
   "settings.model.notConfigured": "未配置",
   "settings.model.goModelCenter": "前往模型中心",
   "settings.model.effortTitle": "推理强度",

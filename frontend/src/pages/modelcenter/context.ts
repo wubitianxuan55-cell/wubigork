@@ -91,6 +91,7 @@ export interface ModelCenterActionsValue {
   setSinImageDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
   makeModels: (engine: EngineConfig) => ModelCardData[]
   isModelActive: (card: ModelCardData) => boolean
+  reloadEngines: () => Promise<void>
   handleTestConnection: (id: string) => Promise<void>
   handleRefreshModels: (id: string) => Promise<void>
   handleStartModel: (card: ModelCardData) => Promise<void>

@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Button, Input, Segmented, Table, Tooltip } from 'antd'
 import {
   ApiOutlined,
+  ArrowRightOutlined,
   CheckCircleOutlined,
   CloudOutlined,
   DatabaseOutlined,
   MonitorOutlined,
+  PauseCircleOutlined,
   PayCircleOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
   SearchOutlined,
   ThunderboltOutlined,
@@ -14,6 +17,7 @@ import {
 } from '@ant-design/icons'
 import { getRuntimeMonitor } from '../api/engines'
 import type { ModelUsageStats } from '../api/engines'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { type TrendDatum, type TrendRange } from './modelcenter/charts'
@@ -150,7 +154,23 @@ interface ModelRow extends ModelUsageStats {
   attention: boolean
 }
 
+interface AttentionIssue {
+  id: string
+  tone: 'warning' | 'danger'
+  title: string
+  detail: string
+  actionLabel: string
+  onAction: () => void
+}
+
+interface RecentFocus {
+  kind: 'error' | 'model'
+  value: string
+  label: string
+}
+
 const SERIES_WINDOW = 60
+const STALE_AFTER_MS = 8000
 
 const LIVE_STATE_LABEL: Record<string, string> = {
   idle: '空闲',
@@ -501,10 +521,25 @@ function ResourceMeter({
   return (
     <div className="rt-meter" title={title}>
       <div className="rt-meter-head">
-        <span>{label}</span>
+        <span className="rt-meter-label">
+          {label}
+          {pressure !== 'normal' && (
+            <em className={`rt-meter-state is-${pressure}`}>
+              {pressure === 'danger' ? '超载' : '偏高'}
+            </em>
+          )}
+        </span>
         <strong>{value}{value !== '暂无' && unit ? ` ${unit}` : ''}</strong>
       </div>
-      <div className="rt-meter-track" aria-hidden="true">
+      <div
+        className="rt-meter-track"
+        role="progressbar"
+        aria-label={`${label} 使用率`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={fraction == null ? undefined : Math.round(width)}
+        aria-valuetext={fraction == null ? '暂无遥测' : `${Math.round(width)}%`}
+      >
         <span className={`rt-meter-fill rt-meter-${pressure}`} style={{ width: `${width}%` }} />
       </div>
     </div>
@@ -517,6 +552,11 @@ function ContextDonut({ used, max }: { used: number | null; max: number | null }
   const circumference = 2 * Math.PI * radius
   return (
     <svg className="rt-context-ring" viewBox="0 0 100 100" role="img" aria-label="上下文用量">
+      <title>
+        {fraction == null
+          ? '上下文用量暂无遥测'
+          : `上下文已使用 ${Math.round(fraction * 100)}%，${used?.toLocaleString()} / ${max?.toLocaleString()} Token`}
+      </title>
       <circle className="rt-context-track" cx="50" cy="50" r={radius} fill="none" strokeWidth="8" />
       {fraction != null && (
         <circle
@@ -541,9 +581,13 @@ function ContextDonut({ used, max }: { used: number | null; max: number | null }
 function CallQualityPanel({
   sums,
   recentCalls,
+  onInspectError,
+  onInspectFailures,
 }: {
   sums: TrendSums
   recentCalls: RecentCall[]
+  onInspectError: (message: string) => void
+  onInspectFailures: () => void
 }) {
   const successRateValue = sums.calls > 0 ? (sums.success / sums.calls) * 100 : 0
   const successWidth = sums.calls > 0 ? Math.max(0, Math.min(successRateValue, 100)) : 0
@@ -620,15 +664,28 @@ function CallQualityPanel({
       <section className="rt-quality-block">
         <div className="rt-subhead">
           <h3>近期错误</h3>
-          <span>{errors.size ? `${errors.size} 类` : '无失败'}</span>
+          {errors.size ? (
+            <button type="button" className="rt-subhead-action" onClick={onInspectFailures}>
+              查看失败请求
+              <ArrowRightOutlined aria-hidden="true" />
+            </button>
+          ) : <span>无失败</span>}
         </div>
         {topErrors.length ? (
           <ul className="rt-error-list">
             {topErrors.map(([message, count]) => (
               <li key={message}>
-                <WarningOutlined aria-hidden="true" />
-                <span title={message}>{message}</span>
-                <strong>{count} 次</strong>
+                <button
+                  type="button"
+                  className="rt-error-item"
+                  onClick={() => onInspectError(message)}
+                  aria-label={`查看错误“${message}”对应的 ${count} 条失败请求`}
+                >
+                  <WarningOutlined aria-hidden="true" />
+                  <span title={message}>{message}</span>
+                  <strong>{count} 次</strong>
+                  <ArrowRightOutlined className="rt-error-arrow" aria-hidden="true" />
+                </button>
               </li>
             ))}
           </ul>
@@ -637,6 +694,74 @@ function CallQualityPanel({
         )}
       </section>
     </div>
+  )
+}
+
+function AttentionPanel({
+  loading,
+  issues,
+  overallLabel,
+  connectedEngines,
+  activeEngines,
+  successRate,
+  resourcePeak,
+}: {
+  loading: boolean
+  issues: AttentionIssue[]
+  overallLabel: string
+  connectedEngines: number
+  activeEngines: number
+  successRate: number | null
+  resourcePeak: number | null
+}) {
+  const tone = issues.some((issue) => issue.tone === 'danger') ? 'danger' : issues.length ? 'warning' : 'ok'
+  return (
+    <aside className={`rt-attention is-${tone}`} aria-labelledby="rt-attention-title">
+      <div className="rt-attention-head">
+        <span className="rt-attention-icon" aria-hidden="true">
+          {loading ? <ThunderboltOutlined /> : issues.length ? <WarningOutlined /> : <CheckCircleOutlined />}
+        </span>
+        <div className="rt-attention-copy">
+          <span className="rt-attention-kicker">当前判定</span>
+          <h2 id="rt-attention-title">
+            {loading ? '正在建立实时连接' : issues.length ? `${issues.length} 项需要关注` : overallLabel}
+          </h2>
+          <p>
+            {loading
+              ? '正在同步引擎、调用与资源状态。'
+              : issues.length
+                ? '按优先级处理以下信号，相关证据可直接定位。'
+                : '引擎连接、调用质量和资源压力均在当前阈值内。'}
+          </p>
+        </div>
+      </div>
+
+      {!loading && issues.length > 0 && (
+        <div className="rt-attention-list">
+          {issues.slice(0, 4).map((issue) => (
+            <div className={`rt-attention-item is-${issue.tone}`} key={issue.id}>
+              <span className="rt-attention-marker" aria-hidden="true" />
+              <div>
+                <strong>{issue.title}</strong>
+                <span>{issue.detail}</span>
+              </div>
+              <button type="button" onClick={issue.onAction}>
+                {issue.actionLabel}
+                <ArrowRightOutlined aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && issues.length === 0 && (
+        <div className="rt-attention-clear">
+          <span><CheckCircleOutlined aria-hidden="true" /> 引擎 {connectedEngines}/{activeEngines}</span>
+          <span><CheckCircleOutlined aria-hidden="true" /> 成功率 {successRate == null ? '暂无样本' : pct(successRate)}</span>
+          <span><CheckCircleOutlined aria-hidden="true" /> 资源峰值 {resourcePeak == null ? '暂无遥测' : `${resourcePeak.toFixed(0)}%`}</span>
+        </div>
+      )}
+    </aside>
   )
 }
 
@@ -688,9 +813,10 @@ function EngineCard({
         {!row?.models?.length && <span className="rt-engine-empty">暂无模型信息</span>}
       </div>
       {row?.error && (
-        <Tooltip title={row.error}>
-          <span className="rt-engine-error">连接异常</span>
-        </Tooltip>
+        <div className="rt-engine-error" title={row.error} role="status">
+          <WarningOutlined aria-hidden="true" />
+          <span>{row.error}</span>
+        </div>
       )}
     </article>
   )
@@ -700,12 +826,25 @@ export default function RuntimePage() {
   const [snap, setSnap] = useState<MonitorSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState('')
+  const [lastSnapshotAt, setLastSnapshotAt] = useState<number | null>(null)
+  const [clockNow, setClockNow] = useState(() => Date.now())
+  const [livePaused, setLivePaused] = useState(false)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [statsRefreshing, setStatsRefreshing] = useState(false)
   const [modelQuery, setModelQuery] = useState('')
   const [modelScope, setModelScope] = useState<ModelScope>('all')
   const [recentScope, setRecentScope] = useState<RecentScope>('all')
-  const pollable = usePollingGate()
+  const [recentQuery, setRecentQuery] = useState('')
+  const [recentFocus, setRecentFocus] = useState<RecentFocus | null>(null)
+  const pageVisible = usePollingGate()
+  const pollable = pageVisible && !livePaused
   const seriesRef = useRef<Record<string, number[]>>({})
-  const stats = useStatsState(false)
+  const monitorInFlight = useRef(false)
+  const callSectionRef = useRef<HTMLElement | null>(null)
+  const modelSectionRef = useRef<HTMLElement | null>(null)
+  const operationsSectionRef = useRef<HTMLElement | null>(null)
+  const recentSectionRef = useRef<HTMLElement | null>(null)
+  const stats = useStatsState(false, !livePaused)
 
   const pushSeries = useCallback((key: string, value: number | null) => {
     if (value == null) return
@@ -716,17 +855,43 @@ export default function RuntimePage() {
   }, [])
 
   const load = useCallback(async () => {
+    if (monitorInFlight.current) return
+    monitorInFlight.current = true
     try {
       const snapshot = (await getRuntimeMonitor()) as MonitorSnapshot
       setSnap(snapshot)
       setError(null)
+      setLastSnapshotAt(Date.now())
+      setClockNow(Date.now())
       setLastUpdated(new Date().toLocaleTimeString())
       const metrics = pickEngineMetrics(snapshot)
       pushSeries('tok_s', num(metrics?.live?.tok_s))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '读取监测快照失败')
+    } finally {
+      monitorInFlight.current = false
     }
   }, [pushSeries])
+
+  const refreshStats = useCallback(async () => {
+    if (statsRefreshing) return
+    setStatsRefreshing(true)
+    try {
+      await stats.loadCallStats()
+    } finally {
+      setStatsRefreshing(false)
+    }
+  }, [stats, statsRefreshing])
+
+  const refreshAll = useCallback(async () => {
+    if (refreshingAll) return
+    setRefreshingAll(true)
+    try {
+      await Promise.allSettled([load(), refreshStats()])
+    } finally {
+      setRefreshingAll(false)
+    }
+  }, [load, refreshStats, refreshingAll])
 
   useEffect(() => {
     const tick = () => {
@@ -737,12 +902,30 @@ export default function RuntimePage() {
     return () => window.clearInterval(timer)
   }, [load, pollable])
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 5000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const em = useMemo(() => (snap ? pickEngineMetrics(snap) : null), [snap])
   const overall = useMemo(() => (snap ? overallState(snap) : null), [snap])
   const recentCalls = useMemo(() => snap?.recent_calls ?? [], [snap])
   const engines = useMemo(() => snap?.engines ?? [], [snap])
   const activeEngines = engines.filter((engine) => engine.enabled)
   const connectedEngines = activeEngines.filter((engine) => engine.connected)
+  const dataStale = !!snap && (
+    !!error
+    || (pollable && lastSnapshotAt != null && clockNow - lastSnapshotAt > STALE_AFTER_MS)
+  )
+  const syncState = livePaused
+    ? { label: '已暂停', tone: 'paused', detail: lastUpdated ? `冻结于 ${lastUpdated}` : '尚未取得快照' }
+    : !pageVisible
+      ? { label: '后台暂停', tone: 'paused', detail: lastUpdated ? `最后更新 ${lastUpdated}` : '页面不可见' }
+      : error || dataStale
+        ? { label: '同步中断', tone: 'danger', detail: lastUpdated ? `保留 ${lastUpdated} 的最后快照` : '尚未取得有效快照' }
+        : lastUpdated
+          ? { label: '实时更新', tone: 'live', detail: `更新于 ${lastUpdated}` }
+          : { label: '正在连接', tone: 'loading', detail: '等待首轮同步' }
   const engineRequests = useMemo(() => (em?.requests ?? []).slice(0, 12), [em])
   const ctxMax = num(em?.engine?.max_context)
   const latestEngineRequest = engineRequests[0]
@@ -846,9 +1029,179 @@ export default function RuntimePage() {
     }
   }, [em, snap])
 
+  const focusTarget = useCallback((target: HTMLElement | null) => {
+    if (!target) return
+    target.focus({ preventScroll: true })
+    const reduceMotion = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }, [])
+
+  const inspectFailures = useCallback(() => {
+    setRecentScope('failed')
+    setRecentFocus(null)
+    focusTarget(recentSectionRef.current)
+  }, [focusTarget])
+
+  const inspectError = useCallback((message: string) => {
+    setRecentScope('failed')
+    setRecentQuery('')
+    setRecentFocus({ kind: 'error', value: message, label: `错误：${message}` })
+    focusTarget(recentSectionRef.current)
+  }, [focusTarget])
+
+  const inspectModel = useCallback((model: string) => {
+    setRecentScope('failed')
+    setRecentQuery('')
+    setRecentFocus({ kind: 'model', value: model, label: `模型：${model}` })
+    focusTarget(recentSectionRef.current)
+  }, [focusTarget])
+
+  const clearRecentFilters = useCallback(() => {
+    setRecentScope('all')
+    setRecentQuery('')
+    setRecentFocus(null)
+  }, [])
+
+  const openModelCenter = useCallback(() => {
+    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'modelcenter' })
+  }, [])
+
+  const pressureReadings = [
+    { label: 'CPU', value: resources.cpu },
+    { label: 'GPU', value: resources.gpu },
+    { label: '内存', value: resources.ramFraction == null ? null : resources.ramFraction * 100 },
+    { label: '显存', value: resources.vramFraction == null ? null : resources.vramFraction * 100 },
+  ].filter((item): item is { label: string; value: number } => item.value != null && Number.isFinite(item.value))
+  const peakPressure = pressureReadings.reduce<{ label: string; value: number } | null>(
+    (peak, item) => (peak == null || item.value > peak.value ? item : peak),
+    null,
+  )
+
+  const attentionIssues = useMemo<AttentionIssue[]>(() => {
+    const issues: AttentionIssue[] = []
+
+    if (activeEngines.length === 0) {
+      issues.push({
+        id: 'no-engine',
+        tone: 'danger',
+        title: '没有启用的模型引擎',
+        detail: '当前没有可承接请求的本地或云端引擎。',
+        actionLabel: '检查模型中心',
+        onAction: openModelCenter,
+      })
+    } else if (connectedEngines.length < activeEngines.length) {
+      const disconnected = activeEngines.length - connectedEngines.length
+      issues.push({
+        id: 'engine-offline',
+        tone: 'warning',
+        title: `${disconnected} 个启用引擎未连接`,
+        detail: `${connectedEngines.length}/${activeEngines.length} 个引擎在线，新请求可能失败或回退。`,
+        actionLabel: '检查引擎',
+        onAction: openModelCenter,
+      })
+    }
+
+    if (peakPressure && peakPressure.value >= 75) {
+      const critical = peakPressure.value >= 90
+      issues.push({
+        id: 'resource-pressure',
+        tone: critical ? 'danger' : 'warning',
+        title: `${peakPressure.label}资源${critical ? '超载' : '偏高'}`,
+        detail: `当前 ${peakPressure.value.toFixed(0)}%，${critical ? '已超过 90% 高压线' : '已进入 75% 预警区'}。`,
+        actionLabel: '查看资源',
+        onAction: () => focusTarget(operationsSectionRef.current),
+      })
+    }
+
+    if (ctxPercent != null && ctxPercent >= 90) {
+      issues.push({
+        id: 'context-pressure',
+        tone: 'danger',
+        title: '上下文接近上限',
+        detail: `最近请求已使用 ${ctxPercent}% 上下文，继续增长可能触发截断。`,
+        actionLabel: '查看上下文',
+        onAction: () => focusTarget(operationsSectionRef.current),
+      })
+    }
+
+    if (rangeSuccessRate != null && trendSums.calls > 0 && rangeSuccessRate < 95) {
+      issues.push({
+        id: 'range-failures',
+        tone: 'danger',
+        title: `所选范围成功率 ${pct(rangeSuccessRate)}`,
+        detail: `${fmtInt(trendSums.fail)} 次失败，低于 95% 健康线。`,
+        actionLabel: '查看失败请求',
+        onAction: inspectFailures,
+      })
+    } else {
+      const failedSamples = recentCalls.filter((call) => !call.success).length
+      if (failedSamples > 0) {
+        issues.push({
+          id: 'recent-failures',
+          tone: 'warning',
+          title: `最近样本含 ${failedSamples} 次失败`,
+          detail: '查看原始请求可定位引擎、错误原因与耗时。',
+          actionLabel: '定位请求',
+          onAction: inspectFailures,
+        })
+      }
+    }
+
+    if (stats.loadError) {
+      issues.push({
+        id: 'stats-error',
+        tone: 'warning',
+        title: '调用统计暂不可用',
+        detail: stats.loadError,
+        actionLabel: '重新读取',
+        onAction: () => {
+          focusTarget(callSectionRef.current)
+          void refreshStats()
+        },
+      })
+    }
+
+    return issues
+  }, [
+    activeEngines.length,
+    connectedEngines.length,
+    ctxPercent,
+    focusTarget,
+    inspectFailures,
+    openModelCenter,
+    peakPressure,
+    rangeSuccessRate,
+    recentCalls,
+    refreshStats,
+    stats.loadError,
+    trendSums.calls,
+    trendSums.fail,
+  ])
+
+  const searchedRecentCalls = useMemo(() => {
+    const query = recentQuery.trim().toLowerCase()
+    return recentCalls.filter((call) => {
+      if (recentFocus?.kind === 'model' && call.model !== recentFocus.value) return false
+      if (
+        recentFocus?.kind === 'error'
+        && (call.error_message?.trim() || '未提供错误信息') !== recentFocus.value
+      ) return false
+      if (!query) return true
+      const haystack = [
+        call.model,
+        call.engine_id,
+        engineLabel({ engineId: call.engine_id }),
+        call.feature ?? '',
+        call.error_message ?? '',
+      ].join(' ').toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [recentCalls, recentFocus, recentQuery])
+
   const recentRows = useMemo(
-    () => recentScope === 'failed' ? recentCalls.filter((call) => !call.success) : recentCalls,
-    [recentCalls, recentScope],
+    () => recentScope === 'failed' ? searchedRecentCalls.filter((call) => !call.success) : searchedRecentCalls,
+    [recentScope, searchedRecentCalls],
   )
 
   const modelColumns = useMemo(() => [
@@ -876,12 +1229,23 @@ export default function RuntimePage() {
       key: 'calls',
       width: 150,
       sorter: (a: ModelRow, b: ModelRow) => a.call_count - b.call_count,
-      render: (value: number, row: ModelRow) => (
+      render: (value: number) => (
         <div className="rt-call-volume">
           <strong>{value.toLocaleString()}</strong>
           <span><i style={{ width: `${Math.max((value / modelMaxCalls) * 100, 3)}%` }} /></span>
-          {row.fail_count > 0 && <small>失败 {row.fail_count}</small>}
         </div>
+      ),
+    },
+    {
+      title: '失败',
+      dataIndex: 'fail_count',
+      key: 'failures',
+      width: 88,
+      sorter: (a: ModelRow, b: ModelRow) => a.fail_count - b.fail_count,
+      render: (value: number) => (
+        <span className={`rt-failure-count${value > 0 ? ' is-warning' : ''}`}>
+          {value > 0 ? `${value.toLocaleString()} 次` : '0'}
+        </span>
       ),
     },
     {
@@ -936,14 +1300,27 @@ export default function RuntimePage() {
       width: 110,
       render: (_: unknown, row: ModelRow) => (
         <Tooltip title={row.last_error || (row.attention ? '存在失败调用，建议检查错误与路由' : '近期无失败记录')}>
-          <span className={`rt-table-status${row.attention ? ' is-warning' : ' is-good'}`}>
-            {row.attention ? <WarningOutlined aria-hidden="true" /> : <CheckCircleOutlined aria-hidden="true" />}
-            {row.attention ? '需关注' : '正常'}
-          </span>
+          {row.attention ? (
+            <button
+              type="button"
+              className="rt-table-status is-warning"
+              onClick={() => inspectModel(row.model)}
+              aria-label={`查看模型 ${row.model} 的失败请求`}
+            >
+              <WarningOutlined aria-hidden="true" />
+              需关注
+              <ArrowRightOutlined aria-hidden="true" />
+            </button>
+          ) : (
+            <span className="rt-table-status is-good">
+              <CheckCircleOutlined aria-hidden="true" />
+              正常
+            </span>
+          )}
         </Tooltip>
       ),
     },
-  ], [modelMaxCalls])
+  ], [inspectModel, modelMaxCalls])
 
   const recentColumns = useMemo(() => [
     {
@@ -951,6 +1328,7 @@ export default function RuntimePage() {
       dataIndex: 'finished_at',
       key: 'time',
       width: 142,
+      sorter: (a: RecentCall, b: RecentCall) => (a.finished_at ?? '').localeCompare(b.finished_at ?? ''),
       render: (value?: string) => <span className="rt-mono">{value || '暂无'}</span>,
     },
     {
@@ -968,6 +1346,9 @@ export default function RuntimePage() {
       title: 'Token 输入 / 输出',
       key: 'tokens',
       width: 160,
+      sorter: (a: RecentCall, b: RecentCall) => (
+        (a.input_tokens + a.output_tokens) - (b.input_tokens + b.output_tokens)
+      ),
       render: (_: unknown, row: RecentCall) => (
         <span className="rt-mono">{fmtInt(row.input_tokens)} / {fmtInt(row.output_tokens)}</span>
       ),
@@ -984,6 +1365,7 @@ export default function RuntimePage() {
       dataIndex: 'duration_ms',
       key: 'duration',
       width: 100,
+      sorter: (a: RecentCall, b: RecentCall) => a.duration_ms - b.duration_ms,
       render: (value: number) => <span className="rt-mono">{fmtDuration(value)}</span>,
     },
     {
@@ -1100,7 +1482,7 @@ export default function RuntimePage() {
 
   return (
     <div className="rt-page">
-      <header className="rt-page-header">
+      <header className="rt-page-header" aria-busy={refreshingAll}>
         <div className="rt-title-group">
           <span className="rt-title-icon" aria-hidden="true"><MonitorOutlined /></span>
           <div>
@@ -1117,19 +1499,29 @@ export default function RuntimePage() {
           </div>
         </div>
         <div className="rt-header-actions">
-          <span className={`rt-live-pill${pollable ? '' : ' is-paused'}`}>
-            <i aria-hidden="true" />
-            {pollable ? '实时更新' : '已暂停'}
-          </span>
-          <span className="rt-updated">
-            {lastUpdated ? `更新于 ${lastUpdated}` : '等待首轮同步'}
-          </span>
+          <div className="rt-sync-state">
+            <span
+              className={`rt-live-pill is-${syncState.tone}`}
+              role="status"
+              aria-live="polite"
+              aria-label={syncState.label}
+            >
+              <i aria-hidden="true" />
+              {syncState.label}
+            </span>
+            <span className="rt-updated">{syncState.detail}</span>
+          </div>
+          <Button
+            icon={livePaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+            onClick={() => setLivePaused((paused) => !paused)}
+            aria-pressed={livePaused}
+          >
+            {livePaused ? '继续刷新' : '暂停刷新'}
+          </Button>
           <Button
             icon={<ReloadOutlined />}
-            onClick={() => {
-              void load()
-              void stats.loadCallStats()
-            }}
+            loading={refreshingAll}
+            onClick={() => void refreshAll()}
           >
             刷新全部
           </Button>
@@ -1139,52 +1531,92 @@ export default function RuntimePage() {
       {error && (
         <div className="rt-alert" role="alert">
           <WarningOutlined aria-hidden="true" />
-          <span>实时快照刷新失败：{error}</span>
+          <span>
+            实时快照刷新失败：{error}
+            {lastUpdated ? `。当前展示 ${lastUpdated} 的最后成功数据` : ''}
+          </span>
           <Button size="small" onClick={() => void load()}>重试</Button>
         </div>
       )}
 
-      <section className="rt-health-strip" aria-label="运行状态摘要">
-        <div className="rt-health-item">
-          <span className="rt-health-label">服务状态</span>
-          <div className={`rt-health-value is-${overall?.tone ?? 'off'}`}>
-            <i className="rt-status-dot" aria-hidden="true" />
-            <strong>{overall?.label ?? '加载中'}</strong>
-          </div>
-          <span className="rt-health-note">
-            {overall?.tokS != null ? `${overall.tokS.toFixed(1)} tok/s` : '当前没有生成任务'}
-          </span>
-        </div>
-        <div className="rt-health-item">
-          <span className="rt-health-label">已连接引擎</span>
-          <div className="rt-health-value">
-            <strong>{snap ? `${connectedEngines.length} / ${activeEngines.length}` : '加载中'}</strong>
-          </div>
-          <span className="rt-health-note">
-            {snap
-              ? `${connectedEngines.filter((engine) => engine.local).length} 个本地，${connectedEngines.filter((engine) => !engine.local).length} 个云端`
-              : '正在检查连接'}
-          </span>
-        </div>
-        <div className="rt-health-item">
-          <span className="rt-health-label">当前生成速度</span>
-          <div className="rt-health-value">
-            <strong>{overall?.tokS != null ? `${overall.tokS.toFixed(1)} tok/s` : '暂无'}</strong>
-          </div>
-          <span className="rt-health-note">{em?.engine?.model ? shortModel(em.engine.model) : '等待本机推理遥测'}</span>
-        </div>
-        <div className="rt-health-item">
-          <span className="rt-health-label">上下文压力</span>
-          <div className="rt-health-value">
-            <strong>{ctxPercent != null ? `${ctxPercent}%` : '暂无遥测'}</strong>
-          </div>
-          <span className="rt-health-note">
-            {ctxUsed != null && ctxMax != null ? `${fmtToken(ctxUsed)} / ${fmtToken(ctxMax)} Token` : '最近一次请求尚未上报'}
-          </span>
-        </div>
-      </section>
+      <div className="rt-command-deck">
+        <section className="rt-health-strip" aria-label="运行状态摘要">
+          <button
+            type="button"
+            className="rt-health-item"
+            onClick={() => focusTarget(operationsSectionRef.current)}
+            aria-label="查看运行状态详情"
+          >
+            <span className="rt-health-label">服务状态</span>
+            <div className={`rt-health-value is-${overall?.tone ?? 'off'}`}>
+              <i className="rt-status-dot" aria-hidden="true" />
+              <strong>{overall?.label ?? '加载中'}</strong>
+            </div>
+            <span className="rt-health-note">
+              {overall?.tokS != null ? `${overall.tokS.toFixed(1)} tok/s` : '当前没有生成任务'}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="rt-health-item"
+            onClick={openModelCenter}
+            aria-label="前往模型中心检查引擎连接"
+          >
+            <span className="rt-health-label">已连接引擎</span>
+            <div className="rt-health-value">
+              <strong>{snap ? `${connectedEngines.length} / ${activeEngines.length}` : '加载中'}</strong>
+            </div>
+            <span className="rt-health-note">
+              {snap
+                ? `${connectedEngines.filter((engine) => engine.local).length} 个本地，${connectedEngines.filter((engine) => !engine.local).length} 个云端`
+                : '正在检查连接'}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="rt-health-item"
+            onClick={() => focusTarget(operationsSectionRef.current)}
+            aria-label="查看当前生成速度详情"
+          >
+            <span className="rt-health-label">当前生成速度</span>
+            <div className="rt-health-value">
+              <strong>{overall?.tokS != null ? `${overall.tokS.toFixed(1)} tok/s` : '暂无'}</strong>
+            </div>
+            <span className="rt-health-note">{em?.engine?.model ? shortModel(em.engine.model) : '等待本机推理遥测'}</span>
+          </button>
+          <button
+            type="button"
+            className="rt-health-item"
+            onClick={() => focusTarget(operationsSectionRef.current)}
+            aria-label="查看上下文压力详情"
+          >
+            <span className="rt-health-label">上下文压力</span>
+            <div className="rt-health-value">
+              <strong>{ctxPercent != null ? `${ctxPercent}%` : '暂无遥测'}</strong>
+            </div>
+            <span className="rt-health-note">
+              {ctxUsed != null && ctxMax != null ? `${fmtToken(ctxUsed)} / ${fmtToken(ctxMax)} Token` : '最近一次请求尚未上报'}
+            </span>
+          </button>
+        </section>
 
-      <section className="rt-section rt-call-section" aria-labelledby="rt-call-title">
+        <AttentionPanel
+          loading={!snap}
+          issues={attentionIssues}
+          overallLabel={overall?.tone === 'busy' ? '运行正常，正在生成' : '运行平稳，没有阻塞项'}
+          connectedEngines={connectedEngines.length}
+          activeEngines={activeEngines.length}
+          successRate={rangeSuccessRate}
+          resourcePeak={peakPressure?.value ?? null}
+        />
+      </div>
+
+      <section
+        ref={callSectionRef}
+        tabIndex={-1}
+        className="rt-section rt-call-section"
+        aria-labelledby="rt-call-title"
+      >
         <div className="rt-section-head">
           <div>
             <h2 id="rt-call-title">调用统计</h2>
@@ -1204,8 +1636,9 @@ export default function RuntimePage() {
               <Button
                 type="text"
                 icon={<ReloadOutlined />}
+                loading={statsRefreshing}
                 aria-label="刷新调用统计"
-                onClick={() => void stats.loadCallStats()}
+                onClick={() => void refreshStats()}
               />
             </Tooltip>
           </div>
@@ -1215,7 +1648,7 @@ export default function RuntimePage() {
           <div className="rt-alert" role="alert">
             <WarningOutlined aria-hidden="true" />
             <span>调用统计加载失败：{stats.loadError}</span>
-            <Button size="small" onClick={() => void stats.loadCallStats()}>重试</Button>
+            <Button size="small" loading={statsRefreshing} onClick={() => void refreshStats()}>重试</Button>
           </div>
         ) : !stats.callStats ? (
           <div className="rt-stats-loading" aria-busy="true" aria-label="正在读取调用统计">
@@ -1241,7 +1674,16 @@ export default function RuntimePage() {
                 icon={<CheckCircleOutlined />}
                 label="成功率"
                 value={rangeSuccessRate == null ? '暂无' : pct(rangeSuccessRate)}
-                detail={rangeSuccessRate != null && rangeSuccessRate < 95 ? '低于 95% 健康线' : '调用结果稳定'}
+                detail={(
+                  <>
+                    {rangeSuccessRate != null && rangeSuccessRate < 95 ? '低于 95% 健康线' : '调用结果稳定'}
+                    {trendSums.fail > 0 && (
+                      <button type="button" className="rt-kpi-action" onClick={inspectFailures}>
+                        查看 {trendSums.fail.toLocaleString()} 次失败
+                      </button>
+                    )}
+                  </>
+                )}
                 tone={rangeSuccessRate != null && rangeSuccessRate < 95 ? 'danger' : 'positive'}
                 testId="metric-success"
               />
@@ -1282,7 +1724,12 @@ export default function RuntimePage() {
                 </div>
                 <RequestTrendChart data={stats.trendData} />
               </article>
-              <CallQualityPanel sums={trendSums} recentCalls={recentCalls} />
+              <CallQualityPanel
+                sums={trendSums}
+                recentCalls={recentCalls}
+                onInspectError={inspectError}
+                onInspectFailures={inspectFailures}
+              />
             </div>
 
             <article className="rt-chart-card rt-token-chart-card">
@@ -1306,7 +1753,12 @@ export default function RuntimePage() {
         )}
       </section>
 
-      <section className="rt-section" aria-labelledby="rt-model-title">
+      <section
+        ref={modelSectionRef}
+        tabIndex={-1}
+        className="rt-section"
+        aria-labelledby="rt-model-title"
+      >
         <div className="rt-section-head">
           <div>
             <h2 id="rt-model-title">模型调用明细</h2>
@@ -1347,7 +1799,7 @@ export default function RuntimePage() {
             columns={modelColumns}
             dataSource={filteredModelRows}
             rowClassName={(row) => row.attention ? 'rt-row-attention' : ''}
-            scroll={{ x: 1150 }}
+            scroll={{ x: 1240 }}
             pagination={{
               pageSize: 8,
               hideOnSinglePage: true,
@@ -1363,7 +1815,12 @@ export default function RuntimePage() {
         )}
       </section>
 
-      <section className="rt-section" aria-labelledby="rt-operations-title">
+      <section
+        ref={operationsSectionRef}
+        tabIndex={-1}
+        className="rt-section"
+        aria-labelledby="rt-operations-title"
+      >
         <div className="rt-section-head">
           <div>
             <h2 id="rt-operations-title">运行状态</h2>
@@ -1524,7 +1981,12 @@ export default function RuntimePage() {
         )}
       </section>
 
-      <section className="rt-section" aria-labelledby="rt-recent-title">
+      <section
+        ref={recentSectionRef}
+        tabIndex={-1}
+        className="rt-section"
+        aria-labelledby="rt-recent-title"
+      >
         <div className="rt-section-head">
           <div>
             <h2 id="rt-recent-title">最近请求</h2>
@@ -1540,6 +2002,22 @@ export default function RuntimePage() {
             ]}
           />
         </div>
+        <div className="rt-table-toolbar rt-recent-toolbar">
+          <Input
+            allowClear
+            value={recentQuery}
+            onChange={(event) => setRecentQuery(event.target.value)}
+            prefix={<SearchOutlined aria-hidden="true" />}
+            placeholder="搜索模型、引擎、功能或错误"
+            aria-label="搜索最近请求"
+          />
+          {(recentQuery || recentFocus) && (
+            <div className="rt-filter-context" aria-live="polite">
+              {recentFocus && <span>{recentFocus.label}</span>}
+              <button type="button" onClick={clearRecentFilters}>清除筛选</button>
+            </div>
+          )}
+        </div>
         <Table<RecentCall>
           className="rt-data-table"
           size="small"
@@ -1554,7 +2032,13 @@ export default function RuntimePage() {
             showTotal: (total) => `共 ${total} 条请求`,
           }}
           locale={{
-            emptyText: recentScope === 'failed' ? '最近记录中没有失败请求' : '暂无调用记录',
+            emptyText: recentScope === 'failed'
+              ? recentFocus
+                ? `没有匹配“${recentFocus.value}”的失败请求`
+                : '最近记录中没有失败请求'
+              : recentFocus || recentQuery
+                ? '没有符合当前筛选条件的请求'
+                : '暂无调用记录',
           }}
         />
       </section>

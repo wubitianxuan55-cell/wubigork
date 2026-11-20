@@ -126,9 +126,9 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.model',
     desc: '全局模型',
     descKey: 'settings.cat.modelDesc',
-    // 模型组用五个任务页签承载概览 / 功能绑定 / 空间策略 / 本地调度 / 引擎管理；
-    // 与模型中心消费同一批单源 Section，跨页变更经既有事件互同步。
-    keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'herdsman', 'xai', 'api', 'key', '绑定', '功能绑定', '调度', '保活', '预载', '故障转移', '转移', '空间策略', '自定义引擎', '启停', 'strata', 'llama', 'whirl', 'glm', 'opencode'],
+    // 模型组承载模型中心迁出的低频配置：概览 / 模型库 / 选型参考 / 质量与成本 / 运行策略。
+    // 高频操作（模型一览、功能绑定、引擎管理）只保留在模型中心，避免双入口漂移。
+    keywords: ['模型', '推理', '强度', 'grok', 'deepseek', 'herdsman', 'xai', '模型库', '目录', '选型', '推荐', '量化', '测评', '质量', '检索', '成本', '归因', '调度', '保活', '预载', '故障转移', '空间策略', '权限', '护栏', 'glm', 'opencode'],
     panel: (query, tab, onTabChange) => (
       <ModelSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
     ),

@@ -124,19 +124,25 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     expect((await screen.findAllByText('朗读引擎')).length).toBeGreaterThan(1)
   })
 
-  it('模型与引擎收编（批 3）：模型组含功能绑定/空间策略/本地调度/引擎管理', async () => {
+  it('模型中心低频内容迁入设置：概览/模型库/质量与成本/运行策略', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /模型/ }))
     expect(await screen.findByText('当前模型')).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: '功能绑定' }))
-    // BindSection 无大标题（区块名在模型中心 rail 上），以小节锚「聊天语音」证挂载
-    expect(await screen.findByText(/聊天语音/, { selector: '.mc-bind-title' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: '空间策略' }))
-    expect(await screen.findByText('空间策略', { selector: '.mc-section-title span' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: '本地调度' }))
+    expect(await screen.findByText('模型中心总览')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '模型库' }))
+    expect(await screen.findByText('Herdsman 模型库', { selector: '.mc-section-title span' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '选型参考' }))
+    expect(await screen.findByText('选型参考', { selector: '.mc-section-title span' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '质量与成本' }))
+    expect(await screen.findByText('Herdsman 受控测评', { selector: '.mc-section-title span' })).toBeTruthy()
+    expect(screen.getByText('检索质量测评', { selector: '.mc-section-title span' })).toBeTruthy()
+    expect(screen.getByText('成本归因', { selector: '.mc-section-title span' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '运行策略' }))
     expect(await screen.findByText('本地调度', { selector: '.mc-section-title span' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: '引擎管理' }))
-    expect(await screen.findByText('引擎管理', { selector: '.mc-section-title span' })).toBeTruthy()
+    fireEvent.click(screen.getByText('空间装配与权限'))
+    expect(await screen.findByText('空间策略', { selector: '.mc-section-title span' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: '功能绑定' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: '引擎管理' })).toBeNull()
   })
 
   it('办公扩容（批 4）：办公组含记忆四态/工位面板启停/MCP 能力区', async () => {
@@ -160,14 +166,17 @@ describe('SettingsPage 密集设置任务分栏（2026-11-20 第二轮 UI 重设
     fireEvent.click(screen.getByRole('button', { name: /模型/ }))
 
     expect((await screen.findByRole('tab', { name: '概览' })).getAttribute('aria-selected')).toBe('true')
-    for (const label of ['功能绑定', '空间策略', '本地调度', '引擎管理']) {
+    for (const label of ['模型库', '选型参考', '质量与成本', '运行策略']) {
       expect(screen.getByRole('tab', { name: label })).toBeTruthy()
     }
+    expect(screen.queryByRole('tab', { name: '功能绑定' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: '引擎管理' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: '空间策略' })).toBeNull()
     expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('tab', { name: '功能绑定' }))
-    expect(screen.getByRole('tab', { name: '功能绑定' }).getAttribute('aria-selected')).toBe('true')
-    expect(await screen.findByText(/聊天语音/, { selector: '.mc-bind-title' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '模型库' }))
+    expect(screen.getByRole('tab', { name: '模型库' }).getAttribute('aria-selected')).toBe('true')
+    expect(await screen.findByText('Herdsman 模型库', { selector: '.mc-section-title span' })).toBeTruthy()
     expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1)
   })
 
@@ -175,8 +184,16 @@ describe('SettingsPage 密集设置任务分栏（2026-11-20 第二轮 UI 重设
     render(wrap(<SettingsPage />))
     fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '故障转移' } })
 
-    expect((await screen.findByRole('tab', { name: '本地调度' })).getAttribute('aria-selected')).toBe('true')
+    expect((await screen.findByRole('tab', { name: '运行策略' })).getAttribute('aria-selected')).toBe('true')
     expect(await screen.findByText('本地调度', { selector: '.mc-section-title span' })).toBeTruthy()
+  })
+
+  it('搜索空间策略时进入运行策略并自动展开高级配置', async () => {
+    render(wrap(<SettingsPage />))
+    fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '空间策略' } })
+
+    expect((await screen.findByRole('tab', { name: '运行策略' })).getAttribute('aria-selected')).toBe('true')
+    expect(await screen.findByText('空间策略', { selector: '.mc-section-title span' })).toBeTruthy()
   })
 
   it('内部页签支持方向键/Home/End 标准 tablist 键盘语义', async () => {
@@ -186,12 +203,12 @@ describe('SettingsPage 密集设置任务分栏（2026-11-20 第二轮 UI 重设
     overview.focus()
 
     fireEvent.keyDown(overview, { key: 'ArrowRight' })
-    expect(screen.getByRole('tab', { name: '功能绑定' }).getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: '功能绑定' }))
+    expect(screen.getByRole('tab', { name: '模型库' }).getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: '模型库' }))
 
     fireEvent.keyDown(document.activeElement as Element, { key: 'End' })
-    expect(screen.getByRole('tab', { name: '引擎管理' }).getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: '引擎管理' }))
+    expect(screen.getByRole('tab', { name: '运行策略' }).getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: '运行策略' }))
 
     fireEvent.keyDown(document.activeElement as Element, { key: 'Home' })
     expect(screen.getByRole('tab', { name: '概览' }).getAttribute('aria-selected')).toBe('true')
@@ -208,15 +225,15 @@ describe('SettingsPage 密集设置任务分栏（2026-11-20 第二轮 UI 重设
     expect((screen.getByPlaceholderText(/给 AI 起个名字/) as HTMLInputElement).value).toBe('临时称呼')
   })
 
-  it('离开分类后记住上次任务页签：模型页返回仍在引擎管理', async () => {
+  it('离开分类后记住上次任务页签：模型页返回仍在运行策略', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /模型/ }))
-    fireEvent.click(await screen.findByRole('tab', { name: '引擎管理' }))
-    expect(screen.getByRole('tab', { name: '引擎管理' }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(await screen.findByRole('tab', { name: '运行策略' }))
+    expect(screen.getByRole('tab', { name: '运行策略' }).getAttribute('aria-selected')).toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: /通用/ }))
     fireEvent.click(screen.getByRole('button', { name: /模型/ }))
-    const restored = await screen.findByRole('tab', { name: '引擎管理' })
+    const restored = await screen.findByRole('tab', { name: '运行策略' })
     expect(restored.getAttribute('aria-selected')).toBe('true')
   })
 })

@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { Button, Input } from 'antd'
-import { CaretRightOutlined, SoundOutlined } from '@ant-design/icons'
+import { AudioOutlined, CaretRightOutlined, SoundOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
 import { engineLabel, filterModelsBySearch, isLocalEngine, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
 import { usePinnedModels } from './modelPrefs'
 
-export function VoiceSection() {
+export function VoiceSection({ catalogMode = false }: { catalogMode?: boolean } = {}) {
   const {
     voiceCfg,
     ttsModels,
+    sttModels,
     engines,
     engineStatuses,
   } = useModelCenterState()
@@ -21,13 +22,18 @@ export function VoiceSection() {
   const [voiceSearch, setVoiceSearch] = useState('')
   const [pinned, togglePin] = usePinnedModels()
   const tts = sortModelsPinnedFirst(filterModelsBySearch(ttsModels, voiceSearch), pinned)
+  const stt = sortModelsPinnedFirst(filterModelsBySearch(sttModels, voiceSearch), pinned)
+  const hasAny = ttsModels.length > 0 || sttModels.length > 0
+  const hasMatch = tts.length > 0 || stt.length > 0
 
   return (
     <section className="mc-section">
       <SectionHead
         icon={<SoundOutlined />}
         title="语音模型"
-        desc="对话、合成模型；点击卡片切换并自动持久化（语音识别随 V1 退役，V2 采集走浏览器）"
+        desc={catalogMode
+          ? '浏览可用的语音合成与语音识别模型；合成模型可设为当前 TTS'
+          : '对话、合成模型；点击卡片切换并自动持久化（语音识别随 V1 退役，V2 采集走浏览器）'}
         extra={(
           <Input.Search
             allowClear
@@ -39,7 +45,7 @@ export function VoiceSection() {
         )}
       />
 
-      <div className="mc-panel">
+      {!catalogMode && <div className="mc-panel">
         <div className="mc-panel-body">
           <div className="mc-panel-title"><SoundOutlined /> 语音管道</div>
           <div className="mc-model-chips" style={{ gap: 8 }}>
@@ -51,17 +57,19 @@ export function VoiceSection() {
             </StatusChip>
           </div>
         </div>
-      </div>
+      </div>}
 
-      {ttsModels.length === 0 ? (
+      {!hasAny ? (
         <EmptyState
           icon={<SoundOutlined />}
           title="未发现语音模型"
           hint="请先在「引擎管理」中刷新模型列表（Herdsman 本地引擎可提供 qwen3-tts 等）"
         />
+      ) : !hasMatch ? (
+        <EmptyState compact title={`没有匹配「${voiceSearch}」的语音模型`} hint="换个关键词试试" />
       ) : (
         <>
-          {ttsModels.length > 0 && (
+          {tts.length > 0 && (
             <div className="mc-engine-group">
               <div className="mc-group-title"><SoundOutlined /> TTS 语音合成</div>
               <div className="mc-grid">
@@ -138,7 +146,42 @@ export function VoiceSection() {
             </div>
           )}
 
-
+          {stt.length > 0 && (
+            <div className="mc-engine-group">
+              <div className="mc-group-title"><AudioOutlined /> STT 语音识别</div>
+              <div className="mc-grid">
+                {stt.map(m => {
+                  const eng = engines.find(e => e.id === m.engineId)
+                  const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
+                  const blocked = avail === 'disconnected' || avail === 'disabled'
+                  return (
+                    <ModelCard
+                      key={`${m.engineId}:${m.modelId}`}
+                      name={m.modelName}
+                      engineId={m.engineId}
+                      engineName={engineLabel(m)}
+                      kindChip={<StatusChip tone="accent">STT</StatusChip>}
+                      chips={[
+                        pinned.includes(m.modelId)
+                          ? <StatusChip key="pin" tone="warn">置顶</StatusChip>
+                          : null,
+                        avail === 'disconnected'
+                          ? <StatusChip key="off" tone="danger">未连接</StatusChip>
+                          : null,
+                      ].filter(Boolean)}
+                      dimmed={blocked}
+                      pinned={pinned.includes(m.modelId)}
+                      onTogglePin={() => togglePin(m.modelId)}
+                      status={{
+                        tone: m.status === 'running' ? 'ok' : avail === 'disconnected' ? 'danger' : 'neutral',
+                        text: avail === 'disconnected' ? '未连接' : m.status === 'running' ? '运行中' : '就绪',
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>

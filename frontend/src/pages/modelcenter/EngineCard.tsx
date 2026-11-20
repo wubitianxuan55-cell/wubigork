@@ -5,7 +5,10 @@
 import { useState, type CSSProperties } from 'react'
 import { Button, Input, Popconfirm, Segmented, Space, Switch } from 'antd'
 import { StatusChip } from './ui'
-import { engineColor, engineIcon, engineLabel, glmEndpointFamily, isCustomEngine, isManagedEngineId, kindOf } from './utils'
+import {
+  engineColor, engineIcon, glmEndpointFamily, isCustomEngine, isLocalEngine,
+  isManagedEngineId, kindOf,
+} from './utils'
 import type { EngineConfig } from '../../api/engines'
 import { useModelCenterActions, useModelCenterState } from './context'
 import { LocalEngineLifecycle } from './LocalEngineLifecycle'
@@ -56,6 +59,7 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
 
   const color = engineColor(engine)
   const glmFamily = glmEndpointFamily(engine.base_url)
+  const local = isLocalEngine(engine)
   const em = makeModels(engine)
   const mc = {
     llm: em.filter(m => kindOf(m) === 'llm').length,
@@ -102,83 +106,41 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
   const managedModel = managedEngine
     ? (runningManagedModel?.name || runningManagedModel?.id || '未运行')
     : ''
+  const defaultModelName = (engine.models || []).find(m => m.id === engine.default_model)?.name
+    || engine.default_model || '未设置'
+  const modelSummary = `${managedEngine ? '当前模型' : '默认模型'} ${managedEngine ? managedModel : defaultModelName}`
 
   return (
     <div
-      className={`mc-engine-card${engine.enabled ? ' is-enabled' : ''}`}
+      className={`mc-engine-card${engine.enabled ? ' is-enabled' : ''}${editingCustom ? ' is-editing' : ''}`}
+      data-engine-id={engine.id}
       style={{ '--engine-color': color } as CSSProperties}
     >
       <div className="mc-engine-head">
         <div className="mc-engine-id">
           <span className="mc-engine-icon">{engineIcon(engine)}</span>
-          <div style={{ minWidth: 0 }}>
+          <div className="mc-engine-id-copy">
             <div className="mc-engine-name">{engine.name}</div>
-            <div className="mc-engine-sub">
-              {engineLabel(engine)} · {managedEngine ? '当前模型' : '默认模型'} {
-                managedEngine
-                  ? managedModel
-                  : (engine.models || []).find(m => m.id === engine.default_model)?.name
-                    || engine.default_model || '未设置'
-              }
-            </div>
+            <div className="mc-engine-sub" title={modelSummary}>{modelSummary}</div>
           </div>
         </div>
-        <div className="mc-engine-actions">
-          <StatusChip tone={engine.is_local ? 'warn' : 'neutral'}>
-            {engine.is_local ? '本地' : '云端'}
+        <div className="mc-engine-head-status">
+          <StatusChip tone={local ? 'warn' : 'neutral'}>
+            {local ? '本地' : '云端'}
           </StatusChip>
           {isCustomEngine(engine) && <StatusChip tone="accent">自定义</StatusChip>}
           {activeEngine === engine.id && (
             <StatusChip tone="ok" dot>当前活跃</StatusChip>
           )}
-          <Switch
-            size="small"
-            checked={engine.enabled}
-            onChange={(v) => handleToggleEngine(engine, v)}
-          />
-          <Button
-            size="small"
-            onClick={() => handleTestConnection(engine.id)}
-            loading={testingEngine === engine.id}
-            disabled={!engine.enabled || managedStopped}
-          >
-            测试连接
-          </Button>
-          {isManagedEngine(engine.id) && (
-            <LocalEngineLifecycle
-              engineId={engine.id as 'strata' | 'llama' | 'whirl'}
-              name={engine.id === 'llama' ? 'Llama' : engine.id === 'whirl' ? 'WHIRL' : 'Strata'}
-              onRunningChange={(running) => {
-                setManagedRunning(prev => prev === running ? prev : running)
-              }}
-              externalConnected={engineStatuses[engine.id]?.connected}
+          <label className="mc-engine-toggle">
+            <span>{engine.enabled ? '已启用' : '已停用'}</span>
+            <Switch
+              size="small"
+              checked={engine.enabled}
+              onChange={(v) => handleToggleEngine(engine, v)}
+              aria-label={`${engine.name} 启用状态`}
             />
-          )}
-          <Button
-            size="small"
-            onClick={() => handleRefreshModels(engine.id)}
-            loading={testingEngine === engine.id}
-            disabled={!engine.enabled || managedStopped}
-          >
-            刷新
-          </Button>
-          {isCustomEngine(engine) && (
-            <>
-              <Button
-                size="small"
-                onClick={() => onToggleEdit(editingCustom ? null : engine)}
-              >
-                {editingCustom ? '收起' : '编辑'}
-              </Button>
-              <Popconfirm
-                title="删除该自定义引擎？"
-                description="将同时移除其功能绑定能力，已绑定功能将回退到其他可用模型。"
-                onConfirm={() => handleRemoveCustomEngine(engine.id)}
-              >
-                <Button size="small" danger>删除</Button>
-              </Popconfirm>
-            </>
-          )}
+          </label>
         </div>
       </div>
 
@@ -193,78 +155,78 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
         {em.length === 0 && <StatusChip>暂无模型</StatusChip>}
       </div>
 
-      {/* 本地引擎 + 自定义引擎显示地址框；内置云端引擎不露（v4.9.1 防线：
-          曾有用户把 API Key 粘进地址框导致 base_url=Key 本体） */}
-      {(engine.is_local || isCustomEngine(engine)) && (
-        <Space.Compact style={{ width: '100%', maxWidth: 640 }}>
-          <Input
-            size="small"
-            aria-label="引擎服务地址"
-            value={editingURLs[engine.id] || ''}
-            onChange={e => setEditingURLs(prev => ({ ...prev, [engine.id]: e.target.value }))}
-            disabled={!engine.enabled}
-            style={{ fontSize: 12 }}
-          />
-          <Button
-            size="small"
-            onClick={() => handleSaveURL(engine)}
-            loading={savingEngine === engine.id}
-            disabled={!engine.enabled}
-          >
-            保存
-          </Button>
-        </Space.Compact>
-      )}
+      <div className="mc-engine-config">
+        {/* 本地引擎 + 自定义引擎显示地址框；内置云端引擎不露（v4.9.1 防线：
+            曾有用户把 API Key 粘进地址框导致 base_url=Key 本体） */}
+        {(local || isCustomEngine(engine)) && (
+          <Space.Compact className="mc-engine-config__row">
+            <Input
+              size="small"
+              aria-label="引擎服务地址"
+              value={editingURLs[engine.id] || ''}
+              onChange={e => setEditingURLs(prev => ({ ...prev, [engine.id]: e.target.value }))}
+              disabled={!engine.enabled}
+            />
+            <Button
+              size="small"
+              onClick={() => handleSaveURL(engine)}
+              loading={savingEngine === engine.id}
+              disabled={!engine.enabled}
+            >
+              保存
+            </Button>
+          </Space.Compact>
+        )}
 
-      {keyField && (
-        <Space.Compact style={{ width: '100%', maxWidth: 640 }}>
-          <Input
-            size="small"
-            value={keyField.value}
-            onChange={e => keyField.setter(e.target.value)}
-            placeholder={keyField.placeholder}
-            disabled={!engine.enabled}
-            style={{ fontSize: 12 }}
-          />
-          <Button
-            size="small"
-            onClick={keyField.save}
-            loading={savingEngine === engine.id}
-            disabled={!engine.enabled}
-          >
-            保存 Key
-          </Button>
-        </Space.Compact>
-      )}
+        {keyField && (
+          <Space.Compact className="mc-engine-config__row">
+            <Input
+              size="small"
+              value={keyField.value}
+              onChange={e => keyField.setter(e.target.value)}
+              placeholder={keyField.placeholder}
+              disabled={!engine.enabled}
+            />
+            <Button
+              size="small"
+              onClick={keyField.save}
+              loading={savingEngine === engine.id}
+              disabled={!engine.enabled}
+            >
+              保存 Key
+            </Button>
+          </Space.Compact>
+        )}
 
-      {editingCustom && (
-        <EditCustomEngineForm
-          engine={engine}
-          savedPrice={savedPrice}
-          onSaved={onPriceSaved}
-          onClose={() => onToggleEdit(null)}
-        />
-      )}
+        {engine.id === 'glm' && (
+          <div className="mc-engine-endpoint">
+            <span className="mc-engine-endpoint__label">端点</span>
+            <Segmented
+              size="small"
+              value={glmFamily}
+              onChange={(v) => handleSetGlmEndpoint(v as 'std' | 'coding')}
+              disabled={!engine.enabled || settingGlmEndpoint}
+              options={[
+                { value: 'std', label: '标准（按量付费）' },
+                { value: 'coding', label: '编码套餐' },
+              ]}
+            />
+            <span className="mc-engine-endpoint__hint">
+              编码套餐 Key 须走 /api/coding 端点；标准 Key 走 /api/paas
+              {glmFamily === 'coding' && '；编码套餐=积分制计费，下方费用估算不含该端点用量'}
+            </span>
+          </div>
+        )}
 
-      {engine.id === 'glm' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--mc-muted)' }}>端点</span>
-          <Segmented
-            size="small"
-            value={glmFamily}
-            onChange={(v) => handleSetGlmEndpoint(v as 'std' | 'coding')}
-            disabled={!engine.enabled || settingGlmEndpoint}
-            options={[
-              { value: 'std', label: '标准（按量付费）' },
-              { value: 'coding', label: '编码套餐' },
-            ]}
+        {editingCustom && (
+          <EditCustomEngineForm
+            engine={engine}
+            savedPrice={savedPrice}
+            onSaved={onPriceSaved}
+            onClose={() => onToggleEdit(null)}
           />
-          <span style={{ fontSize: 11, color: 'var(--mc-muted)' }}>
-            编码套餐 Key 须走 /api/coding 端点；标准 Key 走 /api/paas
-            {glmFamily === 'coding' && '；编码套餐=积分制计费，下方费用估算不含该端点用量'}
-          </span>
-        </div>
-      )}
+        )}
+      </div>
 
       {managedEngine ? (
         managedStopped ? (
@@ -293,6 +255,52 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
           )}
         </div>
       )}
+
+      <div className="mc-engine-actions" aria-label={`${engine.name} 操作`}>
+        <Button
+          size="small"
+          onClick={() => handleTestConnection(engine.id)}
+          loading={testingEngine === engine.id}
+          disabled={!engine.enabled || managedStopped}
+        >
+          测试连接
+        </Button>
+        {isManagedEngine(engine.id) && (
+          <LocalEngineLifecycle
+            engineId={engine.id as 'strata' | 'llama' | 'whirl'}
+            name={engine.id === 'llama' ? 'Llama' : engine.id === 'whirl' ? 'WHIRL' : 'Strata'}
+            onRunningChange={(running) => {
+              setManagedRunning(prev => prev === running ? prev : running)
+            }}
+            externalConnected={engineStatuses[engine.id]?.connected}
+          />
+        )}
+        <Button
+          size="small"
+          onClick={() => handleRefreshModels(engine.id)}
+          loading={testingEngine === engine.id}
+          disabled={!engine.enabled || managedStopped}
+        >
+          刷新
+        </Button>
+        {isCustomEngine(engine) && (
+          <>
+            <Button
+              size="small"
+              onClick={() => onToggleEdit(editingCustom ? null : engine)}
+            >
+              {editingCustom ? '收起' : '编辑'}
+            </Button>
+            <Popconfirm
+              title="删除该自定义引擎？"
+              description="将同时移除其功能绑定能力，已绑定功能将回退到其他可用模型。"
+              onConfirm={() => handleRemoveCustomEngine(engine.id)}
+            >
+              <Button size="small" danger>删除</Button>
+            </Popconfirm>
+          </>
+        )}
+      </div>
     </div>
   )
 }

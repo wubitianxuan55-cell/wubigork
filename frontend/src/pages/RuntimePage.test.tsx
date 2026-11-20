@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import RuntimePage from './RuntimePage'
+import { FRONTEND_EVENTS } from '../events'
 
 const { getRuntimeMonitorMock, getModelCallStatsMock } = vi.hoisted(() => ({
   getRuntimeMonitorMock: vi.fn(),
@@ -371,6 +372,70 @@ describe('RuntimePage 运行监测', () => {
     expect(within(section!).getByText('HTTP 429')).toBeTruthy()
   })
 
+  it('近期错误可一步下钻到对应失败请求，并可清除聚焦条件', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    getModelCallStatsMock.mockResolvedValue(CALL_STATS)
+    render(<RuntimePage />)
+
+    const drilldown = await screen.findByRole('button', {
+      name: '查看错误“HTTP 429”对应的 1 条失败请求',
+    })
+    fireEvent.click(drilldown)
+
+    const section = screen.getByText('最近请求').closest('section')
+    expect(section).toBeTruthy()
+    await waitFor(() => expect(within(section!).getByText('错误：HTTP 429')).toBeTruthy())
+    expect(within(section!).getByText('grok-4.7')).toBeTruthy()
+    expect(within(section!).queryByText('Qwen3.6-35B-MTP-r2')).toBeNull()
+
+    fireEvent.click(within(section!).getByRole('button', { name: '清除筛选' }))
+    await waitFor(() => expect(within(section!).getByText('Qwen3.6-35B-MTP-r2')).toBeTruthy())
+  })
+
+  it('最近请求支持按模型、功能或错误文本搜索', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    render(<RuntimePage />)
+
+    await waitFor(() => expect(screen.getByText('最近请求')).toBeTruthy())
+    const section = screen.getByText('最近请求').closest('section')
+    const search = within(section!).getByRole('textbox', { name: '搜索最近请求' })
+    fireEvent.change(search, { target: { value: 'novel' } })
+
+    await waitFor(() => expect(within(section!).getByText('Qwen3.6-35B-MTP-r2')).toBeTruthy())
+    expect(within(section!).queryByText('grok-4.7')).toBeNull()
+  })
+
+  it('实时刷新可暂停与恢复，并明确冻结状态', async () => {
+    getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
+    render(<RuntimePage />)
+
+    await waitFor(() => expect(screen.getAllByText('生成中').length).toBeGreaterThanOrEqual(1))
+    fireEvent.click(screen.getByRole('button', { name: /暂停刷新/ }))
+    expect(screen.getByRole('status', { name: /已暂停/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /继续刷新/ })).toBeTruthy()
+  })
+
+  it('引擎掉线会进入关注清单，并可直达模型中心处置', async () => {
+    const offline = {
+      ...SNAPSHOT,
+      engines: SNAPSHOT.engines.map((engine) => (
+        engine.id === 'xai' ? { ...engine, connected: false, error: 'HTTP 503' } : engine
+      )),
+    }
+    getRuntimeMonitorMock.mockResolvedValue(offline)
+    const listener = vi.fn()
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, listener)
+    try {
+      render(<RuntimePage />)
+      await waitFor(() => expect(screen.getByText('1 个启用引擎未连接')).toBeTruthy())
+      fireEvent.click(screen.getByRole('button', { name: '检查引擎' }))
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({ page: 'modelcenter' })
+    } finally {
+      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, listener)
+    }
+  })
+
   it('运行状态呈现上下文、缓存、资源与引擎遥测', async () => {
     getRuntimeMonitorMock.mockResolvedValue(SNAPSHOT)
     render(<RuntimePage />)
@@ -430,6 +495,7 @@ describe('RuntimePage 运行监测', () => {
     await waitFor(() => expect(screen.getAllByText('生成中').length).toBeGreaterThanOrEqual(1))
     fireEvent.click(screen.getByRole('button', { name: /刷新全部/ }))
     await waitFor(() => expect(screen.getByText(/实时快照刷新失败：boom/)).toBeTruthy())
+    expect(screen.getByRole('status', { name: /同步中断/ })).toBeTruthy()
     expect(screen.getAllByText('生成中').length).toBeGreaterThanOrEqual(1)
   })
 })

@@ -1,15 +1,20 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   AppstoreOutlined, AudioOutlined, BgColorsOutlined, CloudSyncOutlined,
-  ControlOutlined, DashboardOutlined, DatabaseOutlined, FontSizeOutlined, LinkOutlined,
+  ControlOutlined, DashboardOutlined, DatabaseOutlined, ExperimentOutlined, FontSizeOutlined,
   PictureOutlined, RobotOutlined, SafetyCertificateOutlined, SearchOutlined,
-  SettingOutlined, SoundOutlined, ThunderboltOutlined, ToolOutlined, UserOutlined,
+  SoundOutlined, StarOutlined, ThunderboltOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
 import ModelSettingsProvider from '../../pages/modelcenter/ModelSettingsProvider'
-import { BindSection } from '../../pages/modelcenter/BindSection'
+import { OverviewSection } from '../../pages/modelcenter/OverviewSection'
+import { HerdsmanCatalogSection } from '../../pages/modelcenter/HerdsmanCatalogSection'
+import { RecommendSection } from '../../pages/modelcenter/RecommendSection'
+import { BenchmarkSection } from '../../pages/modelcenter/BenchmarkSection'
+import { RetrievalEvalSection } from '../../pages/modelcenter/RetrievalEvalSection'
+import { AttributionSection } from '../../pages/modelcenter/AttributionSection'
+import { StatsSection } from '../../pages/modelcenter/StatsSection'
 import { StrategySection } from '../../pages/modelcenter/StrategySection'
 import { SchedulingSection } from '../../pages/modelcenter/SchedulingSection'
-import { EngineSection } from '../../pages/modelcenter/EngineSection'
 import { ImageSection } from '../../pages/modelcenter/ImageSection'
 import { VoiceSection } from '../../pages/modelcenter/VoiceSection'
 import { CapabilitiesInline } from '../../gaea/components/capabilities/CapabilitiesInline'
@@ -101,54 +106,106 @@ export const GeneralSettingsPanel: React.FC<QueryProps> = ({ query, initialTab, 
   />
 )
 
-const MODEL_TABS: SettingsPanelTab[] = [
+const RuntimeStrategyPanel: React.FC<{ forceOpen?: boolean }> = ({ forceOpen = false }) => {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (forceOpen) setOpen(true)
+  }, [forceOpen])
+
+  return (
+    <>
+      <SchedulingSection />
+      <details
+        className="settings-runtime-advanced"
+        open={open}
+        onToggle={(event) => setOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <span className="settings-runtime-advanced__icon" aria-hidden="true"><ControlOutlined /></span>
+          <span className="settings-runtime-advanced__copy">
+            <strong>空间装配与权限</strong>
+            <span>办公/娱乐空间的模型覆写、审批默认与内容护栏；高级运行配置</span>
+          </span>
+          <span className="settings-runtime-advanced__badge">高级</span>
+        </summary>
+        {open && (
+          <div className="settings-runtime-advanced__body">
+            <StrategySection />
+          </div>
+        )}
+      </details>
+    </>
+  )
+}
+
+const buildModelTabs = (query = ''): SettingsPanelTab[] => {
+  const q = query.trim().toLowerCase()
+  const spacePolicyHit = !!q && ['空间', '空间策略', '覆写', '护栏', '权限', 'space'].some((keyword) => (
+    keyword.includes(q) || q.includes(keyword)
+  ))
+
+  return [
   {
     key: 'overview',
     label: '概览',
-    description: '当前模型、推理强度与费用折算，先看全局状态再进入具体任务。',
+    description: '全局模型参数与运行状态：当前模型、推理强度、费用折算和引擎健康。',
     icon: <DashboardOutlined />,
-    keywords: ['概览', '当前模型', '全局模型', '推理', '强度', '汇率', '美元', '人民币', 'reasoning', 'usd', 'cny'],
-    content: <ModelPanel />,
+    keywords: ['概览', '当前模型', '全局模型', '推理', '强度', '汇率', '美元', '人民币', '引擎健康', '调用健康', 'reasoning', 'usd', 'cny'],
+    content: (
+      <>
+        <ModelPanel />
+        <OverviewSection showActions={false} />
+      </>
+    ),
   },
   {
-    key: 'bindings',
-    label: '功能绑定',
-    description: '为聊天、办公、识图、文学等能力分别指定引擎与模型。',
-    icon: <LinkOutlined />,
-    keywords: ['功能绑定', '绑定', '聊天语音', '角色库', '剧照', '原罪', '插图', '识图', '视觉', '办公', '文学', '例行', '模型路由'],
-    content: <BindSection />,
+    key: 'catalog',
+    label: '模型库',
+    description: '浏览 Herdsman 模型目录、安装状态与能力，决定哪些模型进入日常路由。',
+    icon: <AppstoreOutlined />,
+    keywords: ['模型库', '模型目录', 'herdsman', '安装', '下载', '卸载', '量化', '能力', '目录'],
+    content: <HerdsmanCatalogSection />,
   },
   {
-    key: 'spaces',
-    label: '空间策略',
-    description: '配置办公与娱乐引擎空间的模型覆写、权限模式和内容护栏。',
-    icon: <ControlOutlined />,
-    keywords: ['空间策略', '空间', '办公空间', '娱乐空间', '覆写', '权限', '护栏', 'space'],
-    content: <StrategySection />,
+    key: 'selection',
+    label: '选型参考',
+    description: '按社区实战反馈查看模型谱系、量化建议与本机模型适用面。',
+    icon: <StarOutlined />,
+    keywords: ['选型', '选型参考', '推荐', '模型推荐', '量化', 'q4', 'q8', '文笔', '智力', '长程'],
+    content: <RecommendSection />,
+  },
+  {
+    key: 'quality-cost',
+    label: '质量与成本',
+    description: '集中查看受控测评、检索质量与调用成本归因。',
+    icon: <ExperimentOutlined />,
+    keywords: ['测评', '质量', '检索', '受控测评', '成本', '归因', '费用', '调用统计', 'benchmark', 'retrieval', 'cost'],
+    content: (
+      <>
+        <BenchmarkSection />
+        <RetrievalEvalSection />
+        <AttributionSection />
+        <StatsSection />
+      </>
+    ),
   },
   {
     key: 'scheduling',
-    label: '本地调度',
-    description: '管理保活、自动预载和故障转移，减少本地模型的冷启动与中断。',
+    label: '运行策略',
+    description: '管理保活、自动预载与故障转移；空间装配、权限和护栏收纳在高级项中。',
     icon: <CloudSyncOutlined />,
-    keywords: ['本地调度', '调度', '保活', '预载', '故障转移', '运行中', '重试', 'keepwarm', 'preload', 'failover'],
-    content: <SchedulingSection />,
+    keywords: ['运行策略', '本地调度', '调度', '保活', '预载', '故障转移', '运行中', '重试', 'keepwarm', 'preload', 'failover', '空间策略', '空间', '办公空间', '娱乐空间', '覆写', '权限', '护栏', 'space'],
+    content: <RuntimeStrategyPanel forceOpen={spacePolicyHit} />,
   },
-  {
-    key: 'engines',
-    label: '引擎管理',
-    description: '维护云端与本地引擎地址、密钥、连接状态和模型分类。',
-    icon: <SettingOutlined />,
-    keywords: ['引擎管理', '引擎', 'api', 'key', '密钥', '连接', '地址', '自定义', '启用', '禁用', 'strata', 'llama', 'whirl', 'glm', 'deepseek'],
-    content: <EngineSection />,
-  },
-]
+  ]
+}
 
 export const ModelSettingsPanel: React.FC<QueryProps> = ({ query, initialTab, onTabChange }) => (
   <ModelSettingsProvider>
     <SettingsPanelTabs
       ariaLabel="模型设置任务"
-      tabs={MODEL_TABS}
+      tabs={buildModelTabs(query)}
       query={query}
       defaultKey={initialTab}
       onActiveChange={onTabChange}

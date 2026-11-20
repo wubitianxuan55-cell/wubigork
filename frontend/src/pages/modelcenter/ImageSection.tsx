@@ -8,7 +8,7 @@ import { openImageSaveDir } from '../../api/image'
 
 const popupContainer = () => document.body
 
-export function ImageSection() {
+export function ImageSection({ catalogMode = false }: { catalogMode?: boolean } = {}) {
   const {
     engines,
     imageBackend,
@@ -44,11 +44,13 @@ export function ImageSection() {
     <section className="mc-section">
       <SectionHead
         icon={<PictureOutlined />}
-        title="图片生成"
-        desc="选择图片后端、模型和存储目录；ComfyUI 可在本地一键启停"
+        title={catalogMode ? '图像模型' : '图片生成'}
+        desc={catalogMode
+          ? '浏览 xAI、GLM、Herdsman 与 ComfyUI 可用图像模型；当前选择与运行状态一目了然'
+          : '选择图片后端、模型和存储目录；ComfyUI 可在本地一键启停'}
       />
 
-      <div className="mc-panel">
+      {!catalogMode && <div className="mc-panel">
         <div className="mc-panel-body">
           <div className="mc-panel-title"><PictureOutlined /> 图片后端</div>
 
@@ -137,15 +139,16 @@ export function ImageSection() {
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
-      {(imageModels.length > 0 || imageBackend === 'comfyui') && (
+      {(catalogMode || imageModels.length > 0 || imageBackend === 'comfyui') && (
         <div className="mc-engine-group">
           <div className="mc-group-title"><PictureOutlined /> 发现的图片模型</div>
           <div className="mc-grid">
             {[...sortComfyModelsQuantFirst(COMFY_IMAGE_MODELS), ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => {
               const isComfy = m.engineId === 'comfyui'
               const running = isComfy ? comfyStatus.running : m.status === 'running'
+              const active = imageBackend === m.engineId && imageModel === m.modelId
               // CU2：fp8/scaled 量化 checkpoint = 显存省/加载快档位，给「fp8」徽标
               const quant = isComfy && comfyModelQuantFlag(m.modelId)
               return (
@@ -155,12 +158,16 @@ export function ImageSection() {
                   engineId={m.engineId}
                   engineName={engineLabel(m)}
                   kindChip={<StatusChip tone="warn">图片</StatusChip>}
-                  chips={quant
-                    ? [<StatusChip key="quant" tone="ok" title="fp8 量化权重：显存占用更省、加载更快">fp8</StatusChip>]
-                    : undefined}
+                  chips={[
+                    active ? <StatusChip key="active" tone="warn">当前图像</StatusChip> : null,
+                    quant
+                      ? <StatusChip key="quant" tone="ok" title="fp8 量化权重：显存占用更省、加载更快">fp8</StatusChip>
+                      : null,
+                  ].filter(Boolean)}
+                  active={active}
                   status={{
-                    tone: running ? 'ok' : 'neutral',
-                    text: running ? '运行中' : isComfy ? '未启动' : '已停止',
+                    tone: active || running ? 'ok' : 'neutral',
+                    text: active ? '当前使用' : running ? '运行中' : isComfy ? '未启动' : '已停止',
                   }}
                   action={isComfy && !running && (
                     <Button size="small" type="primary" loading={comfyBusy} onClick={handleToggleComfy}>

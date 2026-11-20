@@ -892,7 +892,7 @@ export const zhTW: Record<DictKey, string> = {
   "settings.chat.cosyEnM": "英文男",
   // ModelPanel — 目前模型 / 推理強度 / 匯率
   "settings.model.currentTitle": "目前模型",
-  "settings.model.currentDesc": "全域 AI 助手實際使用的推理引擎與模型。功能綁定、空間策略與引擎啟停可在上方任務頁籤管理；模型中心保留模型一覽、評測與呼叫統計。",
+  "settings.model.currentDesc": "全域 AI 助手實際使用的推理引擎與模型。模型中心負責語言、圖像、語音與專業模型一覽，以及功能綁定和引擎管理；此處集中管理全域參數、模型庫、選型參考、品質與成本，以及執行與空間策略。",
   "settings.model.notConfigured": "未設定",
   "settings.model.goModelCenter": "前往模型中心",
   "settings.model.effortTitle": "推理強度",

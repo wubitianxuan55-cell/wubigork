@@ -543,6 +543,103 @@
   outline-offset: 6px;
 }
 
+.settings-runtime-advanced {
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--settings-border);
+  border-radius: 14px;
+  background: var(--settings-surface);
+}
+
+.settings-runtime-advanced > summary {
+  position: relative;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 42px 11px 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  list-style: none;
+  transition: background 160ms ease;
+}
+
+.settings-runtime-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-runtime-advanced > summary:hover {
+  background: color-mix(in srgb, var(--settings-surface-high) 54%, transparent);
+}
+
+.settings-runtime-advanced > summary::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--color-text-secondary);
+  border-bottom: 1.5px solid var(--color-text-secondary);
+  transform: translateY(-65%) rotate(45deg);
+  transition: transform 160ms ease;
+}
+
+.settings-runtime-advanced[open] > summary {
+  border-bottom: 1px solid var(--settings-border-soft);
+}
+
+.settings-runtime-advanced[open] > summary::after {
+  transform: translateY(-25%) rotate(225deg);
+}
+
+.settings-runtime-advanced__icon {
+  width: 31px;
+  height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--settings-accent);
+  background: color-mix(in srgb, var(--settings-accent) 10%, transparent);
+  font-size: 14px;
+}
+
+.settings-runtime-advanced__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-runtime-advanced__copy > strong {
+  font-size: 12.8px;
+  font-weight: 650;
+}
+
+.settings-runtime-advanced__copy > span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.settings-runtime-advanced__badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.settings-runtime-advanced__body {
+  padding: 14px;
+  background: color-mix(in srgb, var(--settings-surface-high) 28%, transparent);
+}
+
 /* ── 统一设置卡 ─────────────────────────────────────────────────── */
 .settings-section {
   position: relative;
@@ -630,14 +727,19 @@
 }
 
 .model-current-card {
-  min-height: 58px;
+  min-height: 88px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 11px 13px;
+  gap: 13px;
+  padding: 14px 15px;
   border: 1px solid var(--settings-border);
-  border-radius: 11px;
-  background: var(--settings-surface-high);
+  border-radius: 13px;
+  background:
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--settings-accent) 7%, var(--settings-surface-high)),
+      var(--settings-surface-high) 58%
+    );
 }
 
 .model-current-card.is-configured {
@@ -660,20 +762,127 @@
 .model-current-card__copy {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.model-current-card__eyebrow {
+  margin-bottom: 4px;
+  color: var(--color-text-secondary);
+  font-size: 9.5px;
+  font-weight: 680;
+  letter-spacing: 0.12em;
 }
 
 .model-current-card__name {
   display: block;
   overflow: hidden;
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 17px;
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.model-current-card > .ant-btn {
+.model-current-card__meta {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.model-current-card__actions {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 52%;
+}
+
+.model-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-top: 10px;
+  border: 1px solid var(--settings-border-soft);
+  border-radius: 11px;
+  background: var(--settings-border-soft);
+}
+
+.model-signal {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 12px;
+  background: var(--settings-surface);
+}
+
+.model-signal > span {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
+.model-signal > strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-model-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+}
+
+.settings-model-controls > .settings-section {
+  height: 100%;
+  margin-bottom: 0;
+}
+
+.model-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.model-control-row__select {
+  width: min(220px, 100%);
+}
+
+.model-control-row__number {
+  width: 160px;
+}
+
+.model-control-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--settings-border-soft);
+  border-radius: 7px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-control-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--color-text-secondary) !important;
+  font-size: 11px !important;
+  line-height: 1.6 !important;
 }
 
 .advanced-field-list {
@@ -814,8 +1023,32 @@
   justify-content: flex-end;
 }
 
+.settings-content .mc-engine-overview {
+  gap: 8px;
+}
+
+.settings-content .mc-engine-overview .mc-kpi {
+  border-color: var(--settings-border-soft);
+  background: var(--settings-surface);
+  box-shadow: none;
+}
+
+.settings-content .mc-engine-toolbar {
+  border-color: var(--settings-border-soft);
+  background: var(--settings-surface);
+}
+
+.settings-content .mc-engine-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.settings-content .mc-engine-cluster-head {
+  border-bottom-color: var(--settings-border-soft);
+}
+
 .settings-content .mc-engine-card {
   border-radius: 12px;
+  background: var(--settings-surface);
 }
 
 .settings-content .mc-engine-card:hover {
@@ -1280,8 +1513,18 @@
     flex-wrap: wrap;
   }
 
-  .model-current-card > .ant-btn {
+  .model-current-card__actions {
     width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .model-current-card__actions .ant-btn {
+    flex: 1 1 auto;
+  }
+
+  .model-signal-grid {
+    grid-template-columns: 1fr;
   }
 
   .advanced-field-row {
@@ -1315,6 +1558,8 @@
   .settings-page__search.ant-input-affix-wrapper,
   .settings-panel-tabs__tab,
   .settings-section,
+  .settings-runtime-advanced > summary,
+  .settings-runtime-advanced > summary::after,
   .settings-empty__chip,
   .settings-related-item,
   .settings-bar__toggle {
@@ -1336,6 +1581,8 @@
 .ui-reduced-motion .settings-page__search.ant-input-affix-wrapper,
 .ui-reduced-motion .settings-panel-tabs__tab,
 .ui-reduced-motion .settings-section,
+.ui-reduced-motion .settings-runtime-advanced > summary,
+.ui-reduced-motion .settings-runtime-advanced > summary::after,
 .ui-reduced-motion .settings-empty__chip,
 .ui-reduced-motion .settings-related-item,
 .ui-reduced-motion .settings-bar__toggle {

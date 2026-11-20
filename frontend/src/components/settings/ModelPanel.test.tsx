@@ -36,6 +36,12 @@ beforeEach(() => {
 const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>
 
 describe('ModelPanel 汇率输入（T6-6.2）', () => {
+  it('模型概览不再承载 xAI 登录，账号入口归引擎管理', async () => {
+    render(wrap(<ModelPanel />))
+    expect(await screen.findByText('当前模型')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /登录 xAI|退出 xAI/ })).toBeNull()
+  })
+
   it('加载时回填汇率，保存调用 setUsdCnyRate 且传正值', async () => {
     render(wrap(<ModelPanel />))
     // 等加载回填完成（precision=2 显示 7.20），避免异步回填覆盖后续输入
