@@ -267,3 +267,44 @@ whirl（124MB）/ tuwen / gaea-app（装机位）——**全部保留**。
   cost schema 已 V34）+nul 式垃圾文件+.worktrees/pkg-* 空壳×5。
 - **未触碰**：wuyuyang（40GB，用户明令）、其余全部绑定目录、仓内 .gaea 会话/
   skills 等运行时数据。
+
+---
+
+## 17. C:\AI 目录归一 + 模型中心「本地服务目录」上卡（2026-11-20 午后）
+
+**目录归一（用户拍板：models 135GB 与 ComfyUI 87GB 本轮不动）**：
+- OCR 三档 → `C:\AI\gaea-OCR`（ovis / uocr2-llama / unlimited 三子目录）；语音 →
+  `C:\AI\gaea-VOICE\voice-v2`；strata/whirl → `C:\AI\gaea-ENGINES`（strata\repo / whirl）。
+  同盘 rename 瞬时；迁前停壳+清 5 个 herdsman llama-server 孤儿。
+- 代码随迁：docmd 默认目录三处+错误文案四处；voice 根常量改名
+  voiceV2BaseRootDefault=C:\AI\gaea-VOICE\voice-v2（managed_engine_catalog/qwen35_proc 回退根同步）
+  +voiceV2LegacyLLMBin 回退改 C:\AI\gaea-OCR\uocr2-llama；appconfig DefaultStrataPath/
+  DefaultWhirlPath 改 gaea-ENGINES。
+
+**修复 11-11 引入的 bin 退化（迁移中 live 测试暴露）**：uocr2-llama\bin 被换
+mainline 构建 → `unknown model architecture: 'unlimited-ocr2'`（旧路径日志同
+错误为证=与迁移无关的既有故障）。恢复 10-29 验证版 0.8.0-dev 构建后实弹通过：
+单页 19.9s/907 字+2 页批 13.5s 跨页锚点 ✓。坏构建留档 bin-mainline-broken-20261111。
+python 后端（8138）迁后直起 ✓（venv 随目录整体迁移无路径依赖）。
+
+**模型中心「本地服务目录注入层」**（212b34a0）：GaeaLocalServiceModels 五卡
+下发——OCR 三档（8137/8139/8138 被动 /health 探活，绝不拉起）+本地识图
+（qwen35 mmproj，managedProfileMmprojPath 复用）+本地 STT（语音 V2 内嵌
+sherpa）；「设为 OCR」加 local:<docmd kind> 支→持久化 active_ocr_local→
+GaeaOCRText 本地腿定点（OCRImageTextWithEngine 显式单引擎 fail-closed）。
+专业页新 vision 卡类目；前端 merge 走 label=本机服务名。
+
+**接手并行线完成态**（0a337397）：证据目录迁移收口批 319 文件（re-lingxi 出库
+−33177 行迁 C:\AI\re、clones→re 引用收口约 90 处、lingxi 图标双皮肤小改）。
+
+**提交与装机**：a98d6639（路径迁移）→ 212b34a0（本地服务目录层）→ 0a337397
+（并行线收口）→ 9b2a14a7 后续账本；Wails 37.8s，装机 exe
+`B7978B5372A46C25`，PID 19272 > 构建时刻 13:54:40，冒烟 200。测试：docmd
+探针三态/显式引擎 fail-closed（单测只用 tesseract——ovis/uocr2 resolve 会拉
+起服务，单测不得触发真实进程）+app 五卡结构/闭端口不就绪/本地定点清空+前端
+merge 9/9。
+
+**坑新增**：①NTFS 大小写不敏感——`mkdir gaea-OCR` 会落进已存在的 gaea-ocr，
+换大小写需两步改名经临时名；②目录根被占句柄时子目录可 rename 而根不行
+（robocopy /MOVE 兜底）；③heredoc 反斜杠降级第 6/7 次——路径拼接一律
+chr(92) 配方或 Write/Edit 工具直改。

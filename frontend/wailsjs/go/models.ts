@@ -2648,6 +2648,28 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class LocalServiceModel {
+	    engineId: string;
+	    modelId: string;
+	    name: string;
+	    kind: string;
+	    detail: string;
+	    ready: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalServiceModel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.engineId = source["engineId"];
+	        this.modelId = source["modelId"];
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.detail = source["detail"];
+	        this.ready = source["ready"];
+	    }
+	}
 	export class MCPServerInput {
 	    name: string;
 	    transport: string;

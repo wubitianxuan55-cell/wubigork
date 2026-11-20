@@ -12,6 +12,8 @@ export function CreateProject(arg1:string,arg2:string,arg3:string,arg4:string):P
 
 export function DeleteProject(arg1:string):Promise<void>;
 
+export function GaeaLocalServiceModels():Promise<Array<app.LocalServiceModel>>;
+
 export function GaeaSpaceActivate(arg1:string):Promise<app.SpaceActiveView>;
 
 export function GaeaSpaceActive():Promise<app.SpaceActiveView>;
