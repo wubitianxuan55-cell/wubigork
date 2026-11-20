@@ -6343,3 +6343,11 @@ procedural 保持自动注入（跨项目复用是特性），不砍，只做命
 - **验证**：Go app 164s/boot 39s/tool/builtin+control/config/memory/agent 全绿；
   前端 509 文件 4614 用例绿；tsc 0。构建 34.7s exe 677098e5ef6498c3 冒烟 200
   装机 INSTALL OK。未提交（累计四批混装：D 批+九刀+AI 反馈+本批）。
+
+## 四线合一只打包（2026-11-21，用户拍板「不区分，全部接手」）
+
+- **提交**：f96b9e3f 初提 → amend **57daf182**（干净树 tsc 逮出 `result.memories ??=[]` 残留——主树假绿根因=wailsjs models.ts 旧契约未重生成，wails 重生成后暴露；漏删行修掉）
+- **干净树构建**：worktree .tmp/pkg-f96b9e3f @57daf182，pnpm frozen 30.8s+前端 28.3s+wails 17.7s（Skip Bindings=false）
+- **包**：releases/gaea-20261121-57daf182/（exe 0e7cd2e2…+三 DLL 与上包同源+PACKAGE-INFO+SHA256SUMS；zip 34.3MB 留盘不入库）
+- **装机**：-SourceDir 显式包路径（反斜杠被 Git Bash 吃=已知坑，正斜杠过）PID 15800；装机位冒烟 200；装机 exe hash==包 exe hash 同源实锤
+- **worktree 回收**：本包树已删；codex/zcode 两分支树（2f173fdc/82d86f01）非本线不动
