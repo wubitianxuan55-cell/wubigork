@@ -235,3 +235,207 @@ func (computerLaunchTool) Execute(_ context.Context, raw json.RawMessage) (strin
 		"notice": "动作后必须重新 computer_state 获取新观察的元素序号",
 	}), nil
 }
+
+// ── W5 动作三件：computer_click / computer_type / computer_key ──────────
+// 闸门链（缺一不可，施工单 W5）：绑定窗口一致 → 白名单 → deny 表 →
+// 双闸门（元素版次/坐标版次）→ 注入。动作成功后强制重观察并回新树
+//（省一次往返，同时天然保证「动作后必须刷新」——codex 两段式循环）。
+
+// computerActionGate 动作公共前置：窗口活着 + 白名单（与 state 同语义）。
+// ok=false 时 env 已是完整失败信封。
+func computerActionGate(windowID int) (win computer.Window, env string, ok bool) {
+	wins, err := computer.ListWindows()
+	if err != nil {
+		env, _ = computerFail(err)
+		return win, env, false
+	}
+	var target *computer.Window
+	for i := range wins {
+		if wins[i].ID == windowID {
+			target = &wins[i]
+			break
+		}
+	}
+	if target == nil {
+		env, _ = (func() (string, error) {
+			return tool.WrapError(tool.CodeNotFound,
+				fmt.Sprintf("window id %d 不在当前可见窗口清单里（可能已关闭）", windowID), nil), nil
+		})()
+		return win, env, false
+	}
+	if !computerAppsAllowed(target.App) {
+		env, _ = (func() (string, error) {
+			return tool.WrapError(tool.CodeValidationError,
+				"app 不在 [computer_use] apps 白名单，已拒绝操控: "+target.App, nil), nil
+		})()
+		return win, env, false
+	}
+	return *target, "", true
+}
+
+// computerFailAction 动作族错误 → 语义化信封（stale/forbidden_key/
+// coordinates_disabled/screenshot_required 独立 code，模型可分辨该重观察
+// 还是该放弃）。
+func computerFailAction(err error) (string, error) {
+	code := tool.CodeExecError
+	switch {
+	case errors.Is(err, computer.ErrWindowGone):
+		code = tool.CodeNotFound
+	case errors.Is(err, computer.ErrStaleObservation):
+		code = "stale_observation"
+	case errors.Is(err, computer.ErrForbiddenKey):
+		code = "forbidden_key"
+	case errors.Is(err, computer.ErrCoordinatesDisabled):
+		code = "coordinates_disabled"
+	case errors.Is(err, computer.ErrScreenshotIDRequired):
+		code = "screenshot_required"
+	case errors.Is(err, computer.ErrUnsupported):
+		code = "unsupported"
+	}
+	return tool.WrapError(code, err.Error(), nil), nil
+}
+
+// computerActionEnvelope 动作成功收口：立即重观察并回新树（新 revision 与
+// 新 element_index 一并给出）。重观察失败时如实回报「动作已发生、观察失败」，
+// 不谎报成功也不吞异常。
+func computerActionEnvelope(sess *computer.Session, win computer.Window, extra map[string]any) (string, error) {
+	snap, err := sess.Observe(win.ID, computer.ObserveOpt{IncludeText: true})
+	if err != nil {
+		extra["reobserve_error"] = err.Error()
+		extra["revision"] = nil
+		extra["element_hint"] = "重观察失败：下一次任何元素/坐标动作前必须重新 computer_state"
+		return tool.WrapResult("ok", extra), nil
+	}
+	extra["revision"] = snap.Revision
+	extra["elements"] = snap.Elements
+	extra["text"] = snap.Text
+	extra["element_hint"] = "text 每行行首数字=element_index（新一轮观察），旧序号已全部失效"
+	return tool.WrapResult("ok", extra), nil
+}
+
+type computerClickTool struct{}
+
+func (computerClickTool) Name() string { return "computer_click" }
+
+func (computerClickTool) Description() string {
+	return "点击目标窗口：优先 element_index（来自最近一次 computer_state 的树文本行首序号），或窗口相对坐标 x,y（须来自最近一次带截图的观察）。动作后自动返回新树与新一轮序号；换窗或跳过观察直接动作会被拒绝。"
+}
+
+func (computerClickTool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"window_id":{"type":"integer","description":"目标窗口 id（必须与最近一次 computer_state 同窗）"},"element_index":{"type":"integer","description":"最近一次 computer_state 树文本里的序号（优先通道）"},"x":{"type":"integer","description":"窗口相对 x（坐标通道，须最近一次带截图观察后未再观察）"},"y":{"type":"integer","description":"窗口相对 y"},"button":{"type":"string","enum":["left","right","middle","double"],"description":"默认 left；double=双击"},"count":{"type":"integer","description":"连击次数（默认按 button 语义）"}},"required":["window_id"]}`)
+}
+
+func (computerClickTool) ReadOnly() bool   { return false }
+func (computerClickTool) SpaceTag() string { return "work" }
+
+func (computerClickTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
+	var args struct {
+		WindowID     *int   `json:"window_id"`
+		ElementIndex *int   `json:"element_index"`
+		X            *int   `json:"x"`
+		Y            *int   `json:"y"`
+		Button       string `json:"button"`
+		Count        int    `json:"count"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil || args.WindowID == nil {
+		return tool.WrapError(tool.CodeValidationError, "window_id 必填（integer）", map[string]any{"tool": "computer_click"}), nil
+	}
+	if args.ElementIndex == nil && (args.X == nil || args.Y == nil) {
+		return tool.WrapError(tool.CodeValidationError, "element_index 或 x,y 二选一（元素优先）", map[string]any{"tool": "computer_click"}), nil
+	}
+	sess := computer.Default()
+	sess.Touch()
+	win, env, ok := computerActionGate(*args.WindowID)
+	if !ok {
+		return env, nil
+	}
+	if err := sess.CheckBoundWindow(win.ID); err != nil {
+		return computerFailAction(err)
+	}
+	var actErr error
+	if args.ElementIndex != nil {
+		actErr = sess.ClickWindowElement(*args.ElementIndex)
+	} else {
+		actErr = sess.ClickWindow(*args.X, *args.Y, args.Button, args.Count)
+	}
+	if actErr != nil {
+		return computerFailAction(actErr)
+	}
+	return computerActionEnvelope(sess, win, map[string]any{"action": "click"})
+}
+
+type computerTypeTool struct{}
+
+func (computerTypeTool) Name() string { return "computer_type" }
+
+func (computerTypeTool) Description() string {
+	return "向目标窗口注入 Unicode 文本（自动聚焦窗口；换行走 Return 键）。目标窗口必须与最近一次 computer_state 同窗；动作后自动返回新树。"
+}
+
+func (computerTypeTool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"window_id":{"type":"integer","description":"目标窗口 id"},"text":{"type":"string","description":"要输入的文本"}},"required":["window_id","text"]}`)
+}
+
+func (computerTypeTool) ReadOnly() bool   { return false }
+func (computerTypeTool) SpaceTag() string { return "work" }
+
+func (computerTypeTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
+	var args struct {
+		WindowID *int   `json:"window_id"`
+		Text     string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil || args.WindowID == nil {
+		return tool.WrapError(tool.CodeValidationError, "window_id 必填（integer）", map[string]any{"tool": "computer_type"}), nil
+	}
+	sess := computer.Default()
+	sess.Touch()
+	win, env, ok := computerActionGate(*args.WindowID)
+	if !ok {
+		return env, nil
+	}
+	if err := sess.CheckBoundWindow(win.ID); err != nil {
+		return computerFailAction(err)
+	}
+	if err := sess.TypeInto(args.Text); err != nil {
+		return computerFailAction(err)
+	}
+	return computerActionEnvelope(sess, win, map[string]any{"action": "type"})
+}
+
+type computerKeyTool struct{}
+
+func (computerKeyTool) Name() string { return "computer_key" }
+
+func (computerKeyTool) Description() string {
+	return "向目标窗口注入组合键（keysym 名，+ 连接修饰键，如 Return / Control_L+a / Alt_L+F4 / F5）。Win/Meta/Cmd/Super/OS 族一律本地硬拒；本工具每次调用都要求用户逐条确认。动作后自动返回新树。"
+}
+
+func (computerKeyTool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"window_id":{"type":"integer","description":"目标窗口 id"},"key":{"type":"string","description":"keysym 组合键：Return / Tab / Escape / Control_L+a / Alt_L+F4 / F5 等"}},"required":["window_id","key"]}`)
+}
+
+func (computerKeyTool) ReadOnly() bool   { return false }
+func (computerKeyTool) SpaceTag() string { return "work" }
+
+func (computerKeyTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
+	var args struct {
+		WindowID *int   `json:"window_id"`
+		Key      string `json:"key"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil || args.WindowID == nil || args.Key == "" {
+		return tool.WrapError(tool.CodeValidationError, "window_id 与 key 必填", map[string]any{"tool": "computer_key"}), nil
+	}
+	sess := computer.Default()
+	sess.Touch()
+	win, env, ok := computerActionGate(*args.WindowID)
+	if !ok {
+		return env, nil
+	}
+	if err := sess.CheckBoundWindow(win.ID); err != nil {
+		return computerFailAction(err)
+	}
+	if err := sess.PressKeyOn(args.Key); err != nil {
+		return computerFailAction(err)
+	}
+	return computerActionEnvelope(sess, win, map[string]any{"action": "key"})
+}

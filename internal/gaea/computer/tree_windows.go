@@ -39,10 +39,10 @@ const (
 	clsidCUIAutomation = "{ff48dba4-60ef-4201-aa87-54103eef594e}"
 	iidIUIAutomation   = "{30cbe57d-d9d0-452a-ab13-7ac5ac4825ee}"
 
-	coinitApartmentThreaded = 0x2
-	clsctxInprocServer      = 0x1
-	sFalseCode              = 0x1        // CoInitializeEx S_FALSE=已初始化（仍须配对 Uninit）
-	rpcEChangedMode         = 0x80010106 // 线程已有别种套间：不拥有初始化，照样可用
+	coinitMode         = 0x0 // COINIT_MULTITHREADED：缓存元素可能被其他 Go 线程的动作调用使用（跨线程需 MTA）
+	clsctxInprocServer = 0x1
+	sFalseCode         = 0x1        // CoInitializeEx S_FALSE=已初始化（仍须配对 Uninit）
+	rpcEChangedMode    = 0x80010106 // 线程已有别种套间：不拥有初始化，照样可用
 
 	vtblRelease = 2
 
@@ -105,6 +105,7 @@ type uiaCtx struct {
 	auto     unsafe.Pointer
 	walker   unsafe.Pointer
 	nodes    int
+	elements []unsafe.Pointer // render 顺序元素缓存（所有权移交快照）
 	ownsInit bool
 }
 
@@ -123,7 +124,7 @@ func release(com unsafe.Pointer) {
 
 // uiaSession 建立 COM 作用域（观察结束后必须 close）。
 func uiaSession() (*uiaCtx, error) {
-	hr, _, _ := procCoInitializeEx.Call(0, coinitApartmentThreaded)
+	hr, _, _ := procCoInitializeEx.Call(0, coinitMode)
 	u := &uiaCtx{ownsInit: hr == 0 || hr == sFalseCode}
 	if !u.ownsInit && hr != rpcEChangedMode {
 		return nil, fmt.Errorf("computer: CoInitializeEx hr=0x%x", hr)
@@ -250,11 +251,13 @@ func (u *uiaCtx) elementToNode(elem unsafe.Pointer) *treeNode {
 func variantOK(v oleVariant) bool { return v.VT == vtBool && v.asBool() }
 
 // walk 深度先序遍历（ControlViewWalker）；护栏：深度/节点数双帽。
+// 元素按 render 顺序收集进 u.elements（=element_index，供动作工具取用）。
 func (u *uiaCtx) walk(elem unsafe.Pointer, depth int) *treeNode {
 	if depth > maxTreeDepth || u.nodes >= maxTreeNodes {
 		return nil
 	}
 	n := u.elementToNode(elem)
+	u.elements = append(u.elements, elem) // 不在此 Release：所有权移交给快照缓存
 	u.nodes++
 	var child unsafe.Pointer
 	hr := vcall(u.walker, walkerFirstChild, uintptr(unsafe.Pointer(elem)), uintptr(unsafe.Pointer(&child)))
@@ -272,21 +275,40 @@ func (u *uiaCtx) walk(elem unsafe.Pointer, depth int) *treeNode {
 }
 
 // uiaTreeText 观察入口：HWND → UIA ControlView 树 → codex 文法文本。
-func uiaTreeText(hwnd uintptr, title, app string) (string, error) {
+// 元素缓存在快照.cached（render 顺序）；u.close 释放 auto/walker，但不释放
+// 已移交快照的元素（归 Session 换代/回收时释放）。
+func uiaTreeText(hwnd uintptr, title, app string) (string, []unsafe.Pointer, int, error) {
 	u, err := uiaSession()
 	if err != nil {
-		return "", err
+		return "", nil, 0, err
 	}
 	defer u.close()
 	elem, err := u.elementFromHWND(hwnd)
 	if err != nil {
-		return "", err
+		return "", nil, 0, err
 	}
 	defer release(elem)
 	root := u.walk(elem, 0)
 	win := Window{ID: int(int32(hwnd)), Title: title, App: app}
-	return RenderTree(win, root), nil
+	return RenderTree(win, root), u.elements, len(u.elements), nil
 }
+
+// init 平台钩子装配：元素 COM 引用逐个 Release。
+func init() { platformReleaseElements = releaseElements }
+
+func releaseElements(cached []unsafe.Pointer) {
+	for _, e := range cached {
+		release(e)
+	}
+}
+
+// InvokePattern 常量（施工单 W5 ClickElement 首选通道）。
+const (
+	uiaInvokePatternID        = 10000
+	vtblElemGetCurrentPattern = 16 // IUIAutomationElement（SDK 头序）
+	vtblInvokePatternInvoke   = 3  // IUIAutomationInvokePattern
+	vtblElemBoundingRectangle = 43 // get_CurrentBoundingRectangle（SDK 头序）
+)
 
 // newUUID v4 形态 shot id（每次观察更换，对齐 codex 截图 id 语义）。
 func newUUID() string {

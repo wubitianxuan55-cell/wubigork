@@ -25,6 +25,9 @@
 | `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册，施工单 W3） |
 | `computer_state` | builtin-domain | work | read | none | 树文本/截图与实况一致（revision 失效闸门+白名单闸） |
 | `computer_launch` | builtin-domain | work | write | none | 启动后窗口出现在枚举（白名单约束） |
+| `computer_click` | builtin-domain | work | interactive | none | 点击后新树与动作一致（绑定窗+白名单+deny 表+双闸门） |
+| `computer_type` | builtin-domain | work | write | none | 注入后新树含输入效果（同闸门链） |
+| `computer_key` | builtin-domain | work | interactive | none | 按键后新树与动作一致（AlwaysAsk+Win 族硬拒） |
 | `chart_gen` | builtin-workspace | work | produce | agent-produce | 图片落点存在（单系列图回归钉） |
 | `complete_step` | builtin-domain | shared | meta | none | 步骤裁决与计划一致 |
 | `cost_compose` | builtin-domain | work | produce | none | 组价结果与定额飞轮口径一致 |

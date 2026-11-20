@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 // defaultIdleTTL 单例默认空闲回收时长（对齐 browser.Manager 10m）。
@@ -63,6 +64,19 @@ type Snapshot struct {
 	Revision uint64 `json:"revision"`
 	Text     string `json:"text,omitempty"` // 树文本（≤32KB，超限按行截断）
 	Shot     *Shot  `json:"shot,omitempty"`
+	// Elements 是本次观察的元素总数（=element_index 上界；文本观察才>0）。
+	Elements int `json:"elements"`
+	// cached 是 UIA 元素缓存（Windows 实现填充，render 顺序=element_index；
+	// 动作工具经 ElementAt 取用；同包平台实现直读）。非平台实现为 nil。
+	cached []unsafe.Pointer
+}
+
+// ElementAt 取第 i 个缓存元素（越界 ok=false——契约文案见 tool 层）。
+func (snap *Snapshot) ElementAt(i int) (unsafe.Pointer, bool) {
+	if snap == nil || i < 0 || i >= len(snap.cached) {
+		return nil, false
+	}
+	return snap.cached[i], true
 }
 
 // Session 会话状态：绑定窗口 + 版次 + 最近观察 + 空闲回收。
@@ -73,6 +87,7 @@ type Session struct {
 	windowID            int              // 当前绑定窗口（0=未绑定）
 	revision            uint64           // 每次 Observe 自增；回收归零
 	shotID              string           // 最近一次带截图观察的 shot id（""=从未）
+	shotRevision        uint64           // 截图产生时的版次（坐标闸门：必须=当前 revision）
 	lastState           *Snapshot        // 最近一次观察（动作后回树复用它落库）
 	lastUsed            time.Time        // 最近活跃时刻（懒 TTL 判定）
 	coordinatesDisabled bool             // DPI 复原失败即整体禁用坐标动作（asset-62 §6）
@@ -134,6 +149,10 @@ func (s *Session) SetClock(now func() time.Time) {
 // 的 init 按构建标签赋值（包级变量便于测试桩注入）。
 var platformObserve func(windowID int, opt ObserveOpt) (*Snapshot, error)
 
+// platformReleaseElements 释放元素缓存的平台钩子（Windows=逐个 Release COM；
+// 其他平台 no-op）。观察换代/回收时调用。
+var platformReleaseElements func(cached []unsafe.Pointer)
+
 // Observe 观察一个窗口：版次自增、更新绑定、透传平台观察。
 // include_text/include_screenshot 同假直接拒（照抄 codex 契约文案）。
 func (s *Session) Observe(windowID int, opt ObserveOpt) (*Snapshot, error) {
@@ -154,11 +173,17 @@ func (s *Session) Observe(windowID int, opt ObserveOpt) (*Snapshot, error) {
 	}
 	snap.Revision = rev
 	s.mu.Lock()
+	prev := s.lastState
 	s.lastState = snap
 	if snap.Shot != nil {
 		s.shotID = snap.Shot.ID
+		s.shotRevision = snap.Revision
 	}
 	s.mu.Unlock()
+	// 上一版元素的 COM 引用随观察换代释放（新版次产生新索引，旧缓存必失效）。
+	if prev != nil && platformReleaseElements != nil {
+		platformReleaseElements(prev.cached)
+	}
 	return snap, nil
 }
 
@@ -184,6 +209,70 @@ func (s *Session) CheckScreenshotID(id string) error {
 		return ErrScreenshotIDRequired
 	}
 	if id != s.shotID {
+		return ErrStaleObservation
+	}
+	return nil
+}
+
+// CheckBoundWindow 绑定一致性闸门：动作工具请求的窗口必须与最近观察的
+// 窗口一致——换窗必先重新观察（索引/坐标随旧观察一起作废）。
+func (s *Session) CheckBoundWindow(windowID int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reapIfIdleLocked()
+	if s.windowID != windowID || s.lastState == nil {
+		return ErrStaleObservation
+	}
+	return nil
+}
+
+// CheckElementIndex 元素闸门：元素索引只属于最近一次「带文本」的观察。
+// 无文本观察（纯截图）/缓存空 → ErrStaleObservation（文案含修复指引）。
+// 越界按 codex 契约原文报（UI Automation element index is out of bounds）。
+func (s *Session) CheckElementIndex(index int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reapIfIdleLocked()
+	if s.lastState == nil || s.lastState.Text == "" || len(s.lastState.cached) == 0 {
+		return ErrStaleObservation
+	}
+	if index < 0 || index >= len(s.lastState.cached) {
+		return fmt.Errorf("UI Automation element index is out of bounds: %d", index)
+	}
+	return nil
+}
+
+// LastElementIndex 取最近观察的元素缓存上界（-1=无可用缓存）。
+func (s *Session) LastElementCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastState == nil {
+		return -1
+	}
+	return len(s.lastState.cached)
+}
+
+// ElementAt 最近观察的第 i 个缓存元素（先过 CheckElementIndex 再取）。
+func (s *Session) ElementAt(index int) (unsafe.Pointer, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastState.ElementAt(index)
+}
+
+// CheckCoordinates 坐标闸门：坐标只属于最近一次带截图的观察——截图缺席
+// → ErrScreenshotIDRequired；此后任何新观察抬高版次 → ErrStaleObservation。
+// coordinatesDisabled（DPI 复原失败）直接拒。
+func (s *Session) CheckCoordinates() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reapIfIdleLocked()
+	if s.coordinatesDisabled {
+		return ErrCoordinatesDisabled
+	}
+	if s.shotID == "" {
+		return ErrScreenshotIDRequired
+	}
+	if s.shotRevision != s.revision {
 		return ErrStaleObservation
 	}
 	return nil
@@ -237,5 +326,9 @@ func (s *Session) reapIfIdleLocked() {
 	s.windowID = 0
 	s.revision = 0
 	s.shotID = ""
+	s.shotRevision = 0
+	if s.lastState != nil && platformReleaseElements != nil {
+		platformReleaseElements(s.lastState.cached)
+	}
 	s.lastState = nil
 }

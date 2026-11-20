@@ -18,4 +18,11 @@ var (
 	ErrForbiddenKey = errors.New("forbidden key: chords containing Win/Meta/Cmd/Super/OS are hard-denied")
 	// ErrWindowGone 目标窗口已关闭或不存在。
 	ErrWindowGone = errors.New("window is gone; list windows again")
+	// ErrCoordinatesDisabled DPI 上下文复原失败后的整体坐标禁用
+	//（asset-62 §6「失败即禁用」语义，照抄）。
+	ErrCoordinatesDisabled = errors.New("DPI context restoration failed and coordinate operations are disabled")
 )
+
+// errDpiRestoreFailed 是 ErrCoordinatesDisabled 的底层信号（withThreadDpi
+// 复原失败时叠加返回；动作编排层据此置 coordinatesDisabled）。
+var errDpiRestoreFailed = errors.New("DPI context restoration failed")
