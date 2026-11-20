@@ -1,7 +1,7 @@
 # ZCode 蒸馏给办公板块：调研与论证
 
 > 对象：[zai-org/ZCode](https://github.com/zai-org/ZCode)（Z.ai 的 AI 编程工作台：桌面 / Web / 终端三形态）
-> 基线：本地克隆 `clones/zcode`，`main@3c5b227`（2026-10-20，README 标 v3.16.2）
+> 基线：本地克隆 `C:\AI\re\zcode`，`main@3c5b227`（2026-10-20，README 标 v3.16.2）
 > 日期：2026-10-24 · 状态：**调研 + 论证，未改任何代码**
 > 方法：8 路并行子代理（ZCode 侧 6 路 / gaea 侧 2 路）+ 主代理交叉复核，全部结论要求 `file:line`
 > 依据：`docs/research/zcode-distill/` 下 s1~s8 共 8 份子报告（约 54 万字节），本文只做收敛与论证
@@ -58,7 +58,7 @@ ZCode 仓库 1.8 万份受管文件（`git ls-files` 18266），不能通读。�
 
 | 对象 | 许可 | 证据 |
 |---|---|---|
-| ZCode 主仓 | Apache-2.0 | `clones/zcode/LICENSE:2` |
+| ZCode 主仓 | Apache-2.0 | `C:\AI\re\zcode/LICENSE:2` |
 | 四个办公插件的技能与脚本 | Apache-2.0（Copyright (c) 2026 Z.ai） | `documents-plugin/skills/docx/LICENSE.txt` |
 | 查看面板运行时 `office-runtime` | MIT | `docs/plugins/2026-10-15-office-viewer-builtin-panels-spec.md:15` |
 
@@ -345,7 +345,7 @@ K4（xlsx 令牌与财务模板）· K5（PDF 排版判据）· Q3（HTML 规则
 
 | 结论 | 证据 |
 |---|---|
-| 四个办公插件及其四件套 | `clones/zcode/apps/zcode-cli/packages/{documents,presentations,spreadsheets,pdf}-plugin/` |
+| 四个办公插件及其四件套 | `C:\AI\re\zcode/apps/zcode-cli/packages/{documents,presentations,spreadsheets,pdf}-plugin/` |
 | 技能四层与 46.5k tok 冷启动 | `documents-plugin/skills/docx/SKILL.md:33-94`；s7 §2 |
 | postcheck 宣称 14 实跑 9 | `SKILL.md:187` vs `scripts/postcheck.py` `run_all_checks` |
 | visual-judge 协议 | `documents-plugin/agents/visual-judge.md`（description + Output 段） |

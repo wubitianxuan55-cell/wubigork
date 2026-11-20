@@ -138,7 +138,7 @@
 
 - **起因**：用户真实工程文件（重庆干休所总进度计划，Project 2013+）被 ParseMpp 拒收（缺 CompObj）；强拆后系统性错乱（27 空名/全 0 工期/全里程碑）。
 - **五处漂移修复**（字节级取证）：无 CompObj→目录编号判版；工期 @42→@84；Var 回链键 uid→ID；parentUID 失效→大纲层级 @172+层级栈；里程碑位失效→零工期语义。
-- **结果**：38 任务/8 分组/42 搭接/总工期 136 天零缺名，CPM 自洽；门控样本测试落档（clones/mpp2013/），旧三样本零回归。
+- **结果**：38 任务/8 分组/42 搭接/总工期 136 天零缺名，CPM 自洽；门控样本测试落档（C:\AI\re\mpp2013/），旧三样本零回归。
 - **诚实降级**：2013+ 资源/分配键位未钉死，宁缺勿错暂不解析（观察池）。
 - **门禁**：Go 全量绿、版本三处 4.154.0、drift PASS@597、build+冒烟过；前端零改动。
 
@@ -349,7 +349,7 @@
 
 ## 最新发布：v4.103.0（2026-09-05）「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」
 
-- 用户反馈 unsloth Studio 的搜索工具「很好用」，希望 gaea 对齐其**行为**（非照搬 Python）。unsloth 源码本环境 web 抓取被拦（github/unsloth.ai/deepwiki/jsdelivr 均解析到非公网 IP），改经 `git clone`（`clones/unsloth`，已 gitignore `/clones/`）研究真实实现（`studio/backend/core/inference/tools.py` `_web_search`/`web_access_policy`/`search_images`、`web_search_tool_with_images`。
+- 用户反馈 unsloth Studio 的搜索工具「很好用」，希望 gaea 对齐其**行为**（非照搬 Python）。unsloth 源码本环境 web 抓取被拦（github/unsloth.ai/deepwiki/jsdelivr 均解析到非公网 IP），改经 `git clone`（`C:\AI\re\unsloth`，已 gitignore `/C:\AI\re\`）研究真实实现（`studio/backend/core/inference/tools.py` `_web_search`/`web_access_policy`/`search_images`、`web_search_tool_with_images`。
 - **关键失败经验**：本环境 web_fetch 对多域名被拦截（"非公网 IP"），但 `git clone`/`git ls-remote` **可达**——研究第三方源码优先试 git 而非 web_fetch；`url.Parse("not a url")` 不报错（解析成 path-only），过滤搜索结果必须校验 scheme http(s)+非空 host。
 - **蒸馏结论**：unsloth 搜索"好用"= 一个工具两条路（搜索 + `url` 直取整页文本）+ 结果受域名 allow/deny 约束 + 策略受限时过度抓取再过滤 + 末尾引导用 `url` 取全文 + 注入当前日期。
 - **改动（Go 内部，绑定面 584 零变更，未触及前端/绑定）**：web_search 新增 `url` 直取整页（复用 web_fetch 的 SSRF/`checkDomainPolicy`/HTML→文本 `doFetch`，搜索→取全文→引用一次调用，url 优先）；`[search] allow/deny`（沿用 `checkDomainPolicy`）作用于搜索结果（`filterSearchResults`：deny 优先、allow 非空须匹配、丢弃非法非 http(s) 无 host 结果）；受限时过度抓取（`topK×3`，`searchPolicyOverfetch`）再过滤；注入当前日期（url 结果头部 `as of <date>`）+ 描述/`Schema`/`compact` 同步（去 `required:["query"]`、加 `url`）。

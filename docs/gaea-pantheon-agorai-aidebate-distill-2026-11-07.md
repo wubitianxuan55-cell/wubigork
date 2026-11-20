@@ -3,7 +3,7 @@
 > **钉版**
 > - Agorai：`StevenJohnson998/Agorai@1e469be645e975e8f38313ad431a364a494cfd28`（v0.8.0，2026-04-12，AGPLv3，TypeScript，src+packages ≈ 27.6k 行，含测试与模板）
 > - aidebate：`orlenko/aidebate@80f3b77fa1b64a287928cab68b60c406d2ae0ba6`（v0.4.7，2026-04-16，Apache-2.0，Python，src+tests ≈ 3.2k 行）
-> - 本地克隆：`clones/agorai`、`clones/aidebate`（均已 `--depth 1`，只读，未安装依赖、未跑测试）
+> - 本地克隆：`C:\AI\re\agorai`、`C:\AI\re\aidebate`（均已 `--depth 1`，只读，未安装依赖、未跑测试）
 >
 > **纪律**
 > - 取道不取器：只吸收机制、状态机、字段、判据、提示词形状，不移植代码。Agorai 是 **AGPLv3**，代码移植有许可污染风险，与本仓对 so-novel 的红线同款；aidebate 是 Apache-2.0，许可不挡，但纪律不变。
@@ -354,11 +354,11 @@ aidebate 的主持人只在「回避问题 / 绕圈 / 关键假设无人质疑�
 
 ## 10. 源码索引
 
-### Agorai（`clones/agorai@1e469be`）
+### Agorai（`C:\AI\re\agorai@1e469be`）
 
 | 主题 | 位置 |
 |---|---|
-| 架构总览（Bridge/Keryx/Debate 三层） | `clones/agorai` 内 `ARCHITECTURE.md:1-80` |
+| 架构总览（Bridge/Keryx/Debate 三层） | `C:\AI\re\agorai` 内 `ARCHITECTURE.md:1-80` |
 | Ecclesia 轮次生命周期 | `src/keryx/modes/ecclesia.ts:102-246` |
 | 升级链（超时→催场→强关） | `src/keryx/modes/ecclesia.ts:374-420` |
 | 一致性关键词判定 | `src/keryx/patterns.ts:15-35` |
@@ -375,7 +375,7 @@ aidebate 的主持人只在「回避问题 / 绕圈 / 关键假设无人质疑�
 
 证据层：`docs/research/agorai-distill/01-source-analysis.md`（15 条候选、9 条不要抄、失实清单、调研边界）。
 
-### aidebate（`clones/aidebate@80f3b77`）
+### aidebate（`C:\AI\re\aidebate@80f3b77`）
 
 | 主题 | 位置 |
 |---|---|

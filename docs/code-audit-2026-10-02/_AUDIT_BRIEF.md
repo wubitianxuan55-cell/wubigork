@@ -63,6 +63,6 @@ score / verdict_short（一句话）/ findings_total 与 P0P1P2P3 计数 / 最�
 
 ## 5. 纪律
 - **只读代码**：除写自己的 units/<ID>.json，禁创建/修改/删除任何仓库文件；禁跑 go test / npm / vitest / 构建（主代理统一跑，避免并发自伤与编译竞态）。
-- 不进入 node_modules/、clones/、backups/、dist/、build/、releases/、whisper_data/；`.gaea/AGENTS.md` 只读（查历史坑与约定），不要修改。
+- 不进入 node_modules/、C:\AI\re\、backups/、dist/、build/、releases/、whisper_data/；`.gaea/AGENTS.md` 只读（查历史坑与约定），不要修改。
 - 时间预算小于等于 20 分钟：优先大文件，不要试图逐行读完足迹内所有文件。
 - 全程中文；禁形容词堆砌；每条发现都要能被别人「打开 file 第 line 行」复核。

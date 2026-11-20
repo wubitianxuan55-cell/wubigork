@@ -175,7 +175,7 @@
 
 ### 13.1 fork 仓库结构（完成）
 
-- **代码基**：`C:\AI\tianxuan`（独立 git 工作区，原先的 `clones/gufo` 已整体迁出，不另复制）。分支布局＝
+- **代码基**：`C:\AI\tianxuan`（独立 git 工作区，原先的 `C:\AI\re\gufo` 已整体迁出，不另复制）。分支布局＝
   `main`（`upstream/main` 只读镜像，只 fast-forward）／`windows`（`pixmaate/windows-port` @ `2eb0778`，
   即预构建 tag `windows-2026-10-03`）／`tianxuan`（集成分支，首个提交 `db86aabc`）。
 - **remote**：`upstream` = gufo-org/gufo，`pixmaate` = pixmaate/gufo；`origin` 待 tianxuan 自己的
@@ -359,7 +359,7 @@ MTP（draft 2）**。它不是 35B HIP 线，不经过曾冻结的 gufo A3B 内�
 ## 15. 单独立项与 gaea 引用边界（2026-10-18）
 
 **工作区**：`C:\AI\tianxuan`，独立 Git 仓库，保留原 Gufo/tianxuan 分支、提交历史与台账。
-gaea 仓库不再承载引擎源码，也不引用 `clones/gufo`。
+gaea 仓库不再承载引擎源码，也不引用 `C:\AI\re\gufo`。
 
 **文档同步（2026-10-18）**：本台账与 `gaea-tianxuan-strata-deepdive-2026-10-18.md`
 已复制到 `C:\AI\tianxuan\docs\research\`，并附来源/同步说明；gaea 侧继续保留原始台账。

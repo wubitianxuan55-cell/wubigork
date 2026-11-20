@@ -24,6 +24,24 @@
 若 `build.bat` 触发 Wails runtime 的 `Access is denied`，按构建指南清理孤儿进程、
 恢复系统 `TMP/TEMP` 后执行上述裸 `wails build`，不要跳过 bindings。
 
+## 蒸馏与逆向数据落盘（强制默认，2026-11-20 用户拍板）
+
+**所有蒸馏、逆向、上游取证的数据文件一律放 `C:\AI\re` 下，仓库只放文档与代码。**
+
+1. 一个上游目标一个子目录：`C:\AI\re\<目标>-<版本>`（有版本带版本，如 `codex-0.165.0`；
+   无版本用产品名/批次，如 `lingxi`、`agorai`、`aidebate`、`codex-computer-use`）。
+   **上游参考克隆沿用上游项目名并保留其 `.git`**（`orca`、`zcode`、`projectlibre`…），
+   依赖快照用 `<项目>-<latest|baseline>`。
+2. 子目录内分层固定：`docs/`（逆向说明）、`evidence/`（原始证据）、`embedded/`（解出的资产）、
+   `scripts/`（可复跑脚本）、`work/`（可重生成输出）、`oss/`（上游源码只读快照）、`data/`（成品证据包）。
+   老数据集与克隆树保持原布局，并在 `C:\AI\re\README.md` 登记差异。
+3. **禁止**在仓库内新建数据目录；已迁走的 `re-lingxi/`、`clones/` 与 `C:\AI\_distill\` 不得复活
+   （2026-11-20 两批迁移已全部并入 `C:\AI\re`，迁移表见其 `README.md` §六）。
+4. 仓库文档引用数据时写 **`C:\AI\re\<数据集>\...` 绝对路径**；大件（安装包、源码 tarball、
+   二进制副本）只记路径与 SHA256，不复制。
+5. 新增/迁移数据集：同步改 `C:\AI\re\README.md` 目录总览，并 `grep -rn` 改掉仓库内所有
+   旧路径引用，最后跑 `node scripts/check-docs.mjs` 确认无悬空引用。
+
 ## 项目长期记忆
 
 - 需要项目约定、历史决策、当前进度时，读取 `.gaea/AGENTS.md`、

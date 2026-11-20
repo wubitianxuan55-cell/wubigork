@@ -1,7 +1,7 @@
 # S7 · ZCode 官方 documents / presentations 插件拆解：可移植粒度评估
 
 - 日期：2026-10-24
-- 研究对象（只读）：`clones/zcode/apps/zcode-cli/packages/documents-plugin`、`.../presentations-plugin`
+- 研究对象（只读）：`C:\AI\re\zcode/apps/zcode-cli/packages/documents-plugin`、`.../presentations-plugin`
 - 对照对象：gaea 本体（`internal/app/gaea_docx_edit.go`、`internal/app/gaea_pptx_edit.go`、`internal/office/docxedit`、`internal/office/pptxedit`、`internal/app/gaea_verify.go`、`internal/gaea/skill/builtins.go`）
 - 产出定位：给 gaea 办公域做「资产搬运清单」，分「原样搬 / 必须改写 / 不该搬」三档，逐条给成本（S/M/L）与风险。
 - 纪律：全部结论带 `file:line` 证据；读不到的地方直说「读不到」，不做推断式补全。
@@ -10,10 +10,10 @@
 
 | 缩写 | 真实路径 |
 |---|---|
-| `DOCX/` | `clones/zcode/apps/zcode-cli/packages/documents-plugin/skills/docx/` |
-| `DP/` | `clones/zcode/apps/zcode-cli/packages/documents-plugin/` |
-| `PPTX/` | `clones/zcode/apps/zcode-cli/packages/presentations-plugin/skills/pptx/` |
-| `PP/` | `clones/zcode/apps/zcode-cli/packages/presentations-plugin/` |
+| `DOCX/` | `C:\AI\re\zcode/apps/zcode-cli/packages/documents-plugin/skills/docx/` |
+| `DP/` | `C:\AI\re\zcode/apps/zcode-cli/packages/documents-plugin/` |
+| `PPTX/` | `C:\AI\re\zcode/apps/zcode-cli/packages/presentations-plugin/skills/pptx/` |
+| `PP/` | `C:\AI\re\zcode/apps/zcode-cli/packages/presentations-plugin/` |
 
 ---
 
@@ -204,7 +204,7 @@ Step 6 跑生成后检查（:40）
 ### 4.3 修复循环最多几轮？——**读不到**
 
 - `visual-judge.md:3` 把轮次写死在别处：「Dispatch grouping, what to pass in, and **the repair loop follow the delivery protocol's visual gate in your system prompt**」。
-- 我检索了整个 `clones/zcode` 仓库（`grep "delivery protocol|visual gate"`），命中只有 4 份 visual-judge.md 自身的 description，**仓库内没有该 delivery protocol 的定义**（属 ZCode 系统提示词，不在源码树内）。
+- 我检索了整个 `C:\AI\re\zcode` 仓库（`grep "delivery protocol|visual gate"`），命中只有 4 份 visual-judge.md 自身的 description，**仓库内没有该 delivery protocol 的定义**（属 ZCode 系统提示词，不在源码树内）。
 - 仓库内能找到的只有两条弱约束：
   - `PPTX/SKILL.md:158`："**Visual QA once only**"（pptx 明确只做一遍视觉 QA）；
   - `DOCX/SKILL.md:189`："After generating any document, MUST run postcheck.py and **fix all ❌ errors**"（机检必须清零，但没说最多几轮）。

@@ -500,7 +500,7 @@ Gaea 已有三类可用资产：
 - 板块清单与空间：`frontend/src/boards/manifests.ts`
 - 现有执行式 DAG：`docs/archive/gaea-office-dag-63-design-2026-09.md`
 - 子代理审批风险：`.gaea/v5-research/v4-structural-audit.md`
-- ZCode 无头入口：ZCode 克隆 `clones/zcode/apps/zcode-cli` 的 CLI 参考 `02-cli-reference.md`（usage）
-- ZCode stdio 协议：ZCode 克隆 `clones/zcode/apps/zcode-cli` 的 `zcode-protocol-agent-server.md`（design/v2）
-- DSH headless/ACP：`clones/deepseek-harness/apps/cli/README.md`、`clones/deepseek-harness/apps/cli/reference/README.md`
+- ZCode 无头入口：ZCode 克隆 `C:\AI\re\zcode/apps/zcode-cli` 的 CLI 参考 `02-cli-reference.md`（usage）
+- ZCode stdio 协议：ZCode 克隆 `C:\AI\re\zcode/apps/zcode-cli` 的 `zcode-protocol-agent-server.md`（design/v2）
+- DSH headless/ACP：`C:\AI\re\deepseek-harness/apps/cli/README.md`、`C:\AI\re\deepseek-harness/apps/cli/reference/README.md`
 - 本机安装核验：Codex CLI 在 PATH；ZCode 3.16.3 与 DeepSeek Harness 桌面进程在运行，但 `zcode`/`dsh` 当前未以独立命令进入 PATH

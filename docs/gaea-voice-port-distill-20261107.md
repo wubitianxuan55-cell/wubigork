@@ -1,7 +1,7 @@
 # 语音 Go 移植蒸馏审计（上游 speech-to-speech v1.1.0 ↔ Go realtime 包）
 
 日期：2026-11-07（凌晨批次，接 2026-11-06 夜实弹翻车主修）
-上游基线：`clones/speech-to-speech` HEAD=8ebde04（release/v1.1.0 merge），`response.py:991` 锚点验证吻合。
+上游基线：`C:\AI\re\speech-to-speech` HEAD=8ebde04（release/v1.1.0 merge），`response.py:991` 锚点验证吻合。
 方法：五路并行逐义务核对（vad_iterator / vad_handler / speculative_turns / response+history / audio+conversation+session），义务清单先行、只判不修；每项给上游锚 file:line + Go 判定（同位/漏抄/有意裁剪/改形）+ 风险。
 
 ## 已修（2026-11-06 夜，vad_prefix_test/transcript_join_test 钉死）

@@ -1,7 +1,7 @@
 # asset-63 · 电脑操控全量逆向还原（Electron 前端 + JS 客户端 + 原生 helper + launcher）
 
 > 与 `asset-62` 的关系：62 是**协议与行为规格**（够用来重写）；63 是**代码级还原清单**（够用来抄实现/对照）。
-> 证据包（仓库外，约 74 MB）：`C:\AI\_distill\codex-computer-use\`，索引 `data\INDEX.md`。
+> 证据包（仓库外，约 74 MB）：`C:\AI\re\codex-computer-use\`，索引 `data\INDEX.md`。
 > 本轮新增证据源：Electron 主程序 `%USERPROFILE%\.codex\zh-cn-patched\<hash>\app\resources\app.asar`（761 MB / 19 791 文件）、
 > `app.asar` 内主进程 bundle `.vite\build\early-bootstrap-715-*.js`（5.8 MB）、renderer `webview\assets\async\*.js`、
 > 原生 helper `codex-computer-use-swift.exe`（56.7 MB，sha256 `f672c4ef…`）、启动器 `codex-computer-use.exe`（1.55 MB，Rust）。

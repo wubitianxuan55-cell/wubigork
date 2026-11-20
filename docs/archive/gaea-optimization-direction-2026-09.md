@@ -3,7 +3,7 @@
 > **来源**：2026-09-26 全仓审计——三条并行模块审计（①创作与陪伴域 ②生产/工作域 ③平台与壳层域）+ 本机实测复现（构建/测试/产物/启动/本机底座探活）+ 外部对标调研。
 > **类型**：优化方向**候选池**——未排刀、未抬版本、不改动任何权威路线的优先级。排刀权在用户。
 > **与权威路线的关系**：不改写 `docs/gaea-next-stage-plan-2026-09.md`（活跃指导）与 `docs/gaea-stage7-plan-2026-09.md`（阶段七，4/5 出口判据已过）；本文只做两件事：把审计发现登记成可执行优化项、把已经漂移的旧文件对齐事实。冲突时以既有权威路线为先。
-> **评分口径**：作为**个人自用工具**（2026-09-08 拍板的路线 A）的「好用 / 可信 / 可维护」，10 分制。行数用 `(Get-Content $f).Count` 累加（`Measure-Object -Line` 会少计），已排除 `clones/`、`node_modules/`、`dist/`、`build/`、`backups/`。
+> **评分口径**：作为**个人自用工具**（2026-09-08 拍板的路线 A）的「好用 / 可信 / 可维护」，10 分制。行数用 `(Get-Content $f).Count` 累加（`Measure-Object -Line` 会少计），已排除 `C:\AI\re\`、`node_modules/`、`dist/`、`build/`、`backups/`。
 > **综合评分 7.0 / 10**；14 个模块区间 5.5 ~ 8.0。
 
 ---
@@ -168,7 +168,7 @@
 
 ### P2-3 仓库体积治理（成本：半天，除历史重写外）
 
-- **证据**：工作区 3,537 MB；`.git` 256 MB；git 跟踪 11 个源码包 tarball 共 166.5 MB（占跟踪体积 83%）；`.tmp` 730 MB；`clones/` 623 MB；`backups/` 120 MB。
+- **证据**：工作区 3,537 MB；`.git` 256 MB；git 跟踪 11 个源码包 tarball 共 166.5 MB（占跟踪体积 83%）；`.tmp` 730 MB；`C:\AI\re\` 623 MB；`backups/` 120 MB。
 - **动作**：① `.tmp` 守卫 `scripts/clean-tmp.ps1` 的瞬态模式补 `uiwalk*` / `home-shots` / `*-shots`（当前只覆盖 `ui-sweep*`，而实测 577 MB 全在 `uiwalk/edgeprofile`，守卫根本扫不到——这是本次唯一的守卫缺口）；② 源码包 tarball 出 VCS 并加 `.gitignore`（历史仍可 `git checkout` 找回；**真要缩 `.git` 的 256 MB 需 filter-repo 重写历史，涉及已推送的 remote，需单独拍板**）；③ `releases/*.exe` 保留策略已有，建议同样脚本化。
 - **验收**：`.tmp` 反复堆积能被守卫自动清掉；仓库跟踪体积回到 50 MB 以内（不含历史）。
 
@@ -191,7 +191,7 @@
 | 卫生清理 | `.tmp` 瞬态 | `smoke-gaea.exe`（49 MB）、`node-compile-cache`、`Test*` 测试残留、`gaea-fts-test`、`gaea-memoryeval` 残留 |
 | 卫生清理 | `dist/`、根目录过期 exe | 根 `dist/`（10.6 MB，CI 会重建）；根 `gaea.exe`（内嵌 4.412.0 的旧副本）、根 `gaea-v4.420.0.exe`（与 `releases/` 副本同哈希的重复件） |
 
-**明确保留（不动）**：`releases/*.tar.gz`（11 个里程碑源码包，用户拍板保留）、`backups/`（用户备份）、`clones/`（含 `.mpp` 真实样本，删了 `mpp_test.go` 会永远 Skip）、`whisper_data/`（运行时库）、`build/bin/`（当前构建产物）、各版 `releases/*.exe`（保留策略内）。
+**明确保留（不动）**：`releases/*.tar.gz`（11 个里程碑源码包，用户拍板保留）、`backups/`（用户备份）、`C:\AI\re\`（含 `.mpp` 真实样本，删了 `mpp_test.go` 会永远 Skip）、`whisper_data/`（运行时库）、`build/bin/`（当前构建产物）、各版 `releases/*.exe`（保留策略内）。
 
 ---
 
@@ -200,7 +200,7 @@
 1. **真机交互未走查**：只做了启动冒烟与健康检查，模块的「手感 / 生成质量 / 多模型实际表现」未经人工验证。
 2. **`-race` 未实际执行**：本机无 gcc（`CGO_ENABLED=0`），race job 的编译失败是用交叉编译复现的；P0-2 的竞态是读码确证 + 无锁事实，未由 race 检测器报出。
 3. **外部市场事实**：竞品时间线来自 2026-09-26 检索（`web_fetch` 被本机 DNS 策略拦截，改用直连抓原文）；「ChatGPT Work 发布时间」「QClaw 最新形态」等若干条未能核实。
-4. **模块级未核实项**：`OutlineNode.SceneRefs` 是否死字段；ohstory T6 书级 `style.md` 注入是否生效；原罪数据是否有加密设施（当前只能确认目录级隔离）；DAG「壳内真机走查（真实三件套样例链）」在 HEAD 上的完成状态；`.mpp` MPP12/14 在干净 checkout 无法证实也无法证伪（真实样本在 gitignored 的 `clones/`）。
+4. **模块级未核实项**：`OutlineNode.SceneRefs` 是否死字段；ohstory T6 书级 `style.md` 注入是否生效；原罪数据是否有加密设施（当前只能确认目录级隔离）；DAG「壳内真机走查（真实三件套样例链）」在 HEAD 上的完成状态；`.mpp` MPP12/14 在干净 checkout 无法证实也无法证伪（真实样本在 gitignored 的 `C:\AI\re\`）。
 5. **评分漂移**：模块分数在 ±0.5 内会因「是否把共享引擎算进本模块」的口径不同而变。
 
 ---

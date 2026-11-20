@@ -1,11 +1,11 @@
 # s8 · ZCode「表格 / PDF」插件拆解与 gaea 移植判定
 
-> 调研对象：`clones/zcode/apps/zcode-cli/packages/spreadsheets-plugin`（xlsx）与 `.../pdf-plugin`（pdf），只读。
+> 调研对象：`C:\AI\re\zcode/apps/zcode-cli/packages/spreadsheets-plugin`（xlsx）与 `.../pdf-plugin`（pdf），只读。
 > 对照目标：`C:\AI\wubigrok`（gaea，Go + Wails）。
 > 方法：全量文件清单 + 结构化 grep 定位 + 局部精读；所有结论带 `文件:行号`。
 > 路径别名（下文 `$X` / `$P` 均指此）：
-> - `$X` = `clones/zcode/apps/zcode-cli/packages/spreadsheets-plugin/skills/xlsx`
-> - `$P` = `clones/zcode/apps/zcode-cli/packages/pdf-plugin/skills/pdf`
+> - `$X` = `C:\AI\re\zcode/apps/zcode-cli/packages/spreadsheets-plugin/skills/xlsx`
+> - `$P` = `C:\AI\re\zcode/apps/zcode-cli/packages/pdf-plugin/skills/pdf`
 
 ---
 
@@ -570,7 +570,7 @@ Report 的封面与正文解耦也写在 `$P/briefs/report.md:386-509`（body.pd
 
 | # | 资产 | 为什么不该搬 |
 |---|---|---|
-| C1 | `.zcode-plugin/plugin.json`、MCP server `dist/server.mjs`、UI surface（`ui://.../panel.html`）、`skills/xlsx-viewer`、`skills/pdf-viewer` | **宿主耦合**。这是 ZCode 插件商店 + 侧栏面板机制（`clones/zcode/apps/zcode-cli/packages/pdf-plugin/.zcode-plugin/plugin.json:16-25` MCP 段、`:26-40` UI surface 段、`:36` `resourceUri`），gaea 是 Wails 单进程，没有 MCP 宿主与 `ZCODE_PLUGIN_ROOT`/`ZCODE_PROJECT_DIR` 注入（同文件 `:19-23`）。搬过来只会得到一堆死配置 |
+| C1 | `.zcode-plugin/plugin.json`、MCP server `dist/server.mjs`、UI surface（`ui://.../panel.html`）、`skills/xlsx-viewer`、`skills/pdf-viewer` | **宿主耦合**。这是 ZCode 插件商店 + 侧栏面板机制（`C:\AI\re\zcode/apps/zcode-cli/packages/pdf-plugin/.zcode-plugin/plugin.json:16-25` MCP 段、`:26-40` UI surface 段、`:36` `resourceUri`），gaea 是 Wails 单进程，没有 MCP 宿主与 `ZCODE_PLUGIN_ROOT`/`ZCODE_PROJECT_DIR` 注入（同文件 `:19-23`）。搬过来只会得到一堆死配置 |
 | C2 | `agents/visual-judge.md` | ① 模型写死 `account:bigmodel-individual-coding-plan/GLM-5.3-Flash`、`thoughtLevel: max`（`:5-6`）② 绑定 ZCode 的任务协议（"dispatch grouping / delivery protocol" `:3`）③ **gaea 已有等价物**：`internal/app/gaea_verify.go`、`gaea_verify_diff.go`、`gaea_verify_channel_b_test.go` + `evidence` 包。再引入一套视觉 agent 会造成双门禁 |
 | C3 | `env_setup/*`：`env_check.sh`、`setup_windows.ps1`（10KB）、`setup_mac_linux.sh`（13.7KB）、`setup.md`（16.3KB）、`font_list.txt` | ① gaea 已有 soffice 定位与 profile 隔离（`gaea_pdf.go:152-213`）、`recalc.py` 的 `office/soffice.py` ② `setup.md` 的主体是"LibreOffice 必须装、不许用 Excel/WPS"的**产品政策话术**（`$X/SKILL.md:233-279`、`$P/SKILL.md:698-715`），不是能力实现；gaea 的 UX 与合规口径不同，照搬会变成错误提示文案 |
 | C4 | VBA 全套：`scenes/vba.md`（8.2KB）、`engines/vba-templates.md`（13.8KB）、`vbaProject.bin` 注入 | ① **安全/合规**：gaea 不提供宏执行沙箱，也不该鼓励用户开宏 ② **技术不可靠**：`$X/scenes/vba.md:227` 自己写"fragile — Method 1/2 preferred" ③ **平台不匹配**：excelize 对 `vbaProject.bin` 的支持与 openpyxl `keep_vba` 不同，Windows 下更易产生"Excel 提示修复"的坏文件 ④ 若真有需求，正确做法是生成"操作说明 + Office Script"，不是注入宏 |
@@ -617,7 +617,7 @@ ZCode pdf  ──┬─ typesetting/*.md (100KB) ──────────�
 
 ## 8. 方法与限制
 
-- **只读**：本报告未修改 `clones/zcode` 与 gaea 任何代码；仅新增本文件。
+- **只读**：本报告未修改 `C:\AI\re\zcode` 与 gaea 任何代码；仅新增本文件。
 - **未运行**：受 Python/Node/PyMuPDF/Chromium 环境与"不改代码"约束，所有脚本结论均来自静态阅读（含 `ast.parse` 语法确认），未实际执行 `pdf_qa.py`/`poster_validate.py`。§3.6 的两个缺陷（`LAST_PAGE_MIN_FILL` 死引用、`html2pdf.js` 缺文件）是通过"定义处 vs 引用处"的静态比对得出的，**未做运行时验证**。
-- **证据基准**：行号基于当前 clone 检出（`clones/zcode` 工作树）。若上游更新，行号需重校。
+- **证据基准**：行号基于当前 clone 检出（`C:\AI\re\zcode` 工作树）。若上游更新，行号需重校。
 - **未覆盖**：`briefs/creative*.md`（98KB）只做了路由与规则抽样，未逐条拆；`process.md`/`process-advanced.md` 只做了能力清单级阅读；`html2pdf-next.js` 的 `preRenderHooks`（326 行）只确认了存在与职责，未逐行分析其修正逻辑——若 gaea 决定走 HTML 路线，这部分需要单独一轮深挖。

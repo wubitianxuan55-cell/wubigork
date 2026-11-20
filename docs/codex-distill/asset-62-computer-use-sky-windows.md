@@ -8,7 +8,7 @@
 > 原生侧实测：`@oai\sky\bin\windows\swift\x64\codex-computer-use-swift.exe`
 > （sha256 `f672c4effe156c21baa81b0a69395c47ef2cea6a549c603233d5ef5ec7866edd`，56 674 608 B）
 > 与启动器 `bin\windows\codex-computer-use.exe`（1 548 592 B）。
-> 原始证据包（仓库外）：`C:\AI\_distill\codex-computer-use\`（文档/JS/串表/PE 导入表/实测响应 JSON 全在）。
+> 原始证据包（仓库外）：`C:\AI\re\codex-computer-use\`（文档/JS/串表/PE 导入表/实测响应 JSON 全在）。
 > 相关旧篇：`asset-50-tool-registry-and-dispatch.md`（工具注册面）、`asset-57-plugin-marketplace.md`（插件打包与签名）。
 
 ---

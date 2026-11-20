@@ -1,6 +1,6 @@
 # aidebate 源码分析（蒸馏输入）
 
-仓库：`clones/aidebate`（orlenko/aidebate，pyproject 记 0.4.7，alpha，Apache-2.0）
+仓库：`C:\AI\re\aidebate`（orlenko/aidebate，pyproject 记 0.4.7，alpha，Apache-2.0）
 阅读方式：只读源码与文档，未安装依赖、未运行测试、未改动仓库。
 证据格式：`path:line`（行号对应当前 HEAD 快照）。仓库内路径省略 `src/aidebate/` 前缀时以 `core/`、`web/` 开头。
 

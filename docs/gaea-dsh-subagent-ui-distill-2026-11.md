@@ -16,7 +16,7 @@
 > **补课缘起**：后端/模型面已两轮蒸馏（2026-10 判定级+刀池、2026-11 机制深挖，P0/P1 已落地），**UI/UX
 > 面此前从未系统蒸馏**——gaea 前端的子代理面（SubagentThread/useTaskCards/ChatTabs 圆点/queued 徽标/Ban
 > 图标）全部是随刀顺手认领，不是从上游 UI 蒸馏出来的。本档补上。
-> **源**：`clones/deepseek-harness` @ dsh-v0.2.2-alpha.2。上游 UI 面=packages/client 三件：
+> **源**：`C:\AI\re\deepseek-harness` @ dsh-v0.2.2-alpha.2。上游 UI 面=packages/client 三件：
 > `ui-subagent`（SubagentHeaderLineage 823 行谱系树+SubagentReadOnlyComposer 只读态+locales 词汇表 1055 行）、
 > `ui-settings-subagent`（SubagentCard/limits/model-selection 设置卡）、`ui-chat` conversation-nodes
 > （notice/relay 节种+turn-process 聚合+process-activity 活动分组+turn-trigger 源徽标）。

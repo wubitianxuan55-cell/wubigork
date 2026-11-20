@@ -3,7 +3,7 @@
 上游：https://github.com/zenstory-ai/oh-story-claudecode
 来源文件：skills/story-deslop/references/{banned-words.md, anti-ai-writing.md, deslop-gates.md}
 取用方式：机制重推导 + 要点式改写（未逐字搬运上游文本）；上游 MIT 许可要求保留版权与许可声明，故随附下列许可全文。
-本地参考克隆：clones/oh-story-claudecode（只读，不入库）
+本地参考克隆：C:\AI\re\oh-story-claudecode（只读，不入库）
 
 --- 上游 LICENSE 全文（MIT）---
 

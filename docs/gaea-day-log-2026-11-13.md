@@ -535,7 +535,7 @@
 - DSH 在灵犀逆向批中途停止，工作树留有未提交的调研三档+P0 全量代码与测试；
   本会话接续完成收尾：验证（Go+前端+构建+冒烟+装机）→落账→提交。调研事实源
   `docs/gaea-lingxi-re-distill-2026-11.md`（asar 逆向，目标 lingxi-desktop
-  1.3.36/app-server 5.24.0）+19 条优势档+落地计划档；`re-lingxi/` 脚本与四份
+  1.3.36/app-server 5.24.0）+19 条优势档+落地计划档；`C:\AI\re\lingxi\` 脚本与四份
   报告入库（asar 解包 122MB 体量走 .gitignore 排除）；`tools/wpsdock` 探针
   （P1-4 前置，go build 实证）入库。
 - **P0-1 交付契约硬化**：`fileLinks.parseFilePathHref` 伪协议还原（file:///
@@ -636,7 +636,7 @@
   751/bindingSignatures 751/legacy 82/wailsjs）；mock 契约三测钉死。真机
   停靠走查挂用户。embed 第二步默认不做待拍板。
 - **同树并跑实锤**：gaea 编程板块（隔离 DSH）在本批进行中继续灵犀逆向
-  B/C/D 批（re-distill 文档 +348 行、re-lingxi 新脚本十余个、plan 文档补
+  B/C/D 批（re-distill 文档 +348 行、C:\AI\re\lingxi 新脚本十余个、plan 文档补
   B 批证据注记，20:07 仍在写）。〔2026-11-13 晚更正归属：此前误记「另一
   执行体 codex」——进程面见到的 codex.exe 系 DSH 运行时的沙箱辅助进程，
   执行主体=编程板块自身。〕按合流纪律处置：不碰其文件、不卷其在途内容进
@@ -654,7 +654,7 @@
 - 用户确认编程板块逆向已结束〔更正：执行主体=gaea 编程板块（隔离 DSH），
   非 codex〕。代为归档其在树产物（独立提交保
   作者归属）：re-distill 文档 §10~§27 增量+蒸馏评估报告（值得 6/有条件 4/
-  不要 6）+plan 文档 B 批注记+re-lingxi B~I 批脚本与报告证据（prompts/
+  不要 6）+plan 文档 B 批注记+C:\AI\re\lingxi B~I 批脚本与报告证据（prompts/
   sections 131 段 744K 入库；raw-region/region-utf8/part-* 原始 dump 不入库
   走 .gitignore）。205 文件 +29842 行。
 - 产出第二批计划档 `docs/gaea-lingxi-batch2-plan-2026-11.md`：先对评估报告
@@ -708,7 +708,7 @@
   ②类名判定没错（wps 文字=OpusApp），但 .docx 默认程序是 LibreOffice 的
   机器现状会干扰手动复现路径。
 - **用户纠偏「不要傻搞，看看灵犀如何实现」**+编程板块新产
-  `re-lingxi/out/REPORT-右侧面板WPS编辑链路.md`（21:20）定案：灵犀右侧
+  `C:\AI\re\lingxi\out/REPORT-右侧面板WPS编辑链路.md`（21:20）定案：灵犀右侧
   面板=固定挂载点 #lingxi-canvas + **WebOffice JS-SDK kdocs 云 iframe**
   （本地文件上传服务端换 link_id，enterMode=edit 云端编辑，本地回写走
   插件保存通道；主进程注入 LingxiBridge=选区/Ctrl+S/脏标记/求值四事件）；

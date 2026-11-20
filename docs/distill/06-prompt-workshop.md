@@ -1,7 +1,7 @@
 # 提示词工坊与模板管理域 — MuMuAINovel 源码蒸馏与 gaea 落地规格
 
 > 任务：t6（work）· 能力域 06/06 · 交付物 `docs/distill/06-prompt-workshop.md`
-> 唯一事实来源：`clones/MuMuAINovel`（下文所有引用均为该目录相对路径 + 行号，行号对应当前工作区克隆版本）
+> 唯一事实来源：`C:\AI\re\MuMuAINovel`（下文所有引用均为该目录相对路径 + 行号，行号对应当前工作区克隆版本）
 > 本地对照：`C:\AI\wubigrok\prompts\*.json`、`internal/prompt/prompt.go`、`internal/skill/skill.go`
 > 写作约定：所有结论可复核；`未能从源码确认` 表示克隆内无法证实，未作推测。本轮不写生产代码。
 
@@ -949,7 +949,7 @@ initializeDefaultStyles: (projectId: string) =>
 
 ```python
 import re, ast
-src = open(r'clones/MuMuAINovel/backend/app/services/prompt_service.py', encoding='utf-8').read()
+src = open(r'C:\AI\re\MuMuAINovel/backend/app/services/prompt_service.py', encoding='utf-8').read()
 bodies = {}
 for m in re.finditer(r'^    ([A-Z][A-Z0-9_]{3,}) = """(.*?)"""', src, re.S | re.M):
     bodies[m.group(1)] = m.group(2)
@@ -986,7 +986,7 @@ print('mismatched_templates =', n)
 
 ```python
 import os, glob
-base = r'clones/MuMuAINovel/backend/app/skills'
+base = r'C:\AI\re\MuMuAINovel/backend/app/skills'
 t = 0
 for d in sorted(os.listdir(base)):
     if not os.path.isdir(os.path.join(base, d)):   # 跳过 README_HOW_TO_ADD_SKILL.md

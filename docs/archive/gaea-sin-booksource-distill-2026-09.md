@@ -1,7 +1,7 @@
 # 原罪板块 · 书源引擎蒸馏（so-novel）——规格与刀路
 
 > 状态：t1 引擎 P0 已落地（非版本刀）· 类型：外部项目蒸馏规格（机制清单 + gaea 落点 + 刀路）
-> 上游：https://github.com/freeok/so-novel（Java/Spring Boot CLI/Web 网文下载器，本地克隆 `clones/so-novel`，**AGPL-3.0**）
+> 上游：https://github.com/freeok/so-novel（Java/Spring Boot CLI/Web 网文下载器，本地克隆 `C:\AI\re\so-novel`，**AGPL-3.0**）
 > 关联板块：原罪（`docs/gaea-sin-board-design-2026-09.md`，闲庭 `sin`）
 > 关联代码：`internal/booksource/`（t1 本刀）；后续刀见 §5
 > 关联决策：`docs/distill/02-book-import.md`（拆书导入，书源是其「取书」上游）
@@ -16,7 +16,7 @@
 
 ## 2. so-novel 机制清单（file:line 对齐，供逐条验收）
 
-以下 `S/` = `clones/so-novel/src/main/java/com/pcdd/sonovel/`。
+以下 `S/` = `C:\AI\re\so-novel/src/main/java/com/pcdd/sonovel/`。
 
 ### 2.1 书源规则数据化（核心机制）
 

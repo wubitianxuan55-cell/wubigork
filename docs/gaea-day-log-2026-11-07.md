@@ -14,7 +14,7 @@
   守卫刀3 移植漏抄。修=`ensureTurnForSpeechStart` 同位守卫收口两调用点。
 - 根因2（从犯）：finishResponse `strings.Join(rs.parts, " ")`——上游句级 join
   错挂到 delta 粒度=「风 把 白 日」逐字撕裂，落库/面板/人格记忆全污染。修=join ""。
-- sidecar 源复得：HF speech-to-speech（Apache-2.0）v1.1.0 克隆 `clones/speech-to-speech`
+- sidecar 源复得：HF speech-to-speech（Apache-2.0）v1.1.0 克隆 `C:\AI\re\speech-to-speech`
   （当初 editable 指向 .tmp 已清盘；dist-info direct_url.json 可查源头）。
 
 ## 五路蒸馏审计（义务清单先行，台账 docs/gaea-voice-port-distill-20261107.md）

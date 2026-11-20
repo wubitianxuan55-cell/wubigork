@@ -67,11 +67,11 @@
 
 | 简写 | 实际路径 |
 | --- | --- |
-| `P/` | `clones/zcode/apps/zcode-cli/packages/` |
-| `D/` | `clones/zcode/apps/zcode-cli/docs/design/v2/` |
-| `Z/` | `clones/zcode/`（仓库根） |
+| `P/` | `C:\AI\re\zcode/apps/zcode-cli/packages/` |
+| `D/` | `C:\AI\re\zcode/apps/zcode-cli/docs/design/v2/` |
+| `Z/` | `C:\AI\re\zcode/`（仓库根） |
 
-例：`P/core/src/compact/policy.ts:9` = `clones/zcode/apps/zcode-cli/packages/core/src/compact/policy.ts` 第 9 行。
+例：`P/core/src/compact/policy.ts:9` = `C:\AI\re\zcode/apps/zcode-cli/packages/core/src/compact/policy.ts` 第 9 行。
 
 **证据分级**：
 

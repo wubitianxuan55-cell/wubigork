@@ -1,6 +1,6 @@
 # DSH 0.2.2-alpha.2 子代理板块深挖蒸馏 —— 机制级（2026-11-02）
 
-> **源**：`clones/deepseek-harness`，机制面按 **dsh-v0.2.2-alpha.2** 判定（tag diff 单独注明）；工作树检出
+> **源**：`C:\AI\re\deepseek-harness`，机制面按 **dsh-v0.2.2-alpha.2** 判定（tag diff 单独注明）；工作树检出
 > 停在 alpha.2，两版差异点以 tag diff 引用。子代理包 src 全量 6360 行：
 > manager(1475)/index(646)/tool-subagent(491)/types(366)/child-agent(290)/descriptor(269)/out-of-process(218)/
 > model-selection(196)/projection(190)/activation(186)/list-agents(178)/catalog(170)/lifecycle(169)/

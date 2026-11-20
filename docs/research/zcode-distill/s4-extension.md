@@ -1,6 +1,6 @@
 # ZCode 扩展与知识注入模型调研（s4-extension）
 
-> 调研对象：`clones/zcode`（只读检出）。
+> 调研对象：`C:\AI\re\zcode`（只读检出）。
 > 结论面向：gaea「办公板块」的复用判断。
 > 纪律：只调研、不改代码；每条结论都给 `file:line` 证据；未验证的地方显式标注。
 
@@ -24,7 +24,7 @@ ZCode 的扩展面由**五个可插拔能力域**构成，共同点是：**一�
 
 ## 1. 证据面与方法
 
-- 源码：`clones/zcode/apps/zcode-cli/packages/{core,adapters,bootstrap,cli,contracts}`、`clones/zcode/packages/{shared,services}`。
+- 源码：`C:\AI\re\zcode/apps/zcode-cli/packages/{core,adapters,bootstrap,cli,contracts}`、`C:\AI\re\zcode/packages/{shared,services}`。
 - 规范：`apps/zcode-cli/docs/design/v2/*.md`（skill / plugin-compat / custom-commands / hooks / mcp / extension-discovery-priority）、`docs/specs/*`、`docs/runtime-tools/*`、`docs/usage/*`、`docs/superpowers/plans/*`。
 - 官方插件源码：`apps/zcode-cli/packages/{documents,pdf,presentations,spreadsheets,office-runtime,visualize}-plugin`（这批就是 ZCode 的"办公能力"，证据价值最高）。
 - gaea 侧落点：全部用 `grep` 确认过真实存在（见第 12 节列出的文件清单），没有凭印象写路径。
@@ -37,7 +37,7 @@ ZCode 的扩展面由**五个可插拔能力域**构成，共同点是：**一�
 
 **机制**：一个技能 = 一个含 `SKILL.md` 的目录，或平铺的 `<name>.md`；根目录本身可含 `SKILL.md`（此时根即技能，同时再扫一层子目录），**只扫一层**。
 
-- 证据：`clones/zcode/apps/zcode-cli/packages/adapters/src/skills/scan.ts:5-9`（"manifest 的 skills 项既可指向单个技能目录，也可指向一层技能集合"）、`:43-74`（先判根 `SKILL.md`，再 `readdir` 只遍历一层）、`:101-117`（候选必须是真实文件）。
+- 证据：`C:\AI\re\zcode/apps/zcode-cli/packages/adapters/src/skills/scan.ts:5-9`（"manifest 的 skills 项既可指向单个技能目录，也可指向一层技能集合"）、`:43-74`（先判根 `SKILL.md`，再 `readdir` 只遍历一层）、`:101-117`（候选必须是真实文件）。
 - 错误契约：**只吞 ENOENT**，EACCES/EMFILE 必须上抛并转成 `skill_scan_failed` 诊断（`scan.ts:11-14`、`:144-155`、`adapters/src/skills/index.ts:144-157`）。
 - 发现根与优先级（从高到低）：配置 `skills.roots` → 用户 `~/.zcode/skills` → 用户 `~/.agents/skills` → 项目 `<dir>/.zcode/skills`（从 cwd 逐级向上到 git worktree root）→ 项目 `.agents/skills` → 启用的插件根（`adapters/src/skills/roots.ts:21-72`、`:107-118`；规范 `docs/design/v2/extension-discovery-priority.md:17-28`）。
 - 去重口径：**路径是安装身份**（`index.ts:80-85`），同名不同路径都可见；按 name 加载时**先发现者胜**（用户级遮蔽项目级，`extension-discovery-priority.md:26-28`）。
@@ -147,7 +147,7 @@ ZCode 的扩展面由**五个可插拔能力域**构成，共同点是：**一�
 {"version":1,"skills":{"agent-browser":{"source":"vercel-labs/agent-browser","sourceType":"github","computedHash":"939c..."}}}
 ```
 
-（`clones/zcode/skills-lock.json:1-25`，另有 `apps/zcode-cli/skills-lock.json`）
+（`C:\AI\re\zcode/skills-lock.json:1-25`，另有 `apps/zcode-cli/skills-lock.json`）
 
 **关键事实**：`computedHash` 在整个仓库里**只出现在这个文件本身**（全仓 grep 仅命中 `apps/zcode-cli/skills-lock.json`），runtime 不读它。它的作用是**供应链留痕**：`.agents/skills/<name>` 下的技能是从哪个 GitHub 仓库 vendored 进来的、内容哈希是多少（来源与安装位置的对应见 `docs/vercel-react-best-practices-skill.md:5-22`）。
 
@@ -180,7 +180,7 @@ ZCode 的扩展面由**五个可插拔能力域**构成，共同点是：**一�
 
 **机制**：Markdown + frontmatter，正文即子代理的 system prompt 主体。
 
-frontmatter 字段（`clones/zcode/packages/shared/src/subagent-profile-parser.ts:33-106`）：
+frontmatter 字段（`C:\AI\re\zcode/packages/shared/src/subagent-profile-parser.ts:33-106`）：
 
 | 字段 | 语义 | 证据 |
 | --- | --- | --- |

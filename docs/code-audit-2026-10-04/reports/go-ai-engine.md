@@ -23,7 +23,7 @@
 | **合计** | **119** | **1,124,654** | **26,322** | **66** | **13,020** |
 
 - 顶层声明：**452 个函数/方法**、**120 个类型**、589 个可检索符号（含 const/var）。
-- 排除目录（未纳入任何检索）：`clones/`、`node_modules/`、`frontend/`、`.tmp*/`、`backups/`、`releases/`、`dist/`。
+- 排除目录（未纳入任何检索）：`C:\AI\re\`、`node_modules/`、`frontend/`、`.tmp*/`、`backups/`、`releases/`、`dist/`。
   - 例外：为判定"字符串驱动/前端调用"风险，对 `frontend/src` **只做过字符串字面量反向检索**（不视为代码引用）。
 - `reasonix.toml`（77 行）已审，**结论：它不是 Gaea 的配置**，见 F-50。
 
@@ -281,7 +281,7 @@
 
 ## F-50 · `reasonix.toml`（专项）
 
-**核心结论：`reasonix.toml` 不是 Gaea 的配置，而是 DSH/Reasonix agent harness 的配置文件。** 证据：文件第 1-3 行自述 `# Reasonix configuration.` / `# Resolution order: flag > ./reasonix.toml > ~/AppData/Roaming/reasonix/config.toml > built-in defaults.` / `# Secrets come from the environment via api_key_env; never put keys here.`；Gaea 全仓检索 `rg -n 'reasonix\.toml' --glob '!clones/**'` → **唯一命中是 `reasonix.toml:2` 自身的注释**，没有任何 Go 代码读取它。
+**核心结论：`reasonix.toml` 不是 Gaea 的配置，而是 DSH/Reasonix agent harness 的配置文件。** 证据：文件第 1-3 行自述 `# Reasonix configuration.` / `# Resolution order: flag > ./reasonix.toml > ~/AppData/Roaming/reasonix/config.toml > built-in defaults.` / `# Secrets come from the environment via api_key_env; never put keys here.`；Gaea 全仓检索 `rg -n 'reasonix\.toml' --glob '!C:\AI\re\**'` → **唯一命中是 `reasonix.toml:2` 自身的注释**，没有任何 Go 代码读取它。
 
 因此"配置项是否指向已不存在的代码/字段"这个问题的答案是：**Gaea 侧无此耦合，不存在指向失效代码的配置项**。剩下的都是 harness 配置自身的卫生问题：
 

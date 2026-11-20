@@ -1,7 +1,7 @@
 # 前端审计 · 测试资产 + CSS
 
 > 范围：`frontend/src/**/*.test.ts(x)`（435 个）+ `frontend/src/test/` + 根级测试（`App.tokens.test.ts`、`contrast-hex.test.ts`、`perf-guards.test.ts`、`novel-workspace.test.ts`、`events.test.ts`、`events-discipline.test.ts`）+ `frontend/src/events.ts` + 全部 `frontend/src/**/*.css`（26 个）+ `internal/**/*_test.go`（仅统计）。
-> 排除：`frontend/node_modules/`、`frontend/dist/`、`frontend/wailsjs/`、`frontend/.tmp/`、`clones/`。
+> 排除：`frontend/node_modules/`、`frontend/dist/`、`frontend/wailsjs/`、`frontend/.tmp/`、`C:\AI\re\`。
 > 方法：AST 级正则解析 + 跨文件规范化窗口比对 + 类名**整词（whole-token）**匹配 + 动态串（模板字面量 / 字符串拼接 / `clsx()` 参数）上下文判定。所有分析脚本写在 `%TEMP%\gaea-audit\`，**未修改仓库任何文件**。
 > 未跑全量 vitest（遵守基线约定）；未起 dev server；未 `pnpm install`；未上网。
 

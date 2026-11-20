@@ -1,7 +1,7 @@
 # 05 · 角色状态机与职业/境界体系 —— MuMuAINovel 源码蒸馏 + gaea 落地规格
 
-> 事实基线：`clones/MuMuAINovel` @ commit **600be7038539e4dd0568b63e6e534fdcfaf91687**（main, tag v1.5.5）
-> 引用格式：`clones/MuMuAINovel@600be703:<相对路径>:<起-L止>`
+> 事实基线：`C:\AI\re\MuMuAINovel` @ commit **600be7038539e4dd0568b63e6e534fdcfaf91687**（main, tag v1.5.5）
+> 引用格式：`C:\AI\re\MuMuAINovel@600be703:<相对路径>:<起-L止>`
 > 行号来源：全部来自 grep / read 工具真实输出。
 > 纪律：凡无法从源码确认的内容，显式标注「未能从源码确认」。
 
@@ -43,7 +43,7 @@ gaea 当前对应能力仅有 `internal/analysis/analysis.go:186-209` 的 `syncC
 
 ### 2.1 MuMu 的「角色 = 角色 ∪ 组织」单表双态设计
 
-`clones/MuMuAINovel@600be703:backend/app/models/character.py:8-53` —— **组织不是独立实体，而是一条 `is_organization=True` 的 Character 行**，
+`C:\AI\re\MuMuAINovel@600be703:backend/app/models/character.py:8-53` —— **组织不是独立实体，而是一条 `is_organization=True` 的 Character 行**，
 组织专有属性（类型/目的/成员）在同一个 `characters` 表里用可空列表达：
 
 ```python
@@ -68,7 +68,7 @@ sub_careers       = Column(Text)  # [{"career_id":"xxx","stage":3}, ...]        
 
 ### 2.2 关系与组织的三张表
 
-`clones/MuMuAINovel@600be703:backend/app/models/relationship.py`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/models/relationship.py`
 
 - `RelationshipType`（:8-22）：`name / category(family|social|hostile|professional) / reverse_name / intimacy_range / icon`，自增 int 主键，**21 条种子**（`backend/app/init_relationship_types.py:16-45`：父亲/母亲/兄弟/姐妹/子女/配偶/恋人 | 师父/徒弟/朋友/同学/邻居/知己 | 上司/下属/同事/合作伙伴 | 敌人/仇人/竞争对手/宿敌）。
 - `CharacterRelationship`（:25-56）：`character_from_id` / `character_to_id` / `relationship_type_id`（可空）/ `relationship_name`（自由文本）/ `intimacy_level`（**默认 50，域 -100..100**，:41）/ `status`（active/broken/past/complicated，:42）/ `started_at` / `ended_at`（**字符串，存"第N章"**，:46-47）/ `source`（ai/manual/imported，:50）。
@@ -77,7 +77,7 @@ sub_careers       = Column(Text)  # [{"career_id":"xxx","stage":3}, ...]        
 
 ### 2.3 职业模型（三层）
 
-`clones/MuMuAINovel@600be703:backend/app/models/career.py`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/models/career.py`
 
 **第 1 层 · 职业模板 `Career`（:8-44）**
 ```python
@@ -116,7 +116,7 @@ __table_args__ = (..., Index('idx_character_career', 'character_id', 'career_id'
 
 ### 2.4 `CharacterCareer` stage 与 `Career.stages[].level` 的解析契约
 
-唯一「把数字阶变成可读阶段名」的地方在 `clones/MuMuAINovel@600be703:backend/app/api/careers.py:642-669`：
+唯一「把数字阶变成可读阶段名」的地方在 `C:\AI\re\MuMuAINovel@600be703:backend/app/api/careers.py:642-669`：
 ```python
 stages = json.loads(career.stages) if career.stages else []      # :642
 stage_name = "未知阶段"                                            # :645
@@ -168,13 +168,13 @@ type Relationship struct {               // :116-122
 
 MuMu 有**两条**入口，编排顺序一致但锁粒度不同：
 
-**入口 A · 章节分析后台任务** `clones/MuMuAINovel@600be703:backend/app/api/chapters.py:1286-1385`
+**入口 A · 章节分析后台任务** `C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:1286-1385`
 ```
 1. CareerUpdateService.update_careers_from_analysis(...)          # :1287-1314  💼 职业
 2. CharacterStateUpdateService.update_from_analysis(...)          # :1317-1352  👤 心理+关系+组织成员
 3. CharacterStateUpdateService.update_organization_states(...)    # :1355-1385  🏛️ 组织自身
 ```
-**入口 B · 手动分析** `clones/MuMuAINovel@600be703:backend/app/api/memories.py:215-254`（同样顺序，`entity_changes` 聚合返回）。
+**入口 B · 手动分析** `C:\AI\re\MuMuAINovel@600be703:backend/app/api/memories.py:215-254`（同样顺序，`entity_changes` 聚合返回）。
 
 > **顺序语义**：职业先写（因为 `_update_sub_career_stage` 要读 `character.sub_careers` JSON 快照），
 > 然后心理/关系，最后组织自身。三级相互之间**不共享事务边界**（各自 `db.commit()`），
@@ -182,7 +182,7 @@ MuMu 有**两条**入口，编排顺序一致但锁粒度不同：
 
 ### 3.2 输入契约：`character_states` 数组
 
-来自 `PLOT_ANALYSIS` Prompt 的输出（`clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1285-1310`）：
+来自 `PLOT_ANALYSIS` Prompt 的输出（`C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1285-1310`）：
 
 ```jsonc
 "character_states": [
@@ -226,7 +226,7 @@ MuMu 有**两条**入口，编排顺序一致但锁粒度不同：
 
 ### 3.3 主循环算法（逐步）
 
-`clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:32-185`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:32-185`
 
 ```
 update_from_analysis(db, project_id, character_states, chapter_id, chapter_number):
@@ -286,7 +286,7 @@ update_from_analysis(db, project_id, character_states, chapter_id, chapter_numbe
 
 ### 3.4 存活状态级联（最值得蒸馏的部分）
 
-`clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:187-267`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:187-267`
 
 ```
 _update_survival_status(character, new_status, chapter_number, key_event):
@@ -333,7 +333,7 @@ _update_survival_status(character, new_status, chapter_number, key_event):
 
 ### 3.5 心理状态更新
 
-`clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:269-314`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:269-314`
 
 ```
 _update_psychological_state(character, char_state, chapter_number):
@@ -357,7 +357,7 @@ _update_psychological_state(character, char_state, chapter_number):
 
 ### 3.6 关系更新 + 亲密度关键词算法
 
-`clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:316-456`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:316-456`
 
 **输入形态兼容**（`:349-357`）：`{角色名: "变化描述"}` 或 `{角色名: {"change": "...", ...}}`。
 
@@ -415,7 +415,7 @@ def _calculate_intimacy_delta(change_desc):
 
 ### 3.7 组织成员变动（6 种 change_type × 忠诚度算法）
 
-`clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:458-648`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:458-648`
 
 **忠诚度词典**（:486-490，定义在**函数体内**，每次调用重建）：
 ```python
@@ -443,7 +443,7 @@ LOYALTY_ADJUSTMENTS = {"提升":+10,"增强":+10,"坚定":+15,"忠心":+15,
 
 ### 3.8 组织自身状态更新
 
-`clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:650-805`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:650-805`
 
 ```
 update_organization_states(db, project_id, organization_states, chapter_number):
@@ -481,7 +481,7 @@ update_organization_states(db, project_id, organization_states, chapter_number):
 
 状态机的一半价值在**写回生成侧**。MuMu 有两条回灌通道：
 
-**通道 1 · 章节分析 Prompt 的角色上下文**（`clones/MuMuAINovel@600be703:backend/app/api/chapters.py:577-838`）
+**通道 1 · 章节分析 Prompt 的角色上下文**（`C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:577-838`）
 `build_characters_info_with_careers()` 拼一行式角色摘要，字段顺序固定（:835）：
 ```
 - 名字(角色/组织, role_type)[💀已死亡]
@@ -497,7 +497,7 @@ update_organization_states(db, project_id, organization_states, chapter_number):
 - **只显示非默认值**：`intimacy_level != 50` 才显示（:821）、`loyalty != 50` 才显示（:794）——**降噪**
 - 截断策略：current_state 50 字（:782）、personality 100 字（:831）、purpose 60 字（:735）、关系取前 5（:807）、组织取前 3（:791）
 
-**通道 2 · 章节正文生成 Prompt**（`clones/MuMuAINovel@600be703:backend/app/services/chapter_context_service.py:31-45, 533-666`）
+**通道 2 · 章节正文生成 Prompt**（`C:\AI\re\MuMuAINovel@600be703:backend/app/services/chapter_context_service.py:31-45, 533-666`）
 多行结构化格式，与通道 1 不同风格：
 ```
 【张三】(角色, 主角)
@@ -524,7 +524,7 @@ update_organization_states(db, project_id, organization_states, chapter_number):
 
 ### 4.1 职业体系生成（项目级）
 
-**Prompt 构造** `clones/MuMuAINovel@600be703:backend/app/services/career_service.py:18-107` 与增量版 `backend/app/api/careers.py:159-456`。
+**Prompt 构造** `C:\AI\re\MuMuAINovel@600be703:backend/app/services/career_service.py:18-107` 与增量版 `backend/app/api/careers.py:159-456`。
 
 初始版输出契约（`career_service.py:60-92`）：
 ```jsonc
@@ -556,7 +556,7 @@ update_organization_states(db, project_id, organization_states, chapter_number):
 
 ### 4.2 角色获得职业（三条路径）
 
-**路径 1 · AI 生成角色时一起给职业**（`clones/MuMuAINovel@600be703:backend/app/services/auto_character_service.py:145-250`）
+**路径 1 · AI 生成角色时一起给职业**（`C:\AI\re\MuMuAINovel@600be703:backend/app/services/auto_character_service.py:145-250`）
 
 ```
 career_info = character_data.get("career_info", {})               # :146
@@ -583,13 +583,13 @@ Character(..., main_career_id=..., main_career_stage=...,
 ```
 `characters.py:1017-1140` 有一个**结构完全相同、行数更多的内联副本**（带 6 条 `logger.info` 调试输出），实现同一个 `generate-stream` 流程。
 
-**路径 2 · 手填角色表单**（`clones/MuMuAINovel@600be703:backend/app/api/characters.py:379-509`）
+**路径 2 · 手填角色表单**（`C:\AI\re\MuMuAINovel@600be703:backend/app/api/characters.py:379-509`）
 - `main_career_id` 变更 → 校验 `Career.type=='main'` 且 `stage <= max_stage`（:387-401），删旧建新（:404-432）
 - `main_career_id = None` → 清空（:446-447）
 - 仅改 `main_career_stage` → 同步 CharacterCareer（:448-460）
 - `sub_careers` **硬截断 `[:2]`**（:481）并在 :508-509 回写冗余字段
 
-**路径 3 · 手动 API**（`clones/MuMuAINovel@600be703:backend/app/api/careers.py`）
+**路径 3 · 手动 API**（`C:\AI\re\MuMuAINovel@600be703:backend/app/api/careers.py`）
 - `POST /careers/character/{id}/careers/main`（:682-754）：换主职业 = 删旧 + 建新（:734-749），`reached_current_stage_at = started_at`
 - `POST /careers/character/{id}/careers/sub`（:757-837）：**上限 5**（:819-820 `if sub_count >= 5`）
 - `PUT /careers/character/{id}/careers/{career_id}/stage`（:840-897）：更新阶段，**降级只 WARN 不阻止**（:878-879）
@@ -603,7 +603,7 @@ Character(..., main_career_id=..., main_career_stage=...,
 
 ### 4.3 职业随章节推进（±N 阶）
 
-`clones/MuMuAINovel@600be703:backend/app/services/career_update_service.py`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/career_update_service.py`
 
 **主循环**（:15-127）：
 ```
@@ -685,7 +685,7 @@ else:  # sub
 
 ### 4.4 自动补角/补组织（大纲驱动的前置补齐）
 
-`clones/MuMuAINovel@600be703:backend/app/services/auto_character_service.py:351-546`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/auto_character_service.py:351-546`
 
 ```
 check_and_create_missing_characters(project_id, outline_data_list, ...):
@@ -707,7 +707,7 @@ check_and_create_missing_characters(project_id, outline_data_list, ...):
 组织补全 `auto_organization_service.py:114-155`：组织 = `Character(is_organization=True)` + `Organization` 两行同建（:123-151），
 默认 `power_level=50, member_count=0`（:143-144）。
 
-**Prompt：`AUTO_CHARACTER_GENERATION`**（`clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1926-2057`）——蒸馏要点：
+**Prompt：`AUTO_CHARACTER_GENERATION`**（`C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1926-2057`）——蒸馏要点：
 - `<requirements>` 显式要求「**必须分析新角色与已有角色的关系**，至少建立 1-3 个有意义的关系」（:1967）
 - 职业选择纪律「如果【已有角色】部分包含"可用主职业列表"或"可用副职业列表"…**必须填写职业的名称而非 ID**」（:1981-1987）
 - 输出 schema 含 `relationships[]` / `organization_memberships[]` / `career_info{}` 三段（:2005-2032）
@@ -733,7 +733,7 @@ careers_info += "\n⚠️ 重要提示：生成角色时，职业阶段不能超
 
 ### 5.1 `PLOT_ANALYSIS` 角色维度原文要点
 
-`clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py`
 
 **输入槽位**（:1079-1084）：
 ```
@@ -804,7 +804,7 @@ careers_info += "\n⚠️ 重要提示：生成角色时，职业阶段不能超
 
 ### 6.1 后端图谱 API
 
-`clones/MuMuAINovel@600be703:backend/app/api/relationships.py:77-157`
+`C:\AI\re\MuMuAINovel@600be703:backend/app/api/relationships.py:77-157`
 
 ```
 GET /relationships/graph/{project_id} →
@@ -829,7 +829,7 @@ GET /relationships/graph/{project_id} →
 
 ### 6.2 前端图谱：把职业建成节点
 
-`clones/MuMuAINovel@600be703:frontend/src/pages/RelationshipGraph.tsx`
+`C:\AI\re\MuMuAINovel@600be703:frontend/src/pages/RelationshipGraph.tsx`
 
 **边分类元数据**（:105-115）——可蒸馏的分类体系：
 ```ts
@@ -887,7 +887,7 @@ isOrgMemberLink  → 虚线, category 'organization'
 
 后端 `careers.py:608-937` 提供了完整的「角色-职业」接口族：
 `GET/POST /character/{id}/careers/main`、`POST .../sub`、`PUT .../{career_id}/stage`、`DELETE .../{career_id}`。
-唯一消费方是 `clones/MuMuAINovel@600be703:frontend/src/components/CharacterCareerCard.tsx`
+唯一消费方是 `C:\AI\re\MuMuAINovel@600be703:frontend/src/components/CharacterCareerCard.tsx`
 （`CharacterCareerCard.tsx:67` 读取、`:104` 设主职业、`:122` 加副职业、`:142` 调阶、`:165` 删副职业，
 含 :385「阶段进度（0-100）」表单与 :223 `Progress` 进度条）。
 
@@ -1173,33 +1173,33 @@ func CalcIntimacyDelta(desc string) int {
 ## 10. 参考引用索引（全部锚定 600be703）
 
 ```
-clones/MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:1-829      # 全文
-clones/MuMuAINovel@600be703:backend/app/services/career_update_service.py:1-398               # 全文
-clones/MuMuAINovel@600be703:backend/app/services/career_service.py:1-234                      # 全文
-clones/MuMuAINovel@600be703:backend/app/services/auto_character_service.py:1-551              # 全文
-clones/MuMuAINovel@600be703:backend/app/services/auto_organization_service.py:1-200
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1050-1390（PLOT_ANALYSIS 角色/组织契约）
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1926-2057（AUTO_CHARACTER_GENERATION）
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:2189-2195（AUTO_ORGANIZATION_GENERATION 头）
-clones/MuMuAINovel@600be703:backend/app/services/chapter_context_service.py:25-46,300-340,525-666
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:575-838（build_characters_info_with_careers）
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:1000-1385（分析编排四级调用）
-clones/MuMuAINovel@600be703:backend/app/api/memories.py:95-274（手动分析同套编排）
-clones/MuMuAINovel@600be703:backend/app/api/careers.py:37-937
-clones/MuMuAINovel@600be703:backend/app/api/characters.py:341-509,1017-1140
-clones/MuMuAINovel@600be703:backend/app/api/relationships.py:32-262
-clones/MuMuAINovel@600be703:backend/app/models/character.py:8-57
-clones/MuMuAINovel@600be703:backend/app/models/career.py:8-77
-clones/MuMuAINovel@600be703:backend/app/models/relationship.py:8-116
-clones/MuMuAINovel@600be703:backend/app/schemas/career.py:1-155
-clones/MuMuAINovel@600be703:backend/app/schemas/relationship.py:1-200
-clones/MuMuAINovel@600be703:backend/app/init_relationship_types.py:16-45
-clones/MuMuAINovel@600be703:backend/alembic/postgres/versions/20260212_1244_d4d253e3f4c6_添加角色心理状态追踪字段.py:24-34
-clones/MuMuAINovel@600be703:backend/alembic/sqlite/versions/20260212_0922_642c76fc69d4_添加角色心理状态追踪字段.py:24-34
-clones/MuMuAINovel@600be703:frontend/src/pages/Careers.tsx:1-500
-clones/MuMuAINovel@600be703:frontend/src/pages/RelationshipGraph.tsx:100-250,563-1002,1071-1100
-clones/MuMuAINovel@600be703:frontend/src/pages/Characters.tsx:40-85,277,1054,1333
-clones/MuMuAINovel@600be703:frontend/src/components/CharacterCareerCard.tsx:1-45,67,104,122,142,165,183,223,385,407
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/character_state_update_service.py:1-829      # 全文
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/career_update_service.py:1-398               # 全文
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/career_service.py:1-234                      # 全文
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/auto_character_service.py:1-551              # 全文
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/auto_organization_service.py:1-200
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1050-1390（PLOT_ANALYSIS 角色/组织契约）
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1926-2057（AUTO_CHARACTER_GENERATION）
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:2189-2195（AUTO_ORGANIZATION_GENERATION 头）
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/chapter_context_service.py:25-46,300-340,525-666
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:575-838（build_characters_info_with_careers）
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:1000-1385（分析编排四级调用）
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/memories.py:95-274（手动分析同套编排）
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/careers.py:37-937
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/characters.py:341-509,1017-1140
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/relationships.py:32-262
+C:\AI\re\MuMuAINovel@600be703:backend/app/models/character.py:8-57
+C:\AI\re\MuMuAINovel@600be703:backend/app/models/career.py:8-77
+C:\AI\re\MuMuAINovel@600be703:backend/app/models/relationship.py:8-116
+C:\AI\re\MuMuAINovel@600be703:backend/app/schemas/career.py:1-155
+C:\AI\re\MuMuAINovel@600be703:backend/app/schemas/relationship.py:1-200
+C:\AI\re\MuMuAINovel@600be703:backend/app/init_relationship_types.py:16-45
+C:\AI\re\MuMuAINovel@600be703:backend/alembic/postgres/versions/20260212_1244_d4d253e3f4c6_添加角色心理状态追踪字段.py:24-34
+C:\AI\re\MuMuAINovel@600be703:backend/alembic/sqlite/versions/20260212_0922_642c76fc69d4_添加角色心理状态追踪字段.py:24-34
+C:\AI\re\MuMuAINovel@600be703:frontend/src/pages/Careers.tsx:1-500
+C:\AI\re\MuMuAINovel@600be703:frontend/src/pages/RelationshipGraph.tsx:100-250,563-1002,1071-1100
+C:\AI\re\MuMuAINovel@600be703:frontend/src/pages/Characters.tsx:40-85,277,1054,1333
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/CharacterCareerCard.tsx:1-45,67,104,122,142,165,183,223,385,407
 
 # gaea 侧对照
 internal/types/types.go:62-129

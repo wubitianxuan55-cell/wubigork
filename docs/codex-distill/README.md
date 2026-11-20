@@ -6,7 +6,7 @@
 > **跨轮次状态锚点**：`C:\AI\re\codex-0.165.0\docs\MEMORY-逆向状态.md`（进度、铁律、证据根、已确认机制、下一步）。
 > **第二证据根（桌面端插件包，2026-11-19 起）**：`asset-62`（电脑操控）不是从 `codex-0.165.0` 源码逆的，
 > 证据在 `%USERPROFILE%\.codex\zh-cn-patched\<hash>\app\resources\`（Electron 包解包 + `cua_node` 运行时 + `@oai/{sky,cua,cua-repl}`），
-> 原始证据包（含实测 helper 响应 JSON、PE 导入表、全量串表）在仓库外 `C:\AI\_distill\codex-computer-use\`。
+> 原始证据包（含实测 helper 响应 JSON、PE 导入表、全量串表）在仓库外 `C:\AI\re\codex-computer-use\`。
 
 ## 文件
 

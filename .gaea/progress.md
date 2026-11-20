@@ -1,3 +1,44 @@
+## 数据根统一：蒸馏/逆向数据全部并入 C:\AI\re（2026-11-20）
+
+用户指令「所有蒸馏的数据文件都放在 `C:\AI\re` 里，方便查找，同时把前期蒸馏的那些都迁移过来，
+同步更新文档地址」。本轮只做数据搬迁与文档同步，未动业务代码、未构建、未发版。
+
+- **记忆落地**：仓库根 `AGENTS.md` 新增「蒸馏与逆向数据落盘（强制默认）」节（唯一存放点 /
+  命名 / 七层目录 / 禁止复活旧目录 / 引用写绝对路径）；`.gaea/AGENTS.md` 增「数据根」节；
+  `docs/README.md` 头部加数据根段并补 `codex-distill/` 子目录索引行。
+- **迁移（文件数与字节数逐一核对一致）**：`C:\AI\_distill\codex-computer-use`（1,329 / 73.5 MB）、
+  `_distill\agorai`（201 / 4.1 MB，含浅克隆 `.git`）、`_distill\aidebate`（82 / 0.4 MB）、
+  仓库内 `re-lingxi`（1,311 / 126.0 MB）→ `C:\AI\re\{codex-computer-use,agorai,aidebate,lingxi}`；
+  `C:\AI\_distill` 已删；仓库 `re-lingxi/` 记为 232 个删除（**未提交**）。
+- **索引**：新建 `C:\AI\re\README.md`：总则、目录总览（6 个数据集 × 规模 × 入口文档）、
+  布局差异说明、查找路线、迁移表、维护规约。
+- **文档同步**：19 个文件 69 处旧路径改写 + 13 处斜杠归一；覆盖 `docs\codex-distill\`
+  （README / asset-62 / asset-63）、`gaea-computer-use-landing-research-2026-11.md`、
+  `gaea-lingxi-*` 五份、`gaea-pantheon-agorai-aidebate-distill-round2`、day-log 11-13 / 11-20、
+  `.gaea\progress.md` / `todos.md`、两份 `lingxiIcons.tsx` 与两份 `*-lingxi-skin.css` 注释、
+  以及 `C:\AI\re\lingxi\out\*.md` 自述路径。
+- **卫生**：`.gitignore` 删除 8 条已失效的 `re-lingxi/out/*` 忽略规则（逆向数据不再进仓库）。
+- **第二批：`clones/` 全量迁出（用户追加指令「clones/ 里其它克隆也迁移过去」）**：16 个目录
+  整批 `move` 到 `C:\AI\re\<同名>`——上游参考克隆 13（deepseek-harness / deepseek-reasonix /
+  reasonix / zcode / orca / unsloth / rea / projectlibre / MuMuAINovel / oh-story-claudecode /
+  owllook / so-novel / speech-to-speech）、DSH web 依赖快照 2（dsh-web-latest / dsh-web-baseline）、
+  业务样本 1（mpp2013）。文件数 16/16 逐一核对一致（`diffs=0`）；`re` 现 4.60 GB / 231,546 文件；
+  仓库 `clones/` 迁空后整目录删除，`.gitignore` 的 `/clones/` 规则同步移除。
+- **代码耦合修复**：`internal/schedule/mpp_test.go` 新增 `reSamplePath()`（默认根 `C:\AI\re`，
+  `GAEA_RE_ROOT` 可覆盖，旧 `../../clones/` 兜底），两处真实样本门控改走它；`mpp.go` 头注同步。
+  **验证：`go test ./internal/schedule -run TestMpp -v` 全过，`TestMppRealSamples` 与
+  `TestMppRealSamples2013` 均 PASS（非 SKIP）**——证明新数据根样本可读、解析真值未漂移。
+- **文档批量改写**：62 个文件（docs 各册 + `.gaea/reports` + 6 份 `LICENSE-oh-story.txt` +
+  `releases/archive` 三份 + `CHANGELOG.md`）里的 `clones/<x>` 引用统一改为 `C:\AI\re\<x>`；
+  `clones/.tmp` 两处历史扫描口径说明按原样保留。
+- **原位置清理（用户追问后落实）**：核对 `C:\AI\_distill`、`C:\AI\wubigrok\re-lingxi` 已不存在；
+  另发现 `clones\agorai`（1e469be）与 `clones\aidebate`（80f3b77）是同 commit 的重复副本，
+  与 `C:\AI\re\` 下两份完全重复——一并删除，两份文档引用（`gaea-pantheon-agorai-aidebate-distill-2026-11-07.md`、
+  `docs\research\aidebate-distill\01-source-analysis.md`）改指 `C:\AI\re\agorai|aidebate`。
+  蒸馏数据自此只有 `C:\AI\re` 一处。
+- **验证**：`node scripts/check-docs.mjs` 绿（孤儿 0 / 悬空 0 / 指令预算 37,641 B ≤ 65,536 /
+  .ps1 编码合规）；`git grep` 残留仅剩说明性提及与历史发布包/历史 TSV 清单。
+
 ## 运行监测 UX/UI 第二轮：可执行状态面（2026-11-20）
 
 用户要求「使用技能重新设计运行监测板块的 UX、UI，要能真正起作用」。本轮用
@@ -2831,7 +2872,7 @@ D1 之后按"继续"再推一程，把两件事从"推测"变成"实证"（报�
 
 ## 灵犀输出 UI batch3 · 2026-11-13（代码候选）
 
-按 `re-lingxi/out/REPORT-对话窗口UI与文件成果卡.md` +
+按 `C:\AI\re\lingxi\out/REPORT-对话窗口UI与文件成果卡.md` +
 `REPORT-思考卡工具卡过程卡.md` 把办公对话输出层继续向灵犀形态收口：
 交付物从纵向列表改为 2 列「文件成果卡」网格（DOC/XLSX/PPT/PDF/图片/HTML/
 Markdown 等类型后缀徽标与淡色渐变），文件名保持主视觉，路径退到 title /
@@ -2919,7 +2960,7 @@ P0 收官批挂起的两条计划内余项补完：#12 参数错误三要素高�
 DSH 灵犀逆向批（lingxi-desktop 1.3.36/app-server 5.24.0 asar 逆向）中途停止，
 工作树留有调研三档+P0 全量代码；本会话接续收尾验证与落账。事实源
 `docs/gaea-lingxi-re-distill-2026-11.md` + 19 条优势档 + 落地计划档；
-`re-lingxi/` 脚本与报告入库（122MB 解包体量 .gitignore 排除）；
+`C:\AI\re\lingxi\` 脚本与报告入库（122MB 解包体量 .gitignore 排除）；
 `tools/wpsdock` P1-4 前置探针入库（go build 实证）。
 
 - P0-1 交付契约硬化：`fileLinks.parseFilePathHref` 伪协议还原（file:///、
@@ -3616,7 +3657,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - **项目整体删除**（绑定 660）：DeleteBillProject 级联 项目+清单+独占定额（source 匹配且删后无引用）；共享定额与资源保留——Go 测试钉住分界。
 - **清单累计视图**：全项目拉平带项目列+三重筛选（项目/分部/关键字）+计数；选中项目出封面费率卡+删除按钮（二次确认）。
 - **造价参考不重复**：它聚合资料条目（cost_entries 1590 条旧价格手册）分位数，导入项目不进——hint 澄清。
-- **坑**：①colIndex 子串匹配的劫持类 bug——**列名族（XX/XX单位）必须精确匹配优先**；②e2e fixture 单一来源的盲区（只有旺平）；③**vitest 从仓库根跑假红第五踩**（后台命令 cwd 在仓库根扫到 clones/，1537 failed 假象）；④bash heredoc 长脚本静默截断再证——一律 Write 脚本文件；⑤anchor 差前导缩进（顶格 it(）。
+- **坑**：①colIndex 子串匹配的劫持类 bug——**列名族（XX/XX单位）必须精确匹配优先**；②e2e fixture 单一来源的盲区（只有旺平）；③**vitest 从仓库根跑假红第五踩**（后台命令 cwd 在仓库根扫到 C:\AI\re\，1537 failed 假象）；④bash heredoc 长脚本静默截断再证——一律 Write 脚本文件；⑤anchor 差前导缩进（顶格 it(）。
 - **测试**：Go TestDeleteBillProject+解析回归；前端 27 例（+3）；全量 **3797/437**；drift PASS@660。
 - **产物**：releases/gaea-v4.462.0.exe（冒烟 200；删 v4.457.0.exe 实存 458~462）；桌面补拷双验 3d382c05…。
 
@@ -4840,7 +4881,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 
 ## 最新发布：v4.374.0（2026-09-21）「Reasonix 真身蒸馏：安全四刀 + 内核三刀」
 
-- **动机**：用户纠偏 v4.373 对象认定（dsh 非 reasonix）并指路 GitHub 搜索——真身=esengine/DeepSeek-Reasonix（Go 单二进制终端 agent，V1.12/V1.15 端口出处），本版蒸馏 v1.15→v1.38.11 增量（5227 提交，源码入 clones/deepseek-reasonix）；v4.373 dsh 档勘误更名保留。
+- **动机**：用户纠偏 v4.373 对象认定（dsh 非 reasonix）并指路 GitHub 搜索——真身=esengine/DeepSeek-Reasonix（Go 单二进制终端 agent，V1.12/V1.15 端口出处），本版蒸馏 v1.15→v1.38.11 增量（5227 提交，源码入 C:\AI\re\deepseek-reasonix）；v4.373 dsh 档勘误更名保留。
 - **落地**：安全四刀=①Host 白名单 421（httpbridge+诊断端口，挡 DNS-rebinding）②只读表修正（env/awk/sed 移出只读、cargo 仅留 search、find -ok 族、git 四类执行旗标）③git clean-filter 中和（repo 本地 filter.* 置空三件套）④SSRF 共享件（netclient 三导出）+booksource 默认 client 守卫化。内核三刀=⑤收尾判定（reasoning-only=final；零内容冻结重放不注合成消息）⑥bash 输出运行中封顶（head 1MiB+滚动尾 64KiB）⑦compactStuck 新消息解锁（stuckAtMessages）。
 - **测试**：Go +10（HostGuard 10 子例/BlockedInternalIP+GuardedClient/cleanFilterOverrides 真仓/间接执行 20 例/收尾两例/stuck 两态/bounded 三例）；行为变更适配 3 处。
 - **门禁**：go build/vet 0+全量 ci 绿 EXIT=0+版本三处 4.374.0。
@@ -5966,7 +6007,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - **引用完整性**：修掉 12 处「文档已移入 `docs/archive/` 但引用未跟」的悬空路径（含 AGENTS 三处：执行审计 / VoxCPM2 / CosyVoice 记录）。
 - **防复发门禁**：新增 `scripts/check-docs.mjs`（① docs 顶层孤儿登记 ② `docs/` 悬空引用（带外部路径白名单）③ AGENTS.md 字节预算水位）接入 `scripts/ci.ps1`——同类漂移下次直接红。
 - **产物保留策略落地（2026-09-10 用户拍板：保留最近 5 个版本）**：`releases/` 下 51 个 exe / 1996.6 MB → 保留 **v4.186.0 / v4.98.0 / v4.97.0 / v4.96.0 / v4.95.0**（226.6 MB），删掉其余 46 个 / **释放 1770 MB**。每个被删版本的**身份仍在** `releases/SHA256SUMS-vX.Y.Z.txt`（218 份校验和覆盖到 v4.99.0 及更早）；策略已写入 `releases/README.md`「本地产物保留策略」与 `.gaea/AGENTS.md` 发布流程第 4 步（下次发版删第 6 新的一版即可）。
-- **未动（体量大且属用户数据，等拍板）**：`clones/` 参考仓（mpp2013/projectlibre/unsloth，**338.9 MB**——含隐藏 .git；首轮统计未计隐藏文件故报 212 MB）、`backups/` 120.4 MB、`whisper_data/` 运行时数据 49.5 MB、`.tmp/codex` 67 MB。
+- **未动（体量大且属用户数据，等拍板）**：`C:\AI\re\` 参考仓（mpp2013/projectlibre/unsloth，**338.9 MB**——含隐藏 .git；首轮统计未计隐藏文件故报 212 MB）、`backups/` 120.4 MB、`whisper_data/` 运行时数据 49.5 MB、`.tmp/codex` 67 MB。
 
 ## 最新发布：v4.208.0（2026-09-10）「首页 v7 重设计：书斋「文书台」/ 闲庭「游园画廊」」
 

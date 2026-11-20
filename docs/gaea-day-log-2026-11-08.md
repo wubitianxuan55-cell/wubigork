@@ -81,7 +81,7 @@
 ## 深夜第二批：dsh-wubi 红队线全链贯通（编程板块）
 
 > 用户口径「红队模式识别直接配置好 → 真正用起来 → 端到端验证」。
-> dsh-wubi 已迁**工作空间顶层 `C:\AI\wubigrok\dsh-wubi`**（原 clones/ 埋没），
+> dsh-wubi 已迁**工作空间顶层 `C:\AI\wubigrok\dsh-wubi`**（原 C:\AI\re\ 埋没），
 > 装机 junction= `C:\AI\dsh\home\profiles\web\node_modules\dsh-wubi` 绝对指向；
 > 主仓 .gitignore 加 `/dsh-wubi/`。仓内快照提交 **78c66ca**（v2.0.0 基线+rc.1
 > 适配三刀）+ **71b8547**（清消息草稿），git 身份同主仓（wubi@wubigork.local）。

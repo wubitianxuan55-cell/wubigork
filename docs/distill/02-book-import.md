@@ -1,9 +1,9 @@
 # 能力域 T2 · 拆书 / 导入反推 —— MuMuAINovel 源码蒸馏与 gaea 落地规格
 
-- **蒸馏对象**：`clones/MuMuAINovel`（GitHub `xiamuceer-j/MuMuAINovel`，Python FastAPI + React）
+- **蒸馏对象**：`C:\AI\re\MuMuAINovel`（GitHub `xiamuceer-j/MuMuAINovel`，Python FastAPI + React）
 - **目标落地方**：gaea（Go + Wails + React）小说板块
 - **本轮边界**：只读源码 + 产出规格；**不写生产代码**
-- **唯一事实来源**：`clones/MuMuAINovel` 工作区克隆；本文所有结论均可由「文件:行号」回查，无臆测
+- **唯一事实来源**：`C:\AI\re\MuMuAINovel` 工作区克隆；本文所有结论均可由「文件:行号」回查，无臆测
 - **任务**：t2（researcher-bookimport）
 
 ---

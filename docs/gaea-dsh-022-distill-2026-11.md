@@ -1,6 +1,6 @@
 # DSH 0.2.1-rc.1 → 0.2.2-alpha.2 增量蒸馏 —— 调研与刀池（2026-11-02）
 
-> **源**：`clones/deepseek-harness`，本轮 fetch 增量 tag **rc.3 / rc.4 / rc.5 / 0.2.2-alpha.2**；
+> **源**：`C:\AI\re\deepseek-harness`，本轮 fetch 增量 tag **rc.3 / rc.4 / rc.5 / 0.2.2-alpha.2**；
 > 调研基线取最高 tag **dsh-v0.2.2-alpha.2**（已含 master 全部内容，见「版本景观」）。
 > 前情：子代理板块（docs/gaea-dsh-subagent-distill-2026-10.md，P0/P1 已落地 e19543bb/f5aa2892）与
 > 核心域（docs/gaea-dsh-021-core-distill-2026-10.md）均基于 dsh-v0.2.1-alpha.2；本轮补齐其后的全部上游演进。

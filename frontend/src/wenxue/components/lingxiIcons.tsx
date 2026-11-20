@@ -1,4 +1,4 @@
-// lingxiIcons.tsx — 灵犀卡片图标（SVG 路径逐字取自 re-lingxi/out/ui/showcase.html
+// lingxiIcons.tsx — 灵犀卡片图标（SVG 路径逐字取自 C:\AI\re\lingxi\out/ui/showcase.html
 // 效果图基准，viewBox 16 / stroke currentColor，与灵犀渲染层视觉一致）。
 // 用途：办公对话流卡片头图标（batch3 UI「卡片图标换成灵犀的」）。
 import type { SVGProps } from "react";

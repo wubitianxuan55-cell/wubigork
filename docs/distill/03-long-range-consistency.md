@@ -1,6 +1,6 @@
 # 03 · 长程一致性域（Memory + Embedding + 章节上下文）源码蒸馏
 
-- 唯一事实来源：`clones/MuMuAINovel`（v1.5.5，git clone 于工作区）
+- 唯一事实来源：`C:\AI\re\MuMuAINovel`（v1.5.5，git clone 于工作区）
 - 本地对照对象：`internal/novelcontext/novelcontext.go`（876 行）+ `internal/memory/memory.go`（289 行）+ `internal/gaea/semantic/semantic.go`（288 行）
 - 本轮不写生产代码。所有结论均附 `文件:行号`；无法从源码确认的一律显式标注「未能从源码确认」。
 - 阅读方法：逐文件通读 + 跨文件 grep 交叉验证调用关系。「未被任何代码引用」的判断依据是全仓 `grep` 结果（见 §10）。
@@ -9,16 +9,16 @@
 
 | 文件 | 行数 / 大小 | 在本域中的角色 |
 |---|---|---|
-| `clones/MuMuAINovel/backend/app/services/chapter_context_service.py` | 1870 行 / 85 KB | 上下文组装核心（双模式构建器） |
-| `clones/MuMuAINovel/backend/app/services/memory_service.py` | 795 行 / 29 KB | ChromaDB 向量记忆服务 |
-| `clones/MuMuAINovel/backend/app/services/onnx_embedding.py` | 295 行 / 11 KB | ONNX 本地 embedding 推理 |
-| `clones/MuMuAINovel/backend/app/services/plot_analyzer.py` | 602 行 / 28 KB | 记忆**生产者**（从未被蒸馏的另一半） |
-| `clones/MuMuAINovel/backend/app/models/memory.py` | 200 行 | `StoryMemory` / `PlotAnalysis` 数据模型 |
-| `clones/MuMuAINovel/backend/app/api/memories.py` | 514 行 | 记忆 API 契约 |
-| `clones/MuMuAINovel/backend/app/api/chapters.py` | 5251 行（读相关段） | 记忆写入主路径 + 上下文集结处 |
-| `clones/MuMuAINovel/backend/app/services/prompt_service.py` | 3158 行（读相关段） | 上下文注入 prompt 的最终位置 |
-| `clones/MuMuAINovel/backend/app/services/import_export_service.py` | 1840 行（读相关段） | 记忆导出/导入 |
-| `clones/MuMuAINovel/backend/requirements.txt` | 30 行 | 依赖与版本证据 |
+| `C:\AI\re\MuMuAINovel/backend/app/services/chapter_context_service.py` | 1870 行 / 85 KB | 上下文组装核心（双模式构建器） |
+| `C:\AI\re\MuMuAINovel/backend/app/services/memory_service.py` | 795 行 / 29 KB | ChromaDB 向量记忆服务 |
+| `C:\AI\re\MuMuAINovel/backend/app/services/onnx_embedding.py` | 295 行 / 11 KB | ONNX 本地 embedding 推理 |
+| `C:\AI\re\MuMuAINovel/backend/app/services/plot_analyzer.py` | 602 行 / 28 KB | 记忆**生产者**（从未被蒸馏的另一半） |
+| `C:\AI\re\MuMuAINovel/backend/app/models/memory.py` | 200 行 | `StoryMemory` / `PlotAnalysis` 数据模型 |
+| `C:\AI\re\MuMuAINovel/backend/app/api/memories.py` | 514 行 | 记忆 API 契约 |
+| `C:\AI\re\MuMuAINovel/backend/app/api/chapters.py` | 5251 行（读相关段） | 记忆写入主路径 + 上下文集结处 |
+| `C:\AI\re\MuMuAINovel/backend/app/services/prompt_service.py` | 3158 行（读相关段） | 上下文注入 prompt 的最终位置 |
+| `C:\AI\re\MuMuAINovel/backend/app/services/import_export_service.py` | 1840 行（读相关段） | 记忆导出/导入 |
+| `C:\AI\re\MuMuAINovel/backend/requirements.txt` | 30 行 | 依赖与版本证据 |
 
 依赖版本（`requirements.txt`）：`chromadb==1.3.2`、`onnxruntime==1.28.0`、`tokenizers==0.22.2`、`numpy==2.5.1`、`sqlalchemy==2.0.25`、`aiosqlite==0.22.1`、`asyncpg==0.31.0`。**无 tiktoken / transformers 运行时依赖**（`transformers` 只在构建期 `requirements-embedding-export.txt` 中，见该文件第 1 行注释）。
 

@@ -253,7 +253,7 @@ models（135GB，llama qwen35 活跃引擎）/ ComfyUI（86.9GB）/ strata（10.
 unlimited-ocr2（15.2GB）/ uocr2-llama（3.9GB）/ dsh（3.7GB，DSH_HOME）/
 breeze-tts2（3.7GB，活跃 TTS）/ gaea-voice-v2（2GB）/ gaea-ocr（820MB）/
 whirl（124MB）/ tuwen / gaea-app（装机位）——**全部保留**。
-证据与研究面保留：_distill（76MB，asset-62/63 证据包）、re（803MB，codex 逆向
+证据与研究面保留：re\codex-computer-use（76MB，asset-62/63 证据包，2026-11-20 由 _distill 迁入）、re（803MB，codex 逆向
 工作区）、dsh-src（136MB，DSH pnpm patch 源头）、tmp/dsh-context-v0.84.1
 （135MB，已装机 DSH context 回滚源）、bangong（今日活跃+权限规则引用）。
 

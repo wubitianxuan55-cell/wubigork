@@ -40,4 +40,4 @@ PDF对比其余待办 **已全清（2026-09-07）**：bar 图面标注+里程碑
 - 高压氧舱 PDF（本机样本，文件名《- 高压氧舱总进度计划（上报定）.pdf》，存于工作目录进度管理文件夹）：MS Project 列口径：标识号/WBS/任务名称/工期/开始时间/完成时间
 - 重庆干休所 PDF（本机样本，文件名《重庆干休所网络进度计划调整2（燃气延期119天）.pdf》，存于工作目录网络计划文件夹）：.gzp 时标网络：标题+月/日/星期标尺
 - Microsoft Learn：project-features-descriptions（核心功能/规划管理/任务资源/组合报告四组）、project-online-desktop-client-service-description（34 项功能表）
-- 机制供给：`docs/gaea-schedule-projectlibre-distill-2026-09.md`（ProjectLibre/OpenProj 蒸馏，16 项中 8 项有直接可取机制，#10 项目模板上游也空白；clones/projectlibre 只读参考，CPAL 零代码搬运）
+- 机制供给：`docs/gaea-schedule-projectlibre-distill-2026-09.md`（ProjectLibre/OpenProj 蒸馏，16 项中 8 项有直接可取机制，#10 项目模板上游也空白；C:\AI\re\projectlibre 只读参考，CPAL 零代码搬运）

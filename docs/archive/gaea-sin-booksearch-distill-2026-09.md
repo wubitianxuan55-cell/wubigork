@@ -1,7 +1,7 @@
 # 原罪板块 · 泛搜索与免规则解析蒸馏（owllook）——规格与刀路
 
 > 状态：引擎刀已落地（非版本刀）· 类型：外部项目蒸馏规格（机制清单 + gaea 落点 + 偏离）
-> 上游：https://github.com/howie6879/owllook（Python/Sanic 小说垂直搜索引擎，本地克隆 `clones/owllook`，**Apache-2.0**）
+> 上游：https://github.com/howie6879/owllook（Python/Sanic 小说垂直搜索引擎，本地克隆 `C:\AI\re\owllook`，**Apache-2.0**）
 > 前序：docs/gaea-sin-booksource-distill-2026-09.md（so-novel 蒸馏，`internal/booksource` t1 已落）
 > 关联板块：原罪（闲庭 `sin`）；代码落点 `internal/booksource/websearch.go|guess.go|cache.go`
 
@@ -18,7 +18,7 @@ so-novel 路线（已落 t1）= **逐站搜索**：每个书源自带搜索端�
 
 ## 2. owllook 机制清单（file:line 对齐）
 
-以下 `O/` = `clones/owllook/owllook/`。
+以下 `O/` = `C:\AI\re\owllook/owllook/`。
 
 ### 2.1 泛搜索（novels_factory）
 

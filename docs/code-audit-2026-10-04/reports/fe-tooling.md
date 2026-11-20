@@ -32,7 +32,7 @@
 
 ### TrendChart.tsx 判定：**确认零引用（dead code），判定成立，confidence: high**
 
-四路独立证据（`C:\AI\wubigrok` 全仓，排除 `node_modules/`、`clones/`、`dist/`）：
+四路独立证据（`C:\AI\wubigrok` 全仓，排除 `node_modules/`、`C:\AI\re\`、`dist/`）：
 
 | # | 检查 | 命令 / 模式 | 结果 |
 |---|---|---|---|
@@ -303,7 +303,7 @@
 
 ### 2. go.mod：**零未使用直接依赖**
 
-17 个 direct require 在 1,825 个 `.go` 文件（排除 `clones/`）中**全部**有 import 命中，
+17 个 direct require 在 1,825 个 `.go` 文件（排除 `C:\AI\re\`）中**全部**有 import 命中，
 最低 1 次（`cascadia`、`fsnotify`、`go-runewidth`、`mscfb`、`go-qrcode`）。
 补充两道结构性保证：① Go 编译器**本身拒绝**「声明于 require 但全模块未 import」的直接依赖（`go build ./...`
 在 `ci.yml:22` 每 push 必跑）；② `.golangci.yml:11` 启用 `unused` linter（v2.14.0 钉版，`ci.yml:79-82`）。

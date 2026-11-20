@@ -1,6 +1,6 @@
 # gaea 伏笔管理能力升级 · 可落地实施规格
 
-- 来源：`clones/MuMuAINovel` v1.5.5 伏笔管理域源码蒸馏（分析报告见 `t1-foreshadow-source-analysis.md`）
+- 来源：`C:\AI\re\MuMuAINovel` v1.5.5 伏笔管理域源码蒸馏（分析报告见 `t1-foreshadow-source-analysis.md`）
 - 目标工程：gaea（Go + Wails + React），Go module `github.com/gaea/gaea`
 - 本轮**不写生产代码**，仅产出规格
 - 约束：本规格的所有决策都可回溯到报告中的 `文件:行号` 证据
@@ -1125,4 +1125,4 @@ gaea 无向量库依赖，但需保留语义：
 
 ---
 
-*规格完成。所有决策可回溯至 `clones/MuMuAINovel` v1.5.5 的具体行号，对照 gaea 现役实现的差距已在分析报告 §7 列表化说明。*
+*规格完成。所有决策可回溯至 `C:\AI\re\MuMuAINovel` v1.5.5 的具体行号，对照 gaea 现役实现的差距已在分析报告 §7 列表化说明。*

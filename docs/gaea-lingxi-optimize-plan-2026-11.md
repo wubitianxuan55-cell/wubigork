@@ -125,7 +125,7 @@
 > 不解除最小化只改还原位置；②更根本——**灵犀根本没有窗口停靠**：符号表 30 717 个
 > SetParent/SetWindowPos 零命中，其「右侧面板编辑 WPS」= **kdocs 云 iframe**
 > （WebOffice JS-SDK，本地文件上传服务端换 link_id，`enterMode=edit` 云端编辑，
-> 见 `re-lingxi/out/REPORT-右侧面板WPS编辑链路.md`）——绑金山云，gaea 明确不做。
+> 见 `C:\AI\re\lingxi\out/REPORT-右侧面板WPS编辑链路.md`）——绑金山云，gaea 明确不做。
 > gaea 本地等价物已存在：FilePreview 预览（docx/xlsx/pptx）+ COM 实时档在用户
 > 自己的 WPS 窗口实时上屏（=灵犀 `ui:true` 语义）+ OfficeLiveBadge + office_render
 > 视觉验收。已 revert（ec3f4f48）；探针 `tools/wpsdock` 与本段留档防重蹈。

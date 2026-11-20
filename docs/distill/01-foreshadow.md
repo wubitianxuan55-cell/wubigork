@@ -1,7 +1,7 @@
 # MuMuAINovel 伏笔管理域 · 源码级分析报告
 
 - 任务：t1（能力域【伏笔管理】源码蒸馏）
-- 唯一事实来源：`clones/MuMuAINovel`（v1.5.5）
+- 唯一事实来源：`C:\AI\re\MuMuAINovel`（v1.5.5）
 - 分析方法：直读源码，所有函数名/类名/字段名/Prompt 原文均带 `文件:行号`，无推断
 - 目标：为 gaea（Go + Wails + React，内部包名 `internal/...`）小说板块的伏笔能力升级提供落地依据
 
@@ -827,4 +827,4 @@ gaea 现役伏笔实现（读自本工作区）：
 
 ---
 
-*报告完成：全部函数名、字段名、常量值、Prompt 文本均取自 `clones/MuMuAINovel` v1.5.5 源码，行号已逐条核对。*
+*报告完成：全部函数名、字段名、常量值、Prompt 文本均取自 `C:\AI\re\MuMuAINovel` v1.5.5 源码，行号已逐条核对。*

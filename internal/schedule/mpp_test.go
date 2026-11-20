@@ -1,8 +1,9 @@
 // mpp_test.go — MPP 二进制解析测试(v4.140.0)
 //
 // 两层:①合成流表直测解码层(mppParseFromStreams,不依赖 CFB 容器);
-// ②真实样本门控测试(ParseMpp 全链路,样本在 git-ignored 的 clones/projectlibre
-// 样例目录,缺失即 Skip——蒸馏与实证口径见 internal/schedule/mpp.go 头注)。
+// ②真实样本门控测试(ParseMpp 全链路,样本在仓库外数据根 C:\AI\re
+// 的 projectlibre / mpp2013 目录,缺失即 Skip——蒸馏与实证口径见
+// internal/schedule/mpp.go 头注)。数据根见 AGENTS.md「蒸馏与逆向数据落盘」。
 package schedule
 
 import (
@@ -12,6 +13,26 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+// ── 真实样本定位（仓库外数据根，2026-11-20 迁移）──────────────────
+
+// reSamplePath 解析仓库外数据根（C:\AI\re）下的真实样本路径，rel 用斜杠分隔。
+// 数据根可用 GAEA_RE_ROOT 覆盖；旧位置（仓库内 git-ignored clones/）保留兜底，
+// 便于老检出继续跑门控测试。返回空串表示样本缺失，调用方按"缺失即 Skip"处理。
+func reSamplePath(rel string) string {
+	p := filepath.FromSlash(rel)
+	cands := make([]string, 0, 3)
+	if root := os.Getenv("GAEA_RE_ROOT"); root != "" {
+		cands = append(cands, filepath.Join(root, p))
+	}
+	cands = append(cands, filepath.Join(`C:\AI\re`, p), filepath.Join("..", "..", "clones", p))
+	for _, c := range cands {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return ""
+}
 
 // ── 合成字节构造器 ─────────────────────────────────────────────────
 
@@ -404,7 +425,7 @@ func TestMppSyntheticMPP9(t *testing.T) {
 	}
 }
 
-// ── 真实样本门控测试(git-ignored clones 样例,缺失即 Skip) ─────────
+// ── 真实样本门控测试(仓库外数据根 C:\AI\re 样例,缺失即 Skip) ─────────
 
 // TestMppRealSamples MPP9 族真实样本门控（硬断言版，round-21 盲区①收口）：
 // 此前只断言 >0 类弱判据，V9 偏移变异把总工期 344→1275769 天仍绿——弱判据对
@@ -416,21 +437,25 @@ func TestMppRealSamples(t *testing.T) {
 		tasks, links, resources, assign, dur int
 	}{
 		{
-			"../../clones/projectlibre/projectlibre_build/resources/samples/Commercial construction project plan.mpp",
+			"projectlibre/projectlibre_build/resources/samples/Commercial construction project plan.mpp",
 			146, 176, 32, 158, 344,
 		},
 		{
-			"../../clones/projectlibre/projectlibre_build/resources/samples/New Product.mpp",
+			"projectlibre/projectlibre_build/resources/samples/New Product.mpp",
 			43, 37, 8, 28, 83,
 		},
 		{
-			"../../clones/projectlibre/projectlibre_build/resources/samples/Microsoft Office Project 2003 deployment.mpp",
+			"projectlibre/projectlibre_build/resources/samples/Microsoft Office Project 2003 deployment.mpp",
 			323, 138, 12, 317, 30,
 		},
 	}
 	any := false
 	for _, s := range samples {
-		data, err := os.ReadFile(filepath.FromSlash(s.path))
+		src := reSamplePath(s.path)
+		if src == "" {
+			continue
+		}
+		data, err := os.ReadFile(src)
 		if err != nil {
 			continue
 		}
@@ -474,21 +499,25 @@ func TestMppRealSamples(t *testing.T) {
 			name, len(p.Tasks), named, len(p.Links), len(p.Resources), len(p.Assignments), r.Duration)
 	}
 	if !any {
-		t.Skip("真实 MPP 样本不存在(clones/projectlibre 样例目录未就位)")
+		t.Skip("真实 MPP 样本不存在(C:\\AI\\re\\projectlibre 样例未就位)")
 	}
 }
 
 // TestMppRealSamples2013 Project 2013+ 变体门控测试（v4.154）:新版 Project
 // 不再写 CompObj（工程目录编号判版回退）、任务行工期 @84/var 键=ID/大纲层级
-// @172（键位与 2010 漂移,真机样本实证）。样本在 git-ignored clones/mpp2013,
+// @172（键位与 2010 漂移,真机样本实证）。样本在仓库外数据根 C:\AI\re\mpp2013,
 // 缺失即 Skip。资源/分配行 2013+ 键位未钉死,暂不解析（宁缺勿错）。
 func TestMppRealSamples2013(t *testing.T) {
 	samples := []string{
-		"../../clones/mpp2013/重庆干休所总进度计划1（开工）.mpp",
+		"mpp2013/重庆干休所总进度计划1（开工）.mpp",
 	}
 	any := false
-	for _, path := range samples {
-		data, err := os.ReadFile(filepath.FromSlash(path))
+	for _, rel := range samples {
+		path := reSamplePath(rel)
+		if path == "" {
+			continue
+		}
+		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
@@ -528,6 +557,6 @@ func TestMppRealSamples2013(t *testing.T) {
 			filepath.Base(path), len(p.Tasks), groups, len(p.Links), r.Duration, p.StartDate)
 	}
 	if !any {
-		t.Skip("2013+ 真机样本不存在(clones/mpp2013 未就位)")
+		t.Skip("2013+ 真机样本不存在(C:\\AI\\re\\mpp2013 未就位)")
 	}
 }

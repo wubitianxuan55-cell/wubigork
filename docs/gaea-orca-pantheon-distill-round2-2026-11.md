@@ -3,7 +3,7 @@
 > 对象：Orca 1.4.214 @ `8cd6a7e5ee77c4ed04e78a3e924f5fc83a366bbf`（2026-11-02，MIT）
 > 落点：Gaea 众神殿 `internal/pantheon/`
 > 第一轮：`docs/gaea-orca-pantheon-distill-2026-11.md`（M1–M8、刀池 O-A…O-G、P0 已落地）
-> 读法：本轮不改 `clones/orca` 任何文件；换一种读法——不按产品面看"Orca 有什么"，而按**一条状态从产生到被相信的路径**逐段读代码，看它用什么纪律挡住"看起来完成了"。
+> 读法：本轮不改 `C:\AI\re\orca` 任何文件；换一种读法——不按产品面看"Orca 有什么"，而按**一条状态从产生到被相信的路径**逐段读代码，看它用什么纪律挡住"看起来完成了"。
 
 ---
 
@@ -343,7 +343,7 @@ Orca 真正值钱的不是它替人开了多少 Agent，而是它**从不相信"
 
 ## 10. 落地记录（2026-11-02，O-D 已接上，未提交）
 
-改动只在 `internal/pantheon` 与 `frontend`，未 commit、未抬版本；`clones/orca` 保持只读。
+改动只在 `internal/pantheon` 与 `frontend`，未 commit、未抬版本；`C:\AI\re\orca` 保持只读。
 
 **Go**
 

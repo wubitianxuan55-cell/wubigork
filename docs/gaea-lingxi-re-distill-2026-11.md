@@ -3,13 +3,13 @@
 > 目标：本机 WPS 灵犀 `lingxi-desktop 1.3.36`（app-server `5.24.0`，commit `bb60347a`，构建 2026-11-05）。
 > 性质：调研批，未动 gaea 业务代码。本文是灵犀侧唯一事实源；配套落地计划见 `docs/gaea-lingxi-optimize-plan-2026-11.md`。
 > 证据分级：`[观]`=文件/日志/二进制直接命中，`[推]`=结构推断未运行验证，`[未]`=未取证。
-> 原始产物（A 批）：`re-lingxi/out/REPORT-灵犀逆向分析.md`、`re-lingxi/out/SKILLS-办公能力清单.md`、`re-lingxi/out/文件交付卡片-调研.md`、`re-lingxi/out/GAEA-直接编辑WPS-落地方案.md`、`re-lingxi/lingxi-appserver-re-report.md`、`re-lingxi/out/files.tsv`、`re-lingxi/out/channels.txt`。
-> 原始产物（B 批，运行时与提示词，2026-11-13 续）：`re-lingxi/out/SKILLS-file-deps.json`（技能逐文件依赖矩阵）、`re-lingxi/out/SKILLS-deps.json`、`re-lingxi/out/WPSCLI-tools.md`（34 工具面）、`re-lingxi/out/prompts/sections/`（131 个提示词段）、`re-lingxi/out/prompts/region-utf8.txt`。抽取脚本：`re-lingxi/wpscli_tools3.py`、`re-lingxi/sections.py`、`re-lingxi/deps3.py`。
-> 原始产物（C 批，逆向层，2026-11-13 续）：`re-lingxi/out/GO-symbols-lingxi.md`（30 717 符号 / 600 包）、`re-lingxi/out/GO-symbols-proxy.md`、`re-lingxi/out/PROMPT-tool-contracts.md`（25 工具契约）、`re-lingxi/out/WPSCLI-jsapi-scripts.md`（13 个 JS 外壳）、`re-lingxi/out/WPSCLI-jsapi-bodies.md`（129 条 JS 算子片段）。脚本：`go_symbols.py`、`tool_contracts.py`、`extract_js.py`、`extract_js_body.py`、`probe_wpscli.py`。
-> 原始产物（D 批，其余四件，2026-11-13 续）：`re-lingxi/out/NATIVE-HOST.md`（CDP 桥 38 条消息原文）、`re-lingxi/out/SANDBOX.md`（WFP + ACL + 策略字段）、`re-lingxi/out/KDOCS-cli.md`、`re-lingxi/out/GO-symbols-nativehost.md`。脚本：`gen_d_batch.py`、`probe_batch4.py`～`probe_batch4d.py`。
-> 原始产物（E 批，工具模板库，2026-11-13 续）：`re-lingxi/out/TOOLS-tmpl.md`（371 个 define 块 / 21 簇 / 128 KB）、`re-lingxi/out/KDOCS-wps-actions.md`（133 个 `wps.*` 动作）。脚本：`extract_tool_tmpl.py`、`probe_batch5.py`～`probe_batch5c.py`。
-> 原始产物（F 批，线协议与 IPC，2026-11-13 续）：`re-lingxi/out/WIRE-json-tags.md`（2303 个字段名）、`re-lingxi/out/IPC-channels.md`（510 个通道）。脚本：`extract_wire.py`、`extract_ipc2.py`。
-> 原始产物（G 批，全量清单，2026-11-13 续）：`re-lingxi/out/GO-types.md`（15 984 类型 / 1 365 包）、`GO-error-codes.md`（425 个码）、`HTTP-routes.md`（129 条）、`PROMPT-tool-contracts.md`（25 工具 / 102 参数 / 86 条中文原文）、`WPSCLI-tool-js.md`。脚本：`extract_all.py`、`extract_contracts.py`。
+> 原始产物（A 批）：`C:\AI\re\lingxi\out/REPORT-灵犀逆向分析.md`、`C:\AI\re\lingxi\out/SKILLS-办公能力清单.md`、`C:\AI\re\lingxi\out/文件交付卡片-调研.md`、`C:\AI\re\lingxi\out/GAEA-直接编辑WPS-落地方案.md`、`C:\AI\re\lingxi\lingxi-appserver-re-report.md`、`C:\AI\re\lingxi\out/files.tsv`、`C:\AI\re\lingxi\out/channels.txt`。
+> 原始产物（B 批，运行时与提示词，2026-11-13 续）：`C:\AI\re\lingxi\out/SKILLS-file-deps.json`（技能逐文件依赖矩阵）、`C:\AI\re\lingxi\out/SKILLS-deps.json`、`C:\AI\re\lingxi\out/WPSCLI-tools.md`（34 工具面）、`C:\AI\re\lingxi\out/prompts/sections/`（131 个提示词段）、`C:\AI\re\lingxi\out/prompts/region-utf8.txt`。抽取脚本：`C:\AI\re\lingxi\wpscli_tools3.py`、`C:\AI\re\lingxi\sections.py`、`C:\AI\re\lingxi\deps3.py`。
+> 原始产物（C 批，逆向层，2026-11-13 续）：`C:\AI\re\lingxi\out/GO-symbols-lingxi.md`（30 717 符号 / 600 包）、`C:\AI\re\lingxi\out/GO-symbols-proxy.md`、`C:\AI\re\lingxi\out/PROMPT-tool-contracts.md`（25 工具契约）、`C:\AI\re\lingxi\out/WPSCLI-jsapi-scripts.md`（13 个 JS 外壳）、`C:\AI\re\lingxi\out/WPSCLI-jsapi-bodies.md`（129 条 JS 算子片段）。脚本：`go_symbols.py`、`tool_contracts.py`、`extract_js.py`、`extract_js_body.py`、`probe_wpscli.py`。
+> 原始产物（D 批，其余四件，2026-11-13 续）：`C:\AI\re\lingxi\out/NATIVE-HOST.md`（CDP 桥 38 条消息原文）、`C:\AI\re\lingxi\out/SANDBOX.md`（WFP + ACL + 策略字段）、`C:\AI\re\lingxi\out/KDOCS-cli.md`、`C:\AI\re\lingxi\out/GO-symbols-nativehost.md`。脚本：`gen_d_batch.py`、`probe_batch4.py`～`probe_batch4d.py`。
+> 原始产物（E 批，工具模板库，2026-11-13 续）：`C:\AI\re\lingxi\out/TOOLS-tmpl.md`（371 个 define 块 / 21 簇 / 128 KB）、`C:\AI\re\lingxi\out/KDOCS-wps-actions.md`（133 个 `wps.*` 动作）。脚本：`extract_tool_tmpl.py`、`probe_batch5.py`～`probe_batch5c.py`。
+> 原始产物（F 批，线协议与 IPC，2026-11-13 续）：`C:\AI\re\lingxi\out/WIRE-json-tags.md`（2303 个字段名）、`C:\AI\re\lingxi\out/IPC-channels.md`（510 个通道）。脚本：`extract_wire.py`、`extract_ipc2.py`。
+> 原始产物（G 批，全量清单，2026-11-13 续）：`C:\AI\re\lingxi\out/GO-types.md`（15 984 类型 / 1 365 包）、`GO-error-codes.md`（425 个码）、`HTTP-routes.md`（129 条）、`PROMPT-tool-contracts.md`（25 工具 / 102 参数 / 86 条中文原文）、`WPSCLI-tool-js.md`。脚本：`extract_all.py`、`extract_contracts.py`。
 > 原始产物（H 批，片段归属尝试，2026-11-13 续）：`WPSCLI-js-statements.md`（213 条真 JS 语句 + 对象模型清点）、`WPSCLI-tool-js-map.md`（邻近法反例）、`WPSCLI-module-map.md`（模块法结果）、`WPSCLI-js-api-inventory.md`。脚本：`rebuild_js.py`、`build_tool_js_map.py`、`build_module_map.py`、`build_js_api.py`。
 > 原始产物（I 批，骨架/记忆/占位符/流式，2026-11-13 续）：`PROMPT-skeleton.md`（130 节点装配顺序）、`MEMORY-spec.md`（72 KB）、`WPSCLI-placeholders.md`（66 个）、`STREAM-events.md`。脚本：`extract_i_batch.py`。
 
@@ -84,7 +84,7 @@ agent 工具（`[观]`，`tools/*.tmpl` 编进二进制）：`file`、`bash`、`
 | 技能工程纪律 | 见 §4 | 质量门禁，可直接写进我们的提示词与工具设计 |
 
 技能清单：`docx` `xlsx` `pptx` `pdf` `wps-docs` `wps-collab` `deep-research` `paper-writer` `browser` `image-canvas` `stock-analysis`；内置 `skill-creator` `speech-to-text` `visualizer-design` `web-builder` `wps-cowrite`。
-命令面见 `re-lingxi/out/SKILLS-办公能力清单.md`（docx 10 / xlsx 3+3 / pptx 28 / pdf 17 / wps-docs 45+）。
+命令面见 `C:\AI\re\lingxi\out/SKILLS-办公能力清单.md`（docx 10 / xlsx 3+3 / pptx 28 / pdf 17 / wps-docs 45+）。
 
 ### A 级：契约可抄，实现自研
 
@@ -180,12 +180,12 @@ agent 工具（`[观]`，`tools/*.tmpl` 编进二进制）：`file`、`bash`、`
 
 ```bash
 # asar 头部与清单（自研解析，offset 基准 = 8 + headerSize）
-node re-lingxi/asar_head.js "<...>/resources/app.asar"
-node re-lingxi/asar_list.js
-node re-lingxi/asar_extract.js "<...>/resources/app.asar" out re-lingxi/out/x
+node C:\AI\re\lingxi\asar_head.js "<...>/resources/app.asar"
+node C:\AI\re\lingxi\asar_list.js
+node C:\AI\re\lingxi\asar_extract.js "<...>/resources/app.asar" out C:\AI\re\lingxi\out/x
 # 二进制字符串
-python re-lingxi/str.py <exe> <regex> [limit]
-python re-lingxi/occ.py <regex> [hits] [pre] [post]
+python C:\AI\re\lingxi\str.py <exe> <regex> [limit]
+python C:\AI\re\lingxi\occ.py <regex> [hits] [pre] [post]
 # 技能命令面
 grep -rn "add_parser(" "%APPDATA%/WPS 灵犀/app_server_5.24.0/skills"
 ```
@@ -226,7 +226,7 @@ gaea 若照抄这套形态，必须显式决定「预置哪些包 + 断网降级
 
 ## 12. 技能脚本外部依赖矩阵（新增，替换 A 批「逐脚本手工标注」）
 
-产物：`re-lingxi/out/SKILLS-file-deps.json`（ast 精确解析，逐文件）。口径：`cloud_files` = 命中云模块（kdocs/transcoder/wps_http/lbo_cli）、
+产物：`C:\AI\re\lingxi\out/SKILLS-file-deps.json`（ast 精确解析，逐文件）。口径：`cloud_files` = 命中云模块（kdocs/transcoder/wps_http/lbo_cli）、
 云域名（`*.kdocs.cn` / `api.wps.cn` / `lingxi.wps.cn` / `ksyuncs.com`）或云凭据 env（`WPS_SID`/`WPS_API_BASE`/`KDOCS_CLI_PATH`）的文件数。
 
 | 技能 | py | 云文件 | 缺包（python-env 未预装） | 归类 |
@@ -256,7 +256,7 @@ gaea 若照抄这套形态，必须显式决定「预置哪些包 + 断网降级
 
 ## 13. wpscli 工具面：30 → 34，且 parent_verify 实测拦截
 
-产物：`re-lingxi/out/WPSCLI-tools.md`。
+产物：`C:\AI\re\lingxi\out/WPSCLI-tools.md`。
 
 - 行为验证 `[观]`：`wpscli.exe --help` → `错误：不支持非金山应用调用本程序。`，exit=1（`src\parent_verify.rs`）。
   → **动态 `tools/list` 拿不到**，schema 只能静态还原；A 批 §7「不 patch parent_verify/WinVerifyTrust」的结论继续成立，本批也未尝试绕过。
@@ -282,7 +282,7 @@ gaea 若照抄这套形态，必须显式决定「预置哪些包 + 断网降级
 `lingxi.exe` 内嵌 Go `text/template`：`templates/local/{agents_main_v2, agents_persona, agents_project, memory_migrate, model_specific, skills_main_v2}.tmpl`
 + `templates/tools/{connector_exec, deliver_result, generate_image}.tmpl`；`{{ template }}` 引用还出现 `Prolog / Epilog / StatusTable / bootstrap / connectors / memory / skills_list / skills_local / skills_main_v2_selection / skills_web` `[观]`。
 
-按 `<section>…</section>` 自定界抽出 **131 个段、443 KB** 明文 → `re-lingxi/out/prompts/sections/<tag>.md`（同名多版本按长度降序保留）。
+按 `<section>…</section>` 自定界抽出 **131 个段、443 KB** 明文 → `C:\AI\re\lingxi\out/prompts/sections/<tag>.md`（同名多版本按长度降序保留）。
 高频段：`<system_reminder>`(33 版) `<instructions>`(12) `<tool_use>`(8) `<im_scene>`(6) `<sharing_files>`(6) `<delivery_format>`(5)
 `<skills_instructions>`(5) `<memory_system>`(4) `<error_handling>`(4) `<response_ending>`(4)。
 
@@ -354,7 +354,7 @@ gaea 侧可借鉴的是**分类名 → 处置动作**的映射表形态，而不
 > 没有改任何二进制，也没绕过 `parent_verify`。
 > 环境限制：Ghidra 未配置（`binary_session` → `ghidra: not_configured`，缺 `GHIDRA_INSTALL_DIR`），
 > 所以**没有伪代码级证据**。本轮用四条可用证据线：Go 构建元数据、Rust 元数据+串、PE 导入表、pclntab 符号与 .rodata 串。
-> 产物：`re-lingxi/out/GO-symbols-lingxi.md`、`GO-symbols-proxy.md`、`PROMPT-tool-contracts.md`、
+> 产物：`C:\AI\re\lingxi\out/GO-symbols-lingxi.md`、`GO-symbols-proxy.md`、`PROMPT-tool-contracts.md`、
 > `WPSCLI-jsapi-scripts.md`、`WPSCLI-jsapi-bodies.md`。脚本：`go_symbols.py`、`tool_contracts.py`、`extract_js.py`、`extract_js_body.py`、`probe_wpscli.py`。
 
 ## 20.1 构建身份（REA Evidence 级）
@@ -464,7 +464,7 @@ __SAVE_AND_CLOSE__
 
 > 性质：纯静态盘点，未运行任何服务端件。工具链已辨认：`lingxi-native-host.exe` 与 `lingxi-wpscli-proxy.exe` 是 **Go**，
 > `lingxi-sandbox-{setup,runner}.exe` 是 **Rust（Codex 派生）**，`kdocs-cli.exe` 是 **Go 1.23.3 单模块**。
-> 产物：`re-lingxi/out/NATIVE-HOST.md`、`SANDBOX.md`、`KDOCS-cli.md`、`GO-symbols-nativehost.md`；生成脚本 `gen_d_batch.py`。
+> 产物：`C:\AI\re\lingxi\out/NATIVE-HOST.md`、`SANDBOX.md`、`KDOCS-cli.md`、`GO-symbols-nativehost.md`；生成脚本 `gen_d_batch.py`。
 
 ## 21.1 五件工具链一览（修正 A 批）
 
@@ -538,7 +538,7 @@ __SAVE_AND_CLOSE__
 # E 批续批（2026-11-13 · 工具模板库 / IAB 路由 / kdocs-cli 的 JSAPI 动作面）
 
 > 纯静态。本批把 §21.5 的第 1 项（`tools/*.tmpl` 正文）**结掉**，并补上主进程 IAB 的 HTTP 面与 kdocs-cli 的第三层能力。
-> 产物：`re-lingxi/out/TOOLS-tmpl.md`（371 个 define 块 / 21 簇，128 KB）、`re-lingxi/out/KDOCS-wps-actions.md`（133 个动作）。脚本：`extract_tool_tmpl.py`、`probe_batch5*.py`。
+> 产物：`C:\AI\re\lingxi\out/TOOLS-tmpl.md`（371 个 define 块 / 21 簇，128 KB）、`C:\AI\re\lingxi\out/KDOCS-wps-actions.md`（133 个动作）。脚本：`extract_tool_tmpl.py`、`probe_batch5*.py`。
 
 ## 22.1 `tools/*.tmpl` 正文找到了
 
@@ -668,7 +668,7 @@ handleRequest(e,n){
 # F 批续批（2026-11-13 · 线协议词汇 + IPC 通道全表）
 
 > 纯静态、只读灵犀产物（`lingxi.exe` 与主进程 bundle），未进入任何业务仓代码。
-> 产物：`re-lingxi/out/WIRE-json-tags.md`（2303 个字段名）、`re-lingxi/out/IPC-channels.md`（510 个通道）。脚本：`extract_wire.py`、`extract_ipc2.py`。
+> 产物：`C:\AI\re\lingxi\out/WIRE-json-tags.md`（2303 个字段名）、`C:\AI\re\lingxi\out/IPC-channels.md`（510 个通道）。脚本：`extract_wire.py`、`extract_ipc2.py`。
 
 ## 23.1 线协议词汇表：2303 个 json tag
 

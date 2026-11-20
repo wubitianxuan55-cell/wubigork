@@ -1,6 +1,6 @@
 # DSH 0.2.1 核心域蒸馏 —— 非子代理子系统侦察与刀池（2026-10-10）
 
-> **源**：`clones/deepseek-harness` @ dsh-v0.2.1-alpha.2（真身 GitHub deepseek-ai/deepseek-harness，
+> **源**：`C:\AI\re\deepseek-harness` @ dsh-v0.2.1-alpha.2（真身 GitHub deepseek-ai/deepseek-harness，
 > 核实记录见 docs/gaea-dsh-subagent-distill-2026-10.md——子代理板块已单独蒸馏收官，本档扫**其余子系统**）。
 > 背景：距 016 蒸馏（v0.1.6，docs/archive/gaea-dsh-016-distill-2026-09.md）跨 0.1.7/0.2.0/0.2.1 三版；
 > 官方升级指南三个版本共 9 篇，主题集中在 schedule 退役/账号登录/插件展示/子代理 activation——对 gaea

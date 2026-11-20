@@ -1,6 +1,6 @@
 # oh-story 蒸馏简报 · 子代理 / 钩子 / 状态追踪（2026-09-13）
 
-> 上游=只读仓 `clones/oh-story-claudecode`（MIT，网文写作插件，11 skill + 7 子代理 + 多宿主 hooks）。行号口径=按 `\n` 切分（非 PowerShell `Get-Content`）。
+> 上游=只读仓 `C:\AI\re\oh-story-claudecode`（MIT，网文写作插件，11 skill + 7 子代理 + 多宿主 hooks）。行号口径=按 `\n` 切分（非 PowerShell `Get-Content`）。
 > **任务书路径勘误**：`skills/story-import/scripts/tracking-transaction.py` 不存在——事务语义在 `skills/story-import/references/tracking-transaction.md`，实现只有 `skills/story-import/scripts/tracking_commit.py`（1229 行）。
 > gaea 基线（本仓实测）：hook 引擎 `internal/gaea/hook/`、任务中心 `internal/gaea/tasks/`、子代理 `internal/gaea/agent/`、技能 `internal/gaea/skill/`、生成门 `internal/app/novel_gate_handler.go`、文风/去味 `internal/novelstyle/`。
 

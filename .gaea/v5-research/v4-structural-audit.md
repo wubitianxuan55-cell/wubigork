@@ -3,7 +3,7 @@
 - 审计日期：2026-10-29
 - 审计对象：C:\AI\wubigrok（Wails v2.13 + Go 1.26 + React 18/TS/Vite，module github.com/gaea/gaea）
 - 审计性质：**只读**。未修改任何代码文件；本文件是唯一产出。
-- 口径：行号取自 2026-10-29 工作树；`clones/`、`node_modules/`（deepseek-reasonix / deepseek-harness / zcode / reasonix 等外部克隆与依赖）不计入 V4 规模统计；规模用 `Get-Content | Measure-Object -Line` 与 `Select-String` 实测，不引用发布说明。
+- 口径：行号取自 2026-10-29 工作树；`C:\AI\re\`、`node_modules/`（deepseek-reasonix / deepseek-harness / zcode / reasonix 等外部克隆与依赖）不计入 V4 规模统计；规模用 `Get-Content | Measure-Object -Line` 与 `Select-String` 实测，不引用发布说明。
 
 ---
 

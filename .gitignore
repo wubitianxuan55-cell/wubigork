@@ -5,7 +5,6 @@ gaea.exe
 
 # 运行时/测试产物（不进版本库）
 .tmp*
-/clones/
 cpu.out
 xlsx.out
 .gaea/exports/
@@ -13,12 +12,8 @@ xlsx.out
 .gaea/sessions/
 .gaea/cad/
 
-# 灵犀逆向产物：解包体量大，只保留脚本与结论文档
-re-lingxi/out/drd/
-re-lingxi/out/x/
-re-lingxi/out/x_root/
-re-lingxi/out/asar-header.json
-re-lingxi/out/*.tsv
+# 灵犀逆向数据 2026-11-20 已整体迁出仓库（数据根 C:\AI\re\lingxi，见 AGENTS.md「蒸馏与逆向数据落盘」），
+# 原 re-lingxi/ 相关忽略规则一并作废——逆向数据不再进仓库，无需忽略规则。
 
 # 前端
 frontend/dist/
@@ -128,9 +123,6 @@ temp/
 .zcode/
 /dsh-wubi/
 frontend/.vitest-reports/
-re-lingxi/out/prompts/raw-region.txt
-re-lingxi/out/prompts/region-utf8.txt
-re-lingxi/out/prompts/part-*.txt
 
 # wpsdock 编译产物（tools/wpsdock 仓根 go build 验证产物，不入库）
 wpsdock.exe

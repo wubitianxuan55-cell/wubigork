@@ -1,6 +1,6 @@
 /* =============================================================================
    office-lingxi-skin.css — 办公板块对话流「灵犀皮肤」层（batch3 UI 改造）
-   来源：re-lingxi/out/ui/cards.css（lingxi-desktop 1.3.36 渲染层剥离真样式）
+   来源：C:\AI\re\lingxi\out\ui\cards.css（lingxi-desktop 1.3.36 渲染层剥离真样式）
    方式：不改组件 DOM/类名与状态逻辑（121 测试与流式契约不动），仅以本层
    覆写 gaea 卡片类的视觉值；令牌全部走 gaea 变量（--bg/--fg/--accent…），
    亮暗主题自适应。回滚 = 摘除本文件 import（GaeaPage.tsx）。

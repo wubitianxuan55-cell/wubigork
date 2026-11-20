@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 能力域 | 情节分析与扩展 / 一键重写 |
-| 事实源 | `clones/MuMuAINovel` @ commit `600be7038539e4dd0568b63e6e534fdcfaf91687`（branch `main`, tag `v1.5.5`, `git status` clean） |
-| 引用格式 | `clones/MuMuAINovel@600be703:<相对路径>:<起-L止>`（未带 commit 前缀的引用视为不可核验） |
+| 事实源 | `C:\AI\re\MuMuAINovel` @ commit `600be7038539e4dd0568b63e6e534fdcfaf91687`（branch `main`, tag `v1.5.5`, `git status` clean） |
+| 引用格式 | `C:\AI\re\MuMuAINovel@600be703:<相对路径>:<起-L止>`（未带 commit 前缀的引用视为不可核验） |
 | 行号来源 | 全部来自 `read` / `grep` 工具真实输出（未使用 `Measure-Object -Line`） |
 | 提出者 / 任务 | researcher-plot / t4（mumu-distill） |
 | 本域文件清单 | `plot_analyzer.py`、`plot_expansion_service.py`、`chapter_regenerator.py`、`api/chapters.py`（分析+重写段）、`api/polish.py`、`schemas/regeneration.py`、`schemas/chapter.py`、`models/analysis_task.py`、`models/regeneration_task.py`、`models/memory.py`、`services/json_helper.py`、`skills/story-deslop/**`、`prompt_service.py` 中 `PLOT_ANALYSIS` / `OUTLINE_EXPAND_*` / `CHAPTER_REGENERATION_SYSTEM` / `PARTIAL_REGENERATE` |
@@ -1213,79 +1213,79 @@ type RewriteRequest struct {
 
 ```
 # 分析核心
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:19-30          # PlotAnalyzer
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:32-194         # analyze_chapter + 重试
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:66             # 8000 字截断
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:196-268        # 伏笔三层注入
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:270-303        # 解析 + 缺字段补空
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:305-486        # 记忆提取阈值
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:488-531        # 四段式定位
-clones/MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:533-591        # 报告生成
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:19-30          # PlotAnalyzer
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:32-194         # analyze_chapter + 重试
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:66             # 8000 字截断
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:196-268        # 伏笔三层注入
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:270-303        # 解析 + 缺字段补空
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:305-486        # 记忆提取阈值
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:488-531        # 四段式定位
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_analyzer.py:533-591        # 报告生成
 
 # 分析 Prompt
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1047-1395     # PLOT_ANALYSIS 全文
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1186-1213     # 三维评分 rubric
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1215-1225     # 建议数量 ↔ 分数
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1228-1353     # 输出 Schema
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1356-1395     # 约束区
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:2979-2984     # PLOT_ANALYSIS 元数据
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1047-1395     # PLOT_ANALYSIS 全文
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1186-1213     # 三维评分 rubric
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1215-1225     # 建议数量 ↔ 分数
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1228-1353     # 输出 Schema
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1356-1395     # 约束区
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:2979-2984     # PLOT_ANALYSIS 元数据
 
 # 异步任务与编排
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:70-71                    # 600s / 720s
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:98-136                   # 终态独立事务
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:886-922                  # 硬超时 + 取消兜底
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:925-1433                 # 分析主体
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:2449-2487                # 陈旧恢复（仅 running）
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:2984-3100                # 状态查询（单/批）
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:3134-3262                # 一键分析未分析章节
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:3265-3474                # 结果 / 标注
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:3477-3563                # 触发分析
-clones/MuMuAINovel@600be703:backend/app/models/analysis_task.py:8-42
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:70-71                    # 600s / 720s
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:98-136                   # 终态独立事务
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:886-922                  # 硬超时 + 取消兜底
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:925-1433                 # 分析主体
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:2449-2487                # 陈旧恢复（仅 running）
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:2984-3100                # 状态查询（单/批）
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:3134-3262                # 一键分析未分析章节
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:3265-3474                # 结果 / 标注
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:3477-3563                # 触发分析
+C:\AI\re\MuMuAINovel@600be703:backend/app/models/analysis_task.py:8-42
 
 # 展开
-clones/MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:25-84  # 分派
-clones/MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:154-289 # 分批 + 差异化
-clones/MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:189   # 死变量 used_key_events
-clones/MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:381-482 # 落库 + 双序
-clones/MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:524-597 # 解析 + 静默降级
-clones/MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:600-685 # 序号重排
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1398-1498     # OUTLINE_EXPAND_SINGLE
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1501-1609     # OUTLINE_EXPAND_MULTI
-clones/MuMuAINovel@600be703:backend/app/schemas/chapter.py:171-212               # SceneData / ExpansionPlan
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:25-84  # 分派
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:154-289 # 分批 + 差异化
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:189   # 死变量 used_key_events
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:381-482 # 落库 + 双序
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:524-597 # 解析 + 静默降级
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/plot_expansion_service.py:600-685 # 序号重排
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1398-1498     # OUTLINE_EXPAND_SINGLE
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1501-1609     # OUTLINE_EXPAND_MULTI
+C:\AI\re\MuMuAINovel@600be703:backend/app/schemas/chapter.py:171-212               # SceneData / ExpansionPlan
 
 # 重写
-clones/MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:22-108    # 主流程 + 进度
-clones/MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:110-179  # 指令四段 + focus_map
-clones/MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:181-205  # Prompt 组装
-clones/MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:207-237  # difflib diff
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:1612-1649     # CHAPTER_REGENERATION_SYSTEM
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:2414-2477     # PARTIAL_REGENERATE
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:2628-2753     # 整章重写 Prompt 组装
-clones/MuMuAINovel@600be703:backend/app/schemas/regeneration.py:7-38             # 请求契约
-clones/MuMuAINovel@600be703:backend/app/models/regeneration_task.py:8-51         # 版本快照
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:4449-4798                # 整章重写 SSE
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:4922-5175                # 局部重写 SSE
-clones/MuMuAINovel@600be703:backend/app/api/chapters.py:5178-5250                # 应用局部重写（无回滚）
-clones/MuMuAINovel@600be703:backend/app/api/polish.py:17-141                     # AI 去味（F1 缺陷）
-clones/MuMuAINovel@600be703:backend/app/skills/story-deslop/SKILL.md:104-170     # 六道门禁
-clones/MuMuAINovel@600be703:backend/app/skills/story-deslop/references/banned-words.md:3-59
-clones/MuMuAINovel@600be703:backend/app/skills/story-deslop/references/anti-ai-writing.md:179-259 # 7 模式 + 三遍法
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:22-108    # 主流程 + 进度
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:110-179  # 指令四段 + focus_map
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:181-205  # Prompt 组装
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/chapter_regenerator.py:207-237  # difflib diff
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:1612-1649     # CHAPTER_REGENERATION_SYSTEM
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:2414-2477     # PARTIAL_REGENERATE
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:2628-2753     # 整章重写 Prompt 组装
+C:\AI\re\MuMuAINovel@600be703:backend/app/schemas/regeneration.py:7-38             # 请求契约
+C:\AI\re\MuMuAINovel@600be703:backend/app/models/regeneration_task.py:8-51         # 版本快照
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:4449-4798                # 整章重写 SSE
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:4922-5175                # 局部重写 SSE
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/chapters.py:5178-5250                # 应用局部重写（无回滚）
+C:\AI\re\MuMuAINovel@600be703:backend/app/api/polish.py:17-141                     # AI 去味（F1 缺陷）
+C:\AI\re\MuMuAINovel@600be703:backend/app/skills/story-deslop/SKILL.md:104-170     # 六道门禁
+C:\AI\re\MuMuAINovel@600be703:backend/app/skills/story-deslop/references/banned-words.md:3-59
+C:\AI\re\MuMuAINovel@600be703:backend/app/skills/story-deslop/references/anti-ai-writing.md:179-259 # 7 模式 + 三遍法
 
 # JSON 容错
-clones/MuMuAINovel@600be703:backend/app/services/json_helper.py:365-534          # clean_json_response
-clones/MuMuAINovel@600be703:backend/app/services/json_helper.py:565-606          # loads_json 四级降级
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/json_helper.py:365-534          # clean_json_response
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/json_helper.py:565-606          # loads_json 四级降级
 
 # 前端
-clones/MuMuAINovel@600be703:frontend/src/components/ChapterAnalysis.tsx:29-211   # 取数 + 2s 轮询 + 11min 上限
-clones/MuMuAINovel@600be703:frontend/src/components/ChapterAnalysis.tsx:372-379  # index<3 → high（F14）
-clones/MuMuAINovel@600be703:frontend/src/components/ChapterAnalysis.tsx:382-753  # 6 Tab 渲染
-clones/MuMuAINovel@600be703:frontend/src/components/ChapterRegenerationModal.tsx:94-210  # 表单 + SSE
-clones/MuMuAINovel@600be703:frontend/src/components/ChapterContentComparison.tsx:88-154 # 应用/放弃
-clones/MuMuAINovel@600be703:frontend/src/components/PartialRegenerateModal.tsx:69-166    # 局部重写
-clones/MuMuAINovel@600be703:frontend/src/pages/ChapterAnalysis.tsx:65-571        # 标注阅读器
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/ChapterAnalysis.tsx:29-211   # 取数 + 2s 轮询 + 11min 上限
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/ChapterAnalysis.tsx:372-379  # index<3 → high（F14）
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/ChapterAnalysis.tsx:382-753  # 6 Tab 渲染
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/ChapterRegenerationModal.tsx:94-210  # 表单 + SSE
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/ChapterContentComparison.tsx:88-154 # 应用/放弃
+C:\AI\re\MuMuAINovel@600be703:frontend/src/components/PartialRegenerateModal.tsx:69-166    # 局部重写
+C:\AI\re\MuMuAINovel@600be703:frontend/src/pages/ChapterAnalysis.tsx:65-571        # 标注阅读器
 
 # Prompt 元数据 / 工坊
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:2793-2860     # get_template 降级链
-clones/MuMuAINovel@600be703:backend/app/services/prompt_service.py:2863-3140     # get_all_system_templates
-clones/MuMuAINovel@600be703:backend/app/services/skill_loader.py:285-288         # 去味触发词
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:2793-2860     # get_template 降级链
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/prompt_service.py:2863-3140     # get_all_system_templates
+C:\AI\re\MuMuAINovel@600be703:backend/app/services/skill_loader.py:285-288         # 去味触发词
 ```

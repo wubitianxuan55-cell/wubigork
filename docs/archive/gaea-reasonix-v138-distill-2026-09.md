@@ -1,6 +1,6 @@
 # Reasonix (esengine/DeepSeek-Reasonix) v1.15→v1.38 真身蒸馏 —— 侦察与刀池（2026-09-21）
 
-- 源：`clones/deepseek-reasonix`（GitHub **esengine/DeepSeek-Reasonix**，最新 v1.38.11，HEAD 5c4b343a4 @2026-09-21；Go 单二进制终端 agent，MIT）。gaea agent 内核注释里的「DeepSeek-Reasonix-V1.12/V1.15」即此仓的旧版——**上一版 V1.15 之后到 v1.38 共 5227 提交/107 tag 的增量是本轮蒸馏面**。
+- 源：`C:\AI\re\deepseek-reasonix`（GitHub **esengine/DeepSeek-Reasonix**，最新 v1.38.11，HEAD 5c4b343a4 @2026-09-21；Go 单二进制终端 agent，MIT）。gaea agent 内核注释里的「DeepSeek-Reasonix-V1.12/V1.15」即此仓的旧版——**上一版 V1.15 之后到 v1.38 共 5227 提交/107 tag 的增量是本轮蒸馏面**。
 - 对象勘误史：v4.373 误把 `/c/AI/deepseek-harness`（TS monorepo dsh）当 Reasonix——已勘误更名 `docs/gaea-dsh-016-distill-2026-09.md`（五刀本身有效）；本档是真身。
 - 纪律：蒸馏=取道不取器；GoalCard 系已撤下（reasonix 的 Goal 长任务运行时同属红线不评估）；MCP/平台化/跨设备在册排除。
 

@@ -1,7 +1,7 @@
 # Agorai × aidebate 蒸馏调研·第二轮增量（2026-11-07）
 
 > **与前序档的关系**：`docs/gaea-pantheon-agorai-aidebate-distill-2026-11-07.md`（并行执行体产出，未提交）已完成双源主判（A1 pass / A2 canary / A3 健康指标 / B 挂池 / C 不立项 + 拍板 3 项）。**本文不重复其结论，只录独立深读的增量事实、三处修正/分歧、新增候选 M/B 系**。两档并存，拍板时合并读。
-> **本轮克隆**：`C:\AI\_distill\agorai`、`C:\AI\_distill\aidebate`（depth 1，只读）。钉版与前序档一致（Agorai@1e469be / aidebate@80f3b77）。
+> **本轮克隆**：`C:\AI\re\agorai`、`C:\AI\re\aidebate`（depth 1，只读）。钉版与前序档一致（Agorai@1e469be / aidebate@80f3b77）。
 > **纪律**：AGPLv3 只取道不取器；全部结论 `path:line` 实锚；gaea 侧断言已逐一 grep 验证（见各条「已核」）。
 
 ---

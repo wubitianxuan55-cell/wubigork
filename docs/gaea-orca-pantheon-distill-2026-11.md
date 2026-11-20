@@ -449,30 +449,30 @@ Orca 的机制是否值得长期保留，不看“功能像不像 Orca”，而�
 
 ### Orca
 
-- 产品能力：`clones/orca/README.md`
+- 产品能力：`C:\AI\re\orca/README.md`
 - Agent 会话与危险默认值：
-  `clones/orca/docs\site\content\docs\model\agents-sessions.mdx`
+  `C:\AI\re\orca/docs\site\content\docs\model\agents-sessions.mdx`
 - Worktree 模型：
-  `clones/orca/docs\site\content\docs\model\worktrees.mdx`
+  `C:\AI\re\orca/docs\site\content\docs\model\worktrees.mdx`
 - 会话恢复：
-  `clones/orca/docs\site\content\docs\model\session-restore.mdx`
+  `C:\AI\re\orca/docs\site\content\docs\model\session-restore.mdx`
 - 编排模型：
-  `clones/orca/docs\site\content\docs\cli\orchestration.mdx`
+  `C:\AI\re\orca/docs\site\content\docs\cli\orchestration.mdx`
 - Dispatch / Worker 状态：
-  `clones/orca/src/main/runtime/orchestration/types.ts`
+  `C:\AI\re\orca/src/main/runtime/orchestration/types.ts`
 - Attempt 结果投影：
-  `clones/orca/src/main/runtime/orchestration/db/attempt-outcome-projection.ts`
+  `C:\AI\re\orca/src/main/runtime/orchestration/db/attempt-outcome-projection.ts`
 - 生命周期状态机：
-  `clones/orca/src/main/runtime/orchestration/db/lifecycle-transition.ts`
+  `C:\AI\re\orca/src/main/runtime/orchestration/db/lifecycle-transition.ts`
 - 单写者租约：
-  `clones/orca/src/shared/agent-session/lifecycle/agent-session-lease-adjudication.ts`
+  `C:\AI\re\orca/src/shared/agent-session/lifecycle/agent-session-lease-adjudication.ts`
 - 状态来源与排序：
-  `clones/orca/src/shared/agent-status-observation.ts`
-  `clones/orca/src/shared/agent-status-types.ts`
+  `C:\AI\re\orca/src/shared/agent-status-observation.ts`
+  `C:\AI\re\orca/src/shared/agent-status-types.ts`
 - Worker Prompt 契约：
-  `clones/orca/src/main/runtime/orchestration/preamble.ts`
+  `C:\AI\re\orca/src/main/runtime/orchestration/preamble.ts`
 - 休眠安全条件：
-  `clones/orca/docs\site\content\docs\agents\hibernation.mdx`
+  `C:\AI\re\orca/docs\site\content\docs\agents\hibernation.mdx`
 
 ### 当前众神殿对证
 

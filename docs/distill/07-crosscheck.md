@@ -1,6 +1,6 @@
 # T7 跨域交叉检查与源码引用审校
 
-> 事实基线：`clones/MuMuAINovel` @ commit `600be7038539e4dd0568b63e6e534fdcfaf91687`（branch main, tag v1.5.5, `git status` clean）
+> 事实基线：`C:\AI\re\MuMuAINovel` @ commit `600be7038539e4dd0568b63e6e534fdcfaf91687`（branch main, tag v1.5.5, `git status` clean）
 > 执行者：captain（auditor-source-a 未被调度器派发，captain 接管以免质量门空转）
 > 方法：机器化批量核验 + 定点语义抽查。批量脚本见 `.tmp/audit-captain/verify-refs2.ps1`、`verify-gaea-refs.ps1`、`check-new-vs-existing.ps1`
 > 审校对象：`docs/distill/01..06`
@@ -50,7 +50,7 @@
 **为何是 high**：这些并非「待新增」文件，而是被当作**现有实现对照物**或**新增落点**。实施阶段若照此建文件，会在 gaea 里凭空造出 `services/` 目录与一批 MuMu 命名的页面，与现有 `api/` 与 `components/novel/` 体系割裂。
 
 **requiredFix**：
-1. 各域区分标注两类前端路径：**MuMu 参照路径**（保留，但必须显式写为 `clones/MuMuAINovel@600be703:frontend/...`）与 **gaea 落点路径**（改写为 gaea 真实结构：`frontend/src/api/<domain>.ts`、`frontend/src/components/novel/<domain>/*.tsx`）。
+1. 各域区分标注两类前端路径：**MuMu 参照路径**（保留，但必须显式写为 `C:\AI\re\MuMuAINovel@600be703:frontend/...`）与 **gaea 落点路径**（改写为 gaea 真实结构：`frontend/src/api/<domain>.ts`、`frontend/src/components/novel/<domain>/*.tsx`）。
 2. 新增落点若不是 gaea 现有约定，须在规格中显式说明「新建目录」并给出理由。
 3. t8 总报告中不得直接照抄这些前端路径，须经上一步校正后引用。
 
@@ -88,7 +88,7 @@
 
 ### F-04 · severity: medium · 引用格式未遵守 commit 前缀纪律（4/6 域）
 
-**problem**：`01`、`01-spec`、`02`、`03`、`06` 五份文档**不含** `clones/MuMuAINovel@600be703:` 前缀；仅 `04`、`05` 遵守。后果是无法机器化核验，且一旦上游仓库变动，引用不可复现。
+**problem**：`01`、`01-spec`、`02`、`03`、`06` 五份文档**不含** `C:\AI\re\MuMuAINovel@600be703:` 前缀；仅 `04`、`05` 遵守。后果是无法机器化核验，且一旦上游仓库变动，引用不可复现。
 
 **requiredFix**：t8 汇总时统一注入 commit 前缀，或在总报告中声明「所有引用统一锚定 commit 600be703」。若时间不允许，至少在总报告顶部给出该声明。
 

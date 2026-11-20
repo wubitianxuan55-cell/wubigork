@@ -74,7 +74,7 @@
 
 ### B4 记忆三层对照评估（不直接落地）
 
-输入：`re-lingxi/out/MEMORY-spec.md`（72KB：core/index/recall 三层+写入门禁+wiki front-matter+import_rules）。
+输入：`C:\AI\re\lingxi\out/MEMORY-spec.md`（72KB：core/index/recall 三层+写入门禁+wiki front-matter+import_rules）。
 
 - 步骤：①通读灵犀规格 → 提炼可迁移不变量；②逐项比对 gaea 现状（dream 提炼建议制〔写入有确认门〕/事实库 fact_add/MemoryHub/记忆图谱/会话记忆）→ 三列对照表（灵犀有-gaea 有-缺口）；③产出评估报告+门控提案（哪些层值得引入、以什么形态、写入门禁怎么与既有确认红线兼容），**落地另立项等拍板**。
 - 红线：办公记忆写入确认红线（未经确认不写持久化）优先于一切灵犀形态。

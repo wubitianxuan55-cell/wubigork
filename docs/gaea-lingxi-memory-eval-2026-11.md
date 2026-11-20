@@ -1,6 +1,6 @@
 # 灵犀记忆三层 × gaea 记忆现状对照评估（batch2 B4，2026-11-13）
 
-> 输入：`re-lingxi/out/MEMORY-spec.md`（72KB：14 段原文+61 条记忆工具文案）、
+> 输入：`C:\AI\re\lingxi\out/MEMORY-spec.md`（72KB：14 段原文+61 条记忆工具文案）、
 > gaea 实码（`internal/gaea/memory/` 14 文件 + `internal/app/gaea_dream*` +
 > fact 库 + MemoryHub 面板）。
 > 定位：**评估报告，不落地**。落地须拍板（拍板池②），且办公记忆写入确认红线

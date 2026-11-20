@@ -7,7 +7,7 @@
 // 约束日期/日历例外/费率暂不映射——导入后全部任务 auto 模式,排程交回
 // CPM 按搭接重算(与 xlsx 导入同口径)。
 //
-// 格式蒸馏自 ProjectLibre 内嵌 MPXJ 读取器(clones/projectlibre 只读,零搬运):
+// 格式蒸馏自 ProjectLibre 内嵌 MPXJ 读取器(C:\AI\re\projectlibre 只读,零搬运):
 // 布局=标准 OLE2/CFB 命名流——根 Props9/Props12/Props14;工程目录 "   19"/
 // "   112"/"   114"(前导空格是名字的一部分);其下 TBkndTask/Rsc/Assn/Cons/Cal
 // 存储,各含 VarMeta/Var2Data/FixedMeta/FixedData。无压缩;唯一变换是口令

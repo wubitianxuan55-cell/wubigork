@@ -1,6 +1,6 @@
 # gaea 落地「电脑操控」调研（2026-11-19）
 
-> 性质：**只调研，不改代码**。上游对照物 = `asset-62`（协议规格）/ `asset-63`（代码级还原），证据包 `C:\AI\_distill\codex-computer-use\`。
+> 性质：**只调研，不改代码**。上游对照物 = `asset-62`（协议规格）/ `asset-63`（代码级还原），证据包 `C:\AI\re\codex-computer-use\`。
 > 本篇回答三件事：**gaea 现在缺什么、按什么路线落、每一刀的验收是什么**。
 
 ---
@@ -273,8 +273,8 @@ regexp.MustCompile(`^\t*\d+ \S+( \(.*\))?( .*)?$`)                    // 节点�
 
 ```powershell
 # codex 侧协议与原文（对照用）
-Get-Content C:\AI\_distill\codex-computer-use\data\INDEX.md
-Get-Content C:\AI\_distill\codex-computer-use\data\api-surface.json
+Get-Content C:\AI\re\codex-computer-use\data\INDEX.md
+Get-Content C:\AI\re\codex-computer-use\data\api-surface.json
 # gaea 侧现状
 Select-String -Path internal\gaea\tool\tool.go -Pattern 'type Tool interface' -Context 0,20
 Select-String -Path internal\gaea\permission\permission.go -Pattern 'subjectKeys|func \(g \*Gate\) Check'

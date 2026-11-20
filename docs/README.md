@@ -3,6 +3,12 @@
 > 2026-09-09 立索引（同日状态大清算）；**2026-09-10 复核重建**——**2026-11-03 计数校正：105 份顶层文档（守卫口径，不含本 README）+ 4 个子目录（`archive/` `distill/` `snapshots/` `code-audit-2026-10-02/`）全部登记**（计数以 `node scripts/check-docs.mjs` 输出为准，勿在文中硬写）。状态行与 git log 逐版核对。**归档件在 `docs/archive/`**；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`（其历史版本段已分流至 `docs/archive/agents-version-history-2026-09.md`）。
 >
 > **维护规则（防孤儿）**：新增/移动文档必须同步本索引；**未登记文档视同孤儿**，下一轮整理按「未登记 = 待归档或待登记」处理。引用任文档前先读其头部状态行。**守卫**：`node scripts/check-docs.mjs`（孤儿登记 / `docs/` 悬空引用 / `.gaea/AGENTS.md` 指令预算 / **含非 ASCII 的 .ps1 必须带 BOM** 四查），已接入 `scripts/ci.ps1` 全门禁。
+>
+> **数据根（2026-11-20 用户拍板）**：**所有蒸馏/逆向/上游取证的数据文件都在仓库外 `C:\AI\re`**
+> （`codex-0.165.0` / `codex-0.170.0` / `codex-computer-use` / `lingxi` / `agorai` / `aidebate`；
+> 总览与迁移表见 `C:\AI\re\README.md`）。`docs\` 只放**文档**；文档引用数据一律写
+> `C:\AI\re\<数据集>\...` 绝对路径，不写 `C:\AI\_distill`（已迁空删除），不写仓库内相对路径
+> （旧 `re-lingxi/` 已整体迁至 `C:\AI\re\lingxi`）。
 
 ## 工程与构建
 
@@ -45,6 +51,7 @@
 |---|---|
 | gaea-computer-use-landing-research-2026-11.md | 🆕 **电脑操控落地调研（2026-11-19，只调研不改码）**：codex 六层逆向（asset-62/63）→ gaea 现状盘点（截屏/工具抽象/权限闸/审批卡可复用，**主对话消息无图但 vision 旁路已能发图、改造成本 0.5 人日**、无输入注入）→ 三阶段刀路 + 树文法/双闸门/按 app 授权落点 + 风险红线 + 待拍板 |
 | gaea-computer-use-exec-brief-2026-11.md | 🆕 **电脑操控施工单（2026-11-19，W0~W7 八刀）**：W0 多模态通道（Message.Images / ChatMessage.MarshalJSON / toolOutcome.images 共 6 处改点 + 无图路径逐字节 golden）→ W1 包骨架 → W2 窗口+UIA 树 → W3 只读三工具（默认关）→ W4 按 app 授权 → W5 输入注入（双闸门/DPI/deny 表）→ W6 状态条 → W7 门禁；每刀带验收断言、回退矩阵、估时与禁区 |
+| codex-distill/（子目录） | 🆕 **codex 0.165.0→gaea 蒸馏的计划与施工档（入口 `codex-distill/README.md`）**：资产卡 63 篇（asset-01…63，含电脑操控 asset-62/63）+ 三批执行计划 + 覆盖台账 + 逐热点逆向说明；**只放文档**，原始证据在 `C:\AI\re\codex-0.165.0\` 与 `C:\AI\re\codex-computer-use\` |
 | gaea-dsh-office-distill-research-2026-11.md | 🆕 **dsh-office（COM 实时编辑 Office）蒸馏调研论证（2026-11-13，波1 已动刀）**：上游 v1.2.0 MIT 盘点（8 工具+9893 行 C# COM helper 坑册）+我方办公板块对照（零 COM 零 OMML 互补不替代）+本机 WPS/csc 实证+路线 A 分三波+拍板池 6 项 |
 | gaea-office-conversation-output-redesign-2026-11.md | 🆕 **办公对话输出 UI 重设计·五卡系统设计账（2026-11-11，已随 d3342e77 并入 main）**：思考卡/工具卡/过程卡/Ask 卡/审批卡五族+共享运行/完成/错误/决策四态；范围=前端呈现层（不动事件契约与会话模型） |
 | gaea-lingxi-re-distill-2026-11.md | 🆕 **灵犀（WPS 灵犀 1.3.36）逆向蒸馏事实源（2026-11-13，P0 已落地）**：asar 逆向（技能 16 个 MIT+交付契约三级组合+wpscli=30 工具 MCP 形态）+资产 S/A/B/C 分级+与 gaea 现状对照（COM 主线保留，补逃生舱/选区/交付契约）+不变量五条+明确不做四条 |

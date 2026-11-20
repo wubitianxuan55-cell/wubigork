@@ -3,13 +3,13 @@
 > 状态：🔄 规格定稿（首刀待落）· 类型：外部项目蒸馏（机制清单 + gaea 落点 + 刀路）
 > 上游：https://github.com/zenstory-ai/oh-story-claudecode —— 面向 Claude Code / Codex / OpenCode 等宿主的
 > **网文写作工具集插件**（11 个 skill + 7 个子代理 + 自动化 hooks + 流水线脚本）
-> 本地克隆：`clones/oh-story-claudecode`（只读参考，已 gitignore）
+> 本地克隆：`C:\AI\re\oh-story-claudecode`（只读参考，已 gitignore）
 > 关联：`docs/distill/02-book-import.md`（拆书导入 t2，v4.279~281 已在产）、`.gaea/skills/novel-deslop/`（去 AI 味）、
 > `internal/novelstyle`（文风指纹）、`docs/gaea-sin-board-design-2026-09.md`（原罪板块）
 
 ## 0. 法务红线（先于一切设计）
 
-上游是 **MIT 许可**（`clones/oh-story-claudecode/LICENSE:1`）——与 gaea 私有（All Rights Reserved）并不冲突，
+上游是 **MIT 许可**（`C:\AI\re\oh-story-claudecode/LICENSE:1`）——与 gaea 私有（All Rights Reserved）并不冲突，
 但必须分两种处置，且沿用屋里「蒸馏=取道不取器」的惯例：
 
 1. **机制**（思路 / 阈值 / 字段语义 / 流程 / 判定条件）→ **重推导实现**，码内注明「重推导自 oh-story（MIT）」；

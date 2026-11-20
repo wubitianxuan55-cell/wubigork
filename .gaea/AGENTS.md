@@ -314,6 +314,30 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - 装机按 `scripts\gaea_install.ps1`；exe + 三枚 DLL 同放 `C:\AI\gaea-app`，
   桌面只保留 `gaea.lnk`。若本轮只做预览包，不擅自覆盖用户已安装版本。
 
+## 数据根：蒸馏与逆向数据（强制默认，2026-11-20 用户拍板）
+
+**所有蒸馏、逆向、上游取证的数据文件一律落 `C:\AI\re`，仓库只放文档与代码。**
+
+- 一个上游目标一个子目录：`C:\AI\re\<目标>-<版本>`（`codex-0.165.0` / `codex-0.170.0` /
+  `codex-computer-use` / `lingxi` / `agorai` / `aidebate`）；**上游参考克隆沿用上游项目名并
+  保留 `.git`**（`orca` / `zcode` / `projectlibre` / `unsloth` / `rea` / `deepseek-harness` …），
+  依赖快照用 `<项目>-<latest|baseline>`（`dsh-web-latest` / `dsh-web-baseline`）；目录总览、
+  布局差异与迁移表以 `C:\AI\re\README.md` 为准。
+- 子目录分层：`docs/`（逆向说明）、`evidence/`（原始证据）、`embedded/`（解出的资产）、
+  `scripts/`（可复跑）、`work/`（可重生成）、`oss/`（上游源码只读快照）、`data/`（成品证据包）。
+- **2026-11-20 两批迁移已执行**：
+  ①`C:\AI\_distill\{codex-computer-use,agorai,aidebate}` 与仓库内 `re-lingxi/` → `C:\AI\re`；
+  ②仓库内 `clones/` 全部 16 个目录（上游参考克隆 13 + DSH web 依赖快照 2 + mpp2013 样本 1）
+  → `C:\AI\re\<同名>`，文件数 16/16 核对一致（`diffs=0`，合计 4.60 GB）。
+  `_distill`、`re-lingxi/`、`clones/` 三处旧位置均已删除，**不再复活**。
+- 文档引用数据写 `C:\AI\re\<数据集>\...` 绝对路径；大件只记路径与 SHA256/commit。
+- **代码耦合**：`internal/schedule/mpp_test.go` 的真实 MPP 样本经 `reSamplePath()` 定位，
+  默认根 `C:\AI\re`（`GAEA_RE_ROOT` 可覆盖，旧 `../../clones/` 仅兜底），依赖
+  `projectlibre\projectlibre_build\resources\samples\*.mpp` 与 `mpp2013\*.mpp`；
+  动数据根或样本目录后必跑 `go test ./internal/schedule -run TestMpp -v`，须 PASS 而非 SKIP。
+- 新增/迁移后：改 `C:\AI\re\README.md` 总览 + `grep -rn` 清旧引用 +
+  `node scripts/check-docs.mjs` 验悬空。
+
 ## 发布流程（2026-08-14 修订：补版本资源步骤）
 
 1. 更新 CHANGELOG.md / README.md（版本表）/ wails.json（productVersion）/ releases/README.md（版本表）

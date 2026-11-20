@@ -1,8 +1,8 @@
 # gaea 蒸馏 ProjectLibre：取道不取器——进度计划板块机制供给（2026-09-07）
 
-> 状态：机制供给参考（蒸馏成果已全部落地：16 项差距清偿总账见 gaea-schedule-gap-vs-project-2026-09.md 收官总账，v4.132~v4.139 全 ✅）；clones/projectlibre 仍为只读参考（CPAL 零搬运）。
+> 状态：机制供给参考（蒸馏成果已全部落地：16 项差距清偿总账见 gaea-schedule-gap-vs-project-2026-09.md 收官总账，v4.132~v4.139 全 ✅）；C:\AI\re\projectlibre 仍为只读参考（CPAL 零搬运）。
 > 日期：2026-09-07 · gaea 基线 v4.135.0（绑定面 590）
-> 上游：git://git.code.sf.net/p/projectlibre/code · master 0530be2（v1.9.8，Java 21）· **CPAL-1.0** · 只读克隆 `clones/projectlibre`（已 gitignore，永不入库、永不抄代码——CPAL 带署名展示+网络使用即分发条款）
+> 上游：git://git.code.sf.net/p/projectlibre/code · master 0530be2（v1.9.8，Java 21）· **CPAL-1.0** · 只读克隆 `C:\AI\re\projectlibre`（已 gitignore，永不入库、永不抄代码——CPAL 带署名展示+网络使用即分发条款）
 > 调研方式：三个只读探索代理分头通读——core（调度/日历/基线/undo/主子项目）、ui（横道/网络/使用视图/交互/打印）、exchange+field+reports，共约 230 个关键文件。
 > 定位：给 `docs/gaea-schedule-gap-vs-project-2026-09.md` 16 项差距做**机制供给**（Microsoft 清单只说"要什么"，这份说"怎么想"）。
 
@@ -14,7 +14,7 @@ ProjectLibre 是 OpenProj 血统的开源 MS Project 克隆（原班人马出品
 
 - 16 项差距中 **8 项有直接可取机制**（基线比较/资源级日历/使用视图/多级分组/自定义字段/任务路径/任务检查器/主子项目），**1 项上游也空白**（项目模板——全库 grep 无 template 代码，只能自设计），豁免项 leveling 它也只有"字段建模"没有求解器（对话框被注释掉）。
 - 五件套最有价值：①负数日期对称编码统一正逆推+哨兵任务；②差异式日历+交集物化；③工时轮廓=任务时间真相源；④快照式 11 基线槽+派生差值字段；⑤声明式 bar 样式表。
-- 引擎纪律红线：CPAL 零代码搬运，`clones/` 只读参考；取道=思路进自家 TS/Go 镜像引擎。
+- 引擎纪律红线：CPAL 零代码搬运，`C:\AI\re\` 只读参考；取道=思路进自家 TS/Go 镜像引擎。
 
 ---
 
@@ -140,14 +140,14 @@ hover 即判状态（move/resize/progress/link/split）并定光标；拖动全�
 
 ## 6. 不抄清单（红线）
 
-- **零代码搬运**：CPAL-1.0 含署名展示+网络使用即分发条款，`clones/projectlibre` 永不编译、永不引用、永不拷文件，只读思路。
+- **零代码搬运**：CPAL-1.0 含署名展示+网络使用即分发条款，`C:\AI\re\projectlibre` 永不编译、永不引用、永不拷文件，只读思路。
 - Swing 具体件（JSplitPane/JFreeChart/JasperReports/XOR 绘制/UndoManager）——平台不对，取其架构不取其件。
 - undo 机制：上游命令逆操作式 vs 我们 v4.135 快照式（上限 50+800ms 合并）——**维持现状**，不做迁移；仅记一条"字段层写入收敛"作 Go 侧长期方向。
 - 公式字段（上游 TODO 未启用）、leveling 求解器（上游没有）、关键链 buffer（上游 buffer 包只是时标聚合查询，不是 CCPM）。
 
 ## 7. 来源
 
-- 克隆：`clones/projectlibre`（git.code.sf.net/p/projectlibre/code，master 0530be2，2026-09-07）
+- 克隆：`C:\AI\re\projectlibre`（git.code.sf.net/p/projectlibre/code，master 0530be2，2026-09-07）
 - 引擎深读：`projectlibre_core/src/com/projectlibre1/pm/criticalpath/{TaskSchedule,CriticalPath}.java`、`pm/calendar/{WorkingCalendar,CalendarDefinition}.java`、`pm/assignment/{AssignmentDetail,contour/*}.java`、`pm/tasks/SnapshotList.java`、`undo/*`、`pm/task/{SubProj,ExternalTaskManager}.java`
 - UI 深读：`projectlibre_ui/src/com/projectlibre1/pm/graphic/{gantt/timescale/network/views}`、`graphic/configuration/BarFormat.java`、`offline_graphics/*`、`print/GraphPageable.java`
 - 交换/字段：`projectlibre_exchange/src/com/projectlibre/core/pm/exchange/{MspImporter,ProjectConverter}.java`、`net/sf/mpxj/mpp/MPPReader.java`、`projectlibre_core/src/com/projectlibre1/{field,configuration/configuration.xml}`

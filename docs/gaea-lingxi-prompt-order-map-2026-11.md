@@ -1,6 +1,6 @@
 # 灵犀↔gaea 提示词装配顺序对照（batch2 B3，2026-11-13）
 
-> 输入：`re-lingxi/out/PROMPT-skeleton.md`（130 节点序+四规律，re-distill §26.1）、
+> 输入：`C:\AI\re\lingxi\out/PROMPT-skeleton.md`（130 节点序+四规律，re-distill §26.1）、
 > gaea 实码（`internal/gaea/boot/sysprompt.go buildSystemPrompt` + `boot.go` 544~555）。
 > 结论先行：**四规律中 gaea 天然满足三条，两条不满足项经性质分析判定不调序**；
 > SingleModelPrompt 逐字节红线不动（被既有测试锚定，波3.5 先例）。调整与否留

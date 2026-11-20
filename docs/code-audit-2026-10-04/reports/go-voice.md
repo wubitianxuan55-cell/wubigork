@@ -2,7 +2,7 @@
 
 审计范围：`internal/voice/`、`internal/whisper/`（含 `whisper/db/`）、`internal/tts/`、`internal/asr/`、`internal/ocr/`
 方法：只读审计；符号级引用计数（Go 感知的注释/字符串剥离 + `rg -w` 交叉复核）；Wails 字符串调用风险在 `frontend/src` 全量比对；平台/build-tag 检查。
-排除：`clones/`、`node_modules/`、`frontend/`、`.tmp*`、`backups/`、`releases/`、`dist/`、`whisper_data/`、`internal/app/**`（他人负责，仅作"消费者存在性"证据引用）、`internal/ai/**`、`internal/gaea/**`。
+排除：`C:\AI\re\`、`node_modules/`、`frontend/`、`.tmp*`、`backups/`、`releases/`、`dist/`、`whisper_data/`、`internal/app/**`（他人负责，仅作"消费者存在性"证据引用）、`internal/ai/**`、`internal/gaea/**`。
 
 > 重要口径说明（为什么本报告可信）：所有"死代码"结论都用「剥离注释 + 剥离字符串字面量 + 允许 `pkg.Symbol` 点号限定调用」的引用计数得出（`(?<![\w])Sym\b`），再逐条用 `rg -n -w` 复核。第一轮曾因把 `.` 也当作前置排除符而误杀 `repos.CountFactsInDB` 这类跨包限定调用，已全部推翻重做；`ClearStructuredData`（测试在用）、`LoadChatHistoryFromDB`（`app/whisper_handler.go:760` 在用）、`ResolveDesktopCapabilityEnhanced`（`desktop_test.go` 在用）等一批"看似死"的符号经复核**是活的**，未进入死代码清单。另外，函数体边界用花括号配对而非"行首 `}`"计算，避免单行函数吞掉后继函数（`SetModel`、`PatchLatestTurnL5` 正是因此才被正确识别）。
 

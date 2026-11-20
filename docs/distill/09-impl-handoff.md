@@ -1,7 +1,7 @@
 # MuMuAINovel 蒸馏 → gaea 实施交接书
 
 > 本文件是 mumu-distill 团队的全部可复用产出摘要。**实施团队从这里开始，不必重读六份长规格的开头。**
-> 事实源：`clones/MuMuAINovel` @ commit `600be7038539e4dd0568b63e6e534fdcfaf91687`（main, tag v1.5.5, clean）
+> 事实源：`C:\AI\re\MuMuAINovel` @ commit `600be7038539e4dd0568b63e6e534fdcfaf91687`（main, tag v1.5.5, clean）
 > 目标工程：`C:\AI\wubigrok`（gaea，Go 1.26.3 + Wails v2 + React/TS）
 
 ---
