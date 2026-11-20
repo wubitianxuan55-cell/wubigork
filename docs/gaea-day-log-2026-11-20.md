@@ -308,3 +308,9 @@ merge 9/9。
 换大小写需两步改名经临时名；②目录根被占句柄时子目录可 rename 而根不行
 （robocopy /MOVE 兜底）；③heredoc 反斜杠降级第 6/7 次——路径拼接一律
 chr(92) 配方或 Write/Edit 工具直改。
+- **§17 更正（用户质询暴露消费方耦合）**：voiceV2LLMBinPath 回退链使 qwen35
+  自管引擎与 docmd OCR **共用** uocr2-llamain\llama-server.exe——11-11 的
+  mainline 是 llama.cpp 更新机制装的（服务 qwen35），回滚 0.8.0-dev 修 OCR 即
+  令 qwen35 退回旧构建。终局拆分（1bc05a48）：**bin/ 恢复 mainline 归 qwen35**
+  （llama 更新追踪语义不变），**docmd exe 钉 bin-ocr-0.8.0-dev**（bak 改名转正），
+  live 复测单页 16.8s ✓；重建装机 14:04:58 冒烟 200。
