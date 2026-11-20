@@ -171,6 +171,20 @@ func TestExpectedPathsNoteContent(t *testing.T) {
 	}
 }
 
+// TestExpectedPathsNoteGuidanceAlwaysPresent（2026-11-20 实测修正回归）：
+// expected 非空（bash 带声明写路径）时出路指引句必须仍在——旧实现两句
+// 互斥，带声明的拦截只见归因不见合规入口，用户绕行多轮。
+func TestExpectedPathsNoteGuidanceAlwaysPresent(t *testing.T) {
+	note := ExpectedPathsNote([]PublishViolation{{RelPath: "b.xlsx", Kind: "modified"}},
+		[]string{`D:\w\b.xlsx`})
+	if !strings.Contains(note, "声明写路径集") || !strings.Contains(note, "b.xlsx") {
+		t.Fatalf("归因信息缺失: %s", note)
+	}
+	if !strings.Contains(note, "office_generate") || !strings.Contains(note, "docx_apply") {
+		t.Fatalf("expected 非空时出路指引被吞: %s", note)
+	}
+}
+
 // --- spike 腿（Windows 真实子进程；非 Windows 跳过，CI linux 不受影响） ---
 
 func runSpikeCmd(t *testing.T, dir, command string) time.Duration {

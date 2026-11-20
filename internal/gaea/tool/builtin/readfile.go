@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/text/transform"
 
@@ -181,7 +182,21 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 			mn, _ := io.ReadFull(f, more)
 			head = append(peek, more[:mn]...)
 		}
+		// 截断采样可能切在多字节 UTF-8 序列中间：utf8.Valid 对残尾判非，
+		// Detect 级联随之误落 GB18030（宽松接受几乎任意字节）→ 整档按 GBK
+		// 流式解码成系统性乱码（2026-11-20 实测：315KB 严格 UTF-8 中文文件
+		// 256KB 边界切中汉字 → 「对象」变「瀵硅薄」，解码还「成功」——静默
+		// 乱码比报错危险）。把采样尾回退到 rune 边界再判（最多 3 字节，只为
+		// 判型，检测后的数据流始终从完整 head 起读，不受裁剪影响）。
 		sample := head
+		for i := 1; i <= 3 && i <= len(sample); i++ {
+			if utf8.RuneStart(sample[len(sample)-i]) {
+				if i > 1 {
+					sample = sample[:len(sample)-i]
+				}
+				break
+			}
+		}
 		enc, _ := fileenc.Detect(sample)
 		switch enc {
 		case fileenc.UTF8, fileenc.LossyUTF8:

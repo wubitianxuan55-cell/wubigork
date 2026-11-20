@@ -178,11 +178,13 @@ func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ..
 	if len(dest) > 0 && dest[0] != "" {
 		b.WriteString("\n隔离位置：" + dest[0])
 	}
-	if len(expected) == 0 {
-		b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/docx_accept/pptx_apply/xlsx_apply（编辑）。")
-	} else {
+	if len(expected) > 0 {
 		b.WriteString("\n声明写路径集：" + strings.Join(expected, "; "))
 	}
+	// 出路指引恒显（2026-11-20 实测修正）：此前 expected 非空时本句被「声明
+	// 写路径集」替换——bash 带声明路径的拦截只见归因不见出路，实测用户绕行
+	// 多轮才找到合规入口。声明路径是归因信息，与合规出路不互斥，两句都给。
+	b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/docx_accept/pptx_apply/xlsx_apply（编辑）。")
 	return b.String()
 }
 
