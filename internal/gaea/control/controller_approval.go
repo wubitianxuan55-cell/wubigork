@@ -25,6 +25,9 @@ var hardAskTools = map[string]bool{
 	"knowledge_add":         true,
 	"promote_session_facts": true,
 	"install_skill":         true,
+	// computer_key（电脑操控施工单 W4-2）：键盘可触发任意快捷键（含 Alt+F4、
+	// 全局热键），必须逐条确认；W5 落工具后生效，此处先行占位无害。
+	"computer_key": true,
 }
 
 // gateApprover adapts the Controller to permission.Approver. It is distinct

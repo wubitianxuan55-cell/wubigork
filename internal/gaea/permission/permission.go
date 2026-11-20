@@ -195,7 +195,13 @@ func matchAny(rules []Rule, toolName, subject string) bool {
 // file tools expose path / file_path, grep & glob expose pattern, move_file
 // exposes source (appended last so it can never shadow an existing key), and
 // browser_navigate exposes url (同样排最后：浏览器工具只带 url 一个键).
-var subjectKeys = []string{"command", "file_path", "path", "pattern", "source", "url"}
+// WindowSubjectResolver 是 window_id（数值）→ 稳定主体（process:<exe 全
+// 路径>）的注入钩子（电脑操控施工单 W4：按 app 授权；computer 包 init
+// 装配）。args 无任何字符串主体键、只有 window_id 时经它解析窗口属主 app。
+// 返回空串=解析失败（窗口已亡），退回裸工具规则。
+var WindowSubjectResolver func(windowID int) string
+
+var subjectKeys = []string{"app", "command", "file_path", "path", "pattern", "source", "url"}
 
 // Subject extracts the matchable subject string from a call's raw JSON args,
 // returning "" when none of the known keys is present (such a call only matches
@@ -214,6 +220,11 @@ func Subject(args json.RawMessage) string {
 				return s
 			}
 		}
+	}
+	// 电脑操控族（W4）：args 只有 window_id 数值时按钩子解析属主 app——
+	// 审批卡与「始终允许」落盘自动按 process:<exe> 授权。
+	if id, ok := m["window_id"].(float64); ok && WindowSubjectResolver != nil {
+		return WindowSubjectResolver(int(id))
 	}
 	return ""
 }

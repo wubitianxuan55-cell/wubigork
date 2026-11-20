@@ -70,7 +70,15 @@ export function ApprovalModal({
   const cardRef = useRef<HTMLDivElement | null>(null);
   // 持久化写入（成本库/记忆/知识库）必须逐条确认：
   // 不提供「本会话内允许」「始终允许」，批准仅本次生效。
-  const HARD_ASK_TOOLS = ["cost_save", "remember", "knowledge_add", "promote_session_facts"];
+  // computer_key（电脑操控施工单 W4-3）：键盘可触发任意快捷键，逐条确认。
+  const HARD_ASK_TOOLS = ["cost_save", "remember", "knowledge_add", "promote_session_facts", "computer_key"];
+  // 电脑操控族按 app 授权：subject=process:<exe 全路径>，卡面缩成 exe 名
+  //（完整路径仍在下方 pre 区原样可见）。
+  const approvalSubject = approval.subject ?? "";
+  const subjectShort =
+    approvalSubject.startsWith("process:")
+      ? approvalSubject.slice("process:".length).split(/[\/]/).pop() || approvalSubject
+      : approvalSubject;
   const isHardAsk = HARD_ASK_TOOLS.includes(approval.tool);
   // diff 确认闭环刀C：schedule_apply project 整量通道（args.project 非空）
   // 同样按三钮形态渲染（禁会话记忆，拍板项 2）——Go 闸门 alwaysPrompt 是
@@ -152,7 +160,7 @@ export function ApprovalModal({
             {approval.request ? t("approval.ruleLabel") : t("approval.toolLabel")}
           </span>
           <span className="office-decision-context__value">
-            {approval.request && approval.subject ? `${approval.tool}(${approval.subject})` : approval.tool}
+            {approval.request && approval.subject ? `${approval.tool}(${subjectShort})` : approval.tool}
           </span>
         </div>
 
