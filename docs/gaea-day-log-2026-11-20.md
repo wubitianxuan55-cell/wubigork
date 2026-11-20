@@ -200,3 +200,26 @@ getComputedStyle 读 --md-sys-color-surface-container/text=#EDEAE3/#1E1C18）→
 - 设置页 computer_use UI 分组：config 段已可用（直编 gaea.toml），UI 挂
   设置域并行线（settings/modelcenter 21 文件在途）收官后补，避免同文件双线。
 - p2 池：per-window 抓屏（WGC）/多区域 screenshotId/Esc 键盘钩子/drag。
+
+---
+
+## 14. 接手 codex 在途线：运行监测二轮+模型中心归位收口+桌面构建（2026-11-20 午后）
+
+codex（并行执行体）停止，遗留未提交工作树。接手处置：
+
+- **判定**：工作树=两域自洽改动（其账本只记了运行监测；模型中心归位批无账）。
+  接手复验：定向 8 测试文件 71/71+useStatsState 4/4+tsc -b 0+Vite 29.79s 绿。
+- **提交 8323e9d4**（双域批）：①运行监测「可执行状态面」二轮——当前判定关注清单
+  （引擎掉线/资源压力/低成功率/近期失败→处置动作，900px 以下提前）+同步可信度
+  （暂停恢复/防重入/轮询联动停用/后台暂停+同步中断快照）+下钻闭环（错误定位最近
+  失败请求/最近请求四维搜索/模型明细失败列真实排序）+progressbar·aria-live 可
+  访问性+页面规范 runtime.md+四张快照；②模型中心归位——ModelGroupNav 组级导航
+  （语言/图像/语音/专业锚点+计数）+引擎管理收口（顶栏 xAI 登录钮模型中心页隐藏）
+  +设置模型组瘦身五页签（高频归模型中心防双入口漂移）+三语文案。
+- **残渣回退**：resumed.jsonl.meta（会话元时间戳）/capability.go（注释空白）不入账。
+- **桌面构建装机**：Vite 29.79s+Wails 54.37s（bindings 未跳过）→ exe SHA256
+  `39C682D92A91D50899AC8396721E5F2BCD3586674364009F1FAC7E86701C8F8A`（60,854,784 B），
+  装机四件一致，新壳 PID 26908（11:59:08 > 构建时刻 11:58:57）INSTALL OK，
+  冒烟 /api/health 200。
+- **账本**：todos ✅ 行改终态（电脑操控八刀新行+运行监测行收口）+progress 状态段
+  改「接手收口」。
