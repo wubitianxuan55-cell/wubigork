@@ -223,3 +223,19 @@ codex（并行执行体）停止，遗留未提交工作树。接手处置：
   冒烟 /api/health 200。
 - **账本**：todos ✅ 行改终态（电脑操控八刀新行+运行监测行收口）+progress 状态段
   改「接手收口」。
+
+---
+
+## 15. git 打包：gaea-computeruse-runtime2-20261120-ee424218（2026-11-20 午后）
+
+- **打包提交 ee424218**（origin/main..HEAD 14 笔含设置尾 2，全部未 push），干净
+  工作树 .tmp/gaea-pkg-ee424218 独立构建（Vite 24.15s junction + Wails 46.7s
+  bindings 未跳过）。
+- **产物**：payload 四件（exe 5739042b2dcfd702…+三 DLL 与装机位同源）+
+  包 zip 40d6f51e…+source.zip 43ea8740…；SHA256SUMS.txt+PACKAGE-INFO.md 入库；
+  冒烟 /api/health 200（正式 payload 路径）。
+- **大坑新增：source.zip 嵌套雪球**——历届包 zip 入库（office-r2 起源 zip 也
+  track）导致 git archive 层层套娃：office-r2 时 47MB → 本次若不排除 741MB。
+  止血=git archive 加 pathspec `":(exclude)releases"`，本包 56.4MB，
+  PACKAGE-INFO 记档「后续包沿用」。
+- 提交 260b58d4；工作树回收。
