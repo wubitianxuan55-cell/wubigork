@@ -239,3 +239,6 @@ codex（并行执行体）停止，遗留未提交工作树。接手处置：
   止血=git archive 加 pathspec `":(exclude)releases"`，本包 56.4MB，
   PACKAGE-INFO 记档「后续包沿用」。
 - 提交 260b58d4；工作树回收。
+- **已推 origin**（2065da8e..8be0d548，16 笔 ahead=0）；GH 对入库存 source.zip
+  53.83MB 发超 50MB 建议上限告警（<100MB 硬限已收）——**后续包口径再收紧：
+  source 包（zip/tar）一律留盘不入库**，只入库 PACKAGE-INFO+SHA256SUMS。
