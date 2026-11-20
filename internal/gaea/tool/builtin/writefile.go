@@ -27,11 +27,12 @@ type writeFile struct {
 func (writeFile) Name() string { return "write_file" }
 
 func (writeFile) Description() string {
-	return "Write content to a file at the given path (overwriting existing content). Creates parent directories as needed."
+	return "Write content to a file at the given path (overwriting existing content). Creates parent directories as needed. " +
+		"Pass \"overwrite\": true when intentionally rewriting a file you already wrote this turn — it skips the same-turn stale guard (no re-read needed); external modifications across turns are still detected."
 }
 
 func (writeFile) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"Full content to write"},"expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from read_file trailer, or \"absent\" to require the file does not exist (create-only). Mismatch = REVISION_CONFLICT."}},"required":["path","content"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"Full content to write"},"expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from read_file trailer, or \"absent\" to require the file does not exist (create-only). Mismatch = REVISION_CONFLICT."},"overwrite":{"type":"boolean","description":"Declare intent to rewrite a file modified earlier this turn: skips the same-turn stale guard. Still fails on external cross-turn modifications."}},"required":["path","content"]}`)
 }
 
 func (writeFile) ReadOnly() bool { return false }
@@ -121,5 +122,12 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 		AfterSummary:  p.Content,
 		BaselinePath:  baseline,
 	})
+	// 实测反馈⑦：覆盖旧文件时的写前快照此前完全静默——快照其实一直都在拍
+	//（StageBaseline 上面 :104），但回执只报 wrote N bytes，用户以为「文件
+	// 没有快照」。回执显式报快照路径，需要回看/恢复时可直接取。
+	if baseline != "" {
+		return fmt.Sprintf("wrote %d bytes to %s\nbaseline: %s（写前快照；rollback 目录内同前缀保留最近 %d 份）",
+			len(p.Content), p.Path, baseline, evidence.BaselineKeepPerTarget), nil
+	}
 	return fmt.Sprintf("wrote %d bytes to %s", len(p.Content), p.Path), nil
 }

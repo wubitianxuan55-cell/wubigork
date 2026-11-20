@@ -71,3 +71,32 @@ func TestBuildProjectBriefBudget(t *testing.T) {
 		t.Fatal("同一输入两次渲染不一致")
 	}
 }
+
+// TestBuildProjectBriefStableAcrossDays（缓存刀 1，2026-11-21）：衰减评分
+// 只决定预算内选谁；选定集合的渲染序按 Name 升序——跨天分数漂移不再翻转
+// 输出顺序，L1 前缀字节在集合不变时逐字节恒定（DeepSeek 自动前缀缓存的
+// 命中条件）。两条不同时刻的 now 必须产出同一块文本。
+func TestBuildProjectBriefStableAcrossDays(t *testing.T) {
+	base := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	mk := func(name, desc string, updatedDaysAgo int) Memory {
+		return Memory{Name: name, Type: TypeProject, Kind: KindSemantic,
+			Description: desc, Body: desc, UpdatedAt: base.AddDate(0, 0, -updatedDaysAgo)}
+	}
+	// A/B 的衰减轨迹会随日期交错翻转相对分数，但都在预算内（集合不变）。
+	mems := []Memory{
+		mk("zeta-report", "周报口径", 2),
+		mk("alpha-branch", "发布分支", 10),
+		mk("mid-budget", "预算中位", 6),
+	}
+	day1 := BuildProjectBrief(mems, base.AddDate(0, 0, 20), 4000)
+	day2 := BuildProjectBrief(mems, base.AddDate(0, 0, 40), 4000)
+	if day1 == "" || day1 != day2 {
+		t.Fatalf("选定集合不变时跨天渲染必须逐字节恒定（L1 前缀缓存纪律）\nday1:\n%s\nday2:\n%s", day1, day2)
+	}
+	// 渲染序=Name 升序（与分数序刻意不同）。
+	iZeta := strings.Index(day1, "zeta-report")
+	iAlpha := strings.Index(day1, "alpha-branch")
+	if iAlpha == -1 || iZeta == -1 || iAlpha > iZeta {
+		t.Fatalf("渲染应按 Name 升序（alpha 在 zeta 前）:\n%s", day1)
+	}
+}

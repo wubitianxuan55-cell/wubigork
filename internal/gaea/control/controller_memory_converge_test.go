@@ -28,12 +28,12 @@ func TestMemoryRefreshConvergesUnderConcurrency(t *testing.T) {
 		go func(g int) {
 			defer wg.Done()
 			for i := 0; i < 5; i++ {
-				if _, err := c.SaveDreamFacts("", "test", []memory.Memory{{
+				if _, err := c.SaveFacts("", "test", []memory.Memory{{
 					Name:        fmt.Sprintf("fact-g%d-i%d", g, i),
 					Description: "并发写入",
 					Body:        "并发写入正文",
 				}}); err != nil {
-					t.Errorf("SaveDreamFacts g%d i%d: %v", g, i, err)
+					t.Errorf("SaveFacts g%d i%d: %v", g, i, err)
 					return
 				}
 			}

@@ -3,6 +3,7 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/gaea/feedback"
 	"github.com/gaea/gaea/internal/whisper"
 )
 
@@ -10,6 +11,8 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type MemoryB struct{ a *App }
 
+func (b *MemoryB) GaeaAIFeedbackDelete(id string) error { return b.a.GaeaAIFeedbackDelete(id) }
+func (b *MemoryB) GaeaAIFeedbackList() []feedback.Item { return b.a.GaeaAIFeedbackList() }
 func (b *MemoryB) GaeaKnowledgeDelete(name string) error { return b.a.GaeaKnowledgeDelete(name) }
 func (b *MemoryB) GaeaKnowledgeExport(dir string) (int, error) { return b.a.GaeaKnowledgeExport(dir) }
 func (b *MemoryB) GaeaKnowledgeFindSimilar(title string) []SimilarView { return b.a.GaeaKnowledgeFindSimilar(title) }

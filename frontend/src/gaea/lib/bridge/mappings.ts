@@ -154,16 +154,15 @@ export const gaeaToGaea = {
   UpdateFact: "GaeaUpdateFact",
   ChangeFactType: "GaeaChangeFactType",
   SetMemoryEnabled: "GaeaSetMemoryEnabled",
-  SetDreamMode: "GaeaSetDreamMode",
   MorningPreload: "GaeaMorningPreload",
   SetMorningPreload: "GaeaSetMorningPreload",
   MemorySuggestions: "GaeaMemorySuggestions",
   LogFrontendError: "GaeaLogFrontendError",
-  AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",
-  // v4.377 建议制：待确认建议忽略 + 自动做梦直写清污。
-  DismissMemorySuggestion: "GaeaDismissMemorySuggestion",
-  DreamPurgePreview: "GaeaDreamPurgePreview",
-  DreamPurge: "GaeaDreamPurge",
+  // AI 反馈库（2026-11-20）：记忆面板反馈区查看/删除。
+  AIFeedbackList: "GaeaAIFeedbackList",
+  AIFeedbackDelete: "GaeaAIFeedbackDelete",
+  // 模型中心本地服务模型卡（drift 方向二认领；App() 兼容通道既有消费）。
+  GaeaLocalServiceModels: "GaeaLocalServiceModels",
   AcceptMergeSuggestion: "GaeaAcceptMergeSuggestion",
   AcceptSkillSuggestion: "GaeaAcceptSkillSuggestion",
   Settings: "GaeaSettings",

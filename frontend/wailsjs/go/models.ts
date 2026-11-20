@@ -3017,32 +3017,6 @@ export namespace app {
 	        this.path = source["path"];
 	    }
 	}
-	export class MemorySuggestionView {
-	    id: string;
-	    name: string;
-	    title?: string;
-	    description: string;
-	    type: string;
-	    body: string;
-	    reason: string;
-	    evidence: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new MemorySuggestionView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.title = source["title"];
-	        this.description = source["description"];
-	        this.type = source["type"];
-	        this.body = source["body"];
-	        this.reason = source["reason"];
-	        this.evidence = source["evidence"];
-	    }
-	}
 	export class MergeSuggestionView {
 	    id: string;
 	    keep: string;
@@ -3094,10 +3068,8 @@ export namespace app {
 	    }
 	}
 	export class MemorySuggestionsView {
-	    memories: MemorySuggestionView[];
 	    skills: SkillSuggestionView[];
 	    merges?: MergeSuggestionView[];
-	    overflow?: MemorySuggestionView[];
 	    generatedAt: string;
 	    available: boolean;
 	    source: string;
@@ -3108,10 +3080,8 @@ export namespace app {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.memories = this.convertValues(source["memories"], MemorySuggestionView);
 	        this.skills = this.convertValues(source["skills"], SkillSuggestionView);
 	        this.merges = this.convertValues(source["merges"], MergeSuggestionView);
-	        this.overflow = this.convertValues(source["overflow"], MemorySuggestionView);
 	        this.generatedAt = source["generatedAt"];
 	        this.available = source["available"];
 	        this.source = source["source"];
@@ -3142,7 +3112,6 @@ export namespace app {
 	    storeDir: string;
 	    available: boolean;
 	    enabled: boolean;
-	    dreamMode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MemoryView(source);
@@ -3156,7 +3125,6 @@ export namespace app {
 	        this.storeDir = source["storeDir"];
 	        this.available = source["available"];
 	        this.enabled = source["enabled"];
-	        this.dreamMode = source["dreamMode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -7377,6 +7345,35 @@ export namespace evidence {
 	        this.visualPagesReviewed = source["visualPagesReviewed"];
 	        this.visualPagesTotal = source["visualPagesTotal"];
 	        this.visualSkippedReason = source["visualSkippedReason"];
+	    }
+	}
+
+}
+
+export namespace feedback {
+	
+	export class Item {
+	    id: string;
+	    board?: string;
+	    category?: string;
+	    severity?: string;
+	    title: string;
+	    detail?: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Item(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.board = source["board"];
+	        this.category = source["category"];
+	        this.severity = source["severity"];
+	        this.title = source["title"];
+	        this.detail = source["detail"];
+	        this.createdAt = source["createdAt"];
 	    }
 	}
 

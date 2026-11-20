@@ -33,7 +33,9 @@ var cmdLeadingFlags = map[string]bool{
 	"/v": true, "/x": true, "/a": true, "/u": true,
 }
 
-// DangerousWindowsCommand 判定 Windows 下的破坏性删除命令。
+// DangerousWindowsCommand 保留命令形态诊断；运行时 Gate 已不再调用它，
+// 删除是否放行由 builtin.bash 结合实际 cwd/工作区的 guardRecursiveDelete
+// 判定。普通 rm/Remove-Item 不应在这里被“看到即拦”。
 // argv[0] 是可执行文件，其余为参数；返回（是否拦截, 理由）。
 // 三层识别：argv[0] 直呼删除命令（PowerShell 直调 cmdlet / bash 直调 rm）；
 // powershell/pwsh 壳：剥认识的启动开关后取命令首词；cmd 壳：剥 /c 等引导
@@ -48,7 +50,7 @@ func DangerousWindowsCommand(argv []string) (bool, string) {
 	var segments []string
 	switch {
 	case windowsDeleteCmdlets[prog]:
-		return true, deleteReason(prog, argv[1:])
+		return deleteVerdict(prog, argv[1:])
 	case prog == "powershell" || prog == "pwsh":
 		cmd, ok := powershellCommand(argv[1:])
 		if !ok {
@@ -85,10 +87,88 @@ func DangerousWindowsCommand(argv []string) (bool, string) {
 		}
 		head := normalizeExe(words[0])
 		if windowsDeleteCmdlets[head] {
-			return true, deleteReason(head, words[1:])
+			if blocked, why := deleteVerdict(head, words[1:]); blocked {
+				return true, why
+			}
+			continue
 		}
 	}
 	return false, ""
+}
+
+// deleteVerdict（D5，2026-11-20 缺陷清单）：草稿区白名单——非递归删除且
+// 全部目标落在草稿形态（_tmp*/_draft 目录、.bak/.tmp/.old 后缀、系统临时
+// 根）时不拦。实测「删自己刚写坏的探针文件」被全量拦截，绕行产物=目录里
+// .bak/_v2/_v3 冗余堆、反而增加误读旧文件概率；递归删除、目录删除（rd/
+// rmdir）与未知旗标形态一律保守拦截（灾难面守卫另在 bash_delete.go 分层）。
+func deleteVerdict(head string, rest []string) (bool, string) {
+	inherentRecursive := head == "rd" || head == "rmdir"
+	recursive := inherentRecursive
+	var targets []string
+	options := true
+	for _, tok := range rest {
+		if tok == "" {
+			continue
+		}
+		if options && tok == "--" {
+			options = false
+			continue
+		}
+		// PowerShell uses '-'; cmd's switches use '/' without another path
+		// separator. `/tmp/probe.tmp` is a POSIX absolute path, not a switch.
+		isOption := options && (tok[0] == '-' || tok[0] == '/' && !strings.Contains(tok[1:], "/"))
+		if isOption {
+			t := strings.ToLower(strings.TrimLeft(tok, "-/"))
+			switch t {
+			case "r", "rf", "fr", "re", "re ", "recurse", "recursive":
+				recursive = true
+			case "force", "f", "i", "v", "q", "q:":
+				// 确认跳过类旗标：不改变递归性
+			case "path", "literalpath", "include", "exclude", "filter":
+				// PowerShell 带值开关：本层不追踪取值，保守拦截
+				return true, deleteReason(head, rest)
+			default:
+				return true, deleteReason(head, rest)
+			}
+			continue
+		}
+		targets = append(targets, tok)
+	}
+	if recursive || len(targets) == 0 {
+		return true, deleteReason(head, rest)
+	}
+	for _, t := range targets {
+		if !draftDeleteTarget(t) {
+			return true, deleteReason(head, rest)
+		}
+	}
+	return false, ""
+}
+
+// draftDeleteTarget 报告路径 token 是否落在草稿/临时形态（大小写不敏感、
+// 斜杠归一）。只认完整路径段（_tmp* / _draft）与临时后缀；含上行目录、
+// 通配符、变量或命令替换的 token 一律放弃白名单，防 `_tmp/../交付物`
+// 借白名单穿越到正式文件。
+func draftDeleteTarget(tok string) bool {
+	t := strings.ToLower(strings.Trim(tok, `"'`))
+	t = strings.ReplaceAll(t, `\`, "/")
+	if t == "" {
+		return false
+	}
+	if strings.Contains(t, "..") || strings.ContainsAny(t, "*?$`") || strings.Contains(t, "\x00") {
+		return false
+	}
+	if strings.HasSuffix(t, ".bak") || strings.HasSuffix(t, ".tmp") || strings.HasSuffix(t, ".old") ||
+		strings.HasPrefix(t, "/tmp/") ||
+		strings.HasPrefix(t, "c:/users/") && strings.Contains(t, "/appdata/local/temp/") {
+		return true
+	}
+	for _, seg := range strings.Split(t, "/") {
+		if seg == "_draft" || strings.HasPrefix(seg, "_tmp") {
+			return true
+		}
+	}
+	return false
 }
 
 // deleteReason 组装拦截理由：命令名 + 高危标记（-Force/-rf 组合）。
@@ -99,7 +179,8 @@ func deleteReason(cmd string, rest []string) string {
 		why = "destructive forced delete command"
 	}
 	return why + " (" + cmd + ") is blocked by the safety gate — " +
-		"do not retry it; move files to a trash/quarantine path or ask the user instead"
+		"do not retry the blocked target; delete a concrete child path directly instead. " +
+		".trash/ is not required for ordinary deletes"
 }
 
 // hasForceFlag 报告参数里是否带强制删除标记（PowerShell -Force / bash -rf、

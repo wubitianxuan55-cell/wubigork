@@ -114,7 +114,7 @@ func (a *App) GaeaContextView(sessionPath ...string) (contextview.ContextTimelin
 		}
 		return contextview.EmptyTimeline(), err
 	}
-	window := gaeaContextWindow()
+	window := a.gaeaContextWindow()
 	tl := contextview.FoldTimeline(entries, int64(window), 0)
 	tl.Compact = gaeaCompactTiers()
 	return tl, nil
@@ -168,7 +168,7 @@ func (a *App) GaeaContextSurface(seq int64, sessionPath ...string) (contextview.
 	if err != nil {
 		return contextview.SurfaceSnapshot{}, err
 	}
-	snapshot, ok := contextview.SurfaceAt(entries, seq, int64(gaeaContextWindow()))
+	snapshot, ok := contextview.SurfaceAt(entries, seq, int64(a.gaeaContextWindow()))
 	if !ok {
 		return contextview.SurfaceSnapshot{}, fmt.Errorf("未找到 seq=%d 的历史请求 surface", seq)
 	}
@@ -245,7 +245,7 @@ func (a *App) GaeaContextDna(seqs []int64, sessionPath ...string) ([]contextview
 	if err != nil {
 		return nil, err
 	}
-	samples := contextview.DnaAt(entries, unique, int64(gaeaContextWindow()))
+	samples := contextview.DnaAt(entries, unique, int64(a.gaeaContextWindow()))
 	dnaCacheMu.Lock()
 	if len(dnaCache) >= 32 {
 		dnaCache = map[string][]contextview.DnaSample{}
@@ -445,7 +445,7 @@ func (a *App) GaeaAgentNetwork(sessionPath ...string) (trajectory.AgentNetwork, 
 		}
 		return trajectory.EmptyAgentNetwork(), err
 	}
-	window := gaeaContextWindow()
+	window := a.gaeaContextWindow()
 	net := trajectory.FoldAgentNetwork(entries, int64(window))
 	buildSessionNetwork(&net, a.GaeaSubagentRuns(path))
 	return net, nil
@@ -460,6 +460,10 @@ func gaeaContextWindow() int {
 	}
 	_, window := c.ContextSnapshot()
 	return window
+}
+
+func (a *App) gaeaContextWindow() int {
+	return a.gaeaRoutedContextWindow(gaeaContextWindow())
 }
 
 // gaeaCompactTiers 取内核生效的三层压缩水位（同属内核配置与会话无关）。

@@ -9,7 +9,7 @@ import (
 )
 
 // TestRenderTOMLPreservingKeepsUnknownSections P0-1 刀：RenderTOMLPreserving 必须
-// 把「渲染器不负责的顶层内容」逐字留下——未建模/未渲染的段（[memory]/[dream]）、
+// 把「渲染器不负责的顶层内容」逐字留下——未建模/未渲染的段（[memory] 等）、
 // 顶层标量（workspace）以及用户自定义注释，一个都不许丢。渲染器负责的段
 // （[agent]/[[providers]]/[tools]/[permissions]/[sandbox]/[[plugins]]）走新渲染结果，
 // 不在保留范围内。
@@ -132,12 +132,9 @@ func TestSaveRoundTripKeepsAllSections(t *testing.T) {
 		t.Errorf("[space] 丢字段: got %+v want %+v", got.Space, first.Space)
 	}
 
-	// ── [memory] / [dream] ──
+	// ── [memory] ──
 	if got.Memory != first.Memory {
 		t.Errorf("[memory] 丢字段: got %+v want %+v", got.Memory, first.Memory)
-	}
-	if got.Dream != first.Dream {
-		t.Errorf("[dream] 丢字段: got %+v want %+v", got.Dream, first.Dream)
 	}
 
 	// ── [network] + [network.proxy] ──
@@ -714,9 +711,6 @@ func TestSaveKeepsRealConfigShape(t *testing.T) {
 	}
 	if got.Memory.Enabled != true || got.Memory.ArchivedRetentionDays != 90 {
 		t.Errorf("[memory] 漂移: %+v", got.Memory)
-	}
-	if got.Dream.Mode != "suggest" {
-		t.Errorf("[dream] 漂移: %q", got.Dream.Mode)
 	}
 	if got.Sandbox.Bash != "off" || got.Sandbox.WorkspaceRoot != "D:\\ws" {
 		t.Errorf("[sandbox] 漂移: %+v", got.Sandbox)

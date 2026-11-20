@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -227,6 +228,44 @@ func TestStaleGuardBlocksEditLinesWithoutRead(t *testing.T) {
 	}
 	if content, _ := os.ReadFile(path); string(content) != "one\n" {
 		t.Errorf("blocked edit must not touch the file, got %q", content)
+	}
+}
+
+func TestStaleGuardWriteFileOverwriteEscape(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.ToSlash(filepath.Join(dir, "a.txt"))
+	if err := os.WriteFile(path, []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	newRunner := func() *AgentRunner {
+		return &AgentRunner{
+			tools:             editToolsRegistry(t, "write_file"),
+			staleWrittenFiles: map[string]bool{path: true},
+			sink:              event.Discard,
+			session:           NewSession("sys"),
+		}
+	}
+	// 未声明 overwrite：同回合重写仍被拦，提示必须给出分支出路。
+	blocked := newRunner().executeOne(context.Background(), provider.ToolCall{
+		ID: "c1", Name: "write_file",
+		Arguments: `{"path":` + strconv.Quote(path) + `,"content":"two\n"}`,
+	})
+	if !blocked.blocked || !strings.Contains(blocked.output, `"overwrite": true`) ||
+		!strings.Contains(blocked.output, "edit_file") {
+		t.Fatalf("stale guard should block and name both exits: %+v", blocked)
+	}
+
+	// 显式整篇重写：跳过同回合闸，不要求无意义的旧内容重读。
+	out := newRunner().executeOne(context.Background(), provider.ToolCall{
+		ID: "c2", Name: "write_file",
+		Arguments: `{"path":` + strconv.Quote(path) + `,"content":"two\n","overwrite":true}`,
+	})
+	if out.blocked || out.errMsg != "" {
+		t.Fatalf("overwrite:true should bypass same-turn guard, got %+v", out)
+	}
+	if content, _ := os.ReadFile(path); string(content) != "two\n" {
+		t.Fatalf("overwrite content = %q", content)
 	}
 }
 

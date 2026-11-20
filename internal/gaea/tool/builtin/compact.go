@@ -5,7 +5,7 @@ package builtin
 import "encoding/json"
 
 var compactDesc = map[string]string{
-	"read_file":          "读取文件内容(可选行范围/分页;负 offset 从文件末尾倒数,默认输出绝对行号)",
+	"read_file":          "读取文件内容(可选行范围/分页;负 offset 从文件末尾倒数,默认输出绝对行号;md 文档 section=按标题整节精确读取,未命中回显标题大纲)",
 	"write_file":         "写入/覆盖文件(自动建父目录;expected_revision=CAS防陈旧写,read_file尾标取值;失败信封effect_state=unknown时先核实再重试)",
 	"edit_file":          "精确替换文件内容(old_string→new_string,new_string空串=删除;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"multi_edit":         "单文件批量替换(edits数组,内存串行,全部成功才原子写盘;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
@@ -37,6 +37,8 @@ var compactDesc = map[string]string{
 	"vision":             "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 	"cad_ask":            "读取CAD图纸(DWG/DXF/PDF)并让视觉模型回答图纸问题(自动选质量最好图框高清渲染;PDF按页),发来图纸问内容/尺寸/数量时用",
 	"doc_render":         "把文档渲染成页PNG(只读,docx/pptx/xlsx/pdf→LibreOffice+poppler,供vision/视觉验收)",
+	"md_validate":         "md/txt/docx 编号机检(只读:题注撞号/跳号+引用↔题注对账+表格列数一致;多代理并行编制后必跑)",
+	"ai_feedback":         "提交产品反馈(遇困难/发现不足主动提,一条一事;入记忆面板AI反馈区,用户可导出md)",
 	"browser_navigate":   "受控Edge打开URL(仅http/https,独立临时profile,不碰用户浏览器)",
 	"browser_read":       "读取受控浏览器页面文本(全文或selector局部,可截断,frame可选iframe内)",
 	"browser_snapshot":   "列出页面可交互元素([#ref] <tag> 文本),click/type前必须先snapshot拿ref",
@@ -56,8 +58,12 @@ var compactDesc = map[string]string{
 }
 
 var compactSchema = map[string]json.RawMessage{
-	"read_file": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer","description":"向前分页用非负 offset；负值表示从 EOF 倒数，如 -30 读末尾 30 行窗口"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"}},"required":["path"]}`),
+			"ai_feedback": json.RawMessage(
+		`{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"},"category":{"type":"string","enum":["tool-friction","bug","missing-capability","workflow","other"]},"severity":{"type":"string","enum":["low","medium","high"]},"board":{"type":"string","enum":["chat","office","wenxue"]}},"required":["title","detail"]}`),
+"md_validate": json.RawMessage(
+		`{"type":"object","properties":{"path":{"type":"string"},"checks":{"type":"array","items":{"type":"string","enum":["numbering","orphans","table_columns"]}}},"required":["path"]}`),
+"read_file": json.RawMessage(
+		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer","description":"向前分页用非负 offset；负值表示从 EOF 倒数，如 -30 读末尾 30 行窗口"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"},"section":{"type":"string","description":"md 标题选择子（编号或文本子串，如 3.2/风险评估）：整节返回，offset 非负时在节内翻页"}},"required":["path"]}`),
 	"write_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256，或 absent=仅新建"}},"required":["path","content"]}`),
 	"edit_file": json.RawMessage(

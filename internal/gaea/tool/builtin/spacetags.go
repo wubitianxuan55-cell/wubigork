@@ -48,6 +48,8 @@ var spaceTags = map[string]string{
 	"screen_capture":   spaces.SpaceWork,
 	"vision":           spaces.SpaceWork,
 	"doc_render":       spaces.SpaceWork, // F2 只读渲染（办公文档视觉验收）
+	"md_validate":      spaces.SpaceWork, // 编号机检（多代理并行编制撞号/跳号实测，工具自声明同口径）
+	"ai_feedback":      SpaceShared, // AI 反馈（2026-11-20）：三板块通用，自声明同口径
 	"cad_ask":          spaces.SpaceWork, // CAD 图纸识读（只读；DWG/DXF/PDF→视觉问答）
 	"ocr":              spaces.SpaceWork,
 	"cost_search":      spaces.SpaceWork,

@@ -185,6 +185,28 @@ func TestExpectedPathsNoteGuidanceAlwaysPresent(t *testing.T) {
 	}
 }
 
+// TestExpectedPathsNoteRecoveryAndAllowedSinks（2026-11-20 实测反馈⑤）：
+// 拦截文案三件恒显——隔离到哪（dest 缺席时兜底可定位）、能不能取回、
+// 允许的落点是什么。此前用户试错一轮才找到临时目录中转。
+func TestExpectedPathsNoteRecoveryAndAllowedSinks(t *testing.T) {
+	vs := []PublishViolation{{RelPath: "c.docx", Kind: "created"}}
+	// dest 缺席：兜底句必须可定位（不许只剩「已隔离」）。
+	note := ExpectedPathsNote(vs, nil)
+	for _, want := range []string{"publish-quarantine", "隔离账本", "取回", "move_file", "允许落点", "非 durable"} {
+		if !strings.Contains(note, want) {
+			t.Fatalf("dest 缺席时文案缺 %q: %s", want, note)
+		}
+	}
+	// dest 在场：具体路径优先，三件仍恒显。
+	note = ExpectedPathsNote(vs, nil, `W:\ws\.gaea\publish-quarantine\20261120-120000`)
+	if !strings.Contains(note, `20261120-120000`) || strings.Contains(note, "本次回执未取到") {
+		t.Fatalf("dest 在场应显示具体路径: %s", note)
+	}
+	if !strings.Contains(note, "取回") || !strings.Contains(note, "允许落点") {
+		t.Fatalf("取回/允许落点恒显被吞: %s", note)
+	}
+}
+
 // --- spike 腿（Windows 真实子进程；非 Windows 跳过，CI linux 不受影响） ---
 
 func runSpikeCmd(t *testing.T, dir, command string) time.Duration {

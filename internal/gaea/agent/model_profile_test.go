@@ -8,8 +8,8 @@ func TestLookupModelProfileFound(t *testing.T) {
 	if p == nil {
 		t.Fatal("should find flash profile")
 	}
-	if p.ContextWindow != 128_000 {
-		t.Errorf("flash window = %d, want 128000", p.ContextWindow)
+	if p.ContextWindow != 1_000_000 {
+		t.Errorf("flash window = %d, want 1000000", p.ContextWindow)
 	}
 }
 

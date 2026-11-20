@@ -6,6 +6,7 @@
 
 | 工具 | 来源 | 空间 | 副作用 | 证据档 | 验收谓词 |
 |---|---|---|---|---|---|
+| `ai_feedback` | builtin-workspace | shared | write | none | 条目入 <userDir>/ai-feedback.jsonl，面板反馈区可核销（gaea 自管数据区，非用户文件） |
 | `ask` | build-internal | shared | interactive | none | 用户答案回传当前席 |
 | `bash` | builtin-workspace | work | write | publish-guard | durable 写被发布边界拦截/隔离（P1b）；前台+后台双路径 |
 | `bash_output` | builtin-domain | work | read | none | 输出增量与 job 缓冲一致 |
@@ -22,14 +23,14 @@
 | `browser_tabs` | builtin-domain | work | read | none | tab 清单与实况一致（自声明 work） |
 | `browser_type` | builtin-domain | work | interactive | none | 输入后快照反映文本（自声明 work） |
 | `cad_ask` | builtin-domain | work | read | none | 图框质量闸+vision 读图结论；T0 effect 已复核豁免 |
-| `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册，施工单 W3） |
-| `computer_state` | builtin-domain | work | read | none | 树文本/截图与实况一致（revision 失效闸门+白名单闸） |
-| `computer_launch` | builtin-domain | work | write | none | 启动后窗口出现在枚举（白名单约束） |
-| `computer_click` | builtin-domain | work | interactive | none | 点击后新树与动作一致（绑定窗+白名单+deny 表+双闸门） |
-| `computer_type` | builtin-domain | work | write | none | 注入后新树含输入效果（同闸门链） |
-| `computer_key` | builtin-domain | work | interactive | none | 按键后新树与动作一致（AlwaysAsk+Win 族硬拒） |
 | `chart_gen` | builtin-workspace | work | produce | agent-produce | 图片落点存在（单系列图回归钉） |
 | `complete_step` | builtin-domain | shared | meta | none | 步骤裁决与计划一致 |
+| `computer_click` | builtin-domain | work | interactive | none | 点击后新树与动作一致（绑定窗+白名单+deny 表+双闸门） |
+| `computer_key` | builtin-domain | work | interactive | none | 按键后新树与动作一致（AlwaysAsk+Win 族硬拒） |
+| `computer_launch` | builtin-domain | work | write | none | 启动后窗口出现在枚举（白名单约束） |
+| `computer_state` | builtin-domain | work | read | none | 树文本/截图与实况一致（revision 失效闸门+白名单闸） |
+| `computer_type` | builtin-domain | work | write | none | 注入后新树含输入效果（同闸门链） |
+| `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册） |
 | `cost_compose` | builtin-domain | work | produce | none | 组价结果与定额飞轮口径一致 |
 | `cost_indicators` | builtin-domain | work | read | none | 指标与 SchemaV34 快照一致 |
 | `cost_save` | builtin-domain | work | write | none | PersistWrite：库写入可查 |
@@ -51,7 +52,7 @@
 | `format_convert` | builtin-workspace | work | produce | agent-produce | output 落点存在且格式正确 |
 | `genui_validate` | builtin-domain | shared | read | none | 校验结论与产物一致 |
 | `grep` | builtin-workspace | work | read | none | 命中行与实况一致；offset 续页游标+凭据围栏跳过记账 |
-| `image_gen` | extra-app | play | produce | none | 图片落 .gaea/uploads 系统路径可查 |
+| `image_gen` | extra-app | shared | produce | none | 图片落 .gaea/uploads 系统路径可查（2026-11-20 play→shared：办公/文学也生图，办公媒体根=gaeaCwd、文学锚小说目录） |
 | `install_skill` | build-internal | shared | write | none | PersistWrite：技能落盘可查 |
 | `interrupt_agent` | build-internal | shared | meta | none | 中断信号送达 |
 | `kill_shell` | builtin-domain | work | write | none | 目标 job 终止（级联子树） |
@@ -59,6 +60,7 @@
 | `knowledge_search` | builtin-domain | work | read | none | 召回与库一致 |
 | `ls` | builtin-workspace | work | read | none | 清单与实况一致 |
 | `mcp__<server>__<tool>` | plugin-mcp | 随插件 | 随工具 | 随工具 | 动态热插（plugins.go/controller_mcp.go reg.Add 同账）；名单凭证边界不枚举，P0 按非凭证方式标注 |
+| `md_validate` | builtin-workspace | work | read | none | 编号/引用/列数机检与回执一致（只读；多代理并行编制撞号实测落地） |
 | `memory_get` | build-internal | shared | read | none | 记忆读取与库一致 |
 | `memory_search` | builtin-domain | shared | read | none | 召回与记忆库一致 |
 | `move_file` | builtin-workspace | work | write | agent-write | 目标存在且源已迁移 |
@@ -92,8 +94,8 @@
 | `schedule_apply` | builtin-workspace | shared | write | agent-write | 声明路径包含校验 + 日程库变更可查 |
 | `schedule_get` | builtin-workspace | shared | read | none | 日程读取与库一致 |
 | `screen_capture` | builtin-workspace | work | read | none | 截图落 .gaea/uploads 系统路径 |
-| `send_message` | build-internal | shared | meta | none | 传话按目标态路由：steer/排队/续聊 |
 | `semantic_search` | extra-app | work | read | none | 召回与向量库一致 |
+| `send_message` | build-internal | shared | meta | none | 传话按目标态路由：steer/排队/续聊 |
 | `session_search` | build-internal | shared | read | none | 检索命中与会话存档一致 |
 | `sidebar_open` | builtin-workspace | work | interactive | none | 侧栏打开对应文件（自声明 work） |
 | `slash_command` | build-internal | shared | meta | none | 斜杠命令展开与注册一致 |
@@ -106,11 +108,11 @@
 | `wait` | builtin-domain | work | read | none | 等待结果与 job 终态一致 |
 | `web_fetch` | builtin-workspace | work | read | none | 抓取内容与源一致（mode=auto 正文主提取判据不足回退整页/full 整页；注明 URL+时间） |
 | `web_search` | builtin-domain | work | read | none | 结果注明来源 URL+检索时间 |
-| `wenxue_candidate_promote` | extra-app | work | write | none | 候选提升前自动归档当前正文；只写章节目录，不写定稿；与 chapter_write 共用回写三态警告回执（characters/timeline/unobserved，仅 stale/dirty 出 hint；pan_1795084662473 P0） |
+| `wenxue_candidate_promote` | extra-app | work | write | none | 候选提升前自动归档当前正文；只写章节目录，不写定稿 |
 | `wenxue_candidate_write` | extra-app | work | write | none | 候选落章节/候选/<章名>/；不改正文/定稿；同名默认拒 |
 | `wenxue_chapter_list` | extra-app | work | read | none | 清单与约定章节目录实况一致（章号/标题/字数） |
 | `wenxue_chapter_read` | extra-app | work | read | none | 内容与目标章一致；附上一章结尾衔接段 |
-| `wenxue_chapter_write` | extra-app | work | write | none | 落盘内容与回执一致；overwrite=false 已存在即拒（宁拒不误改）；仅 md/markdown/txt；回执带回写三态警告（首章省略；仅 stale/dirty 出 hint） |
+| `wenxue_chapter_write` | extra-app | work | write | none | 落盘内容与回执一致；overwrite=false 已存在即拒（宁拒不误改）；仅 md/markdown/txt |
 | `wenxue_character_import` | extra-app | work | write | none | 库卡全字段映射六节落盘（设定节记来源 id）；库只读不回写；overwrite 显式闸 |
 | `wenxue_character_list` | extra-app | work | read | none | 清单与角色目录实况一致（名/字数/摘要） |
 | `wenxue_character_read` | extra-app | work | read | none | 内容与目标卡一致 |

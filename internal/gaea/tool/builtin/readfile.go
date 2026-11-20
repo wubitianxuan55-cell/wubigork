@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -32,15 +33,79 @@ func init() { tool.RegisterBuiltin(readFile{}) }
 type readFile struct{ workDir string }
 
 const (
-	readFileDefaultLimit = 2000      // lines returned when limit is unset
-	readFileBinaryPeek   = 8 * 1024  // bytes scanned for a NUL to flag binary
-	readFileDetectSample = 256 << 10 // bytes sampled for encoding detection
+	readFileDefaultLimit    = 2000      // lines returned when limit is unset
+	readFileBinaryPeek      = 8 * 1024  // bytes scanned for a NUL to flag binary
+	readFileDetectSample    = 256 << 10 // bytes sampled for encoding detection
+	readFileSectionMaxBytes = 64 << 20  // section 模式整载上限（防巨文件整读）
 )
+
+// reMDHeading Markdown 标题行（ATX 形态 `#..###### 标题文本`）。
+var reMDHeading = regexp.MustCompile(`^(#{1,6})[ \t]+(.+?)[ \t]*$`)
+
+// mdSectionSpan 一个节窗口：lines[start:end)（0-based，含命中标题行，end 为
+// 下一个同级或更高级标题行或文件尾）。level 为命中标题的 # 数。
+type mdSectionSpan struct {
+	start int
+	end   int
+	level int
+	title string
+}
+
+// findMDSection 按选择子找首个命中标题（对标题文本大小写不敏感子串匹配，
+// 支持编号 "3.2" 或文本 "风险评估"），返回其节窗口。
+func findMDSection(lines []string, sel string) (mdSectionSpan, bool) {
+	low := strings.ToLower(strings.TrimSpace(sel))
+	if low == "" {
+		return mdSectionSpan{}, false
+	}
+	for i, ln := range lines {
+		m := reMDHeading.FindStringSubmatch(ln)
+		if m == nil {
+			continue
+		}
+		if strings.Contains(strings.ToLower(m[2]), low) {
+			lvl := len(m[1])
+			end := len(lines)
+			for j := i + 1; j < len(lines); j++ {
+				if m2 := reMDHeading.FindStringSubmatch(lines[j]); m2 != nil && len(m2[1]) <= lvl {
+					end = j
+					break
+				}
+			}
+			return mdSectionSpan{start: i, end: end, level: lvl, title: m[2]}, true
+		}
+	}
+	return mdSectionSpan{}, false
+}
+
+// noSectionMatchError 未命中时的错误：回显全文标题清单（行号+级别+文本，
+// 最多 80 行）——一次调用即拿到文档大纲，选节不再盲猜。
+func noSectionMatchError(path, sel string, lines []string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "section %q 未命中 %s 的任何标题。标题清单（行号 级别 文本）：", sel, path)
+	n := 0
+	for i, ln := range lines {
+		m := reMDHeading.FindStringSubmatch(ln)
+		if m == nil {
+			continue
+		}
+		if n >= 80 {
+			fmt.Fprintf(&b, "\n  …（标题超 80 个，余略）")
+			break
+		}
+		fmt.Fprintf(&b, "\n  %6d  %s  %s", i+1, m[1], m[2])
+		n++
+	}
+	if n == 0 {
+		b.WriteString("\n  （全文无 Markdown 标题——非结构化文档请用 offset/limit 翻页）")
+	}
+	return fmt.Errorf("%s", b.String())
+}
 
 func (readFile) Name() string { return "read_file" }
 
 func (readFile) Description() string {
-	return "Read a text file with optional line offset/limit. By default each line is prefixed with its absolute 1-based line number (e.g. `   42→...`). Use a non-negative offset for forward pagination, or a negative offset to start from the end (`offset=-30` returns lines from 30 lines before EOF); `limit` still caps returned lines. Set line_numbers=false for raw text."
+	return "Read a text file with optional line offset/limit. By default each line is prefixed with its absolute 1-based line number (e.g. `   42→...`). Use a non-negative offset for forward pagination, or a negative offset to start from the end (`offset=-30` returns lines from 30 lines before EOF); `limit` still caps returned lines. Set line_numbers=false for raw text. For Markdown files, pass `section` (heading number or text, e.g. \"3.2\" or \"风险评估\") to return that whole section structurally — no sampling, exact numbers — instead of paging; offset (non-negative) then pages within the section. When no heading matches, the error lists all headings with line numbers so one call reveals the document outline."
 }
 
 func (readFile) Schema() json.RawMessage {
@@ -50,7 +115,8 @@ func (readFile) Schema() json.RawMessage {
   "path":{"type":"string","description":"File path"},
   "offset":{"type":"integer","description":"0-based forward line offset (default 0). Negative values start that many lines before EOF, e.g. -30 reads the final 30-line window."},
   "limit":{"type":"integer","description":"Maximum lines to return (default 2000)","minimum":1},
-  "line_numbers":{"type":"boolean","description":"Prefix each line with its 1-based line number (default true). Set false for raw text."}
+  "line_numbers":{"type":"boolean","description":"Prefix each line with its 1-based line number (default true). Set false for raw text."},
+  "section":{"type":"string","description":"Markdown heading selector: substring (case-insensitive) matched against heading text, e.g. \"3.2\" or \"风险评估\". Returns the whole section (heading line through just before the next same-or-higher level heading) with exact line numbers — for precise number-checking reads of long documents. Non-negative offset pages within the section. Non-Markdown or oversized files fall back with a clear error."}
 },
 "required":["path"]
 }`)
@@ -77,6 +143,7 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		Offset      int    `json:"offset,omitempty"`
 		Limit       int    `json:"limit,omitempty"`
 		LineNumbers *bool  `json:"line_numbers,omitempty"`
+		Section     string `json:"section,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("read_file 参数解析失败: %w", err)
@@ -230,7 +297,41 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	var collected []string
 	startLine := p.Offset + 1
 	hasMore := false
-	if p.Offset < 0 {
+	sectionMode := false
+	if p.Section != "" {
+		// section 模式（实测反馈③）：长文档混合采样对「精确核对数字」的任务
+		// 危险（采样片段会被误读为连续原文），此前用户被迫 awk/sed 分段精读
+		// 十余次。按标题结构整节返回，行号精确，一次到位。
+		if p.Offset < 0 {
+			return "", fmt.Errorf("section 不能与负 offset 组合（负 offset 是文件尾部窗口语义）；section 定位节首后用非负 offset 在节内翻页")
+		}
+		if info, err := os.Stat(p.Path); err == nil && info.Size() > readFileSectionMaxBytes {
+			return "", fmt.Errorf("section 只支持 ≤%d MB 的文件（%s 为 %d MB），请改用 offset/limit 翻页", readFileSectionMaxBytes>>20, p.Path, info.Size()>>20)
+		}
+		var lines []string
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			return "", fmt.Errorf("read %s: %w", p.Path, err)
+		}
+		span, ok := findMDSection(lines, p.Section)
+		if !ok {
+			return "", noSectionMatchError(p.Path, p.Section, lines)
+		}
+		sec := lines[span.start:span.end] // 含命中标题行
+		if p.Offset >= len(sec) {
+			return fmt.Sprintf("(section %q has %d lines; offset %d is past its end)", p.Section, len(sec), p.Offset), nil
+		}
+		win := sec[p.Offset:]
+		if len(win) > p.Limit {
+			win = win[:p.Limit]
+			hasMore = true
+		}
+		collected = win
+		startLine = span.start + p.Offset + 1
+		sectionMode = true
+	} else if p.Offset < 0 {
 		tailLines := -p.Offset
 		if tailLines > readFileMaxLimit {
 			return "", fmt.Errorf("negative offset magnitude %d exceeds the supported %d-line tail window; use a smaller negative offset or page forward with a non-negative offset", tailLines, readFileMaxLimit)
@@ -306,8 +407,15 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 
 	if hasMore {
-		fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
-			startLine-1+len(collected))
+		if sectionMode {
+			// section 模式的 offset 是节内相对量，与普通模式的绝对行号提示
+			// 语义不同，分开说以免误导翻页。
+			fmt.Fprintf(&b, "\n[more lines in section %q; pass offset=%d (relative to section start) to continue]\n",
+				p.Section, p.Offset+len(collected))
+		} else {
+			fmt.Fprintf(&b, "\n[more lines available; pass offset=%d to continue]\n",
+				startLine-1+len(collected))
+		}
 	}
 	// A3 revision 尾标（dsh-ops 蒸馏）：模型经此取 expected_revision 做 CAS 写。
 	// marker 恒最后追加（hasMore 提示行之前的内容在两种截断形态下都可存活）；

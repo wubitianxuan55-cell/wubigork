@@ -181,3 +181,20 @@ export type WenxueMemoryFactView = WireShape<AppModels.WenxueMemoryFactView>;
 
 // WenxueMemoryBrowseView 图文脑记忆只读浏览回执（Available=false=无图文脑）。
 export type WenxueMemoryBrowseView = WireShape<AppModels.WenxueMemoryBrowseView>;
+
+// AIFeedbackItem AI 反馈条目（ai_feedback 工具入库 <userDir>/ai-feedback.jsonl；
+// 记忆面板「AI 反馈」区展示/删除/导出 md。手写类型：字段简单稳定，不挂
+// wails 生成件命名）。
+export interface AIFeedbackItem {
+  id: string;
+  /** 提交板块（模型自报）：chat | office | wenxue */
+  board?: string;
+  /** tool-friction | bug | missing-capability | workflow | other */
+  category?: string;
+  /** low | medium | high */
+  severity?: string;
+  title: string;
+  detail?: string;
+  /** RFC3339 */
+  createdAt: string;
+}

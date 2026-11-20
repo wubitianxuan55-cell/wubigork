@@ -1,6 +1,6 @@
 // ContextModal + ContextPill 单测（2.5e：/context 居中弹层 + 常驻剩余上下文徽标）。
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LocaleProvider } from "../lib/i18n";
 import { ContextModal, ContextPill } from "./ContextModal";
 
@@ -106,5 +106,29 @@ describe("ContextModal /context 居中弹层", () => {
   it("open=false 时不渲染内容（关闭即卸载）", () => {
     wrap(<ContextModal open={false} onClose={() => {}} running={false} />);
     expect(screen.queryByTestId("ctx-modal-body")).toBeNull();
+  });
+
+  it("contextWindow 变化时已打开的 ContextView 重新拉取时间线", async () => {
+    const props = {
+      open: true,
+      onClose: () => {},
+      running: false,
+      sessionPath: "/ws/s.jsonl",
+      sessionName: "演示会话",
+      model: "Hephaestus",
+    };
+    const view = render(
+      <LocaleProvider>
+        <ContextModal {...props} contextWindow={256_000} />
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(ctxViewMock).toHaveBeenCalledTimes(1));
+
+    view.rerender(
+      <LocaleProvider>
+        <ContextModal {...props} contextWindow={1_000_000} />
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(ctxViewMock).toHaveBeenCalledTimes(2));
   });
 });

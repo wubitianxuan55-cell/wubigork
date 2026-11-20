@@ -103,12 +103,12 @@ func TestPlayPolicyNoApprovalCard(t *testing.T) {
 func TestSpaceAllowedTools(t *testing.T) {
 	tools := []tool.Tool{
 		spaceStubTool{name: "edit_file"},       // work（名字表）
-		spaceStubTool{name: "image_gen"},       // play（名字表）
+		spaceStubTool{name: "image_gen"},       // shared（2026-11-20 办公+文学都可生图）
 		spaceStubTool{name: "memory_search"},   // shared（名字表）
 		spaceStubTool{name: "mcp__gh__search"}, // MCP 动态名缺省 shared
 	}
 	work := spaceAllowedTools(tools, "work")
-	if len(work) != 3 || work[0].Name() != "edit_file" || work[1].Name() != "memory_search" || work[2].Name() != "mcp__gh__search" {
+	if len(work) != 4 || work[0].Name() != "edit_file" || work[1].Name() != "image_gen" || work[2].Name() != "memory_search" || work[3].Name() != "mcp__gh__search" {
 		t.Fatalf("work 过滤结果 = %v", names(work))
 	}
 	play := spaceAllowedTools(tools, "play")

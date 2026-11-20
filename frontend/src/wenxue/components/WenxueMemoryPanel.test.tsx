@@ -10,6 +10,7 @@ vi.mock("../lib/bridge", () => ({
     // available 必须为真：面板事实列表门闸 = view.available（缺省=「图文脑不可用」分支）。
     Memory: vi.fn(async () => ({ available: true, facts: [] })),
     WenxueMemoryArchivedList: vi.fn(async () => []),
+    AIFeedbackList: vi.fn(async () => []),
   },
 }));
 

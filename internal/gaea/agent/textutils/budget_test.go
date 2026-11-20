@@ -99,6 +99,36 @@ func TestTruncateToolOutputBasicContract(t *testing.T) {
 	}
 }
 
+func TestTruncateToolOutputUniformMidSampling(t *testing.T) {
+	// D3 实测形态：900 行、每行不同，旧策略只留头 80 + 尾 103，中间 82%
+	// 整段蒸发。新策略必须保头部、尾部，并让中段保有均匀低分辨率视野。
+	var b strings.Builder
+	for i := 1; i <= 900; i++ {
+		b.WriteString("record-" + itoaTest(i) + "-unique-payload-" + strings.Repeat("x", 60) + "\n")
+	}
+	out, _ := TruncateToolOutputWith(b.String(), 320, 48*1024)
+	for _, want := range []string{"record-1-", "record-900-"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("uniform sampling missing %q\n%s", want, out)
+		}
+	}
+	mid := 0
+	for i := 150; i <= 850; i++ {
+		if strings.Contains(out, "record-"+itoaTest(i)+"-") {
+			mid++
+		}
+	}
+	if mid < 8 {
+		t.Fatalf("mid-section sampling too sparse: %d sampled lines in 150..850", mid)
+	}
+	if !strings.Contains(out, "line(s) elided") || !strings.Contains(out, "保留") {
+		t.Fatalf("sampling must expose gaps and keep/drop summary: %s", out)
+	}
+	if lines := strings.Count(out, "\n") + 1; lines > 340 {
+		t.Fatalf("sampled output exceeded bounded line budget: %d", lines)
+	}
+}
+
 func itoaTest(n int) string {
 	if n == 0 {
 		return "0"

@@ -38,6 +38,15 @@ func truncateStr(s string, maxLen int) string {
 
 // extractFilePath extracts a file path from tool call arguments for edit tools.
 // Returns "" if no path can be extracted.
+// argsDeclareOverwrite 报告 write_file 参数是否显式声明 overwrite:true
+// （D2：同回合迭代闸的豁免信号——整篇重写无锚点需求，模型自证意图即放行）。
+func argsDeclareOverwrite(args string) bool {
+	var p struct {
+		Overwrite bool `json:"overwrite"`
+	}
+	return json.Unmarshal([]byte(args), &p) == nil && p.Overwrite
+}
+
 func extractFilePath(name string, args string) string {
 	// Common keys for file paths in tool arguments.
 	keys := []string{`"path"`, `"file_path"`, `"source"`, `"destination"`}

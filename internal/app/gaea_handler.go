@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,6 +87,7 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 		// 上下文窗口按实际绑定模型的能力取保守值（此前写 1M 导致自动压缩
 		// 阈值高达 80 万 token，办公会话膨胀到十几万也从不压缩，模型首字
 		// 极慢、看起来像“没流式输出”）。256k 下 80% 阈值≈204k，超限自动压缩。
+		// fallback only: Build applies the routed model's real ContextLength.
 		ContextWindow: 256_000,
 	}}
 	// 全部工程工具注册（Enabled 为空 = 全部）。S1.3-B：装配期按当前空间过滤
@@ -117,19 +119,22 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		}
 		bridge.SetFeature(eng, mdl)
 	}
+	// 办公 bridge provider 原先固定为 256k，导致 DeepSeek 的 1M 模型也过早
+	// 触发压缩。装配前按办公实际路由模型读取目录能力；未知才保留 256k。
+	if ga.cfg != nil && len(ga.cfg.Providers) > 0 {
+		p := &ga.cfg.Providers[0]
+		p.ContextWindow = a.gaeaRoutedContextWindow(p.ContextWindow)
+	}
 	// 事件转发：gaea 事件流 → 前端 gaea-event 回调。经转发层统一打点 wire
 	// seq 并对 phase 节流（v4.26 对话流式重造，见 gaeaEventForwarder）。
 	sink := event.FuncSink(func(e event.Event) {
 		a.emitGaeaEvent(e)
-		// 自动做梦：轮次成功后后台整理记忆（单飞、有实质内容才跑）。
-		// S1.2 A dream 空间化：TurnDone 事件槽不带上下文——此处取当前办公
-		// 会话的空间（ctrl.SessionSpace()，缺省回退配置生效空间；mode=off 为
-		// ""=无空间维度）一并传给做梦管线，dream 写入/指纹/notes 全链路按
-		// 会话空间分流。
+		// auto-dream 做梦机制已删除（2026-11-20 用户拍板：轮次后台自动提炼
+		// 记忆建议质量差且干扰正常记忆运作——remember 工具+面板手写+显式
+		// 接受才是正口）。
 		if e.Kind == event.TurnDone && e.Err == nil {
-			a.maybeDreamAfterTurn(gaeaSessionSpace())
 			// 会话自动命名（dsh session-title 蒸馏）：首个成功回合后给无标题
-			// 会话起名（办公本地路由，单飞；与做梦同槽同纪律）。
+			// 会话起名（办公本地路由，单飞）。
 			a.maybeAutoTitleAfterTurn()
 			// COM 档回合收尾（dsh settle 蒸馏，波3）：静默文档自动保存关闭 +
 			// card 收尾——无 office_* 活动时零 helper 命令（office_com_settle.go）。
@@ -218,6 +223,51 @@ func morningPreloadEnabled(a *App) bool {
 		return true
 	}
 	return a.cfg.GetMorningPreload()
+}
+
+// gaeaRoutedContextWindow resolves the window for the model the office agent
+// will actually use. Feature binding wins; otherwise follow the active global
+// engine. Missing/zero model capability keeps the caller's fallback.
+func (a *App) gaeaRoutedContextWindow(fallback int) int {
+	if fallback <= 0 {
+		fallback = 256_000
+	}
+	if a == nil || a.core == nil || a.engineMgr == nil {
+		return fallback
+	}
+	if a.cfg != nil && a.cfg.GetFeatureModelEnabled("gaea") {
+		if eng, model := a.cfg.GetFeatureModel("gaea"); eng != "" && model != "" {
+			return a.engineModelContextWindow(eng, model, fallback)
+		}
+	}
+	return a.engineModelContextWindow(a.GetActiveEngine(), a.GetActiveModel(), fallback)
+}
+
+func (a *App) engineModelContextWindow(engineID, model string, fallback int) int {
+	if a == nil || a.engineMgr == nil || engineID == "" {
+		return fallback
+	}
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok {
+		return fallback
+	}
+	if model == "" {
+		model = eng.DefaultModel
+	}
+	for _, m := range eng.Models {
+		if m.ID == model && m.ContextLength > 0 {
+			return m.ContextLength
+		}
+	}
+	// 模型目录尚未刷新/被裁剪时，DeepSeek v4 仍按官方 1M 处理，避免再次
+	// 静默回落到办公默认的 256k。
+	modelID := strings.ToLower(model)
+	if engineID == "deepseek" && (strings.Contains(modelID, "v4") ||
+		strings.HasPrefix(modelID, "deepseek-flash") ||
+		strings.HasPrefix(modelID, "deepseek-pro")) {
+		return 1_000_000
+	}
+	return fallback
 }
 
 func projectBriefEnabled(a *App) bool {
@@ -416,13 +466,23 @@ func (a *App) SetFeatureModelEnabled(feature string, enabled bool) error {
 func (a *App) applyOfficeFeatureModel(engine, model string) {
 	// 绑定注入已收敛到 gaeaBuildController 构造期（双引擎各表各的绑定）；
 	// 此处只负责重建生效。
+	contextChanged := false
+	contextWindow := 0
 	ga.mu.Lock()
 	if ga.ctrl != nil && ga.cfg != nil {
 		if err := a.gaeaRebuildLocked(); err != nil {
 			slog.Warn("办公模型绑定变更后重建引擎失败", "error", err)
+		} else if len(ga.cfg.Providers) > 0 {
+			contextChanged = true
+			contextWindow = ga.cfg.Providers[0].ContextWindow
 		}
 	}
 	ga.mu.Unlock()
+	if contextChanged {
+		// 重建完成后才广播。core.feature-model-changed 早于本次重建，不能让
+		// UI 在那个时点读到旧 256k controller；事件也必须在解锁后发出。
+		a.emit("office-context-changed", map[string]interface{}{"window": contextWindow})
+	}
 	// 2026-11-15 刀1：图文独立引擎跟随（同全局模型注入面；未初始化跳过）。
 	// 不可持 ga.mu 调用（wx 构建经全局 loader 读 ga.cfg，同 goroutine 重入
 	// 即自死锁；2026-11-16 审查批1 修正——原 defer 把本调用关在临界区内，

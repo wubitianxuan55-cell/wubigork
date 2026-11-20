@@ -36,6 +36,17 @@ func TestFoldEmpty(t *testing.T) {
 
 // 回归：空会话的四条切片必须序列化成 [] 而不是 null——Go 的 nil 切片序列化
 // 为 JSON null，前端 .length / for-of 按数组消费会整页崩（ErrorBoundary 接管）。
+func TestFoldWindowArgWinsOverHistoricalHeader(t *testing.T) {
+	payload := map[string]any{"system": "sys", "tools": []any{}, "window": 256_000}
+	tl := FoldTimeline([]session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", payload),
+	}, 1_000_000, 0)
+	if tl.Window != 1_000_000 {
+		t.Fatalf("timeline window = %d, want current model window 1000000", tl.Window)
+	}
+}
+
 func TestFoldEmptySlicesMarshalAsArrays(t *testing.T) {
 	cases := map[string]ContextTimeline{
 		"fold":      FoldTimeline(nil, 1_000_000, 0),

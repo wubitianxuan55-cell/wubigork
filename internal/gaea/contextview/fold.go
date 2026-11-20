@@ -110,6 +110,13 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 	if tl.Commands == nil {
 		tl.Commands = []CommandRecord{}
 	}
+	// The caller passes the model's current window. Historical request headers
+	// may carry an older value (for example 256k before an Office model switch);
+	// those remain in per-request records, but the live timeline summary must
+	// reflect the current 1M window.
+	if window > 0 {
+		tl.Window = window
+	}
 	return tl
 }
 

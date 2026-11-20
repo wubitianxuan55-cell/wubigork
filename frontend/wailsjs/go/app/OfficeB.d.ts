@@ -14,8 +14,6 @@ import {control} from '../models';
 import {pptxedit} from '../models';
 import {skillstats} from '../models';
 
-export function GaeaAcceptMemorySuggestion(arg1:any):Promise<string>;
-
 export function GaeaAcceptMergeSuggestion(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaAcceptSkillSuggestion(arg1:any):Promise<string>;
@@ -150,17 +148,11 @@ export function GaeaDeleteWorkspacePaths(arg1:Array<string>):Promise<void>;
 
 export function GaeaDeliverableRegistry(arg1:string):Promise<app.DeliverableRegistryView>;
 
-export function GaeaDismissMemorySuggestion(arg1:string):Promise<void>;
-
 export function GaeaDocumentLint(arg1:string):Promise<standard.LintReport>;
 
 export function GaeaDocxAcceptChanges(arg1:string,arg2:boolean):Promise<app.PreviewResult>;
 
 export function GaeaDocxApplyEdit(arg1:string,arg2:string,arg3:string):Promise<app.PreviewResult>;
-
-export function GaeaDreamPurge(arg1:Array<string>):Promise<number>;
-
-export function GaeaDreamPurgePreview():Promise<Array<string>>;
 
 export function GaeaExportDeliverable(arg1:app.ExportDeliverableInput):Promise<app.ExportDeliverableResult>;
 
@@ -219,6 +211,8 @@ export function GaeaListProjectSessions():Promise<Array<app.ProjectGroup>>;
 export function GaeaListSessions():Promise<Array<app.SessionMeta>>;
 
 export function GaeaListWorkspaces():Promise<Array<app.WorkspaceView>>;
+
+export function GaeaLocalServiceModels():Promise<Array<app.LocalServiceModel>>;
 
 export function GaeaLogFrontendError(arg1:string):Promise<void>;
 
@@ -361,8 +355,6 @@ export function GaeaSessionStats(arg1:string):Promise<app.SessionStatsView>;
 export function GaeaSetAgentParams(arg1:number,arg2:number,arg3:string):Promise<void>;
 
 export function GaeaSetDefaultModel(arg1:string):Promise<void>;
-
-export function GaeaSetDreamMode(arg1:string):Promise<void>;
 
 export function GaeaSetMCPServerEnabled(arg1:string,arg2:boolean):Promise<void>;
 

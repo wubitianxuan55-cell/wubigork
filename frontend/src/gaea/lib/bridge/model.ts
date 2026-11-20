@@ -65,6 +65,20 @@ export interface ModelBindings {
   GaeaRouteSuggestions(): Promise<RouteSuggestionsViewB>;
   GaeaRouteSuggestionApply(id: string): Promise<void>;
   GaeaRouteSuggestionIgnore(id: string): Promise<void>;
+  // GaeaLocalServiceModels 本机内嵌/直连服务模型卡（模型中心本地服务五卡
+  // 212b34a0；api/engines.ts App() 兼容通道消费，此处认领过 drift 方向二——
+  // 视图形状局部重述同 RouteLedger 先例，字段漂移由消费方测试兜底）。
+  GaeaLocalServiceModels(): Promise<LocalServiceModelB[]>;
+}
+
+// LocalServiceModelB 与 api/engines.ts LocalServiceModel 同形（环规避先例）。
+export interface LocalServiceModelB {
+  engineId: string;
+  modelId: string;
+  name: string;
+  kind: string;
+  detail: string;
+  ready: boolean;
 }
 
 // RouteLedgerTotalB 账本总计（与 api/engines.ts RouteLedgerTotal 同形）。

@@ -126,3 +126,6 @@ frontend/.vitest-reports/
 
 # wpsdock 编译产物（tools/wpsdock 仓根 go build 验证产物，不入库）
 wpsdock.exe
+
+# 测试残留件（resume 中断快照元数据不入库）
+internal/gaea/control/resumed.jsonl.meta

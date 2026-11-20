@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -122,6 +124,8 @@ func StageBaseline(ctx context.Context, target string, before []byte) string {
 // 权限逻辑，避免在包外复制约定）。文件名 <sessionKey(target) 截 120 字符>
 // -<unixnano>.before，MkdirAll 0755、WriteFile 0644；dir 为空或写盘失败
 // 返回 ""（静默降级，调用方自行决定是否阻断）。返回快照绝对路径。
+// 写入后按 target 清理更早快照，保留最近 BaselineKeepPerTarget 份
+// （2026-11-20 实测反馈⑦：此前无任何清理，长编制任务逐轮快照无限堆积）。
 func StageBaselineTo(dir, target string, content []byte) string {
 	if dir == "" {
 		return ""
@@ -130,14 +134,74 @@ func StageBaselineTo(dir, target string, content []byte) string {
 	if len(base) > 120 {
 		base = base[:120]
 	}
-	path := filepath.Join(dir, fmt.Sprintf("%s-%d.before", base, time.Now().UnixNano()))
+	nano := time.Now().UnixNano()
+	// CAS 递增：同 target 快照在 1ms 内连发时 UnixNano 可能相同（Windows
+	// 计时粒度先例=断电事件备份互覆），同名互覆会静默丢历史——单调递增
+	// 保证逐份独立。
+	if last := latestBaselineNano(dir, base); last > 0 && nano <= last {
+		nano = last + 1
+	}
+	path := filepath.Join(dir, fmt.Sprintf("%s-%d.before", base, nano))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return ""
 	}
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		return ""
 	}
+	pruneBaselines(dir, base)
 	return path
+}
+
+// BaselineKeepPerTarget 同一 target 保留的写前快照份数上限（导出：工具回执
+// 与清理策略单源）。
+const BaselineKeepPerTarget = 10
+
+// latestBaselineNano 取 dir 内同 base 前缀 .before 的最大尾号（无则 0）。
+// 与 pruneBaselines 同一前缀口径，解析失败（非数字尾）的文件不参与。
+func latestBaselineNano(dir, base string) int64 {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	prefix := base + "-"
+	var last int64
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".before") {
+			continue
+		}
+		stem := strings.TrimSuffix(strings.TrimPrefix(name, prefix), ".before")
+		if n, err := strconv.ParseInt(stem, 10, 64); err == nil && n > last {
+			last = n
+		}
+	}
+	return last
+}
+
+// pruneBaselines 删掉 dir 内同 base 前缀更早的 .before。文件名尾部是
+// UnixNano（当前 19 位等长，字典序=时间序，2286 年前恒成立）；清点失败
+// 静默跳过（保留策略只管防堆积，不构成正确性承诺）。
+func pruneBaselines(dir, base string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	prefix := base + "-"
+	var names []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".before") {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) <= BaselineKeepPerTarget {
+		return
+	}
+	sort.Strings(names)
+	for _, name := range names[:len(names)-BaselineKeepPerTarget] {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
 }
 
 // Verdict 是 Verifier 对一张证据卡的复核结论（v4.1b）。

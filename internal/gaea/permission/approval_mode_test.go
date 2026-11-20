@@ -74,6 +74,16 @@ func TestDangerousWindowsCommand(t *testing.T) {
 		{"wsl 直通深删", []string{"wsl", "rm", "-rf", "build"}, true},
 		{"wsl --exec 深删", []string{"wsl", "--exec", "rm", "-rf", "/tmp/x"}, true},
 		{"wsl 带引导开关", []string{"wsl", "--cd", "/tmp", "rm", "-rf", "x"}, true},
+		{"草稿目录单文件删除", []string{"rm", "-f", "_tmp_extract/repro/probe.py"}, false},
+		{"系统临时单文件删除", []string{"Remove-Item", "-Force", `C:\Users\alice\AppData\Local\Temp\probe.tmp`}, false},
+		{"POSIX临时单文件删除", []string{"rm", "/tmp/probe.tmp"}, false},
+		{"双横线后草稿删除", []string{"rm", "--", "draft.bak"}, false},
+		{"后缀草稿文件删除", []string{"rm", "draft.bak"}, false},
+		{"非草稿单文件仍拦", []string{"rm", "-f", "deliverable.md"}, true},
+		{"草稿目录递归仍拦", []string{"rm", "-rf", "_tmp_extract/repro"}, true},
+		{"草稿白名单禁路径穿越", []string{"rm", "-f", "_tmp_extract/../deliverable.md"}, true},
+		{"草稿白名单禁通配符", []string{"rm", "-f", "_tmp_extract/*.py"}, true},
+		{"未知删除旗标仍拦", []string{"Remove-Item", "-WhatIf", "_tmp/probe.py"}, true},
 		{"wsl 未知开关保守放行", []string{"wsl", "--weird", "rm", "-rf", "x"}, false},
 		{"wsl 无命令", []string{"wsl"}, false},
 		{"wsl 只读命令", []string{"wsl", "ls", "-la"}, false},
@@ -96,13 +106,21 @@ func TestDangerousWindowsCommand(t *testing.T) {
 	}
 }
 
-// Gate 接线：bash 非只读路径命中深删即硬拒，先于策略判定。
-func TestGateDangerousBashBlock(t *testing.T) {
-	// 策略全 Allow 也拦（硬闸语义）。
+// Gate 接线：普通删除直接放行；灾难面由 builtin.bash 执行期守卫拒绝。
+func TestGateAllowsDirectBashDeletes(t *testing.T) {
+	// 权限策略允许后，不得再被静态 rm 黑名单重复拦截。
 	g := NewGate(New("allow", []string{"bash"}, nil, nil), nil)
 	allow, reason, err := g.Check(context.Background(), "bash", json.RawMessage(`{"command":"rm -rf build"}`), false)
-	if err != nil || allow || !strings.Contains(reason, "destructive") {
-		t.Fatalf("深删 = (%v,%q,%v), want 硬拒+destructive 理由", allow, reason, err)
+	if err != nil || !allow {
+		t.Fatalf("rm -rf build = (%v,%q,%v), want 直接放行", allow, reason, err)
+	}
+	allow, reason, err = g.Check(context.Background(), "bash", json.RawMessage(`{"command":"rm deliverable.md"}`), false)
+	if err != nil || !allow {
+		t.Fatalf("rm file = (%v,%q,%v), want 直接放行", allow, reason, err)
+	}
+	allow, reason, err = g.Check(context.Background(), "bash", json.RawMessage(`{"command":"Remove-Item -Recurse -Force .\\dist"}`), false)
+	if err != nil || !allow {
+		t.Fatalf("Remove-Item child dir = (%v,%q,%v), want 直接放行", allow, reason, err)
 	}
 	// 普通命令不受影响。
 	if allow, _, err := g.Check(context.Background(), "bash", json.RawMessage(`{"command":"echo hi"}`), false); err != nil || !allow {

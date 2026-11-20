@@ -1475,6 +1475,7 @@ export function ContextView({
   sessionPath,
   sessionName: sessionNameProp,
   model,
+  contextWindow,
   fetchTimeline,
   fetchNodeDetail,
   fetchSurface,
@@ -1489,6 +1490,8 @@ export function ContextView({
   sessionName?: string;
   /** 顶栏当前模型 label（state.meta.label） */
   model?: string;
+  /** Store 当前窗口值；绑定/模型切换后变化，驱动已打开的 context tab 重拉。 */
+  contextWindow?: number;
   /** 2.5e 后半：自定义数据源（如子代理会话的 GaeaSubagentContextView）；缺省当前会话。 */
   fetchTimeline?: () => Promise<ContextTimeline>;
   /** 节点详情自定义源（v4.412 原罪复用：SinContextNodeDetail 按故事 id 回读）；缺省会话日志。 */
@@ -1689,7 +1692,7 @@ export function ContextView({
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, contextWindow]);
 
   // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。
   useLiveReload(running, load);

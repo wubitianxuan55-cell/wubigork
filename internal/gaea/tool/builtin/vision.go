@@ -18,7 +18,7 @@ type visionTool struct{ workDir string }
 func (visionTool) Name() string { return "vision" }
 
 func (visionTool) Description() string {
-	return "识别图片内容（识图）：读取本地图片文件，用本地视觉模型描述图片中的内容、文字、布局和关键细节。支持自定义提示词。通常几秒，冷启动（模型未加载）约 20 秒+；不消耗主模型 token。"
+	return "识别图片内容（识图）：读取本地图片，用本地视觉模型做内容识别、OCR、图注语义核对与关键要素盘点。支持自定义提示词，通常几秒，冷启动约 20 秒+。边界：视觉模型不适合判定文字重叠、出界、框内溢出等精确几何排版；chart_gen/diagram_gen 已自动返回确定性排版体检，自绘 matplotlib 图用 engineering-figures 技能脚本。vision 不得把自然语言猜测包装成排版合格结论。"
 }
 
 func (visionTool) Schema() json.RawMessage {
@@ -26,7 +26,7 @@ func (visionTool) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "image_path":{"type":"string","description":"图片文件路径（相对工作区或绝对路径）"},
-  "prompt":{"type":"string","description":"可选：识别提示词，例如\"提取图中所有文字\"、\"描述图表内容\"，默认详细描述整张图片"}
+  "prompt":{"type":"string","description":"可选：语义/OCR 提示词，例如\"提取图中所有文字\"、\"核对图注与正文口径\"。精确排版问题请用 chart_gen/diagram_gen 的 layout 报告或 engineering-figures 脚本，不要要求 vision 给几何合格结论。"}
 },
 "required":["image_path"]
 }`)
@@ -67,7 +67,17 @@ func (v visionTool) Execute(ctx context.Context, args json.RawMessage) (string, 
 	if err != nil {
 		return "", visionWrapErr(err)
 	}
-	return text, nil
+	return withVisionLayoutBoundary(text, p.Prompt), nil
+}
+
+func withVisionLayoutBoundary(text, prompt string) string {
+	lower := strings.ToLower(prompt)
+	for _, term := range []string{"重叠", "出界", "溢出", "overlap", "out of bounds", "overflow", "layout"} {
+		if strings.Contains(lower, term) {
+			return text + "\n\n[排版边界] 本结果是视觉模型的语义判断，不是确定性几何检测；文字重叠/出界/框内溢出请以生成工具返回的 layout 报告或 engineering-figures 脚本为准。"
+		}
+	}
+	return text
 }
 
 // visionWrapErr 失败语义族（batch2-plan B2）：识图失败后的行为指令——

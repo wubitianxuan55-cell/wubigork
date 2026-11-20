@@ -98,7 +98,8 @@ func RunPersistedSubAgent(
 	if err := store.SaveCompleted(run); err != nil {
 		return "", fmt.Errorf("save subagent transcript: %w", err)
 	}
-	return result + FormatSubagentReference(run), nil
+	// 实测反馈④：计量行先算后拼，口径与 task 工具 finalizeRun 单源。
+	return result + FormatReceiptMetrics(result) + FormatSubagentReference(run), nil
 }
 
 func bindHooksToSession(opts Options, sessionID string) Options {

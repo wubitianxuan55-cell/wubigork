@@ -85,25 +85,23 @@ func buildWithSpaceConfig(t *testing.T, mutate func(*config.Config), extra []too
 	return ctrl
 }
 
-// TestBuildSpaceToolFiltering 装配期按空间物理过滤（S1.3-B）：work 不含
-// image_gen、play 不含 edit 系/bash、shared 两空间都有、mode=off 全量回退。
+// TestBuildSpaceToolFiltering 装配期按空间物理过滤（S1.3-B）：image_gen 自
+// 2026-11-20 起归 shared（办公/文学都可生图）、play 不含 edit 系/bash、
+// shared 两空间都有、mode=off 全量回退。
 func TestBuildSpaceToolFiltering(t *testing.T) {
 	extra := []tool.Tool{
-		spaceTestTool{name: "image_gen"},                 // play（分类表）
+		spaceTestTool{name: "image_gen"},                 // shared（2026-11-20 拍板）
 		spaceTestTool{name: "office_extra", tag: "work"}, // work（自声明）
 		spaceTestTool{name: "generic_extra"},             // 未归类 → shared
 	}
 
-	// work（session.space 缺省 → work）：办公工具齐全，无生图。
+	// work（session.space 缺省 → work）：办公工具齐全，生图同管线保留。
 	work := buildWithSpaceConfig(t, nil, extra)
 	names := toolNames(work)
-	for _, want := range []string{"edit_file", "bash", "write_file", "grep", "office_extra", "generic_extra", "memory_search", "todo_write", "ask"} {
+	for _, want := range []string{"edit_file", "bash", "write_file", "grep", "office_extra", "image_gen", "generic_extra", "memory_search", "todo_write", "ask"} {
 		if !names[want] {
 			t.Errorf("work 缺少工具 %q", want)
 		}
-	}
-	if names["image_gen"] {
-		t.Error("work 不应包含 image_gen（play 域工具）")
 	}
 
 	// play：edit 系/bash 全部缺席，生图与 shared/meta 工具保留。

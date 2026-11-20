@@ -59,6 +59,27 @@ func TestEditFileBasic(t *testing.T) {
 	}
 }
 
+func TestEditFileJSONPreservesLiteralEscapesWithoutShell(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTemp(t, dir, "literal.py", "payload = OLD\n")
+	replacement := `payload = "line\nwith\\slash\tand \"quotes\""` + "\n"
+
+	execTool(t, editFile{workDir: dir}, map[string]any{
+		"path": "literal.py", "old_string": "payload = OLD\n", "new_string": replacement,
+	})
+	content, _, err := readFileEncoded(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content != replacement {
+		t.Fatalf("JSON edit channel corrupted literal escapes:\n got %q\nwant %q", content, replacement)
+	}
+	if !strings.Contains(editFile{}.Description(), "no shell") ||
+		!strings.Contains(editFile{}.Description(), "literal") {
+		t.Fatal("edit_file description must steer callers away from shell escaping")
+	}
+}
+
 func TestEditFileReplaceAll(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")

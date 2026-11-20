@@ -99,15 +99,20 @@ func TestStoreSaveTitleInIndexAndFrontmatter(t *testing.T) {
 	}
 }
 
-// TestStoreIndexLabelFallsBackToDeKebabbedName checks a title-less memory still
-// gets a readable label instead of a bare slug.
+// TestStoreIndexLabelFallsBackToDeKebabbedName（2026-11-20 改判，实测反馈⑧b）：
+// 无 Title 的索引标签原先去连字符派生（likes-go → "likes go"），与引用键
+// [MEM:likes-go]/文件名两处拼写分叉。拍板=回退恒 kebab 原样，单形态。
 func TestStoreIndexLabelFallsBackToDeKebabbedName(t *testing.T) {
 	s := Store{Dir: t.TempDir()}
 	if _, err := s.Save(Memory{Name: "likes-go", Description: "d", Type: TypeUser, Body: "b"}); err != nil {
 		t.Fatal(err)
 	}
-	if idx := s.Index(); !strings.Contains(idx, "[likes go](likes-go.md)") {
-		t.Fatalf("missing-title label should de-kebab the name:\n%s", idx)
+	idx := s.Index()
+	if !strings.Contains(idx, "[likes-go](likes-go.md)") {
+		t.Fatalf("missing-title label should be the kebab name verbatim:\n%s", idx)
+	}
+	if strings.Contains(idx, "[likes go]") {
+		t.Fatalf("去连字符派生形态不得再出现:\n%s", idx)
 	}
 }
 
@@ -176,5 +181,19 @@ func TestDisabledStoreIsNoOp(t *testing.T) {
 	}
 	if _, err := s.Save(Memory{Name: "x", Description: "d", Body: "b"}); err == nil {
 		t.Fatal("disabled store Save should error, not silently drop")
+	}
+}
+
+// 实测反馈⑧b：displayTitle 回退恒 kebab name（不再去连字符派生）——同一
+// 事实在索引/引用键/[MEM:] 只剩一种拼写；Title 有值时仍用 Title。
+func TestDisplayTitleFallbackIsKebabVerbatim(t *testing.T) {
+	if got := displayTitle("", "page-count-more-not-less"); got != "page-count-more-not-less" {
+		t.Fatalf("空 Title 应回退 kebab 原样, got %q", got)
+	}
+	if got := displayTitle("页数口径：宁多勿少", "page-count-more-not-less"); got != "页数口径：宁多勿少" {
+		t.Fatalf("有 Title 应显示 Title, got %q", got)
+	}
+	if got := displayTitle("  \n", "x-y"); got != "x-y" {
+		t.Fatalf("空白 Title 视为无, got %q", got)
 	}
 }

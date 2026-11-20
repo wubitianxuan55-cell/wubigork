@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,6 +24,31 @@ import (
 )
 
 const bashTimeout = 300 * time.Second
+
+// heredocTruncRe（D1，2026-11-20 缺陷清单）：bash 对未闭合 heredoc 的告警
+// 特征——命令文本在结束符之前结束=参数在生成侧或传输层被截断。此形态 rc=0
+// （最危险：半截文件被当成功产物），必须升格为硬失败。
+var heredocTruncRe = regexp.MustCompile(`here-document at line \d+ delimited by end-of-file`)
+
+// heredocTruncated 报告 stderr 是否含 heredoc 截断告警。
+func heredocTruncated(stderr string) bool { return heredocTruncRe.MatchString(stderr) }
+
+// heredocTruncFailure D1 硬失败信封：回显实际收到的命令体量+出路
+// （write_file/edit_file 直写/分片追加）。
+func heredocTruncFailure(body, command string) (string, error) {
+	lines := 0
+	if command != "" {
+		lines = strings.Count(command, "\n") + 1
+	}
+	return body, &tool.Failure{
+		Code:        tool.CodeExecError,
+		Subcode:     "HEREDOC_TRUNCATED",
+		Err:         fmt.Errorf("heredoc 未闭合：命令参数疑被截断（工具实际收到 %d 字节 / %d 行，bash 在结束符前结束），落盘文件可能是半截", len(command), lines),
+		Retryable:   true,
+		EffectState: tool.EffectUnknown,
+		NextAction:  "退出码虽为 0，落盘内容已不完整：先核对文件行数或编译校验；改用 write_file 直接落盘全文、edit_file 做字面量补丁（JSON 参数不经 shell），或分片 cat >> 追加（每片远小于单命令体量）",
+	}
+}
 
 func init() { tool.RegisterBuiltin(bash{}) }
 
@@ -49,7 +75,8 @@ func (b bash) Description() string {
 		return "Execute a command with Windows PowerShell and return combined stdout/stderr. " +
 			"Commands run as `powershell -Command`, so use PowerShell syntax: `$null` (not `/dev/null`), " +
 			"`;` or separate calls (not `&&` unless using pwsh 7+), and `Get-ChildItem`/`Select-String`. " +
-			"Example: `Get-ChildItem; python --version`. Use run_in_background=true for long jobs."
+			"Example: `Get-ChildItem; python --version`. Direct Remove-Item/rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
+			"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; do not build multi-layer shell escaping. Use run_in_background=true for long jobs."
 	}
 	return "Execute a command with bash (POSIX/bash syntax), even on Windows when Git Bash is available. " +
 		"Commands run as `bash -c`; do not send PowerShell cmdlets or `$env:NAME`. " +
@@ -57,6 +84,8 @@ func (b bash) Description() string {
 		"the working directory and exported variables/functions carry over — cd once and later calls start there. " +
 		"State is captured when a command finishes; a timed-out or interrupted command does not update it, " +
 		"and a deleted working directory falls back to the workspace root. " +
+		"Direct rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
+		"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; heredocs add fragile shell/Python escaping layers. " +
 		"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
 		"Set output_format=json to get structured result with separated stdout/stderr fields."
 }
@@ -71,9 +100,9 @@ func (b bash) resolved() sandbox.Shell {
 }
 
 func (b bash) Schema() json.RawMessage {
-	commandDesc := "Command passed to bash -c. Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax."
+	commandDesc := "Command passed to bash -c. Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax. Direct rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of heredoc."
 	if b.resolved().Kind == sandbox.ShellPowerShell {
-		commandDesc = "Command passed to Windows PowerShell -Command. Use PowerShell syntax, not bash syntax."
+		commandDesc = "Command passed to Windows PowerShell -Command. Use PowerShell syntax, not bash syntax. Direct Remove-Item/rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of shell escaping."
 	}
 	return json.RawMessage(fmt.Sprintf(`{"type":"object","properties":{"command":{"type":"string","description":%s},"run_in_background":{"type":"boolean","description":"Run detached: returns a job id immediately and keeps running across turns."},"output_format":{"type":"string","enum":["plain","json"],"description":"plain (default) returns raw merged output. json returns structured {ok, exit_code, duration_ms, stdout, stderr, command} with separated stdout/stderr fields."}},"required":["command"]}`, strconv.Quote(commandDesc)))
 }
@@ -135,8 +164,21 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			Err: fmt.Errorf("bash 参数解析失败: %w", err), EffectState: tool.EffectNone}
 	}
 	if p.Command == "" {
+		// 实测反馈⑥：连续 3 次 "command is required" 空转（前两次参数体为空，
+		// 第 3 次才被 loop guard 拦）。把实收参数面如实报出——第一次就区分
+		// 「参数没拼上」与「拼上了但字段名错」两种形态，省往返。
+		var keys map[string]json.RawMessage
+		n, names := 0, ""
+		if json.Unmarshal(args, &keys) == nil && keys != nil {
+			n = len(keys)
+			for k := range keys {
+				names += k + ","
+			}
+			names = strings.TrimSuffix(names, ",")
+		}
 		return "", &tool.Failure{Code: tool.CodeValidationError,
-			Err: fmt.Errorf("command is required"), EffectState: tool.EffectNone}
+			Err: fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——command 缺失或值为空，把命令字符串放进 command 字段重试", n, names),
+			EffectState: tool.EffectNone}
 	}
 
 	sh := b.resolved()
@@ -278,8 +320,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	defer cancel()
 
 	// P1b 发布边界：启动前快照（前台窗口 Begin→执行→Scan，spike 实证）。
-	pub := b.newPublishGuard().WithSource("foreground", p.Command)
+	pub := b.newPublishGuard()
 	if pub != nil {
+		pub = pub.WithSource("foreground", p.Command)
 		_ = pub.Begin()
 	}
 
@@ -471,6 +514,10 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		}
 		_ = enc.Encode(result)
 		jsonBody := strings.TrimSpace(buf2.String())
+		// D1：rc=0 但 heredoc 未闭合=参数截断，硬失败（不再静默半截成功）。
+		if ok && heredocTruncated(stderrStr) {
+			return heredocTruncFailure(jsonBody, p.Command)
+		}
 		// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：json 模式失败改走错误通道——
 		// 旧口径 (json, nil) 会被外层再包 ok:true 成功信封（「成功包着失败」，
 		// B2 塌缩注释曾误称此处会被塌缩：内层无 code 字段实际不成立）。结构化
@@ -525,7 +572,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			// 2026-11-20 实测（静默杀+副作用未知）：补行动指引——先核实已
 			// 落盘的中间产物再决定重试方式，长任务改分片（每片远小于上限）
 			// 或后台运行，防死循环脚本带 checkpoint 续跑。
-			NextAction:  "命令被 5 分钟硬超时杀掉，副作用状态未知：先核实已产出的中间文件（部分写入/半成品要清理或续用），不要盲目原样重跑；长任务改成小分片逐段跑（每段留断点），脚本加防死循环保护",
+			NextAction: "命令被 5 分钟硬超时杀掉，副作用状态未知：先核实已产出的中间文件（部分写入/半成品要清理或续用），不要盲目原样重跑；长任务改成小分片逐段跑（每段留断点），脚本加防死循环保护",
 		}
 	}
 	if err != nil {
@@ -565,6 +612,11 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			ExitCode:    exitCode,
 			HasExitCode: hasExit,
 		}
+	}
+	// D1：plain 模式 stdout/stderr 合并，告警在 out 中；JSON 模式已在分离
+	// stderr 上检查。
+	if err == nil && ctx.Err() == nil && heredocTruncated(out) {
+		return heredocTruncFailure(out, p.Command)
 	}
 	return out, nil
 }

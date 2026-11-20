@@ -369,12 +369,8 @@ func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage,
 	}
 	if toolName == "bash" && !readOnly {
 		subject := Subject(args)
-		// Windows 破坏性删除硬拦截（codex 蒸馏 T4）：与只读判定同一处，
-		// 先于策略判定——深删不走「策略允许即放行」。命令串按 bash -c 形
-		// 交给判定器（cmd/PowerShell 首词同样被识别）。
-		if ok, why := DangerousWindowsCommand([]string{"bash", "-c", subject}); ok {
-			return false, why, nil
-		}
+		// 删除由 builtin.bash 基于实际 cwd/工作区做上下文判定；权限层不能再
+		// 对 rm/Remove-Item 做“一见即拦”的静态重复拦截。
 		if isReadOnlyBashSubject(subject) {
 			readOnly = true
 		}

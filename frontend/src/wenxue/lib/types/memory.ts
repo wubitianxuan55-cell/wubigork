@@ -178,3 +178,6 @@ export interface SkillStatView {
 
 // WenxueMemoryArchivedView 图文脑归档条目只读视图（记忆面板归档区）。
 export type WenxueMemoryArchivedView = WireShape<AppModels.WenxueMemoryArchivedView>;
+
+// AI 反馈条目（gaea 同形；面板反馈区消费，库全局跨板块）。
+export type { AIFeedbackItem } from "../../../gaea/lib/types/memory";

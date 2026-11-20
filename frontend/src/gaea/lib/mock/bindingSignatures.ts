@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 718 名（原生变参 19 名已收窄标注）。
+// 共 716 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -75,7 +75,8 @@ export const bindingSignatures = {
   DeleteProject: { argc: 1, variadic: false, params: "dir string" },
   EngineUpdateCheck: { argc: 1, variadic: false, params: "engineID string" },
   EngineUpdateStatus: { argc: 0, variadic: false, params: "" },
-  GaeaAcceptMemorySuggestion: { argc: 1, variadic: false, params: "candidate interface{}" },
+  GaeaAIFeedbackDelete: { argc: 1, variadic: false, params: "id string" },
+  GaeaAIFeedbackList: { argc: 0, variadic: false, params: "" },
   GaeaAcceptMergeSuggestion: { argc: 2, variadic: false, params: "keep string, archive string" },
   GaeaAcceptSkillSuggestion: { argc: 1, variadic: false, params: "candidate interface{}" },
   GaeaAddMCPServer: { argc: 1, variadic: false, params: "input MCPServerInput" },
@@ -179,12 +180,9 @@ export const bindingSignatures = {
   GaeaDeleteUpload: { argc: 1, variadic: false, params: "path string" },
   GaeaDeleteWorkspacePaths: { argc: 1, variadic: false, params: "paths []string" },
   GaeaDeliverableRegistry: { argc: 1, variadic: false, params: "sessionPath string" },
-  GaeaDismissMemorySuggestion: { argc: 1, variadic: false, params: "id string" },
   GaeaDocumentLint: { argc: 1, variadic: false, params: "rel string" },
   GaeaDocxAcceptChanges: { argc: 2, variadic: false, params: "rel string, accept bool" },
   GaeaDocxApplyEdit: { argc: 3, variadic: false, params: "rel string, selectedText string, replacement string" },
-  GaeaDreamPurge: { argc: 1, variadic: false, params: "names []string" },
-  GaeaDreamPurgePreview: { argc: 0, variadic: false, params: "" },
   GaeaExportDeliverable: { argc: 1, variadic: false, params: "in ExportDeliverableInput" },
   GaeaFactBase: { argc: 0, variadic: false, params: "" },
   GaeaFactBaseClear: { argc: 0, variadic: false, params: "" },
@@ -229,6 +227,7 @@ export const bindingSignatures = {
   GaeaListProjectSessions: { argc: 0, variadic: false, params: "" },
   GaeaListSessions: { argc: 0, variadic: false, params: "" },
   GaeaListWorkspaces: { argc: 0, variadic: false, params: "" },
+  GaeaLocalServiceModels: { argc: 0, variadic: false, params: "" },
   GaeaLogFrontendError: { argc: 1, variadic: false, params: "message string" },
   GaeaLoginProvider: { argc: 1, variadic: false, params: "name string" },
   GaeaLogoutProvider: { argc: 1, variadic: false, params: "name string" },
@@ -341,7 +340,6 @@ export const bindingSignatures = {
   GaeaSessionStats: { argc: 1, variadic: false, params: "path string" },
   GaeaSetAgentParams: { argc: 3, variadic: false, params: "temperature float64, maxSteps int, systemPrompt string" },
   GaeaSetDefaultModel: { argc: 1, variadic: false, params: "ref string" },
-  GaeaSetDreamMode: { argc: 1, variadic: false, params: "mode string" },
   GaeaSetMCPServerEnabled: { argc: 2, variadic: false, params: "name string, enabled bool" },
   GaeaSetMemoryBrief: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetMemoryEnabled: { argc: 1, variadic: false, params: "enabled bool" },
@@ -739,5 +737,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 718。
-export const bindingSignatureCount = 718;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 716。
+export const bindingSignatureCount = 716;

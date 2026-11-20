@@ -133,15 +133,26 @@ try:
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
 except ImportError:
     print(json.dumps({"ok": False, "error": "matplotlib not installed. Run: pip install matplotlib"}))
     sys.exit(1)
 
-# 尝试加载中文字体
+` + figureLayoutPython + `
+
+# 中文字体：YaHei 优先（含 700 字重）；bold 变体缺失时把提示写进回执
+#（D9，2026-11-20 缺陷清单：SimHei 单一 400 字重，bold 静默降级仅 warning）。
+_font_note = ''
 for font in ['Microsoft YaHei', 'SimHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK SC', 'PingFang SC', 'Arial Unicode MS']:
     try:
+        fm.findfont(font, fallback_to_default=False)
         plt.rcParams['font.sans-serif'] = [font]
         plt.rcParams['axes.unicode_minus'] = False
+        try:
+            if not any(e.weight in (700, 'bold') for e in fm.fontManager.ttflist if e.name == font):
+                _font_note = '字体 ' + font + ' 无 bold 变体：fontweight="bold" 将按常规字重渲染'
+        except Exception:
+            pass
         break
     except:
         continue
@@ -254,11 +265,14 @@ if ylabel:
     ax.set_ylabel(ylabel)
 
 plt.tight_layout()
+layout_report = check_figure_layout(fig)
 plt.savefig(output, dpi=150, bbox_inches='tight')
 plt.close()
 
 size_bytes = os.path.getsize(output)
-print(json.dumps({"ok": True, "output": output, "size_bytes": size_bytes}))
+print(json.dumps({"ok": True, "output": output, "size_bytes": size_bytes,
+                  "font_note": _font_note, "layout": layout_report},
+                 ensure_ascii=False))
 `
 
 func (c chartGen) Execute(ctx context.Context, args json.RawMessage) (string, error) {
@@ -307,10 +321,12 @@ func (c chartGen) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 
 	var result struct {
-		OK        bool   `json:"ok"`
-		Error     string `json:"error"`
-		Output    string `json:"output"`
-		SizeBytes int64  `json:"size_bytes"`
+		OK        bool               `json:"ok"`
+		Error     string             `json:"error"`
+		Output    string             `json:"output"`
+		SizeBytes int64              `json:"size_bytes"`
+		FontNote  string             `json:"font_note"`
+		Layout    figureLayoutReport `json:"layout"`
 	}
 	if err := json.Unmarshal(output, &result); err != nil {
 		return "", fmt.Errorf("解析结果失败: %w\n输出: %s", err, string(output))
@@ -319,12 +335,13 @@ func (c chartGen) Execute(ctx context.Context, args json.RawMessage) (string, er
 		return "", fmt.Errorf("图表生成失败: %s", result.Error)
 	}
 
+	layoutNote := "\n" + formatFigureLayout(result.Layout, result.FontNote)
 	if len(p.Series) > 0 {
-		return tool.WrapText(fmt.Sprintf("✅ 图表已生成: %s（%d 字节，类型: %s）\n标题: %s\n系列: %d · 类别: %d",
-			result.Output, result.SizeBytes, p.ChartType, p.Title, len(p.Series), len(p.Labels))), nil
+		return tool.WrapText(fmt.Sprintf("✅ 图表已生成: %s（%d 字节，类型: %s）\n标题: %s\n系列: %d · 类别: %d%s",
+			result.Output, result.SizeBytes, p.ChartType, p.Title, len(p.Series), len(p.Labels), layoutNote)), nil
 	}
-	return tool.WrapText(fmt.Sprintf("✅ 图表已生成: %s（%d 字节，类型: %s）\n标题: %s\n数据点: %d",
-		result.Output, result.SizeBytes, p.ChartType, p.Title, len(p.Values))), nil
+	return tool.WrapText(fmt.Sprintf("✅ 图表已生成: %s（%d 字节，类型: %s）\n标题: %s\n数据点: %d%s",
+		result.Output, result.SizeBytes, p.ChartType, p.Title, len(p.Values), layoutNote)), nil
 }
 
 // lookPathFirst returns the first executable found among candidates.

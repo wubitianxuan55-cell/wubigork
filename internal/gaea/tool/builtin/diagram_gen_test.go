@@ -85,13 +85,20 @@ func TestDiagramGenFlow(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 	var r struct {
-		OK bool `json:"ok"`
+		OK     bool               `json:"ok"`
+		Layout figureLayoutReport `json:"layout"`
 	}
 	if err := json.Unmarshal([]byte(res), &r); err != nil {
 		t.Fatalf("parse result: %v", err)
 	}
 	if !r.OK {
 		t.Fatalf("result not ok: %s", res)
+	}
+	if r.Layout.Status == "" || r.Layout.CheckedTexts == 0 {
+		t.Fatalf("result must carry deterministic layout report: %s", res)
+	}
+	if r.Layout.Status != "ok" || r.Layout.IssueCount != 0 {
+		t.Fatalf("ordinary flow diagram should pass layout check: %s", res)
 	}
 	if _, err := os.Stat(out); err != nil {
 		t.Fatalf("output missing: %v", err)

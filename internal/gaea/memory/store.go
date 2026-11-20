@@ -381,13 +381,17 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// displayTitle is the index link label: the given title, or a de-kebabed name
-// when none was supplied, so a bare slug never leaks into the index.
+// displayTitle is the index link label: the given title, or the kebab name
+// verbatim when none was supplied. The fallback used to de-kebab the name
+// (page-count → "page count"), which produced two spellings of one fact —
+// the recall line cited [MEM:page-count] while the index showed the spaced
+// form — so the fallback is now the name verbatim: title when given, kebab
+// slug otherwise, one shape each (2026-11-20 实测反馈⑧b).
 func displayTitle(title, name string) string {
 	if t := oneLine(title); t != "" {
 		return t
 	}
-	return strings.ReplaceAll(name, "-", " ")
+	return name
 }
 
 // parseTags parses a frontmatter tags value. Accepts JSON array syntax

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -1207,4 +1208,20 @@ func FormatSubagentReference(run *SubagentRun) string {
 		return ""
 	}
 	return "\nSubagent reference: " + run.Ref
+}
+
+// FormatReceiptMetrics 子代理回执计量尾行（2026-11-20 实测反馈④：9 份回执
+// 出现 wc -m 字符数/纯汉字数/正文口径/含标点 Markdown 四种量纲，父代理无法
+// 横向比较只能全部重算）。数字由父侧 Go 对子代理最终答复确定性计算——
+// 子代理自报字符数不可信。chars=rune 数（wc -m 口径），hanzi=CJK 汉字数。
+// 附在引用行之前：行式标记在 prune/elide 后仍可辨识。
+func FormatReceiptMetrics(result string) string {
+	chars, hanzi := 0, 0
+	for _, r := range result {
+		chars++
+		if unicode.Is(unicode.Han, r) {
+			hanzi++
+		}
+	}
+	return fmt.Sprintf("\n[metrics] chars=%d hanzi=%d", chars, hanzi)
 }

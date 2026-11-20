@@ -12,6 +12,8 @@ export const BACKEND_EVENTS = {
   MODEL_CHANGED: 'model-changed',
   /** 功能模型变更（useFeatureModel，按 d.feature 过滤） */
   FEATURE_MODEL_CHANGED: 'feature-model-changed',
+  /** 办公 controller 重建完成后的上下文窗口刷新 */
+  OFFICE_CONTEXT_CHANGED: 'office-context-changed',
   /** 聊天流动态频道前缀：实际事件名为 `chat-stream:${runID}`（useChatStream） */
   CHAT_STREAM: 'chat-stream',
   // 章节生成流/书源导入进度/幽灵补写/AI 控制台四通道随小说板块退役拆除（2026-11-15）

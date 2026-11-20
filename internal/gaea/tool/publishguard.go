@@ -177,6 +177,9 @@ func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ..
 	}
 	if len(dest) > 0 && dest[0] != "" {
 		b.WriteString("\n隔离位置：" + dest[0])
+	} else {
+		// 实测反馈⑤：dest 缺席时不得只剩「已隔离」裸句——给出可定位的兜底。
+		b.WriteString("\n隔离位置：本次回执未取到具体 stamp 目录；隔离件按时间戳子目录保存在工作区 .gaea/publish-quarantine/ 下，会话 JSONL 隔离账本（D6）有完整路径与命令预览。")
 	}
 	if len(expected) > 0 {
 		b.WriteString("\n声明写路径集：" + strings.Join(expected, "; "))
@@ -185,6 +188,11 @@ func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ..
 	// 写路径集」替换——bash 带声明路径的拦截只见归因不见出路，实测用户绕行
 	// 多轮才找到合规入口。声明路径是归因信息，与合规出路不互斥，两句都给。
 	b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/docx_accept/pptx_apply/xlsx_apply（编辑）。")
+	// 实测反馈⑤补两件：能不能取回、允许的落点是什么（此前用户试错一轮才找到
+	// 临时目录中转）。隔离件是原件（Quarantine 只 move 不改内容），取回=从
+	// 隔离目录 move 到工作区外的暂存位；非 durable 档不受本边界限制。
+	b.WriteString("\n取回：隔离件为原件，可用 move_file 移到工作区外暂存位（如临时目录）复核。")
+	b.WriteString("\n允许落点：md/txt/png 等非 durable 档不受本边界限制；durable 档（docx/xlsx/pptx）走上述结构化入口。")
 	return b.String()
 }
 

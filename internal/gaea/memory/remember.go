@@ -29,14 +29,15 @@ func NewRememberTool(store Store, profile *ProfileStore) tool.Tool {
 func (rememberTool) Name() string { return "remember" }
 
 func (rememberTool) Description() string {
-	// 确认制句（2026-11-18 众神殿余项·与三处板块提示词统一）：全局工具描述
-	// 此前鼓励按「值得记」自行判断主动保存，与办公/文学身份稿和执行纪律的
-	// 确认制措辞打架（模型两处都读）。remember 执行时本就弹用户确认卡，这句
-	// 把描述口径对齐红线「未经确认不写持久化数据」。
+	// 口径回调（2026-11-21 用户拍板：auto-dream 删除后 remember 是唯一模型侧
+	// 记忆入口，「只有用户明确要求才调用」过紧——模型实际停止主动记任何
+	// 东西。恢复「值得记就调」，确认制改由确认卡承载（work 空间执行时弹
+	// 用户确认卡，用户点确认才落盘=「未经确认不写」红线仍在）；瞬时状态
+	// 与用户明令不保存的内容依旧不记。
 	return "Save a durable fact to project memory so it survives across sessions. " +
-		"Only call this when the user explicitly asks you to remember something, or corrects a fact/constraint " +
-		"and asks you to apply it going forward — do not proactively save facts on your own judgment " +
-		"(a user confirmation card is shown either way). " +
+		"When you learn something worth keeping long-term, call this proactively — a user confirmation card " +
+		"is shown before anything is written (the user's approval IS the consent step), so do not withhold " +
+		"memories waiting to be asked. Do not log transient state or anything the user asked not to save. " +
 		"Use for things worth remembering long-term: who the user is and their preferences (type \"user\"); " +
 		"guidance on how to work, including the why (type \"feedback\"); ongoing goals or constraints not " +
 		"derivable from the code (type \"project\"); or pointers to external resources (type \"reference\"). " +

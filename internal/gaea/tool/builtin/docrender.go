@@ -31,7 +31,7 @@ type docRender struct{ workDir string }
 func (docRender) Name() string { return "doc_render" }
 
 func (docRender) Description() string {
-	return "把文档渲染成页 PNG（只读，不修改原文件）：docx/pptx/xlsx/pdf 经 LibreOffice+poppler 渲染，返回 PNG 路径列表供 vision 工具/视觉验收使用。pages 支持 \"3\" 或 \"2-5\"（1-based 连续区间）。需要本机已装 LibreOffice 与 poppler，未装会如实报错。"
+	return "把文档渲染成页 PNG（只读，不修改原文件）：docx/pptx/xlsx/pdf 经 LibreOffice+poppler 渲染，返回 PNG 路径列表供 vision 工具/视觉验收使用，并返回 total_pages（文档总页数——核对页数直接用它，勿另写脚本）。pages 支持 \"3\" 或 \"2-5\"（1-based 连续区间）。需要本机已装 LibreOffice 与 poppler，未装会如实报错。"
 }
 
 func (docRender) Schema() json.RawMessage {
@@ -139,13 +139,29 @@ func (d docRender) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if len(pngs) == 0 {
 		return "", fmt.Errorf("渲染产出 0 页（文档可能为空或页区间超范围）")
 	}
-	out, _ := json.Marshal(map[string]any{
+	// total_pages（实测反馈②：验证页数此前只能现搭脚本）。pdfinfo 可用时
+	// 恒准（含区间渲染）；不可用时仅全档渲染可推（len(pngs) 即总页数），
+	// 区间渲染省略字段并在 note 说明取法。
+	total, perr := docmd.PDFPageCount(pdfPath)
+	if perr != nil {
+		total = 0 // 页数查询失败不阻断渲染交付，降级省略字段
+	}
+	if total == 0 && first == 0 {
+		total = len(pngs)
+	}
+	resp := map[string]any{
 		"pdf":    pdfPath,
 		"rev":    rev,
 		"dpi":    dpi,
 		"pages":  pngs,
 		"count":  len(pngs),
 		"vision": "用 vision 工具读取以上 PNG（image_path 逐张）",
-	})
+	}
+	if total > 0 {
+		resp["total_pages"] = total
+	} else {
+		resp["note"] = "total_pages 未知（本机无 pdfinfo 且指定了页区间）；不传 pages 全档渲染即可得总页数"
+	}
+	out, _ := json.Marshal(resp)
 	return string(out), nil
 }

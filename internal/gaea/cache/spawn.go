@@ -89,13 +89,20 @@ const subagentWritingPrefix = `你是网文创作子代理。你的角色卡由�
 - 写作产出遵守卡片「输出契约」的文件路径与格式
 - 返回自包含结果——父代理只看到你的最终答案`
 
+// receiptFooter 实测反馈④（2026-11-20）：回执末两行对账口径，与
+// DefaultTaskSystemPrompt 同源要求。五前缀统一拼接，文本恒固定——同类
+// 子代理仍共享同一前缀文本，缓存命中不受影响。
+const receiptFooter = `
+
+末尾固定附两行（供父代理横向对账多份回执）：[findings] 关键发现至多 3 条（无则写 none）；[risks] 风险项至多 2 条（无则写 none）。字符/汉字计量由系统自动附加（[metrics] 行），不要自报字数。`
+
 // BuiltinSpawnTemplates 返回内置子代理模板列表，供 boot 阶段注册。
 func BuiltinSpawnTemplates() []SpawnTemplate {
 	return []SpawnTemplate{
-		{Kind: TaskKind("subagent_explore"), Prefix: subagentExplorePrefix, Description: "代码探索"},
-		{Kind: TaskKind("subagent_research"), Prefix: subagentResearchPrefix, Description: "外部调研"},
-		{Kind: TaskKind("subagent_review"), Prefix: subagentReviewPrefix, Description: "代码审查"},
-		{Kind: TaskKind("subagent_security"), Prefix: subagentSecurityPrefix, Description: "安全审计"},
-		{Kind: TaskKind("subagent_writing"), Prefix: subagentWritingPrefix, Description: "网文创作角色卡"},
+		{Kind: TaskKind("subagent_explore"), Prefix: subagentExplorePrefix + receiptFooter, Description: "代码探索"},
+		{Kind: TaskKind("subagent_research"), Prefix: subagentResearchPrefix + receiptFooter, Description: "外部调研"},
+		{Kind: TaskKind("subagent_review"), Prefix: subagentReviewPrefix + receiptFooter, Description: "代码审查"},
+		{Kind: TaskKind("subagent_security"), Prefix: subagentSecurityPrefix + receiptFooter, Description: "安全审计"},
+		{Kind: TaskKind("subagent_writing"), Prefix: subagentWritingPrefix + receiptFooter, Description: "网文创作角色卡"},
 	}
 }

@@ -14,7 +14,7 @@ package app
 //      侧卡片从未启动时（本档 open/edit 恒 card=false，见 officeComSettings）
 //      Report 被跳过、原样回 "ok"——容错保留调用形态对齐上游。
 //
-// gaea 侧挂点：gaea_handler.go 的 TurnDone 槽（与 maybeDreamAfterTurn 同列）。
+// gaea 侧挂点：gaea_handler.go 的 TurnDone 槽。
 // 纪律：TurnDone 每回合都触发，守卫不过（本回合无 office_* 写面活动且无静默
 // 文档）必须零 helper 命令——绝不每回合 ping/拉起 helper 进程。
 

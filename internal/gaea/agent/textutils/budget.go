@@ -88,15 +88,16 @@ func TruncateToolOutputPaged(s string, maxLines, maxBytes int) (string, string) 
 	if originalLines > keep {
 		selected = append(selected, lines[originalLines-1]) // 续读标记尾行必活
 	}
-	return emitSelected(selected, maxBytes, originalBytes, originalLines)
+	return emitSelected(selected, maxBytes, originalBytes, originalLines, "头部连续行+续读标记")
 }
 
 // emitSelected 是行选择的共用字节回路（TruncateToolOutputWith/Paged 共享；
 // 标记文案保持旧口径防行为漂移）。
-func emitSelected(selected []string, maxBytes, originalBytes, originalLines int) (string, string) {
+func emitSelected(selected []string, maxBytes, originalBytes, originalLines int, policy string) (string, string) {
 	var out strings.Builder
 	used := 0
 	kept := 0
+	contentKept := 0
 	for _, line := range selected {
 		lineBytes := len(line) + 1
 		if used+lineBytes > maxBytes {
@@ -114,9 +115,12 @@ func emitSelected(selected []string, maxBytes, originalBytes, originalLines int)
 		out.WriteString(line)
 		used += len(line)
 		kept++
+		if !isElisionMarker(line) {
+			contentKept++
+		}
 	}
 	omitted := originalBytes - used
-	omittedLines := originalLines - kept
+	omittedLines := originalLines - contentKept
 	if omitted < 0 {
 		omitted = 0
 	}
@@ -128,8 +132,14 @@ func emitSelected(selected []string, maxBytes, originalBytes, originalLines int)
 	}
 	notice := fmt.Sprintf("tool output truncated: %d of %d bytes, %d of %d lines elided",
 		omitted, originalBytes, omittedLines, originalLines)
+	// D3（2026-11-20 缺陷清单）：截断标记带总量与保留结构摘要—调用方
+	// 第一眼可判断「丢了多少、看到的代表什么」，不再需要二次探测。
 	out.WriteString(fmt.Sprintf(
-		"\n\n[%d byte(s), %d line(s) elided — use read_file with offset+limit, grep with narrower pattern, or bash with head/tail for details]",
-		omitted, omittedLines))
+		"\n\n[共 %d 行 / %d 字节；已省略 %d 行（%d 字节），保留 %d 行=%s — use read_file with offset+limit, grep with narrower pattern, or bash with head/tail for details]",
+		originalLines, originalBytes, omittedLines, omitted, contentKept, policy))
 	return out.String(), notice
+}
+
+func isElisionMarker(line string) bool {
+	return strings.HasPrefix(line, "[... ") && strings.HasSuffix(line, " line(s) elided ...]")
 }

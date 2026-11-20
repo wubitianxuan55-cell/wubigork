@@ -22,7 +22,7 @@ func TestWenxueSingleModelPromptContract(t *testing.T) {
 		"wenxue_final_write",            // 定稿唯一通道
 		"wenxue_quality_check",          // 成批章节体检
 		"complete_step",                 // 签退
-		"才调用 remember",               // 记忆确认制
+		"主动调用 remember",               // 记忆确认制
 		"不承诺「数据不出机」",           // 数据边界（文学允许外部检索与生图）
 		"宿主当前空间的默认导出落点",       // 导出句空间中立
 	} {
@@ -64,15 +64,15 @@ func TestWenxueSingleModelPromptIndependentFromOffice(t *testing.T) {
 	}
 }
 
-// TestSingleModelPromptMemoryConsent 办公执行常量 v1.0 增量①：记忆句确认制
-// （众神殿裁决：与 config_paths 办公身份段、wenxue-workbench 三处统一为
-// 确认制——「主动沉淀」表述淘汰）。
+// TestSingleModelPromptMemoryConsent 记忆句口径（2026-11-21 回调拍板：
+// auto-dream 删除后 remember 是唯一模型侧入口，「只有用户明确要求才调用」
+// 过紧致模型实际停记——恢复主动调用，确认制由确认卡承载）。
 func TestSingleModelPromptMemoryConsent(t *testing.T) {
-	if strings.Contains(SingleModelPrompt, "主动用 remember") {
-		t.Error("办公执行常量仍含「主动用 remember」（v1.0 应为确认制）")
+	if !strings.Contains(SingleModelPrompt, "主动调用 remember") {
+		t.Error("办公执行常量缺「主动调用 remember」（口径回调后应为主动制+确认卡）")
 	}
-	if !strings.Contains(SingleModelPrompt, "只在用户明确要求记住") {
-		t.Error("办公执行常量缺确认制句「只在用户明确要求记住」")
+	if strings.Contains(SingleModelPrompt, "只在用户明确要求记住") {
+		t.Error("办公执行常量仍含旧确认制句「只在用户明确要求记住」")
 	}
 }
 

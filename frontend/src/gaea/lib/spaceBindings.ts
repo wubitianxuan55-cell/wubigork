@@ -61,6 +61,8 @@ export const GAEA_METHOD_FACETS = {
   // 路由学习四名（阶段七 7.1-2）：功能级账本/改绑建议（模型中心「成本归因」
   // tab，两空间模型中心共用）。
   GaeaRouteLedger: "shared",
+  // 模型中心本地服务模型卡（2026-11-20 认领补面，drift 方向二）。
+  GaeaLocalServiceModels: "shared",
   GaeaRouteSuggestions: "shared",
   GaeaRouteSuggestionApply: "shared",
   GaeaRouteSuggestionIgnore: "shared",
@@ -478,12 +480,9 @@ export const GAEA_METHOD_FACETS = {
   MorningPreload: "work",
   SetMorningPreload: "work",
   MemorySuggestions: "work",
-  AcceptMemorySuggestion: "work",
-  // v4.377 建议制：待确认建议忽略 + 自动做梦直写清污 + 模式开关，恒 work。
-  DismissMemorySuggestion: "work",
-  DreamPurgePreview: "work",
-  DreamPurge: "work",
-  SetDreamMode: "work",
+  // AI 反馈库（2026-11-20）：办公/文学记忆面板反馈区共用（库全局跨板块）。
+  AIFeedbackList: "work",
+  AIFeedbackDelete: "work",
   AcceptMergeSuggestion: "work",
   AcceptSkillSuggestion: "work",
   // journal 历史蒸馏（7.2-2）：journal 证据链恒 work 空间，建议/蒸馏/决定同域。

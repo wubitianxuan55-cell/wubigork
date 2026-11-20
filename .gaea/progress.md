@@ -1,3 +1,47 @@
+## 平台缺陷清单 D1–D10 修复（2026-11-20）
+
+接用户提供的《gaea 平台缺陷清单》继续收口；工作树原有 D1/D2/D3/D5/D9
+半成品修复全部保留并补回归锁，不重新改写已有方案。
+
+- **D1 截断硬失败**：bash 在 rc=0 但出现未闭合 heredoc 告警时升格为
+  `HEREDOC_TRUNCATED` 结构化失败，plain/json 两种输出均已覆盖；同时修复
+  空工作区下发布守卫 nil 调用。
+- **D2 整篇重写**：`write_file` 新增显式 `overwrite:true`，跳过同回合
+  stale 闸；跨轮外部修改检测不豁免，拒绝文案同时给出重写/局部编辑两条路。
+- **D3 大输出可读性**：头部+中段均匀采样+信号行+尾部；截断回执带原始行数/
+  字节数、实际保留行数与采样策略，gap 标记防止采样片段被误读为连续输出。
+- **D4 图件体检**：`chart_gen` / `diagram_gen` 渲染进程内做确定性 bbox 检查
+  （文本重叠、被 clip 的出界、节点框溢出、字号 < 6pt），`layout` 随回执返回；
+  文本-线条交叉明确不判。新增可导入的 `mpl_layout_check.py` 供自绘 matplotlib
+  图件使用。
+- **D5 草稿删除**：仅放行非递归且完整路径段落在 `_tmp*`/`_draft`、系统临时根
+  或 `.tmp/.bak/.old` 后缀的单文件删除；`..`、通配符、变量、未知旗标与递归
+  删除继续硬拦，拒绝文案指向 `.trash/` + `move_file`。
+- **D6 安全文本补丁**：现有 `edit_file` JSON 通道补足描述与回归锁，明确嵌套
+  引号、反斜杠、字面量 `\n`/`\t` 不经 shell；bash 描述引导大段写入改走
+  `write_file`/`edit_file`。
+- **D7 识图边界**：vision 只承担内容/OCR/图注语义核对；涉及重叠/出界/溢出
+  的请求自动附“语义判断不是几何检测”边界，几何验收改走 `layout` 报告。
+- **D8 工程图件技能**：新增 `.gaea/skills/engineering-figures/`，固化数字
+  溯源、示意/实测分栏、用途单一、图注模板、反例纪律与交付前检查单。
+- **D9 字重**：图件生成优先 Microsoft YaHei，并在缺 bold 变体时把降级提示
+  写入回执。
+- **D10 中断恢复**：交接块新增已完成/进行中/未开始待办快照；已完成工具记录
+  `output` 类产物路径，并对 ≤16MiB 的常规文件附 SHA256 + 字节数（最多 16 个）。
+- **验证**：`go test ./internal/gaea/... -count=1` 全绿（agent 19.41s、
+  boot 35.08s、builtin 34.70s）；`go vet` 相关五包绿；Python 技能脚本编译绿；
+  `check-docs` 全绿（孤儿 0 / 悬空 0）。全量首跑暴露的 boot/control 两处
+  image_gen 空间测试仍按旧 `play` 口径断言，已按 2026-11-20「办公+文学都可
+  生图、`image_gen=shared`」拍板同步测试，生产行为未改。
+  **未提交、未装机。**
+- **桌面构建（2026-11-20 20:11）**：前端 `npm.cmd run build` 22.97s 绿（既有
+  Wenxue CSS/chunk 警告）；UCRT64 GCC + `CGO_ENABLED=1` + 系统 TMP/TEMP，
+  `wails build -s -ldflags "-s -w" -trimpath` 29.796s，`Skip Bindings=false`。
+  `build/bin/gaea.exe` 60,925,952 B，SHA256
+  `B34A30D9036B9CB027DFED04151481D0BC400C5A12F70D582C5159C0D26F2E44`；
+  三枚语音 DLL 同目录。正式构建目录冒烟 `/api/health` **200**
+  （`{"status":"ok"}`，PID 34776 已回收）。
+
 ## 数据根统一：蒸馏/逆向数据全部并入 C:\AI\re（2026-11-20）
 
 用户指令「所有蒸馏的数据文件都放在 `C:\AI\re` 里，方便查找，同时把前期蒸馏的那些都迁移过来，
@@ -6193,3 +6237,109 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - **余项**：主代理与子代理重复劳动（同主题自查一遍）=提示调优挂账；smoke
   失败时 gaea_install.ps1 仍继续装=流程隐患挂拍板；wenxue 无 pane 管道（委派
   卡点击仍主区 Tab）挂后续。
+
+## 办公板块实测反馈九刀（2026-11-20 第二批，接用户九条实测清单）
+
+接「本轮办公板块不足」九条反馈，D1–D10 在途批之上同树落地；⑧a 拍板=全局
+procedural 保持自动注入（跨项目复用是特性），不砍，只做命名单源。
+
+- **① md_validate 新工具**（builtin 只读）：题注撞号/章内跳号（表X-Y/图X-Y，
+  含 Table/Figure，en-dash 归一，后缀变体 1-8B 不误报）+引用↔题注双向对账
+  （孤立引用/未引用）+表格块内列数一致；md/txt 直读，docx 经 docmd 转换；
+  未命中回执回显全文标题大纲（一次拿结构）。三处纪律同批（registrymap 契约
+  行+spacetags work+registry_map_doc 重导，守卫当场立功）。
+- **② doc_render 加 total_pages**：pdfinfo 同族探测（GAEA_PDFINFO→PATH→
+  pdftoppm 同目录推导）+缺件降级（全档渲染时 len(pngs) 兜底）；验证页数不再
+  现搭脚本。docmd.PDFPageCount 导出+seam 测试。
+- **③ read_file 加 section 参数**：md 按标题整节返回（编号/文本子串匹配，
+  同级边界语义，绝对行号精确）；offset 节内翻页+续读提示标明相对语义；未命中
+  回显标题清单；负 offset 组合拒绝；64MB 整载上限。compact 面同步。
+- **④ 回执固化**：FormatReceiptMetrics（chars=rune/hanzi=CJK，父侧 Go 确定性
+  计算，杜绝子代理自报量纲）task finalizeRun+persisted_run 两点拼装，附引用
+  行之前（前端 isDelegationCall 不受影响）；模板面 DefaultTaskSystemPrompt+
+  spawn 五前缀统一 receiptFooter（[findings]≤3/[risks]≤2）。
+- **⑤ 发布边界拦截三件**：ExpectedPathsNote 补「取回：原件可 move_file 移出」
+  「允许落点：非 durable 不受限」恒显+dest 缺席兜底（账本目录指引）。
+- **⑥ bash 空参数报实收面**：「command is required：本次收到 N 个参数键
+  （…）」——0 键 vs 键名错第一次就分清。
+- **⑦ write_file 回执透明化+rollback 上限**：快照机制本来就有（StageBaseline），
+  缺的是可见性——回执报 baseline 绝对路径+保留份数；BaselineKeepPerTarget=10
+  逐 target 清理（此前无任何清理无限堆积）；顺修同纳秒快照互覆（CAS 递增
+  nano，Windows 计时粒度先例复发——测试 9/10 份实锤）。
+- **⑧b 记忆索引标签单源**：displayTitle 回退删去连字符派生（page-count→
+  "page count" 双拼写乱源），回退恒 kebab 原样；Title 有值仍用 Title。
+- **验证**：tool/evidence/docmd/memory+agent/cache+boot 全绿；app 139s 全绿
+  （装机位+ucrt64 双 PATH）；docmd TestBuildUocr2LlamaServerCmd 存量环境红
+  （复跑 2 次同红、该面零在途改动，与本批无关，挂池）；前端 tsc 未动面零改。
+  桌面构建：npm 34.6s+wails 45.8s，exe ea01889a493eb230… 冒烟 /api/health
+  200；装机 PID 72364 INSTALL OK。
+- **与 D 批关系**：同树混装（D1–D10 在途+本批九刀合体 exe 装机位）；提交
+  分离挂拍板——D 批非本线所起，不抢 commit。
+
+## AI 反馈工具机制（2026-11-20 第三批，用户立项，装机 33e16fee PID 59192）
+
+模型侧反馈闭环：使用过程中遇困难/发现不足 → ai_feedback 工具主动提交 →
+记忆面板「AI 反馈」区收集展示 → 勾选导出 md 用于改进软件。聊天/办公/文学
+三板块工具同源。
+
+- **底层**：internal/gaea/feedback 新包——<userDir>/ai-feedback.jsonl（JSONL
+  追加，坏行跳过不炸库；detail≤8KiB；删除走读-滤-原子重写；dream-pending
+  先例但无确认队列——反馈非记忆候选，用户立项即收集）。
+- **工具 ai_feedback**（builtin，SpaceTag 自声明+静态表双 shared）：title/
+  detail 必填+category（tool-friction/bug/missing-capability/workflow/other）
+  +severity（low/medium/high）+board（chat/office/wenxue 模型自报——工具层
+  拿不到可靠板块标识，wenxue 引擎也标 work）；枚举白名单校验给纠错信号；
+  落 gaea 自管数据区按只读放行（evidence journal 同语义）。三处纪律同批
+  （registrymap shared 行+spacetags 行+registry_map_doc 重导）。
+- **绑定**：GaeaAIFeedbackList/Delete（mapMethod 显式归 memory 板块）；
+  gen_bindings 顺手补 212b34a0 漏生成的 GaeaLocalServiceModels（bindings
+  面欠账，drift 双方向连带认领：bridge/model.ts 局部重述 LocalServiceModelB
+  环规避先例+mappings+spaceBindings shared+mock 空表）。
+- **前端 gaea**：MemoryPanel 第四 tab「AI 反馈」（badge=条数计数回调）+
+  AIFeedbackSection（列表=徽标行+severity 高亮+详情展开；全选/勾选/导出/
+  逐条删除；导出走 saveExportBlob 双门=壳内另存为对话框，md 按分类分组
+  +板块/严重度/时间元信息行）；i18n×3；手写 AIFeedbackItem 类型（不挂
+  wails 生成件命名）。
+- **前端 wenxue 镜像**：WenxueMemoryPanel 尾部挂反馈区+组件镜像（中文硬
+  编码口径——wenxue 面板不走 i18n 体系，镜像组件去 useT）；types re-export
+  gaea 同形+bridge/mappings/spaceBindings 三件+bindingNames 子集+2。
+- **坑**：gen_bindings -names 是裸名单（须自包装 export const）；wenxue
+  bindingNames 是 704 子集非全集（误灌 721 全集炸 drift 方向二，还原后只
+  +2 名）；TestSpaceTagsCoversAllBuiltins 要求静态表必有行（自声明≠免表）；
+  jsdom 测试钉 gaea-lang=zh+inShellEnv mock true 才能断言另存为链。
+- **验证**：feedback/tool/builtin/app Go 全绿（app 156s 双 PATH）；tsc -b 0；
+  前端全量 509 文件 4617 用例绿；桌面构建 29.5s+45.8s exe 33e16fee 冒烟 200
+  装机 PID 59192 INSTALL OK。未提交（同树 D 批+九刀+本批三线混装，提交
+  分离挂拍板）。
+
+## 记忆机制重梳+缓存命中率线（2026-11-21 凌晨，装机 677098e5 PID 10664）
+
+用户拍板两条：①删 auto-dream 做梦机制（自动提炼建议质量差且干扰正常记忆
+运作）②修缓存命中率。三线侦察（dream 全家面/Reasonix 上游缓存/gaea 组装链）
+后落地：
+
+- **auto-dream 全家删除**：gaea_dream/pending/purge 三文件删（gaeaBackground
+  PanicNotice+gaeaSessionSpace+captureGaeaNotices 共用件抽出保留）；TurnDone
+  槽触发删；建议面板瘦身（memories/overflow 队列块+Accept/Dismiss 旧路径删，
+  skills 聚类/merges 蒸馏合并保留——独立机制）；config [dream] 段删；
+  SaveDreamFacts 正名 SaveFacts（通用批量写入+审计通道，distill_merge 与并发
+  收敛测试仍消费）；DreamAutoWritten/ForgetFacts 删；绑定面收缩 721→716
+  （gen_bindings+bindingNames+signatures 重导，双板块 mock/声明/认领同步）。
+  前端：dream 三态开关/清污按钮/记忆候选块/MemorySuggestCard 弹卡
+  （双板块）/memorySuggest.ts/设置页自动做梦行/i18n×6 文件 5 键 全删。
+- **remember 口径回调**（用户问「模型是无法使用记忆工具了吗」的真相：
+  838a58cd 把描述+三处提示词收紧成「用户明确要求才调用」，模型实际停记）：
+  恢复「值得记就主动调」，确认制由确认卡承载（work 弹卡=用户确认才落盘，
+  红线「未经确认不写」不变）；瞬时状态与明令不保存内容仍不记。描述+办公/
+  文学身份稿+双执行常量四处同步；冻结锚测试改判。
+- **缓存线定性**（对照 Reasonix 上游）：gaea 缓存机制对齐度本就高——compact
+  pinnedPrefixLen（system+首条 user pin）+缓存对齐摘要请求（system+fold 原样
+  重放+指令在尾）+CacheShape 诊断（system/tools/log_rewrite 归因）+hit/miss
+  双形状解析+命中率面板全在（此前蒸馏批已落）。**真缺口=项目简报跨天衰减
+  翻转**：DecayScore(m,now) 排序随日历漂移重排条目=L1 前缀跨重建漂移源。
+  修=两遍法（评分只定预算内选谁；选定集合按 Name 升序渲染）+跨天恒定回归
+  钉（day1==day2 逐字节）。晨报排序本就确定性（时间值+Name 兜底）未动；
+  90% 免费 prune 档保留（正期望：工具结果型会话可就此免掉整次压缩）。
+- **验证**：Go app 164s/boot 39s/tool/builtin+control/config/memory/agent 全绿；
+  前端 509 文件 4614 用例绿；tsc 0。构建 34.7s exe 677098e5ef6498c3 冒烟 200
+  装机 INSTALL OK。未提交（累计四批混装：D 批+九刀+AI 反馈+本批）。

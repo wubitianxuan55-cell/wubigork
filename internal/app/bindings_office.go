@@ -21,7 +21,6 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type OfficeB struct{ a *App }
 
-func (b *OfficeB) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptMemorySuggestion(candidate) }
 func (b *OfficeB) GaeaAcceptMergeSuggestion(keep string, archive string) (string, error) { return b.a.GaeaAcceptMergeSuggestion(keep, archive) }
 func (b *OfficeB) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptSkillSuggestion(candidate) }
 func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b.a.GaeaAddMCPServer(input) }
@@ -89,12 +88,9 @@ func (b *OfficeB) GaeaDeleteSession(path string) error { return b.a.GaeaDeleteSe
 func (b *OfficeB) GaeaDeleteUpload(path string) error { return b.a.GaeaDeleteUpload(path) }
 func (b *OfficeB) GaeaDeleteWorkspacePaths(paths []string) error { return b.a.GaeaDeleteWorkspacePaths(paths) }
 func (b *OfficeB) GaeaDeliverableRegistry(sessionPath string) DeliverableRegistryView { return b.a.GaeaDeliverableRegistry(sessionPath) }
-func (b *OfficeB) GaeaDismissMemorySuggestion(id string) error { return b.a.GaeaDismissMemorySuggestion(id) }
 func (b *OfficeB) GaeaDocumentLint(rel string) (standard.LintReport, error) { return b.a.GaeaDocumentLint(rel) }
 func (b *OfficeB) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, error) { return b.a.GaeaDocxAcceptChanges(rel, accept) }
 func (b *OfficeB) GaeaDocxApplyEdit(rel string, selectedText string, replacement string) (PreviewResult, error) { return b.a.GaeaDocxApplyEdit(rel, selectedText, replacement) }
-func (b *OfficeB) GaeaDreamPurge(names []string) (int, error) { return b.a.GaeaDreamPurge(names) }
-func (b *OfficeB) GaeaDreamPurgePreview() ([]string, error) { return b.a.GaeaDreamPurgePreview() }
 func (b *OfficeB) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) { return b.a.GaeaExportDeliverable(in) }
 func (b *OfficeB) GaeaFactBase() FactBaseView { return b.a.GaeaFactBase() }
 func (b *OfficeB) GaeaFactBaseClear() error { return b.a.GaeaFactBaseClear() }
@@ -124,6 +120,7 @@ func (b *OfficeB) GaeaListDirBatch(paths []string, exclude []string) []workbench
 func (b *OfficeB) GaeaListProjectSessions() []ProjectGroup { return b.a.GaeaListProjectSessions() }
 func (b *OfficeB) GaeaListSessions() []SessionMeta { return b.a.GaeaListSessions() }
 func (b *OfficeB) GaeaListWorkspaces() []WorkspaceView { return b.a.GaeaListWorkspaces() }
+func (b *OfficeB) GaeaLocalServiceModels() []LocalServiceModel { return b.a.GaeaLocalServiceModels() }
 func (b *OfficeB) GaeaLogFrontendError(message string) { b.a.GaeaLogFrontendError(message) }
 func (b *OfficeB) GaeaLoginProvider(name string) error { return b.a.GaeaLoginProvider(name) }
 func (b *OfficeB) GaeaLogoutProvider(name string) error { return b.a.GaeaLogoutProvider(name) }
@@ -195,7 +192,6 @@ func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
-func (b *OfficeB) GaeaSetDreamMode(mode string) error { return b.a.GaeaSetDreamMode(mode) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
 func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error { return b.a.GaeaSetMemoryBrief(enabled) }
 func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }

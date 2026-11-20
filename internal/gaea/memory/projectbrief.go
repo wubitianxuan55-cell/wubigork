@@ -62,7 +62,9 @@ func BuildProjectBrief(mems []Memory, now time.Time, budgetRunes int) string {
 			others = append(others, briefItem{m, DecayScore(m, now)})
 		}
 	}
-	// 组内确定性排序：评分降序 → 名称升序兜底。
+	// 选择序（评分降序 → 名称升序兜底）：评分只决定预算内「选谁」，跨天衰减
+	// 漂移最多改变入选集合边界，不再翻转选定条目的渲染顺序（缓存刀 1，
+	// 2026-11-21：L1 前缀字节稳定——选定集合不变时渲染逐字节恒定）。
 	sort.SliceStable(pinned, func(i, j int) bool {
 		if pinned[i].score != pinned[j].score {
 			return pinned[i].score > pinned[j].score
@@ -76,18 +78,16 @@ func BuildProjectBrief(mems []Memory, now time.Time, budgetRunes int) string {
 		return others[i].m.Name < others[j].m.Name
 	})
 
-	var b strings.Builder
-	b.WriteString("## Project fact sheet（项目本体 · 依据历史会话决策）\n")
-	b.WriteString("以下口径/规范/决策来自既往会话沉淀，遵循并在采纳处句末标注引用键：\n")
-	written := 0
-	used := map[string]bool{}
-	appendLine := func(it briefItem) bool {
+	// 两遍法（缓存刀 1，2026-11-21）：第一遍按选择序（评分降序）贪心定
+	// 「入选集合」，第二遍对入选集合按 Name 升序渲染——跨天衰减只动集合
+	// 边界，不再翻转选定条目的输出顺序，L1 前缀字节在集合不变时逐字节恒定。
+	buildLine := func(it briefItem) (string, int, bool) {
 		desc := strings.TrimSpace(oneLine(it.m.Description))
 		if desc == "" {
 			desc = strings.TrimSpace(displayTitle(it.m.Title, it.m.Name))
 		}
 		if desc == "" {
-			return false
+			return "", 0, false
 		}
 		attr := sourceAttribution(it.m)
 		tag := ""
@@ -100,23 +100,40 @@ func BuildProjectBrief(mems []Memory, now time.Time, budgetRunes int) string {
 			attr = "（" + strings.TrimRight(tag, " ·") + "）"
 		}
 		line := fmt.Sprintf("- %s %s%s\n", "[MEM:"+it.m.Name+"]", desc, attr)
-		n := utf8.RuneCountInString(line)
-		if written+n > budgetRunes {
-			return false
+		return line, utf8.RuneCountInString(line), true
+	}
+	used := map[string]bool{}
+	written := 0
+	var accepted []briefItem
+	tryAccept := func(it briefItem) {
+		line, n, ok := buildLine(it)
+		if !ok || used[it.m.Name] || written+n > budgetRunes {
+			return
 		}
-		b.WriteString(line)
-		written += n
 		used[it.m.Name] = true
-		return true
+		written += n
+		_ = line
+		accepted = append(accepted, it)
 	}
 	for _, it := range pinned {
-		appendLine(it)
+		tryAccept(it)
 	}
 	for _, it := range others {
 		if used[it.m.Name] {
 			continue
 		}
-		appendLine(it)
+		tryAccept(it)
+	}
+	sort.SliceStable(accepted, func(i, j int) bool {
+		return accepted[i].m.Name < accepted[j].m.Name
+	})
+	var b strings.Builder
+	b.WriteString("## Project fact sheet（项目本体 · 依据历史会话决策）\n")
+	b.WriteString("以下口径/规范/决策来自既往会话沉淀，遵循并在采纳处句末标注引用键：\n")
+	for _, it := range accepted {
+		if line, _, ok := buildLine(it); ok {
+			b.WriteString(line)
+		}
 	}
 	if written == 0 {
 		return ""

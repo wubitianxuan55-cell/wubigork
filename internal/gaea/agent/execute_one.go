@@ -21,7 +21,7 @@ import (
 // executeOneTimed 包装 executeOne 补执行耗时（P7 观测：工具 p95 数据源；
 // 含闸门/缓存命中等前置判定——它们也是「这次调用花了多久」的一部分）。
 // W0 多模态旁路：每次调用注入一个图片收集器，调用后随 outcome 带回
-//（工具经 tool.ImageSinkFromContext(ctx) 登记；不登记=无图=零影响）。
+// （工具经 tool.ImageSinkFromContext(ctx) 登记；不登记=无图=零影响）。
 func (a *AgentRunner) executeOneTimed(ctx context.Context, call provider.ToolCall) toolOutcome {
 	start := time.Now()
 	sink := &tool.ImageSink{}
@@ -151,8 +151,14 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			written := a.staleWrittenFiles != nil && a.staleWrittenFiles[path]
 			read := a.staleReadFiles != nil && a.staleReadFiles[path]
 			a.turnMu.Unlock()
-			if written && !read {
-				msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
+			// D2（2026-11-20 缺陷清单）：write_file 显式 overwrite:true 豁免同
+			// 回合迭代闸——整篇重写不需要旧内容锚点，强迫重读 48KB 文件是纯
+			// 惩罚（实测被拦 3 次，绕行产物=目录里 _v1/_v2/_v3 冗余堆）。跨轮
+			// 外部修改检测（checkFileStale）不豁免——stale 的本意是防外部改动。
+			if written && !read && !(call.Name == "write_file" && argsDeclareOverwrite(call.Arguments)) {
+				msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. "+
+					"要整篇替换：write_file 传 \"overwrite\": true 跳过本闸（无需旧内容）；"+
+					"要局部修改：先 read_file（可用 offset+limit 只读目标段，行号用 grep 定位）再 edit_file。原提示：Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
 				return toolOutcome{output: msg, blocked: true, errMsg: msg}
 			}
 		}

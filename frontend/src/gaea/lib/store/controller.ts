@@ -8,6 +8,9 @@ import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "../bridge";
 import { noteEventSeq, resetEventSync } from "../eventSync";
+import { EventsOn } from "../../../../wailsjs/runtime/runtime";
+import { subscribeWailsEvent } from "../wailsEvents";
+import { BACKEND_EVENTS } from "../../../events";
 import { logBridgeError, useMemoryActions } from "./controller_actions_memory";
 import { useSessionActions } from "./controller_actions_session";
 import { useTurnActions } from "./controller_actions_turn";
@@ -37,6 +40,28 @@ interface EventBindDeps {
   dispatch: (a: Action) => void;
 }
 let eventsBound = false;
+
+type ContextInfo = Extract<Action, { type: "context" }>["context"];
+
+/**
+ * 模型中心修改办公主 agent 的 gaea 绑定时，后端会重建 controller，窗口可能
+ * 从 256K 变成 1M。该事件不经过 gaea-event 流，必须单独刷新 ContextUsage，
+ * 否则输入框胶囊和 context tab 会一直显示旧窗口。
+ */
+export function bindOfficeContextRefresh(
+  dispatch: (a: Action) => void,
+  subscribe: (channel: string, handler: (payload: unknown) => void) => () => void =
+    (channel, handler) => subscribeWailsEvent({
+      EventsOn: (eventName, callback) => EventsOn(eventName, callback),
+    }, channel, handler),
+  loadContext: () => Promise<ContextInfo> = () => app.ContextUsage(),
+): () => void {
+  return subscribe(BACKEND_EVENTS.OFFICE_CONTEXT_CHANGED, () => {
+    loadContext()
+      .then((context) => dispatch({ type: "context", context }))
+      .catch((err) => logBridgeError("office-context-changed ContextUsage", err));
+  });
+}
 
 /**
  * 冷启动固定创建新会话：不恢复后端上一次当前会话，也不把旧 History
@@ -112,6 +137,11 @@ function ensureEventsBound(deps: EventBindDeps): void {
   app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));
   app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
   refreshFactBase();
+  try {
+    bindOfficeContextRefresh(dispatch);
+  } catch (err) {
+    logBridgeError(`${BACKEND_EVENTS.OFFICE_CONTEXT_CHANGED} listener`, err);
+  }
 }
 
 export function useController() {

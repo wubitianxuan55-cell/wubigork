@@ -9,7 +9,7 @@ import { useCallback, useMemo, useState } from "react";
 import { app } from "../lib/bridge";
 import type { Translator } from "../lib/i18n";
 import type {
-  MemorySuggestion, MemorySuggestionsView, MemoryView, ProjectGroup,
+  MemorySuggestionsView, MemoryView, ProjectGroup,
   SessionMeta, SkillDistillView, SkillRecordResult, SkillSuggestion,
 } from "../lib/types";
 import { purgeDeletedSessionGenui } from "./sessionCleanup";
@@ -210,13 +210,6 @@ export function useSessionHandlers(params: UseSessionHandlersParams) {
     [updateFact, fetchMemory, setMemView],
   );
 
-  const onAcceptMemorySuggestion = useCallback(
-    async (candidate: MemorySuggestion) => {
-      await app.AcceptMemorySuggestion(candidate);
-      setMemView(await fetchMemory());
-    },
-    [fetchMemory, setMemView],
-  );
 
   const onAcceptSkillSuggestion = useCallback(
     async (candidate: SkillSuggestion) => {
@@ -310,7 +303,7 @@ export function useSessionHandlers(params: UseSessionHandlersParams) {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
     confirmDeleteCurrent, switchFolder, resumeSessionInProject, recentSessions,
     resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
-    onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
+    onRemember, onForget, onSaveDoc, onSaveFact,
     onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
     distillView, distillLoading, refreshDistill, draftDistill, ignoreDistill,
     crystallizeDistill,

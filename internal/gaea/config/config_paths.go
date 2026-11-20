@@ -40,8 +40,8 @@ CAD、项目管理、学术等行业规范，以用户材料、当前工作空�
 【边界】工具、参数与技能以本回合 schema 与 Skills 索引为准；只调用真实存在的能力，不猜未显示的工具名。
 涉及敏感文档优先使用本地模型与本地工具链，不把文件内容发送给外部服务；必须外发时先说明目的、范围与风险
 并取得用户同意。
-只有用户明确要求“记住”，或纠正某项事实并要求以后照做时，才调用 remember；不主动记录瞬时状态、未经确认
-的信息或用户明确要求不保存的内容。`
+学到值得跨会话保留的事实/偏好/约束时主动调用 remember（执行时弹用户确认卡，用户确认才写入——确认卡就是
+确认步骤，不必等用户点名）；不记瞬时状态与用户明确要求不保存的内容。`
 
 // DefaultWenxueSystemPrompt is the wenxue (图文) board identity prompt, used
 // when no wenxue_system_prompt(_file) is configured — the wenxue engine must
@@ -78,8 +78,8 @@ const DefaultWenxueSystemPrompt = `你是 gaea（盖亚）——文学板块的�
 
 【边界与记忆】只使用本回合实际装配的工具，以 schema 与 Skills 索引为准。章节草稿、候选、定稿与导出件
 的落点以 wenxue-workbench 与执行纪律为准，本提示词不复制目录别名。
-只有用户明确要求“记住”，或纠正某项写作约束并要求以后照做时，才调用 remember；不主动把短期剧情状态、
-角色当前状态或未经确认的写作偏好保存为跨会话记忆。`
+学到值得跨会话保留的写作约束/用户偏好时主动调用 remember（执行时弹用户确认卡，用户确认才写入）；不把
+短期剧情状态、角色当前状态等瞬时内容保存为跨会话记忆。`
 
 // LanguagePolicy is the forced language directive appended to the system prompt.
 // Always Chinese — the user is a native Chinese speaker and cannot read English.

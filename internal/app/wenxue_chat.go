@@ -507,7 +507,6 @@ func (a *App) WenxueMemory() MemoryView {
 		}
 	}
 	view.Enabled = memoryEnabled()
-	view.DreamMode = gaeaDreamMode()
 	return view
 }
 
@@ -609,16 +608,14 @@ func (a *App) WenxueMemoryRestoreInvalidate(name string) error {
 	return a.hubWenxueBrainStore().RestoreInvalidate(name)
 }
 
-// WenxueMemorySuggestions 图文记忆建议卡（诚实空态）：图文引擎不跑自动做梦
-// （办公域 TurnDone 钩子不进图文引擎，见 wenxue_engine.go），建议队列恒空；
-// 记忆管理走记忆面板写侧五件与记忆中枢。遗留办公建议的接受/忽略走共享
-// AcceptMemorySuggestion/DismissMemorySuggestion（前端未重指）。
+// WenxueMemorySuggestions 图文记忆建议卡（诚实空态）：auto-dream 已删
+// （2026-11-20），图文侧无待确认建议队列；记忆管理走记忆面板写侧五件与
+// 记忆中枢，技能/合并候选走 GaeaMemorySuggestions 共享管线。
 func (a *App) WenxueMemorySuggestions() MemorySuggestionsView {
 	return MemorySuggestionsView{
-		Memories:    []MemorySuggestionView{},
 		Skills:      []SkillSuggestionView{},
 		GeneratedAt: time.Now().Format(time.RFC3339),
-		Source:      "图文引擎不运行自动做梦（无待确认建议）",
+		Source:      "图文记忆建议（auto-dream 已移除）",
 	}
 }
 

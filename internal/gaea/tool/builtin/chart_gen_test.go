@@ -55,6 +55,17 @@ func TestParseChartInputValidation(t *testing.T) {
 	}
 }
 
+func TestFigureFontsPreferBoldCapableFamily(t *testing.T) {
+	for name, script := range map[string]string{"chart_gen": chartScript, "diagram_gen": diagramScript} {
+		if !strings.Contains(script, "for font in ['Microsoft YaHei', 'SimHei'") {
+			t.Fatalf("%s must try Microsoft YaHei before single-weight SimHei", name)
+		}
+		if !strings.Contains(script, "font_note") || !strings.Contains(script, "无 bold 变体") {
+			t.Fatalf("%s must surface bold-family fallback instead of warning-only degradation", name)
+		}
+	}
+}
+
 // 冒烟：真实渲染链（Python+matplotlib）跑一张多系列分组柱状图。
 // 环境缺 Python/matplotlib 时跳过（与 diagram_gen 冒烟同口径）。
 func TestChartGenMultiSeriesSmoke(t *testing.T) {
@@ -89,6 +100,9 @@ func TestChartGenMultiSeriesSmoke(t *testing.T) {
 	}
 	if !r.OK || !strings.Contains(r.Msg, "系列: 2") {
 		t.Fatalf("结果应含 系列: 2，实际: %s", res)
+	}
+	if !strings.Contains(r.Msg, "排版自检: 通过") {
+		t.Fatalf("普通分组柱图应通过确定性排版体检，实际: %s", res)
 	}
 	info, err := os.Stat(out)
 	if err != nil {

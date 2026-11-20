@@ -11,7 +11,7 @@ type Profile struct {
 // Values from DeepSeek official docs.
 func DefaultProfiles() []Profile {
 	return []Profile{
-		{Model: "deepseek-v4-flash", ContextWindow: 128_000, SoftRatio: 0.8},
+		{Model: "deepseek-v4-flash", ContextWindow: 1_000_000, SoftRatio: 0.8},
 		{Model: "deepseek-v4-pro", ContextWindow: 1_000_000, SoftRatio: 0.8},
 		{Model: "deepseek-v3", ContextWindow: 128_000, SoftRatio: 0.8},
 		{Model: "deepseek-r1", ContextWindow: 128_000, SoftRatio: 0.8},

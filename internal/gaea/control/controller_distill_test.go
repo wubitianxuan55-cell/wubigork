@@ -21,13 +21,16 @@ func newDistillTestController(t *testing.T) *Controller {
 
 func TestDistillMergeArchivesOlderKeepsNewer(t *testing.T) {
 	c := newDistillTestController(t)
-	if _, err := c.SaveDreamFacts("", "test", []memory.Memory{
-		// 注：存储后端自身把 name 归一成 kebab-case（同名异写在库内不会共存），
-		// 所以这里用规则 B 的真实场景：异名 + 同 type+kind + 同描述。
+	// SaveDreamFacts 已随 auto-dream 删除（2026-11-20）——种子改走 store 直写。
+	// 注：存储后端自身把 name 归一成 kebab-case（同名异写在库内不会共存），
+	// 所以这里用规则 B 的真实场景：异名 + 同 type+kind + 同描述。
+	for _, m := range []memory.Memory{
 		{Name: "deploy-checklist", Type: memory.TypeFeedback, Kind: memory.KindProcedural, Description: "发布前三步检查", Body: "构建/冒烟/回滚点"},
 		{Name: "release-steps", Type: memory.TypeFeedback, Kind: memory.KindProcedural, Description: "发布前三步检查", Body: "重复沉淀"},
-	}); err != nil {
-		t.Fatalf("seed: %v", err)
+	} {
+		if _, err := c.Memory().Store.Save(m); err != nil {
+			t.Fatalf("seed %s: %v", m.Name, err)
+		}
 	}
 
 	// 执行器消费检测器的输出（keep/archive 方向以检测器为准）。
@@ -57,11 +60,13 @@ func TestDistillMergeArchivesOlderKeepsNewer(t *testing.T) {
 
 func TestDistillMergeRejectsUnknownPair(t *testing.T) {
 	c := newDistillTestController(t)
-	if _, err := c.SaveDreamFacts("", "test", []memory.Memory{
+	for _, m := range []memory.Memory{
 		{Name: "fact-a", Type: memory.TypeUser, Kind: memory.KindSemantic, Description: "事实 A"},
 		{Name: "fact-b", Type: memory.TypeUser, Kind: memory.KindSemantic, Description: "事实 B"},
-	}); err != nil {
-		t.Fatalf("seed: %v", err)
+	} {
+		if _, err := c.Memory().Store.Save(m); err != nil {
+			t.Fatalf("seed %s: %v", m.Name, err)
+		}
 	}
 	if _, err := c.DistillMerge("fact-a", "fact-b"); err == nil ||
 		!strings.Contains(err.Error(), "候选已过期或不存在") {

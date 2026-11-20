@@ -342,7 +342,7 @@ export default function App() {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
     confirmDeleteCurrent, switchFolder, resumeSessionInProject,
     resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
-    onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
+    onRemember, onForget, onSaveDoc, onSaveFact,
     onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
     distillView, distillLoading, refreshDistill, draftDistill, ignoreDistill, crystallizeDistill,
   } = useSessionHandlers({
@@ -943,6 +943,7 @@ export default function App() {
                       <ContextView
                         running={state.running}
                         sessionPath={currentSessionPath ?? undefined}
+                        contextWindow={state.context.window}
                         showAgentNetwork={false}
                         onViewSubagentContext={(ref) => {
                           setCtxModalRef(ref);
@@ -989,7 +990,6 @@ export default function App() {
                         onSaveDoc={onSaveDoc}
                         onSaveFact={onSaveFact}
                         onChangeType={changeFactType}
-                        onAcceptMemorySuggestion={onAcceptMemorySuggestion}
                         onAcceptSkillSuggestion={onAcceptSkillSuggestion}
                         onAcceptMergeSuggestion={onAcceptMergeSuggestion}
                         onRefreshSuggestions={onRefreshSuggestions}
@@ -1221,6 +1221,7 @@ export default function App() {
         title={ctxModalRef ? `子代理上下文 · ${ctxModalRef}` : undefined}
         running={state.running}
         sessionPath={currentSessionPath ?? undefined}
+        contextWindow={state.context.window}
         sessionName={
           currentSessionPath
             ? sessionTitle(

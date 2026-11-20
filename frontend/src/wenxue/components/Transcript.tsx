@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- buildSegments 纯函数导出供测试与消息渲染复用 */
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, Ban, CheckCircle, ChevronRight, FileText, ListTree, Loader } from "../icons";
 import { LxThought } from "./lingxiIcons";
 import type { Item } from "../lib/store";
@@ -331,9 +331,6 @@ function renderOutsideItems(
       case "notice":
         // 波3.5 实弹反馈：提炼记忆提示由 notice 文本行升级为结构化卡片
         //（点击弹窗查看建议内容+接受/忽略操作）。
-        if (isDreamSuggestNotice(it.text)) {
-          return <MemorySuggestCard key={it.id} text={it.text} />;
-        }
         if (it.level === "warn") {
           if (ctx.dismissedErrors.has(it.id)) return null;
           return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={ctx.onDismissError} />;
@@ -531,8 +528,6 @@ import { deriveProcessStatus, PROCESS_STATUS_META } from "../lib/processStatus";
 import { turnTailSegs } from "../lib/deliverablesTurn";
 import { deliverableMentions } from "../lib/fileLinks";
 import { deliverablePathKey } from "../lib/deliverablesTurn";
-import { isDreamSuggestNotice } from "../lib/memorySuggest";
-import { MemorySuggestCard } from "./MemorySuggestCard";
 import { DeliverableCards } from "./DeliverableCards";
 
 // v4.350：提及扫描按文本内容缓存。流式期间 items 每 chunk 换引用，tailOmitBySeg
@@ -589,6 +584,17 @@ export const ProcessCard = memo(function ProcessCard({
     () => items.filter((_, index) => !isRedundantThinkingPhase(items, index)),
     [items],
   );
+  // run_skill 的运行态与 inline 回执会原地更新工具项；折叠体本身没有 open
+  // 翻转，不能依赖 GSAP effect 来重写高度。内容一变且卡仍关闭时，直接重申
+  // 0px 不变量，防止被遮挡期间遗留的 auto/半开高度把正文与最近三条同时露出。
+  const lastBodyItemsRef = useRef<Item[] | null>(null);
+  useLayoutEffect(() => {
+    const changed = lastBodyItemsRef.current !== visibleItems;
+    lastBodyItemsRef.current = visibleItems;
+    if (!changed || open) return;
+    const el = bodyRef.current;
+    if (el) el.style.height = "0px";
+  }, [open, visibleItems]);
 
   useEffect(() => {
     const wasRunning = prevRunningRef.current;

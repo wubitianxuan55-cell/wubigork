@@ -29,7 +29,7 @@ type editFile struct {
 func (editFile) Name() string { return "edit_file" }
 
 func (editFile) Description() string {
-	return "Replace an exact old_string with new_string in a file. new_string may be an empty string to delete. Fails when old_string is missing or matches more than once (pass replace_all:true for all occurrences). Encoding (GB18030/UTF-16) and file permissions are preserved."
+	return "Replace an exact old_string with new_string in a file through JSON arguments, with no shell involved. Use this instead of bash heredocs/python -c when the replacement contains nested quotes, backslashes, literal \\n or \\t: those bytes arrive verbatim because the shell never interprets them. new_string may be empty to delete. Fails when old_string is missing or matches more than once (pass replace_all:true for all occurrences). Encoding (GB18030/UTF-16) and file permissions are preserved."
 }
 
 func (editFile) Schema() json.RawMessage {

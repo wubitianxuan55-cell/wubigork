@@ -1,8 +1,14 @@
 package agent
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -31,20 +37,35 @@ import (
 const interruptedRecoveryTag = "interrupted-turn-recovery"
 
 const (
-	maxRecoveryTools = 24
-	maxRecoveryFiles = 8
-	maxRecoveryValue = 240
+	maxRecoveryTools     = 24
+	maxRecoveryFiles     = 8
+	maxRecoveryValue     = 240
+	maxRecoveryTodos     = 20
+	maxRecoveryArtifacts = 16
+	maxRecoveryHashBytes = 16 << 20
 )
 
 // turnRecovery 一次中断的交接记录。
 type turnRecovery struct {
 	CompletedTools   []recoveryTool
 	InterruptedTools []string
+	Todos            []recoveryTodo
 }
 
 type recoveryTool struct {
 	Name  string
-	Files []string
+	Files []recoveryArtifact
+}
+
+type recoveryArtifact struct {
+	Path      string
+	SHA256    string
+	SizeBytes int64
+}
+
+type recoveryTodo struct {
+	Content string
+	Status  string
 }
 
 // isSyntheticUserTurn 合成用户消息（steer/流恢复/readiness 重试/各门与提醒
@@ -136,7 +157,17 @@ func (a *AgentRunner) captureInterruptedRecovery() {
 		}
 	}
 	rec := &turnRecovery{}
+	for _, t := range a.todoState {
+		if len(rec.Todos) >= maxRecoveryTodos {
+			break
+		}
+		rec.Todos = append(rec.Todos, recoveryTodo{
+			Content: clipRecoveryValue(t.Content),
+			Status:  canonicalTodoStatus(t.Status),
+		})
+	}
 	seenInterrupted := map[string]bool{}
+	hashAttempts := 0
 	for _, m := range region {
 		if m.Role != provider.RoleAssistant || len(m.ToolCalls) == 0 {
 			continue
@@ -152,8 +183,12 @@ func (a *AgentRunner) captureInterruptedRecovery() {
 				continue
 			}
 			rt := recoveryTool{Name: tc.Name}
-			if p := extractFilePath(tc.Name, tc.Arguments); p != "" {
-				rt.Files = append(rt.Files, clipRecoveryValue(p))
+			if p := extractRecoveryPath(tc.Name, tc.Arguments); p != "" {
+				withHash := hashAttempts < maxRecoveryArtifacts
+				if withHash {
+					hashAttempts++
+				}
+				rt.Files = append(rt.Files, recoveryArtifactFor(p, withHash))
 			}
 			if len(rec.CompletedTools) < maxRecoveryTools {
 				rec.CompletedTools = append(rec.CompletedTools, rt)
@@ -166,12 +201,54 @@ func (a *AgentRunner) captureInterruptedRecovery() {
 	a.pendingRecovery = rec
 }
 
+// extractRecoveryPath extends the edit-tool path extractor to generation tools
+// whose artifact key is "output". Recovery treats the output path as an
+// artifact, not as a file-edit stale anchor, so this stays local to the
+// checkpoint code.
+func extractRecoveryPath(name, args string) string {
+	if p := strings.TrimSpace(extractFilePath(name, args)); p != "" {
+		return p
+	}
+	var payload struct {
+		Output     string `json:"output"`
+		OutputPath string `json:"output_path"`
+	}
+	if json.Unmarshal([]byte(args), &payload) != nil {
+		return ""
+	}
+	if strings.TrimSpace(payload.OutputPath) != "" {
+		return payload.OutputPath
+	}
+	return payload.Output
+}
+
 // pendingRecoveryBlock 渲染交接块（bounded：≤24 工具、每工具 ≤8 文件、
 // 值截 240 rune；不含原始参数/结果/推理）。
 func pendingRecoveryBlock(r *turnRecovery) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<%s>\n", interruptedRecoveryTag)
 	b.WriteString("The previous turn was interrupted. Treat these as host-verified recovery facts, not as a new task.\n")
+	b.WriteString("task_checkpoint:\n")
+	if len(r.Todos) == 0 {
+		b.WriteString("  not_recorded\n")
+	} else {
+		groups := map[string][]string{"completed": nil, "in_progress": nil, "pending": nil}
+		for _, todo := range r.Todos {
+			status := todo.Status
+			if _, ok := groups[status]; !ok {
+				status = "pending"
+			}
+			groups[status] = append(groups[status], html.EscapeString(clipRecoveryValue(todo.Content)))
+		}
+		for _, status := range []string{"completed", "in_progress", "pending"} {
+			items := groups[status]
+			if len(items) == 0 {
+				fmt.Fprintf(&b, "  %s: none\n", status)
+				continue
+			}
+			fmt.Fprintf(&b, "  %s: %s\n", status, strings.Join(items, " | "))
+		}
+	}
 	if len(r.CompletedTools) == 0 {
 		b.WriteString("completed_tools: none\n")
 	} else {
@@ -189,7 +266,11 @@ func pendingRecoveryBlock(r *turnRecovery) string {
 			if len(files) > 0 {
 				clipped := make([]string, 0, len(files))
 				for _, f := range files {
-					clipped = append(clipped, html.EscapeString(clipRecoveryValue(f)))
+					label := html.EscapeString(clipRecoveryValue(f.Path))
+					if f.SHA256 != "" {
+						label += fmt.Sprintf(" [sha256=%s size=%d]", f.SHA256, f.SizeBytes)
+					}
+					clipped = append(clipped, label)
 				}
 				fmt.Fprintf(&b, " files=%s", strings.Join(clipped, ","))
 			}
@@ -239,4 +320,38 @@ func clipRecoveryValue(value string) string {
 		return value
 	}
 	return string(runes[:maxRecoveryValue]) + "…"
+}
+
+// recoveryArtifactFor records the artifact path with a bounded content
+// fingerprint when the path names a regular file. The hash lets the resumed
+// agent verify "this exact artifact already exists" instead of inferring it from
+// a tool-name list alone. Large/unreadable files keep the path without a hash so
+// recovery capture stays bounded and fail-open.
+func recoveryArtifactFor(path string, withHash bool) recoveryArtifact {
+	art := recoveryArtifact{Path: clipRecoveryValue(path)}
+	if !withHash {
+		return art
+	}
+	abs := path
+	if !filepath.IsAbs(abs) {
+		if cwd, err := os.Getwd(); err == nil {
+			abs = filepath.Join(cwd, abs)
+		}
+	}
+	info, err := os.Stat(abs)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxRecoveryHashBytes {
+		return art
+	}
+	f, err := os.Open(abs)
+	if err != nil {
+		return art
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return art
+	}
+	art.SHA256 = hex.EncodeToString(h.Sum(nil))
+	art.SizeBytes = info.Size()
+	return art
 }

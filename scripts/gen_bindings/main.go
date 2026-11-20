@@ -315,6 +315,9 @@ var explicitOverrides = map[string]string{
 	"GaeaGetUsdCnyRate":       "model", // T6-6.2 汇率配置（模型中心）
 	"GaeaSetUsdCnyRate":       "model",
 	"GaeaSemanticIndexStatus": "memory",
+	// AI 反馈库（2026-11-20）：面板消费方是记忆面板反馈区，挂 MemoryB
+	"GaeaAIFeedbackList":   "memory",
+	"GaeaAIFeedbackDelete": "memory",
 	"GaeaBenchmarkList":       "model",
 	"GaeaBenchmarkStart":      "model",
 	"GaeaBenchmarkDetail":     "model",

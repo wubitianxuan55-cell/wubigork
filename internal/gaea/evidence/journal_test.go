@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,6 +166,46 @@ func TestStageBaselineTo(t *testing.T) {
 	// 空 dir：静默降级返回 ""
 	if got := StageBaselineTo("", target, []byte("x")); got != "" {
 		t.Errorf("空 dir 应返回空, got %q", got)
+	}
+}
+
+// TestStageBaselineToRetention（2026-11-20 实测反馈⑦）：同 target 逐轮快照
+// 只保留最近 BaselineKeepPerTarget 份——此前无任何清理，长编制任务无限堆积。
+func TestStageBaselineToRetention(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "rollback")
+	target := filepath.Join(t.TempDir(), "sec_01.md")
+	for i := 0; i < BaselineKeepPerTarget+5; i++ {
+		if got := StageBaselineTo(dir, target, []byte(fmt.Sprintf("v%d", i))); got == "" {
+			t.Fatalf("第 %d 次快照失败", i)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".before") {
+			n++
+		}
+	}
+	if n != BaselineKeepPerTarget {
+		t.Fatalf("同 target 快照份数 = %d, want %d（上限保留）", n, BaselineKeepPerTarget)
+	}
+	// 另一 target 的快照不受牵连
+	other := StageBaselineTo(dir, filepath.Join(t.TempDir(), "sec_02.md"), []byte("x"))
+	if other == "" {
+		t.Fatal("异 target 快照失败")
+	}
+	entries, _ = os.ReadDir(dir)
+	n2 := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".before") {
+			n2++
+		}
+	}
+	if n2 != BaselineKeepPerTarget+1 {
+		t.Fatalf("异 target 计数 = %d, want %d", n2, BaselineKeepPerTarget+1)
 	}
 }
 

@@ -2,7 +2,7 @@ import { Plus, RefreshCw, Search, X, Brain } from "../icons";
 import "./context/context-view.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  MemorySuggestion, MemorySuggestionsView, MemoryView, SkillDistillView,
+  MemorySuggestionsView, MemoryView, SkillDistillView,
   SkillRecordResult, SkillSuggestion,
 } from "../lib/types";
 import { app } from "../lib/bridge";
@@ -10,6 +10,7 @@ import { DocEditor } from "./DocEditor";
 import { useT } from "../lib/i18n";
 import { useToast } from "./Toast";
 import { FactCard } from "./FactCard";
+import { AIFeedbackSection } from "./AIFeedbackSection";
 import { FilterChip } from "./FilterChip";
 import { TabButton } from "./TabButton";
 import { EmptyState } from "./EmptyState";
@@ -28,7 +29,6 @@ export function MemoryPanel(p: {
   onSaveDoc: (path: string, body: string) => Promise<void> | void;
   onSaveFact: (name: string, body: string) => Promise<void> | void;
   onChangeType: (name: string, newType: string) => Promise<void> | void;
-  onAcceptMemorySuggestion: (candidate: MemorySuggestion) => Promise<void> | void;
   onAcceptSkillSuggestion: (candidate: SkillSuggestion) => Promise<void> | void;
   onAcceptMergeSuggestion: (keep: string, archive: string) => Promise<void> | void;
   onRefreshSuggestions: () => Promise<MemorySuggestionsView | null>;
@@ -44,7 +44,7 @@ export function MemoryPanel(p: {
 }) {
   const {
     view, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType,
-    onAcceptMemorySuggestion, onAcceptSkillSuggestion, onAcceptMergeSuggestion,
+    onAcceptSkillSuggestion, onAcceptMergeSuggestion,
     onRefreshSuggestions, distillView, distillLoading, onRefreshDistill,
     onDraftDistill, onIgnoreDistill, onCrystallizeDistill,
   } = p;
@@ -56,7 +56,8 @@ export function MemoryPanel(p: {
   const [typeFilter, setTypeFilter] = useState("all");
   const [highlight, setHighlight] = useState<string | null>(null);
   const [expandedFacts, setExpandedFacts] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"facts" | "docs" | "suggestions">("facts");
+  const [tab, setTab] = useState<"facts" | "docs" | "suggestions" | "feedback">("facts");
+  const [feedbackCount, setFeedbackCount] = useState(0);
   const factRefs = useRef<Record<string, HTMLElement | null>>({});
   const searchRef = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
@@ -75,10 +76,6 @@ export function MemoryPanel(p: {
   const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
   // 自动做梦模式（v4.377 建议制）：off=不整理 | suggest=提炼进待确认建议
   //（默认，接受才入库）| auto=旧直写行为。循环切换，直接调绑定持久化。
-  const [dreamMode, setDreamMode] = useState(view?.dreamMode ?? "suggest");
-  useEffect(() => {
-    setDreamMode(view?.dreamMode ?? "suggest");
-  }, [view?.dreamMode]);
   // 晨报预载开关（v4.16 刀④ UI 补齐）：work 空间新会话自动预装配高频工作记忆
   const [morningPreload, setMorningPreload] = useState(true);
   // 项目本体注入开关（6.2）：work 空间新会话注入固化/项目决策带引用块
@@ -105,13 +102,7 @@ export function MemoryPanel(p: {
 
   // v4.377 建议制：待确认建议的忽略集合（丢弃即出队，不写库）；两步式清污
   // 状态（idle → confirm(名单) → 执行）。
-  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
-  const [purgeState, setPurgeState] = useState<{ stage: "idle" } | { stage: "confirm"; names: string[] }>({ stage: "idle" });
   // 可见记忆建议（忽略后即从计数/列表移除，与技能/合并候选计数同口径）。
-  const visibleMemories = useMemo(
-    () => (suggestions?.memories ?? []).filter((s) => !dismissedSuggestions.has(s.id || s.name)),
-    [suggestions, dismissedSuggestions],
-  );
 
   useEffect(() => {
     let alive = true;
@@ -143,7 +134,6 @@ export function MemoryPanel(p: {
       // 此前整页崩，收窄归一在此统一修，消费侧五处不再逐个防御。
       if (result) {
         result.skills ??= [];
-        result.memories ??= [];
         result.merges ??= [];
       }
       setSuggestions(result);
@@ -184,28 +174,6 @@ export function MemoryPanel(p: {
   }, [memoryEnabled, toast]);
 
   // 自动做梦三态循环（v4.377 建议制）：关 → 建议 → 直写 → 关。
-  const dreamModeLabel = dreamMode === "off" ? "关" : dreamMode === "auto" ? "直写" : "建议";
-  const cycleDreamMode = useCallback(() => {
-    const next = dreamMode === "off" ? "suggest" : dreamMode === "suggest" ? "auto" : "off";
-    const prev = dreamMode;
-    setDreamMode(next);
-    app
-      .SetDreamMode(next)
-      .then(() => {
-        toast.show(
-          next === "off"
-            ? "自动做梦已关闭：轮次结束后不再自动整理记忆"
-            : next === "auto"
-              ? "自动做梦直写：提炼结果直接写入记忆（旧行为，不再逐条确认）"
-              : "自动做梦建议制：提炼结果进入「建议」待确认，接受才入库",
-          "info",
-        );
-      })
-      .catch(() => {
-        setDreamMode(prev);
-        toast.show("设置失败，已还原", "error");
-      });
-  }, [dreamMode, toast]);
 
   const toggleMorningPreload = useCallback(() => {
     const next = !morningPreload;
@@ -348,32 +316,6 @@ export function MemoryPanel(p: {
     [onDraftDistill],
   );
 
-  // 清污（v4.377）：两步式——先拉预览（auto_dream 审计 ∩ 现存事实），再点
-  // 一次执行批量删除；名单空直接告知。删除的是旧直写路径写入的事实，
-  // 用户显式接受过的（source=explicit）不在交集内。
-  const handlePurgeAutoDream = useCallback(async () => {
-    if (purgeState.stage === "confirm") {
-      const names = purgeState.names;
-      setPurgeState({ stage: "idle" });
-      try {
-        const n = await app.DreamPurge(names);
-        toast.show(`已删除 ${n} 条自动写入的记忆`, "info");
-      } catch {
-        toast.show("清理失败", "error");
-      }
-      return;
-    }
-    try {
-      const names = await app.DreamPurgePreview();
-      if (!names || names.length === 0) {
-        toast.show("没有可清理的自动写入记忆", "info");
-        return;
-      }
-      setPurgeState({ stage: "confirm", names });
-    } catch {
-      toast.show("读取清理清单失败", "error");
-    }
-  }, [purgeState, toast]);
 
   // 键盘快捷键（用 useCallback 避免重复注册）
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -463,26 +405,6 @@ export function MemoryPanel(p: {
               />
               项目本体 {projectBrief ? "开" : "关"}
             </button>
-            <button
-              type="button"
-              data-testid="memory-dream-mode"
-              onClick={cycleDreamMode}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border text-[11px] cursor-pointer transition-colors ${
-                dreamMode === "off"
-                  ? "border-border text-fg-faint hover:text-fg"
-                  : dreamMode === "auto"
-                    ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
-                    : "border-accent/30 bg-accent/10 text-accent"
-              }`}
-              title="自动做梦（轮次后记忆整理）：关 → 建议（提炼进「建议」待确认，接受才入库）→ 直写（旧行为，直接写入记忆）→ 关"
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  dreamMode === "off" ? "bg-fg-faint/50" : dreamMode === "auto" ? "bg-amber-500" : "bg-accent"
-                }`}
-              />
-              自动做梦 {dreamModeLabel}
-            </button>
         </div>
       </section>
 
@@ -499,7 +421,7 @@ export function MemoryPanel(p: {
         <div className="ctx-tile" data-testid="memory-kpi-suggestions">
           <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{t("memory.suggestions")}</span>
           <span className="mt-0.5 truncate font-mono text-[16px] font-semibold leading-tight tabular-nums text-fg">
-            {suggestions ? visibleMemories.length + suggestions.skills.length + (suggestions.merges?.length ?? 0) : 0}
+            {suggestions ? suggestions.skills.length + (suggestions.merges?.length ?? 0) : 0}
           </span>
         </div>
       </div>
@@ -565,9 +487,12 @@ export function MemoryPanel(p: {
           <TabButton
             active={tab === "suggestions"}
             onClick={() => setTab("suggestions")}
-            badge={suggestions ? visibleMemories.length + suggestions.skills.length + (suggestions.merges?.length ?? 0) : 0}
+            badge={suggestions ? suggestions.skills.length + (suggestions.merges?.length ?? 0) : 0}
           >
             {t("memory.suggestions")}
+          </TabButton>
+          <TabButton active={tab === "feedback"} onClick={() => setTab("feedback")} badge={feedbackCount}>
+            {t("memory.feedback")}
           </TabButton>
         </div>
 
@@ -687,42 +612,10 @@ export function MemoryPanel(p: {
 
               {!suggestions ? (
                 <EmptyState message={t("memory.suggestionsHint")} />
-              ) : visibleMemories.length === 0 && suggestions.skills.length === 0 && (suggestions.merges?.length ?? 0) === 0 ? (
+              ) : suggestions.skills.length === 0 && (suggestions.merges?.length ?? 0) === 0 ? (
                 <EmptyState message={t("memory.noCandidates")} />
               ) : (
                 <>
-                  {/* 记忆候选项（v4.377：含自动做梦待确认建议；可忽略=出队不写库） */}
-                  {visibleMemories.length > 0 && (
-                    <>
-                      <div className="text-fg-faint text-[10px] font-semibold uppercase tracking-wider">
-                        {t("memory.memoryCandidates")}
-                      </div>
-                      {visibleMemories.map((s) => (
-                        <SuggestionCard
-                          key={s.id || s.name}
-                          item={s}
-                          accepted={acceptedSuggestions.has(s.id || s.name)}
-                          badge={t("memory.newBadge")}
-                          acceptedBadge={t("memory.savedBadge")}
-                          actionLabel={t("memory.accept")}
-                          onAccept={async () => {
-                            await onAcceptMemorySuggestion(s);
-                            setAcceptedSuggestions((prev) => new Set(prev).add(s.id || s.name));
-                          }}
-                          {...(s.id && s.id.startsWith("d")
-                            ? {
-                                onIgnore: async () => {
-                                  await app.DismissMemorySuggestion(s.id);
-                                  setDismissedSuggestions((prev) => new Set(prev).add(s.id || s.name));
-                                },
-                                ignoreLabel: t("memory.ignore"),
-                              }
-                            : {})}
-                        />
-                      ))}
-                    </>
-                  )}
-
                   {/* 技能候选项 */}
                   {suggestions.skills.length > 0 && (
                     <>
@@ -792,29 +685,6 @@ export function MemoryPanel(p: {
                 </>
               )}
 
-              {/* 清污（v4.377）：两步确认批量删除 auto_dream 直写事实。
-                  恒显示（不依赖建议列表非空）——清理污染不要求先有候选。 */}
-              <button
-                type="button"
-                data-testid="memory-purge-auto-dream"
-                className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-[12px] cursor-pointer transition-colors ${
-                  purgeState.stage === "confirm"
-                    ? "border-red-400/60 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                    : "border-border-soft bg-bg-soft text-fg-faint hover:text-fg hover:border-fg-faint"
-                }`}
-                onClick={handlePurgeAutoDream}
-              >
-                {purgeState.stage === "confirm"
-                  ? t("memory.purgeConfirm", { n: purgeState.names.length })
-                  : t("memory.purgeAutoDream")}
-              </button>
-              {purgeState.stage === "confirm" && purgeState.names.length > 0 && (
-                <div className="text-fg-faint/60 text-[10px] leading-relaxed border-l-2 border-red-400/30 pl-2 break-all">
-                  {purgeState.names.slice(0, 8).join("、")}
-                  {purgeState.names.length > 8 ? ` …（共 ${purgeState.names.length} 条）` : ""}
-                </div>
-              )}
-
               {/* ── 流程蒸馏分区（7.2-2）：未接线（旧调用方/既有测试）时整体隐藏 ── */}
               {distillWired && (
                 <SkillDistillSection
@@ -824,6 +694,14 @@ export function MemoryPanel(p: {
                   onIgnore={onIgnoreDistill ?? noopDistill}
                 />
               )}
+            </div>
+          )}
+
+          {/* ── AI 反馈标签（2026-11-20）：ai_feedback 工具收集的模型侧反馈，
+              查看/删除/勾选导出 md。库全局跨板块，两板块面板同源展示。 ── */}
+          {tab === "feedback" && (
+            <div className="flex flex-col gap-3">
+              <AIFeedbackSection active={tab === "feedback"} onCount={setFeedbackCount} />
             </div>
           )}
         </div>

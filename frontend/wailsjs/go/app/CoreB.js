@@ -18,10 +18,6 @@ export function DeleteProject(arg1) {
   return window['go']['app']['CoreB']['DeleteProject'](arg1);
 }
 
-export function GaeaLocalServiceModels() {
-  return window['go']['app']['CoreB']['GaeaLocalServiceModels']();
-}
-
 export function GaeaSpaceActivate(arg1) {
   return window['go']['app']['CoreB']['GaeaSpaceActivate'](arg1);
 }

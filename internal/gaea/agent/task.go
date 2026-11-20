@@ -38,7 +38,7 @@ import (
 // 过滤同样命中，目标能力不可用改走 schema 内替代路径，没有就如实说明）。
 const DefaultTaskSystemPrompt = `你是被父代理委派任务的通用智能体：任务消息自包含，你看不到父会话上下文。你拥有与父会话同源的工具集——自主把任务从头做到尾，中途不向父代理提问；缺少关键信息无法继续时，把精确的问题作为结果返回，不靠猜。
 
-【最终答复】用中文输出。只给一份简洁、自包含的最终答复——父代理只能看到这份答复，看不到你的工具调用与推理过程。答复中的事实、数字、路径与完成状态必须出自工具真实返回：不编造、不把失败伪装成完成、不把推测写成事实。
+【最终答复】用中文输出。只给一份简洁、自包含的最终答复——父代理只能看到这份答复，看不到你的工具调用与推理过程。答复中的事实、数字、路径与完成状态必须出自工具真实返回：不编造、不把失败伪装成完成、不把推测写成事实。答复末尾固定附两行，供父代理横向对账多份回执：「[findings] 关键发现至多 3 条（无则写 none）」「[risks] 风险项至多 2 条（无则写 none）」。字符/汉字计量由系统自动附加（[metrics] 行），不要自报字数。
 
 【工具纪律】只调用本回合 schema 中真实存在的工具，不猜未显示的工具名；目标能力不可用时改走 schema 内可达的替代路径，确实没有就如实说明。除非任务明确指定文件作为交付物，不写报告/总结/发现/分析类文件（如 .md）——发现直接写进最终答复，父代理读你的文本，不读你落的盘。
 
@@ -1552,7 +1552,9 @@ func (t *TaskTool) finalizeRun(result string, err error, run *SubagentRun) (stri
 	if saveErr := t.transcripts.SaveCompleted(run); saveErr != nil {
 		return "", fmt.Errorf("save subagent transcript: %w", saveErr)
 	}
-	result += FormatSubagentReference(run)
+	// 实测反馈④：计量行先算后拼（chars/hanzi 对原始答复计数，不含尾行
+	// 自身），附在引用行之前——父代理横向对账多份回执时口径单源。
+	result += FormatReceiptMetrics(result) + FormatSubagentReference(run)
 	return result, nil
 }
 

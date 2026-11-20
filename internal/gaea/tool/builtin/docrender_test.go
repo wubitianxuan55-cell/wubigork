@@ -72,4 +72,9 @@ func TestDocRender_ReadOnlyAndReadTarget(t *testing.T) {
 	if _, ok := d.ReadTarget(json.RawMessage(`{}`)); ok {
 		t.Fatal("空参不应有读目标")
 	}
+	// 实测反馈②：描述必须告诉 agent 页数直接取 total_pages（此前用户为验证
+	// 页数现搭了 2 遍脚本）。钉住防文案漂移。
+	if !strings.Contains(d.Description(), "total_pages") {
+		t.Fatal("描述必须提及 total_pages（页数核对出口）")
+	}
 }

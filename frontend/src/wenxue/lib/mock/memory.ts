@@ -1,7 +1,6 @@
 // mock/memory.ts — 记忆/知识/资料域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
 import type {
-  MemorySuggestion,
   ProfileFactView,
   SkillSuggestion,
 } from "../types";
@@ -25,8 +24,7 @@ type MemoryMethods = Pick<
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
   | "SetMemoryEnabled" | "MemorySuggestions" | "MorningPreload" | "SetMorningPreload"
   | "WenxueMemoryPin" | "WenxueMemoryArchive" | "WenxueMemoryArchivedList" | "WenxueMemoryUnarchive" | "WenxueMemoryInvalidate" | "WenxueMemoryRestoreInvalidate"
-  | "AcceptMemorySuggestion" | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
-  | "SetDreamMode" | "DismissMemorySuggestion" | "DreamPurgePreview" | "DreamPurge"
+  | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
@@ -155,24 +153,8 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     async AcceptMergeSuggestion(_keep: string, _archive: string) {
       return "mock-merge";
     },
-    async AcceptMemorySuggestion(_candidate: MemorySuggestion) {
-      return "mock-memory-path";
-    },
     async AcceptSkillSuggestion(_candidate: SkillSuggestion) {
       return "mock-skill-path";
-    },
-    // ── v4.377 自动做梦建议制 ──
-    async SetDreamMode(mode: string) {
-      _s.setDreamMode(mode);
-    },
-    async DismissMemorySuggestion(_id: string) {
-      // browser dev mock: 队列在 Go 侧，丢弃为 no-op
-    },
-    async DreamPurgePreview() {
-      return []; // browser dev mock: 无审计日志，无可清理项
-    },
-    async DreamPurge(_names: string[]) {
-      return 0;
     },
     async FactBase() {
       return { facts: [], markdown: "", count: 0, path: "" };

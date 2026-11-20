@@ -157,12 +157,22 @@ except ImportError:
     print(json.dumps({"ok": False, "error": "matplotlib not installed. Run: pip install matplotlib"}))
     sys.exit(1)
 
-# 中文字体：SimHei 优先，缺则 Microsoft YaHei / Noto Sans CJK SC
-for font in ['SimHei', 'Microsoft YaHei', 'Noto Sans CJK SC', 'PingFang SC']:
+` + figureLayoutPython + `
+
+# 中文字体：Microsoft YaHei 优先（D9，2026-11-20 缺陷清单：SimHei 只有单一
+# 400 字重，fontweight=bold 会静默降级、仅 findfont warning——YaHei 含 700）；
+# 选完后探测 bold 变体，缺失则把提示写进回执（不再静默）。
+_font_note = ''
+for font in ['Microsoft YaHei', 'SimHei', 'Noto Sans CJK SC', 'PingFang SC']:
     try:
         fm.findfont(font, fallback_to_default=False)
         plt.rcParams['font.sans-serif'] = [font]
         plt.rcParams['axes.unicode_minus'] = False
+        try:
+            if not any(e.weight in (700, 'bold') for e in fm.fontManager.ttflist if e.name == font):
+                _font_note = '字体 ' + font + ' 无 bold 变体：fontweight="bold" 将按常规字重渲染（层次请用字号/颜色承担）'
+        except Exception:
+            pass
         break
     except Exception:
         continue
@@ -201,11 +211,13 @@ def nlines(s):
     return max(1, str(s).count('\n') + 1)
 
 def draw_node(ax, x, y, w, h, label, edge_color, fontsize=11):
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02",
-                                linewidth=1.2, edgecolor=edge_color,
-                                facecolor=mix_white(edge_color, 0.15)))
-    ax.text(x + w/2, y + h/2, label, fontsize=fontsize,
-            ha="center", va="center", color=TEXT)
+    box = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02",
+                         linewidth=1.2, edgecolor=edge_color,
+                         facecolor=mix_white(edge_color, 0.15))
+    ax.add_patch(box)
+    text = ax.text(x + w/2, y + h/2, label, fontsize=fontsize,
+                   ha="center", va="center", color=TEXT)
+    return box, text
 
 def draw_arrow(ax, x1, y1, x2, y2, label=""):
     ax.add_patch(FancyArrowPatch((x1, y1), (x2, y2), arrowstyle="-|>",
@@ -214,6 +226,8 @@ def draw_arrow(ax, x1, y1, x2, y2, label=""):
         mx, my = (x1+x2)/2, (y1+y2)/2
         ax.text(mx, my, label, fontsize=9, ha="center", va="center",
                 color="#7f7f7f", bbox=dict(facecolor="white", edgecolor="none", pad=0.8))
+
+layout_boxes = []
 
 if kind == "framework":
     # 按 level 分组；同 level 节点横向排布，层间画聚合箭头
@@ -258,7 +272,10 @@ if kind == "framework":
         x0 = (12-total)/2
         for i, node in enumerate(items):
             x = x0 + i*(w+0.3)
-            draw_node(ax, x, y - lane_h, w, lane_h, node.get('label', node.get('id', '')), color)
+            box, text = draw_node(ax, x, y - lane_h, w, lane_h,
+                                  node.get('label', node.get('id', '')), color)
+            layout_boxes.append({"name": str(node.get('id') or 'node'),
+                                 "text": text, "box": box})
         if idx < nlevel - 1:
             draw_arrow(ax, 6, y - lane_h - 0.22, 6, y - (lane_h + 0.8) + lanes[idx+1] + 0.22)
         y -= lane_h + 0.8
@@ -330,7 +347,9 @@ elif kind == "flow":
                 x = x_off + c_cur + cs / 2.0
                 y = fig_h - 0.8 - (d0 + ds / 2.0)
                 w, h = cs, ds
-            draw_node(ax, x - w/2, y - h/2, w, h, label, color, fontsize=12 if w >= 3.3 else 11)
+            box, text = draw_node(ax, x - w/2, y - h/2, w, h, label, color,
+                                  fontsize=12 if w >= 3.3 else 11)
+            layout_boxes.append({"name": cid, "text": text, "box": box})
             place[cid] = (x, y, w, h)
             c_cur += cs + CROSS_GAP
         d0 += max(l['ds']) + DEPTH_GAP
@@ -354,11 +373,14 @@ else:
 if title:
     ax.set_title(title, fontsize=15, fontweight="bold", color=NAVY)
 plt.tight_layout()
+layout_report = check_figure_layout(fig, layout_boxes)
 plt.savefig(output, dpi=150, bbox_inches="tight")
 plt.close()
 
 size_bytes = os.path.getsize(output)
-print(json.dumps({"ok": True, "output": output, "size_bytes": size_bytes, "nodes": len(nodes)}))
+print(json.dumps({"ok": True, "output": output, "size_bytes": size_bytes,
+                  "nodes": len(nodes), "font_note": _font_note,
+                  "layout": layout_report}, ensure_ascii=False))
 `
 
 func (d diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, error) {
@@ -461,6 +483,13 @@ func (d diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, 
 	}
 	if ok, _ := res["ok"].(bool); !ok {
 		return "", fmt.Errorf("diagram_gen: %v", res["error"])
+	}
+	var checked struct {
+		FontNote string             `json:"font_note"`
+		Layout   figureLayoutReport `json:"layout"`
+	}
+	if err := json.Unmarshal(out, &checked); err == nil {
+		res["layout_warning"] = formatFigureLayout(checked.Layout, checked.FontNote)
 	}
 	outJSON, _ := json.Marshal(res)
 	return string(outJSON), nil

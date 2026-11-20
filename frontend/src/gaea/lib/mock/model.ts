@@ -149,6 +149,7 @@ type ModelMethods = Pick<
   | "SetFeatureModel" | "SetFeatureModelEnabled" | "GetActiveModel"
   // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
   | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
+  | "GaeaLocalServiceModels"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
   LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods & LegacyWhirlEngineMethods &
   LegacyEngineUpdateMethods;
@@ -474,6 +475,10 @@ export function buildModel(s: MakeMockState): ModelMethods {
       // mock 环境无真实引擎管理：确认语义即可（真实链路=SetFeatureModel 改绑）
     },
     async GaeaRouteSuggestionIgnore(_id: string): Promise<void> {},
+    // 本机内嵌/直连服务模型卡（2026-11-20 认领补面）：dev mock 空表。
+    async GaeaLocalServiceModels() {
+      return [];
+    },
     // 引擎列表空态（v4.57 走查抓到的既有缺口）：引擎管理段空表，
     // 不再报「GetEngines is not a function」横幅。
     async GetEngines() {

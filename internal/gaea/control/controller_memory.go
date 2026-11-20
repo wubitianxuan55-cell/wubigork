@@ -349,21 +349,18 @@ func (c *Controller) PromoteSessionFacts() (int, error) {
 	return n, nil
 }
 
-// SaveDreamFacts 把「自动做梦」提炼出的事实直接写入长期记忆（按 name 去重，
-// 与 PromoteSessionFacts 同一写入路径，但不经过会话事实）。空 name 或
-// 无内容的事实跳过；返回实际写入/更新条数。
+
+// SaveFacts 批量写入长期记忆（按 name 去重，与 PromoteSessionFacts 同一
+// 写入路径，但不经过会话事实）——原 SaveDreamFacts 正名（2026-11-20
+// auto-dream 删除：函数本身是通用「批量保存+审计」通道，/dream extract
+// 手动蒸馏与并发收敛机制测试仍消费）。空 name 或无内容的事实跳过；返回
+// 实际写入/更新条数。
 //
-// space 是触发会话的空间（S1.2 A dream 空间化）：""（space.mode=off 平铺形态）
-// 统一 Normalize 兜底 work（写侧缺省，与 S1.1 sqliteBackend.Save 空值缺省
-// 一致）；"work"/"play" 原样落 facts.space_id——play 会话的 dream 只写 play
-// 记忆，绝不落 work（验收红线）。
-//
-// 审批决策（T6-8.1，详见 docs/DREAM_WRITE_POLICY.md）：dream 写入**不**纳入
-// hardAskTools 逐条审批——后台「自动做梦」在轮次结束后异步触发（90s 超时），
-// 无法等待人工确认；显式路径（GaeaAcceptMemorySuggestion / /dream extract）
-// 本身即用户主动触发。作为补偿，每次写入都落审计日志（source=auto_dream |
-// explicit，条数 + 名称 + 空间），保证全程可追溯。
-func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory) (int, error) {
+// space 是触发会话的空间："" 统一 Normalize 兜底 work；"work"/"play" 原样
+// 落 facts.space_id——play 会话只写 play 记忆，绝不落 work（验收红线）。
+// 每次写入落审计日志（source 标来源：manual | explicit | distill…），
+// 保证全程可追溯。
+func (c *Controller) SaveFacts(space, source string, facts []memory.Memory) (int, error) {
 	c.mu.Lock()
 	if c.mem == nil || len(facts) == 0 {
 		c.mu.Unlock()
@@ -382,16 +379,13 @@ func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory)
 		m.Type = memory.NormalizeType(string(m.Type))
 		m.Kind = memory.NormalizeKind(string(m.Kind))
 		m.Space = sp
-		// S1.1 遗留：facts 唯一键为 (project, name)，跨空间同名 upsert 会覆盖
-		// 并翻转 space_id（本刀不改约束）——盖章路径发现同名异空间时打审计
-		// 警告留痕（可溯源；Get 为全空间读，返回值已回填 space_id）。
 		if old, ok := c.mem.Store.Get(m.Name); ok && old.Space != "" && old.Space != sp {
-			slog.Warn("dream save 跨空间同名覆盖",
+			slog.Warn("facts save 跨空间同名覆盖",
 				"name", m.Name, "from", old.Space, "to", sp, "source", source)
 		}
 		if _, err := c.mem.Store.Save(m); err != nil {
 			c.mu.Unlock()
-			return n, fmt.Errorf("dream save %q: %w", m.Name, err)
+			return n, fmt.Errorf("facts save %q: %w", m.Name, err)
 		}
 		n++
 		names = append(names, m.Name)
@@ -409,7 +403,7 @@ func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory)
 			Names:  names,
 			Space:  sp,
 		}); err != nil {
-			slog.Warn("dream audit write failed", "error", err)
+			slog.Warn("memory audit write failed", "error", err)
 		}
 	}
 	return n, nil
@@ -480,95 +474,6 @@ func (c *Controller) DistillMerge(keep, archive string) (string, error) {
 	return "merged:" + older + "->" + newer, nil
 }
 
-// DreamAutoWritten 返回「自动做梦」旧直写路径（source=auto_dream）写过的、
-// 且当前仍存在的事实名列表（v4.377 清污预览：用户据此批量删除被自动整理
-// 污染的条目）。按 store 现存顺序返回（确定性）；审计读最近 2000 条。
-func (c *Controller) DreamAutoWritten() []string {
-	c.mu.Lock()
-	mem := c.mem
-	c.mu.Unlock()
-	if mem == nil {
-		return nil
-	}
-	autoWritten := map[string]bool{}
-	for _, e := range DreamAuditEntries(mem.UserDir, 2000) {
-		if e.Source != "auto_dream" {
-			continue
-		}
-		for _, n := range e.Names {
-			autoWritten[n] = true
-		}
-	}
-	var out []string
-	for _, m := range mem.Store.List() {
-		if autoWritten[m.Name] {
-			out = append(out, m.Name)
-		}
-	}
-	return out
-}
-
-// ForgetFacts 批量删除事实，仅允许删 DreamAutoWritten 交集内的名字——
-// 绑定面不可用于删除任意记忆（防误删用户手工沉淀的条目）；交集外的名字
-// 静默跳过。单条删除失败不中断其余（继续删，最后如实返回错误）。
-// 返回实际删除条数；审计 source=dream_purge 留痕。
-func (c *Controller) ForgetFacts(names []string) (int, error) {
-	if len(names) == 0 {
-		return 0, nil
-	}
-	c.mu.Lock()
-	if c.mem == nil {
-		c.mu.Unlock()
-		return 0, fmt.Errorf("记忆未就绪")
-	}
-	allowed := map[string]bool{}
-	for _, e := range DreamAuditEntries(c.mem.UserDir, 2000) {
-		if e.Source != "auto_dream" {
-			continue
-		}
-		for _, n := range e.Names {
-			allowed[n] = true
-		}
-	}
-	exist := map[string]bool{}
-	for _, m := range c.mem.Store.List() {
-		exist[m.Name] = true
-	}
-	n := 0
-	var deleted []string
-	var firstErr error
-	for _, name := range names {
-		name = strings.TrimSpace(name)
-		if !allowed[name] || !exist[name] {
-			continue
-		}
-		if err := c.mem.Store.Delete(name); err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("删除记忆 %q 失败: %w", name, err)
-			}
-			continue
-		}
-		c.pendingMemory = append(c.pendingMemory,
-			"Deleted memory \""+name+"\" — disregard its line still shown in the saved-memories index until next session.")
-		n++
-		deleted = append(deleted, name)
-	}
-	userDir := c.mem.UserDir
-	opts, gen := c.beginMemoryReloadLocked()
-	c.mu.Unlock()
-	c.finishMemoryReload(opts, gen)
-	if n > 0 {
-		if err := appendDreamAudit(userDir, DreamAuditEntry{
-			TS:     time.Now().UTC().Format(time.RFC3339),
-			Source: "dream_purge",
-			Saved:  0,
-			Names:  deleted,
-		}); err != nil {
-			slog.Warn("dream purge audit write failed", "error", err)
-		}
-	}
-	return n, firstErr
-}
 
 // SaveSession implements memory.SessionSaver. The remember tool calls this
 // when session=true to save a fact to session-only memory (not on disk).

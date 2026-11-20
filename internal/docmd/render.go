@@ -14,6 +14,63 @@ import (
 	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
+// pdfinfoLookup seam（与 pdftoppmLookup 同法：包级变量以便测试堵住外呼；
+// 生产走 findPdfinfo）。
+var pdfinfoLookup = findPdfinfo
+
+// findPdfinfo 定位 poppler 套件的 pdfinfo（与 pdftoppm 同目录同族）。
+// 查找序：GAEA_PDFINFO 显式指定 → PATH → pdftoppm 所在目录的 pdfinfo.exe。
+func findPdfinfo() string {
+	if p := os.Getenv("GAEA_PDFINFO"); p != "" {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	if p, err := exec.LookPath("pdfinfo"); err == nil && strings.EqualFold(filepath.Ext(p), ".exe") {
+		return p
+	}
+	if pt := findPdftoppm(); pt != "" {
+		cand := filepath.Join(filepath.Dir(pt), "pdfinfo.exe")
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	return ""
+}
+
+// PDFPageCount 用 pdfinfo 查 PDF 总页数（2026-11-20 实测反馈②：验证页数
+// 此前只能现搭 python-docx→LibreOffice→PyMuPDF 脚本，无法沉淀）。pdfinfo
+// 不可用返回 (0, nil)——调用方自行降级（如全档渲染时 len(pngs) 即总页数），
+// 缺工具不是本调用者的错，不硬报错。
+func PDFPageCount(pdfPath string) (int, error) {
+	bin := pdfinfoLookup()
+	if bin == "" {
+		return 0, nil
+	}
+	cmd := exec.Command(bin, pdfPath)
+	proc.HideWindow(cmd)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		return 0, fmt.Errorf("pdfinfo 执行失败: %w\n输出: %s", err, out.String())
+	}
+	return parsePdfinfoPages(out.String()), nil
+}
+
+// parsePdfinfoPages 从 pdfinfo 输出抓 "Pages: N" 行（CRLF 宽容）。
+func parsePdfinfoPages(out string) int {
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if v, ok := strings.CutPrefix(line, "Pages:"); ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
 // RenderPDFPages 用 poppler pdftoppm 把 PDF 逐页渲染为 PNG（v4.6 Verifier
 // 通道 B 真视觉 diff 的渲染侧）。返回按页序排列的 PNG 路径（页码由 pdftoppm
 // 文件名后缀推导，避免目录读取顺序依赖）。

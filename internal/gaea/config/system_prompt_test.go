@@ -17,7 +17,7 @@ func TestOfficeSystemPromptV1FrozenBody(t *testing.T) {
 		"【先判断任务】",
 		"【事实与原稿】",
 		"优先使用本地模型与本地工具链", // 敏感文档数据边界句保留
-		"才调用 remember", // 记忆确认制
+		"主动调用 remember", // 记忆确认制
 	} {
 		if !strings.Contains(p, sub) {
 			t.Errorf("办公身份稿缺 v1.0 锚 %q", sub)

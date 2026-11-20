@@ -1,9 +1,13 @@
 package agent
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -38,11 +42,51 @@ func TestCaptureInterruptedRecovery(t *testing.T) {
 	if len(a.pendingRecovery.CompletedTools) != 1 || a.pendingRecovery.CompletedTools[0].Name != "edit_file" {
 		t.Fatalf("edit_file 应在已完成清单: %+v", a.pendingRecovery.CompletedTools)
 	}
-	if len(a.pendingRecovery.CompletedTools[0].Files) != 1 || !strings.Contains(a.pendingRecovery.CompletedTools[0].Files[0], "a.go") {
+	if len(a.pendingRecovery.CompletedTools[0].Files) != 1 || !strings.Contains(a.pendingRecovery.CompletedTools[0].Files[0].Path, "a.go") {
 		t.Fatalf("已完成写入应带文件: %+v", a.pendingRecovery.CompletedTools[0])
 	}
 	if len(a.pendingRecovery.InterruptedTools) != 1 || a.pendingRecovery.InterruptedTools[0] != "bash" {
 		t.Fatalf("被打断调用应入清单: %+v", a.pendingRecovery.InterruptedTools)
+	}
+}
+
+func TestRecoveryBlockIncludesTodoCheckpointAndArtifactHash(t *testing.T) {
+	root := t.TempDir()
+	artifact := filepath.Join(root, "figure.png")
+	if err := os.WriteFile(artifact, []byte("rendered-figure"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewSession("system")
+	s.Add(provider.Message{Role: provider.RoleUser, Content: "生成图件"})
+	pathJSON, _ := json.Marshal(artifact)
+	s.Add(provider.Message{Role: provider.RoleAssistant, ToolCalls: []provider.ToolCall{{
+		ID: "w1", Name: "chart_gen",
+		Arguments: `{"output":` + string(pathJSON) + `}`,
+	}}})
+	s.Add(provider.Message{Role: provider.RoleTool, ToolCallID: "w1", Name: "chart_gen", Content: "ok"})
+
+	a := testAgentC(0, 0.8, 5)
+	a.session = s
+	a.todoState = []evidence.TodoItem{
+		{Content: "生成图件", Status: "completed"},
+		{Content: "核查图注", Status: "in_progress"},
+		{Content: "导出方案", Status: "pending"},
+	}
+	a.captureInterruptedRecovery()
+	if a.pendingRecovery == nil {
+		t.Fatal("应产出恢复记录")
+	}
+	block := pendingRecoveryBlock(a.pendingRecovery)
+	for _, want := range []string{
+		"completed: 生成图件",
+		"in_progress: 核查图注",
+		"pending: 导出方案",
+		"sha256=",
+		"size=15",
+	} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("recovery block missing %q:\n%s", want, block)
+		}
 	}
 }
 
@@ -101,9 +145,9 @@ func TestWithInterruptedRecoveryOneShot(t *testing.T) {
 func TestRecoveryBlockBounded(t *testing.T) {
 	r := &turnRecovery{}
 	for i := 0; i < 30; i++ {
-		files := make([]string, 0, 12)
+		files := make([]recoveryArtifact, 0, 12)
 		for j := 0; j < 12; j++ {
-			files = append(files, strings.Repeat("f", 300))
+			files = append(files, recoveryArtifact{Path: strings.Repeat("f", 300)})
 		}
 		r.CompletedTools = append(r.CompletedTools, recoveryTool{Name: "tool", Files: files})
 	}

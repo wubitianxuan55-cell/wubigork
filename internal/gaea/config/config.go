@@ -63,8 +63,6 @@ type Config struct {
 	Retrieval         RetrievalConfig         `toml:"retrieval"`
 	Vision            VisionConfig            `toml:"vision"`
 	MarkdownConverter MarkdownConverterConfig `toml:"markdown_converter"`
-	// Dream 是自动做梦（轮次后记忆整理）模式开关（v4.377 建议制口径）。
-	Dream DreamConfig `toml:"dream"`
 	// OfficeCom 是 dsh-office COM 实时协同档的体验设置（波3：把波1 硬编码在
 	// office_com_tools.go 顶部的开关上收为 [office_com] 设置段）。零值/缺段 =
 	// 上游 DEFAULTS 口径（见 OfficeComNormalized）。
@@ -90,7 +88,7 @@ type OfficeComConfig struct {
 }
 
 // OfficeComNormalized 返回 COM 档体验设置的生效值（nil 安全 + 非法值归一，
-// 惯例同 DreamMode/BashMode 的取值点而非改写配置）：
+// 惯例同 BashMode 的取值点而非改写配置）：
 //   - suite：auto/空/缺省/非法 → "auto"，仅显式 "office"/"wps" 保留（大小写不敏感）；
 //   - render_width：0/缺省 → 1100；越界夹回 [600,2000]；
 //   - silent/follow/typing：布尔原样透传（Default() 已按上游口径播 true 的
@@ -145,32 +143,6 @@ type SpaceConfig struct {
 	Mode string `toml:"mode"`
 }
 
-// DreamConfig 是「自动做梦」（auto-dream，轮次结束后台记忆整理）配置。
-// v4.377 口径：未经用户确认不写记忆——默认 suggest（提炼结果进「记忆建议」
-// 待确认队列，用户在记忆面板逐条接受才入库）。
-type DreamConfig struct {
-	// Mode 控制自动整理的写入方式：
-	//   ""/"suggest"（默认）= 提炼结果进待确认建议队列（dream-pending.json），
-	//     用户逐条接受才入库，拒绝/忽略即丢弃；
-	//   "auto" = 旧行为（v4.376 及以前）：提炼结果直接写入长期记忆与项目
-	//     记忆文档，不询问（审计日志留痕）；
-	//   "off" = 完全关闭轮次后的自动整理（手动 /dream extract 仍可用）。
-	// 记忆总开关 [memory] enabled=false 时任何模式都不整理。
-	Mode string `toml:"mode"`
-}
-
-// DreamMode 归一化返回自动做梦模式："suggest"（默认/空/非法）| "auto" | "off"。
-func (c *Config) DreamMode() string {
-	if c == nil {
-		return "suggest"
-	}
-	switch strings.TrimSpace(c.Dream.Mode) {
-	case "auto", "off":
-		return strings.TrimSpace(c.Dream.Mode)
-	default:
-		return "suggest"
-	}
-}
 
 // TasksConfig 是通用任务调度器配置（S1.4 按空间分账）。
 type TasksConfig struct {
@@ -1086,9 +1058,6 @@ func Default() *Config {
 		// 办公记忆默认开启；用户在记忆面板可一键关闭（记忆可控性）。
 		// 归档保留期默认 90 天（0 = 走默认值，见 memoryRetentionDays）。
 		Memory: MemoryConfig{Enabled: true, ArchivedRetentionDays: 90},
-		// 自动做梦默认建议制：提炼结果进待确认队列，用户接受才入库
-		//（v4.377 口径：未经确认不写记忆）。
-		Dream: DreamConfig{Mode: "suggest"},
 		// COM 实时协同档（波3）：上游 DEFAULTS 口径——suite=auto、follow=true、
 		// typing=true、render_width=1100；silent 默认关（打开即见窗口是核心体验）。
 		OfficeCom: OfficeComConfig{Suite: "auto", Follow: true, Typing: true, RenderWidth: 1100},
@@ -1203,7 +1172,7 @@ func mergeUserFile(cfg *Config, path string) error {
 // WriteFile writes the configuration to path as annotated TOML.
 //
 // P0-1 刀：与 SaveTo 同口径——走 RenderTOMLPreserving 保留渲染器不负责的顶层内容，
-// 避免整文件重写把未建模的段（[memory]/[dream]/[network]/…）从磁盘上删掉。
+// 避免整文件重写把未建模的段（[memory]/[network]/…）从磁盘上删掉。
 func (c *Config) WriteFile(path string) error {
 	return os.WriteFile(path, []byte(RenderTOMLPreserving(c, readFileOrEmpty(path))), 0o644)
 }

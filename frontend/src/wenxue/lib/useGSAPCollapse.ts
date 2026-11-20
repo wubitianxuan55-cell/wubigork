@@ -18,9 +18,13 @@ import { DUR_BASE, EASE_OUT, prefersReducedMotion } from "./gsapAnimations";
  * requestAnimationFrame，GSAP 按帧驱动的 tween 冻结在任意中间高度——
  * 实测已完成过程卡停在 112~380px 半开态；运行中卡更与「最近三条」尾巴
  * 同屏重复（open=false 高度未归零，正文与尾巴各渲染一份最近条目）。
- * 兜底两路：①open 翻转发生在隐藏态（含 reduced-motion）时跳过 tween
- * 直接写终值；②visibilitychange→hidden 瞬间杀掉在途 tween 吸附到目标
- * 高度（隐藏期 rAF 本就不再推进，吸附即终态；回窗无半开残留）。
+ *
+ * 单看 document.hidden 不够：run_skill 拉起外部 Office 窗口时，Wails
+ * WebView 常常只是失焦/被遮挡，visibilityState 仍是 visible。此时关闭动画
+ * 若停在 initial `height:auto` 或中间高度，返回办公窗口后就会永久摊开。
+ * 兜底四路：①隐藏/失焦时跳过 tween 直接落终值；②blur/hidden 瞬间吸附
+ * 在途 tween；③focus/pageshow 回收时再吸附一次；④前台 rAF 异常停摆时由
+ * 不依赖帧的 watchdog 在动画预算后强制落终值。
  */
 export function useGSAPCollapse(
   ref: React.RefObject<HTMLElement | null>,
@@ -52,6 +56,17 @@ export function useGSAPCollapse(
   // visibilitychange 闭包需要最新 open（监听器只挂一次）。
   const openRef = useRef(open);
   openRef.current = open;
+  // 非 null = 当前目标态仍有一次 tween 未确认收尾。被遮挡的 WebView 可能
+  // 既收不到可信的 visibilitychange，也永远不推进 rAF，故所有外部恢复
+  // 信号与 watchdog 都以这份状态为准。
+  const pendingOpenRef = useRef<boolean | null>(null);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSettleTimer = () => {
+    if (settleTimerRef.current === null) return;
+    clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = null;
+  };
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -61,6 +76,7 @@ export function useGSAPCollapse(
     // Use a direct style write (no GSAP overhead) for the initial state.
     if (prevOpen.current === null) {
       prevOpen.current = open;
+      pendingOpenRef.current = null;
       el.style.height = open ? "auto" : "0px";
       return;
     }
@@ -72,7 +88,12 @@ export function useGSAPCollapse(
     const reduced = prefersReducedMotion();
     // 隐藏态翻转：rAF 已停，tween 起不来（起来也是冻帧）——直接落终值。
     const hidden = typeof document !== "undefined" && document.hidden;
-    if (reduced || hidden) {
+    // Office 外部窗口只带走焦点时 hidden=false；hasFocus 能覆盖这一类
+    // Wails/WebView 遮挡，避免关闭动画停在 `auto`。
+    const unfocused = typeof document.hasFocus === "function" && !document.hasFocus();
+    if (reduced || hidden || unfocused) {
+      clearSettleTimer();
+      pendingOpenRef.current = null;
       gsap.killTweensOf(el);
       el.style.height = open ? "auto" : "0px";
       if (open) onOpenRef.current?.();
@@ -85,6 +106,14 @@ export function useGSAPCollapse(
 
     // Kill any in-flight GSAP animations on this element.
     gsap.killTweensOf(el);
+    pendingOpenRef.current = open;
+
+    const finish = () => {
+      clearSettleTimer();
+      pendingOpenRef.current = null;
+      if (open) onOpenRef.current?.();
+      else onCloseRef.current?.();
+    };
 
     if (open) {
       // Phase 1 — measure the target (auto) height without visible change.
@@ -99,7 +128,7 @@ export function useGSAPCollapse(
           duration: dur,
           ease,
           clearProps: "height",
-          onComplete: () => onOpenRef.current?.(),
+          onComplete: finish,
         },
       );
     } else {
@@ -107,7 +136,7 @@ export function useGSAPCollapse(
       // otherwise measure the current scrollHeight.
       const startHeight = prevHeightRef.current && prevHeightRef.current > 0
         ? prevHeightRef.current
-        : (gsap.set(el, { height: "auto" }), el.scrollHeight);
+        : el.scrollHeight;
       gsap.fromTo(
         el,
         { height: startHeight },
@@ -115,24 +144,64 @@ export function useGSAPCollapse(
           height: 0,
           duration: dur,
           ease,
-          onComplete: () => onCloseRef.current?.(),
+          onComplete: finish,
         },
       );
     }
+
+    // rAF 若因 WebView 遮挡/合成器异常而永久停摆，visibilitychange 与 blur
+    // 都可能没有可靠时序。定时器只负责把“动画已过预算”的卡落到目标终值；
+    // 正常 tween 完成时会先清掉它，不改变动画体验。
+    clearSettleTimer();
+    settleTimerRef.current = setTimeout(() => {
+      if (pendingOpenRef.current !== open) return;
+      gsap.killTweensOf(el);
+      el.style.height = open ? "auto" : "0px";
+      finish();
+    }, Math.max(250, dur * 1000 + 120));
+
+    return () => {
+      clearSettleTimer();
+      gsap.killTweensOf(el);
+      pendingOpenRef.current = null;
+    };
   }, [open, ref]);
 
-  // 隐藏瞬间吸附：在途 tween 在隐藏期不会推进（rAF 停），停在中间高度
-  // 就是实弹的半开卡+尾巴重复。visibilitychange→hidden 时杀 tween 直接
-  // 写目标高度（当前 openRef 即目标）。
+  // 外部窗口切换时吸附：blur/hidden 可能发生在 tween 开始前后，focus/
+  // pageshow 则覆盖返回办公窗口的时序。只处理尚未确认收尾的 tween，避免
+  // 干扰已经稳定的展开态或正常点击动画。
   useEffect(() => {
+    const settlePending = () => {
+      if (pendingOpenRef.current === null) return;
+      const el = ref.current;
+      if (!el) return;
+      clearSettleTimer();
+      pendingOpenRef.current = null;
+      gsap.killTweensOf(el);
+      el.style.height = openRef.current ? "auto" : "0px";
+    };
     const onVisibility = () => {
       if (!document.hidden) return;
       const el = ref.current;
       if (!el) return;
+      // hidden 是明确的“rAF 不可信”信号：无论 pending 是否已丢，都按目标态
+      // 吸附一次，修复历史半开残留。
+      clearSettleTimer();
+      pendingOpenRef.current = null;
       gsap.killTweensOf(el);
       el.style.height = openRef.current ? "auto" : "0px";
     };
+    const onBlur = () => settlePending();
+    const onResume = () => settlePending();
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("pageshow", onResume);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("pageshow", onResume);
+    };
   }, [ref]);
 }

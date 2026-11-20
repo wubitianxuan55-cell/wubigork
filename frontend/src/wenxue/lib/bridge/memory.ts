@@ -10,7 +10,6 @@ import type {
   MemoryGraphView,
   SemanticGraphView,
   MemoryHubOverview,
-  MemorySuggestion,
   MemorySuggestionsView,
   MemoryView,
   ProfileFactView,
@@ -32,11 +31,17 @@ import type {
 // chat 板块契约类型来自 wails 生成物（wails build 自动生成，勿手改生成物本身）。
 import type { whisper } from "../../../../wailsjs/go/models";
 
+import type { AIFeedbackItem } from "../types";
+
 export interface MemoryBindings {
   // Memory panel: read the loaded REASONIX.md hierarchy + saved auto-memories,
   // quick-add a note to a scope's REASONIX.md (≡ "#<note>"), and overwrite a doc
   // from the in-place editor.
   Memory(): Promise<MemoryView>;
+  // AIFeedbackList/Delete AI 反馈库（2026-11-20：ai_feedback 工具收集，记忆面板
+  // 反馈区查看/删除/导出；Go GaeaAIFeedback* 同名直通，库全局跨板块）。
+  AIFeedbackList(): Promise<AIFeedbackItem[]>;
+  AIFeedbackDelete(id: string): Promise<void>;
   Remember(scope: string, note: string): Promise<string>;
   Forget(name: string): Promise<void>;
   SaveDoc(path: string, body: string): Promise<string>;
@@ -163,18 +168,6 @@ export interface MemoryBindings {
   HerdsmanOperations(): Promise<unknown>;
   // 画像冲突裁决
   ProfileResolveConflict(name: string, prefer: string): Promise<void>;
-  AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
   AcceptMergeSuggestion(keep: string, archive: string): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;
-  // ── v4.377 自动做梦建议制 ──
-  // SetDreamMode 设置自动做梦模式（off=不整理 | suggest=提炼进待确认建议，
-  // 默认 | auto=旧直写行为），持久化立即生效。
-  SetDreamMode(mode: string): Promise<void>;
-  // DismissMemorySuggestion 忽略一条待确认建议（出队即丢弃，不写记忆）。
-  DismissMemorySuggestion(id: string): Promise<void>;
-  // DreamPurgePreview 预览「清理自动做梦直写」：auto_dream 审计记录过且当前
-  // 仍存在的事实名（用户确认后交 DreamPurge 批量删除）。
-  DreamPurgePreview(): Promise<string[]>;
-  // DreamPurge 批量删除自动做梦直写过的事实（仅限预览交集），返回删除条数。
-  DreamPurge(names: string[]): Promise<number>;
 }

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, RefreshCw, Search } from "../icons";
 import { app } from "../lib/bridge";
 import { WenxueHubFrame } from "./WenxueHubFrame";
+import { AIFeedbackSection } from "./AIFeedbackSection";
 import type { MemoryView, WenxueMemoryArchivedView } from "../lib/types";
 
 const FACT_TYPE_LABEL: Record<string, string> = {
@@ -375,6 +376,13 @@ export function WenxueMemoryPanel() {
               )}
             </div>
           )}
+        </div>
+
+        {/* AI 反馈（2026-11-20）：ai_feedback 工具收集的模型侧反馈，全局库
+            （办公/图文面板同源展示）；查看/删除/勾选导出 md。 */}
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-fg-faint">AI 反馈</div>
+          <AIFeedbackSection active />
         </div>
 
         {view?.storeDir && (

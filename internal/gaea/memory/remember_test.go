@@ -71,8 +71,8 @@ func TestRememberToolQueuesNote(t *testing.T) {
 func TestRememberDescriptionConsentGate(t *testing.T) {
 	desc := rememberTool{}.Description()
 	for _, sub := range []string{
-		"Only call this when the user explicitly asks you to remember",
-		"do not proactively save",
+		"When you learn something worth keeping long-term, call this proactively",
+		"Do not log transient state",
 	} {
 		if !strings.Contains(desc, sub) {
 			t.Errorf("remember 描述缺确认制锚 %q", sub)

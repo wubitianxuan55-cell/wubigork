@@ -1,8 +1,9 @@
-// useGSAPCollapse — rAF 冻结兜底回归（2026-11-20 实弹）：窗口隐藏态的
-// open 翻转必须直接落终值（不起 tween）；隐藏瞬间在途态吸附到目标高度。
-import { cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// useGSAPCollapse — rAF 冻结兜底回归（2026-11-20 实弹）：窗口隐藏/失焦态的
+// open 翻转必须直接落终值；遮挡返回、焦点回收与 watchdog 都不能留下半开卡。
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
+import gsap from "gsap";
 import { useGSAPCollapse } from "./useGSAPCollapse";
 
 function Harness({ initial = false }: { initial?: boolean }) {
@@ -31,6 +32,8 @@ const fireVisibility = (hidden: boolean) => {
 describe("useGSAPCollapse rAF 冻结兜底", () => {
   afterEach(() => {
     setHidden(false);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     cleanup();
   });
 
@@ -63,5 +66,41 @@ describe("useGSAPCollapse rAF 冻结兜底", () => {
     wrap.style.height = "150px"; // 冻结中间态
     fireVisibility(true);
     expect(wrap.style.height).toBe("auto");
+  });
+
+  it("WebView 仅失焦时翻转：不等待 rAF，直接落终值", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    const { container } = render(<Harness />);
+    const wrap = container.firstElementChild!.firstElementChild as HTMLElement;
+    const toggle = container.querySelector("button")!;
+    expect(wrap.style.height).toBe("0px");
+    fireEvent.click(toggle);
+    expect(wrap.style.height).toBe("auto");
+    fireEvent.click(toggle);
+    expect(wrap.style.height).toBe("0px");
+  });
+
+  it("返回办公窗口 focus：在途半开 tween 吸附到关闭终值", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const { container } = render(<Harness initial={true} />);
+    const wrap = container.firstElementChild!.firstElementChild as HTMLElement;
+    fireEvent.click(container.querySelector("button")!);
+    wrap.style.height = "173px"; // rAF 冻结中间态
+    fireEvent(window, new Event("focus"));
+    expect(wrap.style.height).toBe("0px");
+  });
+
+  it("tween 永不推进：watchdog 在动画预算后强制落到关闭终值", () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    vi.spyOn(gsap, "fromTo").mockImplementation(
+      () => ({}) as unknown as ReturnType<typeof gsap.fromTo>,
+    );
+    const { container } = render(<Harness initial={true} />);
+    const wrap = container.firstElementChild!.firstElementChild as HTMLElement;
+    fireEvent.click(container.querySelector("button")!);
+    wrap.style.height = "211px";
+    act(() => vi.advanceTimersByTime(400));
+    expect(wrap.style.height).toBe("0px");
   });
 });

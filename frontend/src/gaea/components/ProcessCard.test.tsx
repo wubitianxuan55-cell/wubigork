@@ -58,6 +58,52 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
     expect(view.container.querySelectorAll("[data-testid=\"process-recent-preview\"] .office-process-card__recent-row")).toHaveLength(2);
   });
 
+  it("run_skill 运行至回执不会撑开折叠正文（最近预览不与正文同屏）", () => {
+    const reasoning: Item = {
+      kind: "assistant",
+      id: "a-run-skill",
+      text: "",
+      reasoning: "按技能核对交付格式",
+      streaming: false,
+    };
+    const runSkill = (status: "running" | "done", output = ""): Item => ({
+      kind: "tool",
+      id: "t-run-skill",
+      name: "run_skill",
+      args: '{"name":"docx","arguments":"核对格式"}',
+      readOnly: false,
+      status,
+      output,
+    } as Item);
+    const card = (running: boolean, tool: Item) => wrap(
+      <ProcessCard
+        items={[reasoning, tool]}
+        toolCount={1}
+        thoughtCount={1}
+        small
+        running={running}
+        subcallsByParent={noSubcalls}
+      />,
+    );
+
+    const view = render(card(true, runSkill("running")));
+    const header = view.container.querySelector("button[aria-expanded]")!;
+    const body = document.getElementById(header.getAttribute("aria-controls")!);
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(view.container.querySelector("[data-testid=\"process-recent-preview\"]")).not.toBeNull();
+    expect(body?.style.height).toBe("0px");
+
+    // run_skill inline 回执落地只更新尾部内容；折叠状态与正文 0 高度必须保持，
+    // 否则折叠尾巴会和完整过程正文同时出现。
+    if (body) body.style.height = "auto"; // 模拟遮挡期遗留的半开/自动高度
+    view.rerender(card(false, runSkill("done", "技能完整正文".repeat(200))));
+    const headerDone = view.container.querySelector("button[aria-expanded]")!;
+    const bodyDone = document.getElementById(headerDone.getAttribute("aria-controls")!);
+    expect(headerDone.getAttribute("aria-expanded")).toBe("false");
+    expect(view.container.querySelector("[data-testid=\"process-recent-preview\"]")).toBeNull();
+    expect(bodyDone?.style.height).toBe("0px");
+  });
+
   it("思考卡运行中仍默认折叠，点击后才展开", () => {
     const items: Item[] = [
       { kind: "assistant", id: "a-live", text: "", reasoning: "正在核对数据", streaming: true },
