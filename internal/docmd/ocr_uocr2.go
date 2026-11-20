@@ -255,7 +255,10 @@ func buildUocr2LlamaServerCmd() (*exec.Cmd, *os.File, bool) {
 	if mmproj == "" {
 		mmproj = "mmproj-uocr2-F16.gguf"
 	}
-	exe := filepath.Join(dir, "bin", "llama-server.exe")
+	// OCR 专用构建钉点：unlimited-ocr2 是自定义架构，mainline llama.cpp 不认识
+	// （2026-11-11 bin/ 被 llama.cpp 更新机制换成 mainline 即崩，日志留档）。
+	// bin/ 归 qwen35 自管引擎（更新追踪），OCR 恒用 bin-ocr-0.8.0-dev。
+	exe := filepath.Join(dir, "bin-ocr-0.8.0-dev", "llama-server.exe")
 	modelPath := filepath.Join(dir, model)
 	mmprojPath := filepath.Join(dir, mmproj)
 	for _, p := range []string{exe, modelPath, mmprojPath} {
