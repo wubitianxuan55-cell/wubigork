@@ -94,6 +94,18 @@ var RegistryMap = map[string]RegistryEntry{
 	"cost_indicators":    {"builtin-domain", "work", "read", "none", "指标与 SchemaV34 快照一致"},
 	"cost_save":          {"builtin-domain", "work", "write", "none", "PersistWrite：库写入可查"},
 	"cost_search":        {"builtin-domain", "work", "read", "none", "检索命中与库一致"},
+	// 运行模式专用面五件（2026-11-21 众神殿 pan_1795202763988 终案，app 层
+	// gaeaExtraTools 装配）：造价三件锚 workcost 权威面（costproject 遗留面
+	// 不接）；方案两件清单机检/组装交付。模式可见性=boot.Options.ToolHide
+	// 按档收放（standard 全藏/cost 藏方案族/proposal 藏造价族），不影响本表
+	// 空间域契约。cost_audit 只读机检；cost_project_apply PersistWrite 整件
+	// 过滤子代理。
+	"cost_project":       {"builtin-domain", "work", "read", "none", "读回与 workcost 库一致"},
+	"cost_project_apply": {"builtin-domain", "work", "write", "none", "PersistWrite：workcost 写入可查，同批编码唯一写前闸"},
+	"cost_audit":         {"builtin-domain", "work", "read", "none", "硬检可复算（库读口同源）；信息项不混 HardCount"},
+	"longdoc_manifest":   {"builtin-domain", "work", "write", "none", "机检可复算（确定性判定）；清单=唯一事实源"},
+	"longdoc_build":      {"builtin-domain", "work", "write", "none", "声明路径=实际落点；机检 0 硬伤才组装；sha256 可复算"},
+	"longdoc_verify":     {"builtin-domain", "work", "read", "none", "只读确定性四门（章/跨/册/判色）；验证体系工具化（2026-11-21 复盘收编）"},
 	"genui_validate":     {"builtin-domain", "shared", "read", "none", "校验结论与产物一致"},
 	"knowledge_add":      {"builtin-domain", "work", "write", "none", "PersistWrite：知识库写入可查"},
 	"knowledge_search":   {"builtin-domain", "work", "read", "none", "召回与库一致"},

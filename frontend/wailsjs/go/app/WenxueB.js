@@ -426,6 +426,10 @@ export function WenxueSwitchWorkspace(arg1) {
   return window['go']['app']['WenxueB']['WenxueSwitchWorkspace'](arg1);
 }
 
+export function WenxueToolSurface() {
+  return window['go']['app']['WenxueB']['WenxueToolSurface']();
+}
+
 export function WenxueTrajectory(arg1) {
   return window['go']['app']['WenxueB']['WenxueTrajectory'](arg1);
 }

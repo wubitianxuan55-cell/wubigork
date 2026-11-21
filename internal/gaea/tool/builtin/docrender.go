@@ -86,7 +86,7 @@ func (d docRender) Execute(ctx context.Context, args json.RawMessage) (string, e
 	}
 	raw, err := os.ReadFile(src)
 	if err != nil {
-		return "", fmt.Errorf("读取文档失败: %w", err)
+		return "", fmt.Errorf("读取文档失败: %w%s", err, posixStylePathHint(p.Path))
 	}
 	rev := anchor.Rev1(raw)
 
@@ -150,12 +150,21 @@ func (d docRender) Execute(ctx context.Context, args json.RawMessage) (string, e
 		total = len(pngs)
 	}
 	resp := map[string]any{
-		"pdf":    pdfPath,
-		"rev":    rev,
-		"dpi":    dpi,
-		"pages":  pngs,
-		"count":  len(pngs),
-		"vision": "用 vision 工具读取以上 PNG（image_path 逐张）",
+		"pdf":   pdfPath,
+		"rev":   rev,
+		"dpi":   dpi,
+		"count": len(pngs),
+	}
+	// 回执瘦身（2026-11-21 复盘 B8：未传 pages 的 195 页方案一次回近 200 条
+	// 路径刷屏）。全档渲染且页数>8 只列首尾页+目录；指定 pages=有意逐页，
+	// 全列不变。
+	if first == 0 && len(pngs) > 8 {
+		resp["pages"] = []string{pngs[0], pngs[len(pngs)-1]}
+		resp["pages_dir"] = pagesDir
+		resp["vision"] = fmt.Sprintf("全档 %d 页已渲染，此处只列首尾页；全部页图在 pages_dir（pdftoppm 命名 page-N.png，位数随总页数补零，先列目录取名）。逐页核对按序 vision", len(pngs))
+	} else {
+		resp["pages"] = pngs
+		resp["vision"] = "用 vision 工具读取以上 PNG（image_path 逐张）"
 	}
 	if total > 0 {
 		resp["total_pages"] = total

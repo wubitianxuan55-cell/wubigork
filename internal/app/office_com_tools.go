@@ -1115,7 +1115,8 @@ func (officeComSaveTool) ReadOnly() bool { return false }
 
 func (officeComSaveTool) Description() string {
 	return "保存打开中的文档到磁盘；给出 path 时另存为（扩展名 .pdf 导出 PDF 且原文档不动，其他扩展名=文档从此就是那个文件）。" +
-		"AI 的修改只在 office_save 时写入文件，不会替用户关闭文档。保存 Word 文档前会自动做一次排版补空（fill_gaps：图表移页留下的页尾空白把正文提上来填满）。" +
+		"AI 的修改只在 office_save 时写入文件，不会替用户关闭文档。" +
+		"排版补空（fill_gaps）改为显式参数：默认不补——补空会改变分页、让刚刷新的目录页码失效（复盘 A8：保存即隐式重排，页数四次读数不收敛）；确需补空先 office_edit [{op:fill_gaps}] → update_fields → 再保存，顺序不可反。" +
 		"保存后建议 office_render {overview:true} 总览核对再交付。落盘后自动登记证据卡（仅可复核，无基线快照——保存后没有跨会话回滚）。"
 }
 
@@ -1125,7 +1126,8 @@ func (officeComSaveTool) Schema() json.RawMessage {
   "properties":{
     "doc":{"type":"string","description":"文档路径或窗口名。路径须在工作区内（越界会被拒绝）；缺省=最近 open/read/edit 过的文档"},
     "app":{"type":"string","enum":["word","excel","ppt"],"description":"仅在 doc 无扩展名时需要"},
-    "path":{"type":"string","description":"另存为路径（工作区相对或绝对）；省略=原地保存"}
+    "path":{"type":"string","description":"另存为路径（工作区相对或绝对）；省略=原地保存"},
+    "fill_gaps":{"type":"boolean","description":"保存前排版补空（默认 false 不补——补空改变分页会让目录页码失效；需补空时正确顺序：office_edit fill_gaps → update_fields → 本工具保存）"}
   }
 }`)
 }
@@ -1171,9 +1173,10 @@ func (t officeComSaveTool) WritePaths(args json.RawMessage) ([]string, error) {
 
 func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
-		Doc  string `json:"doc"`
-		App  string `json:"app"`
-		Path string `json:"path"`
+		Doc      string `json:"doc"`
+		App      string `json:"app"`
+		Path     string `json:"path"`
+		FillGaps bool   `json:"fill_gaps"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("office_save 参数解析失败: %w", err)
@@ -1189,10 +1192,10 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 	if err != nil {
 		return "", err
 	}
-	// Word 保存前的排版补空（上游 fill_gaps pre-save pass；失败不拦保存；
-	// 导出 PDF 跳过——那是导出不是整理）。
+	// Word 保存前的排版补空（复盘 A8 改显式：默认关。隐式补空让保存本身成为
+	// 重排触发点——目录页码反复失效、页数无法收敛；导出 PDF 恒不补）。
 	tidy := ""
-	if kind == "word" && (absSavePath == "" || !strings.EqualFold(filepath.Ext(absSavePath), ".pdf")) {
+	if in.FillGaps && kind == "word" && (absSavePath == "" || !strings.EqualFold(filepath.Ext(absSavePath), ".pdf")) {
 		gapArgs := map[string]any{"app": kind, "ops": json.RawMessage(`[{"op":"fill_gaps"}]`)}
 		if targetDoc != "" && officeComAbsRe.MatchString(targetDoc) {
 			gapArgs["doc"] = targetDoc
@@ -1211,8 +1214,21 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 	if absSavePath != "" {
 		saveArgs["path"] = absSavePath
 	}
+	// 复盘 B12：helper 进程退出时报「请重试」，但保存可能已完成（回执行丢失、
+	// 文件时间戳已更新）。先记录调用窗口，失败时探测落盘时间戳——窗口内更新
+	// 过=大概率已存，如实报「已存待复核」，不盲重试。
+	saveStart := time.Now()
 	raw, err := officeCom.call(ctx, "save", saveArgs, officeComTimeoutSave)
 	if err != nil {
+		probe := absSavePath
+		if probe == "" && targetDoc != "" && officeComAbsRe.MatchString(targetDoc) {
+			probe = targetDoc
+		}
+		if probe != "" {
+			if fi, serr := os.Stat(probe); serr == nil && fi.Size() > 0 && fi.ModTime().After(saveStart) {
+				return fmt.Sprintf("保存调用的 helper 回执丢失（%v），但落盘探测显示 %s 已在本次调用窗口内更新（%d bytes，%s）——大概率已保存成功。用 office_render 或 office_status 复核；确认前不要重试保存（重复保存无害但会搅乱时间戳口径）。", err, probe, fi.Size(), fi.ModTime().Format("15:04:05")), nil
+			}
+		}
 		return "", err
 	}
 	var saved struct {

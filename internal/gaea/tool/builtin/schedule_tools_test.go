@@ -612,3 +612,57 @@ func TestScheduleGetCarriesViews(t *testing.T) {
 		t.Fatalf("无视图不应出 views 键: %s", out2)
 	}
 }
+
+// 2026-11-21 方案模式复盘 A4/A5/B1/B4：结构化反序列化会静默吞掉错位字段，
+// 预检在吞字段之前点名错法并给正解。
+func TestSchedulePreScanRawRejectsMisplacedFields(t *testing.T) {
+	cases := []struct {
+		name string
+		args string
+		want string
+	}{
+		{"task 内 links", `{"project":{"name":"P","tasks":[{"id":"A1","name":"x","level":1,"duration":2,"links":[{"from":"A0","to":"A1"}]}],"links":[]}}`, "project 顶层"},
+		{"workweek 传 7", `{"project":{"name":"P","tasks":[],"links":[],"calendar":{"workweek":[1,2,3,4,5,6,7]}}}`, "0-6"},
+		{"op 字段名", `{"ops":[{"op":"patch_task","id":"A1","patch":{"duration":3}}]}`, "type 不是 op"},
+		{"缺 type", `{"ops":[{"id":"A1"}]}`, "缺少 type"},
+		{"set_links 写 taskId", `{"ops":[{"type":"set_links","taskId":"B6","links":[]}]}`, "toId 不是 taskId"},
+		{"set_meta workweek 越界", `{"ops":[{"type":"set_meta","calendar":{"workweek":[0,1,7]}}]}`, "0-6"},
+	}
+	for _, c := range cases {
+		err := schedulePreScanRaw(json.RawMessage(c.args))
+		if err == nil {
+			t.Errorf("%s：应拒绝（复盘静默丢弃面）", c.name)
+			continue
+		}
+		if !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s：错误应含 %q，got %v", c.name, c.want, err)
+		}
+	}
+	// 合法载荷放行（七天连续=[0..6]）。
+	if err := schedulePreScanRaw(json.RawMessage(`{"project":{"name":"P","tasks":[],"links":[],"calendar":{"workweek":[0,1,2,3,4,5,6]}}}`)); err != nil {
+		t.Fatalf("合法 workweek [0..6] 不应拒绝: %v", err)
+	}
+	if err := schedulePreScanRaw(json.RawMessage(`{"ops":[{"type":"patch_task","id":"A10","patch":{"duration":15}}]}`)); err != nil {
+		t.Fatalf("合法 ops 不应拒绝: %v", err)
+	}
+}
+
+// B7：无前置发现点名到任务；cdTasks 无 cd 任务出 [] 不出 null。
+func TestScheduleAnalyzeNamesNoPredAndCdTasksEmptyArray(t *testing.T) {
+	dir := t.TempDir()
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01","tasks":[
+		{"id":"a","name":"A","level":1,"duration":2},
+		{"id":"b","name":"场地平整","level":1,"duration":2},
+		{"id":"c","name":"C","level":1,"duration":2}],
+		"links":[{"from":"a","to":"c","type":"FS","lag":0}]}}`)
+	ana, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("analyze: %v", err)
+	}
+	if !strings.Contains(ana, "1 个任务无前置搭接：场地平整(b)") {
+		t.Fatalf("无前置发现应点名任务（B7）：%s", ana)
+	}
+	if !strings.Contains(ana, `"cdTasks":[]`) {
+		t.Fatalf("cdTasks 空集应出 [] 不出 null（B7）：%s", ana)
+	}
+}

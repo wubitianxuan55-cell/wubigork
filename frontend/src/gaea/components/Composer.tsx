@@ -9,6 +9,7 @@ import { applyTableConversion, detectTableBlock } from "../lib/tableData";
 import { useComposerInsertStore } from "../lib/store";
 import { app as defaultApp } from "../lib/bridge";
 import type { ComposerBridge } from "../lib/composerBridge";
+import type { OfficeRunModeViewB } from "../lib/bridge/model";
 import { getComposerDraft, saveComposerDraft } from "../../lib/composerDrafts";
 import { SlashMenu } from "./SlashMenu";
 import { ArgMenu } from "./ArgMenu";
@@ -70,13 +71,17 @@ export interface ComposerProps {
   onSteer?: (text: string) => void;
   onCancel: () => string | undefined; permLevel?: string; onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void;
   thinkLevel?: string; onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void;
+  /** 办公运行模式（2026-11-21 众神殿终案）：视图快照+选档回调。锁定（会话已有
+   *  内容/回合运行中）=只显当前档；解锁（新会话未发消息）=三态可选即定档。 */
+  runMode?: OfficeRunModeViewB | null; onSetRunMode?: (mode: string) => void;
+  runModeLocked?: boolean;
   /** 计划模式（v4.420）：状态由 App 层从计划回执推导，点击走动词链 */
   planActive?: boolean; onTogglePlan?: () => void;
   /** 会话上下文使用状态；由宿主注入，统一落在输入卡底部工具栏内。 */
   contextStatus?: ReactNode;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
-  /** 打开办公工具面板（CAD 图纸/进度计划）；2026-11-14 起两者为右栏一级 Tab。 */
-  onOpenTool?: (tool: "cad" | "schedule") => void;
+  /** 打开工具面板（右栏一级 Tab 快捷入口）；候选按 variant 派生。 */
+  onOpenTool?: (tool: string) => void;
   /** 卸载时队列未清空（宿主用 key 重挂 = 队列被静默丢弃）——如实上报条数，
    *  宿主可提示「排队 N 条已随切换清空」。可选；办公场景不传零影响。 */
   onQueueDrop?: (count: number) => void;
@@ -88,7 +93,7 @@ export interface ComposerProps {
 }
 
 export function Composer({
-  running, cwd, sessionKey, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus, placeholderOverride,
+  running, cwd, sessionKey, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, runMode, onSetRunMode, runModeLocked, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop, onOpenTool, contextStatus, placeholderOverride,
   variant = "office", bridge: bridgeOverride, insertStore, filterCommand,
 }: ComposerProps) {
   const bridge = bridgeOverride ?? defaultApp;
@@ -606,10 +611,14 @@ export function Composer({
           onScreenshot={() => void handleScreenshot()}
           onRecordSkill={() => setRecordOpen(true)}
           onOpenTool={onOpenTool}
+          variant={variant}
           permLevel={permLevel}
           onSetPermLevel={onSetPermLevel}
           thinkLevel={thinkLevel}
           onSetThinkLevel={onSetThinkLevel}
+          runMode={runMode}
+          onSetRunMode={onSetRunMode}
+          runModeLocked={runModeLocked}
           planActive={planActive}
           onTogglePlan={onTogglePlan}
           contextStatus={contextStatus}

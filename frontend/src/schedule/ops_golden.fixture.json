@@ -870,7 +870,7 @@
           "id": "A"
         }
       ],
-      "error": "第 1 条操作失败：patch_task 未提供任何字段"
+      "error": "第 1 条操作失败：patch_task 未提供任何字段——可改字段须嵌套在 patch 内：{\"type\":\"patch_task\",\"id\":\"A10\",\"patch\":{\"duration\":15}}（平铺在顶层会被忽略）"
     },
     {
       "name": "patch 任务不存在",
@@ -1317,7 +1317,7 @@
           "id": "A"
         }
       ],
-      "error": "第 1 条操作失败：patch_task 未提供任何字段"
+      "error": "第 1 条操作失败：patch_task 未提供任何字段——可改字段须嵌套在 patch 内：{\"type\":\"patch_task\",\"id\":\"A10\",\"patch\":{\"duration\":15}}（平铺在顶层会被忽略）"
     },
     {
       "name": "patch cd 分组行拒绝",
@@ -4426,7 +4426,7 @@
           "type": "nope"
         }
       ],
-      "error": "第 1 条操作失败：不支持的操作类型：nope"
+      "error": "第 1 条操作失败：不支持的操作类型：nope（可用：auto_chain、clear_baseline、patch_resource、patch_task、remove_resource、remove_task、set_assignments、set_baseline、set_links、set_meta、upsert_resource、upsert_task；注意类型字段名是 type；日历改走 set_meta 的 calendar，无 set_calendar）"
     },
     {
       "name": "多 op 中途失败（半途状态不外泄）",

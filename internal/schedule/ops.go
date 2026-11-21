@@ -10,6 +10,7 @@ package schedule
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 )
 
@@ -122,12 +123,18 @@ var opHandlers = map[string]func(p *Project, op Op) (string, error){
 	"set_assignments": applySetAssignments,
 }
 
-// applyOne 逐条分派；未知类型 fail-closed（与拆分前 default 分支同文案）。
+// applyOne 逐条分派；未知类型 fail-closed（与拆分前 default 分支同文案；
+// 2026-11-21 复盘 B1/B2：回显补可用类型清单，不再只报空串让模型猜）。
 func applyOne(p *Project, op Op) (string, error) {
 	if h, ok := opHandlers[op.Type]; ok {
 		return h(p, op)
 	}
-	return "", fmt.Errorf("不支持的操作类型：%s", op.Type)
+	types := make([]string, 0, len(opHandlers))
+	for t := range opHandlers {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	return "", fmt.Errorf("不支持的操作类型：%s（可用：%s；注意类型字段名是 type；日历改走 set_meta 的 calendar，无 set_calendar）", op.Type, strings.Join(types, "、"))
 }
 
 func applyUpsertTask(p *Project, op Op) (string, error) {
@@ -293,7 +300,7 @@ func applyPatchTask(p *Project, op Op) (string, error) {
 		}
 	}
 	if len(changes) == 0 {
-		return "", fmt.Errorf("patch_task 未提供任何字段")
+		return "", fmt.Errorf("patch_task 未提供任何字段——可改字段须嵌套在 patch 内：{\"type\":\"patch_task\",\"id\":\"A10\",\"patch\":{\"duration\":15}}（平铺在顶层会被忽略）")
 	}
 	return fmt.Sprintf("调整「%s」：%s", t.Name, strings.Join(changes, "、")), nil
 }

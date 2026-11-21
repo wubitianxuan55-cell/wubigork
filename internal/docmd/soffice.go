@@ -119,7 +119,10 @@ func RunProcess(exe string, args []string, timeoutSec int) error {
 	case err := <-done:
 		if err != nil {
 			if _, ok := err.(*exec.ExitError); ok {
-				return fmt.Errorf("%v（%s）", err, truncateFor(stderr.String(), 1500))
+				// stderr 压成单行（2026-11-21 复盘 A2：多行 traceback 会被下游
+				// 按首行截断，错误只剩「Traceback (most recent call last):」冒号后
+				// 无下文——单行化让真正的失败原因留在首行内）。
+				return fmt.Errorf("%v（%s）", err, truncateFor(oneline(stderr.String()), 1500))
 			}
 			return err
 		}
@@ -129,6 +132,11 @@ func RunProcess(exe string, args []string, timeoutSec int) error {
 		<-done
 		return fmt.Errorf("超时（%d 秒）", timeoutSec)
 	}
+}
+
+// oneline 把多行输出压成单行（任意空白串折叠为单个空格）。
+func oneline(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func truncateFor(s string, n int) string {

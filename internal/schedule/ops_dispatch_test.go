@@ -55,11 +55,17 @@ func extraKeys() []string {
 	return out
 }
 
-// TestApplyOneUnknownTypeFailsClosed 未知类型 fail-closed（拆分前 default
-// 分支同文案，ops_golden fixture「未知操作类型」用例同口径的本地图钉）。
+// TestApplyOneUnknownTypeFailsClosed 未知类型 fail-closed（ops_golden fixture
+//「未知操作类型」用例同口径的本地图钉；2026-11-21 复盘 B1/B2：文案补可用类型
+// 清单与 set_calendar 指引）。
 func TestApplyOneUnknownTypeFailsClosed(t *testing.T) {
 	p := Project{}
-	if _, err := applyOne(&p, Op{Type: "nope"}); err == nil || err.Error() != "不支持的操作类型：nope" {
-		t.Fatalf("未知类型应拒绝且文案逐字一致，got=%v", err)
+	_, err := applyOne(&p, Op{Type: "nope"})
+	if err == nil {
+		t.Fatal("未知类型应拒绝")
+	}
+	want := "不支持的操作类型：nope（可用：auto_chain、clear_baseline、patch_resource、patch_task、remove_resource、remove_task、set_assignments、set_baseline、set_links、set_meta、upsert_resource、upsert_task；注意类型字段名是 type；日历改走 set_meta 的 calendar，无 set_calendar）"
+	if err.Error() != want {
+		t.Fatalf("未知类型文案逐字一致，got=%v", err)
 	}
 }

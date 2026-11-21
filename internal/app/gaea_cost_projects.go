@@ -1,5 +1,11 @@
 // 测算项目与沉淀闭环（zaojia-database 蒸馏：我的项目/工程量清单/版本留痕 →
 // 沉淀回成本库）。绑定门面 CostB（gen_bindings 按 GaeaCost* 前缀自动归入）。
+//
+// ⚠️ 遗留面（2026-11-21 众神殿 pan_1795202763988 终案 ZCode-r3 派工）：本文件
+// 是 costproject 蒸馏旧面（数量×单价单层表，无定额引用/无费率字段）——**新
+// agent 工具勿接本面**，造价专用工具（cost_project/cost_project_apply/
+// cost_audit）一律锚 workcost 工料机权威面（活重算链，用户定调）。绑定仍活
+// （UI 造价页消费），agent 面退役评估另立台账。
 package app
 
 import (

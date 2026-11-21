@@ -38,6 +38,9 @@ export const GAEA_METHOD_FACETS = {
   WenxueListWorkspaces: "work",
   WenxueMeta: "work",
   WenxueNewSession: "work",
+  // 能力面板装配面（2026-11-21 面板缝）：只读引擎面查询，同面板族 → work
+  //（面板服务图文引擎语境）。
+  WenxueToolSurface: "work",
   WenxueSwitchWorkspace: "work",
   // 编程板块：隔离 DSH Web 进程管理仅由 independent 入口消费。
   GetProgrammingWebPreflight: "independent",

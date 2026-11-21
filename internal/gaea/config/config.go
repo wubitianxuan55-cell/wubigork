@@ -15,6 +15,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/netclient"
 )
@@ -67,6 +68,96 @@ type Config struct {
 	// office_com_tools.go 顶部的开关上收为 [office_com] 设置段）。零值/缺段 =
 	// 上游 DEFAULTS 口径（见 OfficeComNormalized）。
 	OfficeCom OfficeComConfig `toml:"office_com"`
+	// Office 是办公板块运行模式配置（2026-11-21 众神殿 pan_1795202763988 终案）：
+	// [office] run_mode = "standard"|"cost"|"proposal"。零值/缺段/非法值 =
+	// standard（现状逐字节）。语义=默认档位登记：新会话（含建会话时的引擎
+	// 重建）按它装配工具面/技能面/L1 模式行；当前会话不中途切换（DSH 同构）。
+	Office OfficeConfig `toml:"office"`
+}
+
+// OfficeConfig 是办公板块运行模式设置段（[office]）。run_mode 三档：
+//   - standard：通用办公（默认）。专用面（造价 cost_*/cost_project*/cost_audit、
+//     方案 longdoc_*）装配后 Registry.Hide——schema 不可见、协议层按名可调。
+//   - cost：标准全量 + 造价专用工具 + 造价技能 extras。
+//   - proposal：标准全量 + 长文方案专用工具 + 方案技能 extras。
+//
+// 组合表在 app 层 office_runmode.go（名单随工具面演进）；boot 只收
+// ToolHide/ModeLine/SkillExtras 三条通用缝，不认识档名。
+type OfficeConfig struct {
+	RunMode string `toml:"run_mode"` // standard | cost | proposal（空=standard）
+	// ToolFace 是工具面双轴的第二轴（2026-11-21 众神殿 pan_1795224680124 终案）：
+	//   lean     精简（新建会话默认）：另关 browser(12)+COM(10)+cad+schedule
+	//   standard 标准（一键回退）：browser 开、产图开、COM 跟随本机；CAD/进度仍关
+	// 非法值/空 = lean（用户拍板：新建会话默认精简）。
+	ToolFace string `toml:"tool_face"`
+	// ToolGroups 是组级覆盖（[office.tool_groups]）：group_id = true|false。
+	// 键必须是 tool.ToolGroups() 在册组；未知组在归一层丢弃（fail-closed）。
+	// 改动=登记默认值，新会话生效（会话创建时定面，不中途切）。
+	ToolGroups map[string]bool `toml:"tool_groups"`
+	// SystemPromptCost / SystemPromptProposal 是造价/方案模式的专属身份提示词
+	// （2026-11-21 用户拍板「参照标准模式配专属系统提示词」，wenxue_system_prompt
+	// 同构）：非空顶替内置默认作为该档 L1 基底；空=内置默认（app 层
+	// officeModeSystemPrompt 解析）。standard 档不吃这两键（沿用全局
+	// agent.system_prompt 现状）。
+	SystemPromptCost     string `toml:"system_prompt_cost"`
+	SystemPromptProposal string `toml:"system_prompt_proposal"`
+}
+
+// OfficeModeSystemPromptConfigured 返回模式专属提示词的配置值（""=未配置，
+// app 层落内置默认；standard 恒 ""）。mode 须已归一（cost|proposal）。
+func (c *Config) OfficeModeSystemPromptConfigured(mode string) string {
+	if c == nil {
+		return ""
+	}
+	switch mode {
+	case "cost":
+		return strings.TrimSpace(c.Office.SystemPromptCost)
+	case "proposal":
+		return strings.TrimSpace(c.Office.SystemPromptProposal)
+	default:
+		return ""
+	}
+}
+
+// OfficeRunMode 返回运行模式生效值（nil 安全 + 非法值归一 standard，惯例同
+// OfficeComNormalized 的取值点而非改写配置）。
+func (c *Config) OfficeRunMode() string {
+	if c == nil {
+		return "standard"
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Office.RunMode)) {
+	case "cost", "proposal":
+		return strings.ToLower(strings.TrimSpace(c.Office.RunMode))
+	default:
+		return "standard"
+	}
+}
+
+// OfficeToolFace 返回工具面生效值（nil 安全 + 非法值归一 lean——用户拍板
+// 新建会话默认精简）。
+func (c *Config) OfficeToolFace() string {
+	if c == nil {
+		return "lean"
+	}
+	if strings.EqualFold(strings.TrimSpace(c.Office.ToolFace), "standard") {
+		return "standard"
+	}
+	return "lean"
+}
+
+// OfficeToolGroupOverrides 返回组覆盖生效值（nil 安全 + 未知组丢弃 fail-closed
+// + 布尔原样透传；false=显式关，true=显式开，缺省=组默认）。
+func (c *Config) OfficeToolGroupOverrides() map[string]bool {
+	out := map[string]bool{}
+	if c == nil {
+		return out
+	}
+	for g, on := range c.Office.ToolGroups {
+		if tool.ValidToolGroup(tool.ToolGroupName(g)) {
+			out[g] = on
+		}
+	}
+	return out
 }
 
 // OfficeComConfig 是 COM 实时协同档的设置段（internal/app/office_com_tools.go

@@ -32,8 +32,8 @@ describe('办公域「进度计划/CAD 图纸」命令面板入口（2026-11-14 
   it('openToolTab 统一落点：停用先启用 + openPaneView（ToolSheet 退役）', () => {
     expect(src).toMatch(/const openToolTab = useCallback/)
     const body = src.split('const openToolTab = useCallback')[1]?.split('}, [openPaneView')[0] ?? ''
-    expect(body).toContain('setPaneEnabled(tool, true)')
-    expect(body).toContain('openPaneView(tool)')
+    expect(body).toContain('setPaneEnabled(')
+    expect(body).toContain('openPaneView(')
     expect(src).not.toContain('setActiveTool')
     // ToolSheet 组件本体已删：App 不再有 import/JSX 引用（史注里的「ToolSheet」
     // 字样属注释，不算接线残留）

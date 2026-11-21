@@ -1133,6 +1133,7 @@ export const en = {
   "composer.permAutoDesc": "Writes run without confirmation; deny rules still apply",
   "composer.permYoloDesc": "Skip all confirmation prompts",
   "composer.thinkLabel": "Thinking depth",
+  "composer.runModeLabel": "Run mode",
   "composer.thinkFast": "Fast",
   "composer.thinkFastDesc": "Thinking temp 0.1 — fast and direct, for simple tasks",
   "composer.thinkNormal": "Standard",

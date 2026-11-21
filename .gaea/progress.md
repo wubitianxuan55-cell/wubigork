@@ -6351,3 +6351,194 @@ procedural 保持自动注入（跨项目复用是特性），不砍，只做命
 - **包**：releases/gaea-20261121-57daf182/（exe 0e7cd2e2…+三 DLL 与上包同源+PACKAGE-INFO+SHA256SUMS；zip 34.3MB 留盘不入库）
 - **装机**：-SourceDir 显式包路径（反斜杠被 Git Bash 吃=已知坑，正斜杠过）PID 15800；装机位冒烟 200；装机 exe hash==包 exe hash 同源实锤
 - **worktree 回收**：本包树已删；codex/zcode 两分支树（2f173fdc/82d86f01）非本线不动
+
+## 工具面板按板块区分（2026-11-21，装机哈希见下）
+
+composer「工具」下拉候选按板块派生（不同面板工具不一样）：office=CAD 图纸/
+进度计划（现状不变）；wenxue=右栏 pane 全集（插图/文件/产物/浏览器/Git/
+GenUI——wenxue 无 cad/schedule 域，gallery 专属）。落点：ComposerToolbar
+variant prop+toolItems 派生（title 联动）→Composer 透传 variant→gaea App
+openToolTab 签名放宽 string（cast WorkspaceTabId，语义不变：停用先启用）→
+wenxue App 接 onOpenTool（openPaneView 直通，wenxue pane 全 defaultEnabled
+无需启用步骤）。此前该钮在 wenxue 渲染但置灰（wenxue App 未接 prop）——本刀
+接通。回归：ComposerToolbarTools.test 新 2 例（两板块菜单项互斥）+
+App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；前端全量 4615/4616
+（1 例 DatabaseLibrary 负载 flake 复跑 6/6 绿）；tsc 0。构建 34.3s 冒烟 200
+装机 INSTALL OK PID 56848。未提交。
+
+## 缓存命中率实测（2026-11-21，用户要求实测证据不信口头对齐）
+
+- **① 机制层 e2e**（internal/gaea/provider/bridge/cachehit_e2e_test.go 新增，
+  方法学=上游 Reasonix cachehit_e2e_test）：真实请求路径（bridge 转换+ai.
+  ChatRequest 序列化+AgentRunner 多轮+真实 Registry 工具）+规范序字节前缀模拟
+  DeepSeek 64-token 块缓存。结果：多轮无压缩 append-only 逐轮成立，命中率
+  96.7%→96.0%→97.4%→98.8%；system/tools 线上字节恒定；模拟压缩重写后前缀断
+  但 system+tools 键头存活（97.2% 仍命中）、下一轮 append-only 恢复。
+  **首版 mock 假红教训**：JSON 字段序 messages 在 tools 前，「追加消息」必破
+  JSON 字节前缀——服务端缓存键是规范序 token 流（system→tools→messages），
+  canonicalBytes 按规范序展开才是忠实模型。
+- **② 真 DeepSeek API 实测**（scripts/cache_probe_live.go 新增，build ignore；
+  key 经 config.Load()+secure.DecryptString 与 app 同链，不落盘；payload=
+  ai.ChatRequest marshal 同序列化+52 个真实 builtin schema+5.4KB system）：
+  轮 1 prompt=16258 写缓存（首跑 0 命中），轮 2 **99.8%**（hit=16256/16296）、
+  轮 3 **99.5%**；复跑（同前缀、TTL 内）轮 1 直接 **100%** 命中——跨次运行
+  同前缀也命中。
+- **结论**：会话内（无压缩）逐轮命中率 ≥96%（机制层）/≥99%（真 API），与上游
+  宣称口径同级；压缩重写=键头存活但尾部冷的形态被钉进回归。
+- **未覆盖面（诚实）**：真 API 上的压缩重写轮（仅机制层覆盖）；会话中途改设置
+  触发重建=冷启动的代价（结构性，非本测范围）。测试+探针未提交。
+
+## 2026-11-21 办公板块运行模式（众神殿终案施工）
+
+- **依据**：众神殿 pan_1795200544148（正议 5 轮）+ pan_1795202763988（续议 4 轮）四席+主席裁决链，
+  用户拍板三档同批；施工设计底稿 `进度计划/gaea-office-run-mode-design-20261121.md`（终案与该稿
+  分歧点：终案=标准档 Hide 专用面（收窄制）+ 造价/方案各带新工具新技能，非叠加制路 C1）。
+- **批1 模式机制**：`[office] run_mode` 配置键（config.OfficeRunMode 归一，非法值回 standard）+
+  app 层组合声明单表 `internal/app/office_runmode.go`（三档 {Hide 面, 技能 extras, L1 模式行}）+
+  boot 两条通用缝 `boot.Options.ToolHide`（装配终点 Registry.Hide：schema 不可见协议层按名可调）/
+  `boot.Options.ModeLine`（sysprompt 技能索引后追加，DSH-r5：Hide 与提示行必须同批防无声消失）+
+  应用语义 DSH 同构：GaeaSetOfficeRunMode 只登记默认档零重建，GaeaNewSession 判定配置档≠引擎档
+  （ga.runMode 由 gaeaBuildController 记录）先重建再建会话=「新会话生效、当前会话不中途切」。
+  绑定 GaeaSetOfficeRunMode/GaeaOfficeRunMode（含 hide/extras「查看配置」诚实面）；bindingNames 718。
+- **批2 造价三件**（internal/app/office_cost_tools.go，锚 workcost 权威面；costproject 遗留面标记 +
+  /cost-estimate 模板改写为 workcost 结构化链）：cost_project 只读读口（projects/items/quotas/quota/
+  resources）；cost_project_apply PersistWrite（create_project/update_rates/save_items，**写前全量校验
+  后写入**：同批编码唯一闸〔UNIQUE 同码走 UPDATE 会吞后行——落库后扫描扫不出，终案 Grok-r3 定罪〕+
+  工程量>0+定额存在性预检，悬空定额整批拒绝）；cost_audit 只读机检（四类硬检=missing_identity/
+  unpriced_line/dangling_quota/dangling_resource；费率≤0=显式不计取不报、>1 只 info、BillAuditScan
+  查漏+HealthScan 可选 info 永不进 HardCount；同码去重防双报——测试逮到真 bug 修掉）。
+- **批3 方案两件**（internal/app/office_longdoc_tools.go）：longdoc_manifest（清单 init/set/get/check +
+  七类确定性机检=缺章/空章/重复/悬空来源/未映射评分点/未闭合占位符/清单漂移〔正文首个一级标题≠清单
+  标题〕）；longdoc_build（构建前强制机检带硬伤拒组装=「清单漂移可检出」断言执行位 → 按清单序组装 →
+  复用 GaeaExportDeliverable 模板链 → SHA256 Go 自算入回执+Journal 证据卡；页数留给 doc_render）。
+- **批4 技能五件**（office_runmode_skills.go 内嵌正文，wenxue SkillExtras 先例；standard 不传=天然不可见）：
+  cost-estimation-playbook / soil-remediation-costing（种子自 skill-creator 迁出）｜proposal-longform /
+  proposal-review / soil-remediation-proposal；土壤修复只进技能正文不进模式维度（规范知识技能化红线），
+  法规限值与地方定额不写死查不到标缺。
+- **批5 UI**：参数弹出层第三组 chip（标准/造价/方案，title 带「查看配置」面=该档隐藏工具+追加技能）+
+  触发钮摘要非默认档显形、登记未生效挂「（新会话生效）」；App.tsx runMode 视图快照（新会话/重连重拉）；
+  spaceBindings 两行 shared； ComposerToolbarRunMode.test 3 例；三语 runModeLabel。
+- **批6 守卫矩阵与回归**：office_runmode_test.go 七例全绿（三档组合表/工具面对账〔Hide 名单全部真实
+  注册〕/配置归一双口径/写前同批编码闸一行不落/机检分级〔费率 0 与 −0.01 不报〕/longdoc 七类机检+
+  构建闸+md 组装）；registrymap 五契约行+spacetags 五行+文档重导（registry_map_doc -check OK）。
+  回归：app 全量 143s 绿、boot/tool/builtin/config 绿、前端 tsc 0+composer/bridge 52 例绿。
+- **未竟（台账）**：双门实跑（造价闭环 ≥20 条土壤修复明细 / 方案 ≥20 章 A/B 七指标三断言）挂用户实弹；
+  全量前端 vitest 与 ci.ps1 全门禁未跑（动刀面定向已绿）；**已装机**：wails build 34.8s → 冒烟 200（PID 42036 回收）→ gaea_install INSTALL OK，装机 exe sha256 57C1AC5DED5DB73C=build/bin 同源，PID 74656。
+
+- **追加批（同日）：能力面板「工具」tab 装配面活取**——用户实测办公/文学工具 tab 不全
+  （静态硬编码 38 名定格旧时点）。修=Registry.HiddenNames→Controller.ToolSurface
+  （name/description 模型可见口径/source/hidden）→GaeaToolSurface/WenxueToolSurface
+  两绑定；两板 ToolsSection 活取渲染（来源分组+「本档隐藏」灰显组+模式徽标+可见/总
+  计数），静态清单降级为引擎未就绪兜底；wenxue 树 bindingNames/legacyBindings/
+  AppBindings 三件套同批再生（legacy 算法内联重跑：720−477=243）；mock 四件空面+
+  signatures 再生。测试：前端 130 文件 1114 例+surface 3 例，Go tool/control+surface 2
+  例绿。**已装机**：npm build 27.2s+wails 重构建→冒烟 200→INSTALL OK，装机 exe sha256
+  994939EE10AA7D71，PID 17208。
+- **追加批 2（同日）：会话定档选择器**——新会话（未发消息）参数弹层三态可选、选档即定档
+  （登记默认档→档≠引擎档经 startNewSession 重建换新会话即刻生效）；运行后锁定只显当前档
+  徽标「X档+会话已定档：切档需新建会话」；触发钮摘要改按 active 显形（撤 pending 后缀）。
+  App runModeLocked={items>0||running} 管线三段；测试三钉全绿；npm 25.0s+wails→冒烟 200→
+  INSTALL OK，装机 exe sha256 B03E53D64CE1B7F9，PID 66652。
+## 2026-11-21 工具面双轴瘦身（众神殿 pan_1795223234328+pan_1795224680124 施工单）
+
+- 施工单 `进度计划/gaea-office-tool-face-plan-20261121.md`；用户拍板链：瘦身边线→双档终案→
+  **改排（CAD 并入造价、进度并入方案、标准档两族全关）**。
+- 落地：tool/toolgroups.go 组目录+三守卫；[office] tool_face=lean|standard（默认 lean）+
+  [office.tool_groups] 覆盖（未知组 fail-closed）；composeToolHide/composeModeLine/
+  officeRunModeSkillFilter 组合器（skillFilter={schedule-edit,cad-takeoff} 跟随最终启用组，
+  boot.SkillFilterKeepsInstall 保 install_skill）；装配消费+ga 三元组（runMode/toolFace/
+  groupSig）判面重建；绑定 GaeaToolFace/GaeaSetToolFace/GaeaSetToolGroup/GaeaResetToolGroups
+  （724 名）+ToolSurfaceEntry.Group；ToolsSection ToolFaceBar（预设钮+组开关+重置覆盖）+
+  精简/标准面徽标。
+- 矩阵：lean standard-run_mode 藏 35 名（cost7+longdoc2+cad1+schedule3+browser12+com10）；
+  standard 面恢复 browser/COM；CAD 随造价、进度随方案；media（产图四件）两档默认开。
+- 回归：app 全量 128.5s+tool/config/boot/control 绿；前端 tsc 0+129 文件 1108 例绿。
+- **已装机**：npm 24.6s+wails 31.1s→冒烟 200→INSTALL OK，装机 exe sha256 3435FBF42D4FDD43，PID 46592。
+- **追加批（同日第五批）：输入框拆分+computer 开关+功能分组**——①office 工具钮（CAD/进度）
+  删除（入口归运行模式+右栏 Tab，wenxue 保留）；「参数」合并弹层拆 权限/模式/思考 三独立钮
+  （单开控制，模式钮三档常驻显名）。②computer 组真开关：GaeaSetComputerUseEnabled 绑定+
+  ToolFaceGroupView.Gate+面板开关行（写 [computer_use].enabled 注册闸，Count 随启停 0/6）；
+  GaeaNewSession 判面扩四元组（+cuEnabled）。③工具面板按功能分组：groupSurface 重写
+  （配置组直显+core 语义小节+MCP 按服务器），弃装配来源分组。测试四文件更新，
+  129 文件 1108 例绿；绑定 725 名全链再生。**装机 exe sha256 31B742A759084FF4，PID 58344，
+  冒烟 200 INSTALL OK。**
+- **追加批（同日第六批）：造价/方案专属身份提示词**——`[office] system_prompt_cost/
+  system_prompt_proposal` 配置键（非空顶替）+内置默认稿（造价=workcost 数据面铁律+五步工作流
+  +编造禁令；方案=先清单后正文+七类机检+schedule 纪律+三查）；standard 恒空=现状逐字节；
+  boot.Options.SystemPrompt 既有覆写缝直用（wenxue 身份分板同构）。修 GaeaNewSession 判面在
+  ga.cfg=nil 测试路径的 nil 解引用（判面块整体 guard+字段访问判空）。TestOfficeModeSystemPrompt
+  守卫；app 全量 144.9s+config/boot 绿。**已装机**：npm 43.1s+wails 43.2s→冒烟 200→INSTALL OK，
+  装机 exe sha256 012F40329431D0D6，PID 40560。
+
+## 2026-11-21 方案模式实测复盘修复批（沿江1公里技术标 43 缺陷的工具侧收口）
+
+- 事实源：`D:\新工作\沿江一公里\南岸\本次会话缺陷与不足复盘.md`（43 条：A8/B15/C8/D12）；
+  本批收 A/B/C 工具侧全量，D 类（模型自误）不属工具面。
+- **刀1 导出链防删源（A1/A2）**：`gaea_export.go` exportDocx/exportPptx 中间文件改
+  `os.CreateTemp`（落输出同目录保相对图路径解析口径），不再写 `<输出stem>.md/.json`——
+  同 stem 覆写+删除源文件的路封死（源 md 丢失 11 次的根）；`docmd/soffice.go`
+  RunProcess stderr 单行化（traceback 多行被下游按首行截断→「冒号后无下文」）。
+- **刀2 create_docx.py 图片硬失败（A3）**：加载失败记账+main 硬闸 exit 2 零产出，
+  不再静默降级为「[图片加载失败]」占位文字；ok 回执增 images 数。实弹验证 exit=2 无产物。
+- **刀3 longdoc 图引面（A3/B9/C3）**：机检第八类 `image_missing`（整行图引按章节目录
+  解析，缺失/外链=硬伤）；组装时相对图引自动绝对化（ToSlash）；docx 回执图片对账
+  （引用 N/嵌入 M 数 document.xml drawing，M<N 即错）；拒绝组装错误单行化带明细。
+- **刀4 schedule 预检（A4/A5/B1~B4/B7）**：`schedulePreScanRaw` 在结构化吞字段前点名
+  task 内 links/workweek 越界(0-6)/op≠type/set_links taskId 并给正解；applyOne 错误带
+  可用类型清单；patch_task 报错带嵌套示例；质检无前置具名到任务；cdTasks 空集出 []。
+  ops golden 重生成（错误文案有意变更）。
+- **刀5 office_com（A7/A8/B12/C7）**：新 op `clear_char_format {style}`（Font.Reset 批量
+  清 run 级直接格式=Ctrl+Space 等价，187 处标题场景）；style_format 改字面时回执明示
+  直接格式优先级；office_save fill_gaps 改显式参数默认关（隐式重排搅目录页码的根）；
+  save 回执丢失（helper 退出）时按调用窗口内落盘时间戳探测「已存待复核」；guides.go
+  补优先级说明与清除入口。
+- **刀6 md_validate/doc_render（B6/B8/B5）**：附图/附表/插图/图幅复合前缀中性化
+  （13 项假阳性根）+长破折号—归一；doc_render 全档渲染>8 页只列首尾页+pages_dir；
+  POSIX 路径形态报错附正确写法提示。
+- **刀7 文档批（C1~C8）**：proposal-longform 补插图三律/导出安全与交付边界/页数双口径；
+  proposal-review 与方案 sysprompt 数据一致性三处→**四处**（摘要/正文/表格/大纲配额表
+  与图表索引）；schedule-edit 补 ops 完整 JSON 示例+易静默出错点清单；机检口径七类→八类。
+- 测试：新增 `office_longdoc_image_test.go` 六钉（图引机检/绝对化/单行拒绝/zip 对账/
+  **同 stem 防删源**——python 成败皆不动源 md/中间件零残留）+schedule 预检 6 案+md_validate
+  复合前缀与长破折号；schedule golden 重生成；全量 go 测试见当日收口记录。
+
+## 2026-11-21 方案技能经验沉淀批（复盘 §六/§七 融入，用户点名「验证体系很好」）
+
+- proposal-longform 增两节：**并行编制纪律**（共享事实卡先行/派发指令隔离写入目标/自设数值
+  回流/篇幅给区间不给下限/单章过 md_validate 再并下一章+cross 级对账）+**图件工艺**（先定
+  插入宽度 140mm 与成图字号下限 6pt 再画布/图题只由正文题注承担/自绘图四类几何自检清零才插入）。
+- proposal-review 三查扩**四查**：一查补图表索引自洽（索引==题注数、明细合计==配额合计）；
+  新增四查交付验证（图片对账+渲染取页+数据四处对账+关键格式像素/XML 抽查——工具侧已自动
+  图片对账，技能教剩余三件）；新增**验证证据纪律**（三层证据：可复现机检＞全文提取＞像素
+  判定；视觉模型只读大结构不作验收依据；结构定位用 pStyle 不用文字匹配；CPM 自算交叉验证；
+  自建脚本须「故意破坏测试」防恒绿假验）。
+- 方案 sysprompt 同步：工作流 step2 补并行事实卡条款；质量纪律三查→四查+证据纪律一句话。
+  TestOfficeModeSystemPrompt 补锚（四查/共享事实卡）。
+- 坑（第 N 次复发）：技能正文是 Go 反引号原始串，内嵌 Markdown 反引号即劈串——
+  「_draft/00_共享事实卡.md」改用「」引号。
+- 测试 runmode/skill/longdoc 面绿；npm 不动（前端零改）；wails 重建装机
+  **exe cea0b6ac52536600（同源核验）PID 34688，冒烟 200 INSTALL OK**。
+
+## 2026-11-21 验证体系工具化：longdoc_verify 四门（用户拍板「脚本复用成方案专属验证工具」）
+
+- 源头：复盘 §七 八脚本全读分层——verify_ch/cross_check/acceptance_all/verify_v1/ink_color 通用内核
+  收编；qc_geom（matplotlib 活体拦截 monkey-patch save）与 cpm_calc（引擎权威+技能纪律）不收。
+- **新工具 longdoc_verify**（office_longdoc_verify.go，方案档专属=toolgroups longdoc 组三名）：
+  - chapter=单章四对账：题注↔引用↔**章末索引**三方同步+图引存在性（按章目录解析）+docx 内嵌图
+    **md5 逐一比对**+drawing 对账+占位残留+禁用词（否定语境前 30 字排除）+口径词/旧口径；
+  - cross=跨章：编号跨章唯一+**引用↔题注全册并集双向对账**（chapter 门放行的跨章引用在此闭合）+
+    禁用词全册+口径词×各章矩阵+各章字数；
+  - book=整册 docx：占位残留/章标题在册/styles.xml 颜色字号字面量读数/页眉页脚域/分节数/源 md 完整；
+  - ink=像素判色：暗部（lum≤110）平均色+饱和度差>25 判彩色，缺省五条带（页眉/标题行/正文×2/页脚）。
+  项目耦合项（期望图表数/禁用词/口径词/条带）全部调用时传参，内核确定性零 LLM；只读。
+- 四处同批：toolgroups 名单+gaea_handler 装配+registrymap 契约行（work/read）+spacetags 静态表；
+  registry map 文档重导（scripts/registry_map_doc.go）。
+- 技能/sysprompt 接线：longform 并行纪律改为 longdoc_verify chapter/cross 入口+book/ink 准出门；
+  review 四查前三件走工具；sysprompt 质量纪律点名四门。qc_geom 留技能（自建脚本+故意破坏测试）。
+- 实弹（真书 D:\新工作\沿江一公里\南岸）：chapter=✓（跨章引用 6 种正确放行、md5 不符 0、占位 0）；
+  cross=**78 编号 0 重复、引用↔题注 78↔78 闭环**、禁用词全册 0、口径矩阵/207086 汉字与复盘终值一致。
+- 测试：office_longdoc_verify_test 五件（chapter 通过+破坏面/cross 唯一+并集孤儿/book 假 docx 全要素/
+  ink 程序化 PNG 判色/ReadTarget）+hide 矩阵与 drift 锁自动覆盖；app 全量 126.6s 绿、tool/boot/skill 绿。
+- 坑：①`k[1:]` 字节切片劈开多字节「图」（3 字节）→ Sscanf 恒败、跳号永不报——rune 切片修；
+  ②heredoc 内联中文路径 JSON 编码坑（复盘 B10 同族）——测试夹具一律 Write 工具落文件。
+- **装机 exe 3a42371df4f9b668（=build/bin 同源 uniq 验证）PID 51968，冒烟 200 INSTALL OK**；未提交同树混装。

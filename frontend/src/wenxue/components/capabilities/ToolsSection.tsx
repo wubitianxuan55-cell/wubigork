@@ -1,9 +1,11 @@
 // CapabilitiesPanel 拆分产物：工具列表区（行为零变化，T6-10.1）
 // v3「星枢」面板语言：工具卡实底收敛（图标 + 名称 + 描述 + 状态徽标），
 // 激活工具 = 主色容器底 + 左侧光条（inset shadow）+ 柔光。
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Cpu, ChevronDown, Search, X } from "../../icons";
 import { useGSAPCollapse } from "../../lib/useGSAPCollapse";
+import { app } from "../../lib/bridge";
+import type { ToolSurfaceEntryB, ToolSurfaceViewB } from "../../lib/bridge/wenxue";
 import { isDisabledWenxueTool } from "../../lib/disabledDomains";
 
 type Counts = Record<string, number>;
@@ -91,9 +93,8 @@ const SECTIONS: Section[] = RAW_SECTIONS.map((sec) => ({
   items: sec.items.filter((name) => !isDisabledWenxueTool(name)),
 })).filter((sec) => sec.items.length > 0)
 
-function ToolCard({ name, count }: { name: string; count: number }) {
-  const active = count > 0
-  const desc = TOOL_DESC[name]
+function ToolCard({ name, count, desc, hidden = false }: { name: string; count: number; desc?: string; hidden?: boolean }) {
+  const active = !hidden && count > 0
   return (
     <div
       className={`flex items-start gap-1.5 px-2 py-1.5 rounded-[var(--radius-sm)] border cursor-default transition-all duration-150 ${
@@ -131,6 +132,14 @@ function ToolCard({ name, count }: { name: string; count: number }) {
           </span>
         )}
       </span>
+      {hidden && (
+        <span
+          className="shrink-0 text-[9px] rounded-full px-1.5 py-px mt-px"
+          style={{ color: "var(--md-sys-color-text-secondary)", background: "color-mix(in srgb, var(--md-sys-color-text) 8%, transparent)" }}
+        >
+          藏
+        </span>
+      )}
       {/* 状态徽标：次数 + 语义色容器 */}
       <span
         className="shrink-0 font-mono text-[11px] font-semibold mt-px rounded-full px-1.5 py-px"
@@ -152,11 +161,19 @@ function ToolGroup({
   items,
   counts,
   defaultOpen,
+  descs,
+  hidden = false,
+  groupNote,
 }: {
   title: string
   items: string[]
   counts: Counts
   defaultOpen: boolean
+  /** 活取描述表（装配面缝）：有则优先生效，缺项回落静态 TOOL_DESC。 */
+  descs?: Record<string, string>
+  /** 模式藏面组：灰显+藏徽标（图文引擎模式中立，此组常态为空；MCP deferred 藏面可达）。 */
+  hidden?: boolean
+  groupNote?: string
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const ref = useRef<HTMLDivElement>(null)
@@ -183,8 +200,11 @@ function ToolGroup({
       </button>
       <div ref={ref} style={{ overflow: "hidden" }}>
         <div className="flex flex-col gap-0.5 pt-0.5 pb-1">
+          {groupNote && (
+            <div className="px-2 pb-1 text-[10px] leading-[1.4]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{groupNote}</div>
+          )}
           {items.map((name) => (
-            <ToolCard key={name} name={name} count={counts[name] ?? 0} />
+            <ToolCard key={name} name={name} count={counts[name] ?? 0} desc={descs?.[name] ?? TOOL_DESC[name]} hidden={hidden} />
           ))}
         </div>
       </div>
@@ -192,13 +212,72 @@ function ToolGroup({
   )
 }
 
-export function ToolsTabContent({ toolCounts, liveTools }: { toolCounts: Counts; liveTools?: string[] }) {
+// 装配面来源分组（2026-11-21 面板缝，与 gaea ToolsSection 同构）。
+const SOURCE_ORDER: string[] = ["builtin-domain", "extra-app", "build-internal"]
+const SOURCE_LABELS: Record<string, string> = {
+  "builtin-domain": "内置域工具",
+  "extra-app": "应用工具",
+  "build-internal": "会话元工具",
+}
+
+function groupSurface(tools: ToolSurfaceEntryB[]): { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }[] {
+  const bySource = new Map<string, ToolSurfaceEntryB[]>()
+  const hiddenList: ToolSurfaceEntryB[] = []
+  for (const t of tools) {
+    if (t.hidden) { hiddenList.push(t); continue }
+    const src = t.source || "other"
+    if (!bySource.has(src)) bySource.set(src, [])
+    bySource.get(src)!.push(t)
+  }
+  const groups: { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }[] = []
+  for (const src of SOURCE_ORDER) {
+    const items = bySource.get(src)
+    if (items?.length) {
+      groups.push({ key: src, title: SOURCE_LABELS[src] ?? src, items, hidden: false })
+      bySource.delete(src)
+    }
+  }
+  for (const [src, items] of bySource) {
+    const title = src.startsWith("mcp:") ? `MCP：${src.slice(4)}` : src === "other" ? "其他" : src
+    groups.push({ key: src, title, items, hidden: false })
+  }
+  if (hiddenList.length) {
+    groups.push({
+      key: "__hidden__", title: `本档隐藏（${hiddenList.length}）`, items: hiddenList, hidden: true,
+      note: "藏面：schema 不可见、协议层按名可调（图文引擎模式中立，常态为空）。",
+    })
+  }
+  return groups
+}
+
+export function ToolsTabContent({ toolCounts, liveTools, refreshKey = 0 }: { toolCounts: Counts; liveTools?: string[]; refreshKey?: number }) {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  // 装配面自取（2026-11-21 缝）：引擎主注册表全量（描述=模型可见口径，含
+  // 藏面）——面板与模型同源；未就绪/旧后端时沿用 liveTools/静态清单兜底。
+  const [surface, setSurface] = useState<ToolSurfaceViewB | null>(null)
+  useEffect(() => {
+    let alive = true
+    try {
+      app.WenxueToolSurface()
+        .then((v) => { if (alive && v.tools.length > 0) setSurface(v) })
+        .catch(() => { /* 未就绪：保留兜底 */ })
+    } catch {
+      /* mock/旧壳无此方法：TypeError 同样落兜底 */
+    }
+    return () => { alive = false }
+  }, [refreshKey])
 
-  // 工具区双源（刀3 续）：引擎实时装配清单优先（杜绝静态清单陈旧——新增
-  // wenxue_* 专属件自动进场、被引擎卸载的办公件自动消失），不在任何分组
-  // 的实时工具归「其他」组；实时清单缺席（旧后端/加载前）退回静态+deny 滤。
+  const liveGroups = useMemo(() => (surface ? groupSurface(surface.tools) : null), [surface])
+  const liveDescs = useMemo(() => {
+    if (!surface) return undefined
+    const m: Record<string, string> = {}
+    for (const t of surface.tools) if (t.description) m[t.name] = t.description
+    return m
+  }, [surface])
+
+  // 兜底源（刀3 续）：引擎实时名单优先，不在任何分组的归「其他」组；
+  // 实时名单也缺席（旧后端/加载前）退回静态+deny 滤。
   const sections = useMemo(() => {
     if (!liveTools || liveTools.length === 0) return SECTIONS
     const allowed = new Set(liveTools)
@@ -212,13 +291,30 @@ export function ToolsTabContent({ toolCounts, liveTools }: { toolCounts: Counts;
     return extras.length > 0 ? [...base, { title: "其他", items: extras }] : base
   }, [liveTools])
 
-  const totalTools = sections.reduce((sum, s) => sum + s.items.length, 0)
+  const totalTools = surface
+    ? surface.tools.length
+    : sections.reduce((sum, s) => sum + s.items.length, 0)
+  const visibleCount = surface ? surface.tools.filter((t) => !t.hidden).length : null
   const activeTotal = useMemo(
     () => sections.reduce((sum, s) => sum + s.items.filter((n) => (toolCounts[n] ?? 0) > 0).length, 0),
     [sections, toolCounts],
   )
 
-  const filteredSections = useMemo(() => {
+  const filteredGroups = useMemo(() => {
+    if (liveGroups) {
+      if (!query.trim()) return liveGroups
+      const q = query.toLowerCase()
+      return liveGroups
+        .map((g) => ({
+          ...g,
+          items: g.items.filter(
+            (t) =>
+              t.name.toLowerCase().includes(q) ||
+              (t.description ?? "").toLowerCase().includes(q),
+          ),
+        }))
+        .filter((g) => g.items.length > 0)
+    }
     if (!query.trim()) return sections
     const q = query.toLowerCase()
     return sections
@@ -231,9 +327,9 @@ export function ToolsTabContent({ toolCounts, liveTools }: { toolCounts: Counts;
         ),
       }))
       .filter((sec) => sec.items.length > 0)
-  }, [sections, query])
+  }, [liveGroups, sections, query])
 
-  const hasResults = filteredSections.length > 0
+  const hasResults = filteredGroups !== null && filteredGroups.length > 0
 
   return (
     <div className="flex flex-col overflow-hidden h-full" style={{minHeight: 0}}>
@@ -241,7 +337,9 @@ export function ToolsTabContent({ toolCounts, liveTools }: { toolCounts: Counts;
         <Cpu size={12} aria-hidden className="text-(color:--gaea-glow)" />
         <span>工具</span>
         <span className="ml-auto text-[10px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {activeTotal > 0 ? `${activeTotal}/${totalTools}` : totalTools}
+          {surface
+            ? `${visibleCount}/${totalTools}`
+            : activeTotal > 0 ? `${activeTotal}/${totalTools}` : totalTools}
         </span>
       </div>
       <div
@@ -276,14 +374,27 @@ export function ToolsTabContent({ toolCounts, liveTools }: { toolCounts: Counts;
       <div className="flex-1 min-h-0 overflow-y-auto pb-2">
         {!hasResults ? (
           <div className="text-xs text-center py-8" style={{ color: "var(--md-sys-color-text-secondary)" }}>无匹配工具</div>
+        ) : liveGroups ? (
+          (filteredGroups as { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }[]).map((g) => (
+            <ToolGroup
+              key={g.key}
+              title={g.title}
+              items={g.items.map((t) => t.name)}
+              counts={toolCounts}
+              descs={liveDescs}
+              hidden={g.hidden}
+              groupNote={g.note}
+              defaultOpen={!g.hidden && (filteredGroups!.length <= 4 || g.key === "builtin-domain")}
+            />
+          ))
         ) : (
-          filteredSections.map((sec) => (
+          (filteredGroups as Section[]).map((sec) => (
             <ToolGroup
               key={sec.title}
               title={sec.title}
               items={sec.items}
               counts={toolCounts}
-              defaultOpen={sec.title === "文件" || filteredSections.length <= 3}
+              defaultOpen={sec.title === "文件" || filteredGroups!.length <= 3}
             />
           ))
         )}

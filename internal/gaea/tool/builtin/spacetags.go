@@ -91,6 +91,15 @@ var spaceTags = map[string]string{
 	// recalc 写（缓存值回写）audit 只读，均办公域=work。
 	"xlsx_recalc": spaces.SpaceWork,
 	"xlsx_audit":  spaces.SpaceWork,
+	// 运行模式专用面五件（app 层 gaeaExtraTools 装配，2026-11-21 众神殿
+	// pan_1795202763988 终案）：造价三件+方案两件，办公域=work；模式可见性
+	// 由 boot.Options.ToolHide 按档收放（本表管空间域，不管档位）。
+	"cost_project":       spaces.SpaceWork,
+	"cost_project_apply": spaces.SpaceWork,
+	"cost_audit":         spaces.SpaceWork,
+	"longdoc_manifest":   spaces.SpaceWork,
+	"longdoc_build":      spaces.SpaceWork,
+	"longdoc_verify":     spaces.SpaceWork,
 	// browser_*×11 与 sidebar_open：类型自带 SpaceTag() 自声明 work（browser_tools.go /
 	// sidebar_open.go），本表行是与自声明一致的背书（2026-11-10 漂移刀前误记
 	// shared=影子行说谎，守卫 TestSpaceTagsAgreeWithRegistryMap 钉死两处一致）。

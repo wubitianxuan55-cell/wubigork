@@ -148,8 +148,22 @@ func exportDocx(in ExportDeliverableInput, title, outPath string) error {
 	if script == "" {
 		return fmt.Errorf("未找到 create_docx.py（.gaea/skills/docx/scripts）")
 	}
-	mdPath := strings.TrimSuffix(outPath, ".docx") + ".md"
-	if err := os.WriteFile(mdPath, []byte(in.Markdown), 0o644); err != nil {
+	// 中间 md 用随机临时名（2026-11-21 复盘 A1/A2：旧实现落 <输出stem>.md 再删，
+	// 输出名与章节源 md 同 stem 时先覆写后删除，源文件 11 次丢失——中间文件只许
+	// 是自己创建的临时件，绝不允许与任何既有文件同名）。落输出同目录：相对图片
+	// 路径仍按输出目录解析，行为不变。
+	tmp, err := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-md-*.md")
+	if err != nil {
+		return err
+	}
+	mdPath := tmp.Name()
+	if _, err := tmp.Write([]byte(in.Markdown)); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(mdPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(mdPath)
 		return err
 	}
 	defer func() { _ = os.Remove(mdPath) }()
@@ -181,12 +195,25 @@ func exportPptx(in ExportDeliverableInput, title, outPath string) error {
 		return fmt.Errorf("未找到 create_pptx.py（.gaea/skills/pptx/scripts）")
 	}
 	spec := markdownToSlides(in.Markdown, title)
-	specPath := strings.TrimSuffix(outPath, ".pptx") + ".json"
-	b, err := json.MarshalIndent(spec, "", "  ")
+	// 同 A1/A2：中间 spec 用随机临时名，不再落 <输出stem>.json（与既有同名文件互踩）。
+	tmp, err := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-spec-*.json")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(specPath, b, 0o644); err != nil {
+	specPath := tmp.Name()
+	b, err := json.MarshalIndent(spec, "", "  ")
+	if err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(specPath)
+		return err
+	}
+	if _, err := tmp.Write(b); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(specPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(specPath)
 		return err
 	}
 	defer func() { _ = os.Remove(specPath) }()

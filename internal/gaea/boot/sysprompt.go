@@ -48,7 +48,11 @@ type syspromptOut struct {
 // 同步收口（同 filter），经 syspromptOut.readSkill 交 boot 注册实例化工具
 // （替换全局 builtin 同名件——双引擎下全局 WireReadSkillResolver 后建者覆盖
 // 会跨引擎串仓，实例化是刀2 的结构性修复）。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string, systemPromptOverride string) (*syspromptOut, error) {
+// modeLine（2026-11-21 办公运行模式，众神殿 pan_1795202763988 终案）：非空时
+// 在技能索引之后追加固定文本「当前模式 + 本档未载入能力组 + 切档指引」
+// （DSH-r5 裁决：ToolHide 与模式提示必须同批上线，防能力无声消失）。空 =
+// 零注入、现状逐字节。
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string, systemPromptOverride string, modeLine string) (*syspromptOut, error) {
 	// 板块身份覆写（2026-11-16 图文身份分板）：非空顶替全局配置解析——图文
 	// 引擎传自己的身份，不再吃办公 system_prompt。空 = 现状逐字节。
 	var sysPrompt string
@@ -159,6 +163,12 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	// 集合（run_skill 经 Options 分流取 sp.skills，见 Build 内 run_skill 构造位）。
 	skills := skill.VisibleSkills(skillStore.List(), skillExtras, skillFilter)
 	sysPrompt = skill.ApplyIndex(sysPrompt, skills)
+	// 运行模式行（2026-11-21 终案）：紧随技能索引——模式告知在能力清单旁边
+	// 语义最顺（本档未载入的能力组与切档指引同段）；PromptSuffix 之前，不碰
+	// 部署级「最后」语义。空串零注入（standard 缺省配置不传）。
+	if line := strings.TrimSpace(modeLine); line != "" {
+		sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + line
+	}
 
 	// read_skill 解析器（实例化，经 syspromptOut.readSkill 交 boot 注册；
 	// 2026-11-15 刀2 起不再走全局 WireReadSkillResolver——双引擎串仓缝）。

@@ -229,9 +229,20 @@ func TestOfficeComSaveEvidenceAndFillGaps(t *testing.T) {
 	if !strings.Contains(out, "Saved") {
 		t.Fatalf("save 回执: %.200s", out)
 	}
-	// Word 保存前自动 fill_gaps（edit 命令一次）。
-	if stub.count("edit") != 1 {
-		t.Fatalf("Word 保存前应跑一次 fill_gaps（edit 调用=%d）", stub.count("edit"))
+	// 复盘 A8：fill_gaps 改显式——默认保存不补空（edit 零调用）。
+	if n := stub.count("edit"); n != 0 {
+		t.Fatalf("默认保存不应隐式 fill_gaps（edit 调用=%d）", n)
+	}
+	// 显式 fill_gaps:true 才补空（edit 一次，回执带补空摘要）。
+	out2, err := (officeComSaveTool{}).Execute(ctx, json.RawMessage(`{"fill_gaps":true}`))
+	if err != nil {
+		t.Fatalf("save fill_gaps: %v", err)
+	}
+	if n := stub.count("edit"); n != 1 {
+		t.Fatalf("fill_gaps:true 应补空一次（edit 调用=%d）", n)
+	}
+	if !strings.Contains(out2, "Saved") {
+		t.Fatalf("save fill_gaps 回执: %.200s", out2)
 	}
 	// Journal 证据卡（office_save，无基线快照）。
 	recs := readOfficeJournal(t, ws)

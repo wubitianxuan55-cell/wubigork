@@ -21,6 +21,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/filefilter"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
+	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -453,6 +454,266 @@ func (a *App) GaeaPermLevel() string {
 		return c.PermLevel()
 	}
 	return "ask"
+}
+
+// OfficeRunModeView 是办公运行模式的只读视图（GaeaOfficeRunMode 返回）。
+// 「查看配置」诚实面（众神殿 pan_1795202763988 终案 §八）：前端模式卡据此
+// 渲染该档隐藏的工具面与追加的技能清单。
+type OfficeRunModeView struct {
+	// Configured 是配置默认档（standard|cost|proposal）——新会话生效。
+	Configured string `json:"configured"`
+	// Active 是当前引擎实际装配档；≠ Configured 时前端提示「新会话生效」。
+	Active string `json:"active"`
+	// Hide 是当前档装配后隐藏的专用工具名（schema 不可见、协议层按名可调）。
+	Hide []string `json:"hide"`
+	// Extras 是当前档追加的内嵌技能名。
+	Extras []string `json:"extras"`
+}
+
+// GaeaSetOfficeRunMode 登记办公运行模式默认档（standard|cost|proposal）。
+// 2026-11-21 众神殿终案（pan_1795202763988）应用语义=DSH 同构：切换=持久化
+// 默认值并立即返回，**不重建引擎**——当前会话保持现有档不中断（零重建零
+// 缓存损失）；GaeaNewSession 发现配置档≠引擎档时先重建再建会话（「新会话
+// 生效」）。回合中切换无副作用（只写默认值），不设运行闸。
+func (a *App) GaeaSetOfficeRunMode(mode string) error {
+	m := normalizeOfficeRunMode(mode)
+	if !strings.EqualFold(strings.TrimSpace(mode), m) {
+		return fmt.Errorf("未知运行模式 %q（可选 standard|cost|proposal）", mode)
+	}
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.cfg == nil {
+		return errors.New("gaea: 办公引擎配置未初始化")
+	}
+	ga.cfg.Office.RunMode = m
+	return gaeaConfig.Save(ga.cfg)
+}
+
+// GaeaOfficeRunMode 返回运行模式视图（配置默认档 + 引擎当前档 + 该档专用面
+// 只读清单）。引擎未初始化时 Active=Configured（装配即配置档，诚实缺省）。
+func (a *App) GaeaOfficeRunMode() OfficeRunModeView {
+	cfgMode := normalizeOfficeRunMode(ga.cfg.OfficeRunMode())
+	view := OfficeRunModeView{Configured: cfgMode, Active: cfgMode, Hide: []string{}, Extras: []string{}}
+	ga.mu.Lock()
+	if ga.ctrl != nil && ga.runMode != "" {
+		view.Active = ga.runMode
+	}
+	ga.mu.Unlock()
+	view.Hide = officeRunModeHide(view.Active)
+	for _, sk := range officeRunModeSkillExtras(view.Active) {
+		view.Extras = append(view.Extras, sk.Name)
+	}
+	return view
+}
+
+// ToolSurfaceView 是能力面板「工具」tab 的装配面视图（2026-11-21 面板缝）：
+// 从引擎主注册表活取（含模式藏面灰显），不再吃前端硬编码清单。
+type ToolSurfaceView struct {
+	Board string                     `json:"board"` // gaea | wenxue
+	Mode  string                     `json:"mode"`  // 办公运行模式生效值（引擎实际档；wenxue 恒空）
+	Tools []control.ToolSurfaceEntry `json:"tools"`
+}
+
+// GaeaToolSurface 返回办公引擎装配面（引擎未初始化时 Tools 空、Mode=配置默认
+// 档——前端落静态清单兜底）。
+func (a *App) GaeaToolSurface() ToolSurfaceView {
+	view := ToolSurfaceView{Board: "gaea", Mode: normalizeOfficeRunMode(ga.cfg.OfficeRunMode()), Tools: []control.ToolSurfaceEntry{}}
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.ctrl != nil {
+		if ga.runMode != "" {
+			view.Mode = ga.runMode
+		}
+		view.Tools = ga.ctrl.ToolSurface()
+	}
+	return view
+}
+
+// WenxueToolSurface 返回图文引擎装配面（未初始化同上；Mode 恒空——运行模式
+// 是办公板块维度，图文引擎模式中立）。
+func (a *App) WenxueToolSurface() ToolSurfaceView {
+	view := ToolSurfaceView{Board: "wenxue", Mode: "", Tools: []control.ToolSurfaceEntry{}}
+	if c := wenxueCtrl(); c != nil {
+		view.Tools = c.ToolSurface()
+	}
+	return view
+}
+
+// ToolFaceGroupView 是工具面组开关视图的一组（能力面板工具页开关数据源，
+// 2026-11-21 众神殿 pan_1795224680124 终案）。
+type ToolFaceGroupView struct {
+	// ID 是组标识（cad/schedule/browser/com/computer/cost/longdoc/media）。
+	ID string `json:"id"`
+	// Label 是组中文名。
+	Label string `json:"label"`
+	// Count 是组注册成员数（未注册成员不计——COM 未装机=0）。
+	Count int `json:"count"`
+	// Enabled 是当前启用状态（=组未整体隐藏）。
+	Enabled bool `json:"enabled"`
+	// Overridable 报告组是否可经组开关切换（computer=false：它是注册闸组）。
+	Overridable bool `json:"overridable"`
+	// Gate 报告组开关走 [computer_use].enabled 注册闸绑定（GaeaSetComputerUseEnabled
+	// 而非 GaeaSetToolGroup，2026-11-21 用户问询后补的 UI 面：注册闸不再只读）。
+	Gate bool `json:"gate"`
+	// Note 是组语义说明（面板 title 直显）。
+	Note string `json:"note"`
+}
+
+// ToolFaceView 是工具面双轴视图（GaeaToolFace 返回）。
+type ToolFaceView struct {
+	// Face 是引擎当前工具面档（lean|standard）。
+	Face string `json:"face"`
+	// Mode 是引擎当前运行模式（standard|cost|proposal）。
+	Mode string `json:"mode"`
+	// Groups 是全部可配置组的状态（稳定序）。
+	Groups []ToolFaceGroupView `json:"groups"`
+	// Overrides 是用户组覆盖（已归一，键=组 id）。
+	Overrides map[string]bool `json:"overrides"`
+}
+
+// gaeaToolFaceView 按给定配置计算组状态视图（cfg=nil 时 lean/standard 兜底）。
+// cuEnabled 是 [computer_use].enabled 当前值（computer 组的启用判据与注册计数
+// 开关——关=整族不注册，Count 显 0）。
+func gaeaToolFaceView(face, mode string, overrides map[string]bool, cuEnabled bool) ToolFaceView {
+	view := ToolFaceView{Face: face, Mode: mode, Groups: []ToolFaceGroupView{}, Overrides: overrides}
+	hide := composeToolHide(mode, face, overrides)
+	hideSet := map[string]bool{}
+	for _, n := range hide {
+		hideSet[n] = true
+	}
+	for _, g := range tool.ToolGroups() {
+		members := tool.ToolGroupMembers(g)
+		count := 0
+		for _, n := range members {
+			if _, ok := tool.RegistryMap[n]; ok {
+				count++ // 注册面计数（RegistryMap 在册=装配面真实存在）
+			}
+		}
+		gv := ToolFaceGroupView{
+			ID:      string(g),
+			Label:   ToolGroupLabel(g),
+			Count:   count,
+			Enabled: !toolGroupFullyHidden(hideSet, g),
+		}
+		switch g {
+		case tool.ToolGroupComputer:
+			// 注册闸组：Enabled=[computer_use].enabled，关=整族不注册（Count 0）。
+			// 开关走 Gate 绑定（GaeaSetComputerUseEnabled），不占组覆盖。
+			gv.Overridable = false
+			gv.Gate = true
+			gv.Enabled = cuEnabled
+			if !cuEnabled {
+				gv.Count = 0
+			}
+			gv.Note = "电脑操控注册闸：开=注册 computer_windows/state/launch/click/type/key 六件（engine 重启或新会话重建后生效）；Apps 白名单与空闲 TTL 仍在 [computer_use] 段配置"
+		case tool.ToolGroupCOM:
+			gv.Overridable = true
+			if count == 0 {
+				gv.Note = "本机未检测到 Office/WPS，COM 族未注册"
+			} else {
+				gv.Note = "COM 实时协同族；精简档关、标准档开（跟随本机装机）"
+			}
+		case tool.ToolGroupMedia:
+			gv.Overridable = true
+			gv.Note = "产图两档默认开（用户签注不改默认）"
+		case tool.ToolGroupCAD:
+			gv.Overridable = true
+			gv.Note = "造价档默认开（用户拍板：CAD 并入造价）；标准/方案档关，开启后 cad-takeoff 技能同步恢复"
+		case tool.ToolGroupSchedule:
+			gv.Overridable = true
+			gv.Note = "方案档默认开（用户拍板：进度并入方案）；标准/造价档关，开启后 schedule-edit 技能同步恢复"
+		default:
+			gv.Overridable = true
+			gv.Note = "按运行模式自动收放（造价/方案档开本族）"
+		}
+		view.Groups = append(view.Groups, gv)
+	}
+	return view
+}
+
+// GaeaToolFace 返回工具面双轴视图（引擎当前装配口径）。
+func (a *App) GaeaToolFace() ToolFaceView {
+	face := normalizeOfficeToolFace(ga.cfg.OfficeToolFace())
+	mode := normalizeOfficeRunMode(ga.cfg.OfficeRunMode())
+	overrides := ga.cfg.OfficeToolGroupOverrides()
+	cuEnabled := false
+	if ga.cfg != nil {
+		cuEnabled = ga.cfg.ComputerUse.Enabled
+	}
+	ga.mu.Lock()
+	if ga.ctrl != nil {
+		if ga.toolFace != "" {
+			face = ga.toolFace
+		}
+		if ga.runMode != "" {
+			mode = ga.runMode
+		}
+	}
+	ga.mu.Unlock()
+	return gaeaToolFaceView(face, mode, overrides, cuEnabled)
+}
+
+// GaeaSetComputerUseEnabled 登记电脑操控注册闸（[computer_use].enabled）。
+// 2026-11-21 用户问询「开关在哪里」后补的 UI 面：此前只有配置文件一条路。
+// 不重建——GaeaNewSession 判 (runMode, toolFace, groupSig, cuEnabled) 四元组
+// 重建后整族注册（boot 期注册闸）。
+func (a *App) GaeaSetComputerUseEnabled(enabled bool) error {
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.cfg == nil {
+		return errors.New("gaea: 办公引擎配置未初始化")
+	}
+	ga.cfg.ComputerUse.Enabled = enabled
+	return gaeaConfig.Save(ga.cfg)
+}
+
+// GaeaSetToolFace 登记工具面档（lean|standard）。不重建——新会话生效
+// （GaeaNewSession 判三元组重建）；非法值报错（UI 两态固定）。
+func (a *App) GaeaSetToolFace(face string) error {
+	f := normalizeOfficeToolFace(face)
+	if !strings.EqualFold(strings.TrimSpace(face), f) {
+		return fmt.Errorf("未知工具面 %q（可选 lean|standard）", face)
+	}
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.cfg == nil {
+		return errors.New("gaea: 办公引擎配置未初始化")
+	}
+	ga.cfg.Office.ToolFace = f
+	return gaeaConfig.Save(ga.cfg)
+}
+
+// GaeaSetToolGroup 登记组开关覆盖（enabled=true=强制开/false=强制关）。
+// 未知组 fail-closed 报错；不重建——新会话生效。
+func (a *App) GaeaSetToolGroup(group string, enabled bool) error {
+	g := tool.ToolGroupName(strings.ToLower(strings.TrimSpace(group)))
+	if !tool.ValidToolGroup(g) {
+		return fmt.Errorf("未知功能组 %q（可选 cad/schedule/browser/com/computer/cost/longdoc/media）", group)
+	}
+	if g == tool.ToolGroupComputer {
+		return errors.New("computer 组走 [computer_use] 注册闸，不经组开关")
+	}
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.cfg == nil {
+		return errors.New("gaea: 办公引擎配置未初始化")
+	}
+	if ga.cfg.Office.ToolGroups == nil {
+		ga.cfg.Office.ToolGroups = map[string]bool{}
+	}
+	ga.cfg.Office.ToolGroups[string(g)] = enabled
+	return gaeaConfig.Save(ga.cfg)
+}
+
+// GaeaResetToolGroups 清空组覆盖（回到 tool_face 默认矩阵）。不重建——新会话生效。
+func (a *App) GaeaResetToolGroups() error {
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.cfg == nil {
+		return errors.New("gaea: 办公引擎配置未初始化")
+	}
+	ga.cfg.Office.ToolGroups = nil
+	return gaeaConfig.Save(ga.cfg)
 }
 
 // ── 工作区文件（对齐 gaeaW desktop/app_workspace.go）────────────────

@@ -71,10 +71,29 @@ func (mdValidate) CompactSchema() json.RawMessage { return compactSchema["md_val
 // ── 编号形态 ──────────────────────────────────────────────────
 //
 // 题注行：行首（容忍引用块 "> " 前缀）「表/图/Table/Figure + 编号」开头。
-// 编号主干：数字段(-或–连接)+可选字母尾（表1-13A）；en-dash 归一为 -。
+// 编号主干：数字段(-或–或—连接)+可选字母尾（表1-13A）；en/em-dash 归一为 -
+//（2026-11-21 复盘 B6：中文排版长破折号「表1—3」此前只读到「表1」）。
 
-var reMDVCaption = regexp.MustCompile(`^(?:>\s*)?(表|图|Table|Figure)\s*([0-9]+(?:[-–][0-9]+)*[A-Za-z]?)\b`)
-var reMDVRef = regexp.MustCompile(`(表|图|Table|Figure)\s*([0-9]+(?:[-–][0-9]+)*[A-Za-z]?)`)
+var reMDVCaption = regexp.MustCompile(`^(?:>\s*)?(表|图|Table|Figure)\s*([0-9]+(?:[-–—][0-9]+)*[A-Za-z]?)\b`)
+var reMDVRef = regexp.MustCompile(`(表|图|Table|Figure)\s*([0-9]+(?:[-–—][0-9]+)*[A-Za-z]?)`)
+
+// mdvCompoundPrefixes 复合词前缀（复盘 B6：「附图8」被读作内部引用「图8」、
+// 一次报 13 项假阳性——这些是附录/外部编号体系，不参与本文档题注对账，引用
+// 扫描前先行中性化）。题注行按行首锚定不受影响（「附图8 …」不以 图/表 起头）。
+var mdvCompoundPrefixes = []string{"附图", "附表", "插图", "图幅"}
+
+func mdvNeutralizeCompounds(ln string) string {
+	for _, w := range mdvCompoundPrefixes {
+		ln = strings.ReplaceAll(ln, w, "▢▢")
+	}
+	return ln
+}
+
+// mdvNormNum 编号归一（–/— → -）。
+func mdvNormNum(s string) string {
+	s = strings.ReplaceAll(s, "–", "-")
+	return strings.ReplaceAll(s, "—", "-")
+}
 
 // mdvCaption 一个题注记录。
 type mdvCaption struct {
@@ -88,7 +107,7 @@ func (c mdvCaption) key() string { return c.kind + c.num }
 
 // mdvMain 编号主干数字段（"1-13A"→[1,13]，尾缀丢弃）。
 func (c mdvCaption) main() []int {
-	parts := strings.Split(strings.ReplaceAll(c.num, "–", "-"), "-")
+	parts := strings.Split(mdvNormNum(c.num), "-")
 	out := make([]int, 0, len(parts))
 	for _, p := range parts {
 		d := strings.TrimRight(p, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
@@ -138,7 +157,7 @@ func (v mdValidate) Execute(ctx context.Context, args json.RawMessage) (string, 
 	case ".md", ".markdown", ".txt":
 		raw, err := os.ReadFile(src)
 		if err != nil {
-			return "", fmt.Errorf("读取 %s 失败: %w", src, err)
+			return "", fmt.Errorf("读取 %s 失败: %w%s", src, err, posixStylePathHint(p.Path))
 		}
 		text = string(raw)
 	case ".docx":
@@ -171,13 +190,13 @@ func (v mdValidate) Execute(ctx context.Context, args json.RawMessage) (string, 
 			if m := reMDVCaption.FindStringSubmatch(trimmed); m != nil {
 				captions = append(captions, mdvCaption{
 					kind: mdvNormalizeKind(m[1]),
-					num:  strings.ReplaceAll(m[2], "–", "-"),
+					num:  mdvNormNum(m[2]),
 					line: i + 1,
 				})
 				continue
 			}
-			for _, m := range reMDVRef.FindAllStringSubmatch(ln, -1) {
-				k := mdvNormalizeKind(m[1]) + strings.ReplaceAll(m[2], "–", "-")
+			for _, m := range reMDVRef.FindAllStringSubmatch(mdvNeutralizeCompounds(ln), -1) {
+				k := mdvNormalizeKind(m[1]) + mdvNormNum(m[2])
 				refs[k] = append(refs[k], i+1)
 			}
 		}
@@ -342,8 +361,17 @@ func mdvCheckTables(lines []string) []mdvIssue {
 	return out
 }
 
-func isMDVSeparatorRow(ln string) bool {
-	s := strings.ReplaceAll(strings.ReplaceAll(ln, "|", ""), " ", "")
+// posixStylePathHint POSIX 形态路径的报错提示（2026-11-21 复盘 B5：bash 的
+// /d/... 写法在非 bash 工具里被当相对路径拼错，报错不给正确写法导致反复试错）。
+// md_validate 与 doc_render 共用（同包）。
+func posixStylePathHint(p string) string {
+	if strings.HasPrefix(strings.TrimSpace(p), "/") {
+		return "（提示：/d/... 是 bash 的 POSIX 写法，本工具不认——传 Windows 盘符绝对路径 D:\\...\\文件.md 或工作区相对路径）"
+	}
+	return ""
+}
+
+func isMDVSeparatorRow(ln string) bool {	s := strings.ReplaceAll(strings.ReplaceAll(ln, "|", ""), " ", "")
 	if s == "" {
 		return true
 	}

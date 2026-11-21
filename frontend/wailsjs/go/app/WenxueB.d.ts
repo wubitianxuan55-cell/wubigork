@@ -220,6 +220,8 @@ export function WenxueSubagentFollowUp(arg1:string,arg2:string,arg3:string):Prom
 
 export function WenxueSwitchWorkspace(arg1:string):Promise<string>;
 
+export function WenxueToolSurface():Promise<app.ToolSurfaceView>;
+
 export function WenxueTrajectory(arg1:string):Promise<trajectory.Trajectory>;
 
 export function WenxueUnarchiveSession(arg1:string):Promise<string>;

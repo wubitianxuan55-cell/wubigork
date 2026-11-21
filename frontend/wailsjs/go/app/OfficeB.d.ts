@@ -232,6 +232,8 @@ export function GaeaOCRText(arg1:string):Promise<string>;
 
 export function GaeaOfficeEditText(arg1:string,arg2:string):Promise<Record<string, any>>;
 
+export function GaeaOfficeRunMode():Promise<app.OfficeRunModeView>;
+
 export function GaeaOpenDownloadPage():Promise<void>;
 
 export function GaeaOpenLogsDir():Promise<void>;
@@ -289,6 +291,8 @@ export function GaeaRemoveRecentWorkspace(arg1:string):Promise<void>;
 export function GaeaRenameSession(arg1:string,arg2:string):Promise<void>;
 
 export function GaeaRenameWorkspacePath(arg1:string,arg2:string):Promise<workbench.MutationResult>;
+
+export function GaeaResetToolGroups():Promise<void>;
 
 export function GaeaResumeSession(arg1:string):Promise<Array<app.HistoryMessage>>;
 
@@ -354,6 +358,8 @@ export function GaeaSessionStats(arg1:string):Promise<app.SessionStatsView>;
 
 export function GaeaSetAgentParams(arg1:number,arg2:number,arg3:string):Promise<void>;
 
+export function GaeaSetComputerUseEnabled(arg1:boolean):Promise<void>;
+
 export function GaeaSetDefaultModel(arg1:string):Promise<void>;
 
 export function GaeaSetMCPServerEnabled(arg1:string,arg2:boolean):Promise<void>;
@@ -363,6 +369,8 @@ export function GaeaSetMemoryBrief(arg1:boolean):Promise<void>;
 export function GaeaSetMemoryEnabled(arg1:boolean):Promise<void>;
 
 export function GaeaSetMorningPreload(arg1:boolean):Promise<void>;
+
+export function GaeaSetOfficeRunMode(arg1:string):Promise<void>;
 
 export function GaeaSetPermLevel(arg1:string):Promise<void>;
 
@@ -375,6 +383,10 @@ export function GaeaSetSandbox(arg1:string,arg2:boolean,arg3:string,arg4:Array<s
 export function GaeaSetSubagentEffort(arg1:string):Promise<void>;
 
 export function GaeaSetSubagentModelForSkill(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaSetToolFace(arg1:string):Promise<void>;
+
+export function GaeaSetToolGroup(arg1:string,arg2:boolean):Promise<void>;
 
 export function GaeaSettings():Promise<app.SettingsView>;
 
@@ -433,6 +445,10 @@ export function GaeaTaskOutput(arg1:string):Promise<app.TaskOutputView>;
 export function GaeaTaskRetry(arg1:string):Promise<void>;
 
 export function GaeaTaskTemplates():Promise<Array<app.TaskTemplate>>;
+
+export function GaeaToolFace():Promise<app.ToolFaceView>;
+
+export function GaeaToolSurface():Promise<app.ToolSurfaceView>;
 
 export function GaeaTrajectory(arg1:string):Promise<trajectory.Trajectory>;
 

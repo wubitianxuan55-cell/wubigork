@@ -254,6 +254,13 @@ func (scheduleApply) CompactDescription() string     { return compactDesc["sched
 func (scheduleApply) CompactSchema() json.RawMessage { return compactSchema["schedule_apply"] }
 
 func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	// 原始 JSON 预检（2026-11-21 方案模式复盘 A4/A5/B1/B4）：结构化反序列化会把
+	// 放错位置的字段静默吞掉——task 内 links 整批丢失、workweek 传 7 被静默裁剪、
+	// type 写成 op 只回显空串、set_links 写 taskId 被忽略。预检在吞字段之前点名
+	// 错法并给正解，宁可拒绝也不静默丢数据。
+	if err := schedulePreScanRaw(args); err != nil {
+		return "", err
+	}
 	var in struct {
 		Path    string            `json:"path,omitempty"`
 		Project *schedule.Project `json:"project,omitempty"`
@@ -398,6 +405,93 @@ func leafCount(p schedule.Project) int {
 	return n
 }
 
+// schedulePreScanRaw 原始 JSON 预检：点名结构化反序列化会静默吞掉的错位字段。
+// 返回 error = 整批拒绝（带正解写法）；nil = 放行进入结构化解析。
+func schedulePreScanRaw(args json.RawMessage) error {
+	if len(args) == 0 {
+		return nil
+	}
+	var raw struct {
+		Project  json.RawMessage   `json:"project"`
+		Ops      []json.RawMessage `json:"ops"`
+		Calendar *struct {
+			Workweek []json.Number `json:"workweek"`
+		} `json:"calendar"`
+	}
+	if err := json.Unmarshal(args, &raw); err != nil {
+		return nil // 格式错误交给结构化层报
+	}
+	if len(raw.Project) > 0 {
+		var proj struct {
+			Tasks []map[string]json.RawMessage `json:"tasks"`
+			Calendar *struct {
+				Workweek []json.Number `json:"workweek"`
+			} `json:"calendar"`
+		}
+		if err := json.Unmarshal(raw.Project, &proj); err == nil {
+			for i, t := range proj.Tasks {
+				if _, ok := t["links"]; ok {
+					return fmt.Errorf("project.tasks[%d] 内的 links 会被静默丢弃——搭接关系必须放 project 顶层 links 数组（元素 {from,to,type,lag}），写在 task 对象内不生效", i)
+				}
+			}
+			if proj.Calendar != nil {
+				if err := checkWorkweekRange(proj.Calendar.Workweek); err != nil {
+					return fmt.Errorf("project.calendar: %w", err)
+				}
+			}
+		}
+	}
+	for i, opRaw := range raw.Ops {
+		var op map[string]json.RawMessage
+		if err := json.Unmarshal(opRaw, &op); err != nil {
+			continue
+		}
+		// 操作类型字段名是 type 不是 op（B1：写 op 会报「不支持的操作类型：」空串）。
+		typeRaw, hasType := op["type"]
+		if !hasType {
+			if _, hasOp := op["op"]; hasOp {
+				return fmt.Errorf("ops[%d] 操作类型字段名是 type 不是 op（正确写法 {\"type\":\"patch_task\",...}）——op 字段会被静默忽略", i)
+			}
+			return fmt.Errorf("ops[%d] 缺少 type 字段（upsert_task/patch_task/remove_task/set_links/set_meta/auto_chain/set_baseline/clear_baseline/upsert_resource/patch_resource/remove_resource/set_assignments）", i)
+		}
+		var typ string
+		if err := json.Unmarshal(typeRaw, &typ); err != nil || typ == "" {
+			return fmt.Errorf("ops[%d] 的 type 须为操作类型字符串", i)
+		}
+		// set_links 目标字段是 toId（B4：写 taskId 报「任务不存在：」空 id）。
+		if typ == "set_links" {
+			if _, hasTo := op["toId"]; !hasTo {
+				if _, hasTask := op["taskId"]; hasTask {
+					return fmt.Errorf("ops[%d] set_links 的目标字段是 toId 不是 taskId（taskId 是 set_assignments 的字段），写错会被静默忽略", i)
+				}
+			}
+		}
+		// set_meta 的 calendar 同验 workweek 取值域（A5）。
+		if calRaw, ok := op["calendar"]; ok && len(calRaw) > 0 {
+			var cal struct {
+				Workweek []json.Number `json:"workweek"`
+			}
+			if err := json.Unmarshal(calRaw, &cal); err == nil {
+				if err := checkWorkweekRange(cal.Workweek); err != nil {
+					return fmt.Errorf("ops[%d] set_meta: %w", i, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// checkWorkweekRange workweek 取值域闸（A5：传 7 被静默裁成 6 天，工期富余量
+// 差 13 倍——越界拒绝并给正解，不再裁剪）。
+func checkWorkweekRange(ww []json.Number) error {
+	for _, n := range ww {
+		if v, err := n.Float64(); err == nil && (v < 0 || v > 6 || v != float64(int(v))) {
+			return fmt.Errorf("workweek 取值域是 0-6 的整数（JS getDay 口径：0=周日、1=周一…6=周六；七天连续施工写 [0,1,2,3,4,5,6]，1-7 编码会被静默截断），越界值 %s 拒绝", n.String())
+		}
+	}
+	return nil
+}
+
 // costTouchedTaskIDs ops 通道中涉及成本的任务 id（去重保序）。set_links/
 // auto_chain 不改行成本（工期不变），remove_task 的行已不存在（Rows 查不到
 // 自然不出现在回执），均不入列；project 整计划通道 ops 为空 → 回执只带总成本。
@@ -484,6 +578,10 @@ func (s scheduleAnalyze) Execute(ctx context.Context, args json.RawMessage) (str
 		"milestones":   a.Milestones,
 		"cdTasks":      a.CdTasks,
 		"checks":       qualityChecks(proj, cpm),
+	}
+	// cdTasks 空集出 [] 不出 null（复盘 B7：null 让模型误以为字段缺失）。
+	if a.CdTasks == nil {
+		out["cdTasks"] = []schedule.CdTask{}
 	}
 	findings := out["checks"].([]string)
 	// 资源成本刀2（v4.122）：成本叙事数据（总成本/Top5/按资源汇总/未定价清单）——
@@ -604,8 +702,10 @@ func qualityChecks(p schedule.Project, cpm schedule.CpmResult) []string {
 		findings = append(findings, fmt.Sprintf("共 %d 个孤立任务", isolated))
 	}
 	// 无前置（无入边）叶任务：推荐逻辑关系的主输入。首个非手动叶是计划
-	// 起点、天然无前置不计；手动任务=有意定位，也不计。
+	// 起点、天然无前置不计；手动任务=有意定位，也不计。（2026-11-21 复盘
+	// B7：只报个数不点名对象，模型还得自遍历 links 求差集——点名到任务。）
 	noIn := 0
+	noInNames := []string{}
 	seenLeaf := false
 	for _, t := range p.Tasks {
 		if t.Level == 0 || t.Mode == schedule.ModeManual {
@@ -617,10 +717,15 @@ func qualityChecks(p schedule.Project, cpm schedule.CpmResult) []string {
 		}
 		if !inEdge[t.ID] {
 			noIn++
+			noInNames = append(noInNames, fmt.Sprintf("%s(%s)", t.Name, t.ID))
 		}
 	}
 	if noIn > 0 {
-		findings = append(findings, fmt.Sprintf("%d 个任务无前置搭接（可先 ops auto_chain 补缺省串联，再按工艺逻辑用 set_links 覆写例外）", noIn))
+		shown := noInNames
+		if len(shown) > 5 {
+			shown = append(append([]string{}, shown[:5]...), fmt.Sprintf("…等 %d 个", noIn))
+		}
+		findings = append(findings, fmt.Sprintf("%d 个任务无前置搭接：%s（可先 ops auto_chain 补缺省串联，再按工艺逻辑用 set_links 覆写例外）", noIn, strings.Join(shown, "、")))
 	}
 	if noOut > 1 {
 		findings = append(findings, fmt.Sprintf("%d 个任务无后续却不在总工期收尾（多条并行尾巴，确认收口里程碑是否遗漏）", noOut))

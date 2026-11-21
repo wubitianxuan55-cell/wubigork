@@ -1134,6 +1134,7 @@ export const zh: Record<DictKey, string> = {
   "composer.permAutoDesc": "写入无需确认，deny 规则仍生效",
   "composer.permYoloDesc": "跳过所有确认提示",
   "composer.thinkLabel": "思考深度",
+  "composer.runModeLabel": "运行模式",
   "composer.thinkFast": "快速",
   "composer.thinkFastDesc": "思考温度 0.1 — 快而直接，适合简单任务",
   "composer.thinkNormal": "标准",

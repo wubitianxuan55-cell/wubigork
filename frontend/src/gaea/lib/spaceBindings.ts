@@ -119,6 +119,20 @@ export const GAEA_METHOD_FACETS = {
   SetSubagentEffort: "shared",
   SetSubagentModelForSkill: "shared",
   SetPermLevel: "shared",
+  // 办公运行模式（2026-11-21 众神殿终案）：设置档位面，非空间域 → shared
+  //（同 SetPermLevel 设置族口径）。
+  GaeaOfficeRunMode: "shared",
+  GaeaSetOfficeRunMode: "shared",
+  // 能力面板「工具」tab 装配面（2026-11-21 面板缝）：只读引擎面查询，
+  // 非空间域 → shared。
+  GaeaToolSurface: "shared",
+  WenxueToolSurface: "shared",
+  // 工具面双轴（2026-11-21 终案）：设置档位/组开关登记面，非空间域 → shared。
+  GaeaToolFace: "shared",
+  GaeaSetToolFace: "shared",
+  GaeaSetToolGroup: "shared",
+  GaeaResetToolGroups: "shared",
+  GaeaSetComputerUseEnabled: "shared",
   KeepWarmGet: "shared",
   KeepWarmSet: "shared",
   PreloadPlanGet: "shared",

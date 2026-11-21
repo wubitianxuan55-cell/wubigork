@@ -1002,6 +1002,7 @@ export default function App() {
                   onSetThinkLevel={handleThinkLevelChange}
                   planActive={planActive}
                   onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
+                  onOpenTool={(id) => openPaneView(id as WorkspaceTabId)}
                   contextStatus={
                     <ContextPill
                       used={state.context.used}

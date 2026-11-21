@@ -31,8 +31,11 @@
 | `computer_state` | builtin-domain | work | read | none | 树文本/截图与实况一致（revision 失效闸门+白名单闸） |
 | `computer_type` | builtin-domain | work | write | none | 注入后新树含输入效果（同闸门链） |
 | `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册） |
+| `cost_audit` | builtin-domain | work | read | none | 硬检可复算（库读口同源）；信息项不混 HardCount |
 | `cost_compose` | builtin-domain | work | produce | none | 组价结果与定额飞轮口径一致 |
 | `cost_indicators` | builtin-domain | work | read | none | 指标与 SchemaV34 快照一致 |
+| `cost_project` | builtin-domain | work | read | none | 读回与 workcost 库一致 |
+| `cost_project_apply` | builtin-domain | work | write | none | PersistWrite：workcost 写入可查，同批编码唯一写前闸 |
 | `cost_save` | builtin-domain | work | write | none | PersistWrite：库写入可查 |
 | `cost_search` | builtin-domain | work | read | none | 检索命中与库一致 |
 | `dag_plan` | extra-app | work | meta | none | write_paths/readonly schema 闸（六闸刀口径） |
@@ -58,6 +61,9 @@
 | `kill_shell` | builtin-domain | work | write | none | 目标 job 终止（级联子树） |
 | `knowledge_add` | builtin-domain | work | write | none | PersistWrite：知识库写入可查 |
 | `knowledge_search` | builtin-domain | work | read | none | 召回与库一致 |
+| `longdoc_build` | builtin-domain | work | write | none | 声明路径=实际落点；机检 0 硬伤才组装；sha256 可复算 |
+| `longdoc_manifest` | builtin-domain | work | write | none | 机检可复算（确定性判定）；清单=唯一事实源 |
+| `longdoc_verify` | builtin-domain | work | read | none | 只读确定性四门（章/跨/册/判色）；验证体系工具化（2026-11-21 复盘收编） |
 | `ls` | builtin-workspace | work | read | none | 清单与实况一致 |
 | `mcp__<server>__<tool>` | plugin-mcp | 随插件 | 随工具 | 随工具 | 动态热插（plugins.go/controller_mcp.go reg.Add 同账）；名单凭证边界不枚举，P0 按非凭证方式标注 |
 | `md_validate` | builtin-workspace | work | read | none | 编号/引用/列数机检与回执一致（只读；多代理并行编制撞号实测落地） |

@@ -35,6 +35,26 @@ export interface ModelBindings {
   // SetPermLevel controls permission strictness: "ask" (default, prompt before writes),
   // "auto" (allow writes without asking), or "yolo" (skip all prompts).
   SetPermLevel(level: string): Promise<void>;
+  // 办公运行模式（2026-11-21 众神殿 pan_1795202763988 终案，Gaea 前缀同名直调）：
+  // SetOfficeRunMode 只登记默认档（standard|cost|proposal，立即返回不重建）——
+  // 当前会话保持现有档，GaeaNewSession 发现配置档≠引擎档时先重建再建会话
+  // （「新会话生效」）。OfficeRunMode 返回 {configured, active, hide, extras}。
+  GaeaSetOfficeRunMode(mode: string): Promise<void>;
+  GaeaOfficeRunMode(): Promise<OfficeRunModeViewB>;
+  // 能力面板「工具」tab 装配面（2026-11-21 面板缝）：从引擎主注册表活取
+  // （含模式藏面 hidden 灰显）；引擎未初始化时 tools 空——前端落静态清单兜底。
+  GaeaToolSurface(): Promise<ToolSurfaceViewB>;
+  WenxueToolSurface(): Promise<ToolSurfaceViewB>;
+  // 工具面双轴（2026-11-21 众神殿 pan_1795224680124 终案）：GaeaToolFace 返回
+  // {face, mode, groups[{id,label,count,enabled,overridable,note}], overrides}；
+  // 三个写口只登记默认值（新会话生效，不重建）。
+  GaeaToolFace(): Promise<ToolFaceViewB>;
+  GaeaSetToolFace(face: string): Promise<void>;
+  GaeaSetToolGroup(group: string, enabled: boolean): Promise<void>;
+  GaeaResetToolGroups(): Promise<void>;
+  // 电脑操控注册闸（2026-11-21 用户问询后补 UI）：开关写 [computer_use].enabled，
+  // 新会话重建后整族注册（boot 期注册闸）。
+  GaeaSetComputerUseEnabled(enabled: boolean): Promise<void>;
   // ── 阶段 5 T5-3 本地模型调度纵深 ──
   // KeepWarmGet/KeepWarmSet 保活开关：空闲时定期轻量探测，防止本地模型被卸载
   // （~/.gaea_config.json 持久化，重启后仍生效）。
@@ -79,6 +99,54 @@ export interface LocalServiceModelB {
   kind: string;
   detail: string;
   ready: boolean;
+}
+
+// OfficeRunModeViewB 与 Go app.OfficeRunModeView 同形（「查看配置」诚实面：
+// configured=默认档，active=引擎实际档；hide=该档隐藏的专用工具，extras=该档
+// 追加的内嵌技能）。
+export interface OfficeRunModeViewB {
+  configured: string;
+  active: string;
+  hide: string[];
+  extras: string[];
+}
+
+// ToolSurfaceViewB 与 Go app.ToolSurfaceView 同形：board=gaea|wenxue；
+// mode=引擎实际运行模式（wenxue 恒空）；tools=主注册表全量装配面（含 hidden）。
+export interface ToolSurfaceViewB {
+  board: string;
+  mode: string;
+  tools: ToolSurfaceEntryB[];
+}
+
+// ToolSurfaceEntryB 与 Go control.ToolSurfaceEntry 同形：description=模型可见
+// 口径（CompactDescriptor 工具给紧凑描述）；hidden=模式藏面（协议层按名可调）；
+// group=功能组 id（""=core，组开关数据源）。
+export interface ToolSurfaceEntryB {
+  name: string;
+  description: string;
+  source: string;
+  group: string;
+  hidden: boolean;
+}
+
+// ToolFaceViewB 与 Go app.ToolFaceView 同形（工具面双轴视图）。
+export interface ToolFaceViewB {
+  face: string;
+  mode: string;
+  groups: ToolFaceGroupViewB[];
+  overrides: Record<string, boolean>;
+}
+
+export interface ToolFaceGroupViewB {
+  id: string;
+  label: string;
+  count: number;
+  enabled: boolean;
+  overridable: boolean;
+  // gate=true=注册闸组（computer）：开关走 GaeaSetComputerUseEnabled。
+  gate: boolean;
+  note: string;
 }
 
 // RouteLedgerTotalB 账本总计（与 api/engines.ts RouteLedgerTotal 同形）。

@@ -212,11 +212,14 @@ def render_blocks(doc, blocks, font, size, line_spacing, style):
         elif btype == "table":
             add_table(doc, b.get("header", []), b.get("rows", []), font, size, table_fill)
         elif btype == "image":
+            # 2026-11-21 复盘 A3：图片路径解析失败不再静默降级为占位文字（旧形态
+            # 回执仍报成功、机检全绿，交付过 18 张图全是失败提示的整册）。改为
+            # 记账，main 里统一硬失败（exit 2），不产出残缺交付物。
             try:
                 doc.add_picture(b["path"], width=Cm(14))
                 doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
             except Exception as e:
-                doc.add_paragraph(f"[图片加载失败: {e}]")
+                FAILED_IMAGES.append(f"{b['path']} ({e})")
         elif btype == "pagebreak":
             doc.add_page_break()
         elif btype == "code":
@@ -331,6 +334,10 @@ def build(doc, title, subtitle, author, opts, blocks):
     normal._element.rPr.rFonts.set(qn("w:eastAsia"), font)
 
 
+# 图片加载失败记账（A3：失败即整体拒绝导出，见 main 的硬失败闸）。
+FAILED_IMAGES = []
+
+
 def main():
     ap = argparse.ArgumentParser(description="Create a .docx from Markdown or JSON spec")
     ap.add_argument("input", help="Markdown (.md) or JSON spec file")
@@ -371,11 +378,17 @@ def main():
 
     doc = Document()
     build(doc, title, subtitle, author, opts, blocks)
+    # A3 硬失败闸：有图片没嵌进去就拒绝产出——绝不导出「图全是失败提示」的整册。
+    if FAILED_IMAGES:
+        print("[docx] 图片加载失败 %d 处，拒绝导出（改绝对路径/补图后重试）: %s"
+              % (len(FAILED_IMAGES), "; ".join(FAILED_IMAGES)), file=sys.stderr)
+        return 2
     doc.save(args.output)
 
     # verify by reopening
     check = Document(args.output)
-    print(json.dumps({"ok": True, "path": args.output, "paragraphs": len(check.paragraphs), "tables": len(check.tables)}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "path": args.output, "paragraphs": len(check.paragraphs),
+                      "tables": len(check.tables), "images": len(check.inline_shapes)}, ensure_ascii=False))
     return 0
 
 

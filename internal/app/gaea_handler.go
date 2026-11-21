@@ -55,6 +55,18 @@ type gaeaRuntime struct {
 	// wire seq 打点 + phase 节流的唯一状态点，随进程存活（不随 controller
 	// 重建重置——设置变更重建引擎不打断当前会话，seq 回退会破坏前端断号检测）。
 	wire *gaeaEventForwarder
+	// runMode 是当前 controller 装配所用运行模式（2026-11-21 众神殿终案，
+	// pan_1795202763988）：由 gaeaBuildController 在持锁调用下写入。与
+	// cfg.OfficeRunMode()（新会话默认档）不等时，GaeaNewSession 先重建引擎
+	// 再建会话——「会话创建时定档、当前会话不中途切换」的 DSH 同构语义。
+	runMode string
+	// toolFace/groupSig/cuEnabled 是当前装配所用工具面档（lean|standard）、组
+	// 覆盖签名与电脑操控注册闸（2026-11-21 工具面双轴批，pan_1795224680124）：
+	// GaeaNewSession 判定 (runMode, toolFace, groupSig, cuEnabled) 四元组不等
+	// 时先重建再建会话。
+	toolFace  string
+	groupSig  string
+	cuEnabled bool
 }
 
 // gaeaLoadConfig 加载办公引擎配置：内置默认 + 用户持久化文件（若有），
@@ -151,7 +163,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	if ga.cfg != nil {
 		space = ga.cfg.EffectiveSessionSpace()
 	}
-	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
+	opts := gaeaBoot.Options{
 		Model: "gaea",
 		// T11 Guardian：[guardian] enabled 时注入动作级自动评审（评审走办公
 		// 本地优先路由）；未启用传 nil=审批纯人工（现状逐字节）。
@@ -196,7 +208,34 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 项目本体注入（6.2）：开关读 project_brief 键（默认开）；绑定
 		// GaeaMemoryBrief/GaeaSetMemoryBrief 可查可关。
 		ProjectBrief: projectBriefEnabled(a),
-	})
+	}
+	// 运行模式×工具面双轴（2026-11-21 pan_1795202763988 + pan_1795224680124
+	// 终案）：组合器（office_runmode.go）按 run_mode→tool_face→组覆盖确定性
+	// 汇总 Hide 名单与 ModeLine；技能门窄 deny 跟随最终启用组（schedule-edit/
+	// cad-takeoff），配合 SkillFilterKeepsInstall 保住 install_skill。
+	// ga.cfg 为 nil（部分测试路径）时归一 standard/lean=最小面。
+	runMode := normalizeOfficeRunMode(ga.cfg.OfficeRunMode())
+	face := normalizeOfficeToolFace(ga.cfg.OfficeToolFace())
+	overrides := ga.cfg.OfficeToolGroupOverrides()
+	hide := composeToolHide(runMode, face, overrides)
+	opts.ToolHide = hide
+	opts.ModeLine = composeModeLine(runMode, face, hide)
+	opts.SkillExtras = officeRunModeSkillExtras(runMode)
+	// 模式专属身份提示词（2026-11-21 用户拍板，wenxue 身份分板同构）：造价/
+	// 方案档顶替全局 agent.system_prompt 作 L1 基底（配置键 system_prompt_cost/
+	// system_prompt_proposal 可覆盖内置默认）；standard 空=现状逐字节。
+	opts.SystemPrompt = officeModeSystemPrompt(runMode, ga.cfg)
+	if sf := officeRunModeSkillFilter(hide); sf != nil {
+		opts.SkillFilter = sf
+		opts.SkillFilterKeepsInstall = true
+	}
+	ga.runMode = runMode
+	ga.toolFace = face
+	ga.groupSig = toolGroupOverridesSig(overrides)
+	if ga.cfg != nil {
+		ga.cuEnabled = ga.cfg.ComputerUse.Enabled // 直接字段访问须判 nil（ga.cfg 可空）
+	}
+	ctrl, err := gaeaBoot.Build(a.ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
 	}
@@ -608,6 +647,23 @@ func (a *App) GaeaNewSession() error {
 	if ga.ctrl.Running() {
 		return errors.New("回合正在运行，请先停止当前回合再开启新会话")
 	}
+	// 会话创建时定档定面（2026-11-21 pan_1795202763988 + pan_1795224680124
+	// 终案，DSH 同构）：配置的 (run_mode, tool_face, 组覆盖) ≠ 当前引擎装配
+	// 三元组时先重建引擎，再建会话——「切换=登记默认值，新会话生效；当前
+	// 会话不中途切换」。重建在此刻才发生：切换动作本身只持久化配置。
+	// ga.cfg=nil（部分测试/未装配路径）：无配置可比，跳过判面重建（旧行为——
+	// 建会话不触发引擎构建），直接建会话。
+	if ga.cfg != nil {
+		cfgMode := normalizeOfficeRunMode(ga.cfg.OfficeRunMode())
+		cfgFace := normalizeOfficeToolFace(ga.cfg.OfficeToolFace())
+		cfgSig := toolGroupOverridesSig(ga.cfg.OfficeToolGroupOverrides())
+		cfgCU := ga.cfg.ComputerUse.Enabled
+		if ga.runMode != cfgMode || ga.toolFace != cfgFace || ga.groupSig != cfgSig || ga.cuEnabled != cfgCU {
+			if err := a.gaeaRebuildLocked(); err != nil {
+				return fmt.Errorf("运行模式/工具面切换重建失败（保持当前面）: %w", err)
+			}
+		}
+	}
 	// 新会话 = 全新目标：清空 goal gate，避免上个会话的「持续工作到验收」
 	// 目标残留到新会话（手动 /goal 在新会话同样需要重设）。
 	ga.ctrl.SetGoal("")
@@ -1014,6 +1070,18 @@ func extraToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 		xlsxAuditTool{a: a},
 		// P4 持久任务中心：批量转 PDF 提交型工具（断窗续跑/可取消/可重试）。
 		officeBatchTool{a: a},
+		// 运行模式专用面（2026-11-21 众神殿 pan_1795202763988 终案，五件）：
+		// 造价三件（cost_project 读/cost_project_apply 写+PersistWrite/
+		// cost_audit 机检，锚 workcost 权威面）+ 方案两件（longdoc_manifest
+		// 清单机检/longdoc_build 组装交付）。模式可见性由 gaeaBuildController
+		// 的 ToolHide 缝按档收放（standard 全藏/cost 藏方案族/proposal 藏造价
+		// 族）；spacetags 静态表与 registrymap 契约行同批（三处同批纪律）。
+		costProjectTool{a: a},
+		costProjectApplyTool{a: a},
+		costAuditTool{a: a},
+		longdocManifestTool{a: a},
+		longdocBuildTool{a: a},
+		longdocVerifyTool{a: a},
 	}
 	// dsh-office COM 实时协同档（波1）：本机装了 Office/WPS 才注册，无则
 	// 整族不出现、无头管线照旧（docs/gaea-dsh-office-distill-research-2026-11.md）。

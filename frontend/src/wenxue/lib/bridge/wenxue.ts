@@ -4,6 +4,21 @@
 // 2026-11-15 二次改造隔离刀。
 import type { Meta, ProjectGroup, SessionMeta, WenxueMemoryArchivedView, WorkspaceView } from "../types";
 
+// ToolSurfaceViewB/ToolSurfaceEntryB 与 Go app.ToolSurfaceView / control.ToolSurfaceEntry
+// 同形（wenxue 树局部重述——跨树 import 会破坏板块隔离）。
+export interface ToolSurfaceEntryB {
+  name: string;
+  description: string;
+  source: string;
+  hidden: boolean;
+}
+
+export interface ToolSurfaceViewB {
+  board: string;
+  mode: string;
+  tools: ToolSurfaceEntryB[];
+}
+
 export interface WenxueExtraBindings {
   /** 新建小说工作空间：C:\AI\tuwen\<name>，创建成功后自动切换为当前工作空间。 */
   // WenxueCreateNovel 建书 + 关键信息（infoJson={genre,intro,targetWords,adultLevel}，
@@ -28,6 +43,9 @@ export interface WenxueExtraBindings {
   WenxueMeta(): Promise<Meta>;
   /** 在当前小说目录下新建会话。 */
   WenxueNewSession(): Promise<void>;
+  /** 能力面板「工具」tab 装配面（2026-11-21 面板缝）：主注册表全量活取
+   *  （描述=模型可见口径，含藏面）；引擎未就绪时 tools 空。 */
+  WenxueToolSurface(): Promise<ToolSurfaceViewB>;
   /** 切换当前小说工作空间，越界路径由后端拒绝。 */
   WenxueSwitchWorkspace(path: string): Promise<string>;
 }

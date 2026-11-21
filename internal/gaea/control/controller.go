@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1220,6 +1221,57 @@ func (c *Controller) Schemas() []provider.ToolSchema {
 		return nil
 	}
 	return c.reg.Schemas()
+}
+
+// ToolSurfaceEntry 是能力面板「工具」tab 的装配面条目（2026-11-21 运行模式
+// 面板缝，GaeaToolSurface/WenxueToolSurface 消费）：描述取模型可见口径
+// （CompactDescriptor 工具给紧凑描述——面板与模型看到同一份文案）。
+type ToolSurfaceEntry struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Source 是装配来源（tool.SourceOf：builtin-domain/build-internal/
+	// extra-app/mcp:<server>/""=契约行外工具）。
+	Source string `json:"source"`
+	// Group 是功能组 id（tool.ToolGroupOf：cad/schedule/browser/com/computer/
+	// cost/longdoc/media；""=core 不可配置）——面板组开关的数据源（2026-11-21
+	// 终案 DSH-r3 修订①：Source 是装配来源不是用户功能组，不能拿它做开关）。
+	Group string `json:"group"`
+	// Hidden 是模式藏面（Registry.Hide：schema 不可见、协议层按名可调——
+	// 面板灰显诚实标出，标注「他档能力」）。
+	Hidden bool `json:"hidden"`
+}
+
+// ToolSurface 返回主注册表全量装配面（含 hidden——面板诚实显形；nil 注册表
+// =未构建 → nil）。与 Schemas() 的差集恰是 HiddenNames()（模式藏面/deferred）。
+func (c *Controller) ToolSurface() []ToolSurfaceEntry {
+	if c.reg == nil {
+		return nil
+	}
+	hidden := map[string]bool{}
+	for _, n := range c.reg.HiddenNames() {
+		hidden[n] = true
+	}
+	names := c.reg.Names()
+	out := make([]ToolSurfaceEntry, 0, len(names))
+	for _, name := range names {
+		t, ok := c.reg.Get(name)
+		if !ok {
+			continue // defensive ghost-name guard（FilteredSchemas 同款）
+		}
+		desc := t.Description()
+		if cd, ok := t.(tool.CompactDescriptor); ok {
+			desc = cd.CompactDescription()
+		}
+		out = append(out, ToolSurfaceEntry{
+			Name:        name,
+			Description: desc,
+			Source:      tool.SourceOf(name),
+			Group:       string(tool.ToolGroupOf(name)),
+			Hidden:      hidden[name],
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // AddMCPServer connects an MCP server live and persists it to the config file. Its

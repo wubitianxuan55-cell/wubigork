@@ -55,6 +55,7 @@ import { ComputerStatusBar } from "./components/ComputerStatusBar";
 
 import { exportAsMarkdown } from "./lib/export";
 import type { MemoryView, SessionMeta, TaskTemplate } from "./lib/types";
+import type { OfficeRunModeViewB } from "./lib/bridge/model";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -139,11 +140,43 @@ export default function App() {
   } = useController();
   const t = useT();
   const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
+  // 办公运行模式（2026-11-21 众神殿 pan_1795202763988 终案）：视图快照
+  // {configured, active, hide, extras}。切换=登记默认档（后端零重建）；
+  // configured≠active 时参数面板提示「新会话生效」。新建会话/断线重连后
+  // 重拉——active 可能已随会话创建时定档重建而变化。
+  const [runMode, setRunMode] = useState<OfficeRunModeViewB | null>(null);
+  const refreshRunMode = useCallback(async () => {
+    try {
+      setRunMode(await app.GaeaOfficeRunMode());
+    } catch {
+      // 引擎未就绪（首次装配前）：静默留空，新会话/重连后重拉。
+    }
+  }, []);
+  useEffect(() => { void refreshRunMode(); }, [refreshRunMode]);
   const { histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, anyOpen, closeTopmost } = useDrawers();
   // v4.73：记忆由抽屉迁入主区 tab——视图快照在 App 层维护，动作写盘后统一刷新。
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
+  // 新会话建会即定档（可能触发引擎重建换档面）——重拉视图刷新 active。
+  useEffect(() => { if (newSessionDone) void refreshRunMode(); }, [newSessionDone, refreshRunMode]);
   const newSessionAndReset = useCallback(async () => { await startNewSession(); }, [startNewSession]);
+  const setRunModeDefault = useCallback(async (mode: string) => {
+    try {
+      await app.GaeaSetOfficeRunMode(mode);
+      let view = await app.GaeaOfficeRunMode();
+      // 会话创建时定档（众神殿 pan_1795202763988 终案）：新会话（未发消息）
+      // 选档即定档——配置档≠引擎档时经 GaeaNewSession 重建引擎换新会话，
+      // 本会话立刻按新档装配；已有内容的会话不中断（只登记默认档，切档
+      // 需新建会话）。
+      if (state.items.length === 0 && !state.running && view.active !== mode) {
+        await startNewSession();
+        view = await app.GaeaOfficeRunMode();
+      }
+      setRunMode(view);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e), "warn");
+    }
+  }, [state.items.length, state.running, startNewSession, toast]);
   // GenUI action 宿主：运行中 → steer（注入当前回合），空闲 → send（短展示文案 +
   // 完整信封原文走 SubmitDisplay raw）。paylod 紧凑化防超长。
   const genuiActionHandler = useCallback(
@@ -564,9 +597,10 @@ export default function App() {
   // 面板改为右栏一级 Tab，退役临时面板承载）：显式点击=用户意图，可选卡停用时
   // 先启用再打开（与右栏＋下拉「点击即启用」同语义）。
   const openToolTab = useCallback(
-    (tool: "cad" | "schedule") => {
-      if (!usePaneEnabledStore.getState().enabled[tool]) setPaneEnabled(tool, true);
-      openPaneView(tool);
+    (tool: string) => {
+      const id = tool as WorkspaceTabId; // 候选源=ComposerToolbar 按 variant 的 items，键恒为合法 pane id
+      if (!usePaneEnabledStore.getState().enabled[id]) setPaneEnabled(id, true);
+      openPaneView(id);
     },
     [openPaneView, setPaneEnabled],
   );
@@ -1087,6 +1121,9 @@ export default function App() {
                   onSetPermLevel={setPermLevel}
                   thinkLevel={thinkLevel}
                   onSetThinkLevel={handleThinkLevelChange}
+                  runMode={runMode}
+                  onSetRunMode={setRunModeDefault}
+                  runModeLocked={state.items.length > 0 || state.running}
                   planActive={planActive}
                   onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
                   contextStatus={

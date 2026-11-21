@@ -130,6 +130,7 @@ func (b *OfficeB) GaeaMorningPreload() bool { return b.a.GaeaMorningPreload() }
 func (b *OfficeB) GaeaNewSession() error { return b.a.GaeaNewSession() }
 func (b *OfficeB) GaeaOCRText(imagePath string) (string, error) { return b.a.GaeaOCRText(imagePath) }
 func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (map[string]interface{}, error) { return b.a.GaeaOfficeEditText(selectedText, instruction) }
+func (b *OfficeB) GaeaOfficeRunMode() OfficeRunModeView { return b.a.GaeaOfficeRunMode() }
 func (b *OfficeB) GaeaOpenDownloadPage() error { return b.a.GaeaOpenDownloadPage() }
 func (b *OfficeB) GaeaOpenLogsDir() error { return b.a.GaeaOpenLogsDir() }
 func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error { return b.a.GaeaOpenWorkspacePath(rel) }
@@ -159,6 +160,7 @@ func (b *OfficeB) GaeaRemovePermissionRule(list string, rule string) error { ret
 func (b *OfficeB) GaeaRemoveRecentWorkspace(path string) error { return b.a.GaeaRemoveRecentWorkspace(path) }
 func (b *OfficeB) GaeaRenameSession(path string, title string) error { return b.a.GaeaRenameSession(path, title) }
 func (b *OfficeB) GaeaRenameWorkspacePath(rel string, name string) (workbench.MutationResult, error) { return b.a.GaeaRenameWorkspacePath(rel, name) }
+func (b *OfficeB) GaeaResetToolGroups() error { return b.a.GaeaResetToolGroups() }
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }
 func (b *OfficeB) GaeaResyncEvents(afterSeq int) GaeaResyncResult { return b.a.GaeaResyncEvents(afterSeq) }
 func (b *OfficeB) GaeaRetrievalEvalRun() (RetrievalEvalReport, error) { return b.a.GaeaRetrievalEvalRun() }
@@ -191,17 +193,21 @@ func (b *OfficeB) GaeaScheduleSave(projectJSON string, rel string) (ScheduleSave
 func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
+func (b *OfficeB) GaeaSetComputerUseEnabled(enabled bool) error { return b.a.GaeaSetComputerUseEnabled(enabled) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
 func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error { return b.a.GaeaSetMemoryBrief(enabled) }
 func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
 func (b *OfficeB) GaeaSetMorningPreload(enabled bool) error { return b.a.GaeaSetMorningPreload(enabled) }
+func (b *OfficeB) GaeaSetOfficeRunMode(mode string) error { return b.a.GaeaSetOfficeRunMode(mode) }
 func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermLevel(level) }
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }
 func (b *OfficeB) GaeaSetProviderKey(apiKeyEnv string, value string) error { return b.a.GaeaSetProviderKey(apiKeyEnv, value) }
 func (b *OfficeB) GaeaSetSandbox(bash string, network bool, workspaceRoot string, allowWrite []string) error { return b.a.GaeaSetSandbox(bash, network, workspaceRoot, allowWrite) }
 func (b *OfficeB) GaeaSetSubagentEffort(effort string) error { return b.a.GaeaSetSubagentEffort(effort) }
 func (b *OfficeB) GaeaSetSubagentModelForSkill(skill string, ref string) error { return b.a.GaeaSetSubagentModelForSkill(skill, ref) }
+func (b *OfficeB) GaeaSetToolFace(face string) error { return b.a.GaeaSetToolFace(face) }
+func (b *OfficeB) GaeaSetToolGroup(group string, enabled bool) error { return b.a.GaeaSetToolGroup(group, enabled) }
 func (b *OfficeB) GaeaSettings() SettingsView { return b.a.GaeaSettings() }
 func (b *OfficeB) GaeaSkillDistillCandidates() SkillDistillView { return b.a.GaeaSkillDistillCandidates() }
 func (b *OfficeB) GaeaSkillDistillDecide(patternID string, decision string, skillName string) error { return b.a.GaeaSkillDistillDecide(patternID, decision, skillName) }
@@ -231,6 +237,8 @@ func (b *OfficeB) GaeaTaskList(space string) []tasks.Task { return b.a.GaeaTaskL
 func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a.GaeaTaskOutput(id) }
 func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
+func (b *OfficeB) GaeaToolFace() ToolFaceView { return b.a.GaeaToolFace() }
+func (b *OfficeB) GaeaToolSurface() ToolSurfaceView { return b.a.GaeaToolSurface() }
 func (b *OfficeB) GaeaTrajectory(sessionPath string) (trajectory.Trajectory, error) { return b.a.GaeaTrajectory(sessionPath) }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }
 func (b *OfficeB) GaeaUnifiedSearch(query string, topN int, scope string) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN, scope) }

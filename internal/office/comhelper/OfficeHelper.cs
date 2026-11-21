@@ -3487,6 +3487,7 @@ static class Program
         if (type == "insert_diagram" || type == "insert_flowchart") return Diagram(doc, op);
         if (type == "insert_references") return References(doc, op);
         if (type == "style_format") return StyleFormat(doc, op);
+        if (type == "clear_char_format") return ClearCharFormat(doc, op);
         if (type == "page_setup") return PageSetup(doc, op);
         if (type == "page_numbers") return PageNumbers(doc, op);
         if (type == "insert_toc") return Toc(doc, op);
@@ -3875,7 +3876,34 @@ static class Program
             }
         }
         try { format.WordWrap = -1; } catch (Exception) { }
-        return "style \"" + (string)style.NameLocal + "\" changed";
+        // 2026-11-21 复盘 A7：样式表改了但正文标题仍蓝——run 级直接格式优先于
+        // 样式。改了字面（颜色/字号/字体）时回执明示这层优先级与清除入口，
+        // 不让「changed」被误读为「全文已生效」。
+        bool face = op.Has("color") || op.Has("font") || op.Has("latinFont") || op.Has("size");
+        return "style \"" + (string)style.NameLocal + "\" changed" +
+            (face ? " (note: direct character formatting on runs — e.g. a colour set by hand — still overrides the style; clear it with clear_char_format {style: \"" + (string)style.NameLocal + "\"})" : "");
+    }
+
+    // 2026-11-21 复盘 A7：按样式批量清除 run 级直接字符格式（Word 里选中后
+    // Ctrl+Space 的等价物）。style_format 只改样式表；正文 run 带直接格式时样式
+    // 不生效，此前 187 处标题无批量清除手段。Font.Reset 只去手工格式，样式定义
+    // 的字体/颜色不受影响。
+    static string ClearCharFormat(dynamic doc, Bag op)
+    {
+        string name = op.Need("style");
+        dynamic style = StyleOf(doc, name);
+        int touched = 0;
+        foreach (dynamic p in doc.Paragraphs)
+        {
+            try
+            {
+                if ((string)p.Style.NameLocal != (string)style.NameLocal) continue;
+                p.Range.Font.Reset();
+                touched++;
+            }
+            catch (COMException) { }
+        }
+        return touched + " paragraph(s) of style \"" + (string)style.NameLocal + "\" cleared of direct character formatting; the style now shows through";
     }
 
     static string PageSetup(dynamic doc, Bag op)

@@ -138,6 +138,24 @@ func builtinSkills() []Skill {
 - 多条调整一次 ops 数组下发（原子应用，单条失败整批拒绝）。
 - 进度反馈：patch_task{progress}（0-100），前锋线在板块横道图查看。
 
+## ops 完整示例（字段名以此为准）
+
+[{"type":"upsert_task","task":{"id":"A1","name":"场地清理","level":1,"duration":3},"afterId":"A0"},
+ {"type":"patch_task","id":"A10","patch":{"duration":15}},
+ {"type":"remove_task","id":"B6"},
+ {"type":"set_links","toId":"B6","links":[{"from":"B5","type":"FS","lag":0}]},
+ {"type":"set_meta","name":"工程名","startDate":"2026-12-01","calendar":{"workweek":[0,1,2,3,4,5,6],"holidays":["2027-01-01"]},"deadline":"2027-06-30"},
+ {"type":"auto_chain"},
+ {"type":"set_assignments","taskId":"A10","assignments":[{"resourceId":"R1","units":2}]}]
+
+## 易静默出错点（写前自查；工具已加预检拒绝闸，键名纪律仍须自觉）
+
+- 操作类型字段名是 type 不是 op；没有 set_calendar 这个 op——日历改走 set_meta 的 calendar。
+- patch_task 的可改字段必须嵌套在 patch 内，平铺顶层报「未提供任何字段」。
+- set_links 的目标字段是 toId（taskId 是 set_assignments 的字段）。
+- project 通道：links 放 project 顶层（写在 task 对象内会被预检拒绝）；calendar.workweek 取值域 0-6（JS getDay 口径：0=周日；七天连续施工=[0,1,2,3,4,5,6]，写 1-7 会被拒绝）。
+- 回执逐字核对：「N 条搭接」=预期条数、写入后总工期方向与幅度符合预期、deadlineCheck.targetWorkdays 变化与日历口径一致。
+
 ## 资源与成本（对话式挂资源与算钱）
 
 - 三类资源（对齐 Project）。纪律：**先建资源（upsert_resource）再挂分配（set_assignments）**；只有叶任务可挂分配、可设 fixedCost（分组行拒绝——汇总唯一口径=子孙求和）：

@@ -121,6 +121,7 @@ func (b *WenxueB) WenxueSteer(input string) { b.a.WenxueSteer(input) }
 func (b *WenxueB) WenxueSubagentContextView(sessionPath string, ref string) (contextview.ContextTimeline, error) { return b.a.WenxueSubagentContextView(sessionPath, ref) }
 func (b *WenxueB) WenxueSubagentFollowUp(sessionPath string, ref string, prompt string) (string, error) { return b.a.WenxueSubagentFollowUp(sessionPath, ref, prompt) }
 func (b *WenxueB) WenxueSwitchWorkspace(path string) string { return b.a.WenxueSwitchWorkspace(path) }
+func (b *WenxueB) WenxueToolSurface() ToolSurfaceView { return b.a.WenxueToolSurface() }
 func (b *WenxueB) WenxueTrajectory(sessionPath string) (trajectory.Trajectory, error) { return b.a.WenxueTrajectory(sessionPath) }
 func (b *WenxueB) WenxueUnarchiveSession(path string) (string, error) { return b.a.WenxueUnarchiveSession(path) }
 func (b *WenxueB) WenxueUnpinMaterial(rel string) []FileSearchHit { return b.a.WenxueUnpinMaterial(rel) }

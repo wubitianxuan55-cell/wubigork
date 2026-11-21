@@ -155,7 +155,7 @@ describe("ComposerInputRow i18n 冒烟", () => {
 describe("ComposerToolbar i18n 冒烟", () => {
   afterEach(cleanup);
 
-  it("参数钮显示当前取值，弹出层内权限/思考徽标与截图 title 走字典（zh）", () => {
+  it("权限/思考独立钮显示当前取值，弹出层徽标与截图 title 走字典（zh）", () => {
     renderT(
       <ComposerToolbar
         cwd="/ws"
@@ -174,16 +174,21 @@ describe("ComposerToolbar i18n 冒烟", () => {
         onSetThinkLevel={noop}
       />,
     );
-    // 简化批：6 chip 收进「参数」钮——先验常驻面，再开弹出层验 chip 文案
+    // 2026-11-21 拆分批：权限/思考各自独立触发钮（显自身取值），分别开弹层验 chip 文案
     expect(screen.getByTitle("截图：捕获屏幕并裁剪附加")).toBeTruthy();
     expect(screen.getByText("/ 命令")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "会话参数（权限级别 · 思考深度）" }));
+    // 权限钮：触发面显「询问」，弹层含三档与分组标签
+    fireEvent.click(screen.getByRole("button", { name: "权限级别" }));
     expect(screen.getByTestId("composer-params-menu")).toBeTruthy();
-    expect(screen.getByText("询问")).toBeTruthy();
+    expect(screen.getAllByText("询问").length).toBeGreaterThan(0);
     expect(screen.getByText("自动")).toBeTruthy();
-    expect(screen.getByText("标准")).toBeTruthy();
-    // 弹出层分组标签走字典
     expect(screen.getByText("权限级别")).toBeTruthy();
+    fireEvent.click(screen.getByText("权限级别"));
+    // 思考钮：触发面显「标准」（normal），弹层含三档
+    fireEvent.click(screen.getByRole("button", { name: "思考深度" }));
+    expect(screen.getAllByText("标准").length).toBeGreaterThan(0);
+    expect(screen.getByText("快速")).toBeTruthy();
+    expect(screen.getByText("深度")).toBeTruthy();
     expect(screen.getByText("思考深度")).toBeTruthy();
   });
 });

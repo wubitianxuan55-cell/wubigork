@@ -131,3 +131,41 @@ func TestMDValidate_SpaceTag(t *testing.T) {
 		t.Fatal("md_validate 必须只读")
 	}
 }
+
+// 2026-11-21 复盘 B6：「附图8/附表2/插图3/图幅5」是附录/外部编号体系，不得
+// 被读成内部引用「图8/表2/图3/图5」制造假阳性；中文长破折号「表1—3」与
+// 「表1-3」应归一为同一编号互相对账。
+func TestMDValidate_CompoundPrefixAndEmDash(t *testing.T) {
+	// 复合前缀：全文只有 图3-1 一对题注/引用，附图表等外部编号不产生孤儿。
+	out, err := mdvRun(t, `# 第三章
+
+平面布置见图3-1。
+
+图3-1 平面布置图
+
+外部编号体系不在对账范围：附图8、附表2、插图3、图幅5 均为附录编号，与本文档无关。
+`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "孤立引用") || strings.Contains(out, "未引用") || strings.Contains(out, "issue") {
+		t.Fatalf("复合前缀不得产生假阳性（B6）：%s", out)
+	}
+
+	// 长破折号：题注「表1—3」与引用「表1-3」「表1—3」互认。
+	out2, err := mdvRun(t, `# 第一章
+
+参数见表1-3，另见 表1—3 的说明。
+
+表1—3 参数表
+| a | b |
+|---|---|
+| 1 | 2 |
+`, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out2, "孤立引用") || strings.Contains(out2, "未引用") {
+		t.Fatalf("长破折号应归一互认（B6）：%s", out2)
+	}
+}

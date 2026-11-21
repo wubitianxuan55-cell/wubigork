@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 716 名（原生变参 19 名已收窄标注）。
+// 共 725 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -257,6 +257,7 @@ export const bindingSignatures = {
   GaeaNewSession: { argc: 0, variadic: false, params: "" },
   GaeaOCRText: { argc: 1, variadic: false, params: "imagePath string" },
   GaeaOfficeEditText: { argc: 2, variadic: false, params: "selectedText string, instruction string" },
+  GaeaOfficeRunMode: { argc: 0, variadic: false, params: "" },
   GaeaOpenDownloadPage: { argc: 0, variadic: false, params: "" },
   GaeaOpenLogsDir: { argc: 0, variadic: false, params: "" },
   GaeaOpenWorkspacePath: { argc: 1, variadic: false, params: "rel string" },
@@ -300,6 +301,7 @@ export const bindingSignatures = {
   GaeaRemoveRecentWorkspace: { argc: 1, variadic: false, params: "path string" },
   GaeaRenameSession: { argc: 2, variadic: false, params: "path string, title string" },
   GaeaRenameWorkspacePath: { argc: 2, variadic: false, params: "rel string, name string" },
+  GaeaResetToolGroups: { argc: 0, variadic: false, params: "" },
   GaeaResumeSession: { argc: 1, variadic: false, params: "path string" },
   GaeaResyncEvents: { argc: 1, variadic: false, params: "afterSeq int" },
   GaeaRetrievalEvalRun: { argc: 0, variadic: false, params: "" },
@@ -339,18 +341,22 @@ export const bindingSignatures = {
   GaeaSend: { argc: 1, variadic: false, params: "input string" },
   GaeaSessionStats: { argc: 1, variadic: false, params: "path string" },
   GaeaSetAgentParams: { argc: 3, variadic: false, params: "temperature float64, maxSteps int, systemPrompt string" },
+  GaeaSetComputerUseEnabled: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetDefaultModel: { argc: 1, variadic: false, params: "ref string" },
   GaeaSetMCPServerEnabled: { argc: 2, variadic: false, params: "name string, enabled bool" },
   GaeaSetMemoryBrief: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetMemoryEnabled: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetModel: { argc: 1, variadic: false, params: "name string" },
   GaeaSetMorningPreload: { argc: 1, variadic: false, params: "enabled bool" },
+  GaeaSetOfficeRunMode: { argc: 1, variadic: false, params: "mode string" },
   GaeaSetPermLevel: { argc: 1, variadic: false, params: "level string" },
   GaeaSetPermissionMode: { argc: 1, variadic: false, params: "mode string" },
   GaeaSetProviderKey: { argc: 2, variadic: false, params: "apiKeyEnv string, value string" },
   GaeaSetSandbox: { argc: 4, variadic: false, params: "bash string, network bool, workspaceRoot string, allowWrite []string" },
   GaeaSetSubagentEffort: { argc: 1, variadic: false, params: "effort string" },
   GaeaSetSubagentModelForSkill: { argc: 2, variadic: false, params: "skill string, ref string" },
+  GaeaSetToolFace: { argc: 1, variadic: false, params: "face string" },
+  GaeaSetToolGroup: { argc: 2, variadic: false, params: "group string, enabled bool" },
   GaeaSetUsdCnyRate: { argc: 1, variadic: false, params: "rate float64" },
   GaeaSettings: { argc: 0, variadic: false, params: "" },
   GaeaSkillDistillCandidates: { argc: 0, variadic: false, params: "" },
@@ -387,6 +393,8 @@ export const bindingSignatures = {
   GaeaTaskOutput: { argc: 1, variadic: false, params: "id string" },
   GaeaTaskRetry: { argc: 1, variadic: false, params: "id string" },
   GaeaTaskTemplates: { argc: 0, variadic: false, params: "" },
+  GaeaToolFace: { argc: 0, variadic: false, params: "" },
+  GaeaToolSurface: { argc: 0, variadic: false, params: "" },
   GaeaTrajectory: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaUnarchiveSession: { argc: 1, variadic: false, params: "path string" },
   GaeaUnifiedSearch: { argc: 3, variadic: true, params: "query string, topN int, scope string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
@@ -707,6 +715,7 @@ export const bindingSignatures = {
   WenxueSubagentContextView: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   WenxueSubagentFollowUp: { argc: 3, variadic: false, params: "sessionPath string, ref string, prompt string" },
   WenxueSwitchWorkspace: { argc: 1, variadic: false, params: "path string" },
+  WenxueToolSurface: { argc: 0, variadic: false, params: "" },
   WenxueTrajectory: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueUnarchiveSession: { argc: 1, variadic: false, params: "path string" },
   WenxueUnpinMaterial: { argc: 1, variadic: false, params: "rel string" },
@@ -737,5 +746,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 716。
-export const bindingSignatureCount = 716;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 725。
+export const bindingSignatureCount = 725;

@@ -153,6 +153,13 @@ type Options struct {
 	// 双 nil = 现状逐字节（办公引擎不传）。
 	SkillFilter func(name string) bool
 	SkillExtras []skill.Skill
+	// SkillFilterKeepsInstall（2026-11-21 办公工具面组开关，pan_1795224680124
+	// 终案）：office 的 SkillFilter 是窄 deny 谓词（仅拒 schedule-edit/
+	// cad-takeoff 两件，跟随组开关），与 wenxue 全量 allowlist 语义不同——
+	// 摘 install_skill 会让精简面丢造技能元工具（真实回归）。true 时
+	// install_skill 照常注册（新装技能进 run_skill 快照要等重建/GaeaReload，
+	// 与 extras 路径既有语义一致）。零值 false = wenxue 现状逐字节。
+	SkillFilterKeepsInstall bool
 	// MemoryUserDir 是记忆脑目录覆盖（2026-11-16 记忆左右脑批）：非空时本引擎
 	// 的全部记忆面——用户级 doc 记忆/画像文档发现、auto-memory SQLite 后端、
 	// remember 画像表、会话检索 FTS、引用消毒 store——都锚定该目录（DB 路径
@@ -166,6 +173,18 @@ type Options struct {
 	// cfg.ResolveWenxueSystemPrompt()），不再吃办公 system_prompt。空 = 现状
 	// 逐字节（办公/CLI/TUI 不传）。
 	SystemPrompt string
+	// ToolHide 是装配完成后按名 Registry.Hide 的名单（2026-11-21 办公运行模式，
+	// 众神殿 pan_1795202763988 终案）：schema 不可见但协议层按名可调（Registry
+	// 既有 hidden 语义）。应用点在全部装配（builtins/plugins/extras）之后、
+	// 首回合之前——主执行器每回合活读 reg.Schemas()，boot 期 Hide 即会话全程
+	// 稳定（前缀缓存字节稳定）。名单里有未注册名是 caller 的对账责任
+	// （app 层守卫测试钉死），boot 侧只对已注册名生效。空 = 现状逐字节。
+	ToolHide []string
+	// ModeLine 是 L1 运行模式行（同上终案）：非空时在技能索引之后追加固定
+	// 文本「当前模式 + 本档未载入能力组 + 切档指引」。DSH-r5 裁决：无条件
+	// Hide 与模式提示行必须同批上线，缺一即回到「能力无声消失」（boot.go
+	// tools.deferred 同族自警）。空 = 零注入、现状逐字节。
+	ModeLine string
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -311,7 +330,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir, opts.SystemPrompt)
+	// sp, err := buildSystemPrompt(...) 参数链见该函数注释；ModeLine 是办公
+	// 运行模式行（2026-11-21 众神殿终案，非空时技能索引后追加；空=零注入）。
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir, opts.SystemPrompt, opts.ModeLine)
 	if err != nil {
 		return nil, err
 	}
@@ -658,7 +679,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// install_skill 靠活读 store 生效；静态 allowlist 引擎（SkillFilter!=nil）
 	// 里新装技能永不可见不可 run（run_skill 走构建期快照集）——不装，免噪音
 	// （2026-11-17 审查批3；办公双 nil 保持注册=现状逐字节红线）。
-	if opts.SkillFilter == nil {
+	// 例外：SkillFilterKeepsInstall（2026-11-21 办公组开关窄 deny 谓词）——
+	// 办公面 filter 只拒两件领域技能，install_skill 照常注册。
+	if opts.SkillFilter == nil || opts.SkillFilterKeepsInstall {
 		addGated(reg, opts.ToolFilter, skill.NewInstallSkillTool(skillStore, nil))
 	}
 	// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
@@ -829,6 +852,22 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		if t != nil && builtin.AllowsSpace(t, space) && toolAllowed(opts.ToolFilter, t.Name()) {
 			reg.Add(t)
 		}
+	}
+
+	// ToolHide 装配终点收口（2026-11-21 办公运行模式，众神殿 pan_1795202763988
+	// 终案）：按名 Registry.Hide——schema 不可见、协议层按名可调（hidden 既有
+	// 语义）。与 tools.deferred（Search.Enabled 门控）不同：运行模式 Hide 是
+	// 模式组合声明的一部分，缺省能力由 ModeLine 在 L1 明示（DSH-r5：两件必须
+	// 同批，防「无声消失」）。未注册名跳过（warn 一次，名单漂移可观测）。
+	for _, name := range opts.ToolHide {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		if _, ok := reg.Get(name); !ok {
+			slog.Warn("run mode ToolHide 名单含未注册工具", "name", name)
+			continue
+		}
+		reg.Hide(name)
 	}
 
 	// v4.61：主执行器装配「本地模型工具 → 变相子代理」运行记录器——把注册表

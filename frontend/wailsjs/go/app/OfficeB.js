@@ -438,6 +438,10 @@ export function GaeaOfficeEditText(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaOfficeEditText'](arg1, arg2);
 }
 
+export function GaeaOfficeRunMode() {
+  return window['go']['app']['OfficeB']['GaeaOfficeRunMode']();
+}
+
 export function GaeaOpenDownloadPage() {
   return window['go']['app']['OfficeB']['GaeaOpenDownloadPage']();
 }
@@ -552,6 +556,10 @@ export function GaeaRenameSession(arg1, arg2) {
 
 export function GaeaRenameWorkspacePath(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaRenameWorkspacePath'](arg1, arg2);
+}
+
+export function GaeaResetToolGroups() {
+  return window['go']['app']['OfficeB']['GaeaResetToolGroups']();
 }
 
 export function GaeaResumeSession(arg1) {
@@ -682,6 +690,10 @@ export function GaeaSetAgentParams(arg1, arg2, arg3) {
   return window['go']['app']['OfficeB']['GaeaSetAgentParams'](arg1, arg2, arg3);
 }
 
+export function GaeaSetComputerUseEnabled(arg1) {
+  return window['go']['app']['OfficeB']['GaeaSetComputerUseEnabled'](arg1);
+}
+
 export function GaeaSetDefaultModel(arg1) {
   return window['go']['app']['OfficeB']['GaeaSetDefaultModel'](arg1);
 }
@@ -700,6 +712,10 @@ export function GaeaSetMemoryEnabled(arg1) {
 
 export function GaeaSetMorningPreload(arg1) {
   return window['go']['app']['OfficeB']['GaeaSetMorningPreload'](arg1);
+}
+
+export function GaeaSetOfficeRunMode(arg1) {
+  return window['go']['app']['OfficeB']['GaeaSetOfficeRunMode'](arg1);
 }
 
 export function GaeaSetPermLevel(arg1) {
@@ -724,6 +740,14 @@ export function GaeaSetSubagentEffort(arg1) {
 
 export function GaeaSetSubagentModelForSkill(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaSetSubagentModelForSkill'](arg1, arg2);
+}
+
+export function GaeaSetToolFace(arg1) {
+  return window['go']['app']['OfficeB']['GaeaSetToolFace'](arg1);
+}
+
+export function GaeaSetToolGroup(arg1, arg2) {
+  return window['go']['app']['OfficeB']['GaeaSetToolGroup'](arg1, arg2);
 }
 
 export function GaeaSettings() {
@@ -840,6 +864,14 @@ export function GaeaTaskRetry(arg1) {
 
 export function GaeaTaskTemplates() {
   return window['go']['app']['OfficeB']['GaeaTaskTemplates']();
+}
+
+export function GaeaToolFace() {
+  return window['go']['app']['OfficeB']['GaeaToolFace']();
+}
+
+export function GaeaToolSurface() {
+  return window['go']['app']['OfficeB']['GaeaToolSurface']();
 }
 
 export function GaeaTrajectory(arg1) {

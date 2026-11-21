@@ -30,12 +30,12 @@ var taskTemplates = []TaskTemplate{
 		Prompt: "帮我整理一份会议纪要：\n1. 先说明会议主题、时间、参会人（缺失内容用「待补充」占位）；\n2. 按「议题与讨论 / 结论 / 行动项」组织，行动项必须包含负责人和截止时间；\n3. 输出为 Markdown 并保存到 .gaea/exports/，正文给出可点击的 [文件名](路径)。",
 	},
 	{
-		Name: "cost-estimate", Title: "成本测算", Description: "生成 xlsx 成本测算表：公式计算 + 原生图表",
-		Prompt: "帮我制作一份成本测算表（.xlsx）：\n1. 先与我对齐测算范围和科目（人工/材料/机械/管理费/税费等）；\n2. 测算前先用 cost_search 查询成本库中的历史单价作为定价依据：命中的科目直接引用并在正文注明依据的条目名称，缺失科目与用户确认或给出合理估价并说明假设；\n3. 用 xlsx 能力创建表格：科目、单位、数量、单价、金额，金额用公式计算（数量×单价），并提供汇总行；\n4. 为费用构成生成原生图表（柱状/饼图）；\n5. 测算完成后用 cost_save 把本次采用的单价沉淀为成本条目（来源标注本次项目/文件，同名覆盖），并在正文汇报新增/更新条数；\n6. 保存到 .gaea/exports/ 并在正文给出可点击的 [文件名](路径)。",
+		Name: "cost-estimate", Title: "成本测算", Description: "workcost 结构化测算：建项目→套定额→机检→导出",
+		Prompt: "帮我做一份工程造价成本测算（workcost 结构化链路）：\n1. 先与我对齐测算范围、计价口径（清单计价/定额计价）、地区与计价期；\n2. 测算前先用 cost_search 查询成本库历史单价、cost_project（action=quotas/resources）摸定额与工料机存量：命中的科目直接引用并在正文注明依据条目；\n3. 用 cost_project_apply 建测算项目（action=create_project，费率按我给的口径，0=该段不计取）并批量编制清单（action=save_items：能套定额的行挂 quota_code，手填行给 price_override；同批编码唯一）；\n4. 用 cost_audit 对项目跑机检：HardCount>0 必须修复后复检，信息项汇报给我判断；\n5. 用 xlsx 能力导出测算表到 .gaea/exports/（含汇总），正文给出可点击 [文件名](路径)；\n6. 我确认采用的单价才用 cost_save 沉淀回成本库（来源标注本项目），并在正文汇报新增/更新条数。",
 	},
 	{
 		Name: "proposal-outline", Title: "方案大纲", Description: "方案结构：背景 / 目标 / 方案对比 / 实施 / 预算 / 风险",
-		Prompt: "帮我撰写一份方案大纲：\n1. 按「背景与目标 / 现状分析 / 方案设计（含对比）/ 实施计划 / 预算与资源 / 风险与应对 / 附录」组织；\n2. 每部分先列要点，再按需展开成文；\n3. 输出为 Markdown（或按我要求导出 docx）并保存到 .gaea/exports/，正文给出可点击的 [文件名](路径)。",
+		Prompt: "帮我撰写一份方案大纲：\n1. 按「背景与目标 / 现状分析 / 方案设计（含对比）/ 实施计划 / 预算与资源 / 风险与应对 / 附录」组织；\n2. 每部分先列要点，再按需展开成文；\n3. 输出为 Markdown（或按我要求导出 docx）并保存到 .gaea/exports/，正文给出可点击的 [文件名](路径)。\n（几十页以上的技术方案整册编制请切到「方案」运行模式，用 longdoc_manifest 清单分章工作流。）",
 	},
 	{
 		Name: "data-analysis", Title: "数据分析", Description: "表格清洗 → 透视汇总 → 图表 → 结论",

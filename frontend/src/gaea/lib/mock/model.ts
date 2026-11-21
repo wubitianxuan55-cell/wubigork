@@ -149,6 +149,12 @@ type ModelMethods = Pick<
   | "SetFeatureModel" | "SetFeatureModelEnabled" | "GetActiveModel"
   // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
   | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
+  // 运行模式+能力面板装配面（2026-11-21）：mock 给空面/缺省档——面板走静态
+  // 清单兜底（dev mock 无真实引擎装配面可显）。
+  | "GaeaSetOfficeRunMode" | "GaeaOfficeRunMode" | "GaeaToolSurface" | "WenxueToolSurface"
+  // 工具面双轴（2026-11-21 终案）：mock 内存态（makeMockApp 每次新建=重置）。
+  | "GaeaToolFace" | "GaeaSetToolFace" | "GaeaSetToolGroup" | "GaeaResetToolGroups"
+  | "GaeaSetComputerUseEnabled"
   | "GaeaLocalServiceModels"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
   LegacyOpencodeKeyMethods & LegacyQwen35EngineMethods & LegacyWhirlEngineMethods &
@@ -299,6 +305,10 @@ function maskMockKey(key: string): { configured: boolean; masked: string } {
 export function buildModel(s: MakeMockState): ModelMethods {
   // Key 内存态（makeMockApp 每次新建=重置；?mock=1 刷新即回未配置，诚实语义）
   let opencodeGoKey = "";
+  // 工具面双轴内存态（同上重置语义）
+  let mockToolFace: string = "lean";
+  let mockToolGroupOverrides: Record<string, boolean> = {};
+  let mockCUEnabled = false;
   return {
     async Models() {
       // 契约对齐 Go GaeaModels（internal/app/gaea_ui_meta.go，v4.126 刀1）：
@@ -443,6 +453,47 @@ export function buildModel(s: MakeMockState): ModelMethods {
     },
     // ── 路由学习四名（阶段七 7.1-2；归因 tab 走查用：给一组有数据的账本
     // + 一条本地引擎建议样本，便于 ?mock=1 目检建议卡/分组表/未标记桶）──
+    async GaeaSetOfficeRunMode(_mode: string) {
+      // dev mock：登记即收（无引擎重建语义可显）。
+    },
+    async GaeaOfficeRunMode() {
+      return { configured: "standard", active: "standard", hide: [], extras: [] };
+    },
+    async GaeaToolSurface() {
+      return { board: "gaea", mode: "standard", tools: [] };
+    },
+    async WenxueToolSurface() {
+      return { board: "wenxue", mode: "", tools: [] };
+    },
+    async GaeaToolFace() {
+      return {
+        face: mockToolFace,
+        mode: "standard",
+        groups: [
+          { id: "cad", label: "CAD 图纸", count: 1, enabled: false, overridable: true, gate: false, note: "造价档默认开" },
+          { id: "schedule", label: "进度计划", count: 3, enabled: false, overridable: true, gate: false, note: "方案档默认开" },
+          { id: "browser", label: "浏览器自动化", count: 12, enabled: mockToolFace === "standard", overridable: true, gate: false, note: "精简关/标准开" },
+          { id: "com", label: "COM 实时协同", count: 0, enabled: false, overridable: true, gate: false, note: "本机未检测到 Office/WPS" },
+          { id: "computer", label: "电脑操控", count: mockCUEnabled ? 6 : 0, enabled: mockCUEnabled, overridable: false, gate: true, note: "电脑操控注册闸：开=注册六件，新会话重建后生效" },
+          { id: "cost", label: "造价专用", count: 7, enabled: false, overridable: true, gate: false, note: "造价档开" },
+          { id: "longdoc", label: "长文方案", count: 2, enabled: false, overridable: true, gate: false, note: "方案档开" },
+          { id: "media", label: "图面与生图", count: 4, enabled: true, overridable: true, gate: false, note: "产图两档默认开" },
+        ],
+        overrides: mockToolGroupOverrides,
+      };
+    },
+    async GaeaSetToolFace(face: string) {
+      mockToolFace = face === "standard" ? "standard" : "lean";
+    },
+    async GaeaSetToolGroup(group: string, enabled: boolean) {
+      mockToolGroupOverrides[group] = enabled;
+    },
+    async GaeaResetToolGroups() {
+      mockToolGroupOverrides = {};
+    },
+    async GaeaSetComputerUseEnabled(enabled: boolean) {
+      mockCUEnabled = enabled;
+    },
     async GaeaRouteLedger() {
       return {
         generated_at: "2026-09-15T12:00:00+08:00",

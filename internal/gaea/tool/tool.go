@@ -238,6 +238,22 @@ func (r *Registry) Hide(name string) {
 	r.hidden[name] = true
 }
 
+// HiddenNames 返回当前隐藏名单的快照（升序；2026-11-21 办公运行模式面板缝）：
+// 能力面板「工具」tab 据此把模式藏面灰显诚实标出（schema 不可见、协议层按名
+// 可调）。空注册表/无隐藏=空切片。
+func (r *Registry) HiddenNames() []string {
+	r.mu.RLock()
+	out := make([]string, 0, len(r.hidden))
+	for name := range r.hidden {
+		if _, ok := r.tools[name]; ok {
+			out = append(out, name) // 只报真实注册过的（防御性：ghost 藏名不显）
+		}
+	}
+	r.mu.RUnlock()
+	sort.Strings(out)
+	return out
+}
+
 // HideUnlessOnly hides each given name only when the registry also contains at
 // least one of the alternatives — so the model always has at least one way to
 // perform the operation. V6.0 P8.

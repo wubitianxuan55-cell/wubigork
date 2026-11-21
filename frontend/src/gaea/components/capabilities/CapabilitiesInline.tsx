@@ -35,6 +35,11 @@ export function CapabilitiesInline({
   // 7.2-2 判据②：持久化技能调用计数（挂载拉一次，零轮询；reload 后随
   // 引擎热加载一并刷新）。
   const [skillUsage, setSkillUsage] = useState<Record<string, { calls: number; ok: number }>>({});
+  // 装配面刷新键（2026-11-21 面板缝）：重载引擎后「工具」tab 重拉装配面
+  //（点击即 bump 一次——切模式未重载时也能立刻反映登记档，重建完成后再 bump
+  // 一次拿新面）。
+  const [surfaceKey, setSurfaceKey] = useState(0);
+  const bumpSurface = useCallback(() => setSurfaceKey((k) => k + 1), []);
   const refreshSkillUsage = useCallback(() => {
     void app.SkillStats().then((rows: { name: string; calls: number; ok: number }[]) => {
       const out: Record<string, { calls: number; ok: number }> = {};
@@ -87,7 +92,7 @@ export function CapabilitiesInline({
             background: "transparent",
           }}
           disabled={reloading}
-          onClick={() => { void reloadEngine(); refreshSkillUsage() }}
+          onClick={() => { void reloadEngine().then(bumpSurface); refreshSkillUsage(); bumpSurface() }}
           title={t("caps.reloadHint")}
         >
           {reloading ? (
@@ -234,7 +239,7 @@ export function CapabilitiesInline({
               ) : null}
             </section>
           ) : tab === "tools" ? (
-            <ToolsTabContent toolCounts={toolCounts} />
+            <ToolsTabContent toolCounts={toolCounts} refreshKey={surfaceKey} board="gaea" />
           ) : (
             <SkillsSection skills={view.skills} counts={skillCounts} usage={skillUsage} expanded={expandedSkills} onToggle={toggleSkill} />
           )}
