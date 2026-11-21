@@ -6542,3 +6542,16 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - 坑：①`k[1:]` 字节切片劈开多字节「图」（3 字节）→ Sscanf 恒败、跳号永不报——rune 切片修；
   ②heredoc 内联中文路径 JSON 编码坑（复盘 B10 同族）——测试夹具一律 Write 工具落文件。
 - **装机 exe 3a42371df4f9b668（=build/bin 同源 uniq 验证）PID 51968，冒烟 200 INSTALL OK**；未提交同树混装。
+
+## 2026-11-21 打包收口：gaea-20261121-01f88477
+
+- 提交 `01f88477`（feat(office) 九批合一，75 文件 +6562/−222；剔除缓存命中线两件在途
+  cachehit_e2e_test.go/cache_probe_live.go 与运行态 resumed.jsonl.meta、旧 zip 不入库；
+  根目录 manifest.json 为 longdoc 测试残留已删）。
+- 干净工作树 `.tmp/gaea-pkg-01f88477` 构建：**frontend 必须 pnpm install --frozen-lockfile**
+  （npm 装树触发 esbuild 删临时件 Access denied——坑在册复发，pnpm 布局即通）；
+  wails build 61s → payload 四件 → 冒烟 200（PID 16532）。
+- 包记录：releases/gaea-20261121-01f88477/{payload,PACKAGE-INFO.md,SHA256SUMS}；
+  exe sha256 2ff321bd88584e4f…；zip（34.4MB）留盘不入库。
+- 装机：gaea_install.ps1 -SourceDir <payload> → INSTALL OK，装机位 hash=包 exe 同源，
+  PID 46504 > 构建时刻。工作树已回收。

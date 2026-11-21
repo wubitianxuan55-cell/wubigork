@@ -1,0 +1,4 @@
+2ff321bd88584e4f90154d6fd98c9191ba9f14cbcad1c201b632eeac6e2c884b *payload/gaea.exe
+68d0d5f502be4509e2a16f932627a95137d748b2fae519027f80125c0b1f550b *payload/onnxruntime.dll
+5dd36dbd3572846b72c4a40a4017c5a770160ee8e00da5053bebc8b2632501e8 *payload/sherpa-onnx-c-api.dll
+4c56327796cdb980dcbf90025c28093d89ca286088fb74c3b107f2f633e67ffe *payload/sherpa-onnx-cxx-api.dll
