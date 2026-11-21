@@ -6666,3 +6666,13 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - **装机 exe AEA6191B0E376107（=build/bin 同源）PID 20644，冒烟 200 INSTALL OK**。未提交同树。
 - 坑：registry_map_doc 的输出文件名是 gaea-tool-registry-map-2026-11.md（守卫测试读这个，
   重定向错文件名守卫当场逮住）；GAEA_TUWEN_ROOT 指临时根是 wenxue 测试工作区隔离的正解。
+
+## 2026-11-22 打包记录——gaea-20261122-a4b5b0a7（沿江反馈闭环批+图文成册）
+
+- 业务笔 a4b5b0a7（45 文件 +2606/−136）+ 本记录笔；剔除不抢=DSH 工具面板线（capabilities
+  前端族+locales+models.ts）+缓存命中线两件+运行态 meta+两个旧 zip。
+- 干净工作树 .tmp/gaea-pkg-a4b5b0a7 构建（pnpm 27.8s+npm 35.6s+wails 54.7s）；
+  **坑复现=.tmp 路径跑 exe 被策略拦（ExitCode 1），须先落 releases 正式路径再冒烟**；
+  payload 冒烟 200（PID 3984）。
+- SHA256：exe 6A0FDBE50D27220E…；三 DLL 与上两包一致；zip E3646329…/src.zip A15F5FB2… 留盘。
+- 装机位=包 hash 同源核验 OK（PID 62624，INSTALL OK）。
