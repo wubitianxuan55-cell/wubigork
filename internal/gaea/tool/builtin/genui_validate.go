@@ -31,7 +31,7 @@ func (genuiValidate) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "spec":{"type":"string","description":"The JSON text inside the genui fence (without the fence markers)."}
+  "spec":{"description":"The genui fence JSON — either the JSON text (string) or the parsed object/array itself. Both forms are accepted."}
 },
 "required":["spec"]
 }`)
@@ -46,16 +46,30 @@ func (genuiValidate) CompactSchema() json.RawMessage {
 }
 
 func (genuiValidate) Execute(_ context.Context, args json.RawMessage) (string, error) {
+	// 2026-11-21 造价门实测 4.3：手册说「spec=围栏内 JSON」、旧实现只收字符串
+	// 形态——传 {"spec":{...}} 直接 unmarshal 炸「of type string」。双形态兼容：
+	// 字符串按原文、对象/数组按原样 JSON 文本送校验，两种手册口径都通。
 	var p struct {
-		Spec string `json:"spec"`
+		Spec json.RawMessage `json:"spec"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("genui_validate 参数无效：%v", err)
 	}
-	if strings.TrimSpace(p.Spec) == "" {
-		return "", fmt.Errorf("genui_validate 需要 spec 参数（围栏内 JSON 文本）")
+	raw := strings.TrimSpace(string(p.Spec))
+	if raw == "" {
+		return "", fmt.Errorf("genui_validate 需要 spec 参数（围栏内 JSON，字符串或对象形态均可）")
 	}
-	r := genui.ValidateSpec(p.Spec)
+	if strings.HasPrefix(raw, `"`) {
+		var s string
+		if err := json.Unmarshal(p.Spec, &s); err != nil {
+			return "", fmt.Errorf("genui_validate spec 字符串形态解析失败: %v", err)
+		}
+		raw = s
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "", fmt.Errorf("genui_validate 需要 spec 参数（围栏内 JSON，字符串或对象形态均可）")
+	}
+	r := genui.ValidateSpec(raw)
 	if r.OK {
 		return fmt.Sprintf("✅ OK（%d 节点）", r.Nodes), nil
 	}

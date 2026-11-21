@@ -114,6 +114,7 @@
 | `wait` | builtin-domain | work | read | none | 等待结果与 job 终态一致 |
 | `web_fetch` | builtin-workspace | work | read | none | 抓取内容与源一致（mode=auto 正文主提取判据不足回退整页/full 整页；注明 URL+时间） |
 | `web_search` | builtin-domain | work | read | none | 结果注明来源 URL+检索时间 |
+| `wenxue_book_build` | extra-app | work | write | none | 声明路径=实际落点；final 机检 0 硬伤才组装（未编号/重号/空章/占位/插值不闭合）；sha256 可复算；配额/跳号=warn 不拦 |
 | `wenxue_candidate_promote` | extra-app | work | write | none | 候选提升前自动归档当前正文；只写章节目录，不写定稿 |
 | `wenxue_candidate_write` | extra-app | work | write | none | 候选落章节/候选/<章名>/；不改正文/定稿；同名默认拒 |
 | `wenxue_chapter_list` | extra-app | work | read | none | 清单与约定章节目录实况一致（章号/标题/字数） |

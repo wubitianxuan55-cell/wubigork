@@ -6555,3 +6555,114 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   exe sha256 2ff321bd88584e4f…；zip（34.4MB）留盘不入库。
 - 装机：gaea_install.ps1 -SourceDir <payload> → INSTALL OK，装机位 hash=包 exe 同源，
   PID 46504 > 构建时刻。工作树已回收。
+
+## 2026-11-21 造价门实测复盘修复批（沿江1公里成本测算实测——众神殿双门实测至此闭环）
+
+- 事实源：D:\新工作\沿江一公里\南岸\gaea软件使用不足与改进建议.md（阻塞 3/效率 3/能力 3/可靠 2）。
+- **刀1 路径方言收口（2.2）**：resolveIn 推广 msysDrivePath（/d/… → D:\…，bash_delete 既有转换器）
+  ——write_file 此前把 /d/... Join 成「工作区\d\...」镜像目录树；read_file/ls/md_validate 等全族一修。
+- **刀2 bash 初始目录（2.3）**：两分支 Description 写明「初始工作目录=工作区根（首条 pwd 应显工作区）」。
+- **刀3 发布边界（2.1）**：拦截回执补两句——自由脚本生成 durable 的合规路径（Temp/非 durable 扩展名
+  →move_file 落正式名=合法出口，实测只能试错撞出的路现在明示）+「request_permission 批准的路径
+  规则不改变本边界（独立闸门）」；request_permission Description 同步告示。permission×边界深层联动挂拍板。
+- **刀4 cost_project action=summary（4.1）**：现算汇总口——ComposeQuotas 库内现算链逐行综合单价/合价/
+  人材机拆分（手填价**整价归材料**约定入文档）+取费链（与五表导出 writeSummarySheet 同源：管=直接×率、
+  利=(直接+管)×率、规=直接×率、税前四项显式相加）+占控制价；消除模型侧自建 SQL 算价链。
+- **刀5 cost_audit 第五检（4.2/六）**：spec_grade_mismatch（INFO）——清单特征档（C10-80/M5-30，
+  前缀锚定防 PC200/M046 误报）vs 定额/资源 title 档位比对；C60 充当 C20 的万元级错配有了确定性防线；
+  暂代合法（INFO 不进 HardCount）。
+- **刀6 数据指纹（5.1）**：xlsx_audit 回执头 size/mtime/sha16；cost_audit 回执头行数+四费率——
+  同轮改文件/改数据后结果不同即可分辨，上层「结果同一性去重」的 cached 提示不再歧义。
+- **刀7 xlsx 版面确定性检查（5.2）**：xlsx_audit 附版面段（GetPageLayout+已用列数；≥10 列纵向且
+  FitToWidth<1=⚠ 压扁告警）——vision 看不出整册压成单列的坑，确定性判据接管。
+- **刀8 genui_validate 双形态（4.3）**：spec 收字符串或对象（旧实现传对象直接 unmarshal 炸）；
+  schema 描述同步。组件字段手册级文档挂拍板。
+- 技能/sysprompt 接线：cost-estimation-playbook 补 summary 口纪律+规格档对齐；造价身份稿补 summary 口。
+- 测试：office_cost_fieldback_test 三件（summary 数值链/spec 档位恰 1 条+不进 HardCount+指纹/xlsx
+  指纹+版面告警与修复面）+builtin fieldback 两件（MSYS 翻译/genui 双形态）；app 全量 159.9s 绿、
+  tool/agent/workcost 绿、存量锚全兼容。
+- 挂池拍板：模板三件套（extract/fill/compare，3.1）/增量修正闭环深层（3.2）/ai_feedback 状态面（3.3）/
+  region+spec_grade schema 迁移与口径切换（4.2 全量）/permission×发布边界深层联动。
+- **装机 exe 0e80b627d984d769（=build/bin 同源）PID 5116，冒烟 200 INSTALL OK**（首装 KILL FAIL
+  一次=壳被占用，重试过）。**未提交**（新一批，挂拍板分离）。
+
+## 2026-11-21 造价提示词/技能同步补齐批（用户问「同步优化了吗」——查实只同步两条，补全）
+
+- 造价 sysprompt：工作流 step4 扩「机检与复检」（复检看数据指纹，指纹没变=旧结果勿当通过）；
+  step5 扩「沉淀与交付」交付三律（版面先行：长表横向+适应一页+表头重复，xlsx_audit 版面段确定性
+  判据、vision 不判版式；勾稽：导出表合计==summary 直接费、人+材+机==合价；落盘合规：bash 直写
+  durable 被边界拦截，Temp→move_file 是合法出口）；口径纪律补规格档对齐行+summary 占控制价%可引用。
+- cost-estimation-playbook 技能：step4/5 与 sysprompt 同步（三律全展开，含实测教训注记：百万量级
+  汇总行填单价/整册压单列 vision 仍答规范/594 公式重算才暴露）；控制价行补 summary 口径。
+- TestOfficeModeSystemPrompt 造价锚扩 {summary,勾稽,数据指纹,规格档} 防回漂。
+- **装机 exe 9a39719e76b2f622（=build/bin 同源）PID 65404，冒烟 200 INSTALL OK**；未提交同批。
+
+## 2026-11-21 沿江技术标会话反馈批（A~D 四批全落；来源=南岸工作区 gaea使用意见与改进建议.md 14 条）
+
+事实源=`D:\新工作\沿江一公里\南岸\.gaea\exports\gaea使用意见与改进建议.md`（P0×3/P1×7/P2×4）。
+用户关键纠正：**会话用的最新构建——「已修未生效」桶不成立，须按真实路径重诊**。
+
+- **重诊结论（根因）**：P0-1/P1-12 拦截信封「已隔离：+空 detail」=传输层断头——
+  `execute_one.go` 信封 error 字段取 `firstLine(err.Error())`、detail 取 result，而 bash
+  错误路径 result 恒空串 → 九刀⑤的清单/隔离位置/出路文案**根本没到模型眼前**。
+- **批 A（传输层根修+小刀）**：①bash publishCheck 三调用点文案随 result 返回（信封 detail
+  从此带全文；传输契约入注释）②pageBreakBefore 按 w:val 解析（0/false/off=否）③ledger 行加
+  `event: begin/final`（注释明示批次计数按 stamp 去重，保留崩溃安全双行设计）④bash 空参错误
+  回显原始参数体 %q（截 120 rune）+loop guard 豁免「收到 0 参数键」签名（batchStormSignature
+  早退）。装机 02DF19A4→PID 62044。
+- **批 B（P0-2 标书模板全链）**：create_docx.py 新「标书」主题（宋体正文/黑体黑标题/
+  Heading1 样式层 pageBreakBefore/页眉下框线+缺省取投标人/封面五要素 subtitle=包号·author=
+  投标人·bid_copy·bid_date）；longdoc_build 默认模板 报告→标书+封面要素参数透传；
+  **静态目录两遍法**（docmd/pdftext.go pdftotext 三级查找+逐页文本；占位目录 pass-1→
+  soffice→PDF→量页→回填重建，行数恒定分页稳定；渲染链缺席如实回落域目录并标注）；
+  office_generate/office_tools/wenxue_workspace/compact/技能文档六面同批同步枚举。
+  12/12 XML 实弹钉+E2E 7.8s 钉。装机 128ACFDC→PID 18092。
+- **批 C（跨章引用双刀）**：md_validate 加 paths 多文件全册并集模式（跨章引用他章闭合即过
+  +跨文件撞号点名两侧；单文件模式本地无题注引用改判 cross_ref 待核类不冒充硬伤——实测曾
+  9 条误报诱发把有效引用改成模糊描述）；longdoc_verify cross 加 [1s] 语义初筛（引用句↔被引
+  标题汉字 bigram 重合，低重合=引用错表高疑标记不判 fail——「编号存在但内容错换」三道存在
+  性门全漏的补面）。装机 17044176→PID 40896。
+- **批 D（小刀三件）**：P2-9 longdoc check 附配额面（words 偏差>30%+figs/tables 期望 vs
+  题注数 warn 级+恒附结构化 JSON 行）+P2-10 stale 闸 edit_file 锚点豁免（old_string 仍锚
+  当前磁盘内容=新鲜放行，失配仍拦；同回合 write→edit 改一行不再重读整篇——实测被拒 6 次）
+  +P2-11 resolveIn 正斜杠盘符归一（D:/x→D:\x 全族文件工具）。
+- 测试：新增 12 钉全绿；agent/tool/builtin 20+2+21s、app 全量三次（143/149/160s）绿
+  （uocr2 存量环境红在册挂池，本批未触）。装机 C87A56D3→PID 10336。
+- **挂池拍板**：P1-6 版面机检产品化（批 8 有意留技能层）/P1-12 目录级移动原子性大件+
+  quarantine_list 查询工具/P1-7 wait 收 sa_+子代理进度/P0-1 尾巴 _draft 豁免/
+  output_path 绝对路径兼容（声明写路径契约未动）。
+- **未提交**（与十/十一批同树混装，提交分离挂拍板）。
+
+## 2026-11-21 图文侧同步批（用户问「办公优化是否同步文学板块」——审计+顺手修漂移）
+
+- **审计三层**：①agent/bash/文件工具层共享=天然同步（信封断头/loop guard/stale 锚点/空参回显/
+  msysDrivePath/正斜杠归一/md_validate paths 全册模式——md_validate 不在 wenxue 禁用表）；
+  ②wenxue 有意瘦身面（edit_file 族/doc_render/COM/longdoc/cost，2026-11-16 瘦身刀）不适用；
+  ③**wenxueExportDocx/Pptx 是 office 导出链独立副本，落了三件**：同 stem 中间件确定名落盘
+  （office 批6 A1/A2 已根修的吞源形态）、TocEntries/--toc-spec 未透传（静态目录不可达）、
+  回执无图片对账。
+- **修**：docx 中间 md 改随机临时名（.gaea-tmp-md-*，落输出同目录）+pptx 中间 spec 同款+
+  TocEntries→--toc-spec 透传+subtitle/author 透传；钉=TestWenxueExportDocxSameStemNeverTouchesSourceMD
+  （python 成败皆不触碰同 stem 源+无临时件泄漏）。图片对账入挂池（回执面接线另议）。
+- **装机 exe FD13A80BE9F46E7D（=build/bin 同源）PID 31608，冒烟 200**。未提交同树。
+- **拍板池（方案模式↔长篇小说结构面移植）**：清单唯一事实源+组装前机检闸进小说成册链
+  （卷章场景三层已有，对账 longdoc 八类机检等价面）/章节字数配额面（大纲目标 vs 实测，
+  T4 篇幅路由对账）/成册 docx 静态目录两遍法接线（能力已通，缺 wenxue 侧组装调用方）。
+
+## 2026-11-21 图文成册批（用户拍板「全部」——方案模式↔长篇小说结构面移植三刀合一）
+
+- **新工具 wenxue_book_build**（wenxue_book_build.go，图文装配单点+契约行+文档重导三处同批）：
+  定稿目录（定稿/final）即唯一事实源（磁盘即事实，不另建 manifest 文件），按章号序组装整本
+  docx/pdf/md。三合一：
+  ①机检闸（0 硬伤才组装）：未编号/重号/空章/占位残留/{{}}不闭合=硬伤；跳号/无一级标题/
+  文件名标题与正文标题漂移=warn 不拦（卷结构/兜底渲染是合法形态）；
+  ②配额面：target_words_total+tolerance_pct（默认 30）超差=warn+每章字数恒附 JSON 行；
+  ③静态目录两遍法：measureTocEntries 抽为板间共用核心（office longdocMeasureTocPages
+  变薄壳），渲染链缺席如实回落域目录并标注。
+- 回执=章数/总字数/sha256（Go 自算）/配额/目录/warn 全景。模板缺省 通用（小说非标书）。
+- 测试：三钉（硬伤拒组装四类/组装序+配额 JSON/docx 静态目录真链 E2E 16.7s——soffice+
+  pdftotext+python 全链，技能脚本副本进临时工作区自洽）；registrymap 契约行覆盖+census
+  守卫+app 全量 171.5s 绿。
+- **装机 exe AEA6191B0E376107（=build/bin 同源）PID 20644，冒烟 200 INSTALL OK**。未提交同树。
+- 坑：registry_map_doc 的输出文件名是 gaea-tool-registry-map-2026-11.md（守卫测试读这个，
+  重定向错文件名守卫当场逮住）；GAEA_TUWEN_ROOT 指临时根是 wenxue 测试工作区隔离的正解。

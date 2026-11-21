@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -45,6 +46,27 @@ func argsDeclareOverwrite(args string) bool {
 		Overwrite bool `json:"overwrite"`
 	}
 	return json.Unmarshal([]byte(args), &p) == nil && p.Overwrite
+}
+
+// sameTurnEditAnchorFresh 同回合迭代闸的 edit_file 锚点豁免（P2-10，
+// 2026-11-21 沿江反馈）：edit_file 的 old_string 仍出现在当前磁盘内容上时，
+// 说明模型锚的是新鲜内容（文件是本回合自己写的），不是 stale——放行；
+// 锚点失配（内容已被同回合其他写改变）仍拦，闸的原语义不变。非 edit_file 恒 false。
+func sameTurnEditAnchorFresh(name, args, path string) bool {
+	if name != "edit_file" {
+		return false
+	}
+	var p struct {
+		OldString string `json:"old_string"`
+	}
+	if json.Unmarshal([]byte(args), &p) != nil || p.OldString == "" {
+		return false
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(content), p.OldString)
 }
 
 func extractFilePath(name string, args string) string {

@@ -516,7 +516,7 @@ func TestOfficeModeSystemPrompt(t *testing.T) {
 	// 内容锚：造价稿点名 workcost/写前闸/编造禁令；方案稿点名清单唯一事实源/
 	// 机检/评分点/四查与并行事实卡（2026-11-21 复盘经验沉淀批补锚）。
 	cost := officeModeSystemPrompt(OfficeRunModeCost, config.Default())
-	for _, want := range []string{"workcost", "同批编码唯一", "绝不编造定额号"} {
+	for _, want := range []string{"workcost", "同批编码唯一", "绝不编造定额号", "summary", "勾稽", "数据指纹", "规格档"} {
 		if !strings.Contains(cost, want) {
 			t.Fatalf("造价身份稿缺 %q", want)
 		}

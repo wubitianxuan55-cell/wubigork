@@ -34,6 +34,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -87,7 +88,7 @@ func (longdocVerifyTool) Name() string   { return "longdoc_verify" }
 func (longdocVerifyTool) ReadOnly() bool { return true }
 
 func (longdocVerifyTool) Description() string {
-	return "方案档专属交付验证（只读、确定性、零 LLM；技术标实测验证体系工具化）。四门：chapter=单章验收（题注↔引用↔章末索引三方同步+图引存在性+docx 内嵌图 md5 逐一比对+占位残留+禁用词否定语境排除+口径词计数）；cross=跨章核查（图表编号跨章唯一+禁用词全册+口径词×各章出现矩阵+各章字数）；book=整册终验（docx 内嵌数/占位文本/章标题在册/styles.xml 颜色字号字面量读数/页眉页脚域/分节数/源 md 完整）；ink=渲染页像素判色（doc_render 出图后暗部平均色，饱和度差>25 判彩色——标题改色是否真生效用它）。期望图表数/禁用词/口径词等项目耦合项全部调用时传参。清单结构机检另有 longdoc_manifest check；编号撞号跳号全档形态用 md_validate。"
+	return "方案档专属交付验证（只读、确定性、零 LLM；技术标实测验证体系工具化）。四门：chapter=单章验收（题注↔引用↔章末索引三方同步+图引存在性+docx 内嵌图 md5 逐一比对+占位残留+禁用词否定语境排除+口径词计数）；cross=跨章核查（图表编号跨章唯一+引用↔题注并集对账+跨章引用语义初筛〔引用句↔被引标题 bigram 重合，低重合=引用错表高疑标记，不判 fail〕+禁用词全册+口径词×各章出现矩阵+各章字数）；book=整册终验（docx 内嵌数/占位文本/章标题在册/styles.xml 颜色字号字面量读数/页眉页脚域/分节数/源 md 完整）；ink=渲染页像素判色（doc_render 出图后暗部平均色，饱和度差>25 判彩色——标题改色是否真生效用它）。期望图表数/禁用词/口径词等项目耦合项全部调用时传参。清单结构机检另有 longdoc_manifest check；编号撞号跳号单章内形态用 md_validate（paths 多文件=全册并集对账）。"
 }
 
 func (longdocVerifyTool) Schema() json.RawMessage {
@@ -587,6 +588,7 @@ func (t longdocVerifyTool) runCross(p *ldvParams) (string, error) {
 	// ① 图表编号跨章唯一 + 全册引用↔题注并集双向对账（chapter 门不裁决的
 	// 跨章引用与仅被他章引用的题注，在这里闭合）。
 	seen := map[string]string{}
+	capTitle := map[string]string{} // 题注 key → 题注行全文（语义初筛用）
 	allNums := 0
 	unionRefs := map[string]string{} // 引用 key → 首现文件
 	for _, c := range chs {
@@ -603,6 +605,7 @@ func (t longdocVerifyTool) runCross(p *ldvParams) (string, error) {
 					r.fail("图表编号跨章重复：%s（%s 与 %s）", k, prev, c.base)
 				} else {
 					seen[k] = c.base
+					capTitle[k] = trimmed
 				}
 				continue
 			}
@@ -629,6 +632,55 @@ func (t longdocVerifyTool) runCross(p *ldvParams) (string, error) {
 		}
 	}
 	r.line("[1+] 引用↔题注并集对账：引用 %d 种、题注 %d 个", len(unionRefs), len(seen))
+	// ①半 语义初筛（2026-11-21 反馈 P0-3）：「引用错表」=编号存在/连续/对账齐
+	// 但被引内容已换（并行子代理沿用重排前旧号）——三道存在性门全绿仍漏。对每处
+	// 跨章引用输出被引标题+引用句上下文+汉字 bigram 重合初筛；低重合=标记请核对
+	// （不判 fail——初筛有误报率，裁决留给人/AI 复核）。
+	type crossRefCase struct {
+		key, file, seg string
+	}
+	var crossRefs []crossRefCase
+	for _, c := range chs {
+		indexZone := false
+		for _, ln := range strings.Split(c.text, "\n") {
+			trimmed := strings.TrimSpace(ln)
+			if strings.HasPrefix(trimmed, "#") && ldvIndexHeadingRe.MatchString(ln) {
+				indexZone = true
+			}
+			if ldvCaptionRe.MatchString(trimmed) || indexZone {
+				continue
+			}
+			for _, m := range ldvRefRe.FindAllStringSubmatch(ln, -1) {
+				k := m[1] + m[2] + "-" + m[3]
+				if where, ok := seen[k]; ok && where != c.base {
+					crossRefs = append(crossRefs, crossRefCase{k, c.base, ldvRefSentence(ln, m[0])})
+				}
+			}
+		}
+	}
+	if len(crossRefs) > 0 {
+		flagged, passed := 0, 0
+		var lines []string
+		for _, cr := range crossRefs {
+			shared := ldvSharedBigrams(cr.seg, capTitle[cr.key])
+			line := fmt.Sprintf("    %s ← %s「%s」 ↔ 被引「%s」", cr.key, cr.file, ldvShort(cr.seg, 42), ldvShort(capTitle[cr.key], 28))
+			if len(shared) > 0 {
+				passed++
+				shown := shared
+				if len(shown) > 3 {
+					shown = shown[:3]
+				}
+				lines = append(lines, line+fmt.Sprintf(" 重合%d（%s）", len(shared), strings.Join(shown, "·")))
+			} else {
+				flagged++
+				lines = append(lines, line+" 重合0【低重合·请核对：引用语境与被引标题疑似不符】")
+			}
+		}
+		r.line("[1s] 跨章引用语义初筛：%d 处（重合≥1 过筛 %d、低重合标记 %d，不判 fail）", len(crossRefs), passed, flagged)
+		for _, l := range lines {
+			r.line("%s", l)
+		}
+	}
 	// ② 禁用词全册（否定语境排除）。
 	for _, w := range p.Forbidden {
 		tot, exc := 0, 0
@@ -676,6 +728,61 @@ func (t longdocVerifyTool) runCross(p *ldvParams) (string, error) {
 	}
 	r.line("    合计 %d 汉字（%d 文件）", tot, len(chs))
 	return r.String("longdoc_verify · cross"), nil
+}
+
+// ldvRefSentence 取引用所在的句片段（句读边界 [。；;！？!?] 内含引用词的段，
+// 截 60 rune）——语义初筛的引用语境展示。
+func ldvRefSentence(ln, ref string) string {
+	at := strings.Index(ln, ref)
+	if at < 0 {
+		return ldvShort(strings.TrimSpace(ln), 60)
+	}
+	start, end := at, at+len(ref)
+	for start > 0 && !strings.ContainsRune("。；;！？!?", rune(ln[start-1])) {
+		start--
+	}
+	for end < len(ln) && !strings.ContainsRune("。；;！？!?", rune(ln[end])) {
+		end++
+	}
+	return ldvShort(strings.TrimSpace(ln[start:end]), 60)
+}
+
+// ldvShort 显示截断（rune 边界）。
+func ldvShort(s string, n int) string {
+	rs := []rune(s)
+	if len(rs) <= n {
+		return s
+	}
+	return string(rs[:n]) + "…"
+}
+
+// ldvCJKBigrams 汉字 bigram 集合（语义初筛的重合度量——无分词依赖，共享双字
+// 词（里程碑/监测/频次）即计重合）。
+func ldvCJKBigrams(s string) map[string]bool {
+	var cjk []rune
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			cjk = append(cjk, r)
+		}
+	}
+	set := make(map[string]bool, len(cjk))
+	for i := 0; i+1 < len(cjk); i++ {
+		set[string(cjk[i:i+2])] = true
+	}
+	return set
+}
+
+// ldvSharedBigrams 引用句与被引标题的共享 bigram（确定性序输出）。
+func ldvSharedBigrams(sentence, title string) []string {
+	sb, tb := ldvCJKBigrams(sentence), ldvCJKBigrams(title)
+	var shared []string
+	for k := range sb {
+		if tb[k] {
+			shared = append(shared, k)
+		}
+	}
+	sort.Strings(shared)
+	return shared
 }
 
 func ldvFmtCounts(per map[string]int) string {
@@ -773,6 +880,11 @@ var ldvStyleBlockRe = regexp.MustCompile(`(?s)<w:style [^>]*w:styleId="([^"]+)"[
 var ldvColorRe = regexp.MustCompile(`<w:color w:val="([^"]+)"`)
 var ldvSzRe = regexp.MustCompile(`<w:sz w:val="(\d+)"`)
 var ldvStyleNameRe = regexp.MustCompile(`<w:name w:val="([^"]+)"`)
+
+// ldvPageBreakBeforeRe 另起页元素（含可选 w:val）。OOXML 语义：元素缺省=开，
+// w:val 取 0/false/off=关、其余（含缺省/1/true/on）=开（2026-11-21 反馈 P1-5：
+// 此前按元素出现即读「是」，val="0" 被反向读成另起页，驱动了错误写法）。
+var ldvPageBreakBeforeRe = regexp.MustCompile(`<w:pageBreakBefore(?:\s+w:val="([^"]*)")?\s*/>`)
 var ldvInstrRe = regexp.MustCompile(`<w:instrText[^>]*>([^<]*)</w:instrText>`)
 
 // ldvReadZipEntry 读 zip 内单个条目（缺件返回 ""）。
@@ -814,8 +926,13 @@ func ldvReadStyles(path string) []string {
 		if s := ldvSzRe.FindStringSubmatch(m[2]); s != nil {
 			size = s[1]
 		}
-		if strings.Contains(m[2], "pageBreakBefore") {
-			pb = "是"
+		if pbm := ldvPageBreakBeforeRe.FindStringSubmatch(m[2]); pbm != nil {
+			switch strings.ToLower(pbm[1]) {
+			case "0", "false", "off":
+				// 显式关：元素在但 val 否定——读「否」。
+			default:
+				pb = "是"
+			}
 		}
 		out = append(out, fmt.Sprintf("%-14s 颜色=%-8s 字号(半磅)=%-4s 另起页=%s", name, color, size, pb))
 	}

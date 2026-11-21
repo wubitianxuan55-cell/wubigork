@@ -473,6 +473,14 @@ func batchStormSignature(calls []provider.ToolCall, outcomes []toolOutcome) (str
 	if len(calls) == 0 {
 		return "", false
 	}
+	// 2026-11-21 反馈 P1-8：空参签名（参数在传输面丢失——收到 0 键）不计入
+	// storm：这种失败的正确处置恰是原样重试同一调用，guard 的「换策略」建议
+	// 会把工具侧丢参记成模型行为问题（实测连试 3 次即被拦，回合被白耗）。
+	for i := range outcomes {
+		if strings.Contains(outcomes[i].errMsg, "本次收到 0 个参数键") {
+			return "", false
+		}
+	}
 	var sb strings.Builder
 	for i := range calls {
 		if outcomes[i].errMsg == "" || outcomes[i].blocked {

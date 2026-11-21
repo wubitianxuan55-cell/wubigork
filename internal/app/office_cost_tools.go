@@ -24,6 +24,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/workcost"
@@ -51,8 +54,8 @@ func (t costProjectTool) Schema() json.RawMessage {
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["projects","items","quotas","quota","resources"],"description":"projects=项目列表；items=某项目清单行（需 project_id）；quotas=定额检索（specialty/keyword 过滤）；quota=单个定额详情（含含量行，需 code）；resources=工料机资源检索（kind/keyword 过滤）"},
-  "project_id":{"type":"integer","description":"项目 id（action=items 必填）"},
+  "action":{"type":"string","enum":["projects","items","summary","quotas","quota","resources"],"description":"projects=项目列表；items=某项目清单行（需 project_id）；summary=现算汇总（逐行综合单价/合价/人材机拆分+项目取费链——金额一律以它为准，不要自建 SQL 算价链）；quotas=定额检索（specialty/keyword 过滤）；quota=单个定额详情（含含量行，需 code）；resources=工料机资源检索（kind/keyword 过滤）"},
+  "project_id":{"type":"integer","description":"项目 id（action=items/summary 必填）"},
   "code":{"type":"string","description":"定额编码（action=quota 必填）"},
   "specialty":{"type":"string","description":"定额专业过滤（可选）"},
   "kind":{"type":"string","description":"资源类型过滤（人工/材料/机械等，可选）"},
@@ -113,7 +116,12 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 		for _, it := range items {
 			quotas := strings.Join(it.QuotaCodes, "+")
 			if it.QuotaCode != "" && !strings.Contains(quotas, it.QuotaCode) {
-				quotas = it.QuotaCode + (func() string { if quotas != "" { return "+" + quotas }; return "" }())
+				quotas = it.QuotaCode + (func() string {
+					if quotas != "" {
+						return "+" + quotas
+					}
+					return ""
+				}())
 			}
 			line := fmt.Sprintf("- [%s] %s（%s）量=%g", it.Code, it.Title, it.Unit, it.Quantity)
 			if quotas != "" {
@@ -128,6 +136,11 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 			b.WriteString(line + "\n")
 		}
 		return b.String(), nil
+	case "summary":
+		if p.ProjectID <= 0 {
+			return "", fmt.Errorf("action=summary 需要 project_id（先用 action=projects 列项目）")
+		}
+		return t.runSummary(p.ProjectID)
 	case "quotas":
 		quotas, err := s.ListQuotas(p.Specialty, p.Keyword)
 		if err != nil {
@@ -181,13 +194,157 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 	}
 }
 
+// runSummary 现算汇总口（2026-11-21 造价门实测 4.1：金额是造价的核心产出，
+// 此前 items 只给量不给价，模型被迫自建 SQL 四表 join 算价——两条算价链任何
+// 口径偏差（损耗率/资源价覆盖/快照回退）都会出两份金额。本口复用库内
+// ComposeQuotas 现算链（唯一权威），取费公式与五表导出 writeSummarySheet 同源：
+// 管理费=直接费×率；利润=(直接费+管理费)×率；规费=直接费×率；税前=四项显式
+// 相加；税=税前×率。手填价行人材机归属约定=**整价归材料**（无组价依据时唯一
+// 能保持 人+材+机=合价 恒等式的口径，此前靠模型自定——2026-11-21 拍板入文档）。
+func (t costProjectTool) runSummary(projectID int64) (string, error) {
+	s := t.a.hubWorkcostStore()
+	if !s.Available() {
+		return "", fmt.Errorf("工料机造价库不可用（Hephaestus.db 未就绪）")
+	}
+	var proj *workcost.BillProject
+	projects, err := s.BillProjects()
+	if err != nil {
+		return "", err
+	}
+	for i := range projects {
+		if projects[i].ID == projectID {
+			proj = &projects[i]
+			break
+		}
+	}
+	if proj == nil {
+		return "", fmt.Errorf("项目 #%d 不存在（cost_project action=projects 可查）", projectID)
+	}
+	items, err := s.BillItems(projectID)
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "该项目暂无清单行——无汇总可算。用 cost_project_apply action=save_items 编制清单。", nil
+	}
+	// 定额码收集 → ComposeQuotas 一次批量现算（唯一权威链）。
+	codeSet := map[string]bool{}
+	var codes []string
+	for _, it := range items {
+		for _, c := range append([]string{it.QuotaCode}, it.QuotaCodes...) {
+			if c = strings.TrimSpace(c); c != "" && !codeSet[c] {
+				codeSet[c] = true
+				codes = append(codes, c)
+			}
+		}
+	}
+	composes, err := s.ComposeQuotas(codes)
+	if err != nil {
+		return "", fmt.Errorf("现算链失败: %w", err)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "项目 #%d %s 现算汇总（%d 行，口径=库内现算链，人材机综合单价不含管利税）：\n", proj.ID, proj.Name, len(items))
+	var direct, sumLabor, sumMaterial, sumMachine, sumOther float64
+	unpriced := 0
+	warnSeen := map[string]bool{}
+	for _, it := range items {
+		qty := it.Quantity
+		row := fmt.Sprintf("- [%s] %s（%s）量=%g", it.Code, it.Title, it.Unit, qty)
+		var total, labor, material, machine, other float64
+		if it.PriceOverride > 0 {
+			total = it.PriceOverride * qty
+			material = total // 手填价约定：整价归材料
+			row += fmt.Sprintf(" 手填价=%.2f", it.PriceOverride)
+		} else {
+			// 定额挂接（含 1:N 组合）：link.Quantity>0 用定额自身工程量，0=跟随清单量。
+			links, lerr := s.BillQuotaLinks(it.ID)
+			linkQty := map[string]float64{}
+			if lerr == nil {
+				for _, l := range links {
+					linkQty[strings.TrimSpace(l.QuotaCode)] = l.Quantity
+				}
+			}
+			used := map[string]bool{}
+			for _, c := range append([]string{it.QuotaCode}, it.QuotaCodes...) {
+				if c = strings.TrimSpace(c); c == "" || used[c] {
+					continue
+				}
+				used[c] = true
+				cp := composes[c]
+				if cp == nil {
+					continue // 悬空定额由 cost_audit 硬检点名；此处不重复
+				}
+				lq := qty
+				if l := linkQty[c]; l > 0 {
+					lq = l
+				}
+				total += cp.Subtotal * lq
+				labor += cp.LaborFee * lq
+				material += cp.MaterialFee * lq
+				machine += cp.MachineFee * lq
+				other += cp.OtherFee * lq
+				for _, w := range cp.Warnings {
+					warnSeen[w] = true
+				}
+			}
+		}
+		if total <= 0 && it.PriceOverride <= 0 {
+			unpriced++
+			fmt.Fprintf(&b, "%s → 无现算（缺定额挂接/悬空，cost_audit 会点名）\n", row)
+			continue
+		}
+		direct += total
+		sumLabor += labor
+		sumMaterial += material
+		sumMachine += machine
+		sumOther += other
+		unit := 0.0
+		if qty > 0 {
+			unit = total / qty
+		}
+		fmt.Fprintf(&b, "%s 综合单价=%.2f 合价=%.2f（人=%.2f 材=%.2f 机=%.2f", row, unit, total, labor, material, machine)
+		if other > 0 {
+			fmt.Fprintf(&b, " 其他=%.2f", other)
+		}
+		b.WriteString("）\n")
+	}
+	if unpriced > 0 {
+		fmt.Fprintf(&b, "（另有 %d 行无现算，未计入合计）\n", unpriced)
+	}
+	// 取费链（五表导出同源；税率口径建筑服务一般计税 9%/简易 3% 由项目自填）。
+	mgmt := direct * proj.ManagementRate
+	profit := (direct + mgmt) * proj.ProfitRate
+	reg := direct * proj.RegulatoryRate
+	pretax := direct + mgmt + profit + reg // 显式逐项相加（勿用区间 SUM，导出层实测坑）
+	tax := pretax * proj.TaxRate
+	withTax := pretax + tax
+	fmt.Fprintf(&b, "── 项目汇总（费率 管=%g 规=%g 利=%g 税=%g）──\n", proj.ManagementRate, proj.RegulatoryRate, proj.ProfitRate, proj.TaxRate)
+	fmt.Fprintf(&b, "人材机直接费=%.2f（人=%.2f 材=%.2f 机=%.2f）\n", direct, sumLabor, sumMaterial, sumMachine)
+	fmt.Fprintf(&b, "管理费=%.2f｜利润=%.2f｜规费=%.2f｜税前=%.2f｜增值税=%.2f\n", mgmt, profit, reg, pretax, tax)
+	fmt.Fprintf(&b, "含税合计=%.2f", withTax)
+	if proj.ControlPrice > 0 {
+		fmt.Fprintf(&b, "（占控制价 %.1f%%）", withTax/proj.ControlPrice*100)
+	}
+	b.WriteString("\n口径：综合单价=人材机口径（不含管利税）；手填价行人材机归属=整价归材料；导出 xlsx（五表）以本链同源公式生成，两边金额必须一致——不一致=口径分叉，以库内现算为准排查。\n")
+	if len(warnSeen) > 0 {
+		keys := make([]string, 0, len(warnSeen))
+		for w := range warnSeen {
+			keys = append(keys, w)
+		}
+		sort.Strings(keys)
+		fmt.Fprintf(&b, "现算警告 %d 条：%s\n", len(keys), strings.Join(keys, "；"))
+	}
+	return b.String(), nil
+}
+
 // ── cost_project_apply：写入口（PersistWrite）─────────────────────────────
 
 type costProjectApplyTool struct{ a *App }
 
-func (t costProjectApplyTool) Name() string        { return "cost_project_apply" }
-func (t costProjectApplyTool) ReadOnly() bool      { return false }
-func (t costProjectApplyTool) PersistWrite() bool  { return true }
+func (t costProjectApplyTool) Name() string       { return "cost_project_apply" }
+func (t costProjectApplyTool) ReadOnly() bool     { return false }
+func (t costProjectApplyTool) PersistWrite() bool { return true }
 func (t costProjectApplyTool) Description() string {
 	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取）、update_rates 更新项目费率、save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。沉淀回成本库走 cost_save（用户确认门），本工具不写成本库。"
 }
@@ -243,16 +400,16 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 		ControlPrice             float64 `json:"control_price"`
 		ProjectID                int64   `json:"project_id"`
 		Items                    []struct {
-			Code         string   `json:"code"`
-			Title        string   `json:"title"`
-			Unit         string   `json:"unit"`
-			Division     string   `json:"division"`
-			Quantity     float64  `json:"quantity"`
-			QuantityExpr string   `json:"quantity_expr"`
-			QuotaCode    string   `json:"quota_code"`
-			QuotaCodes   []string `json:"quota_codes"`
-			Feature      string   `json:"feature"`
-			PriceOverride float64 `json:"price_override"`
+			Code          string   `json:"code"`
+			Title         string   `json:"title"`
+			Unit          string   `json:"unit"`
+			Division      string   `json:"division"`
+			Quantity      float64  `json:"quantity"`
+			QuantityExpr  string   `json:"quantity_expr"`
+			QuotaCode     string   `json:"quota_code"`
+			QuotaCodes    []string `json:"quota_codes"`
+			Feature       string   `json:"feature"`
+			PriceOverride float64  `json:"price_override"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
@@ -491,6 +648,53 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 		}
 	}
 
+	// 规格档错配检（2026-11-21 造价门实测 4.2/六：C60 混凝土被当 C20 用进表，
+	// 虚高 1.07 万——title 里的强度档与清单特征档比对是确定性可判的。INFO 级：
+	// 暂代（库内无同档，如 C10-C20 代 C20）是合法操作，报警给用户确认而非阻断）。
+	for _, it := range items {
+		itemGrades := costSpecGrades(it.Title + " " + it.Feature)
+		if len(itemGrades) == 0 {
+			continue
+		}
+		quotaGrades := map[string]bool{}
+		for _, c := range append([]string{it.QuotaCode}, it.QuotaCodes...) {
+			if c = strings.TrimSpace(c); c == "" || quotaCache[c] == nil {
+				continue
+			}
+			for g := range costSpecGrades(quotaCache[c].Title) {
+				quotaGrades[g] = true
+			}
+			for _, qi := range quotaCache[c].Items {
+				for g := range costSpecGrades(qi.Title + " " + qi.Spec) {
+					quotaGrades[g] = true
+				}
+			}
+		}
+		if len(quotaGrades) == 0 {
+			continue
+		}
+		match := false
+		for g := range itemGrades {
+			if quotaGrades[g] {
+				match = true
+				break
+			}
+		}
+		if !match {
+			ig := make([]string, 0, len(itemGrades))
+			for g := range itemGrades {
+				ig = append(ig, g)
+			}
+			sort.Strings(ig)
+			qg := make([]string, 0, len(quotaGrades))
+			for g := range quotaGrades {
+				qg = append(qg, g)
+			}
+			sort.Strings(qg)
+			add("spec_grade_mismatch", fmt.Sprintf("#%d[%s] %s 清单特征档 %v 与定额/资源档 %v 不一致——确认规格档或换资源（暂代需在交付说明注明）", it.ID, it.Code, it.Title, ig, qg), false)
+		}
+	}
+
 	// 信息项（永不进 HardCount）。
 	hardCount := 0
 	for _, f := range findings {
@@ -499,6 +703,11 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 		}
 	}
 	var b strings.Builder
+	// 数据指纹（2026-11-21 造价门实测 5.1：同轮改数据后复检，审计结果可能逐字节
+	// 相同而被上层「结果同一性去重」折叠成 cached 提示——指纹让新旧结果可分辨；
+	// 改费率/改行数必变指纹）。
+	fmt.Fprintf(&b, "数据指纹：清单 %d 行｜费率 管=%g 规=%g 利=%g 税=%g\n", len(items),
+		proj.ManagementRate, proj.RegulatoryRate, proj.ProfitRate, proj.TaxRate)
 	fmt.Fprintf(&b, "项目 #%d %s 机检回执：\n硬检 HardCount=%d（必须修复后再交付）\n", proj.ID, proj.Name, hardCount)
 	for _, f := range findings {
 		tag := "INFO"
@@ -548,4 +757,31 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 		b.WriteString("存在硬检问题：修复后重新机检，不要带硬伤交付。")
 	}
 	return b.String(), nil
+}
+
+// costSpecGrades 抽取文本里的规格强度档（2026-11-21 造价门实测 4.2：C60 充当
+// C20 用进表的确定性防线）。覆盖混凝土 C10-C80 与砂浆 M5-M30 两族（其余档位
+// 体系（沥青 AC/钢筋 HPB）形态歧义大，不冒充全量识别）；边界锚定防 PC200/
+// M046 编号误报。
+var costSpecGradeRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9])([CM])(\d{1,3})`)
+
+func costSpecGrades(text string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range costSpecGradeRe.FindAllStringSubmatch(text, -1) {
+		n, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		switch m[1] {
+		case "C":
+			if n >= 10 && n <= 80 { // 混凝土强度等级（三位数捕获后域内校验，等价前瞻）
+				out["C"+strconv.Itoa(n)] = true
+			}
+		case "M":
+			if n >= 5 && n <= 30 { // 砂浆强度等级
+				out["M"+strconv.Itoa(n)] = true
+			}
+		}
+	}
+	return out
 }

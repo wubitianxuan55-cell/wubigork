@@ -89,6 +89,7 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueFinalListTool(),
 		wenxueFinalReadTool(),
 		wenxueFinalWriteTool(),
+		wenxueBookBuildTool(a),
 	}
 }
 

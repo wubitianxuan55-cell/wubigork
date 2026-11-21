@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -62,11 +63,67 @@ func TestMDValidate_OrphanRefAndUnreferenced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "孤立引用") || !strings.Contains(out, "表2-3") {
-		t.Fatalf("孤立引用未检出: %s", out)
+	// 2026-11-21 反馈 P1-4：单文件模式下本地无题注的引用不再冒充「孤立引用」
+	// 硬伤——归类 cross_ref（跨章引用·待全册核验），防诱发把有效跨章引用改成
+	// 模糊描述（实测曾因此赶出 9 条误报）。
+	if !strings.Contains(out, "cross_ref") || !strings.Contains(out, "表2-3") || !strings.Contains(out, "待全册核验") {
+		t.Fatalf("跨章引用应归类 cross_ref 待核: %s", out)
+	}
+	if strings.Contains(out, "孤立引用") {
+		t.Fatalf("单文件模式不得再把跨章引用报成孤立引用: %s", out)
 	}
 	if !strings.Contains(out, "未引用") || !strings.Contains(out, "表2-2") {
 		t.Fatalf("未引用题注未检出: %s", out)
+	}
+}
+
+// 多文件全册模式（P1-4）：跨章引用在他章题注中闭合即通过（不误报）；并集
+// 仍无=真孤立；跨文件撞号点名两侧。
+func mdvRunMulti(t *testing.T, files map[string]string, checks string) (string, error) {
+	t.Helper()
+	dir := t.TempDir()
+	names := make([]string, 0, len(files))
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	pathsJSON, _ := json.Marshal(names)
+	args := `{"paths":` + string(pathsJSON) + checks + `}`
+	return mdValidate{workDir: dir}.Execute(context.Background(), json.RawMessage(args))
+}
+
+func TestMDValidate_MultiFileCrossRefClosed(t *testing.T) {
+	out, err := mdvRunMulti(t, map[string]string{
+		"ch1.md": "本章安排见 表2-1。\n\n表1-1 本章表\n\n引用 表1-1。\n",
+		"ch2.md": "表2-1 里程碑计划\n\n节点日期见 表1-1。\n",
+	}, `,"checks":["orphans","numbering"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "OK:") {
+		t.Fatalf("跨章引用闭合应 OK: %s", out)
+	}
+	if !strings.Contains(out, "跨章引用 2 处已在全册并集闭合") {
+		t.Fatalf("应汇总跨章闭合数: %s", out)
+	}
+}
+
+func TestMDValidate_MultiFileTrueOrphanAndCrossDup(t *testing.T) {
+	out, err := mdvRunMulti(t, map[string]string{
+		"ch1.md": "引用 表9-9（全册无此表）。\n\n表1-1 甲\n",
+		"ch2.md": "表1-1 乙（与 ch1 撞号）\n",
+	}, `,"checks":["orphans","numbering"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "孤立引用（全册并集）") || !strings.Contains(out, "表9-9") {
+		t.Fatalf("全册真孤立应检出: %s", out)
+	}
+	if !strings.Contains(out, "表1-1 撞号") || !strings.Contains(out, "ch1.md L3") {
+		t.Fatalf("跨文件撞号应点名两侧: %s", out)
 	}
 }
 

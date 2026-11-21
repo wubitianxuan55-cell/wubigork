@@ -107,8 +107,38 @@ func TestLongdocVerifyCrossUniqueness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out3, "孤立引用（全册并集）") {
-		t.Fatalf("全册孤儿引用应 fail：\n%s", out3)
+		if !strings.Contains(out3, "孤立引用（全册并集）") {
+			t.Fatalf("全册孤儿引用应 fail：\n%s", out3)
+		}
+}
+
+// 语义初筛（2026-11-21 反馈 P0-3 回归钉）：编号存在/对账齐但内容错换的「引用
+// 错表」——低重合标记不判 fail（初筛有误报率），重合的正常过筛。实测形态：
+// 第3章「节点日期取自第2章表2-1」而表2-1 已是职责分工表（里程碑表重排走了）。
+func TestLongdocVerifyCrossSemanticPrescreen(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "第2章.md")
+	b := filepath.Join(dir, "第3章.md")
+	os.WriteFile(a, []byte("职责划分见表2-1；里程碑安排见表2-2。\n\n表2-1 主要职责分工表\n\n表2-2 里程碑节点计划表\n"), 0o644)
+	os.WriteFile(b, []byte("N4～N9 节点日期取自第2章表2-1，形成总控节点。\n\n施工里程碑服从表2-2 的节点安排。\n"), 0o644)
+	out, err := ldvRun(t, `{"action":"cross","paths":[`+ldvJSON(a)+`,`+ldvJSON(b)+`]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "[1s] 跨章引用语义初筛：2 处") {
+		t.Fatalf("应列出 2 处跨章引用初筛：\n%s", out)
+	}
+	if !strings.Contains(out, "表2-1") || !strings.Contains(out, "低重合·请核对") {
+		t.Fatalf("引用错表（节点日期→职责分工表）应标记低重合：\n%s", out)
+	}
+	if !strings.Contains(out, "被引「表2-2 里程碑节点计划表」") {
+		t.Fatalf("初筛应输出被引对象真实标题：\n%s", out)
+	}
+	if !strings.Contains(out, "重合3（") { // 施工里程碑…节点安排 ↔ 里程碑节点计划表：程碑/节点/里程 共享 3 个 bigram
+		t.Fatalf("里程碑句对里程碑表应过筛（重合3）：\n%s", out)
+	}
+	if !strings.Contains(out, "✓ 全部通过") {
+		t.Fatalf("语义初筛不判 fail，本夹具无其他硬伤应全过：\n%s", out)
 	}
 }
 

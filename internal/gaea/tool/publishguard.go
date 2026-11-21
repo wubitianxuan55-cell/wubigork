@@ -193,6 +193,12 @@ func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ..
 	// 隔离目录 move 到工作区外的暂存位；非 durable 档不受本边界限制。
 	b.WriteString("\n取回：隔离件为原件，可用 move_file 移到工作区外暂存位（如临时目录）复核。")
 	b.WriteString("\n允许落点：md/txt/png 等非 durable 档不受本边界限制；durable 档（docx/xlsx/pptx）走上述结构化入口。")
+	// 2026-11-21 造价门实测 2.1：自由脚本（openpyxl/python-docx 等）生成 durable
+	// 是合法场景，但合规路径此前只能试错撞出——Temp→copy→move_file。明示出口；
+	// 同时告示 request_permission 的路径授权与本边界是两个独立闸门（实测用户
+	// 批准了持久规则仍被拦，误以为授权无效）。
+	b.WriteString("\n自由脚本生成 durable 的合规路径：先落系统临时目录（或非 durable 扩展名如 .xlsx.tmp），再用 move_file 移入工作区正式名——move_file 是 durable 落盘的合法出口。")
+	b.WriteString("\n注意：request_permission 批准的路径规则不改变本边界（独立闸门）——durable 交付物一律走结构化入口或上述 move_file 路径。")
 	return b.String()
 }
 

@@ -67,6 +67,14 @@ node docx-js。
 # Markdown → Word（推荐：agent 输出即 Markdown，直通排版）
 python scripts/create_docx.py 报告.md 报告.docx --cover --toc --header "页眉" --footer "第 {page} 页"
 
+# 中文标书口径（宋体正文/黑体黑标题/章另起页/页眉下框线；封面五要素）
+python scripts/create_docx.py 技术标.md 技术标.docx --template 标书 --cover --toc \
+  --subtitle "CQS26C02978 包3" --author "某某环境科技有限公司" --bid-copy 正本
+
+# 静态目录（页码由两遍法回填：先占位出档→渲染实测→--toc-spec 回填重建；
+# longdoc_build 已内建该流程，直接用时才需要自管两遍）
+python scripts/create_docx.py 技术标.md 技术标.docx --toc --toc-spec toc.json  # [{text,level,page}]
+
 # JSON spec（细粒度控制：图片/自定义表格/页边距）
 python scripts/create_docx.py spec.json 报告.docx --spec
 ```

@@ -32,6 +32,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
@@ -57,6 +58,9 @@ type longdocChapter struct {
 	Sources      []string `json:"sources"`
 	Requirements []string `json:"requirements"`
 	Words        int      `json:"words"`
+	// Figs/Tables 期望图表数（2026-11-21 反馈 P2-9：配额验收进 check，0=不校验）。
+	Figs   int `json:"figs,omitempty"`
+	Tables int `json:"tables,omitempty"`
 }
 
 // longdocFinding 是机检发现（hard=阻断构建）。
@@ -370,7 +374,9 @@ func (t longdocManifestTool) Schema() json.RawMessage {
     "path":{"type":"string","description":"章节正文 md 路径（相对清单目录或绝对路径）"},
     "sources":{"type":"array","items":{"type":"string"},"description":"本章来源文件（悬空来源会被机检拦截）"},
     "requirements":{"type":"array","items":{"type":"string"},"description":"本章映射的评分点 id"},
-    "words":{"type":"integer","description":"目标字数"}
+    "words":{"type":"integer","description":"目标字数"},
+    "figs":{"type":"integer","description":"期望图数（0=不校验）"},
+    "tables":{"type":"integer","description":"期望表数（0=不校验）"}
   }}}
 }
 }`)
@@ -466,10 +472,11 @@ func (t longdocManifestTool) Execute(_ context.Context, args json.RawMessage) (s
 		}
 		findings := longdocCheck(m, manifestPath)
 		body, hard := formatLongdocFindings(findings)
+		quota := longdocQuotaSummary(m, manifestPath) // P2-9：配额面恒附（结构化 JSON 供外挂脚本）
 		if hard > 0 {
-			return fmt.Sprintf("机检发现 %d 项硬伤：\n%s全部修复后复检，绿了才能 longdoc_build。", hard, body), nil
+			return fmt.Sprintf("机检发现 %d 项硬伤：\n%s%s全部修复后复检，绿了才能 longdoc_build。", hard, body, quota), nil
 		}
-		return fmt.Sprintf("机检全绿（%d 章，硬伤 0）：\n%s可 longdoc_build 组装。", len(m.Chapters), body), nil
+		return fmt.Sprintf("机检全绿（%d 章，硬伤 0）：\n%s%s可 longdoc_build 组装。", len(m.Chapters), body, quota), nil
 	default:
 		return "", fmt.Errorf("未知 action %q（init/set/get/check）", p.Action)
 	}
@@ -482,7 +489,7 @@ type longdocBuildTool struct{ a *App }
 func (t longdocBuildTool) Name() string   { return "longdoc_build" }
 func (t longdocBuildTool) ReadOnly() bool { return false }
 func (t longdocBuildTool) Description() string {
-	return "按清单组装整册并导出交付物（docx/pdf/md）：构建前强制机检（带硬检问题拒绝组装，拒绝理由单行列明），章节按清单序拼接（整行图引相对路径自动按章节目录绝对化）后走交付模板链（不重写生成器）。docx 回执含图片对账（引用数/嵌入数，缺图即错）与 SHA256（哈希 Go 自算）；页数用 doc_render 渲染取。output_path 为必填声明写路径。"
+	return "按清单组装整册并导出交付物（docx/pdf/md）：构建前强制机检（带硬检问题拒绝组装，拒绝理由单行列明），章节按清单序拼接（整行图引相对路径自动按章节目录绝对化）后走交付模板链（不重写生成器）。docx 回执含图片对账（引用数/嵌入数，缺图即错）与 SHA256（哈希 Go 自算）；页数用 doc_render 渲染取。output_path 为必填声明写路径。模板缺省=标书（宋体正文/黑体黑标题/章另起页/页眉下框线；封面五要素 subtitle=包号/author=投标人/bid_copy/bid_date，页眉缺省取投标人）。"
 }
 func (t longdocBuildTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -492,9 +499,15 @@ func (t longdocBuildTool) Schema() json.RawMessage {
   "manifest":{"type":"string","description":"清单文件路径（longdoc_manifest 维护）"},
   "format":{"type":"string","enum":["docx","pdf","md"],"description":"交付格式"},
   "output_path":{"type":"string","description":"声明写路径（工作区相对路径）；扩展名须与 format 一致"},
-  "template":{"type":"string","enum":["通用","公文","报告","合同"],"description":"docx 模板，缺省 报告"},
+  "template":{"type":"string","enum":["通用","公文","报告","合同","标书"],"description":"docx 模板，缺省 标书（中文标书口径：宋体/黑标题/章另起页）"},
   "cover":{"type":"boolean","description":"生成封面"},
-  "toc":{"type":"boolean","description":"生成目录（长文默认建议开）"}
+  "toc":{"type":"boolean","description":"生成目录（长文默认建议开）"},
+  "subtitle":{"type":"string","description":"标书封面包号（如 第 3 包）"},
+  "author":{"type":"string","description":"标书封面投标人；页眉缺省时自动作为页眉"},
+  "bid_copy":{"type":"string","enum":["正本","副本"],"description":"标书封面正本/副本标记，缺省 正本"},
+  "bid_date":{"type":"string","description":"标书封面落款日期，缺省=今天"},
+  "header":{"type":"string","description":"页眉文字（标书带下框线；缺省取投标人）"},
+  "footer":{"type":"string","description":"页脚文字，缺省 第 {page} 页"}
 }
 }`)
 }
@@ -530,6 +543,12 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 		Template   string `json:"template"`
 		Cover      bool   `json:"cover"`
 		TOC        bool   `json:"toc"`
+		Subtitle   string `json:"subtitle"`
+		Author     string `json:"author"`
+		BidCopy    string `json:"bid_copy"`
+		BidDate    string `json:"bid_date"`
+		Header     string `json:"header"`
+		Footer     string `json:"footer"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("longdoc_build 参数解析失败: %w", err)
@@ -588,6 +607,10 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 		return "", fmt.Errorf("整册内容为空：清单无有效章节")
 	}
 	// 复用交付模板链（GaeaExportDeliverable：create_docx.py 等，不重写生成器）。
+	// 模板缺省=标书（2026-11-21 反馈 P0-2：报告主题的微软雅黑直接改变页数口径
+	// ——实测同一内容 472→419 页，页数是投标显性指标；标书口径=宋体/黑标题/
+	// 章另起页）。封面五要素与页眉参数透传；页眉缺省取投标人/bid_copy 缺省
+	// 正本/日期缺省今天——三处缺省单源在 create_docx.py（模板语义归模板）。
 	in := ExportDeliverableInput{
 		Markdown:   sb.String(),
 		Format:     format,
@@ -595,9 +618,35 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 		Template:   p.Template,
 		Cover:      p.Cover,
 		TOC:        p.TOC,
+		Subtitle:   p.Subtitle,
+		Author:     p.Author,
+		BidCopy:    p.BidCopy,
+		BidDate:    p.BidDate,
+		Header:     p.Header,
+		Footer:     p.Footer,
 	}
 	if in.Template == "" {
-		in.Template = "报告"
+		in.Template = "标书"
+	}
+	// 静态目录两遍法（2026-11-21 反馈 P0-2 建议③）：toc=true 且 docx 时不留需要
+	// Ctrl+A→F9 的域目录——占位目录出 pass-1 → soffice→PDF + pdftotext 逐页文本
+	// 定位每个标题的渲染实测页 → 回填重建。占位与终稿目录行数一致（页码宽度不
+	// 改行数），两遍分页稳定。渲染链（LibreOffice/poppler）不可用→回落 TOC 域
+	// 并在回执如实标注回落原因，不静默降级。
+	tocNote := ""
+	if p.TOC && format == "docx" {
+		if entries := longdocTocEntries(sb.String()); len(entries) > 0 {
+			in.TocEntries = entries
+			measured, merr := t.a.longdocMeasureTocPages(in)
+			switch {
+			case merr != nil:
+				in.TocEntries = nil
+				tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
+			default:
+				in.TocEntries = measured
+				tocNote = fmt.Sprintf("；目录=静态页码（%d 条渲染实测，LibreOffice 口径；Word 打印可能 ±1~2 页）", len(measured))
+			}
+		}
 	}
 	res, err := t.a.GaeaExportDeliverable(in)
 	if err != nil {
@@ -637,9 +686,168 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 		}
 	}
 	if hash == "" {
-		return fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes；sha256 未读回）。机检 0 硬伤%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, imgNote), nil
+		return fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes；sha256 未读回）。机检 0 硬伤%s%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, imgNote, tocNote), nil
 	}
-	return fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes，sha256=%s）。机检 0 硬伤%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, shortHash(hash), imgNote), nil
+	return fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes，sha256=%s）。机检 0 硬伤%s%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, shortHash(hash), imgNote, tocNote), nil
+}
+
+// longdocTocHeadingRe 组装文本的 H1/H2 标题行（目录条目源）。
+var longdocTocHeadingRe = regexp.MustCompile(`^(#{1,2})\s+(.+)$`)
+
+// longdocTocEntries 从组装文本抽目录条目（跳过围栏代码块内伪标题行）。
+func longdocTocEntries(md string) []ExportTocEntry {
+	var out []ExportTocEntry
+	inFence := false
+	for _, line := range strings.Split(md, "\n") {
+		s := strings.TrimSpace(line)
+		if strings.HasPrefix(s, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if m := longdocTocHeadingRe.FindStringSubmatch(s); m != nil {
+			out = append(out, ExportTocEntry{Text: strings.TrimSpace(m[2]), Level: len(m[1]), Page: "—"})
+		}
+	}
+	return out
+}
+
+// longdocMeasureTocPages 两遍法的量页腿（office 薄壳）：导出/路径解析走本板
+// 链，量页核心 measureTocEntries 板间共用（图文 wenxue_book_build 同款复用）。
+func (a *App) longdocMeasureTocPages(in ExportDeliverableInput) ([]ExportTocEntry, error) {
+	return measureTocEntries(in, a.GaeaExportDeliverable, longdocResolvePath)
+}
+
+// measureTocEntries 量页核心（板间共用）：按占位目录出 pass-1 docx → soffice 转
+// PDF → pdftotext 逐页文本 → 每条目标题定位首个含它的页（空白全剥的归一口径，
+// PDF 内换行/字距不影响匹配）。匹配不到的条目页码保持「—」（如实可见，不猜）。
+// 任何一步失败返回 error，调用方回落 TOC 域。
+func measureTocEntries(in ExportDeliverableInput,
+	export func(ExportDeliverableInput) (ExportDeliverableResult, error),
+	resolve func(string) (string, error)) ([]ExportTocEntry, error) {
+	res, err := export(in)
+	if err != nil {
+		return nil, fmt.Errorf("pass-1 导出失败: %w", err)
+	}
+	abs, err := resolve(res.Path)
+	if err != nil {
+		return nil, err
+	}
+	tmp, err := os.CreateTemp("", "gaea-toc-measure-*.pdf")
+	if err != nil {
+		return nil, err
+	}
+	tmpPath := tmp.Name()
+	_ = tmp.Close()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := docmd.ConvertToPdfFile(abs, tmpPath); err != nil {
+		return nil, err
+	}
+	pages, err := docmd.PDFPageTexts(tmpPath)
+	if err != nil {
+		return nil, err
+	}
+	normPages := make([]string, len(pages))
+	for i, p := range pages {
+		normPages[i] = longdocNormForMatch(p)
+	}
+	entries := append([]ExportTocEntry(nil), in.TocEntries...)
+	for i := range entries {
+		key := longdocNormForMatch(entries[i].Text)
+		if key == "" {
+			continue
+		}
+		for pi, np := range normPages {
+			if strings.Contains(np, key) {
+				entries[i].Page = fmt.Sprintf("%d", pi+1)
+				break
+			}
+		}
+	}
+	return entries, nil
+}
+
+// longdocNormForMatch 标题↔页文本匹配归一：剥全部空白（PDF 抽取的换行/字距
+// 与 markdown 原文不可逐字节比对）。
+func longdocNormForMatch(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case ' ', '\t', '\n', '\r', '\v', '\f', '　', 0x00A0, 0x200B:
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// longdocQuotaSummary 配额面（2026-11-21 反馈 P2-9：check 八类机检不比对字数
+// 配额与图表数，验收要自写四套脚本）。逐章实测 汉字数/图题注数/表题注数 vs
+// 清单目标：words 偏差>30%（figs/tables 期望>0 时不等）出 warn 级提示（配额
+// 是目标不是硬约束，不拦组装）；恒附结构化 JSON 行供外挂脚本消费。
+func longdocQuotaSummary(m *longdocManifestFile, manifestPath string) string {
+	type chQuota struct {
+		No      int    `json:"no"`
+		Title   string `json:"title"`
+		Words   int    `json:"words"`
+		Target  int    `json:"words_target,omitempty"`
+		Dev     int    `json:"dev_pct,omitempty"`
+		Figs    int    `json:"figs"`
+		FigExp  int    `json:"figs_expect,omitempty"`
+		Tables  int    `json:"tables"`
+		TablExp int    `json:"tables_expect,omitempty"`
+	}
+	baseDir := filepath.Dir(manifestPath)
+	var rows []chQuota
+	var warns []string
+	for _, ch := range m.Chapters {
+		q := chQuota{No: ch.No, Title: ch.Title, Target: ch.Words, FigExp: ch.Figs, TablExp: ch.Tables}
+		p := ch.Path
+		if p != "" && !filepath.IsAbs(p) {
+			p = filepath.Join(baseDir, p)
+		}
+		if b, err := os.ReadFile(p); err == nil {
+			text := string(b)
+			q.Words = len(ldvHanRe.FindAllString(text, -1))
+			for _, ln := range strings.Split(text, "\n") {
+				if mm := ldvCaptionRe.FindStringSubmatch(strings.TrimSpace(ln)); mm != nil {
+					if mm[1] == "图" {
+						q.Figs++
+					} else {
+						q.Tables++
+					}
+				}
+			}
+			if q.Target > 0 {
+				q.Dev = (q.Words - q.Target) * 100 / q.Target
+				if q.Dev > 30 || q.Dev < -30 {
+					warns = append(warns, fmt.Sprintf("第 %d 章字数偏差 %d%%（目标 %d，实际 %d）——配额超差，复核篇幅规划", ch.No, q.Dev, q.Target, q.Words))
+				}
+			}
+			if ch.Figs > 0 && q.Figs != ch.Figs {
+				warns = append(warns, fmt.Sprintf("第 %d 章图数期望 %d，实际题注 %d", ch.No, ch.Figs, q.Figs))
+			}
+			if ch.Tables > 0 && q.Tables != ch.Tables {
+				warns = append(warns, fmt.Sprintf("第 %d 章表数期望 %d，实际题注 %d", ch.No, ch.Tables, q.Tables))
+			}
+		}
+		rows = append(rows, q)
+	}
+	if len(rows) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(rows)
+	var sb strings.Builder
+	if len(warns) > 0 {
+		sb.WriteString("配额 warn（不拦组装）：\n")
+		for _, w := range warns {
+			sb.WriteString("  - " + w + "\n")
+		}
+	}
+	fmt.Fprintf(&sb, "配额摘要 JSON：%s\n", b)
+	return sb.String()
 }
 
 // shortHash 哈希展示截断（回执可读；全值可由文件复算）。

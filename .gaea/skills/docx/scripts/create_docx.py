@@ -31,6 +31,7 @@ import argparse
 import json
 import re
 import sys
+from datetime import date
 
 try:
     import docx
@@ -52,12 +53,16 @@ FALLBACK_FONT = "宋体"
 
 # 模板预设：字体 / 标题色 / 标题字体 / 表头底色。
 # 通用 = 宋体 + 深蓝标题；公文 = 仿宋正文 + 黑体标题（黑色）；
-# 报告 = 微软雅黑 + 蓝标题；合同 = 宋体 + 黑色标题。
+# 报告 = 微软雅黑 + 蓝标题；合同 = 宋体 + 黑色标题；
+# 标书 = 宋体正文 + 黑体黑标题 + 章标题另起页 + 页眉下框线 + 封面五要素
+# （2026-11-21 反馈 P0-2：中文标书口径——微软雅黑直接改变页数口径（实测
+# 472→419 页），字体是投标显性指标；标题黑、章另起页、页眉带框线）。
 TEMPLATES = {
     "通用": {"font": "宋体", "heading": (0x1F, 0x38, 0x64), "headingFont": "", "fill": "D5E8F0"},
     "公文": {"font": "仿宋", "heading": (0, 0, 0), "headingFont": "黑体", "fill": "F2F2F2"},
     "报告": {"font": "微软雅黑", "heading": (0x2E, 0x74, 0xB5), "headingFont": "", "fill": "DCE6F1"},
     "合同": {"font": "宋体", "heading": (0, 0, 0), "headingFont": "", "fill": "F2F2F2"},
+    "标书": {"font": "宋体", "heading": (0, 0, 0), "headingFont": "黑体", "fill": "F2F2F2"},
 }
 
 
@@ -107,11 +112,22 @@ def setup_section(doc, page_size, margins_cm):
     return sec
 
 
-def add_header_footer(sec, header_text, footer_text, font, size):
+def add_header_footer(sec, header_text, footer_text, font, size, header_border=False):
     if header_text:
         p = sec.header.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         set_run_font(p.add_run(header_text), font, size - 2, color=(0x60, 0x60, 0x60))
+        if header_border:
+            # 标书口径：页眉带下框线（P0-2）。
+            pPr = p._p.get_or_add_pPr()
+            pBdr = OxmlElement("w:pBdr")
+            bottom = OxmlElement("w:bottom")
+            bottom.set(qn("w:val"), "single")
+            bottom.set(qn("w:sz"), "6")
+            bottom.set(qn("w:space"), "1")
+            bottom.set(qn("w:color"), "000000")
+            pBdr.append(bottom)
+            pPr.append(pBdr)
     if footer_text:
         p = sec.footer.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -136,6 +152,25 @@ def add_toc(doc, font, size):
     doc.add_page_break()
 
 
+# 静态目录（P0-2 建议③：toc 不留需要 Ctrl+A→F9 的域，直接渲染条目+实测页码；
+# 页码由调用方两遍法回填——第一遍占位符行数与终稿一致，分页稳定）。
+def add_toc_static(doc, entries, font, size):
+    from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    set_run_font(p.add_run("目 录"), font, size + 4, bold=True)
+    for e in entries:
+        p = doc.add_paragraph()
+        lvl = int(e.get("level") or 1)
+        if lvl >= 2:
+            p.paragraph_format.left_indent = Cm(0.74 * (lvl - 1))
+        ts = p.paragraph_format.tab_stops
+        ts.add_tab_stop(Cm(15.0), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
+        page = str(e.get("page", "—"))
+        set_run_font(p.add_run(e.get("text", "") + "\t" + page), font, size if lvl == 1 else size - 0.5, bold=(lvl == 1))
+    doc.add_page_break()
+
+
 def add_cover(doc, title, subtitle, author, font, size, heading_color):
     for _ in range(6):
         doc.add_paragraph()
@@ -152,6 +187,35 @@ def add_cover(doc, title, subtitle, author, font, size, heading_color):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         set_run_font(p.add_run(author), font, size - 1, color=(0x60, 0x60, 0x60))
+    doc.add_page_break()
+
+
+# 标书封面（P0-2：不留占位文字，封面五要素=正本标记/项目名/包号/投标人/日期）。
+def add_cover_bid(doc, title, package, bidder, copy_mark, date_text, font, size):
+    # 右上角正本/副本标记。
+    if copy_mark:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        set_run_font(p.add_run(copy_mark), font, size + 2, bold=True)
+    for _ in range(5):
+        doc.add_paragraph()
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    set_run_font(p.add_run(title), "黑体", size + 14, bold=True)
+    if package:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p.add_run(package), font, size + 4)
+    for _ in range(6):
+        doc.add_paragraph()
+    if bidder:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p.add_run("投标人：" + bidder), font, size + 1)
+    if date_text:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p.add_run(date_text), font, size + 1)
     doc.add_page_break()
 
 
@@ -310,6 +374,7 @@ def parse_markdown(md_text):
 
 def build(doc, title, subtitle, author, opts, blocks):
     tmpl = TEMPLATES.get(opts.get("template") or "通用") or TEMPLATES["通用"]
+    bid = (opts.get("template") == "标书")
     font = opts.get("font") or tmpl["font"] or FALLBACK_FONT
     style = {
         "heading_color": tmpl["heading"],
@@ -321,17 +386,55 @@ def build(doc, title, subtitle, author, opts, blocks):
     margins_cm = opts.get("marginsCm") or [2.54, 2.54, 3.17, 3.17]
     page_size = opts.get("pageSize") or "A4"
     sec = setup_section(doc, page_size, margins_cm)
-    add_header_footer(sec, opts.get("header"), opts.get("footer"), font, size)
+    # 标书页眉缺省取投标人（P0-2 建议④：生成后自动补页眉）。
+    header_text = opts.get("header")
+    if bid and not header_text and author:
+        header_text = author
+    add_header_footer(sec, header_text, opts.get("footer"), font, size, header_border=bid)
     if opts.get("cover"):
-        add_cover(doc, title, subtitle, author, font, size, style["heading_color"])
+        if bid:
+            add_cover_bid(doc, title, subtitle, author,
+                          opts.get("bidCopy") or "正本",
+                          opts.get("bidDate") or date.today().strftime("%Y 年 %m 月 %d 日"),
+                          font, size)
+        else:
+            add_cover(doc, title, subtitle, author, font, size, style["heading_color"])
     if opts.get("toc"):
-        add_toc(doc, font, size)
+        if opts.get("tocEntries"):
+            add_toc_static(doc, opts["tocEntries"], font, size)
+        else:
+            add_toc(doc, font, size)
+    if bid:
+        apply_bid_heading_styles(doc, size)
     render_blocks(doc, blocks, font, size, line_spacing, style)
     # default style so hand-added paragraphs use the same font
     normal = doc.styles["Normal"]
     normal.font.name = font
     normal.font.size = Pt(size)
     normal._element.rPr.rFonts.set(qn("w:eastAsia"), font)
+
+
+# 标书标题样式（P0-2）：黑体黑标题落在样式表层（run 直接格式同款双保险），
+# 章标题（Heading 1）另起页——样式层的 pageBreakBefore 正是 longdoc_verify
+# book 读数所查面，生成端与验证端同源。
+def apply_bid_heading_styles(doc, size):
+    sizes = {1: size + 4, 2: size + 2, 3: size + 0.5}
+    for lvl in (1, 2, 3):
+        st = doc.styles[f"Heading {lvl}"]
+        st.font.name = "黑体"
+        st.font.size = Pt(sizes[lvl])
+        st.font.bold = True
+        st.font.color.rgb = RGBColor(0, 0, 0)
+        rPr = st.element.get_or_add_rPr()
+        rFonts = rPr.find(qn("w:rFonts"))
+        if rFonts is None:
+            rFonts = OxmlElement("w:rFonts")
+            rPr.append(rFonts)
+        rFonts.set(qn("w:ascii"), "黑体")
+        rFonts.set(qn("w:hAnsi"), "黑体")
+        rFonts.set(qn("w:eastAsia"), "黑体")
+        if lvl == 1:
+            st.paragraph_format.page_break_before = True
 
 
 # 图片加载失败记账（A3：失败即整体拒绝导出，见 main 的硬失败闸）。
@@ -349,7 +452,12 @@ def main():
     ap.add_argument("--header", default="")
     ap.add_argument("--footer", default="第 {page} 页")
     ap.add_argument("--font", default="")
-    ap.add_argument("--template", default="通用", help="通用|公文|报告|合同")
+    ap.add_argument("--template", default="通用", help="通用|公文|报告|合同|标书")
+    ap.add_argument("--subtitle", default="", help="副题（标书=包号）")
+    ap.add_argument("--author", default="", help="署名（标书=投标人）")
+    ap.add_argument("--bid-copy", default="正本", help="标书封面正本/副本标记")
+    ap.add_argument("--bid-date", default="", help="标书封面日期（缺省=今天）")
+    ap.add_argument("--toc-spec", default="", help="静态目录 JSON 文件：[{text,level,page}]，代替 TOC 域（页码由两遍法回填）")
     args = ap.parse_args()
 
     with open(args.input, encoding="utf-8") as f:
@@ -365,8 +473,8 @@ def main():
     else:
         blocks = parse_markdown(raw)
         title = args.title or next((b["text"] for b in blocks if b["type"] == "heading1"), "未命名文档")
-        subtitle = ""
-        author = ""
+        subtitle = args.subtitle
+        author = args.author
         opts = {
             "cover": args.cover,
             "toc": args.toc,
@@ -374,7 +482,12 @@ def main():
             "footer": args.footer,
             "font": args.font,
             "template": args.template,
+            "bidCopy": args.bid_copy,
+            "bidDate": args.bid_date,
         }
+        if args.toc_spec:
+            with open(args.toc_spec, encoding="utf-8") as tf:
+                opts["tocEntries"] = json.load(tf)
 
     doc = Document()
     build(doc, title, subtitle, author, opts, blocks)

@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -37,6 +38,12 @@ func TestBash_EmptyCommandReportsReceivedKeys(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "command is required") {
 				t.Fatalf("保留语义主干，实得: %v", err)
+			}
+			// 2026-11-21 反馈 P1-8 补刀：原始参数体必须回显——键数定位不了
+			// 「参数在到达工具前就丢了」的传输面丢参（回显走 %q 转义口径）。
+			wantEcho := fmt.Sprintf("原始参数回显（%d 字节）：%q", len(tc.args), tc.args)
+			if !strings.Contains(err.Error(), wantEcho) {
+				t.Fatalf("错误应回显原始参数体 %q，实得: %v", wantEcho, err)
 			}
 		})
 	}

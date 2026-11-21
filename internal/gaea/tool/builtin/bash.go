@@ -75,11 +75,13 @@ func (b bash) Description() string {
 		return "Execute a command with Windows PowerShell and return combined stdout/stderr. " +
 			"Commands run as `powershell -Command`, so use PowerShell syntax: `$null` (not `/dev/null`), " +
 			"`;` or separate calls (not `&&` unless using pwsh 7+), and `Get-ChildItem`/`Select-String`. " +
-			"Example: `Get-ChildItem; python --version`. Direct Remove-Item/rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
+			"Example: `Get-ChildItem; python --version`. The initial working directory is the workspace root. " +
+			"Direct Remove-Item/rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
 			"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; do not build multi-layer shell escaping. Use run_in_background=true for long jobs."
 	}
 	return "Execute a command with bash (POSIX/bash syntax), even on Windows when Git Bash is available. " +
 		"Commands run as `bash -c`; do not send PowerShell cmdlets or `$env:NAME`. " +
+		"The initial working directory is the workspace root (`pwd` on the first call shows it, e.g. /d/projects/foo) — locate files relative to it, not the drive root. " +
 		"Example: `pwd; python -c \"print('ok')\"`. 5-minute timeout. Shell state persists across calls in this session: " +
 		"the working directory and exported variables/functions carry over — cd once and later calls start there. " +
 		"State is captured when a command finishes; a timed-out or interrupted command does not update it, " +
@@ -125,6 +127,11 @@ func (b bash) newPublishGuard() *tool.PublishGuard {
 // publishCheck 执行后扫描 durable 越界写：命中即 Quarantine 移出正式工作区并
 // 返回 fail-loud 文案（备忘 :23：回显期望路径集+D6 隔离目的地）。快照缺席
 // （Begin 失败）不冒充拦截，如实放行。
+//
+// 传输契约（2026-11-21 反馈 P0-1 根修）：拦截文案是多行的（文件清单/隔离位置/
+// 取回方式/合规出口），而 agent 收口层信封的 error 字段只取 err 首行、detail
+// 字段取工具 result 字符串——调用方必须把文案同时作为 result 返回，否则模型
+// 只看到「已隔离：」断头句+空 detail（实测 37 批次全盲）。
 func (b bash) publishCheck(g *tool.PublishGuard) error {
 	if g == nil {
 		return nil
@@ -176,8 +183,15 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			}
 			names = strings.TrimSuffix(names, ",")
 		}
+		// 2026-11-21 反馈 P1-8 补刀：键数仍定位不了「参数在到达前就丢了」的
+		// 传输面丢参——原样回显收到的原始参数体（截断），一眼区分空串/{}/
+		// 有 JSON 但缺 command 三种形态。
+		raw := []rune(string(args))
+		if len(raw) > 120 {
+			raw = append(raw[:120], []rune("…")...)
+		}
 		return "", &tool.Failure{Code: tool.CodeValidationError,
-			Err: fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——command 缺失或值为空，把命令字符串放进 command 字段重试", n, names),
+			Err:         fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——command 缺失或值为空，把命令字符串放进 command 字段重试。原始参数回显（%d 字节）：%q", n, names, len(args), string(raw)),
 			EffectState: tool.EffectNone}
 	}
 
@@ -307,7 +321,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			if pub != nil {
 				if perr := b.publishCheck(pub); perr != nil {
 					_, _ = fmt.Fprintln(out, perr.Error())
-					return "", perr
+					return perr.Error(), perr
 				}
 			}
 			return "", err
@@ -509,7 +523,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// P1b 前台发布边界：执行结束扫描（命中即隔离 + fail-loud，裁决 :23）。
 		if pub != nil {
 			if perr := b.publishCheck(pub); perr != nil {
-				return "", perr
+				return perr.Error(), perr
 			}
 		}
 		_ = enc.Encode(result)
@@ -555,7 +569,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	// P1b 前台发布边界（plain 终段：命中即隔离 + fail-loud）。
 	if pub != nil {
 		if perr := b.publishCheck(pub); perr != nil {
-			return "", perr
+			return perr.Error(), perr
 		}
 	}
 

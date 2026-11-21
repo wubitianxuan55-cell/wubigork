@@ -157,6 +157,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"wenxue_final_list":        {"extra-app", "work", "read", "none", "清单与定稿目录实况一致（发布稿域，非草稿）"},
 	"wenxue_final_read":        {"extra-app", "work", "read", "none", "内容与目标定稿一致"},
 	"wenxue_final_write":       {"extra-app", "work", "write", "none", "落盘内容与回执一致；仅定稿目录内（域隔离）；overwrite 显式闸"},
+	"wenxue_book_build":        {"extra-app", "work", "write", "none", "声明路径=实际落点；final 机检 0 硬伤才组装（未编号/重号/空章/占位/插值不闭合）；sha256 可复算；配额/跳号=warn 不拦"},
 	"diagram":                  {"extra-app", "work", "produce", "none", "无边 nil 切片显式 null 契约（回归钉）"},
 	"routine_llm":              {"extra-app", "work", "read", "none", "子调用回执与 feature 绑定一致"},
 	"translate_text":           {"extra-app", "work", "read", "none", "译文可回读"},

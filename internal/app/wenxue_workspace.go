@@ -704,9 +704,9 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 		in.Template = "通用"
 	}
 	switch in.Template {
-	case "通用", "公文", "报告", "合同":
+	case "通用", "公文", "报告", "合同", "标书":
 	default:
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（通用/公文/报告/合同）", in.Template)
+		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（通用/公文/报告/合同/标书）", in.Template)
 	}
 
 	title := strings.TrimSpace(in.Title)
@@ -1775,8 +1775,22 @@ func wenxueExportDocx(in ExportDeliverableInput, title, outPath string) error {
 	if script == "" {
 		return fmt.Errorf("未找到 create_docx.py（.gaea/skills/docx/scripts）")
 	}
-	mdPath := strings.TrimSuffix(outPath, ".docx") + ".md"
-	if err := os.WriteFile(mdPath, []byte(in.Markdown), 0o644); err != nil {
+	// 中间 md 用随机临时名（与 office exportDocx 同款同步，2026-11-21 沿江反馈
+	// 批对账发现：本副本仍落 <输出stem>.md 再删——office 批6 A1/A2 已根修的
+	// 「输出与既有源文件同名→先覆写后删除吞源」形态，图文侧漂移未同步）。落
+	// 输出同目录：相对图片路径仍按输出目录解析，行为不变。
+	tmp, err := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-md-*.md")
+	if err != nil {
+		return err
+	}
+	mdPath := tmp.Name()
+	if _, err := tmp.Write([]byte(in.Markdown)); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(mdPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(mdPath)
 		return err
 	}
 	defer func() { _ = os.Remove(mdPath) }()
@@ -1794,6 +1808,36 @@ func wenxueExportDocx(in ExportDeliverableInput, title, outPath string) error {
 	if in.Footer != "" {
 		args = append(args, "--footer", in.Footer)
 	}
+	if in.Subtitle != "" {
+		args = append(args, "--subtitle", in.Subtitle)
+	}
+	if in.Author != "" {
+		args = append(args, "--author", in.Author)
+	}
+	// 静态目录两遍法透传（office 同款同步）：TocEntries 非空→--toc-spec 临时
+	// JSON，图文长篇成册同样可达「渲染实测页码目录，不留 F9 域」。
+	if len(in.TocEntries) > 0 {
+		spec, serr := json.Marshal(in.TocEntries)
+		if serr != nil {
+			return serr
+		}
+		tocTmp, terr := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-toc-*.json")
+		if terr != nil {
+			return terr
+		}
+		tocPath := tocTmp.Name()
+		if _, werr := tocTmp.Write(spec); werr != nil {
+			_ = tocTmp.Close()
+			_ = os.Remove(tocPath)
+			return werr
+		}
+		if cerr := tocTmp.Close(); cerr != nil {
+			_ = os.Remove(tocPath)
+			return cerr
+		}
+		defer func() { _ = os.Remove(tocPath) }()
+		args = append(args, "--toc-spec", tocPath)
+	}
 	args = append(args, "--template", in.Template)
 	if err := runPython(args, 120); err != nil {
 		return fmt.Errorf("Word 导出失败: %w", err)
@@ -1808,12 +1852,26 @@ func wenxueExportPptx(in ExportDeliverableInput, title, outPath string) error {
 		return fmt.Errorf("未找到 create_pptx.py（.gaea/skills/pptx/scripts）")
 	}
 	spec := markdownToSlides(in.Markdown, title)
-	specPath := strings.TrimSuffix(outPath, ".pptx") + ".json"
-	b, err := json.MarshalIndent(spec, "", "  ")
+	// 中间 spec 用随机临时名（office exportPptx 同款同步；旧实现落 <输出stem>.json
+	// 再删，与既有同名文件互踩——沿江反馈批对账发现的图文侧漂移）。
+	tmp, err := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-spec-*.json")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(specPath, b, 0o644); err != nil {
+	specPath := tmp.Name()
+	b, err := json.MarshalIndent(spec, "", "  ")
+	if err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(specPath)
+		return err
+	}
+	if _, err := tmp.Write(b); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(specPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(specPath)
 		return err
 	}
 	defer func() { _ = os.Remove(specPath) }()

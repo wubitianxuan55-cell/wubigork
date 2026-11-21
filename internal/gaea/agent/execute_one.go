@@ -155,10 +155,16 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			// 回合迭代闸——整篇重写不需要旧内容锚点，强迫重读 48KB 文件是纯
 			// 惩罚（实测被拦 3 次，绕行产物=目录里 _v1/_v2/_v3 冗余堆）。跨轮
 			// 外部修改检测（checkFileStale）不豁免——stale 的本意是防外部改动。
-			if written && !read && !(call.Name == "write_file" && argsDeclareOverwrite(call.Arguments)) {
+			// P2-10（2026-11-21 沿江反馈）：edit_file 的 old_string 仍锚在当前
+			// 磁盘内容上时同样放行——文件是本回合自己写的（内容是新鲜的，不是
+			// stale），改一行却要重读 370KB 整篇是纯惩罚（实测被拒 6 次）。锚点
+			// 失配时仍拦（那才是闸的本意）。
+			if written && !read &&
+				!(call.Name == "write_file" && argsDeclareOverwrite(call.Arguments)) &&
+				!sameTurnEditAnchorFresh(call.Name, call.Arguments, path) {
 				msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. "+
 					"要整篇替换：write_file 传 \"overwrite\": true 跳过本闸（无需旧内容）；"+
-					"要局部修改：先 read_file（可用 offset+limit 只读目标段，行号用 grep 定位）再 edit_file。原提示：Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
+					"要局部修改：先 read_file（可用 offset+limit 只读目标段，行号用 grep 定位）再 edit_file（old_string 仍匹配当前内容时会自动放行）。原提示：Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
 				return toolOutcome{output: msg, blocked: true, errMsg: msg}
 			}
 		}

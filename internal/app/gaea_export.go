@@ -24,11 +24,20 @@ type ExportDeliverableInput struct {
 	Markdown string `json:"markdown"`
 	Format   string `json:"format"` // docx | pptx | xlsx | md | pdf
 	Title    string `json:"title"`
-	Template string `json:"template"` // docx 模板：通用 | 公文 | 报告 | 合同
+	Template string `json:"template"` // docx 模板：通用 | 公文 | 报告 | 合同 | 标书
 	Cover    bool   `json:"cover"`
 	TOC      bool   `json:"toc"`
 	Header   string `json:"header"`
 	Footer   string `json:"footer"`
+	// 标书封面五要素（2026-11-21 反馈 P0-2）：Subtitle=包号、Author=投标人、
+	// BidCopy=正本/副本标记、BidDate=落款日期（create_docx.py 标书主题消费）。
+	Subtitle string `json:"subtitle"`
+	Author   string `json:"author"`
+	BidCopy  string `json:"bid_copy"`
+	BidDate  string `json:"bid_date"`
+	// TocEntries 静态目录条目（P0-2 建议③）：非空时代替 TOC 域渲染静态目录
+	// （页码由 longdoc_build 两遍法回填）；md/pptx/xlsx 忽略。
+	TocEntries []ExportTocEntry `json:"toc_entries,omitempty"`
 	// OutputPath 声明写路径（工作区相对路径；P1a 结构化声明入口，2026-11-09
 	// 众神殿裁决 action-3）：agent 侧 office_generate 必填，验收=声明路径与
 	// 实际落点逐字节一致。空=历史默认（ExportsDir+时间戳命名），UI 绑定契约
@@ -42,6 +51,13 @@ type ExportDeliverableResult struct {
 	Name   string `json:"name"`
 	Format string `json:"format"`
 	Size   int64  `json:"size"`
+}
+
+// ExportTocEntry 静态目录条目（P0-2：页码由渲染实测回填，占位「—」）。
+type ExportTocEntry struct {
+	Text  string `json:"text"`
+	Level int    `json:"level"`
+	Page  string `json:"page"`
 }
 
 var headingRe = regexp.MustCompile(`^#{1,3}\s+(.*)$`)
@@ -62,9 +78,9 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 		in.Template = "通用"
 	}
 	switch in.Template {
-	case "通用", "公文", "报告", "合同":
+	case "通用", "公文", "报告", "合同", "标书":
 	default:
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（通用/公文/报告/合同）", in.Template)
+		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（通用/公文/报告/合同/标书）", in.Template)
 	}
 
 	title := strings.TrimSpace(in.Title)
@@ -180,6 +196,40 @@ func exportDocx(in ExportDeliverableInput, title, outPath string) error {
 	}
 	if in.Footer != "" {
 		args = append(args, "--footer", in.Footer)
+	}
+	if in.Subtitle != "" {
+		args = append(args, "--subtitle", in.Subtitle)
+	}
+	if in.Author != "" {
+		args = append(args, "--author", in.Author)
+	}
+	if in.BidCopy != "" {
+		args = append(args, "--bid-copy", in.BidCopy)
+	}
+	if in.BidDate != "" {
+		args = append(args, "--bid-date", in.BidDate)
+	}
+	if len(in.TocEntries) > 0 {
+		spec, serr := json.Marshal(in.TocEntries)
+		if serr != nil {
+			return serr
+		}
+		tocTmp, terr := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-toc-*.json")
+		if terr != nil {
+			return terr
+		}
+		tocPath := tocTmp.Name()
+		if _, werr := tocTmp.Write(spec); werr != nil {
+			_ = tocTmp.Close()
+			_ = os.Remove(tocPath)
+			return werr
+		}
+		if cerr := tocTmp.Close(); cerr != nil {
+			_ = os.Remove(tocPath)
+			return cerr
+		}
+		defer func() { _ = os.Remove(tocPath) }()
+		args = append(args, "--toc-spec", tocPath)
 	}
 	args = append(args, "--template", in.Template)
 	if err := runPython(args, 120); err != nil {

@@ -9,10 +9,14 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
+
+	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
@@ -77,7 +81,83 @@ func (t xlsxAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 	if err != nil {
 		return "", err
 	}
-	return tool.WrapText(formatAuditReport(rep, in.Limit)), nil
+	head := xlsxFileFingerprint(path)
+	layout, lerr := xlsxLayoutNotes(path)
+	if lerr != nil {
+		layout = nil // 版面检查失败不拦审计（诚实缺省，无版面段）
+	}
+	return tool.WrapText(head + formatAuditReport(rep, in.Limit) + strings.Join(layout, "")), nil
+}
+
+// xlsxFileFingerprint 文件指纹（2026-11-21 造价门实测 5.1：同轮改文件后复检，
+// 审计文本可能逐字节相同而被上层「结果同一性去重」折叠成 cached——指纹含
+// size/mtime/sha16，文件一变指纹必变，新旧结果可分辨）。
+func xlsxFileFingerprint(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("文件指纹：size=%d mtime=%s（sha 未读）\n", fi.Size(), fi.ModTime().Format("01-02 15:04:05"))
+	}
+	sum := sha256.Sum256(raw)
+	return fmt.Sprintf("文件指纹：size=%d mtime=%s sha16=%x\n", fi.Size(), fi.ModTime().Format("01-02 15:04:05"), sum[:8])
+}
+
+// xlsxLayoutNotes 打印版面确定性检查（2026-11-21 造价门实测 5.2：doc_render 出
+// 图后问视觉模型「是否被截断/列宽是否合理」，整册纵向 A4 压成单列它照样秒回
+// 「版式清晰规范」——版面问题用确定性判据：读 page_setup 与已用列数，长表纵向
+// 且未按宽适应=必压扁；vision 只作参考）。
+func xlsxLayoutNotes(path string) ([]string, error) {
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	var out []string
+	out = append(out, "版面检查（确定性判据，非视觉判断）：\n")
+	warned := 0
+	for _, sheet := range f.GetSheetList() {
+		ps, perr := f.GetPageLayout(sheet)
+		if perr != nil {
+			continue
+		}
+		cols, cerr := f.GetCols(sheet)
+		if cerr != nil {
+			continue
+		}
+		used := 0
+		for _, col := range cols {
+			if len(col) > 0 {
+				used++
+			}
+		}
+		orientation := ""
+		if ps.Orientation != nil {
+			orientation = *ps.Orientation
+		}
+		display := orientation
+		if display == "" {
+			display = "portrait(默认)"
+		}
+		fit := 0
+		if ps.FitToWidth != nil {
+			fit = *ps.FitToWidth
+		}
+		note := ""
+		if used >= 10 && orientation != "landscape" && fit < 1 {
+			note = " ⚠ 长表纵向且未按宽适应——打印/导出会被压成单列或截断，建议横向+FitToWidth=1"
+			warned++
+		}
+		out = append(out, fmt.Sprintf("  - %s：%d 列，%s，FitToWidth=%d%s\n", sheet, used, display, fit, note))
+	}
+	if warned > 0 {
+		out = append(out, fmt.Sprintf("  版面告警 %d 张表（⚠ 项修打印设置后重查；视觉模型看不出整体压扁，以此为准）\n", warned))
+	} else {
+		out = append(out, "  版面无告警（长表均横向或已按宽适应）。\n")
+	}
+	return out, nil
 }
 
 // formatAuditReport 把审计报告排版成给模型看的文本（纯函数，便于单测）。

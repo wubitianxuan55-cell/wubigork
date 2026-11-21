@@ -64,12 +64,19 @@ func TestQuarantineLedgerPendingThenFinal(t *testing.T) {
 		t.Fatal(err)
 	}
 	recs := d6LedgerRecords(t, q)
-	if _, ok := recs["pending"]; !ok {
+	beg, ok := recs["pending"]
+	if !ok {
 		t.Fatal("pending 意图记录必须先于移动落账")
+	}
+	if beg.Event != "begin" {
+		t.Fatalf("pending 行 event 应为 begin（P1-13：一行=一次状态变更）: %+v", beg)
 	}
 	fin, ok := recs["quarantined"]
 	if !ok {
 		t.Fatal("终态记录缺失")
+	}
+	if fin.Event != "final" {
+		t.Fatalf("终态行 event 应为 final（P1-13：批次计数按 stamp 去重）: %+v", fin)
 	}
 	if fin.Source != "test" || fin.Command == "" || len(fin.Entries) != 1 || fin.Entries[0].RelPath != "report.docx" {
 		t.Fatalf("账本归属证据不全: %+v", fin)

@@ -35,10 +35,14 @@ type quarantineEntry struct {
 	Size    int64  `json:"size"`
 }
 
-// quarantineRecord 账本记录（JSONL 每行一条；同 stamp 两条：pending→终态）。
+// quarantineRecord 账本记录（JSONL 每行=一次状态变更；同 stamp 两条：
+// begin(pending)→final(终态)。**批次计数须按 stamp 去重，按行数统计会翻倍**
+// ——2026-11-21 反馈 P1-13：实测 37 批次 74 行被误记「70 条」。begin 行是
+// 崩溃安全的刻意设计（移动前先落账），不做单行覆写）。
 type quarantineRecord struct {
 	Version int               `json:"version"`
 	Stamp   string            `json:"stamp"`
+	Event   string            `json:"event"` // begin（移动前意图）/ final（终态）
 	Time    time.Time         `json:"time"`
 	Roots   []string          `json:"roots"`
 	Entries []quarantineEntry `json:"entries"`
@@ -88,6 +92,7 @@ func beginQuarantineRecord(quarantineRoot, source, command string, vs []PublishV
 	led.rec = quarantineRecord{
 		Version: 1,
 		Stamp:   time.Now().Format("20060102-150405.000000000"),
+		Event:   "begin",
 		Time:    time.Now(),
 		Roots:   []string{},
 		Source:  source,
@@ -117,6 +122,7 @@ func (led *quarantineLedger) finish(moved []string, errs []string) {
 	if len(errs) > 0 {
 		status = "partial"
 	}
+	led.rec.Event = "final"
 	led.rec.Status = status
 	led.rec.Moved = moved
 	led.rec.Errors = errs
@@ -184,6 +190,7 @@ func SweepQuarantine(quarantineRoot string, retention time.Duration) (stamps, fi
 		n, serr := sweepStamp(quarantineRoot, stamp, rec)
 		if serr != nil {
 			fin := rec
+			fin.Event = "final"
 			fin.Status = "sweep_failed"
 			fin.Errors = append(fin.Errors, serr.Error())
 			_ = appendQuarantineRecord(quarantineRoot, fin)
@@ -192,6 +199,7 @@ func SweepQuarantine(quarantineRoot string, retention time.Duration) (stamps, fi
 		stamps++
 		files += n
 		fin := rec
+		fin.Event = "final"
 		fin.Status = "swept"
 		fin.SweptAt = time.Now()
 		_ = appendQuarantineRecord(quarantineRoot, fin)

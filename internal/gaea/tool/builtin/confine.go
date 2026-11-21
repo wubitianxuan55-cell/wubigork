@@ -3,6 +3,7 @@ package builtin
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/sandbox"
@@ -109,6 +110,21 @@ func within(root, path string) bool { return wspath.Within(root, path) }
 // resolveIn resolves a path relative to workDir if the path is relative.
 // workDir defaults to cwd when empty.
 func resolveIn(workDir, p string) string {
+	// MSYS 盘符挂载形态（/d/foo → D:oo；2026-11-21 造价门实测 2.2）：write_file
+	// 收 /d/... 时 filepath.IsAbs=false，Join 出「工作区\d\...」镜像目录树——
+	// bash 壳的路径方言在文件工具侧统一翻译，三个工具三种语义的裂缝在此收口。
+	// 非 Windows 宿主 /d/ 是真实绝对路径，不动。
+	if runtime.GOOS == "windows" {
+		if vol := msysDrivePath(p); vol != "" {
+			return vol
+		}
+		// 正斜杠盘符绝对路径（D:/x/y.md）归一为反斜杠（2026-11-21 沿江反馈
+		// P2-11：md_validate 收正斜杠失败、提示语只给反斜杠写法——filepath.IsAbs
+		// 认 D:/ 但下游消费方不一，此处统一翻译，两种斜杠都认）。
+		if vol := filepath.VolumeName(p); len(vol) == 2 && vol[1] == ':' && strings.Contains(p, "/") {
+			return filepath.Clean(filepath.FromSlash(p))
+		}
+	}
 	if workDir == "" || filepath.IsAbs(p) {
 		return p
 	}

@@ -34,7 +34,7 @@ type mdValidate struct{ workDir string }
 func (mdValidate) Name() string { return "md_validate" }
 
 func (mdValidate) Description() string {
-	return "对 Markdown 文档（或 docx，自动转 md）做编号机检（只读，确定性，不经模型）：①题注编号唯一性+同章连续性（表1-4/图1-11 类，含 Table/Figure）②引用↔题注双向对账（孤立引用=正文引了不存在的表/图；未引用=题注从未被正文提及）③表格块内列数一致性。多代理并行编写或合并章节后必跑——撞号/跳号/漏引用当场暴露，不要等交付后返工。checks 可选默认全跑。"
+	return "对 Markdown 文档（或 docx，自动转 md）做编号机检（只读，确定性，不经模型）：①题注编号唯一性+同章连续性（表1-4/图1-11 类，含 Table/Figure）②引用↔题注双向对账（孤立引用=正文引了不存在的表/图；未引用=题注从未被正文提及）③表格块内列数一致性。多代理并行编写或合并章节后必跑——撞号/跳号/漏引用当场暴露，不要等交付后返工。checks 可选默认全跑。paths 传多文件=全册并集对账（跨章引用在他章题注中闭合即通过，撞号跨文件可检出）；单文件模式下本地无题注的引用归类为 cross_ref（跨章引用·待全册核验）不算硬伤——先跑单章不误报，交付前用 paths 全册复核。"
 }
 
 func (mdValidate) Schema() json.RawMessage {
@@ -42,6 +42,7 @@ func (mdValidate) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "path":{"type":"string","description":"文档路径（相对工作区或绝对）：.md 或 .docx"},
+  "paths":{"type":"array","items":{"type":"string"},"description":"多文件全册模式（覆盖 path）：各章 md/docx 一起对账，跨章引用闭合即通过、撞号跨文件检出"},
   "checks":{"type":"array","items":{"type":"string","enum":["numbering","orphans","table_columns"]},"description":"可选，默认全跑"}
 },
 "required":["path"]
@@ -98,8 +99,15 @@ func mdvNormNum(s string) string {
 // mdvCaption 一个题注记录。
 type mdvCaption struct {
 	kind string // 归一化：表/Table→表；图/Figure→图
-	num  string // 归一化编号（en-dash→-）
+	num  string // 归一编号（en-dash→-）
 	line int    // 1-based
+	file string // 所属文件基名（多文件模式定位跨章题注）
+}
+
+// mdvRefLoc 一处引用的位置。
+type mdvRefLoc struct {
+	file string
+	line int
 }
 
 // mdvKey 归一化主键（kind+num），撞号判定用。
@@ -133,41 +141,69 @@ func mdvNormalizeKind(k string) string {
 
 // mdvIssue 一条检出项。
 type mdvIssue struct {
-	kind    string // numbering / orphans / table_columns
+	kind    string // numbering / orphans / cross_ref / table_columns
+	file    string // 多文件模式的归属（单文件可空）
 	line    int
 	summary string
 }
 
-// Execute 跑所选检查，聚合回执。
+// Execute 跑所选检查，聚合回执。paths 多文件=全册并集对账（2026-11-21 反馈
+// P1-4：单章模式把合法跨章引用误报「孤立引用」9 条，诱发把有效引用改成模糊
+// 描述——单文件时本地无题注的引用改判 cross_ref 待核类，多文件时他章闭合即过）。
 func (v mdValidate) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Path   string   `json:"path"`
+		Paths  []string `json:"paths,omitempty"`
 		Checks []string `json:"checks,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("md_validate 参数解析失败: %w", err)
 	}
-	if strings.TrimSpace(p.Path) == "" {
+	if strings.TrimSpace(p.Path) == "" && len(p.Paths) == 0 {
 		return "", fmt.Errorf("path is required")
 	}
-	src := resolveIn(v.workDir, p.Path)
-	ext := strings.ToLower(filepath.Ext(src))
-	var text string
-	switch ext {
-	case ".md", ".markdown", ".txt":
-		raw, err := os.ReadFile(src)
-		if err != nil {
-			return "", fmt.Errorf("读取 %s 失败: %w%s", src, err, posixStylePathHint(p.Path))
+	// 多文件模式（paths 覆盖 path）；去重保序。
+	files := p.Paths
+	if len(files) == 0 {
+		files = []string{p.Path}
+	}
+	seen := map[string]bool{}
+	var uniq []string
+	for _, f := range files {
+		if strings.TrimSpace(f) == "" || seen[f] {
+			continue
 		}
-		text = string(raw)
-	case ".docx":
-		md, _, _, err := docmd.ConvertLimit(src, "", 0)
-		if err != nil {
-			return "", fmt.Errorf("docx 转 md 失败: %w", err)
+		seen[f] = true
+		uniq = append(uniq, f)
+	}
+	multi := len(uniq) > 1
+
+	type mdvLoaded struct {
+		name  string
+		lines []string
+	}
+	var loaded []mdvLoaded
+	for _, f := range uniq {
+		src := resolveIn(v.workDir, f)
+		ext := strings.ToLower(filepath.Ext(src))
+		var text string
+		switch ext {
+		case ".md", ".markdown", ".txt":
+			raw, err := os.ReadFile(src)
+			if err != nil {
+				return "", fmt.Errorf("读取 %s 失败: %w%s", src, err, posixStylePathHint(f))
+			}
+			text = string(raw)
+		case ".docx":
+			md, _, _, err := docmd.ConvertLimit(src, "", 0)
+			if err != nil {
+				return "", fmt.Errorf("docx 转 md 失败: %w", err)
+			}
+			text = md
+		default:
+			return "", fmt.Errorf("暂支持 md/txt/docx（当前 %s）", ext)
 		}
-		text = md
-	default:
-		return "", fmt.Errorf("暂支持 md/txt/docx（当前 %s）", ext)
+		loaded = append(loaded, mdvLoaded{name: filepath.Base(src), lines: strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")})
 	}
 
 	run := map[string]bool{}
@@ -178,26 +214,29 @@ func (v mdValidate) Execute(ctx context.Context, args json.RawMessage) (string, 
 		run["numbering"], run["orphans"], run["table_columns"] = true, true, true
 	}
 
-	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	var issues []mdvIssue
 	var nTable, nFigure int
+	var bNote strings.Builder // 对账汇总注记（跨章闭合数等，非 issue）
 
 	if run["numbering"] || run["orphans"] {
 		var captions []mdvCaption
-		refs := map[string][]int{} // 引用 key → 行号们
-		for i, ln := range lines {
-			trimmed := strings.TrimSpace(ln)
-			if m := reMDVCaption.FindStringSubmatch(trimmed); m != nil {
-				captions = append(captions, mdvCaption{
-					kind: mdvNormalizeKind(m[1]),
-					num:  mdvNormNum(m[2]),
-					line: i + 1,
-				})
-				continue
-			}
-			for _, m := range reMDVRef.FindAllStringSubmatch(mdvNeutralizeCompounds(ln), -1) {
-				k := mdvNormalizeKind(m[1]) + mdvNormNum(m[2])
-				refs[k] = append(refs[k], i+1)
+		refs := map[string][]mdvRefLoc{} // 引用 key → 位置们
+		for _, lf := range loaded {
+			for i, ln := range lf.lines {
+				trimmed := strings.TrimSpace(ln)
+				if m := reMDVCaption.FindStringSubmatch(trimmed); m != nil {
+					captions = append(captions, mdvCaption{
+						kind: mdvNormalizeKind(m[1]),
+						num:  mdvNormNum(m[2]),
+						line: i + 1,
+						file: lf.name,
+					})
+					continue
+				}
+				for _, m := range reMDVRef.FindAllStringSubmatch(mdvNeutralizeCompounds(ln), -1) {
+					k := mdvNormalizeKind(m[1]) + mdvNormNum(m[2])
+					refs[k] = append(refs[k], mdvRefLoc{file: lf.name, line: i + 1})
+				}
 			}
 		}
 		for _, c := range captions {
@@ -212,44 +251,76 @@ func (v mdValidate) Execute(ctx context.Context, args json.RawMessage) (string, 
 			issues = append(issues, mdvCheckContinuity(captions)...)
 		}
 		if run["orphans"] {
-			issues = append(issues, mdvCheckOrphans(captions, refs)...)
+			orphanIssues, crossClosed := mdvCheckOrphans(captions, refs, multi)
+			issues = append(issues, orphanIssues...)
+			if multi && crossClosed > 0 {
+				fmt.Fprintf(&bNote, "跨章引用 %d 处已在全册并集闭合（不误报）。\n", crossClosed)
+			}
 		}
 	}
 	if run["table_columns"] {
-		issues = append(issues, mdvCheckTables(lines)...)
+		for _, lf := range loaded {
+			for _, is := range mdvCheckTables(lf.lines) {
+				is.file = lf.name
+				issues = append(issues, is)
+			}
+		}
 	}
 
 	sort.Slice(issues, func(i, j int) bool {
+		if issues[i].file != issues[j].file {
+			return issues[i].file < issues[j].file
+		}
 		if issues[i].line != issues[j].line {
 			return issues[i].line < issues[j].line
 		}
 		return issues[i].kind < issues[j].kind
 	})
 
+	scope := loaded[0].name
+	if multi {
+		scope = fmt.Sprintf("%d 文件并集（%s 等）", len(loaded), loaded[0].name)
+	}
 	var b strings.Builder
 	if len(issues) == 0 {
-		fmt.Fprintf(&b, "OK: %s — 编号唯一且连续；引用↔题注对账通过；表格列数一致", src)
-		if !run["numbering"] || !run["orphans"] {
+		fmt.Fprintf(&b, "OK: %s — 编号唯一且连续；引用↔题注对账通过；表格列数一致", scope)
+		if multi {
+			b.WriteString("（撞号跨文件可检出）")
+		} else if !run["numbering"] || !run["orphans"] {
 			b.WriteString("（本次为所选 checks 的子集）")
+		}
+		if s := strings.TrimRight(bNote.String(), "\n"); s != "" {
+			b.WriteString("\n" + s)
 		}
 		return b.String(), nil
 	}
-	fmt.Fprintf(&b, "md_validate: %s — %d issue(s)\n", src, len(issues))
+	fmt.Fprintf(&b, "md_validate: %s — %d issue(s)\n", scope, len(issues))
 	for _, is := range issues {
-		fmt.Fprintf(&b, "[%s] L%d %s\n", is.kind, is.line, is.summary)
+		if multi && is.file != "" {
+			fmt.Fprintf(&b, "[%s] %s L%d %s\n", is.kind, is.file, is.line, is.summary)
+		} else {
+			fmt.Fprintf(&b, "[%s] L%d %s\n", is.kind, is.line, is.summary)
+		}
+	}
+	if s := strings.TrimRight(bNote.String(), "\n"); s != "" {
+		b.WriteString(s + "\n")
 	}
 	b.WriteString("修复后重跑本工具确认清零；撞号须全局重排（勿只改当前行——其他子代理可能引用了旧号）。")
 	return b.String(), nil
 }
 
-// mdvCheckDuplicates 撞号：同 key 多个题注。
+// mdvCheckDuplicates 撞号：同 key 多个题注（多文件模式下跨文件撞号直接点名两侧）。
 func mdvCheckDuplicates(captions []mdvCaption) []mdvIssue {
 	seen := map[string]mdvCaption{}
 	var out []mdvIssue
 	for _, c := range captions {
 		if first, dup := seen[c.key()]; dup {
-			out = append(out, mdvIssue{kind: "numbering", line: c.line,
-				summary: fmt.Sprintf("%s 撞号：与 L%d 重复（多代理并行编号未对账的典型形态）", c.key(), first.line)})
+			where := fmt.Sprintf("L%d", first.line)
+			if first.file != c.file {
+				where = fmt.Sprintf("%s L%d", first.file, first.line)
+			}
+			out = append(out, mdvIssue{kind: "numbering", file: c.file, line: c.line,
+				summary: fmt.Sprintf("%s 撞号：与 %s 重复（多代理并行编号未对账的典型形态）", c.key(), where)})
 			continue
 		}
 		seen[c.key()] = c
@@ -284,7 +355,7 @@ func mdvCheckContinuity(captions []mdvCaption) []mdvIssue {
 		for i := 1; i < len(sorted); i++ {
 			prev, cur := sorted[i-1].main(), sorted[i].main()
 			if len(prev) >= 2 && len(cur) >= 2 && cur[1]-prev[1] > 1 {
-				out = append(out, mdvIssue{kind: "numbering", line: sorted[i].line,
+				out = append(out, mdvIssue{kind: "numbering", file: sorted[i].file, line: sorted[i].line,
 					summary: fmt.Sprintf("%s%d 章内跳号：序号 %d(L%d) 之后直接 %d(L%d)，缺 %s%d-%d..%s%d-%d",
 						sorted[i].kind, cur[0],
 						prev[1], sorted[i-1].line, cur[1], sorted[i].line,
@@ -295,33 +366,60 @@ func mdvCheckContinuity(captions []mdvCaption) []mdvIssue {
 	return out
 }
 
-// mdvCheckOrphans 引用↔题注双向对账。
-func mdvCheckOrphans(captions []mdvCaption, refs map[string][]int) []mdvIssue {
+// mdvCheckOrphans 引用↔题注双向对账。multi=全册并集模式：他章闭合的跨章引用
+// 通过（计一条汇总），并集仍无=真孤立（error 面）；单文件模式：本地无题注的
+// 引用归类 cross_ref（跨章引用·待全册核验）不算硬伤——2026-11-21 反馈 P1-4：
+// 单章模式曾把合法跨章引用混进 orphans 报 9 条误报，诱发把有效引用改成模糊描述。
+func mdvCheckOrphans(captions []mdvCaption, refs map[string][]mdvRefLoc, multi bool) ([]mdvIssue, int) {
 	var out []mdvIssue
-	capSet := map[string]bool{}
+	capWhere := map[string]string{} // key → 题注所在文件
 	for _, c := range captions {
-		capSet[c.key()] = true
+		capWhere[c.key()] = c.file
 	}
-	// 孤立引用：正文引用无题注（error 面：引用失锚，读者找不到表）。
+	crossClosed := 0
 	keys := make([]string, 0, len(refs))
 	for k := range refs {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if !capSet[k] {
-			out = append(out, mdvIssue{kind: "orphans", line: refs[k][0],
-				summary: fmt.Sprintf("孤立引用：正文引用 %s（L%v）但全文无此题注", k, refs[k])})
+		where, ok := capWhere[k]
+		if !ok {
+			locs := refs[k]
+			first := locs[0]
+			if multi {
+				// 全册并集仍无此题注：真失锚（引用错号或题注被改号）。
+				out = append(out, mdvIssue{kind: "orphans", file: first.file, line: first.line,
+					summary: fmt.Sprintf("孤立引用（全册并集）：引用 %s（L%d 等 %d 处）但全册无此题注", k, first.line, len(locs))})
+			} else {
+				// 单文件模式：可能是跨章引用（合法）也可能是失锚笔误——
+				// 不冒充硬伤，归类待全册核验。
+				lines := make([]int, 0, len(locs))
+				for _, l := range locs {
+					lines = append(lines, l.line)
+				}
+				out = append(out, mdvIssue{kind: "cross_ref", line: first.line,
+					summary: fmt.Sprintf("跨章引用（待全册核验）：本地无题注 %s（L%v）——若为跨章/附录编号属正常，勿改成文字描述；用 paths 多文件模式闭合核验，失锚则修号", k, lines)})
+			}
+			continue
+		}
+		if multi {
+			// 他章闭合的跨章引用：通过，不进 issue（汇总一条在回执尾）。
+			for _, l := range refs[k] {
+				if l.file != where {
+					crossClosed++
+				}
+			}
 		}
 	}
 	// 未引用：题注存在但正文零引用（warning 面：疑似漏挂引用或孤儿图表）。
 	for _, c := range captions {
 		if _, ok := refs[c.key()]; !ok {
-			out = append(out, mdvIssue{kind: "orphans", line: c.line,
+			out = append(out, mdvIssue{kind: "orphans", file: c.file, line: c.line,
 				summary: fmt.Sprintf("未引用：题注 %s 存在但正文从未引用（孤立图表或漏挂引用）", c.key())})
 		}
 	}
-	return out
+	return out, crossClosed
 }
 
 // mdvCheckTables Markdown 表格块内列数一致性。表格块=连续含 | 的行；块内
@@ -366,12 +464,13 @@ func mdvCheckTables(lines []string) []mdvIssue {
 // md_validate 与 doc_render 共用（同包）。
 func posixStylePathHint(p string) string {
 	if strings.HasPrefix(strings.TrimSpace(p), "/") {
-		return "（提示：/d/... 是 bash 的 POSIX 写法，本工具不认——传 Windows 盘符绝对路径 D:\\...\\文件.md 或工作区相对路径）"
+		return "（提示：/d/... 是 bash 的 POSIX 写法，本工具不认——传 Windows 盘符绝对路径 D:\\...\\文件.md（正斜杠 D:/ 亦可）或工作区相对路径）"
 	}
 	return ""
 }
 
-func isMDVSeparatorRow(ln string) bool {	s := strings.ReplaceAll(strings.ReplaceAll(ln, "|", ""), " ", "")
+func isMDVSeparatorRow(ln string) bool {
+	s := strings.ReplaceAll(strings.ReplaceAll(ln, "|", ""), " ", "")
 	if s == "" {
 		return true
 	}

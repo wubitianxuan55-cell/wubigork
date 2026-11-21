@@ -269,6 +269,46 @@ func TestStaleGuardWriteFileOverwriteEscape(t *testing.T) {
 	}
 }
 
+// P2-10（2026-11-21 沿江反馈）：同回合写后 edit_file 的 old_string 仍锚在
+// 当前磁盘内容上=新鲜锚点，放行——改一行不再被迫重读整篇（实测被拒 6 次）；
+// 锚点失配仍拦（闸的本意）。
+func TestStaleGuardEditFileAnchorFreshPass(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.ToSlash(filepath.Join(dir, "a.txt"))
+	if err := os.WriteFile(path, []byte("one\ntwo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	newRunner := func() *AgentRunner {
+		return &AgentRunner{
+			tools:             editToolsRegistry(t, "edit_file"),
+			staleWrittenFiles: map[string]bool{path: true},
+			sink:              event.Discard,
+			session:           NewSession("sys"),
+		}
+	}
+	// 锚点匹配当前内容：放行且编辑生效。
+	out := newRunner().executeOne(context.Background(), provider.ToolCall{
+		ID: "c1", Name: "edit_file",
+		Arguments: `{"path":` + strconv.Quote(path) + `,"old_string":"two","new_string":"TWO"}`,
+	})
+	if out.blocked || out.errMsg != "" {
+		t.Fatalf("fresh anchor should bypass same-turn guard, got %+v", out)
+	}
+	if content, _ := os.ReadFile(path); string(content) != "one\nTWO\n" {
+		t.Fatalf("edit should apply, got %q", content)
+	}
+	// 锚点失配（内容已被同回合其他写改变）：仍拦（precheck 的 old_string 存在性
+	// 诊断更精准，先于 stale 闸；两路任一即符合「失配不放行」）。
+	out2 := newRunner().executeOne(context.Background(), provider.ToolCall{
+		ID: "c2", Name: "edit_file",
+		Arguments: `{"path":` + strconv.Quote(path) + `,"old_string":"不存在的锚点","new_string":"x"}`,
+	})
+	if !out2.blocked ||
+		(!strings.Contains(out2.output, "[stale content]") && !strings.Contains(out2.output, "old_string not found")) {
+		t.Fatalf("stale anchor must still be blocked, got %+v", out2)
+	}
+}
+
 func TestStaleGuardBlocksMoveFileWithoutRead(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.ToSlash(filepath.Join(dir, "a.txt"))
