@@ -78,6 +78,7 @@ describe('gaea 四层外观架构', () => {
     expect(components).toContain('[data-gaea-ambience-dark="diagonal"]')
     expect(components).toContain('[data-gaea-ambience-dark="galaxy"]')
     expect(components).toContain('@keyframes gaea-meteor')
+    expect(components).toContain('isolation: isolate')
   })
 
   it('壳层只消费材质契约，玻璃态差异留在材料层', () => {

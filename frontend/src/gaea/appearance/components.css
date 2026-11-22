@@ -34,6 +34,8 @@ body::after {
 }
 
 .gaea-app-layout {
+  /* Keep Bloom's negative-z starlight above the shell canvas but below content. */
+  isolation: isolate;
   --office-panel: var(--gaea-surface-low);
   --office-panel-raised: var(--gaea-surface-high);
   --office-canvas: var(--gaea-surface-low);
