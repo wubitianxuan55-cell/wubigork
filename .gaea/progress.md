@@ -1,3 +1,28 @@
+## Bloom 0.29 星河修复与流星控制（2026-11-22）
+
+- **基线纠正**：严格以 `dsh-bloom-theme origin/main`
+  `bd3e93f9a708d0d951156866a6f2274d0d33c824`（0.29.0）对照，0.29
+  设置页仍保留流星颜色、密度、速度三组控制。
+- **根因**：`BloomStardust` 沿用上游 `z-index:-1`，但 gaea
+  `.gaea-app-layout` 没有独立 stacking context，整块壳层背景把星尘盖住。
+  增加 `isolation:isolate` 后，星河位于壳层背景之上、业务内容之下。
+- **功能补齐**：新增 `gaea-meteor-*` 持久化与根节点
+  `data-gaea-meteor-*`；颜色 `colorful/solid`、密度
+  `sparse/standard/dense`、速度 `slow/standard/fast`。密度显示
+  20/40/60 颗流星候选，速度倍率 `1.6/1/0.6`，纯色统一切到当前强调色。
+  设置行只在暗色“漫天星辰”下出现。
+- **验证与实拍**：网页设置页实拍已出现全屏星尘和流星；桌面端新构建实拍
+  显示星河和完整外观设置。定向 `AppearancePanel/appStore/架构` **30/30**、
+  `tsc -b` 0、改动面 ESLint 0。
+- **提交**：星河层级 `9a7475ad`；流星控制 `a37b7548`。
+- **桌面构建**：当前主树 Vite `31.53s` + Wails `28.625s`；
+  干净树 Vite `34.83s` + Wails `56.851s`，bindings 未跳过，内容漂移 0。
+  主树 exe SHA256 `32256E2E…13E722`，冒烟 200（PID 65240 已回收）。
+- **交付**：`releases/gaea-bloom029-starlight-20261122-a37b7548/`；
+  干净树 payload 冒烟 200（PID 43540 已回收），六项 SHA256 已记录。
+  旧 `gaea-bloom029-20261122-96335e75` 包保留但已被本包取代。
+- **边界**：未装机、未 push。
+
 ## Bloom 0.29 配色大脑桌面构建与 Git 打包（2026-11-22）
 
 - **提交边界**：外观提交 `96335e75`（`feat(gaea): align Bloom appearance
