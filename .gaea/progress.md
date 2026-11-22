@@ -6851,3 +6851,12 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   根修（link spec 与手动 junction 须同批改）；REA 技能 v63/263 同步。
 - 验证：预设 registered 20 插件 broken=null、技能 23/23、工具箱 15/15、REA 263 实数、
   实弹 3 轮+两轮回退走查（reload 重放全净）。gaea 仓代码零改动；3091 清场待用户点启动。
+
+## 2026-11-22 打包记录——gaea-memory-distill-20261122-98466698（关联软件官方最新批+记忆中枢蒸馏全链）
+
+- 业务链 fc41b54a + 4c1eb517 + 34a550dc + 1e50e689 + 52f5b187 + day-log 笔；记录笔 6e8c2c82。
+- 干净工作树 .tmp/gaea-pkg-98466698（pnpm 28.3s+npm 32.5s+wails 60.3s；主树拷三 DLL 入
+  worktree build/bin 供 gen_bindings PATH——System32 ORT 劫持坑打包态同样命中）。
+- payload 正式路径冒烟 200（PID 18184）。SHA256：exe 6E8FB1DF…；ORT 与历届一致；
+  **sherpa 两 DLL=v2.0.2 新哈希首次进发布件**；zip 86DBD681…/src.zip 48E50ABE… 留盘不入库；
+  装机位 0BCAACE7…（同码不同时间戳同源核验 ✓，PID 72764）。worktree 已回收。
