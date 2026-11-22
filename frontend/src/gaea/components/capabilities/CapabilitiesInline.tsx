@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
-import { Globe, Cpu, RefreshCw } from "../../icons";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Globe, Cpu, Plus, RefreshCw, Wand2 } from "../../icons";
 import { app } from "../../lib/bridge";
 import { useT } from "../../lib/i18n";
 import { useCapabilitiesData } from "../../hooks/useCapabilitiesData";
 import { ServerGroup, FailedServersNotice, AddServerForm } from "./ServersSection";
 import { ToolsTabContent } from "./ToolsSection";
 import { SkillsSection } from "./SkillsSection";
+import "./capabilities.css";
 
 // CapabilitiesInline — 能力面板内联主体（设置中枢批 4 从 CapabilitiesPanel 拆出
 // 单源）：MCP 服务器/工具/技能三 tab 全量逻辑与渲染。CapabilitiesPanel（办公
@@ -15,20 +16,31 @@ import { SkillsSection } from "./SkillsSection";
 
 type CapTab = "servers" | "tools" | "skills";
 
+const TAB_ORDER: CapTab[] = ["servers", "tools", "skills"];
+
 export function CapabilitiesInline({
   toolCounts = {},
   skillCounts = {},
+  variant = "inline",
 }: {
   toolCounts?: Record<string, number>;
   skillCounts?: Record<string, number>;
+  variant?: "drawer" | "inline";
 }) {
   const t = useT();
+  const tabId = useId();
   const data = useCapabilitiesData();
   const {
     view, busy, err, notice, reloading, adding, addingContext7, confirming,
     setConfirming, setAdding, reloadEngine, mutate, addContext7, summary, serverGroups,
   } = data;
   const [tab, setTab] = useState<CapTab>("servers");
+  const [visitedTabs, setVisitedTabs] = useState<Set<CapTab>>(() => new Set(["servers"]));
+  const tabRefs = useRef<Record<CapTab, HTMLButtonElement | null>>({
+    servers: null,
+    tools: null,
+    skills: null,
+  });
   const [expandedSkills, setExpandedSkills] = useState<Set<string>>(() => new Set());
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(() => new Set());
   const [expandedServers, setExpandedServers] = useState<Set<string>>(() => new Set());
@@ -76,21 +88,62 @@ export function CapabilitiesInline({
     });
   }, []);
 
-  const reloadBtn =
-    "flex items-center gap-1.5 px-2 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default";
+  const connectedCount = view?.servers.filter((s) => s.status === "connected").length ?? 0;
+  const failedCount = view?.servers.filter((s) => s.status === "failed").length ?? 0;
+  const tabItems: { key: CapTab; label: string; shortLabel: string; icon: ReactNode; count?: number }[] = [
+    { key: "servers", label: t("caps.connectorsTab"), shortLabel: "MCP", icon: <Globe size={13} aria-hidden />, count: view?.servers.length },
+    { key: "tools", label: "工具", shortLabel: "工具", icon: <Cpu size={13} aria-hidden /> },
+    { key: "skills", label: t("caps.skillsTab"), shortLabel: "技能", icon: <Wand2 size={13} aria-hidden />, count: view?.skills.length },
+  ];
+
+  const selectTab = (next: CapTab, focus = false) => {
+    setTab(next);
+    setVisitedTabs((prev) => {
+      if (prev.has(next)) return prev;
+      const updated = new Set(prev);
+      updated.add(next);
+      return updated;
+    });
+    if (focus) tabRefs.current[next]?.focus();
+  };
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const current = TAB_ORDER.indexOf(tab);
+    let next = current;
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = TAB_ORDER.length - 1;
+    else if (event.key === "ArrowLeft") next = current <= 0 ? TAB_ORDER.length - 1 : current - 1;
+    else next = current >= TAB_ORDER.length - 1 ? 0 : current + 1;
+    selectTab(TAB_ORDER[next], true);
+  };
 
   return (
-    <>
-      {/* 工具行：状态摘要 + 重载（原抽屉 DrawerHeader 行内 reload 随主体单源走） */}
-      <div className="flex items-center justify-between gap-3 px-4 pt-3">
-        {view && <span className="text-[11.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{summary}</span>}
+    <div className={`caps-shell ${variant === "drawer" ? "caps-shell--drawer" : ""}`}>
+      <div className="caps-status">
+        <div className="caps-status__metrics" aria-label={summary || t("caps.loading")}>
+          <span className="caps-metric" data-tone="success">
+            <span className="caps-metric__dot" aria-hidden />
+            <strong>{view ? connectedCount : "—"}</strong>
+            <span>已连接</span>
+          </span>
+          <span className="caps-metric-divider" aria-hidden />
+          <span className="caps-metric" data-tone={failedCount > 0 ? "danger" : "accent"}>
+            <span className="caps-metric__dot" aria-hidden />
+            <strong>{view ? failedCount : "—"}</strong>
+            <span>异常</span>
+          </span>
+          <span className="caps-metric-divider" aria-hidden />
+          <span className="caps-metric" data-tone="accent">
+            <span className="caps-metric__dot" aria-hidden />
+            <strong>{view ? view.skills.length : "—"}</strong>
+            <span>技能</span>
+          </span>
+        </div>
         <button
-          className={reloadBtn}
-          style={{
-            border: "1px solid var(--md-sys-color-outline-variant)",
-            color: "var(--md-sys-color-text-secondary)",
-            background: "transparent",
-          }}
+          className="caps-reload"
+          type="button"
           disabled={reloading}
           onClick={() => { void reloadEngine().then(bumpSurface); refreshSkillUsage(); bumpSurface() }}
           title={t("caps.reloadHint")}
@@ -98,153 +151,168 @@ export function CapabilitiesInline({
           {reloading ? (
             <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
           ) : (
-            <RefreshCw size={13} />
+            <RefreshCw size={13} aria-hidden />
           )}
           <span>{reloading ? t("caps.reloading") : t("caps.reload")}</span>
         </button>
       </div>
 
-      {!view ? (
-        <div className="empty-state">{t("caps.loading")}</div>
-      ) : (
-        <div className="overflow-y-auto px-4 py-3.5 flex flex-col gap-5">
-          {err && (
-            <div
-              className="shrink-0 px-4 py-2 text-[12.5px]"
-              style={{
-                background: "color-mix(in srgb, var(--md-sys-color-destructive) 9%, transparent)",
-                color: "var(--md-sys-color-destructive)",
-                borderBottom: "1px solid color-mix(in srgb, var(--md-sys-color-destructive) 22%, transparent)",
-              }}
+      <div
+        className="caps-tabs"
+        role="tablist"
+        aria-label={t("caps.title")}
+        onKeyDown={(event) => {
+          if (event.target instanceof HTMLButtonElement && event.target.getAttribute("role") === "tab") {
+            onTabKeyDown(event);
+          }
+        }}
+      >
+        {tabItems.map((item) => {
+          const active = tab === item.key;
+          return (
+            <button
+              key={item.key}
+              ref={(node) => { tabRefs.current[item.key] = node; }}
+              className="caps-tab"
+              type="button"
+              role="tab"
+              id={`${tabId}-tab-${item.key}`}
+              aria-selected={active}
+              aria-controls={`${tabId}-panel-${item.key}`}
+              aria-label={item.count !== undefined ? `${item.label}，${item.count}` : item.label}
+              title={item.label}
+              tabIndex={active ? 0 : -1}
+              onClick={() => selectTab(item.key)}
             >
-              {err}
-            </div>
-          )}
-          {notice && (
-            <div
-              className="shrink-0 px-4 py-2 text-[12.5px]"
-              style={{
-                background: "color-mix(in srgb, var(--md-sys-color-success) 9%, transparent)",
-                color: "var(--md-sys-color-success)",
-                borderBottom: "1px solid color-mix(in srgb, var(--md-sys-color-success) 22%, transparent)",
-              }}
-            >
-              {notice}
-            </div>
-          )}
-          {/* v3 分段标签页：激活 = 主色容器 + 柔光 */}
-          <div
-            className="flex gap-1 p-1 rounded-[var(--radius-md)]"
-            role="tablist"
-            aria-label={t("caps.title")}
-            style={{
-              background: "var(--md-sys-color-surface-container)",
-              border: "1px solid var(--md-sys-color-outline-variant)",
-            }}
-          >
-            {(
-              [
-                { key: "servers" as CapTab, label: t("caps.connectorsTab") },
-                { key: "tools" as CapTab, label: "工具", icon: <Cpu size={12} aria-hidden className="inline mr-1 align-middle -mt-px" /> },
-                { key: "skills" as CapTab, label: t("caps.skillsTab") },
-              ]
-            ).map((item) => {
-              const active = tab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setTab(item.key)}
-                  className={`flex-1 px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium cursor-pointer transition-all duration-200 ${
-                    active
-                      ? "bg-(color:--md-sys-color-primary-container) text-(color:--md-sys-color-on-primary-container) shadow-[var(--v3-glow-faint)]"
-                      : "text-(color:--md-sys-color-text-secondary) hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high)"
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
+              <span className="caps-tab__icon">{item.icon}</span>
+              <span className="caps-tab__label">{item.shortLabel}</span>
+              {item.count !== undefined && <span className="caps-tab__count">{item.count}</span>}
+            </button>
+          );
+        })}
+      </div>
 
-          {tab === "servers" ? (
-            <section className="mb-3">
-              <div className="flex justify-end mb-2">
-                {/* Context7 一键添加 */}
-                <button
-                  className="flex items-center gap-1.5 mr-2 px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40"
-                  style={{
-                    border: "1px solid color-mix(in srgb, var(--gaea-glow) 34%, transparent)",
-                    background: "color-mix(in srgb, var(--gaea-glow) 7%, transparent)",
-                    color: "var(--gaea-glow)",
-                  }}
-                  disabled={busy || addingContext7}
-                  onClick={() => addContext7()}
-                  title={t("caps.addContext7Hint")}
-                >
-                  {addingContext7 ? (
-                    <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
-                  ) : (
-                    <Globe size={12} />
-                  )}
-                  <span>{addingContext7 ? t("caps.addContext7Busy") : t("caps.addContext7")}</span>
-                </button>
-                {!adding && (
-                  <button
-                    className="px-2.5 py-1 text-xs rounded-md cursor-pointer"
-                    style={{
-                      border: "1px solid var(--md-sys-color-outline-variant)",
-                      color: "var(--md-sys-color-text-secondary)",
-                      background: "transparent",
-                    }}
-                    disabled={busy}
-                    onClick={() => setAdding(true)}
-                  >
-                    {t("caps.addServer")}
-                  </button>
+      {err && <div className="caps-banner" data-tone="error" role="alert">{err}</div>}
+      {notice && <div className="caps-banner" data-tone="success" role="status">{notice}</div>}
+
+      {!view ? (
+        <div className="caps-loading" aria-label={t("caps.loading")}>
+          <div className="caps-loading__line" />
+          <div className="caps-loading__line caps-loading__line--short" />
+          <div className="caps-loading__card caps-loading__card--tall" />
+          <div className="caps-loading__card" />
+        </div>
+      ) : (
+        <>
+          <div
+            className="caps-panel caps-panel--scroll"
+            role="tabpanel"
+            id={`${tabId}-panel-servers`}
+            aria-labelledby={`${tabId}-tab-servers`}
+            hidden={tab !== "servers"}
+          >
+            <div className="caps-scroll-body">
+              <section aria-label={t("caps.connectorsTab")}>
+                <div className="caps-server-toolbar">
+                  <div className="caps-server-toolbar__copy">
+                    <h3 className="caps-server-toolbar__title">{t("caps.connectorsTab")}</h3>
+                    <p className="caps-server-toolbar__hint">连接外部服务与资源</p>
+                  </div>
+                  <div className="caps-server-toolbar__actions">
+                    <button
+                      className="caps-action"
+                      type="button"
+                      disabled={busy || addingContext7}
+                      onClick={() => addContext7()}
+                      title={t("caps.addContext7Hint")}
+                    >
+                      {addingContext7 ? (
+                        <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
+                      ) : (
+                        <Globe size={12} aria-hidden />
+                      )}
+                      <span>{addingContext7 ? t("caps.addContext7Busy") : "Context7"}</span>
+                    </button>
+                    {!adding && (
+                      <button
+                        className="caps-action caps-action--accent"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setAdding(true)}
+                      >
+                        <Plus size={12} aria-hidden />
+                        <span>{t("caps.addServer")}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {serverGroups.failed.length > 0 && (
+                  <FailedServersNotice
+                    servers={serverGroups.failed}
+                    expanded={expandedErrors}
+                    onToggle={toggleError}
+                    onRetry={(name) => void mutate(() => app.RetryMCPServer(name))}
+                    confirming={confirming}
+                    onConfirm={setConfirming}
+                    onCancelConfirm={() => setConfirming(null)}
+                    onRemove={(name) => mutate(() => app.RemoveMCPServer(name)).then(() => setConfirming(null))}
+                    busy={busy}
+                  />
                 )}
-              </div>
-              {serverGroups.failed.length > 0 && (
-                <FailedServersNotice
-                  servers={serverGroups.failed}
-                  expanded={expandedErrors}
-                  onToggle={toggleError}
-                  onRetry={(name) => void mutate(() => app.RetryMCPServer(name))}
+                {view.servers.length === 0 && !adding && (
+                  <div className="caps-empty">
+                    <span className="caps-empty__icon" aria-hidden="true"><Globe size={16} /></span>
+                    <strong>还没有 MCP 服务器</strong>
+                    <p>{t("caps.noServers")}</p>
+                  </div>
+                )}
+                <ServerGroup
+                  busy={busy}
+                  servers={serverGroups.active}
+                  expanded={expandedServers}
                   confirming={confirming}
                   onConfirm={setConfirming}
                   onCancelConfirm={() => setConfirming(null)}
                   onRemove={(name) => mutate(() => app.RemoveMCPServer(name)).then(() => setConfirming(null))}
-                  busy={busy}
+                  onRetry={(name) => void mutate(() => app.RetryMCPServer(name))}
+                  onToggle={(name, on) => void mutate(() => app.SetMCPServerEnabled(name, on))}
+                  onToggleDetails={toggleServer}
                 />
+                {adding ? (
+                  <AddServerForm busy={busy} onCancel={() => setAdding(false)} onAdd={async (input) => (await mutate(() => app.AddMCPServer(input))) && setAdding(false)} />
+                ) : null}
+              </section>
+            </div>
+          </div>
+
+          <div
+            className="caps-panel caps-panel--tools"
+            role="tabpanel"
+            id={`${tabId}-panel-tools`}
+            aria-labelledby={`${tabId}-tab-tools`}
+            hidden={tab !== "tools"}
+          >
+            {visitedTabs.has("tools") && (
+              <ToolsTabContent toolCounts={toolCounts} refreshKey={surfaceKey} board="gaea" />
+            )}
+          </div>
+
+          <div
+            className="caps-panel caps-panel--scroll"
+            role="tabpanel"
+            id={`${tabId}-panel-skills`}
+            aria-labelledby={`${tabId}-tab-skills`}
+            hidden={tab !== "skills"}
+          >
+            <div className="caps-scroll-body">
+              {visitedTabs.has("skills") && (
+                <SkillsSection skills={view.skills} counts={skillCounts} usage={skillUsage} expanded={expandedSkills} onToggle={toggleSkill} />
               )}
-              {view.servers.length === 0 && !adding && (
-                <div className="text-xs text-center py-4" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.noServers")}</div>
-              )}
-              <ServerGroup
-                busy={busy}
-                servers={serverGroups.active}
-                expanded={expandedServers}
-                confirming={confirming}
-                onConfirm={setConfirming}
-                onCancelConfirm={() => setConfirming(null)}
-                onRemove={(name) => mutate(() => app.RemoveMCPServer(name)).then(() => setConfirming(null))}
-                onRetry={(name) => void mutate(() => app.RetryMCPServer(name))}
-                onToggle={(name, on) => void mutate(() => app.SetMCPServerEnabled(name, on))}
-                onToggleDetails={toggleServer}
-              />
-              {adding ? (
-                <AddServerForm busy={busy} onCancel={() => setAdding(false)} onAdd={async (input) => (await mutate(() => app.AddMCPServer(input))) && setAdding(false)} />
-              ) : null}
-            </section>
-          ) : tab === "tools" ? (
-            <ToolsTabContent toolCounts={toolCounts} refreshKey={surfaceKey} board="gaea" />
-          ) : (
-            <SkillsSection skills={view.skills} counts={skillCounts} usage={skillUsage} expanded={expandedSkills} onToggle={toggleSkill} />
-          )}
-        </div>
+            </div>
+          </div>
+        </>
       )}
-    </>
+    </div>
   );
 }

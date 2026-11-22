@@ -2,7 +2,7 @@
 // 活取面=分组渲染（内置域/应用/MCP）+ 模式藏面灰显组 + 模式徽标；
 // 引擎未就绪（reject/空面）=静态清单兜底（现状行为）。
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ToolsTabContent } from "./ToolsSection";
 import type { ToolSurfaceViewB } from "../../lib/bridge/model";
 
@@ -45,8 +45,8 @@ describe("ToolsTabContent 装配面活取", () => {
     expect(screen.getByText("longdoc_build")).toBeTruthy();
     // 模型可见口径描述进卡（活取描述优先于静态表）
     expect(screen.getByText("读取工料机造价库（workcost）")).toBeTruthy();
-    // 头部计数=可见/总
-    expect(screen.getByText("3/4")).toBeTruthy();
+    // 头部计数=可见/总（拆成主数字与单位，读取可访问名锁定口径）
+    expect(screen.getByLabelText("可见 3 / 共 4")).toBeTruthy();
   });
 
   it("引擎未就绪（reject）：静态清单兜底", async () => {
@@ -62,5 +62,21 @@ describe("ToolsTabContent 装配面活取", () => {
     render(<ToolsTabContent toolCounts={{}} />);
     await waitFor(() => expect(screen.getByText("文件与命令")).toBeTruthy());
     expect(screen.queryByText(/档$/)).toBeNull();
+  });
+
+  it("搜索无结果给出清除动作，不留下死胡同", async () => {
+    gaeaSurface.mockResolvedValue(surface("standard", [
+      { name: "bash", description: "执行 shell 命令", source: "builtin-domain", group: "", hidden: false },
+    ]));
+    render(<ToolsTabContent toolCounts={{}} />);
+    await waitFor(() => expect(screen.getByText("文件与命令")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("搜索工具"), { target: { value: "不存在的工具" } });
+    expect(screen.getByText("没有找到工具")).toBeTruthy();
+    expect(screen.getByText(/“不存在的工具” 的匹配结果/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText("清除搜索"));
+    expect((screen.getByLabelText("搜索工具") as HTMLInputElement).value).toBe("");
+    expect(screen.getByText("文件与命令")).toBeTruthy();
   });
 });

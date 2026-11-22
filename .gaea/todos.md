@@ -2,6 +2,8 @@
 
 | ✅ | **办公/文学工作台 UI + 文学右栏插图页签 + 页签续刀 + 桌面包**（2026-11-22）：功能提交 `cf422218`、绑定收口 `4d23703e`；文学主栏维持八标签，插图只放右侧工作台；办公与文学 WorkspacePane 统一矢量启动页、窄栏图标页签与方向键/aria；浏览器矢量图标与行内校验、Git 独立视图行、UI 空态、进度两层工具条、CAD/进度统一加载态；定向 8 文件 96/96、干净树 Vite 38.31s + Wails 52.275s（bindings 未跳过）+payload 冒烟 200；包 `releases/gaea-workbench-tabs-20261122-4d23703e/`，exe/ZIP/源码 ZIP/三 DLL 六项 SHA256 已记录；未装机、未 push |
 
+| ✅ | **办公右侧能力面板 UI 重设计**（2026-11-21）：MCP/工具/技能抽屉改为状态栏+三页签+独立滚动；工具页搜索/结果计数/无结果恢复+工具面摘要卡默认折叠；工具与技能列表收敛为分组平面清单；MCP 状态文字徽标、技能范围与调用统计补强；页签方向键/Home/End + 已访问状态保留；定向 7/7、tsc、改动面 ESLint、Vite 37.53s 绿；亮暗与 360/440px 无溢出、对比度 5.56–14.33:1；未 Wails/装机 |
+
 | ✅ | **平台缺陷清单 D1–D10 修复 + 桌面构建**（2026-11-20）：保留既有 D1/D2/D3/D5/D9 半成品并补回归；heredoc 截断 rc=0 升格硬失败、write_file overwrite 显式豁免、输出改头部+均匀采样、chart/diagram 自动 layout 体检、草稿删除白名单（防穿越/通配/递归）、edit_file JSON 补丁边界、vision 几何边界、engineering-figures 技能、YaHei bold 检测、中断恢复待办+产物 SHA256 台账；`internal/gaea/...` 全绿+vet 绿；前端 22.97s + Wails 29.796s（bindings 未跳过）+`/api/health` 200；exe SHA256 `B34A30D9…D26F2E44`；未提交/未装机 |
 
 | ✅ | **运行监测 UX/UI 第二轮：可执行状态面**（2026-11-20）：新增“当前判定”关注清单与动作（检查引擎/查看资源/定位失败/重读统计），900px 以下提前展示；实时刷新支持暂停恢复、请求防重入、统计轮询联动停用，快照失败切“同步中断”并保留最后成功时间；错误与需关注模型可下钻最近失败请求，最近请求支持模型/引擎/功能/错误搜索与清除，模型明细补失败列和真实排序；资源条补 progressbar 语义与偏高/超载文字；新增页面规范 `design-system/gaea/pages/runtime.md` 和亮暗/780/390 截图；定向 20/20、tsc、改动面 ESLint、Vite 37.14s 绿（既有 Wenxue CSS/chunk 警告）；Wails 1m19.037s（bindings 未跳过）+冒烟 200；**接手收口（11-20 午后）：双域批提交 8323e9d4（含模型中心归位同树改动：ModelGroupNav 组级导航/引擎管理收口 xAI 登录/设置模型组五页签瘦身）+复验 8 测试文件 71/71+useStatsState 4/4+tsc 0+Vite 29.79s+Wails 54.37s（bindings 未跳过）+装机 exe SHA256 `39C682D92A91…1C8F8A` PID 26908>构建时刻 INSTALL OK+冒烟 /api/health 200** |

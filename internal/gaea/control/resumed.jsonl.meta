@@ -2,7 +2,7 @@
   "id": "resumed",
   "space": "work",
   "created_at": "2026-11-18T15:55:35.5944807Z",
-  "updated_at": "2026-11-18T15:55:35.6003059Z",
+  "updated_at": "2026-11-21T06:42:12.0346907Z",
   "policy_snapshot": {
     "sandbox_network": true,
     "permission_mode": "allow"

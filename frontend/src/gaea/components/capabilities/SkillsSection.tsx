@@ -2,6 +2,7 @@
 // v3「星枢」面板语言：技能卡实底收敛（/ 图标 + 名称 + 描述 + 范围徽标），
 // 展开态 = 主色容器强调，hover 柔光。
 import { useMemo, useState } from "react";
+import { ChevronDown, Search, Wand2, X } from "../../icons";
 import { useT } from "../../lib/i18n";
 import { summarizeSkillDescription } from "../../lib/capabilities";
 import type { SkillView } from "../../lib/types";
@@ -21,22 +22,10 @@ function skillScopeLabel(scope: string, t: ReturnType<typeof useT>): string {
   }
 }
 
-// 范围徽标：project = 成功语义色，其余 = 中性；subagent = 主色（语义色 + 文字）
-function ScopeBadge({ scope, text }: { scope: string; text: string }) {
-  const isProject = scope === "project"
+function ScopeBadge({ scope, text, tone }: { scope: string; text: string; tone?: "project" | "accent" }) {
+  const resolvedTone = tone ?? (scope === "project" ? "project" : undefined)
   return (
-    <span
-      className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium"
-      style={{
-        color: isProject ? "var(--md-sys-color-success)" : "var(--md-sys-color-text-secondary)",
-        background: isProject
-          ? "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)"
-          : "color-mix(in srgb, var(--md-sys-color-text) 8%, transparent)",
-        border: `1px solid color-mix(in srgb, ${isProject ? "var(--md-sys-color-success)" : "var(--md-sys-color-text)"} 26%, transparent)`,
-      }}
-    >
-      {text}
-    </span>
+    <span className="skill-badge" data-tone={resolvedTone}>{text}</span>
   )
 }
 
@@ -58,72 +47,39 @@ function SkillRow({
   const canExpand = summary !== skill.description
   return (
     <button
-      className={`w-full text-left rounded-[var(--radius-md)] p-3 bg-transparent cursor-pointer transition-all duration-200 ${
-        expanded
-          ? ""
-          : "shadow-[inset_0_1px_0_color-mix(in_srgb,var(--md-sys-color-text)_5%,transparent)] hover:bg-(color:--md-sys-color-surface-container-high) hover:shadow-[var(--v3-glow-soft)]"
-      }`}
+      className="skill-card"
       type="button"
       onClick={onToggle}
       aria-expanded={expanded}
       title={skill.description}
-      style={{
-        background: expanded ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface-container)",
-        border: expanded
-          ? "1px solid color-mix(in srgb, var(--gaea-glow) 32%, transparent)"
-          : "1px solid var(--md-sys-color-outline-variant)",
-        boxShadow: expanded
-          ? "inset 3px 0 0 var(--gaea-glow), inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent), var(--v3-glow-faint)"
-          : undefined,
-      }}
+      data-expanded={expanded}
     >
-      <div className="flex items-center gap-2.5 mb-1">
-        <span
-          className="w-8 h-8 flex items-center justify-center rounded-md font-mono text-base font-bold shrink-0"
-          style={{
-            background: expanded
-              ? "color-mix(in srgb, var(--gaea-glow) 16%, transparent)"
-              : "color-mix(in srgb, var(--gaea-glow) 11%, transparent)",
-            color: "var(--gaea-glow)",
-          }}
-        >/</span>
-        <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-          <span className="text-[13px] font-semibold font-mono truncate" style={{ color: "var(--md-sys-color-text)" }}>{skill.name}</span>
-          <span className="flex items-center gap-1 flex-wrap">
+      <div className="skill-card__top">
+        <span className="skill-card__icon" aria-hidden="true"><Wand2 size={13} /></span>
+        <span className="skill-card__identity">
+          <span className="skill-card__name">{skill.name}</span>
+          <span className="skill-card__badges">
             <ScopeBadge scope={skill.scope} text={skillScopeLabel(skill.scope, t)} />
-            {skill.runAs === "subagent" && <ScopeBadge scope="project" text={t("caps.subagent")} />}
-            {usage && usage.calls > 0 && (
-              <span
-                data-testid="skill-usage-stat"
-                className="font-mono text-[10px]"
-                style={{ color: "var(--md-sys-color-text-secondary)" }}
-              >
-                {t("caps.skillUsage", { n: usage.calls })} · {t("caps.skillSuccessRate", { p: Math.round((usage.ok / usage.calls) * 100) })}
-              </span>
-            )}
+            {skill.runAs === "subagent" && <ScopeBadge scope="project" tone="accent" text={t("caps.subagent")} />}
+            {count > 0 && <span className="skill-badge" data-tone="accent">{count} 次调用</span>}
           </span>
         </span>
-        {count > 0 && (
+        {usage && usage.calls > 0 && (
           <span
-            className="shrink-0 font-mono text-[11px] font-semibold rounded-full px-1.5 py-px"
-            style={{
-              color: "var(--gaea-glow)",
-              background: "color-mix(in srgb, var(--gaea-glow) 14%, transparent)",
-            }}
+            data-testid="skill-usage-stat"
+            className="skill-card__stats"
           >
-            {count}
+            {t("caps.skillUsage", { n: usage.calls })} · {t("caps.skillSuccessRate", { p: Math.round((usage.ok / usage.calls) * 100) })}
           </span>
         )}
       </div>
-      <div
-        className={`text-[12px] leading-snug ${expanded ? "" : "line-clamp-2"}`}
-        style={{ color: "var(--md-sys-color-text-secondary)" }}
-      >
+      <div className="skill-card__desc">
         {expanded ? skill.description : summary}
       </div>
       {canExpand && (
-        <div className="mt-1 text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {expanded ? t("common.collapse") : t("common.expand")}
+        <div className="skill-card__expand">
+          <span>{expanded ? t("common.collapse") : t("common.expand")}</span>
+          <ChevronDown size={10} aria-hidden />
         </div>
       )}
     </button>
@@ -153,28 +109,52 @@ export function SkillsSection({ skills, counts, usage, expanded, onToggle }: Ski
   }, [skills, query])
 
   return (
-    <section className="mb-3">
-      <div className="mb-2">
+    <section className="skills-section">
+      <div className="skills-head">
+        <div className="skills-head__identity">
+          <span className="skills-head__icon" aria-hidden="true"><Wand2 size={14} /></span>
+          <div>
+            <h3>{t("caps.skillsTab")}</h3>
+            <p>可运行的 playbook、专用流程与子代理能力</p>
+          </div>
+        </div>
+        <span className="skills-head__count" aria-live="polite">
+          {query.trim() ? `${filteredSkills.length}/${skills.length}` : skills.length}
+        </span>
+      </div>
+
+      <div className="skills-search">
+        <Search size={13} aria-hidden />
         <input
-          className="w-full rounded-md px-2.5 py-1.5 outline-none text-[13px] transition-[border-color,box-shadow] duration-200 focus:border-[color:color-mix(in_srgb,var(--gaea-glow)_45%,var(--md-sys-color-outline-variant))] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--gaea-glow)_14%,transparent)] placeholder:text-(color:--md-sys-color-text-secondary)"
+          className="skills-search__input"
           type="search"
           placeholder={t("caps.searchSkills")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label={t("caps.searchSkills")}
-          style={{
-            background: "var(--md-sys-color-surface-container)",
-            border: "1px solid var(--md-sys-color-outline-variant)",
-            color: "var(--md-sys-color-text)",
-          }}
         />
+        {query && (
+          <button type="button" onClick={() => setQuery("")} aria-label="清除技能搜索">
+            <X size={12} aria-hidden />
+          </button>
+        )}
       </div>
+
       {skills.length === 0 ? (
-        <div className="py-4 text-xs text-center" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.noSkills")}</div>
+        <div className="skills-empty">
+          <span className="skills-empty__icon" aria-hidden="true"><Wand2 size={16} /></span>
+          <strong>暂无可用技能</strong>
+          <p>{t("caps.noSkills")}</p>
+        </div>
       ) : filteredSkills.length === 0 ? (
-        <div className="py-4 text-xs text-center" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.noSkillMatches")}</div>
+        <div className="skills-empty">
+          <span className="skills-empty__icon" aria-hidden="true"><Search size={16} /></span>
+          <strong>没有匹配的技能</strong>
+          <p>{t("caps.noSkillMatches")}</p>
+          <button type="button" onClick={() => setQuery("")}>清除搜索</button>
+        </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="skills-list">
           {filteredSkills.map((sk) => (
             <SkillRow
               key={sk.name}

@@ -9,7 +9,8 @@
 // each server shows a connected/failed dot, transport, and tool/prompt/resource
 // counts, with add / remove / retry; skills list their scope and run mode.
 import { ResizableDrawer } from "./ResizableDrawer";
-import { DrawerHeader, DrawerTitle } from "./DrawerHeader";
+import { DrawerHeader } from "./DrawerHeader";
+import { Blocks } from "../icons";
 import { useT } from "../lib/i18n";
 import { CapabilitiesInline } from "./capabilities/CapabilitiesInline";
 
@@ -26,9 +27,17 @@ export function CapabilitiesPanel({
   return (
     <ResizableDrawer onClose={onClose} subtle label={t("caps.title")}>
       <DrawerHeader onClose={onClose}>
-        <DrawerTitle text={t("caps.title")} />
+        <div className="caps-title-lockup">
+          <span className="caps-title-lockup__mark" aria-hidden="true">
+            <Blocks size={15} />
+          </span>
+          <div className="caps-title-lockup__copy">
+            <span className="caps-title-lockup__title">{t("caps.title")}</span>
+            <span className="caps-title-lockup__hint">连接器 · 工具目录 · 工作流</span>
+          </div>
+        </div>
       </DrawerHeader>
-      <CapabilitiesInline toolCounts={toolCounts} skillCounts={skillCounts} />
+      <CapabilitiesInline toolCounts={toolCounts} skillCounts={skillCounts} variant="drawer" />
     </ResizableDrawer>
   );
 }
