@@ -6813,3 +6813,13 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - 测试：首刀五钉（unreported/blocked 展开/artifacts verified+unverified/干净面 compact/双向
   分向）+旧 verdict 测试随新契约更新；agent 全量 18.9s+builtin/boot/app（187.4s）全绿。
   **装机 exe AB6863197E0B55E7（=build/bin 同源）PID 63000，冒烟 200 INSTALL OK**。未提交（挂拍板）。
+
+## 2026-11-22 打包记录——gaea-20261122-d6add4b0（挂池五项清零+父子交互裁决执行批）
+
+- 业务笔 d6add4b0（30 文件 +1709/−96，F+G 两线合一）+ 本记录笔；剔除不抢=DSH 能力面板线
+  （capabilities 前端族+todos.md 记账）+缓存命中线+运行态 meta+各 zip 留盘。
+- 干净工作树 .tmp/gaea-pkg-d6add4b0 构建（pnpm 18.5s+npm 28.3s+wails 57.3s）；
+  `.tmp` 路径跑 exe 被策略拦坑第二次复现（先落 releases 正式路径再冒烟）；payload 冒烟 200
+  （PID 19528）。
+- SHA256：exe BCBEA091EF210C44…；三 DLL 与前包一致；zip 6EA95E3E…/src.zip 23F84310… 留盘。
+- 装机位=包 hash 同源核验（见装机行）。
