@@ -85,6 +85,12 @@ describe('gaea 四层外观架构', () => {
     expect(components).toContain('[data-gaea-meteor-density="sparse"]')
     expect(components).toContain('[data-gaea-meteor-speed="fast"]')
     expect(components).toContain('[data-gaea-meteor-color="solid"]')
+    expect(components).toContain(
+      ':root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met.m2',
+    )
+    expect(components).toContain(
+      ':root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met.m3',
+    )
     expect(components).toContain('.ui-reduced-motion .gaea-stardust > i')
     expect(components).toContain('.ui-reduced-motion .gaea-stardust > b.s-met')
     expect(stardust).toContain('var(--gaea-meteor-pace, 1)')

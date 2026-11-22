@@ -140,11 +140,19 @@ body::after {
   will-change: transform, opacity;
 }
 
-.gaea-stardust > b.s-met.m2 {
+/*
+ * Keep the stream override at the same specificity as the base meteor rule.
+ * The base rule carries the dark-mode and galaxy attribute selectors, so a
+ * short `.m2` selector loses the cascade and every "colorful" meteor silently
+ * falls back to motion-1. The fully scoped selectors below preserve the
+ * three-colour shower while still allowing the higher-specificity solid mode
+ * rule to replace all streams with the current accent.
+ */
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met.m2 {
   --stardust-colour: var(--gaea-motion-2);
 }
 
-.gaea-stardust > b.s-met.m3 {
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met.m3 {
   --stardust-colour: var(--gaea-motion-3);
 }
 
