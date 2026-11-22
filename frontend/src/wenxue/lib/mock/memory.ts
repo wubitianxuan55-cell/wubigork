@@ -337,10 +337,10 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     async MemoryLifecycle() {
       return {
         pinned: [
-          { name: "cost-rule", title: "造价规则", description: "组价先查历史价", kind: "semantic", type: "feedback", space: "work", score: 1, daysIdle: 0, lastUsedAt: "" },
+          { name: "cost-rule", title: "造价规则", description: "组价先查历史价", kind: "semantic", type: "feedback", space: "work", score: 1, daysIdle: 0, lastUsedAt: "", stabilityDays: 67.5, citeCount: 2 },
         ],
         decaying: [
-          { name: "old-note", title: "旧偏好", description: "很久没被引用的项目笔记", kind: "episodic", type: "project", space: "work", score: 0.12, daysIdle: 118, lastUsedAt: "" },
+          { name: "old-note", title: "旧偏好", description: "很久没被引用的项目笔记", kind: "episodic", type: "project", space: "work", score: 0.12, daysIdle: 118, lastUsedAt: "", stabilityDays: 30, citeCount: 0, dormant: true },
         ],
         activeCount: 5,
         archivedCount: 2,

@@ -82,3 +82,63 @@ func LifecycleOf(m Memory, now time.Time, staleAfterDays int) string {
 	}
 	return LifecycleActive
 }
+
+// ── 访问稳定性（Nebula Memory 蒸馏 P2「FSRS 思想」）───────────────────────
+//
+// Nebula 口径：命中即一次「访问」→ 稳定性增长 → 衰减变慢；长期未访问打
+// dormant（检索 ×0.55）。gaea 映射：引用事件（memory_events op=cite）计数
+// 即访问史；衰减状态（LifecycleDecaying）即 dormant 派生态——不新增第四态，
+// 复用既有纯函数语义。全部纯函数，稳定性不落列（零 schema 迁移）。
+
+// StabilityGrowthPerCite 是每次引用的稳定性增长系数：有效半衰期 = 基线 × 1.5^cites。
+const StabilityGrowthPerCite = 1.5
+
+// StabilityCapFactor 是稳定性封顶倍数（相对基线半衰期）：30d × 8 = 240 天。
+// 封顶防「被引用几百次的记忆永不衰减」——FSRS 同样设 maximum stability。
+const StabilityCapFactor = 8.0
+
+// StabilityDays 返回给定引用次数下的有效半衰期（天）：DecayHalfLifeDays ×
+// 1.5^cites（封顶 ×8）。citeCount<=0 恒基线 30 天。纯函数。
+func StabilityDays(citeCount int) float64 {
+	if citeCount <= 0 {
+		return DecayHalfLifeDays
+	}
+	growth := math.Pow(StabilityGrowthPerCite, float64(citeCount))
+	if growth > StabilityCapFactor {
+		growth = StabilityCapFactor
+	}
+	return DecayHalfLifeDays * growth
+}
+
+// DecayScoreWithStability 是稳定性感知的衰减评分：闲置 daysIdle 天、有效半衰期
+// stabilityDays（<=0 回落基线）下的 R ∈ [0.01,1]。DecayScore 的稳定性参数化
+// 版本——同一指数族、同一下限，单口径不另立公式。
+func DecayScoreWithStability(daysIdle float64, stabilityDays float64) float64 {
+	if stabilityDays <= 0 {
+		stabilityDays = DecayHalfLifeDays
+	}
+	s := math.Exp2(-daysIdle / stabilityDays)
+	if s < 0.01 {
+		s = 0.01
+	}
+	return s
+}
+
+// RecallDecayFactor 是星云召回融合的新鲜度因子（P2 消费面）：固化恒 1（免疫）；
+// 无活动时间戳=无衰减证据按 1（与 DecayScore 同口径，诚实不造数）；其余按
+// StabilityDays(citeCount) 感知衰减 ∈ [0.01,1]。citeCount 来自事件日志
+// op=cite 计数（Store.CiteCounts）。纯函数。
+func RecallDecayFactor(m Memory, citeCount int, now time.Time) float64 {
+	if m.Pinned {
+		return 1.0
+	}
+	last := lastActivityTime(m)
+	if last.IsZero() || now.Before(last) {
+		return 1.0
+	}
+	days := now.Sub(last).Hours() / 24
+	if days < 0 {
+		days = 0
+	}
+	return DecayScoreWithStability(days, StabilityDays(citeCount))
+}

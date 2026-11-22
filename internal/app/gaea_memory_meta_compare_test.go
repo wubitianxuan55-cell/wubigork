@@ -15,7 +15,10 @@ import (
 
 func TestDuplicatesVsDistillDivergence(t *testing.T) {
 	store := newOfficeMemoryTestEnv(t)
-	a := &App{}
+	// core 非零值构造：向量巩固臂经 localSearchEmbedder 访问 engineMgr，
+	// 裸 App 的 nil core 即崩（app 测试语义管线地雷同款）。engineMgr=nil →
+	// 解析失败 → 向量臂如实缺席，本测试钉的是词法/蒸馏两口径差异不受影响。
+	a := &App{core: &core{}}
 
 	// 组 1（模糊面板独有）：描述相似非逐字、名称无归一关系——蒸馏按
 	// 「宁漏勿误」不报，面板按 textsim ≥ 阈值报。

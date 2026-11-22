@@ -268,6 +268,10 @@ type MemoryLifecycleItem struct {
 	Score       float64 `json:"score"`    // 衰减评分（1.0 新鲜 → 0.01 下限；固化恒 1）
 	DaysIdle    int     `json:"daysIdle"` // 距最近活动（触达/写入）的天数
 	LastUsedAt  string  `json:"lastUsedAt,omitempty"`
+	// 访问稳定性（Nebula Memory 蒸馏 P2，additive）：
+	StabilityDays float64 `json:"stabilityDays"`           // 有效半衰期（基线 30d × 1.5^引用，封顶 240d）
+	CiteCount     int     `json:"citeCount"`               // 引用事件计数（memory_events op=cite）
+	Dormant       bool    `json:"dormant,omitempty"`       // 休眠=衰减态（检索 ×0.55；pinned 豁免）
 }
 
 // MemoryLifecycleView 是三态生命周期总览（GaeaMemoryLifecycle）。
@@ -295,6 +299,7 @@ func (a *App) GaeaMemoryLifecycle() MemoryLifecycleView {
 	}
 	store := a.hubOfficeStore()
 	now := time.Now()
+	citeCounts := store.CiteCounts()
 	for _, m := range store.List() {
 		item := MemoryLifecycleItem{
 			Name:        m.Name,
@@ -309,10 +314,13 @@ func (a *App) GaeaMemoryLifecycle() MemoryLifecycleView {
 		if last := memoryDecayTime(m); !last.IsZero() {
 			item.DaysIdle = int(now.Sub(last).Hours() / 24)
 		}
+		item.CiteCount = citeCounts[m.Name]
+		item.StabilityDays = memory.StabilityDays(item.CiteCount)
 		switch memory.LifecycleOf(m, now, view.StaleAfterDays) {
 		case memory.LifecyclePinned:
 			view.Pinned = append(view.Pinned, item)
 		case memory.LifecycleDecaying:
+			item.Dormant = true // 休眠=衰减态（检索 ×0.55），入列前落位
 			view.Decaying = append(view.Decaying, item)
 		default:
 			view.ActiveCount++

@@ -114,6 +114,10 @@ export function GaeaMemoryPin(arg1, arg2) {
   return window['go']['app']['MemoryB']['GaeaMemoryPin'](arg1, arg2);
 }
 
+export function GaeaMemoryRecall(arg1, arg2) {
+  return window['go']['app']['MemoryB']['GaeaMemoryRecall'](arg1, arg2);
+}
+
 export function GaeaMemorySemanticGraph() {
   return window['go']['app']['MemoryB']['GaeaMemorySemanticGraph']();
 }

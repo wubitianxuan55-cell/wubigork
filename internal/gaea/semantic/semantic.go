@@ -310,6 +310,32 @@ func (s *Store) Timestamps() (map[string]string, error) {
 }
 
 // DocOf 单条正文（融合视图 Text 取用；缓存由调用方掌管——命中集小，直查即可）。
+// VectorsOf 返回某 kind 全部向量的只读快照（键=id，vec 列 JSON 数组）。
+// 星云巩固聚类（Nebula Memory 蒸馏 P3）的取数口；无行/无库=空 map。
+func (s *Store) VectorsOf(kind string) (map[string][]float32, error) {
+	out := map[string][]float32{}
+	if s.db == nil {
+		return out, nil
+	}
+	rows, err := s.db.Query(`SELECT id, vec FROM semantic_vectors WHERE kind=?`, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, raw string
+		if err := rows.Scan(&id, &raw); err != nil {
+			return nil, err
+		}
+		var v []float32
+		if err := json.Unmarshal([]byte(raw), &v); err != nil {
+			return nil, err
+		}
+		out[id] = v
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) DocOf(kind, id string) (string, error) {
 	if s.db == nil {
 		return "", nil

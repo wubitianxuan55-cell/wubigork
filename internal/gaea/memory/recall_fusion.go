@@ -7,12 +7,15 @@ import "sort"
 // 四臂（各臂负责把分归一到 [0,1]），权重沿 semantic/fusion.go 三路融合的
 // 可解释先例（任何一条命中为什么排这里，都能用分量分与权重复算出来）：
 //
-//	final = (W_LEX*lexical + W_SEM*semantic + W_GRAPH*graph + pinned*W_PIN) × dormant
+//	final = (W_LEX*lexical + W_SEM*semantic + W_GRAPH*graph + pinned*W_PIN)
+//	        × dormant × decay
 //
 //	词法臂 W_LEX  =0.40  BM25 归一分（精确词/型号/专名主力）
 //	语义臂 W_SEM  =0.35  向量 cosine（本地 bge-m3；语义变体召回主力）
 //	图谱臂 W_GRAPH=0.15  事件图扩散（references 邻居 =「想起 A 带出 B」）
-//	置顶加成 W_PIN=0.10  固化条恒进结果（pinned 免疫休眠惩罚）
+//	置顶加成 W_PIN=0.10  固化条恒进结果（pinned 免疫休眠/衰减惩罚）
+//	休眠乘 dormant=0.55  衰减态（LifecycleDecaying）检索惩罚（Nebula dormant）
+//	衰减乘 decay  ∈[0.01,1] 稳定性感知新鲜度（RecallDecayFactor，P2）
 //
 // 权重和=1；final ∈ [0,1]。休眠惩罚乘子（Nebula dormant 0.55 蒸馏）由 P2
 // 的访问动力学接线——刀 A 固定传 false，字段先行避免契约二次变更。
@@ -53,7 +56,11 @@ type RecallFuseInput struct {
 	Semantic float64
 	Graph    float64
 	Pinned   bool
-	Dormant  bool // 休眠惩罚乘子开关（P2 接线；刀 A 恒 false）
+	Dormant  bool // 休眠惩罚乘子开关（衰减态=LifecycleDecaying；pinned 豁免）
+	// Decay 稳定性感知新鲜度因子 ∈ [0.01,1]（RecallDecayFactor 装配值）。
+	// 契约：装配层恒填（零值=未提供，按 1 兼容直构调用方/旧测试）——合法
+	// 计算值下限 0.01，永不合法地为 0。
+	Decay float64
 }
 
 // RecallFusedHit 融合命中（分量+加权分+臂归因——可解释性的 wire 面）。
@@ -64,6 +71,7 @@ type RecallFusedHit struct {
 	Graph    float64
 	Pinned   bool
 	Dormant  bool
+	Decay    float64
 	Arms     []string
 	Final    float64
 }
@@ -94,6 +102,13 @@ func FuseRecallArms(in []RecallFuseInput) []RecallFusedHit {
 		if it.Dormant && !it.Pinned {
 			penalty = DormantPenalty
 		}
+		decay := 1.0
+		if it.Decay > 0 {
+			decay = clamp01(it.Decay)
+			if it.Pinned {
+				decay = 1.0 // pinned 免疫衰减（RecallDecayFactor 同口径，双保险）
+			}
+		}
 		arms := make([]string, 0, 4)
 		if lex > 0 {
 			arms = append(arms, RecallArmLexical)
@@ -114,8 +129,9 @@ func FuseRecallArms(in []RecallFuseInput) []RecallFusedHit {
 			Graph:    graph,
 			Pinned:   it.Pinned,
 			Dormant:  it.Dormant,
+			Decay:    decay,
 			Arms:     arms,
-			Final:    (base + bonus) * penalty,
+			Final:    (base + bonus) * penalty * decay,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {

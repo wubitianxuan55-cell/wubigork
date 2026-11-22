@@ -60,6 +60,8 @@ export function GaeaMemoryMorningBrief():Promise<string>;
 
 export function GaeaMemoryPin(arg1:string,arg2:boolean):Promise<void>;
 
+export function GaeaMemoryRecall(arg1:string,arg2:number):Promise<app.MemoryRecallView>;
+
 export function GaeaMemorySemanticGraph():Promise<app.SemanticGraphView>;
 
 export function GaeaMemorySetRetentionDays(arg1:number):Promise<void>;

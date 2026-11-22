@@ -333,6 +333,14 @@ export function OfficeMemoryLibrary() {
               {lifecycle.decaying.length > 0 && (
                 <span title={lifecycle.decaying.slice(0, 5).map((d) => d.title || d.name).join("、") + (lifecycle.decaying.length > 5 ? " 等" : "")}>
                   最久未用：{(lifecycle.decaying[0].title || lifecycle.decaying[0].name)}
+              {lifecycle.decaying.length > 0 && (
+                <span
+                  className="text-fg-faint/70"
+                  title={"休眠记忆在星云召回中打 ×0.55 惩罚（引用增长稳定性：30d×1.5^引用，封顶 240d）"}
+                >
+                  休眠惩罚 ×0.55
+                </span>
+              )}
                 </span>
               )}
             </div>
@@ -585,6 +593,14 @@ export function OfficeMemoryLibrary() {
                   <span className="text-fg-dim">{d.dupTitle}</span>
                 </span>
                 <span className="shrink-0 text-fg-faint text-[10.5px]">{Math.round(d.score * 100)}%</span>
+                {d.source && (
+                  <span
+                    className="shrink-0 px-1.5 rounded text-[10px] leading-5 bg-accent/10 text-accent"
+                    title={d.source === "vector" ? "语义向量同义（Nebula 蒸馏向量臂 ≥0.85，词法抓不到的换说法重复）" : "词法相似（textsim）"}
+                  >
+                    {d.source === "vector" ? "向量" : "词法"}
+                  </span>
+                )}
                 <button
                   className="shrink-0 px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 disabled:opacity-50"
                   disabled={merging !== null}

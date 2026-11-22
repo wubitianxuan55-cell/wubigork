@@ -2826,6 +2826,7 @@ export namespace app {
 	    dup: string;
 	    dupTitle: string;
 	    score: number;
+	    source?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MemoryDuplicateView(source);
@@ -2838,6 +2839,7 @@ export namespace app {
 	        this.dup = source["dup"];
 	        this.dupTitle = source["dupTitle"];
 	        this.score = source["score"];
+	        this.source = source["source"];
 	    }
 	}
 	export class MemoryEvalReport {
@@ -2990,6 +2992,9 @@ export namespace app {
 	    score: number;
 	    daysIdle: number;
 	    lastUsedAt?: string;
+	    stabilityDays: number;
+	    citeCount: number;
+	    dormant?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MemoryLifecycleItem(source);
@@ -3006,6 +3011,9 @@ export namespace app {
 	        this.score = source["score"];
 	        this.daysIdle = source["daysIdle"];
 	        this.lastUsedAt = source["lastUsedAt"];
+	        this.stabilityDays = source["stabilityDays"];
+	        this.citeCount = source["citeCount"];
+	        this.dormant = source["dormant"];
 	    }
 	}
 	export class MemoryLifecycleView {
@@ -3028,6 +3036,70 @@ export namespace app {
 	        this.archivedCount = source["archivedCount"];
 	        this.retentionDays = source["retentionDays"];
 	        this.staleAfterDays = source["staleAfterDays"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MemoryRecallHit {
+	    name: string;
+	    title: string;
+	    kind: string;
+	    type: string;
+	    space: string;
+	    preview: string;
+	    score: number;
+	    arms: string[];
+	    pinned: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MemoryRecallHit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.kind = source["kind"];
+	        this.type = source["type"];
+	        this.space = source["space"];
+	        this.preview = source["preview"];
+	        this.score = source["score"];
+	        this.arms = source["arms"];
+	        this.pinned = source["pinned"];
+	    }
+	}
+	export class MemoryRecallView {
+	    query: string;
+	    total: number;
+	    hits: MemoryRecallHit[];
+	    degraded?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new MemoryRecallView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.query = source["query"];
+	        this.total = source["total"];
+	        this.hits = this.convertValues(source["hits"], MemoryRecallHit);
+	        this.degraded = source["degraded"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

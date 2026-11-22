@@ -122,6 +122,10 @@ func (a *App) GaeaMemoryRecall(query string, limit int) MemoryRecallView {
 	}
 
 	// ── 融合输入：任一臂命中或置顶的记忆参与；失效条目排除（注入面同口径）。
+	// P2 访问动力学：休眠=衰减态（LifecycleDecaying ×0.55）、decay=稳定性感知
+	// 新鲜度（引用次数长稳定性——被经常引用的记忆衰减慢）。
+	citeCounts := ms.CiteCounts()
+	now := time.Now()
 	inputs := make([]memory.RecallFuseInput, 0, len(lexHits)+len(semHits)+len(graphHits))
 	for name, m := range byName {
 		lex, sem, graph := lexHits[name], semHits[name], graphHits[name]
@@ -131,7 +135,15 @@ func (a *App) GaeaMemoryRecall(query string, limit int) MemoryRecallView {
 		if !m.InvalidAt.IsZero() {
 			continue
 		}
-		inputs = append(inputs, memory.RecallFuseInput{Name: name, Lexical: lex, Semantic: sem, Graph: graph, Pinned: m.Pinned})
+		inputs = append(inputs, memory.RecallFuseInput{
+			Name:     name,
+			Lexical:  lex,
+			Semantic: sem,
+			Graph:    graph,
+			Pinned:   m.Pinned,
+			Dormant:  memory.LifecycleOf(m, now, 0) == memory.LifecycleDecaying,
+			Decay:    memory.RecallDecayFactor(m, citeCounts[name], now),
+		})
 	}
 	fused := memory.FuseRecallArms(inputs)
 	if len(fused) > limit {
@@ -170,24 +182,36 @@ func (a *App) GaeaMemoryRecall(query string, limit int) MemoryRecallView {
 // recallOfficeVecHits 语义臂装配：office 单库 Ensure（缓存口径：向量条数与
 // 源文档数一致时直接 SearchReady，只嵌 query）+ 查询。
 func (a *App) recallOfficeVecHits(e *retrieval.Embedder, st *semantic.Store, q string, mems []memory.Memory, topN int) ([]semantic.Hit, error) {
+	if err := a.ensureOfficeVectorIndex(context.Background(), e, st, mems); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	return st.SearchReady(ctx, e, "office", q, topN)
+}
+
+// ensureOfficeVectorIndex office 向量索引 Ensure（缓存口径：向量条数与源文档
+// 数一致=已就绪跳过；不一致=数据有增删，增量重嵌）。星云召回语义臂与向量
+// 巩固臂共用（ensure 内部自带超时，调用方 ctx 仅作父级）。
+func (a *App) ensureOfficeVectorIndex(parent context.Context, e *retrieval.Embedder, st *semantic.Store, mems []memory.Memory) error {
+	if len(mems) == 0 {
+		return nil
+	}
 	docs := make([]semantic.Doc, 0, len(mems))
 	for _, m := range mems {
 		docs = append(docs, semantic.Doc{ID: m.Name, Text: m.Title + " " + m.Description + " " + m.Body})
 	}
 	counts, err := st.Counts()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if len(docs) > 0 && counts["office"] != len(docs) {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		defer cancel()
-		if _, err := st.Ensure(ctx, e, "office", docs); err != nil {
-			return nil, err
-		}
+	if counts["office"] == len(docs) {
+		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 90*time.Second)
 	defer cancel()
-	return st.SearchReady(ctx, e, "office", q, topN)
+	_, err = st.Ensure(ctx, e, "office", docs)
+	return err
 }
 
 // recallTopSeeds 词法/语义命中合并取前 N（同条取两臂最高分；确定性排序）。

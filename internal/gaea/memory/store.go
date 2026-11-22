@@ -354,6 +354,31 @@ func (s Store) Unpin(name string) error { return s.engine().Unpin(name) }
 // SQLite 后端落 memory_events 日志；文件后端明确报错（Pin 先例）。
 func (s Store) AppendFeedbackEvent(e Event) error { return s.engine().AppendFeedbackEvent(e) }
 
+// CiteCounts 返回各记忆的引用事件计数（op=cite，memory_events 聚合）：
+// 星云召回稳定性（StabilityDays）的数据源。键=name；SQLite 后端聚合查询，
+// file 后端返回 nil（无事件日志，调用方按零引用处理）。只读，不触达。
+func (s Store) CiteCounts() map[string]int {
+	b, ok := s.engine().(*sqliteBackend)
+	if !ok {
+		return nil
+	}
+	rows, err := b.db.Query(`SELECT name, COUNT(*) FROM memory_events WHERE op = 'cite' GROUP BY name`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var name string
+		var n int
+		if err := rows.Scan(&name, &n); err != nil {
+			return out
+		}
+		out[name] = n
+	}
+	return out
+}
+
 // InSpace 返回按空间收窄**读路径**的 Store 视图（S1.2 B「spaceList 风格单点」
 // 的视图形态）：space 非空时 List/Index/Get/Touch 只作用于该空间（SQLite 走
 // space_id 谓词；file 后端目录隔离、与全量等价）；写路径仍以 Memory.Space
