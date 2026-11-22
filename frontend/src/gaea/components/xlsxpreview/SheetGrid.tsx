@@ -148,7 +148,7 @@ export function SheetGrid({
           <tr>
             <th
               className="sticky top-0 left-0 z-30 w-8 min-w-[32px] px-1 py-1 text-center text-[10px] text-fg-faint font-normal"
-              style={{ background: "var(--bg-elevated, #181b21)", border: "1px solid rgba(128,128,140,0.16)", height: TH_H }}
+               style={{ background: "var(--gaea-surface-high)", border: "1px solid var(--gaea-line-hairline)", height: TH_H }}
             />
             {headerCells.map((l) => (
               <th
@@ -158,8 +158,8 @@ export function SheetGrid({
                   selectedCol === l ? "text-accent" : "text-fg-faint hover:text-fg"
                 }`}
                 style={{
-                  background: selectedCol === l ? "var(--accent-soft, rgba(99,102,241,0.12))" : "var(--bg-elevated, #181b21)",
-                  border: "1px solid rgba(128,128,140,0.16)",
+                   background: selectedCol === l ? "var(--gaea-accent-soft)" : "var(--gaea-surface-high)",
+                   border: "1px solid var(--gaea-line-hairline)",
                   minWidth: 56,
                   height: TH_H,
                 }}
@@ -181,8 +181,8 @@ export function SheetGrid({
               <td
                 className="sticky left-0 z-10 px-1 py-0.5 text-center text-[10px] text-fg-faint"
                 style={{
-                  background: "var(--bg-elevated, #181b21)",
-                  border: "1px solid rgba(128,128,140,0.16)",
+                   background: "var(--gaea-surface-high)",
+                   border: "1px solid var(--gaea-line-hairline)",
                   ...(freezeRow > 0 && r <= freezeRow
                     ? { top: TH_H + (r - 1) * ROW_H, zIndex: 25, height: ROW_H, overflow: "hidden" as const }
                     : {}),
@@ -208,7 +208,7 @@ export function SheetGrid({
                     : isFrozenRow
                       ? "var(--bg)"
                       : isColSelected
-                        ? "var(--accent-soft, rgba(99,102,241,0.06))"
+                         ? "var(--gaea-accent-soft)"
                         : undefined;
                 return (
                   <td
@@ -226,7 +226,7 @@ export function SheetGrid({
                       selected === ref ? "outline outline-2 outline-accent" : ""
                     } ${isFrozenRow ? "sticky" : ""}`}
                     style={{
-                      border: "1px solid rgba(128,128,140,0.16)",
+                       border: "1px solid var(--gaea-line-hairline)",
                       minWidth: sheet.colWidths?.[letter] ? sheet.colWidths[letter] * 7 : 56,
                       ...(isFrozenRow
                         ? { top: TH_H + (r - 1) * ROW_H, zIndex: 12, height: ROW_H, overflow: "hidden" as const }

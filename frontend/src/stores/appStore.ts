@@ -1,275 +1,136 @@
-import { wailsApp } from '../lib/wailsApp';
+import { wailsApp } from '../lib/wailsApp'
 import { create } from 'zustand'
 import { isShellSpace, type ShellSpace } from '../boards/space'
 import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
+import {
+  FEATURED_THEME_KEYS,
+  FEATURED_THEME_PRESETS,
+  THEME_PRESET_COLORS,
+  THEME_PRESET_KEYS,
+  THEME_PRESET_LABELS,
+  THEME_PRESETS,
+  isThemePreset,
+  type ThemePreset,
+  type ThemePresetMeta,
+} from '../theme/bloomPalette'
+import { getBloomThemeTokens, type ThemeTokens } from '../theme/tokens'
 
-// ═══════════════════════════════════════════════════════════
-// Types（ProjectInfo/StatsData/ProjectCard 随小说板块退役拆除，2026-11-15）
-// ═══════════════════════════════════════════════════════════
-
-// 暗夜系列 — 7套精心调色（v10 新增「天玄」：玄穹墨蓝 + 月华金，首页卡片工作台的母题）
-export type ThemePreset = 'nightJade' | 'nightViolet' | 'nightRose' | 'nightAmber' | 'nightMoss' | 'nightSlate' | 'tianXuan'
-
-// 主题元数据单一数据源（3.0 Wave 2：MainLayout 色点 / AppearancePanel 选择卡从此派生，
-// 消除三处重复维护——appStore 色板表 + MainLayout themeDots + AppearancePanel themeOptions）。
-export interface ThemePresetMeta {
-  key: ThemePreset
-  label: string
-  desc: string
-  /** 暗色主色（色点/预览用；与 getThemeTokens(preset, true).colorPrimary 一致） */
-  color: string
-}
-
-export const THEME_PRESETS: ThemePresetMeta[] = [
-  { key: 'nightJade',   label: '暗夜青', desc: '深海翡翠 · 冷静专注', color: '#2dd4bf' },
-  { key: 'nightViolet', label: '暗夜紫', desc: '深靛星云 · 灵感涌动', color: '#a78bfa' },
-  { key: 'nightRose',   label: '暗夜玫', desc: '深褐暖调 · 温情创作', color: '#fb7185' },
-  { key: 'nightAmber',  label: '暗夜金', desc: '深色暖灯 · 沉浸舒适', color: '#f59e0b' },
-  { key: 'nightMoss',   label: '暗夜苔', desc: '深色林间 · 自然舒适', color: '#84cc16' },
-  { key: 'nightSlate',  label: '暗夜墨', desc: '中性深灰 · 极简克制', color: '#94a3b8' },
-  { key: 'tianXuan',    label: '天玄',   desc: '玄穹墨蓝 · 月华为记', color: '#d9b26a' },
-]
-
-/** 主题色点查表（MainLayout 等轻量消费，避免逐次 find） */
-export const THEME_PRESET_COLORS: Record<ThemePreset, string> = Object.fromEntries(
-  THEME_PRESETS.map((t) => [t.key, t.color]),
-) as Record<ThemePreset, string>
-
-export const THEME_PRESET_LABELS: Record<ThemePreset, string> = Object.fromEntries(
-  THEME_PRESETS.map((t) => [t.key, t.label]),
-) as Record<ThemePreset, string>
-
-export interface ThemeTokens {
-  colorPrimary: string; onPrimary: string; primaryContainer: string; onPrimaryContainer: string
-  surface: string; onSurface: string; surfaceVariant: string; onSurfaceVariant: string
-  surfaceContainer: string; surfaceContainerHigh: string; surfaceContainerHighest: string
-  surfaceDim: string; surfaceBright: string
-  outline: string; outlineVariant: string
-  colorBgContainer: string; colorBgLayout: string
-  colorText: string; colorTextSecondary: string; colorTextTertiary: string; colorBorder: string
-  colorSuccess: string; colorWarning: string
-  colorDestructive: string  // 破坏性操作红（危险确认/删除/失败态），12 主题统一语义
-  elevation1: string; elevation2: string; elevation3: string; elevation4: string; elevation5: string
-  radiusSm: string; radiusMd: string; radiusLg: string; radiusXl: string
-  transitionFast: string; transitionNormal: string; transitionSlow: string
-  accentRgb: string
-  // ── 未来感扩展令牌 ──
-  glow: string            // 霓虹光晕色（比 primary 更亮，用于 box-shadow / 文字发光）
-  glassBg: string         // 玻璃拟态表面（半透明）
-  auroraBg: string        // 深空星云渐变背景（完整 background 值）
-  // ── M3 tertiary 角色（v4.183：闲庭暖伴侣色母题，与 primary 冷暖区分）──
-  tertiaryContainer: string
-  onTertiaryContainer: string
-  // ── 壳层侧栏底（2026-10 §7.6 shellSidebar 派生）：暗态比画布暗一档、亮态
-  //    暖灰压灰——「侧栏后退，画布是主角」（Claude 改版教训的反向应用）。
-  //    派生层实现，不改 7×2 主题表。──
-  shellSidebar: string
-}
-
-// ═══════════════════════════════════════════════════════════
-// Shared
-// ═══════════════════════════════════════════════════════════
-
-const dS = { elevation1:'0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15)', elevation2:'0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15)', elevation3:'0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15)', elevation4:'0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15)', elevation5:'0 8px 24px rgba(0,0,0,0.45), 0 4px 12px rgba(0,0,0,0.2)', radiusSm:'8px', radiusMd:'12px', radiusLg:'16px', radiusXl:'28px', transitionFast:'200ms cubic-bezier(0.2,0,0,1)', transitionNormal:'300ms cubic-bezier(0.2,0,0,1)', transitionSlow:'400ms cubic-bezier(0.2,0,0,1)', colorDestructive:'#ef4444' }
-const lS = { elevation1:'0 1px 2px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04)', elevation2:'0 1px 2px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)', elevation3:'0 4px 8px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.04)', elevation4:'0 6px 12px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.04)', elevation5:'0 8px 24px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08)', radiusSm:'8px', radiusMd:'12px', radiusLg:'16px', radiusXl:'28px', transitionFast:'200ms cubic-bezier(0.2,0,0,1)', transitionNormal:'300ms cubic-bezier(0.2,0,0,1)', transitionSlow:'400ms cubic-bezier(0.2,0,0,1)', colorDestructive:'#dc2626' }
-
-// ═══════════════════════════════════════════════════════════
-// 6 Dark Themes
-// ═══════════════════════════════════════════════════════════
-
-// 暗夜青 · Night Jade — 深海翡翠
-const nightJadeD = (): Partial<ThemeTokens> => ({ surface:'#0a1014',surfaceDim:'#060b0e',surfaceBright:'#1a2b34',surfaceContainer:'#0f1a20',surfaceContainerHigh:'#14242e',surfaceContainerHighest:'#1b2f3a',surfaceVariant:'#152530',colorPrimary:'#2dd4bf',onPrimary:'#042f2e',primaryContainer:'#134e4a',onPrimaryContainer:'#99f6e4',onSurface:'#e2e8f0',onSurfaceVariant:'#94a3b8',colorText:'#e2e8f0',colorTextSecondary:'#94a3b8',colorTextTertiary:'#8b93a0',outline:'rgba(45,212,191,0.15)',outlineVariant:'rgba(45,212,191,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#34d399',colorWarning:'#f59e0b',colorBgContainer:'#0f1a20',colorBgLayout:'#0a1014',accentRgb:'45,212,191',glow:'#5eead4',glassBg:'rgba(15,26,32,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(45,212,191,0.14), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(20,184,166,0.12), transparent 55%), radial-gradient(700px 500px at 75% 15%, rgba(14,165,233,0.08), transparent 50%), linear-gradient(160deg, #0a1014 0%, #0e1a22 50%, #081218 100%)',...dS })
-
-// 暗夜紫 · Night Violet — 深靛星云
-const nightVioletD = (): Partial<ThemeTokens> => ({ surface:'#0d0e18',surfaceDim:'#06070f',surfaceBright:'#1d1e30',surfaceContainer:'#12131e',surfaceContainerHigh:'#181928',surfaceContainerHighest:'#1f2034',surfaceVariant:'#1a1b2e',colorPrimary:'#a78bfa',onPrimary:'#1e1040',primaryContainer:'#3b2970',onPrimaryContainer:'#ddd6fe',onSurface:'#e2e0f0',onSurfaceVariant:'#9898b8',colorText:'#e2e0f0',colorTextSecondary:'#9898b8',colorTextTertiary:'#8b93a0',outline:'rgba(167,139,250,0.15)',outlineVariant:'rgba(167,139,250,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#a3e635',colorWarning:'#fbbf24',colorBgContainer:'#12131e',colorBgLayout:'#0d0e18',accentRgb:'167,139,250',glow:'#c4b5fd',glassBg:'rgba(18,19,30,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(167,139,250,0.16), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(99,102,241,0.13), transparent 55%), radial-gradient(700px 500px at 70% 15%, rgba(217,70,239,0.07), transparent 50%), linear-gradient(160deg, #0d0e18 0%, #131430 50%, #0a0b16 100%)',...dS })
-
-// 暗夜玫 · Night Rose — 深褐暖调
-const nightRoseD = (): Partial<ThemeTokens> => ({ surface:'#120c0d',surfaceDim:'#080506',surfaceBright:'#24181a',surfaceContainer:'#181012',surfaceContainerHigh:'#1f1417',surfaceContainerHighest:'#271a1d',surfaceVariant:'#1c1417',colorPrimary:'#fb7185',onPrimary:'#400c17',primaryContainer:'#64203b',onPrimaryContainer:'#fecdd3',onSurface:'#ede0e2',onSurfaceVariant:'#b8989c',colorText:'#ede0e2',colorTextSecondary:'#b8989c',colorTextTertiary:'#8b93a0',outline:'rgba(251,113,133,0.15)',outlineVariant:'rgba(251,113,133,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#34d399',colorWarning:'#fbbf24',colorBgContainer:'#181012',colorBgLayout:'#120c0d',accentRgb:'251,113,133',glow:'#fda4af',glassBg:'rgba(24,16,18,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(251,113,133,0.14), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(244,63,94,0.12), transparent 55%), radial-gradient(700px 500px at 70% 15%, rgba(236,72,153,0.07), transparent 50%), linear-gradient(160deg, #120c0d 0%, #1d1016 50%, #0e090b 100%)',...dS })
-
-// 暗夜金 · Night Amber — 深色暖灯
-const nightAmberD = (): Partial<ThemeTokens> => ({ surface:'#100f0a',surfaceDim:'#070603',surfaceBright:'#222015',surfaceContainer:'#15140e',surfaceContainerHigh:'#1c1a12',surfaceContainerHighest:'#242118',surfaceVariant:'#191812',colorPrimary:'#f59e0b',onPrimary:'#331c00',primaryContainer:'#594015',onPrimaryContainer:'#fde68a',onSurface:'#e6e0d4',onSurfaceVariant:'#b8b098',colorText:'#e6e0d4',colorTextSecondary:'#b8b098',colorTextTertiary:'#8b93a0',outline:'rgba(245,158,11,0.15)',outlineVariant:'rgba(245,158,11,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#a3e635',colorWarning:'#f59e0b',colorBgContainer:'#15140e',colorBgLayout:'#100f0a',accentRgb:'245,158,11',glow:'#fcd34d',glassBg:'rgba(21,20,14,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(245,158,11,0.13), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(249,115,22,0.10), transparent 55%), radial-gradient(700px 500px at 70% 15%, rgba(250,204,21,0.06), transparent 50%), linear-gradient(160deg, #100f0a 0%, #1a1608 50%, #0c0b07 100%)',...dS })
-
-// 暗夜苔 · Night Moss — 深色林间
-const nightMossD = (): Partial<ThemeTokens> => ({ surface:'#0a100f',surfaceDim:'#040807',surfaceBright:'#182420',surfaceContainer:'#0e1513',surfaceContainerHigh:'#131b18',surfaceContainerHighest:'#19221f',surfaceVariant:'#121a17',colorPrimary:'#84cc16',onPrimary:'#0a2000',primaryContainer:'#27500a',onPrimaryContainer:'#d9f99d',onSurface:'#dce4e0',onSurfaceVariant:'#9cb0a4',colorText:'#dce4e0',colorTextSecondary:'#9cb0a4',colorTextTertiary:'#8b93a0',outline:'rgba(132,204,22,0.15)',outlineVariant:'rgba(132,204,22,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#84cc16',colorWarning:'#fbbf24',colorBgContainer:'#0e1513',colorBgLayout:'#0a100f',accentRgb:'132,204,22',glow:'#a3e635',glassBg:'rgba(14,21,19,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(132,204,22,0.13), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(101,163,13,0.11), transparent 55%), radial-gradient(700px 500px at 70% 15%, rgba(163,230,53,0.06), transparent 50%), linear-gradient(160deg, #0a100f 0%, #10180e 50%, #070c0a 100%)',...dS })
-
-// 暗夜墨 · Night Slate — 极简灰
-const nightSlateD = (): Partial<ThemeTokens> => ({ surface:'#0c0d10',surfaceDim:'#060608',surfaceBright:'#1e1f24',surfaceContainer:'#111216',surfaceContainerHigh:'#16171c',surfaceContainerHighest:'#1d1e23',surfaceVariant:'#15161b',colorPrimary:'#94a3b8',onPrimary:'#0f172a',primaryContainer:'#334155',onPrimaryContainer:'#cbd5e1',onSurface:'#e0e2e6',onSurfaceVariant:'#9ca3af',colorText:'#e0e2e6',colorTextSecondary:'#9ca3af',colorTextTertiary:'#8b93a0',outline:'rgba(148,163,184,0.15)',outlineVariant:'rgba(148,163,184,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#86efac',colorWarning:'#fbbf24',colorBgContainer:'#111216',colorBgLayout:'#0c0d10',accentRgb:'148,163,184',glow:'#cbd5e1',glassBg:'rgba(17,18,22,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(148,163,184,0.13), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(100,116,139,0.11), transparent 55%), radial-gradient(700px 500px at 70% 15%, rgba(56,189,248,0.05), transparent 50%), linear-gradient(160deg, #0c0d10 0%, #13151b 50%, #090a0d 100%)',...dS })
-
-// 天玄 · Tianxuan — 玄穹墨蓝（v10）：底色取「天地玄黄」之玄（墨蓝近黑，非纯黑），
-// 唯一强调色=月华金（低饱和暖金，夜空里的月亮），星霜蓝只作次级容器（闲庭母题）。
-// 首页卡片工作台（w-/p- 双空间）即以此母题设计：墨蓝穹顶 + 金线 + 留白。
-const tianXuanD = (): Partial<ThemeTokens> => ({ surface:'#05070f',surfaceDim:'#03050a',surfaceBright:'#1d2743',surfaceContainer:'#0e1528',surfaceContainerHigh:'#151f3a',surfaceContainerHighest:'#1c2748',surfaceVariant:'#111a31',colorPrimary:'#d9b26a',onPrimary:'#231a08',primaryContainer:'#3d3117',onPrimaryContainer:'#f6e3b8',onSurface:'#e5e9f6',onSurfaceVariant:'#a3adc7',colorText:'#e5e9f6',colorTextSecondary:'#a3adc7',colorTextTertiary:'#8b93a0',outline:'rgba(217,178,106,0.22)',outlineVariant:'rgba(217,178,106,0.10)',colorBorder:'rgba(255,255,255,0.07)',colorSuccess:'#5fd8a4',colorWarning:'#e0a94f',colorBgContainer:'#101830',colorBgLayout:'#05070f',accentRgb:'217,178,106',glow:'#f0d193',glassBg:'rgba(16,24,48,0.62)',auroraBg:'radial-gradient(1200px 760px at 12% -6%, rgba(217,178,106,0.13), transparent 62%), radial-gradient(900px 620px at 88% 108%, rgba(86,120,214,0.16), transparent 58%), radial-gradient(640px 440px at 72% 12%, rgba(168,196,255,0.07), transparent 52%), linear-gradient(160deg, #05080f 0%, #0a1020 52%, #060911 100%)',...dS })
-
-// ═══════════════════════════════════════════════════════════
-// 6 Light Themes
-// ═══════════════════════════════════════════════════════════
-// ⚠️ 亮态令牌对比度契约（v4.349 起由 appStore.contrast.test.ts 机检锁定）：
-// colorText / colorTextSecondary / colorTextTertiary / colorPrimary / colorSuccess / colorWarning
-// 必须在本预设的 surface 与 colorBgContainer(#fff) 上 ≥ 4.5:1（WCAG AA 正文）。
-// 原先 colorPrimary(Jade/Rose/Amber) 与 colorSuccess/colorWarning 直接沿用
-// Tailwind-600 亮阶，实测 2.90~3.74:1——亮态下 accent/成功/警示文字不可读
-// （不只装饰：character-library.css:35 计数标签、WhisperTracePanel 状态文字）。
-// 处置=按需下沉一档 Tailwind-700/800（同色相、只调明度），已达标者不动
-// （Violet 5.20 / Moss 4.82 / Slate 7.24 保持原值，避免无谓改色）。
-// tertiary 文本档（v4.362）：原 App.tsx 硬编码 dark '#8b93a0' / light '#6b7280'
-// 不在 lightFn、Violet 亮态 surface 仅 4.41:1 不达 AA；收敛进 ThemeTokens，
-// 亮态统一 '#5b6472'（全 surface ≥5.45，Violet 容器高层 4.65 亦过线），暗态原值平移。
-
-const nightJadeL = (): Partial<ThemeTokens> => ({ surface:'#f0fdf9',surfaceDim:'#d9f2e8',surfaceBright:'#f0fdf9',surfaceContainer:'#e6f8f2',surfaceContainerHigh:'#daf2ea',surfaceContainerHighest:'#ccede0',surfaceVariant:'#d2ebe0',colorPrimary:'#0f766e',onPrimary:'#fff',primaryContainer:'#ccfbf1',onPrimaryContainer:'#134e4a',onSurface:'#0f1a20',onSurfaceVariant:'#3d5a50',colorText:'#0f1a20',colorTextSecondary:'#3d5a50',colorTextTertiary:'#5b6472',outline:'rgba(13,148,136,0.25)',outlineVariant:'rgba(13,148,136,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f0fdf9',accentRgb:'15,118,110',glow:'#0f766e',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(45,212,191,0.16), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(20,184,166,0.12), transparent 55%), linear-gradient(160deg, #f0fdf9 0%, #e9faf4 50%, #f5fdfb 100%)',...lS })
-const nightVioletL = (): Partial<ThemeTokens> => ({ surface:'#f5f3ff',surfaceDim:'#e8e2f8',surfaceBright:'#f5f3ff',surfaceContainer:'#eeebf8',surfaceContainerHigh:'#e6e0f2',surfaceContainerHighest:'#dcd4ea',surfaceVariant:'#e0daf0',colorPrimary:'#7c3aed',onPrimary:'#fff',primaryContainer:'#ede9fe',onPrimaryContainer:'#2e1065',onSurface:'#1a1522',onSurfaceVariant:'#4a4060',colorText:'#1a1522',colorTextSecondary:'#4a4060',colorTextTertiary:'#5b6472',outline:'rgba(124,58,237,0.25)',outlineVariant:'rgba(124,58,237,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f5f3ff',accentRgb:'124,58,237',glow:'#7c3aed',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(124,58,237,0.12), transparent 55%), linear-gradient(160deg, #f5f3ff 0%, #ece7fb 50%, #faf9ff 100%)',...lS })
-const nightRoseL = (): Partial<ThemeTokens> => ({ surface:'#fff5f6',surfaceDim:'#fde8ec',surfaceBright:'#fff5f6',surfaceContainer:'#fbf0f2',surfaceContainerHigh:'#f5e4e8',surfaceContainerHighest:'#eed8de',surfaceVariant:'#f0e0e4',colorPrimary:'#be123c',onPrimary:'#fff',primaryContainer:'#ffe4e6',onPrimaryContainer:'#5c1024',onSurface:'#1f1215',onSurfaceVariant:'#5c3a40',colorText:'#1f1215',colorTextSecondary:'#5c3a40',colorTextTertiary:'#5b6472',outline:'rgba(225,29,72,0.25)',outlineVariant:'rgba(225,29,72,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#fff5f6',accentRgb:'190,18,60',glow:'#be123c',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(251,113,133,0.16), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(225,29,72,0.10), transparent 55%), linear-gradient(160deg, #fff5f6 0%, #fdeef0 50%, #fffafa 100%)',...lS })
-const nightAmberL = (): Partial<ThemeTokens> => ({ surface:'#fffdf5',surfaceDim:'#fef3e0',surfaceBright:'#fffdf5',surfaceContainer:'#faf5e8',surfaceContainerHigh:'#f2e8d4',surfaceContainerHighest:'#e8dcc0',surfaceVariant:'#eedcc0',colorPrimary:'#b45309',onPrimary:'#fff',primaryContainer:'#fef3c7',onPrimaryContainer:'#5c3800',onSurface:'#1c1810',onSurfaceVariant:'#5c4c30',colorText:'#1c1810',colorTextSecondary:'#5c4c30',colorTextTertiary:'#5b6472',outline:'rgba(217,119,6,0.25)',outlineVariant:'rgba(217,119,6,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#fffdf5',accentRgb:'180,83,9',glow:'#b45309',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(245,158,11,0.16), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(217,119,6,0.10), transparent 55%), linear-gradient(160deg, #fffdf5 0%, #fcf6e3 50%, #fffffa 100%)',...lS })
-const nightMossL = (): Partial<ThemeTokens> => ({ surface:'#f5fdf7',surfaceDim:'#ddf2e2',surfaceBright:'#f5fdf7',surfaceContainer:'#ebf8ef',surfaceContainerHigh:'#ddf2e4',surfaceContainerHighest:'#cde8d6',surfaceVariant:'#d8eadc',colorPrimary:'#4d7c0f',onPrimary:'#fff',primaryContainer:'#ecfccb',onPrimaryContainer:'#1a2e05',onSurface:'#101a15',onSurfaceVariant:'#3a4c3c',colorText:'#101a15',colorTextSecondary:'#3a4c3c',colorTextTertiary:'#5b6472',outline:'rgba(77,124,15,0.25)',outlineVariant:'rgba(77,124,15,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#4d7c0f',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f5fdf7',accentRgb:'77,124,15',glow:'#4d7c0f',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(132,204,22,0.16), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(77,124,15,0.10), transparent 55%), linear-gradient(160deg, #f5fdf7 0%, #ecf9ee 50%, #fbfefb 100%)',...lS })
-const nightSlateL = (): Partial<ThemeTokens> => ({ surface:'#f8fafc',surfaceDim:'#e2e8f0',surfaceBright:'#f8fafc',surfaceContainer:'#f1f5f9',surfaceContainerHigh:'#e6ecf2',surfaceContainerHighest:'#d9e2ea',surfaceVariant:'#e0e6ec',colorPrimary:'#475569',onPrimary:'#fff',primaryContainer:'#e2e8f0',onPrimaryContainer:'#1e293b',onSurface:'#0f172a',onSurfaceVariant:'#475569',colorText:'#0f172a',colorTextSecondary:'#475569',colorTextTertiary:'#5b6472',outline:'rgba(71,85,105,0.25)',outlineVariant:'rgba(71,85,105,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f8fafc',accentRgb:'71,85,105',glow:'#475569',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(148,163,184,0.18), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(100,116,139,0.12), transparent 55%), linear-gradient(160deg, #f8fafc 0%, #eef2f6 50%, #fcfdfe 100%)',...lS })
-
-// 天玄 · 月白（亮态）：月华落纸的冷白调，主色取深墨金 #8a5f16（白底/浅底 ≥5:1 达 AA）
-const tianXuanL = (): Partial<ThemeTokens> => ({ surface:'#f4f6fb',surfaceDim:'#e3e8f3',surfaceBright:'#ffffff',surfaceContainer:'#eaeef7',surfaceContainerHigh:'#dfe5f2',surfaceContainerHighest:'#d1d9ea',surfaceVariant:'#dde3f0',colorPrimary:'#8a5f16',onPrimary:'#fff',primaryContainer:'#f7ecd2',onPrimaryContainer:'#4a3410',onSurface:'#141a2b',onSurfaceVariant:'#48536b',colorText:'#141a2b',colorTextSecondary:'#48536b',colorTextTertiary:'#5b6472',outline:'rgba(138,95,22,0.25)',outlineVariant:'rgba(138,95,22,0.10)',colorBorder:'rgba(0,0,0,0.07)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f4f6fb',accentRgb:'138,95,22',glow:'#8a5f16',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(217,178,106,0.20), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(86,120,214,0.12), transparent 55%), linear-gradient(160deg, #f4f6fb 0%, #eaeff9 50%, #fbfcff 100%)',...lS })
-
-// ═══════════════════════════════════════════════════════════
-// Registry
-// ═══════════════════════════════════════════════════════════
-
-const darkFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeD, nightViolet:nightVioletD, nightRose:nightRoseD, nightAmber:nightAmberD, nightMoss:nightMossD, nightSlate:nightSlateD, tianXuan:tianXuanD }
-const lightFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeL, nightViolet:nightVioletL, nightRose:nightRoseL, nightAmber:nightAmberL, nightMoss:nightMossL, nightSlate:nightSlateL, tianXuan:tianXuanL }
-
-/**
- * M3 tertiary 角色表（v4.183）：每预设 × 明暗的「暖伴侣色」对
- * [tertiaryContainer, onTertiaryContainer]，getThemeTokens 合并注入、
- * App.tsx 下发 CSS 变量；闲庭（play）首页暖色母题与书斋工作蓝绿区分。
- * 深色档 = 深哑容器 + 亮 on 色；浅色档 = 浅粉彩容器 + 深 on 色（对齐 M3 明度关系）。
- */
-const TERTIARY: Record<ThemePreset, { dark: [string, string]; light: [string, string] }> = {
-  nightJade:   { dark: ['#4a3b16', '#fde68a'], light: ['#fef3c7', '#92400e'] },
-  nightViolet: { dark: ['#432243', '#f0abfc'], light: ['#fce7f3', '#9d174d'] },
-  nightRose:   { dark: ['#4d2b1a', '#fdba74'], light: ['#ffedd5', '#9a3412'] },
-  nightAmber:  { dark: ['#4d2033', '#fda4af'], light: ['#ffe4e6', '#9f1239'] },
-  nightMoss:   { dark: ['#46350f', '#fcd34d'], light: ['#fef9c3', '#854d0e'] },
-  nightSlate:  { dark: ['#3f3540', '#d8b4fe'], light: ['#f3e8ff', '#6b21a8'] },
-  // 天玄的次级容器走「星霜蓝」（夜空冷调），与月华金主色冷暖分工
-  tianXuan:    { dark: ['#1f2a4d', '#c2d3f8'], light: ['#e6ecfb', '#2b3f73'] },
-}
-
-/** hex 线性混合（a 与 b 按 weightB 权重，输出 #rrggbb）。仅供派生层用——
- *  主题表自身零字面量混合，保证对比度机检可直接解析。 */
-function mixHex(a: string, b: string, weightB: number): string {
-  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16))
-  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16))
-  const out = pa.map((va, i) => Math.round(va * (1 - weightB) + pb[i] * weightB))
-  return "#" + out.map((v) => v.toString(16).padStart(2, "0")).join("")
-}
-
-// §7.6 亮色暖纸映射（2026-10-29 拍板落地，派生层不改 7×2 主题表）：
-// 亮态表面统一压暖纸底——原型 §5.1 亮色调色板 #F4F2ED(画布)/#FBFAF7(卡面)/
-// #EDEAE3(容器)/#1E1C18(正文)，各预设保留 accent/语义色/tertiary 容器身份；
-// AA 由 appStore.contrast.test 全预设机检（含新底重算）。aurora 渐变保留预设
-// 色相辐条、仅把 linear 基底换暖纸——否则旧底色盖住 layout 映射（渐变是完整
-// background 值）。
-const WARM_LAYOUT = '#F4F2ED'
-const WARM_SURFACE = '#FBFAF7'
-const WARM_CONTAINER = '#EDEAE3'
-const WARM_TEXT = '#1E1C18'
-const WARM_GRAY = '#8a857c'
-
-function warmPaper(t: Partial<ThemeTokens>): Partial<ThemeTokens> {
-  const auroraHead = (t.auroraBg ?? '').split(', linear-gradient')[0]
-  return {
-    colorBgLayout: WARM_LAYOUT,
-    surface: WARM_SURFACE,
-    surfaceBright: WARM_SURFACE,
-    colorBgContainer: WARM_SURFACE,
-    surfaceContainer: WARM_CONTAINER,
-    surfaceContainerHigh: mixHex(WARM_CONTAINER, WARM_GRAY, 0.18),
-    surfaceContainerHighest: mixHex(WARM_CONTAINER, WARM_GRAY, 0.34),
-    surfaceVariant: mixHex(WARM_CONTAINER, WARM_GRAY, 0.10),
-    surfaceDim: mixHex(WARM_LAYOUT, WARM_GRAY, 0.14),
-    onSurface: WARM_TEXT,
-    colorText: WARM_TEXT,
-    onSurfaceVariant: mixHex(WARM_TEXT, WARM_GRAY, 0.50),
-    colorTextSecondary: mixHex(WARM_TEXT, WARM_GRAY, 0.50),
-    colorTextTertiary: mixHex(WARM_TEXT, WARM_GRAY, 0.68),
-    glassBg: 'rgba(251,250,247,0.55)',
-    auroraBg: `${auroraHead}, linear-gradient(160deg, #F4F2ED 0%, #EFEBE3 50%, #FBFAF7 100%)`,
-  }
+export {
+  FEATURED_THEME_KEYS,
+  FEATURED_THEME_PRESETS,
+  THEME_PRESET_COLORS,
+  THEME_PRESET_KEYS,
+  THEME_PRESET_LABELS,
+  THEME_PRESETS,
+  type ThemePreset,
+  type ThemePresetMeta,
+  type ThemeTokens,
 }
 
 export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens {
-  const fn = darkMode ? darkFn[base] : lightFn[base]
-  const [tertiaryContainer, onTertiaryContainer] = TERTIARY[base][darkMode ? 'dark' : 'light']
-  let t = fn()
-  if (!darkMode) t = { ...t, ...warmPaper(t) } // §7.6 亮色暖纸（暗态零触碰）
-  // shellSidebar 派生（§7.6）：暗态 layout 掺黑 22%（后退=更暗，不变式有机检）；
-  // 亮态暖纸画布（#F4F2ED）本身比旧近白底深一档，再掺灰会把 Amber/Moss 主色
-  // 压破 AA（实测 4.27~4.29:1）——亮态改向卡面提亮后退（纸面嵌纸，
-  // mixHex(layout,#fff,0.6)≈#fbfaf8），「侧栏后退，画布是主角」不变量两侧都成立。
-  const layout = t.colorBgLayout!
-  const shellSidebar = darkMode ? mixHex(layout, "#000000", 0.22) : mixHex(layout, "#ffffff", 0.6)
-  return { ...t, tertiaryContainer, onTertiaryContainer, shellSidebar } as ThemeTokens
+  return getBloomThemeTokens(base, darkMode)
 }
 
 const THEME_KEY = 'gaea-theme'
-const LEGACY_THEME_KEY = 'wubigork-theme'
 const DARK_KEY = 'gaea-dark'
-const LEGACY_DARK_KEY = 'wubigork-dark'
 const MODE_KEY = 'gaea-display-mode'
 const DENSITY_KEY = 'gaea-density'
 const MOTION_KEY = 'gaea-motion'
 const ACCENT_KEY = 'gaea-accent'
 const FONT_KEY = 'gaea-font-family'
 const FONT_SIZE_KEY = 'gaea-font-size'
-// S2.1 双空间壳：壳层视图空间（工位/乐园）。独立于后端生效空间
-// （GaeaSpaceActive 管数据落点；本键管导航/首页/事件面呈现）。
+const SURFACE_KEY = 'gaea-surface-style'
+const SURFACE_RESTORE_KEY = 'gaea-surface-style-restore'
+const AMBIENCE_KEY = 'gaea-ambience-style'
 const SHELL_SPACE_KEY = 'gaea.shell.space'
 
-/** 预置界面字体（key → 完整 font-family 值） */
+/** Preset UI font families. */
 export const FONT_OPTIONS: { key: string; label: string; value: string }[] = [
-  { key: 'system',   label: '系统默认', value: "system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" },
-  { key: 'yahei',    label: '微软雅黑', value: "'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif" },
-  { key: 'noto',     label: '思源黑体', value: "'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
-  { key: 'songti',   label: '宋体衬线', value: "'SimSun', 'Songti SC', 'Noto Serif SC', serif" },
-  { key: 'mono',     label: '等宽字体', value: "'Cascadia Code', 'Consolas', 'JetBrains Mono', monospace" },
+  { key: 'system', label: '系统默认', value: "system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" },
+  { key: 'yahei', label: '微软雅黑', value: "'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif" },
+  { key: 'noto', label: '思源黑体', value: "'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
+  { key: 'songti', label: '宋体衬线', value: "'SimSun', 'Songti SC', 'Noto Serif SC', serif" },
+  { key: 'mono', label: '等宽字体', value: "'Cascadia Code', 'Consolas', 'JetBrains Mono', monospace" },
 ]
 
 function loadFontFamily(): string {
   try {
-    const v = localStorage.getItem(FONT_KEY)
-    if (v && FONT_OPTIONS.some((o) => o.key === v)) return v
-  } catch (_) {}
+    const value = localStorage.getItem(FONT_KEY)
+    if (value && FONT_OPTIONS.some((option) => option.key === value)) return value
+  } catch {}
   return 'system'
 }
+
 function loadFontSize(): number {
   try {
-    const v = parseInt(localStorage.getItem(FONT_SIZE_KEY) || '', 10)
-    if (v >= 12 && v <= 20) return v
-  } catch (_) {}
+    const value = Number.parseInt(localStorage.getItem(FONT_SIZE_KEY) || '', 10)
+    if (value >= 12 && value <= 20) return value
+  } catch {}
   return 14
 }
 
-/** 界面密度：standard 标准 / compact 紧凑 */
 export type Density = 'standard' | 'compact'
-/** 动效强度：full 完整 / reduced 减弱（可访问性） */
 export type MotionPref = 'full' | 'reduced'
+export type SurfaceStyle = 'veil' | 'soft' | 'solid'
+export type SurfaceBaseStyle = Exclude<SurfaceStyle, 'soft'>
+export type AmbienceStyle = 'bloom' | 'wash' | 'grid' | 'off'
 
 function loadDensity(): Density {
-  try { const v = localStorage.getItem(DENSITY_KEY); if (v === 'compact' || v === 'standard') return v } catch (_) {}
+  try {
+    const value = localStorage.getItem(DENSITY_KEY)
+    if (value === 'compact' || value === 'standard') return value
+  } catch {}
   return 'standard'
 }
+
 function loadMotion(): MotionPref {
-  try { const v = localStorage.getItem(MOTION_KEY); if (v === 'reduced' || v === 'full') return v } catch (_) {}
+  try {
+    const value = localStorage.getItem(MOTION_KEY)
+    if (value === 'reduced' || value === 'full') return value
+  } catch {}
   return 'full'
 }
+
+function loadSurfaceStyle(): SurfaceStyle {
+  try {
+    const value = localStorage.getItem(SURFACE_KEY)
+    if (value === 'veil' || value === 'soft' || value === 'solid') return value
+  } catch {}
+  return 'veil'
+}
+
+function loadSurfaceStyleBeforeGlass(): SurfaceBaseStyle {
+  try {
+    const value = localStorage.getItem(SURFACE_RESTORE_KEY)
+    if (value === 'veil' || value === 'solid') return value
+  } catch {}
+  return 'veil'
+}
+
+function loadAmbienceStyle(): AmbienceStyle {
+  try {
+    const value = localStorage.getItem(AMBIENCE_KEY)
+    if (value === 'bloom' || value === 'wash' || value === 'grid' || value === 'off') return value
+  } catch {}
+  return 'grid'
+}
+
 function loadAccent(): string {
-  try { return localStorage.getItem(ACCENT_KEY) || '' } catch (_) { return '' }
+  try {
+    return localStorage.getItem(ACCENT_KEY) || ''
+  } catch {
+    return ''
+  }
 }
 
 function loadShellSpace(): ShellSpace {
   try {
-    const v = localStorage.getItem(SHELL_SPACE_KEY)
-    if (isShellSpace(v)) return v
-  } catch (_) {}
+    const value = localStorage.getItem(SHELL_SPACE_KEY)
+    if (isShellSpace(value)) return value
+  } catch {}
   return 'work'
 }
 
-/** 显示模式：light/dark/system（system = 跟随操作系统明暗） */
 export type DisplayMode = 'light' | 'dark' | 'system'
 
 function resolveDark(mode: DisplayMode, systemDark: boolean): boolean {
@@ -277,61 +138,65 @@ function resolveDark(mode: DisplayMode, systemDark: boolean): boolean {
 }
 
 function systemPrefersDark(): boolean {
-  try { return window.matchMedia('(prefers-color-scheme: dark)').matches } catch (_) { return true }
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  } catch {
+    return true
+  }
 }
 
 function loadMode(): DisplayMode {
   try {
-    const v = localStorage.getItem(MODE_KEY)
-    if (v === 'light' || v === 'dark' || v === 'system') return v
-    // 兼容旧版 boolean（'1'=暗 '0'=亮）
-    const legacy = localStorage.getItem(DARK_KEY) ?? localStorage.getItem(LEGACY_DARK_KEY)
+    const value = localStorage.getItem(MODE_KEY)
+    if (value === 'light' || value === 'dark' || value === 'system') return value
+    const legacy = localStorage.getItem(DARK_KEY)
     if (legacy === '0') return 'light'
-  } catch (_) {}
+  } catch {}
   return 'dark'
 }
 
-function loadBase(): ThemePreset {
+function loadBaseTheme(): ThemePreset {
   try {
-    const v = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_THEME_KEY)
-    if (v && v in darkFn) return v as ThemePreset
-  } catch (_) {}
-  return 'nightJade'
+    const value = localStorage.getItem(THEME_KEY)
+    if (isThemePreset(value)) return value
+    if (value) localStorage.removeItem(THEME_KEY)
+  } catch {}
+  return 'ripple'
 }
 
 interface AppState {
   loggedIn: boolean
-  /** 当前打开的小说项目路径（2026-11-15 书架随小说板块退役后无写入方，恒 ''；
-   *  角色库「加入项目」门控仍消费——字段保留，opener 挂池待拍板）。 */
   projectPath: string
-  baseTheme: ThemePreset      // 色系（暗色名）
-  mode: DisplayMode            // light/dark/system
-  systemDark: boolean          // 操作系统当前明暗（matchMedia）
-  darkMode: boolean            // 派生实际明暗：system 时跟随 systemDark
-  density: Density             // 界面密度 standard/compact
-  motion: MotionPref           // 动效强度 full/reduced
-  accentColor: string          // 强调色自定义（'' = 跟随主题）
-  fontFamily: string           // 界面字体预设 key（FONT_OPTIONS）
-  fontSize: number             // 界面字号 12-20
-  space: ShellSpace            // S2.1 壳层视图空间（工位/乐园，持久化）
+  baseTheme: ThemePreset
+  mode: DisplayMode
+  systemDark: boolean
+  darkMode: boolean
+  density: Density
+  motion: MotionPref
+  surfaceStyle: SurfaceStyle
+  surfaceStyleBeforeGlass: SurfaceBaseStyle
+  ambienceStyle: AmbienceStyle
+  accentColor: string
+  fontFamily: string
+  fontSize: number
+  space: ShellSpace
   login: () => Promise<void>
   logout: () => Promise<void>
   checkLogin: () => Promise<void>
-  setLoggedIn: (v: boolean) => void
+  setLoggedIn: (value: boolean) => void
   setTheme: (base: ThemePreset) => void
-  setMode: (m: DisplayMode) => void
+  setMode: (mode: DisplayMode) => void
   toggleDarkMode: () => void
-  setDensity: (d: Density) => void
-  setMotion: (m: MotionPref) => void
-  setAccentColor: (c: string) => void
-  setFontFamily: (f: string) => void
-  setFontSize: (n: number) => void
-  setSpace: (s: ShellSpace) => void
-  /** 设置中枢锚点直达（设置板块重规划批 1）：跨板块「打开设置并定位分组」。
-   *  pending 存 store 而非事件——切页后 SettingsPage 才挂载，纯 window 事件
-   *  会错过（MainLayout 收 NAVIGATE 切页时监听者尚未就位）。SettingsPage 消费后清空。 */
+  setDensity: (density: Density) => void
+  setMotion: (motion: MotionPref) => void
+  setSurfaceStyle: (style: SurfaceStyle) => void
+  toggleGlassMode: () => void
+  setAmbienceStyle: (style: AmbienceStyle) => void
+  setAccentColor: (color: string) => void
+  setFontFamily: (font: string) => void
+  setFontSize: (size: number) => void
+  setSpace: (space: ShellSpace) => void
   pendingSettingsCategory: string | null
-  /** 可选内部任务页签，供「语音设置」等深层入口直达对应任务，不落在分类首页。 */
   pendingSettingsTab: string | null
   openSettings: (category?: string, tab?: string) => void
   clearPendingSettingsCategory: () => void
@@ -340,109 +205,161 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   loggedIn: false,
   projectPath: '',
-  baseTheme: loadBase(),
+  baseTheme: loadBaseTheme(),
   mode: loadMode(),
   systemDark: systemPrefersDark(),
   darkMode: resolveDark(loadMode(), systemPrefersDark()),
   density: loadDensity(),
   motion: loadMotion(),
+  surfaceStyle: loadSurfaceStyle(),
+  surfaceStyleBeforeGlass: loadSurfaceStyleBeforeGlass(),
+  ambienceStyle: loadAmbienceStyle(),
   accentColor: loadAccent(),
   fontFamily: loadFontFamily(),
   fontSize: loadFontSize(),
   space: loadShellSpace(),
 
-  setTheme: (base: ThemePreset) => {
+  setTheme: (base) => {
+    if (!isThemePreset(base)) return
     set({ baseTheme: base })
-    try { localStorage.setItem(THEME_KEY, base) } catch (_) {}
+    try {
+      localStorage.setItem(THEME_KEY, base)
+    } catch {}
   },
 
   toggleDarkMode: () => {
     const next = !get().darkMode
     set({ mode: next ? 'dark' : 'light', darkMode: next })
-    try { localStorage.setItem(MODE_KEY, next ? 'dark' : 'light'); localStorage.setItem(DARK_KEY, next ? '1' : '0') } catch (_) {}
+    try {
+      localStorage.setItem(MODE_KEY, next ? 'dark' : 'light')
+      localStorage.setItem(DARK_KEY, next ? '1' : '0')
+    } catch {}
   },
 
-  setMode: (m: DisplayMode) => {
-    set({ mode: m, darkMode: resolveDark(m, get().systemDark) })
-    try { localStorage.setItem(MODE_KEY, m) } catch (_) {}
+  setMode: (mode) => {
+    set({ mode, darkMode: resolveDark(mode, get().systemDark) })
+    try {
+      localStorage.setItem(MODE_KEY, mode)
+    } catch {}
   },
 
-  setDensity: (d: Density) => {
-    set({ density: d })
-    try { localStorage.setItem(DENSITY_KEY, d) } catch (_) {}
+  setDensity: (density) => {
+    set({ density })
+    try {
+      localStorage.setItem(DENSITY_KEY, density)
+    } catch {}
   },
 
-  setMotion: (m: MotionPref) => {
-    set({ motion: m })
-    try { localStorage.setItem(MOTION_KEY, m) } catch (_) {}
+  setMotion: (motion) => {
+    set({ motion })
+    try {
+      localStorage.setItem(MOTION_KEY, motion)
+    } catch {}
   },
 
-  setAccentColor: (c: string) => {
-    set({ accentColor: c })
-    try { if (c) localStorage.setItem(ACCENT_KEY, c); else localStorage.removeItem(ACCENT_KEY) } catch (_) {}
+  setSurfaceStyle: (surfaceStyle) => {
+    const beforeGlass = surfaceStyle === 'soft' ? get().surfaceStyleBeforeGlass : surfaceStyle
+    set({ surfaceStyle, surfaceStyleBeforeGlass: beforeGlass })
+    try {
+      localStorage.setItem(SURFACE_KEY, surfaceStyle)
+      localStorage.setItem(SURFACE_RESTORE_KEY, beforeGlass)
+    } catch {}
   },
 
-  setFontFamily: (f: string) => {
-    set({ fontFamily: f })
-    try { localStorage.setItem(FONT_KEY, f) } catch (_) {}
+  toggleGlassMode: () => {
+    const current = get()
+    if (current.surfaceStyle === 'soft') {
+      const restore = current.surfaceStyleBeforeGlass
+      set({ surfaceStyle: restore })
+      try {
+        localStorage.setItem(SURFACE_KEY, restore)
+      } catch {}
+      return
+    }
+    set({
+      surfaceStyle: 'soft',
+      surfaceStyleBeforeGlass: current.surfaceStyle,
+    })
+    try {
+      localStorage.setItem(SURFACE_KEY, 'soft')
+      localStorage.setItem(SURFACE_RESTORE_KEY, current.surfaceStyle)
+    } catch {}
   },
 
-  setFontSize: (n: number) => {
-    set({ fontSize: n })
-    try { localStorage.setItem(FONT_SIZE_KEY, String(n)) } catch (_) {}
+  setAmbienceStyle: (ambienceStyle) => {
+    set({ ambienceStyle })
+    try {
+      localStorage.setItem(AMBIENCE_KEY, ambienceStyle)
+    } catch {}
   },
 
-  setSpace: (s: ShellSpace) => {
-    set({ space: s })
-    try { localStorage.setItem(SHELL_SPACE_KEY, s) } catch (_) {}
+  setAccentColor: (color) => {
+    set({ accentColor: color })
+    try {
+      if (color) localStorage.setItem(ACCENT_KEY, color)
+      else localStorage.removeItem(ACCENT_KEY)
+    } catch {}
   },
 
+  setFontFamily: (font) => {
+    set({ fontFamily: font })
+    try {
+      localStorage.setItem(FONT_KEY, font)
+    } catch {}
+  },
+
+  setFontSize: (size) => {
+    set({ fontSize: size })
+    try {
+      localStorage.setItem(FONT_SIZE_KEY, String(size))
+    } catch {}
+  },
+
+  setSpace: (space) => {
+    set({ space })
+    try {
+      localStorage.setItem(SHELL_SPACE_KEY, space)
+    } catch {}
+  },
 
   login: async () => {
     try {
-      // Login() 现在是异步的：立即返回，OAuth 在后台进行
       await wailsApp().Login()
-      // 轮询等待登录完成（最多 5 分钟）
-      for (let i = 0; i < 75; i++) {
-        await new Promise((r) => setTimeout(r, 4000))
+      for (let attempt = 0; attempt < 75; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 4000))
         try {
-          const status = await wailsApp().GetLoginStatus()
-          if (status) {
+          if (await wailsApp().GetLoginStatus()) {
             set({ loggedIn: true })
             return
           }
-        } catch (_) {}
+        } catch {}
       }
       throw new Error('登录超时：请检查浏览器是否完成了 xAI 授权')
-    } catch (err: unknown) {
-      console.error('login 失败:', err)
-      throw err
+    } catch (error) {
+      console.error('login 失败:', error)
+      throw error
     }
   },
 
   checkLogin: async () => {
     try {
-      const status = await wailsApp().GetLoginStatus()
-      set({ loggedIn: status })
-    } catch (_) {
-      // Go 绑定未就绪时静默忽略
-    }
+      set({ loggedIn: await wailsApp().GetLoginStatus() })
+    } catch {}
   },
+
   logout: async () => {
     try {
       await wailsApp().Logout()
-    } catch (_) {}
+    } catch {}
     set({ loggedIn: false })
   },
 
-  setLoggedIn: (v: boolean) => set({ loggedIn: v }),
+  setLoggedIn: (loggedIn) => set({ loggedIn }),
 
   pendingSettingsCategory: null,
   pendingSettingsTab: null,
 
-  openSettings: (category?: string, tab?: string) => {
-    // 切页走既有 NAVIGATE 白名单路径（MainLayout navigateBoard 自动换空间）；
-    // 定位分组经 pending 状态传信，SettingsPage 挂载/订阅时消费。
+  openSettings: (category, tab) => {
     emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'settings' })
     set({ pendingSettingsCategory: category ?? null, pendingSettingsTab: tab ?? null })
   },
@@ -450,14 +367,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearPendingSettingsCategory: () => set({ pendingSettingsCategory: null, pendingSettingsTab: null }),
 }))
 
-// system 显示模式：监听操作系统明暗变化，实时派生 darkMode
 if (typeof window !== 'undefined' && window.matchMedia) {
-  const mq = window.matchMedia('(prefers-color-scheme: dark)')
-  const handler = (e: MediaQueryListEvent) => {
-    useAppStore.setState((s) => ({
-      systemDark: e.matches,
-      darkMode: s.mode === 'system' ? e.matches : s.darkMode,
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  const handler = (event: MediaQueryListEvent) => {
+    useAppStore.setState((state) => ({
+      systemDark: event.matches,
+      darkMode: state.mode === 'system' ? event.matches : state.darkMode,
     }))
   }
-  if (typeof mq.addEventListener === 'function') mq.addEventListener('change', handler)
+  if (typeof media.addEventListener === 'function') media.addEventListener('change', handler)
 }

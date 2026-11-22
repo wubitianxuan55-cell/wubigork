@@ -125,7 +125,7 @@ export function WorkcostQuotaFlywheelModal({ open, onClose, onApplied }: Workcos
                   <CandidateCard key={c.origCode} cand={c} picked={picked.has(c.origCode)} onToggle={() => toggle(c.origCode)} />
                 ))}
                 {preview.skipped.map((s) => (
-                  <div key={s.key} style={{ padding: "4px 0", color: "var(--color-danger, #c00)", borderBottom: "1px solid var(--border-subtle, #eee)" }}>
+                  <div key={s.key} style={{ padding: "4px 0", color: "var(--gaea-state-danger)", borderBottom: "1px solid var(--gaea-line-hairline)" }}>
                     「{s.title || s.key}」：{s.reason}
                   </div>
                 ))}
@@ -157,7 +157,7 @@ function CandidateCard({ cand, picked, onToggle }: {
   onToggle: () => void;
 }) {
   return (
-    <div style={{ padding: "6px 0", borderBottom: "1px solid var(--border-subtle, #eee)" }}>
+    <div style={{ padding: "6px 0", borderBottom: "1px solid var(--gaea-line-hairline)" }}>
       <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
         <input type="checkbox" checked={picked} onChange={onToggle} data-testid={`flywheel-pick-${cand.origCode}`} />
         <b>{cand.title}</b>

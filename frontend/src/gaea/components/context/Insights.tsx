@@ -56,14 +56,14 @@ function catSum(c: ContextCategory): number {
 }
 
 const TIMING_COLORS: Record<string, string> = {
-  "contextview.timingWait": "#3b82f6", // hex-exempt 耗时统计语义色（模型等待）
-  "contextview.timingGen": "#22c55e", // hex-exempt 耗时统计语义色（模型生成）
-  "contextview.timingTools": "#f59e0b", // hex-exempt 耗时统计语义色（工具执行）
-  "contextview.timingOther": "#9ca3af", // hex-exempt 耗时统计语义色（其他）
+  "contextview.timingWait": "var(--gaea-chart-4)",
+  "contextview.timingGen": "var(--gaea-chart-2)",
+  "contextview.timingTools": "var(--gaea-chart-3)",
+  "contextview.timingOther": "var(--gaea-chart-muted)",
 };
 
 const HEAT_LEVELS = [
-  "var(--md-sys-color-surface-variant, rgba(128,128,128,0.15))",
+  "var(--gaea-chart-track)",
   "color-mix(in srgb, var(--md-sys-color-primary, var(--color-primary)) 25%, transparent)",
   "color-mix(in srgb, var(--md-sys-color-primary, var(--color-primary)) 50%, transparent)",
   "color-mix(in srgb, var(--md-sys-color-primary, var(--color-primary)) 75%, transparent)",
@@ -153,8 +153,8 @@ export function Insights({ running, onOpenSession }: {
       { key: "inject", labelKey: "contextview.catInject" as const, value: composition.inject, color: CAT_COLORS.inject },
       { key: "skill", labelKey: "contextview.catSkill" as const, value: composition.skill, color: CAT_COLORS.skill },
       { key: "tool", labelKey: "contextview.statToolCallsRow" as const, value: composition.tool + (k?.assistantCallArgs ?? 0), color: CAT_COLORS.tool },
-      { key: "reasoning", labelKey: "contextview.statThinking" as const, value: k?.assistantReasoning ?? 0, color: "#6366f1" }, // hex-exempt Token 统计语义色
-      { key: "answers", labelKey: "contextview.statAnswers" as const, value: k?.assistantAnswers ?? 0, color: "#ec4899" }, // hex-exempt Token 统计语义色
+      { key: "reasoning", labelKey: "contextview.statThinking" as const, value: k?.assistantReasoning ?? 0, color: "var(--gaea-chart-5)" },
+      { key: "answers", labelKey: "contextview.statAnswers" as const, value: k?.assistantAnswers ?? 0, color: "var(--gaea-chart-6)" },
     ],
     [composition, k],
   );
@@ -479,7 +479,7 @@ function DailyChart({ days }: { days: InsightsDay[] }) {
             <g key={d.date}>
               <title>{`${d.date} · ${fmtTokens(d.tokens)} tok · ${fmtCost(d.cost)}`}</title>
               <rect x={x + bw * 0.18} y={padT + plotH - th} width={bw * 0.3} height={Math.max(th, 0)} rx={1.5} fill="var(--md-sys-color-primary, var(--color-primary))" opacity={0.85} />
-              <rect x={x + bw * 0.52} y={padT + plotH - ch} width={bw * 0.3} height={Math.max(ch, 0)} rx={1.5} fill="var(--md-sys-color-success, #22c55e)" opacity={0.8} />
+              <rect x={x + bw * 0.52} y={padT + plotH - ch} width={bw * 0.3} height={Math.max(ch, 0)} rx={1.5} fill="var(--gaea-state-success)" opacity={0.8} />
               <text x={x + bw / 2} y={H - 16} textAnchor="middle" fontSize={8.5} className="fill-current text-fg-dim">
                 {d.date.slice(5)}
               </text>
@@ -489,7 +489,7 @@ function DailyChart({ days }: { days: InsightsDay[] }) {
       </svg>
       <div className="flex items-center justify-center gap-3 text-[9.5px] text-fg-dim">
         <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--md-sys-color-primary, var(--color-primary))" }} />{t("contextinsights.dailyTokens")}</span>
-        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--md-sys-color-success, #22c55e)" }} />{t("contextinsights.dailyCost")}</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--gaea-state-success)" }} />{t("contextinsights.dailyCost")}</span>
       </div>
     </div>
   );
@@ -547,7 +547,7 @@ function Heatmap({ days, generatedAt, onPick, picked, mode }: {
                 style={{
                   background: HEAT_LEVELS[lv],
                   outlineColor: "var(--md-sys-color-error, var(--color-destructive))",
-                  ...(cell.date === todayKey ? { boxShadow: "inset 0 0 0 1px rgba(128,128,128,0.6)" } : {}),
+                  ...(cell.date === todayKey ? { boxShadow: "inset 0 0 0 1px var(--gaea-line-strong)" } : {}),
                 }}
               />
             );

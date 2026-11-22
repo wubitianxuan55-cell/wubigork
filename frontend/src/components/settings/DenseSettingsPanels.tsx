@@ -39,11 +39,13 @@ import SearchPanel from './SearchPanel'
 import WenxuePromptSection from './WenxuePromptSection'
 import AppearancePanel, {
   AccentPanel,
+  AmbiencePanel,
   DarkModePanel,
   DensityPanel,
   FontPanel,
   LanguagePanel,
   MotionPanel,
+  SurfacePanel,
 } from './AppearancePanel'
 import SettingsPanelTabs, { type SettingsPanelTab } from './SettingsPanelTabs'
 
@@ -64,6 +66,8 @@ const GENERAL_TABS: SettingsPanelTab[] = [
       <>
         <AppearancePanel />
         <DarkModePanel />
+        <SurfacePanel />
+        <AmbiencePanel />
       </>
     ),
   },

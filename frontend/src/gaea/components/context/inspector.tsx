@@ -1404,9 +1404,9 @@ function FileOpRow({
         </span>
         {((op.added ?? 0) > 0 || (op.removed ?? 0) > 0) && (
           <span className="font-mono tabular-nums">
-            {(op.added ?? 0) > 0 && <span style={{ color: "#22c55e" }}>+{op.added}</span>} {/* hex-exempt 增量语义色 */}
+            {(op.added ?? 0) > 0 && <span style={{ color: "var(--gaea-state-success)" }}>+{op.added}</span>}
             {(op.added ?? 0) > 0 && (op.removed ?? 0) > 0 && <span> </span>}
-            {(op.removed ?? 0) > 0 && <span style={{ color: "#ef4444" }}>−{op.removed}</span>} {/* hex-exempt 增量语义色 */}
+            {(op.removed ?? 0) > 0 && <span style={{ color: "var(--gaea-state-danger)" }}>−{op.removed}</span>}
           </span>
         )}
         {(op.hits ?? 0) > 0 && <span className="font-mono tabular-nums">≈{op.hits} {t("contextview.filesHits")}</span>}

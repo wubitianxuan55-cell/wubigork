@@ -672,14 +672,10 @@
 }
 
 /* 领域语义编码色（主题色板会改变相，故四脑来源色独立锁定） */
-.hub-hit-tag--file  { color: #7dd3fc; background: rgba(14, 165, 233, 0.18); }  /* hex-exempt */
-.hub-hit-tag--right { color: #f9a8d4; background: rgba(236, 72, 153, 0.18); }  /* hex-exempt */
-.hub-hit-tag--left  { color: #6ee7b7; background: rgba(16, 185, 129, 0.18); }  /* hex-exempt */
-.hub-hit-tag--main  { color: #c4b5fd; background: rgba(139, 92, 246, 0.18); }  /* hex-exempt */
-html[data-hl="light"] .hub-hit-tag--file  { color: #0369a1; background: rgba(2, 132, 199, 0.10); }   /* hex-exempt */
-html[data-hl="light"] .hub-hit-tag--right { color: #be185d; background: rgba(190, 24, 93, 0.09); }    /* hex-exempt */
-html[data-hl="light"] .hub-hit-tag--left  { color: #047857; background: rgba(4, 120, 87, 0.10); }     /* hex-exempt */
-html[data-hl="light"] .hub-hit-tag--main  { color: #6d28d9; background: rgba(109, 40, 217, 0.09); }   /* hex-exempt */
+.hub-hit-tag--file  { color: var(--gaea-state-info); background: color-mix(in srgb, var(--gaea-state-info) 14%, transparent); }
+.hub-hit-tag--right { color: var(--gaea-chart-6); background: color-mix(in srgb, var(--gaea-chart-6) 14%, transparent); }
+.hub-hit-tag--left  { color: var(--gaea-state-success); background: color-mix(in srgb, var(--gaea-state-success) 14%, transparent); }
+.hub-hit-tag--main  { color: var(--gaea-chart-5); background: color-mix(in srgb, var(--gaea-chart-5) 14%, transparent); }
 
 /* ── 工作台骨架 ───────────────────────────────────────────────── */
 .hub-body {
@@ -1455,8 +1451,8 @@ html[data-hl="light"] .hub-hit-tag--main  { color: #6d28d9; background: rgba(109
 }
 
 .hub-graph-orbit-node--a { left: 12px; top: 28px; }
-.hub-graph-orbit-node--b { right: 10px; top: 55px; background: #38bdf8; } /* hex-exempt：图谱类型节点 */
-.hub-graph-orbit-node--c { left: 34px; bottom: 8px; background: #fbbf24; } /* hex-exempt：图谱类型节点 */
+.hub-graph-orbit-node--b { right: 10px; top: 55px; background: var(--gaea-state-info); }
+.hub-graph-orbit-node--c { left: 34px; bottom: 8px; background: var(--gaea-state-warning); }
 
 /* ── 右侧检查器 ───────────────────────────────────────────────── */
 .hub-inspector {

@@ -8,19 +8,19 @@
 // How to apply: 新增领域分类时只改本文件 + TYPE_LABELS；组件内
 // `import { DOMAIN_COLORS } from "../../lib/domainColors"` 按 key 取色。
 
-/** 记忆库领域分类 → 语义色（固定色值：领域色不随主题，图谱节点/徽标靠色区分）。 */
+/** 记忆库领域分类 → 主题语义色。 */
 export const DOMAIN_COLORS: Record<string, string> = {
-  knowledge: "#818cf8", // indigo
-  profile: "#a78bfa", // violet
-  office: "#34d399", // emerald
-  whisper: "#f472b6", // pink：聊天/情节记忆
-  wenxue: "#f59e0b", // amber-ish：图文脑（小说创作事实，独立库只读）
-  material: "#38bdf8", // sky：项目资料（固定常用文件）
-  database: "#2dd4bf", // teal：数据库存档（本设备聊天记录/上传文件）
-  cost: "#fbbf24", // amber：成本条目
-  entity: "#5eead4", // teal：语义图谱·记忆实体（事件日志投影）
-  event: "#94a3b8", // slate：语义图谱·记忆事件
-  source: "#fb923c", // orange：语义图谱·来源（沉淀会话）
+  knowledge: "var(--gaea-chart-1)",
+  profile: "var(--gaea-chart-5)",
+  office: "var(--gaea-chart-2)",
+  whisper: "var(--gaea-chart-6)",
+  wenxue: "var(--gaea-chart-9)",
+  material: "var(--gaea-chart-4)",
+  database: "var(--gaea-chart-8)",
+  cost: "var(--gaea-chart-10)",
+  entity: "var(--gaea-chart-7)",
+  event: "var(--gaea-chart-muted)",
+  source: "var(--gaea-chart-11)",
 };
 
 /** 领域分类 → 中文标签（图谱图例/库徽标共用）。 */

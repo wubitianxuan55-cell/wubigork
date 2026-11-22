@@ -1,38 +1,36 @@
 /* ═══════════════════════════════════════════════════════════════════
    记忆中枢 · Living Constellation
    深空观测台：左侧索引 / 中央活体双脑星图 / 右侧记忆流 / 底部控制。
-   本页刻意锁定暗色（星图是「观测窗」，不跟随亮色主题漂白）；
-   库面板仍使用主题令牌，作为观测台里的常规工作区。
-   hex-exempt：下面的深空调色板是星图场景的固定色，服务「左金右紫」的
-   双脑语义与参考图气质，不随 12 套主题派生；库面板/文字仍走主题令牌。
+   所有颜色均由 Bloom palette -> semantic tokens -> material -> component
+   四层体系派生；本文件不保存主题色字面量。
    ═══════════════════════════════════════════════════════════════════ */
 
 .atlas-page {
-  --atlas-bg: #04070f;
-  --atlas-bg-2: #070c18;
-  --atlas-ink: #e9f0ff;
-  --atlas-dim: #93a4c2;
-  --atlas-faint: #5f7192;
-  --atlas-cyan: #6ee7ff;
-  --atlas-gold: #ffc46b;
-  --atlas-violet: #b57bff;
-  --atlas-line: rgba(142, 178, 255, 0.12);
-  --atlas-line-soft: rgba(142, 178, 255, 0.07);
-  --atlas-glass: rgba(8, 14, 28, 0.6);
-  --atlas-glass-strong: rgba(9, 16, 31, 0.82);
+  --atlas-bg: var(--gaea-surface-sunken);
+  --atlas-bg-2: var(--gaea-surface-sunken);
+  --atlas-ink: var(--gaea-ink-primary);
+  --atlas-dim: var(--gaea-state-info);
+  --atlas-faint: var(--gaea-chart-5);
+  --atlas-cyan: var(--gaea-chart-7);
+  --atlas-gold: var(--gaea-state-warning);
+  --atlas-violet: var(--gaea-chart-5);
+  --atlas-line: color-mix(in srgb, var(--gaea-chart-5) 12%, transparent);
+  --atlas-line-soft: color-mix(in srgb, var(--gaea-chart-5) 7%, transparent);
+  --atlas-glass: color-mix(in srgb, var(--gaea-surface-sunken) 60%, transparent);
+  --atlas-glass-strong: color-mix(in srgb, var(--gaea-surface-sunken) 82%, transparent);
 
   /* hub.css 的检索行/详情组件消费这套变量，统一下发到本轮观测台。 */
   --hub-ink: var(--atlas-ink);
   --hub-muted: var(--atlas-dim);
   --hub-faint: var(--atlas-faint);
-  --hub-canvas: #050a15;
-  --hub-surface: #0a1222;
-  --hub-surface-soft: #08101e;
-  --hub-surface-high: #0e1830;
+  --hub-canvas: var(--gaea-surface-sunken);
+  --hub-surface: var(--gaea-chart-5);
+  --hub-surface-soft: var(--gaea-surface-sunken);
+  --hub-surface-high: var(--gaea-chart-5);
   --hub-line: var(--atlas-line);
-  --hub-line-strong: rgba(150, 190, 255, 0.2);
+  --hub-line-strong: color-mix(in srgb, var(--gaea-chart-5) 20%, transparent);
   --hub-accent: var(--atlas-cyan);
-  --hub-focus: 0 0 0 3px rgba(110, 231, 255, 0.18);
+  --hub-focus: 0 0 0 3px color-mix(in srgb, var(--gaea-chart-7) 18%, transparent);
 
   position: relative;
   flex: 1;
@@ -42,11 +40,11 @@
   isolation: isolate;
   color: var(--atlas-ink);
   background: var(--atlas-bg);
-  border: 1px solid rgba(120, 165, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 8%, transparent);
   border-radius: 18px;
   box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    0 30px 90px color-mix(in srgb, var(--gaea-surface-sunken) 45%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-ink-primary) 3%, transparent);
   font-family: var(--font-ui, var(--font-sans, system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif));
 }
 
@@ -64,7 +62,7 @@
 .atlas-page button:focus-visible,
 .atlas-page input:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(110, 231, 255, 0.55);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gaea-chart-7) 55%, transparent);
 }
 
 /* ── 底层氛围 ────────────────────────────────────────────────── */
@@ -74,10 +72,10 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 58% 66% at 50% 42%, rgba(30, 62, 122, 0.34), transparent 68%),
-    radial-gradient(ellipse 26% 36% at 18% 22%, rgba(255, 168, 72, 0.06), transparent 72%),
-    radial-gradient(ellipse 24% 34% at 84% 26%, rgba(164, 96, 255, 0.08), transparent 72%),
-    linear-gradient(180deg, #060a14 0%, #04070f 58%, #03050b 100%);
+    radial-gradient(ellipse 58% 66% at 50% 42%, color-mix(in srgb, var(--gaea-chart-5) 34%, transparent), transparent 68%),
+    radial-gradient(ellipse 26% 36% at 18% 22%, color-mix(in srgb, var(--gaea-state-warning) 6%, transparent), transparent 72%),
+    radial-gradient(ellipse 24% 34% at 84% 26%, color-mix(in srgb, var(--gaea-chart-5) 8%, transparent), transparent 72%),
+    linear-gradient(180deg, var(--gaea-surface-sunken) 0%, var(--gaea-surface-sunken) 58%, var(--gaea-surface-sunken) 100%);
 }
 
 .atlas-ambience::before {
@@ -86,8 +84,8 @@
   inset: 0;
   opacity: 0.6;
   background-image:
-    linear-gradient(rgba(120, 170, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 170, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--gaea-chart-5) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--gaea-chart-5) 5%, transparent) 1px, transparent 1px);
   background-size: 62px 62px;
   mask-image: radial-gradient(ellipse 72% 72% at 50% 44%, black 6%, transparent 78%);
 }
@@ -100,8 +98,8 @@
   width: 1px;
   height: 52%;
   transform: translateX(-50%);
-  background: linear-gradient(180deg, transparent, rgba(150, 225, 255, 0.16), transparent);
-  box-shadow: 0 0 28px rgba(110, 220, 255, 0.25);
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--gaea-state-info) 16%, transparent), transparent);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--gaea-chart-5) 25%, transparent);
 }
 
 .atlas-stage {
@@ -113,20 +111,20 @@
 .atlas-settings-credit {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  color: #5f7396;
+  border-top: 1px solid color-mix(in srgb, var(--gaea-ink-primary) 7%, transparent);
+  color: var(--gaea-chart-5);
   font-size: 8px;
   line-height: 1.6;
   letter-spacing: 0.04em;
 }
 
 .atlas-settings-credit a {
-  color: #8ea9d4;
+  color: var(--gaea-chart-5);
   text-decoration: none;
 }
 
 .atlas-settings-credit a:hover {
-  color: #cfe7ff;
+  color: var(--gaea-chart-7);
 }
 
 .atlas-stage-loading {
@@ -135,7 +133,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #6d81a2;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 9px;
   letter-spacing: 0.12em;
@@ -160,9 +158,9 @@
   z-index: 2;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 62% 62% at 50% 44%, transparent 34%, rgba(2, 4, 10, 0.42) 100%),
-    linear-gradient(90deg, rgba(3, 5, 11, 0.72) 0%, transparent 22%, transparent 72%, rgba(3, 5, 11, 0.6) 100%),
-    linear-gradient(180deg, rgba(2, 4, 9, 0.5) 0%, transparent 16%, transparent 82%, rgba(2, 4, 9, 0.7) 100%);
+    radial-gradient(ellipse 62% 62% at 50% 44%, transparent 34%, color-mix(in srgb, var(--gaea-surface-sunken) 42%, transparent) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--gaea-surface-sunken) 72%, transparent) 0%, transparent 22%, transparent 72%, color-mix(in srgb, var(--gaea-surface-sunken) 60%, transparent) 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--gaea-surface-sunken) 50%, transparent) 0%, transparent 16%, transparent 82%, color-mix(in srgb, var(--gaea-surface-sunken) 70%, transparent) 100%);
 }
 
 /* 星图柔光：压一层大尺度 bloom，让纤维/平台的光晕更像参考图的摄影质感。 */
@@ -175,9 +173,9 @@
   mix-blend-mode: screen;
   filter: blur(14px);
   background:
-    radial-gradient(ellipse 17% 27% at 41.5% 37%, rgba(255, 172, 74, 0.32), transparent 70%),
-    radial-gradient(ellipse 17% 27% at 58.5% 37%, rgba(176, 92, 255, 0.34), transparent 70%),
-    radial-gradient(ellipse 20% 8% at 50% 70%, rgba(90, 210, 255, 0.26), transparent 72%);
+    radial-gradient(ellipse 17% 27% at 41.5% 37%, color-mix(in srgb, var(--gaea-state-warning) 32%, transparent), transparent 70%),
+    radial-gradient(ellipse 17% 27% at 58.5% 37%, color-mix(in srgb, var(--gaea-chart-5) 34%, transparent), transparent 70%),
+    radial-gradient(ellipse 20% 8% at 50% 70%, color-mix(in srgb, var(--gaea-chart-5) 26%, transparent), transparent 72%);
 }
 
 .atlas-grain {
@@ -189,8 +187,8 @@
   mix-blend-mode: soft-light;
   background-image: repeating-linear-gradient(
     0deg,
-    rgba(255, 255, 255, 0.045) 0,
-    rgba(255, 255, 255, 0.045) 1px,
+    color-mix(in srgb, var(--gaea-ink-primary) 5%, transparent) 0,
+    color-mix(in srgb, var(--gaea-ink-primary) 5%, transparent) 1px,
     transparent 1px,
     transparent 4px
   );
@@ -248,16 +246,16 @@
 }
 
 .atlas-lobe-label strong {
-  color: #e8dcc4;
+  color: var(--gaea-chart-7);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.14em;
   white-space: nowrap;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.72);
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--gaea-surface-sunken) 72%, transparent);
 }
 
 .atlas-lobe-label.is-right strong {
-  color: #e3d6f7;
+  color: var(--gaea-chart-7);
 }
 
 .atlas-page.is-library .atlas-lobe-labels {
@@ -274,10 +272,10 @@
   gap: 2px;
   max-width: 240px;
   padding: 8px 10px;
-  border: 1px solid rgba(130, 190, 255, 0.24);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 24%, transparent);
   border-radius: 9px;
-  background: rgba(5, 10, 20, 0.92);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--gaea-surface-sunken) 92%, transparent);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--gaea-surface-sunken) 50%, transparent);
   pointer-events: none;
   will-change: transform;
 }
@@ -290,14 +288,14 @@
 }
 
 .atlas-tip strong {
-  color: #eef5ff;
+  color: var(--gaea-ink-primary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
 }
 
 .atlas-tip small {
-  color: #6e81a2;
+  color: var(--gaea-chart-5);
   font-size: 9px;
 }
 
@@ -314,7 +312,7 @@
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8.5px;
   letter-spacing: 0.22em;
-  color: #7f93b6;
+  color: var(--gaea-chart-5);
   text-transform: uppercase;
   animation: atlas-fade 700ms ease both;
 }
@@ -326,12 +324,12 @@
 .atlas-brand-rule {
   width: 26px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(150, 190, 255, 0.35), transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gaea-chart-5) 35%, transparent), transparent);
 }
 
 .atlas-brand-local {
   padding: 2px 5px;
-  border: 1px solid rgba(110, 231, 255, 0.22);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-7) 22%, transparent);
   border-radius: 3px;
   color: var(--atlas-cyan);
   font-size: 7.5px;
@@ -339,7 +337,7 @@
 }
 
 .atlas-brand-sub {
-  color: #5d7194;
+  color: var(--gaea-chart-5);
   letter-spacing: 0.18em;
 }
 
@@ -348,8 +346,8 @@
   height: 5px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #5ef2c2;
-  box-shadow: 0 0 0 3px rgba(94, 242, 194, 0.12), 0 0 12px rgba(94, 242, 194, 0.6);
+  background: var(--gaea-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-accent) 12%, transparent), 0 0 12px color-mix(in srgb, var(--gaea-accent) 60%, transparent);
   animation: atlas-pulse 2.8s ease-in-out infinite;
 }
 
@@ -373,7 +371,7 @@
   z-index: -1;
   inset: -26px -34px -18px -46px;
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(3, 6, 12, 0.78) 12%, rgba(3, 6, 12, 0.38) 62%, transparent 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gaea-surface-sunken) 78%, transparent) 12%, color-mix(in srgb, var(--gaea-surface-sunken) 38%, transparent) 62%, transparent 100%);
 }
 
 .atlas-index-scroll {
@@ -392,17 +390,17 @@
 
 .atlas-hero h1 {
   margin: 0;
-  color: #f3f7ff;
+  color: var(--gaea-ink-primary);
   font-size: clamp(24px, 2.05vw, 31px);
   font-weight: 300;
   letter-spacing: 0.045em;
   line-height: 1.56;
-  text-shadow: 0 2px 26px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 2px 26px color-mix(in srgb, var(--gaea-surface-sunken) 55%, transparent);
 }
 
 .atlas-hero p {
   margin: 12px 0 0;
-  color: #8b9cbb;
+  color: var(--gaea-state-info);
   font-size: 11.5px;
   letter-spacing: 0.06em;
   line-height: 1.95;
@@ -424,7 +422,7 @@
 }
 
 .atlas-stat strong {
-  color: #f2f6ff;
+  color: var(--gaea-ink-primary);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 23px;
   font-weight: 500;
@@ -434,7 +432,7 @@
 }
 
 .atlas-stat small {
-  color: #6f81a0;
+  color: var(--gaea-chart-5);
   font-size: 9px;
   letter-spacing: 0.14em;
 }
@@ -453,13 +451,13 @@
 }
 
 .atlas-search-caption span {
-  color: #a9b9d6;
+  color: var(--gaea-chart-7);
   font-size: 10.5px;
   letter-spacing: 0.14em;
 }
 
 .atlas-search-caption small {
-  color: #5d7091;
+  color: var(--gaea-chart-5);
   font-size: 8.5px;
   letter-spacing: 0.08em;
 }
@@ -469,17 +467,17 @@
   align-items: center;
   gap: 8px;
   padding: 4px 0 7px;
-  border-bottom: 1px solid rgba(130, 180, 255, 0.26);
+  border-bottom: 1px solid color-mix(in srgb, var(--gaea-chart-5) 26%, transparent);
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .atlas-search-row:focus-within {
-  border-color: rgba(110, 231, 255, 0.66);
-  box-shadow: 0 8px 22px -16px rgba(110, 231, 255, 0.8);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 66%, transparent);
+  box-shadow: 0 8px 22px -16px color-mix(in srgb, var(--gaea-chart-7) 80%, transparent);
 }
 
 .atlas-search-icon {
-  color: #6d82a5;
+  color: var(--gaea-chart-5);
   font-size: 12px;
 }
 
@@ -488,18 +486,18 @@
   min-width: 0;
   padding: 3px 0;
   border: 0;
-  color: #dbe7fb;
+  color: var(--gaea-chart-7);
   background: transparent;
   font-size: 11.5px;
   letter-spacing: 0.03em;
 }
 
 .atlas-search-row input::placeholder {
-  color: #5e7192;
+  color: var(--gaea-chart-5);
 }
 
 .atlas-search-key {
-  color: #4c6083;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7.5px;
   letter-spacing: 0.12em;
@@ -508,10 +506,10 @@
 .atlas-search-btn {
   height: 22px;
   padding: 0 9px;
-  border: 1px solid rgba(110, 231, 255, 0.32);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-7) 32%, transparent);
   border-radius: 999px;
-  color: #b9f2ff;
-  background: rgba(110, 231, 255, 0.07);
+  color: var(--gaea-chart-7);
+  background: color-mix(in srgb, var(--gaea-chart-7) 7%, transparent);
   font-size: 9.5px;
   letter-spacing: 0.08em;
   cursor: pointer;
@@ -519,8 +517,8 @@
 }
 
 .atlas-search-btn:hover {
-  background: rgba(110, 231, 255, 0.14);
-  border-color: rgba(110, 231, 255, 0.55);
+  background: color-mix(in srgb, var(--gaea-chart-7) 14%, transparent);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 55%, transparent);
 }
 
 .atlas-search-btn:disabled {
@@ -536,7 +534,7 @@
 }
 
 .atlas-scope-label {
-  color: #526589;
+  color: var(--gaea-chart-5);
   font-size: 8.5px;
   letter-spacing: 0.12em;
 }
@@ -544,9 +542,9 @@
 .atlas-scope-switch {
   display: inline-flex;
   padding: 2px;
-  border: 1px solid rgba(130, 175, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 12%, transparent);
   border-radius: 6px;
-  background: rgba(10, 18, 34, 0.5);
+  background: color-mix(in srgb, var(--gaea-chart-5) 50%, transparent);
 }
 
 .atlas-scope-switch button {
@@ -554,7 +552,7 @@
   padding: 0 7px;
   border: 0;
   border-radius: 4px;
-  color: #6e82a4;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 8.5px;
   letter-spacing: 0.06em;
@@ -562,9 +560,9 @@
 }
 
 .atlas-scope-switch button.is-active {
-  color: #d8f8ff;
-  background: rgba(110, 231, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(110, 231, 255, 0.2);
+  color: var(--gaea-chart-7);
+  background: color-mix(in srgb, var(--gaea-chart-7) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gaea-chart-7) 20%, transparent);
 }
 
 /* 导航 */
@@ -577,13 +575,13 @@
   align-items: center;
   justify-content: space-between;
   margin: 0 0 7px;
-  color: #7e92b5;
+  color: var(--gaea-chart-5);
   font-size: 9px;
   letter-spacing: 0.14em;
 }
 
 .atlas-section-head small {
-  color: #495c7d;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7.5px;
   letter-spacing: 0.16em;
@@ -611,7 +609,7 @@
   border: 0;
   border-left: 1px solid transparent;
   border-radius: 4px;
-  color: #a9b8d4;
+  color: var(--gaea-chart-7);
   background: transparent;
   font-size: 11.5px;
   letter-spacing: 0.04em;
@@ -622,28 +620,28 @@
 
 .atlas-nav-row > .anticon,
 .atlas-nav-row > svg {
-  color: #647898;
+  color: var(--gaea-chart-5);
   font-size: 13px;
   transition: color 160ms ease;
 }
 
 .atlas-nav-row:hover {
-  color: #e8f1ff;
-  background: rgba(120, 170, 255, 0.055);
+  color: var(--gaea-ink-primary);
+  background: color-mix(in srgb, var(--gaea-chart-5) 6%, transparent);
 }
 
 .atlas-nav-row:hover > .anticon,
 .atlas-nav-row:hover > svg {
-  color: #9db8df;
+  color: var(--gaea-chart-5);
 }
 
 .atlas-nav-row.is-active {
-  color: #f0f7ff;
+  color: var(--gaea-ink-primary);
   border-left-color: var(--atlas-row);
   background: linear-gradient(
     90deg,
     color-mix(in srgb, var(--atlas-row) 16%, transparent),
-    rgba(120, 170, 255, 0.02) 72%,
+    color-mix(in srgb, var(--gaea-chart-5) 2%, transparent) 72%,
     transparent
   );
 }
@@ -660,14 +658,14 @@
 }
 
 .atlas-nav-row small {
-  color: #536786;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7px;
   letter-spacing: 0.14em;
 }
 
 .atlas-nav-count {
-  color: #6d81a2;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
@@ -689,7 +687,7 @@
 
 .atlas-nav.is-mini .atlas-nav-row {
   height: 27px;
-  color: #8fa0bf;
+  color: var(--gaea-state-info);
   font-size: 10.5px;
 }
 
@@ -705,10 +703,10 @@
   gap: 5px;
   height: 25px;
   padding: 0 8px;
-  border: 1px solid rgba(142, 178, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 10%, transparent);
   border-radius: 5px;
-  color: #8397b8;
-  background: rgba(8, 14, 27, 0.4);
+  color: var(--gaea-chart-5);
+  background: color-mix(in srgb, var(--gaea-surface-sunken) 40%, transparent);
   font-size: 9.5px;
   letter-spacing: 0.03em;
   cursor: pointer;
@@ -717,7 +715,7 @@
 
 .atlas-explore-chip > .anticon,
 .atlas-explore-chip > svg {
-  color: #607595;
+  color: var(--gaea-chart-5);
   font-size: 11px;
 }
 
@@ -731,9 +729,9 @@
 
 .atlas-explore-chip:hover,
 .atlas-explore-chip.is-active {
-  color: #e4f5ff;
+  color: var(--gaea-chart-7);
   border-color: color-mix(in srgb, var(--atlas-row) 40%, transparent);
-  background: color-mix(in srgb, var(--atlas-row) 9%, rgba(8, 14, 27, 0.4));
+  background: color-mix(in srgb, var(--atlas-row) 9%, color-mix(in srgb, var(--gaea-surface-sunken) 40%, transparent));
 }
 
 .atlas-explore-chip.is-active > .anticon,
@@ -770,7 +768,7 @@
 }
 
 .atlas-vital-label {
-  color: #7d90b1;
+  color: var(--gaea-chart-5);
   font-size: 9px;
   letter-spacing: 0.04em;
   text-align: left;
@@ -783,7 +781,7 @@
   height: 2px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(130, 170, 255, 0.1);
+  background: color-mix(in srgb, var(--gaea-chart-5) 10%, transparent);
 }
 
 .atlas-vital-bar i {
@@ -797,7 +795,7 @@
 }
 
 .atlas-vital-value {
-  color: #6f83a4;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8.5px;
   font-variant-numeric: tabular-nums;
@@ -805,7 +803,7 @@
 }
 
 .atlas-vital:hover .atlas-vital-label {
-  color: #dbe7fb;
+  color: var(--gaea-chart-7);
 }
 
 .atlas-index-foot {
@@ -816,7 +814,7 @@
   margin-top: 10px;
   padding-top: 9px;
   border-top: 1px solid var(--atlas-line-soft);
-  color: #5d7091;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8px;
   letter-spacing: 0.06em;
@@ -829,9 +827,9 @@
 
 .atlas-foot-retry {
   padding: 0 5px;
-  border: 1px solid rgba(217, 154, 168, 0.28);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-7) 28%, transparent);
   border-radius: 4px;
-  color: #d99aa8;
+  color: var(--gaea-chart-7);
   background: transparent;
   font-family: inherit;
   font-size: 8px;
@@ -839,8 +837,8 @@
 }
 
 .atlas-foot-retry:hover {
-  color: #ffd0da;
-  border-color: rgba(217, 154, 168, 0.55);
+  color: var(--gaea-chart-7);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 55%, transparent);
 }
 
 /* ── 右侧记忆流 ─────────────────────────────────────────────── */
@@ -855,15 +853,15 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(130, 175, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 14%, transparent);
   border-radius: 15px;
   background:
-    linear-gradient(158deg, rgba(11, 20, 38, 0.86), rgba(5, 10, 21, 0.7)),
+    linear-gradient(158deg, color-mix(in srgb, var(--gaea-chart-5) 86%, transparent), color-mix(in srgb, var(--gaea-surface-sunken) 70%, transparent)),
     var(--atlas-glass);
   backdrop-filter: blur(18px) saturate(125%);
   box-shadow:
-    0 26px 70px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    0 26px 70px color-mix(in srgb, var(--gaea-surface-sunken) 50%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-ink-primary) 5%, transparent);
   animation: atlas-rise 680ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
 }
 
@@ -876,7 +874,7 @@
   position: absolute;
   inset: 0 0 auto;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(110, 231, 255, 0.34), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gaea-chart-7) 34%, transparent), transparent);
   pointer-events: none;
 }
 
@@ -893,14 +891,14 @@
 .atlas-stream-kicker {
   display: block;
   margin-bottom: 3px;
-  color: #667b9d;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8px;
   letter-spacing: 0.2em;
 }
 
 .atlas-stream-head strong {
-  color: #ecf3ff;
+  color: var(--gaea-ink-primary);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -911,17 +909,17 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(130, 175, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 14%, transparent);
   border-radius: 6px;
-  color: #7e91b2;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 10px;
   cursor: pointer;
 }
 
 .atlas-icon-btn:hover {
-  color: #dff9ff;
-  border-color: rgba(110, 231, 255, 0.3);
+  color: var(--gaea-chart-7);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 30%, transparent);
 }
 
 /* tabs */
@@ -945,7 +943,7 @@
   padding: 9px 0 8px;
   border: 0;
   border-bottom: 1px solid transparent;
-  color: #7186a7;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 9.5px;
   letter-spacing: 0.06em;
@@ -955,23 +953,23 @@
 
 .atlas-tabs button i {
   margin-left: 3px;
-  color: #4d6180;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7.5px;
   font-style: normal;
 }
 
 .atlas-tabs button:hover {
-  color: #cfdff8;
+  color: var(--gaea-chart-7);
 }
 
 .atlas-tabs button.is-active {
-  color: #e6f9ff;
-  border-bottom-color: rgba(110, 231, 255, 0.65);
+  color: var(--gaea-chart-7);
+  border-bottom-color: color-mix(in srgb, var(--gaea-chart-7) 65%, transparent);
 }
 
 .atlas-tabs button.is-active i {
-  color: rgba(110, 231, 255, 0.75);
+  color: color-mix(in srgb, var(--gaea-chart-7) 75%, transparent);
 }
 
 .atlas-stream-body {
@@ -981,7 +979,7 @@
   overflow-x: hidden;
   padding: 5px 8px 8px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(120, 170, 255, 0.22) transparent;
+  scrollbar-color: color-mix(in srgb, var(--gaea-chart-5) 22%, transparent) transparent;
 }
 
 .atlas-stream-body::-webkit-scrollbar {
@@ -990,7 +988,7 @@
 
 .atlas-stream-body::-webkit-scrollbar-thumb {
   border-radius: 4px;
-  background: rgba(120, 170, 255, 0.22);
+  background: color-mix(in srgb, var(--gaea-chart-5) 22%, transparent);
 }
 
 .atlas-memory-list {
@@ -1007,7 +1005,7 @@
   width: 100%;
   padding: 10px 10px 10px 8px;
   border: 0;
-  border-bottom: 1px solid rgba(142, 178, 255, 0.055);
+  border-bottom: 1px solid color-mix(in srgb, var(--gaea-chart-5) 6%, transparent);
   border-radius: 6px;
   color: inherit;
   background: transparent;
@@ -1029,7 +1027,7 @@
 }
 
 .atlas-memory-row:hover {
-  background: rgba(120, 170, 255, 0.055);
+  background: color-mix(in srgb, var(--gaea-chart-5) 6%, transparent);
   transform: translateX(1px);
 }
 
@@ -1040,7 +1038,7 @@
 .atlas-memory-index {
   flex: 0 0 auto;
   padding-top: 1px;
-  color: #4e6383;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8px;
   letter-spacing: 0.04em;
@@ -1059,7 +1057,7 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  color: #dbe7fb;
+  color: var(--gaea-chart-7);
   font-size: 11.5px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -1077,7 +1075,7 @@
   padding: 1px 4px;
   border: 1px solid color-mix(in srgb, var(--atlas-row) 30%, transparent);
   border-radius: 3px;
-  color: color-mix(in srgb, var(--atlas-row) 82%, #ffffff);
+  color: color-mix(in srgb, var(--atlas-row) 82%, var(--gaea-ink-primary));
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7px;
   font-style: normal;
@@ -1088,7 +1086,7 @@
 .atlas-memory-desc {
   display: -webkit-box;
   overflow: hidden;
-  color: #7185a5;
+  color: var(--gaea-chart-5);
   font-size: 9.5px;
   line-height: 1.55;
   -webkit-box-orient: vertical;
@@ -1099,7 +1097,7 @@
   flex: 0 0 auto;
   min-width: 14px;
   padding-top: 2px;
-  color: #566b8c;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8px;
   text-align: right;
@@ -1120,7 +1118,7 @@
   flex: 0 0 auto;
   padding: 9px 16px;
   border-top: 1px solid var(--atlas-line-soft);
-  color: #5b6f91;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7.5px;
   letter-spacing: 0.06em;
@@ -1149,7 +1147,7 @@
   gap: 3px 7px;
   min-height: 0;
   padding: 8px 8px 9px;
-  border-bottom: 1px solid rgba(142, 178, 255, 0.055);
+  border-bottom: 1px solid color-mix(in srgb, var(--gaea-chart-5) 6%, transparent);
   border-radius: 6px;
 }
 
@@ -1173,7 +1171,7 @@
   grid-area: text;
   display: -webkit-box;
   overflow: hidden;
-  color: #7185a5;
+  color: var(--gaea-chart-5);
   font-size: 9.5px;
   line-height: 1.55;
   white-space: normal;
@@ -1185,13 +1183,13 @@
   grid-area: ref;
   align-self: start;
   padding: 2px 5px;
-  border: 1px solid rgba(130, 175, 255, 0.13);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 13%, transparent);
   border-radius: 4px;
   font-size: 8px;
 }
 
 .atlas-hit-list .hub-hit-ref:hover {
-  border-color: rgba(110, 231, 255, 0.3);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 30%, transparent);
 }
 
 .atlas-stream-status {
@@ -1200,14 +1198,14 @@
   align-items: center;
   gap: 9px;
   padding: 38px 20px;
-  color: #7e92b3;
+  color: var(--gaea-chart-5);
   font-size: 10.5px;
   line-height: 1.7;
   text-align: center;
 }
 
 .atlas-stream-status.is-error {
-  color: #d99aa8;
+  color: var(--gaea-chart-7);
 }
 
 .atlas-stream-status button {
@@ -1216,9 +1214,9 @@
   gap: 5px;
   height: 26px;
   padding: 0 10px;
-  border: 1px solid rgba(130, 175, 255, 0.2);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 20%, transparent);
   border-radius: 7px;
-  color: #a8c4e8;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 9px;
   cursor: pointer;
@@ -1229,9 +1227,9 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border: 1px solid rgba(130, 175, 255, 0.2);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 20%, transparent);
   border-radius: 50%;
-  color: #8fa7c9;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 11px;
 }
@@ -1241,7 +1239,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--atlas-cyan);
-  box-shadow: 0 0 0 4px rgba(110, 231, 255, 0.1), 0 0 14px rgba(110, 231, 255, 0.6);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--gaea-chart-7) 10%, transparent), 0 0 14px color-mix(in srgb, var(--gaea-chart-7) 60%, transparent);
   animation: atlas-pulse 1.9s ease-in-out infinite;
 }
 
@@ -1254,7 +1252,7 @@
   grid-template-columns: 18px 1fr 30px;
   gap: 9px;
   padding: 11px 8px;
-  border-bottom: 1px solid rgba(142, 178, 255, 0.045);
+  border-bottom: 1px solid color-mix(in srgb, var(--gaea-chart-5) 5%, transparent);
 }
 
 .atlas-skeleton-row i,
@@ -1263,7 +1261,7 @@
   display: block;
   height: 8px;
   border-radius: 3px;
-  background: linear-gradient(90deg, rgba(120, 170, 255, 0.07), rgba(120, 170, 255, 0.14), rgba(120, 170, 255, 0.07));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gaea-chart-5) 7%, transparent), color-mix(in srgb, var(--gaea-chart-5) 14%, transparent), color-mix(in srgb, var(--gaea-chart-5) 7%, transparent));
   background-size: 200% 100%;
   animation: atlas-skeleton 1.8s ease-in-out infinite;
 }
@@ -1291,13 +1289,13 @@
   width: 92px;
   height: 92px;
   margin-bottom: 18px;
-  color: #8aa5c8;
+  color: var(--gaea-chart-5);
 }
 
 .atlas-empty-orbit span {
   position: absolute;
   inset: 0;
-  border: 1px solid rgba(130, 175, 255, 0.18);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 18%, transparent);
   border-radius: 50%;
   transform: rotate(-24deg) scaleY(0.52);
 }
@@ -1305,13 +1303,13 @@
 .atlas-empty-orbit span:nth-child(2) {
   inset: 13px;
   transform: rotate(32deg) scaleY(0.6);
-  border-color: rgba(255, 196, 107, 0.18);
+  border-color: color-mix(in srgb, var(--gaea-state-warning) 18%, transparent);
 }
 
 .atlas-empty-orbit span:nth-child(3) {
   inset: 27px;
   transform: none;
-  border-color: rgba(110, 231, 255, 0.2);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 20%, transparent);
 }
 
 .atlas-empty-orbit .anticon {
@@ -1323,7 +1321,7 @@
 }
 
 .atlas-stream-empty strong {
-  color: #d9e6fa;
+  color: var(--gaea-chart-7);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -1332,7 +1330,7 @@
 .atlas-stream-empty p {
   max-width: 240px;
   margin: 8px 0 16px;
-  color: #6d81a2;
+  color: var(--gaea-chart-5);
   font-size: 10px;
   line-height: 1.8;
 }
@@ -1343,10 +1341,10 @@
   gap: 6px;
   height: 29px;
   padding: 0 12px;
-  border: 1px solid rgba(110, 231, 255, 0.3);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-7) 30%, transparent);
   border-radius: 999px;
-  color: #c9f6ff;
-  background: rgba(110, 231, 255, 0.06);
+  color: var(--gaea-chart-7);
+  background: color-mix(in srgb, var(--gaea-chart-7) 6%, transparent);
   font-size: 9.5px;
   letter-spacing: 0.05em;
   cursor: pointer;
@@ -1361,7 +1359,7 @@
   padding: 10px 16px 18px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(120, 170, 255, 0.22) transparent;
+  scrollbar-color: color-mix(in srgb, var(--gaea-chart-5) 22%, transparent) transparent;
 }
 
 .atlas-detail-head {
@@ -1376,21 +1374,21 @@
   place-items: center;
   width: 22px;
   height: 22px;
-  border: 1px solid rgba(130, 175, 255, 0.16);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 16%, transparent);
   border-radius: 5px;
-  color: #8fa5c6;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 9px;
   cursor: pointer;
 }
 
 .atlas-detail-back:hover {
-  color: #e4f7ff;
-  border-color: rgba(110, 231, 255, 0.35);
+  color: var(--gaea-chart-7);
+  border-color: color-mix(in srgb, var(--gaea-chart-7) 35%, transparent);
 }
 
 .atlas-detail-kicker {
-  color: #5c7092;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8px;
   letter-spacing: 0.2em;
@@ -1406,7 +1404,7 @@
 }
 
 .atlas-detail .hub-detail-desc {
-  background: rgba(4, 8, 16, 0.45);
+  background: color-mix(in srgb, var(--gaea-surface-sunken) 45%, transparent);
 }
 
 .atlas-detail-listhint {
@@ -1416,7 +1414,7 @@
 
 .atlas-detail-listhint button {
   border: 0;
-  color: #6f88ad;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 9px;
   letter-spacing: 0.06em;
@@ -1437,11 +1435,11 @@
   align-items: center;
   gap: 1px;
   padding: 4px;
-  border: 1px solid rgba(130, 175, 255, 0.16);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 16%, transparent);
   border-radius: 10px;
-  background: rgba(6, 11, 22, 0.78);
+  background: color-mix(in srgb, var(--gaea-surface-sunken) 78%, transparent);
   backdrop-filter: blur(16px);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--gaea-surface-sunken) 50%, transparent);
   transform: translateX(-50%);
   animation: atlas-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
 }
@@ -1454,7 +1452,7 @@
   padding: 0 11px;
   border: 0;
   border-radius: 6px;
-  color: #8296b7;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 9.5px;
   letter-spacing: 0.06em;
@@ -1464,17 +1462,17 @@
 }
 
 .atlas-dock button + button {
-  border-left: 1px solid rgba(142, 178, 255, 0.1);
+  border-left: 1px solid color-mix(in srgb, var(--gaea-chart-5) 10%, transparent);
   border-radius: 0 6px 6px 0;
 }
 
 .atlas-dock button:hover {
-  color: #e5f5ff;
-  background: rgba(110, 231, 255, 0.06);
+  color: var(--gaea-chart-7);
+  background: color-mix(in srgb, var(--gaea-chart-7) 6%, transparent);
 }
 
 .atlas-dock button.is-on {
-  color: #c9f7ff;
+  color: var(--gaea-chart-7);
 }
 
 .atlas-dock button.is-on .anticon {
@@ -1497,11 +1495,11 @@
   bottom: 72px;
   width: 252px;
   padding: 12px;
-  border: 1px solid rgba(130, 175, 255, 0.18);
+  border: 1px solid color-mix(in srgb, var(--gaea-chart-5) 18%, transparent);
   border-radius: 11px;
-  background: rgba(7, 13, 26, 0.94);
+  background: color-mix(in srgb, var(--gaea-surface-sunken) 94%, transparent);
   backdrop-filter: blur(18px);
-  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 24px 54px color-mix(in srgb, var(--gaea-surface-sunken) 55%, transparent);
   transform: translateX(-50%);
   animation: atlas-pop 180ms ease both;
 }
@@ -1511,14 +1509,14 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
-  color: #a9bdda;
+  color: var(--gaea-state-info);
   font-size: 10px;
   letter-spacing: 0.1em;
 }
 
 .atlas-settings-head button {
   border: 0;
-  color: #6e83a4;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 9px;
   cursor: pointer;
@@ -1534,7 +1532,7 @@
   padding: 0 5px;
   border: 0;
   border-radius: 5px;
-  color: #8ea2c2;
+  color: var(--gaea-chart-5);
   background: transparent;
   font-size: 10px;
   text-align: left;
@@ -1542,7 +1540,7 @@
 }
 
 .atlas-toggle:hover {
-  background: rgba(120, 170, 255, 0.06);
+  background: color-mix(in srgb, var(--gaea-chart-5) 6%, transparent);
 }
 
 .atlas-toggle i {
@@ -1551,7 +1549,7 @@
   width: 17px;
   height: 9px;
   border-radius: 999px;
-  background: rgba(130, 160, 210, 0.2);
+  background: color-mix(in srgb, var(--gaea-chart-5) 20%, transparent);
   transition: background 160ms ease;
 }
 
@@ -1563,21 +1561,21 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #7789a9;
+  background: var(--gaea-chart-5);
   transition: transform 160ms ease, background 160ms ease;
 }
 
 .atlas-toggle.is-on i {
-  background: rgba(110, 231, 255, 0.26);
+  background: color-mix(in srgb, var(--gaea-chart-7) 26%, transparent);
 }
 
 .atlas-toggle.is-on i::after {
-  background: #bdf5ff;
+  background: var(--gaea-chart-7);
   transform: translateX(8px);
 }
 
 .atlas-toggle small {
-  color: #4f6384;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7px;
   letter-spacing: 0.1em;
@@ -1587,7 +1585,7 @@
   margin: 8px 4px 0;
   padding-top: 8px;
   border-top: 1px solid var(--atlas-line-soft);
-  color: #526687;
+  color: var(--gaea-chart-5);
   font-size: 8.5px;
   line-height: 1.6;
 }
@@ -1604,7 +1602,7 @@
   justify-content: flex-end;
   gap: 12px;
   pointer-events: none;
-  color: #4d6080;
+  color: var(--gaea-chart-5);
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 7.5px;
   letter-spacing: 0.1em;
@@ -1623,17 +1621,17 @@
 .atlas-library {
   /* 库抽屉是「常规工作区」，hub.* 组件（GraphView 工具条/详情）跟随主题，
      不继承星图那套锁定暗色的 --hub-*。 */
-  --hub-ink: var(--color-text, #e9f0ff);
-  --hub-muted: var(--color-text-secondary, #93a4c2);
-  --hub-faint: var(--color-text-tertiary, #5f7192);
-  --hub-canvas: var(--color-bg-layout, #04070f);
-  --hub-surface: var(--color-bg-container, #0a1222);
-  --hub-surface-soft: var(--color-surface-container, #08101e);
-  --hub-surface-high: var(--color-surface-container-high, #0e1830);
-  --hub-line: var(--color-border, rgba(142, 178, 255, 0.12));
-  --hub-line-strong: color-mix(in srgb, var(--color-text, #e9f0ff) 18%, transparent);
-  --hub-accent: var(--color-primary, #6ee7ff);
-  --hub-focus: 0 0 0 3px color-mix(in srgb, var(--color-primary, #6ee7ff) 22%, transparent);
+  --hub-ink: var(--color-text, var(--gaea-ink-primary));
+  --hub-muted: var(--color-text-secondary, var(--gaea-state-info));
+  --hub-faint: var(--color-text-tertiary, var(--gaea-chart-5));
+  --hub-canvas: var(--color-bg-layout, var(--gaea-surface-sunken));
+  --hub-surface: var(--color-bg-container, var(--gaea-chart-5));
+  --hub-surface-soft: var(--color-surface-container, var(--gaea-surface-sunken));
+  --hub-surface-high: var(--color-surface-container-high, var(--gaea-chart-5));
+  --hub-line: var(--color-border, color-mix(in srgb, var(--gaea-chart-5) 12%, transparent));
+  --hub-line-strong: color-mix(in srgb, var(--color-text, var(--gaea-ink-primary)) 18%, transparent);
+  --hub-accent: var(--color-primary, var(--gaea-chart-7));
+  --hub-focus: 0 0 0 3px color-mix(in srgb, var(--color-primary, var(--gaea-chart-7)) 22%, transparent);
 
   position: absolute;
   z-index: 18;
@@ -1645,11 +1643,11 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--color-border, rgba(130, 175, 255, 0.16));
+  border: 1px solid var(--color-border, color-mix(in srgb, var(--gaea-chart-5) 16%, transparent));
   border-radius: 14px;
-  color: var(--color-text, #e9f0ff);
-  background: var(--color-bg-layout, #070c18);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.52);
+  color: var(--color-text, var(--gaea-ink-primary));
+  background: var(--color-bg-layout, var(--gaea-surface-sunken));
+  box-shadow: 0 30px 80px color-mix(in srgb, var(--gaea-surface-sunken) 52%, transparent);
   animation: atlas-sheet 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -1659,8 +1657,8 @@
   gap: 18px;
   flex: 0 0 auto;
   padding: 14px 18px 13px;
-  border-bottom: 1px solid var(--color-border, rgba(130, 175, 255, 0.16));
-  background: color-mix(in srgb, var(--color-bg-container, #0a1222) 72%, transparent);
+  border-bottom: 1px solid var(--color-border, color-mix(in srgb, var(--gaea-chart-5) 16%, transparent));
+  background: color-mix(in srgb, var(--color-bg-container, var(--gaea-chart-5)) 72%, transparent);
 }
 
 .atlas-library-back {
@@ -1669,9 +1667,9 @@
   gap: 5px;
   height: 27px;
   padding: 0 9px;
-  border: 1px solid var(--color-border, rgba(130, 175, 255, 0.2));
+  border: 1px solid var(--color-border, color-mix(in srgb, var(--gaea-chart-5) 20%, transparent));
   border-radius: 7px;
-  color: var(--color-text-secondary, #93a4c2);
+  color: var(--color-text-secondary, var(--gaea-state-info));
   background: transparent;
   font-size: 9.5px;
   cursor: pointer;
@@ -1679,8 +1677,8 @@
 }
 
 .atlas-library-back:hover {
-  color: var(--color-text, #e9f0ff);
-  border-color: var(--color-primary, #6ee7ff);
+  color: var(--color-text, var(--gaea-ink-primary));
+  border-color: var(--color-primary, var(--gaea-chart-7));
 }
 
 .atlas-library-title {
@@ -1690,7 +1688,7 @@
 
 .atlas-library-kicker {
   display: block;
-  color: var(--color-text-tertiary, #5f7192);
+  color: var(--color-text-tertiary, var(--gaea-chart-5));
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
   font-size: 8px;
   letter-spacing: 0.2em;
@@ -1698,7 +1696,7 @@
 
 .atlas-library-title h2 {
   margin: 2px 0 0;
-  color: var(--color-text, #e9f0ff);
+  color: var(--color-text, var(--gaea-ink-primary));
   font-size: 18px;
   font-weight: 550;
   letter-spacing: 0.06em;
@@ -1707,7 +1705,7 @@
 
 .atlas-library-title p {
   margin: 3px 0 0;
-  color: var(--color-text-tertiary, #5f7192);
+  color: var(--color-text-tertiary, var(--gaea-chart-5));
   font-size: 9.5px;
   letter-spacing: 0.04em;
 }
@@ -1747,7 +1745,7 @@
   justify-content: center;
   gap: 12px;
   height: 100%;
-  color: var(--color-text-tertiary, #5f7192);
+  color: var(--color-text-tertiary, var(--gaea-chart-5));
   font-size: 10px;
   letter-spacing: 0.08em;
 }
@@ -1755,8 +1753,8 @@
 .atlas-spinner {
   width: 22px;
   height: 22px;
-  border: 1.5px solid rgba(110, 231, 255, 0.18);
-  border-top-color: rgba(110, 231, 255, 0.8);
+  border: 1.5px solid color-mix(in srgb, var(--gaea-chart-7) 18%, transparent);
+  border-top-color: color-mix(in srgb, var(--gaea-chart-7) 80%, transparent);
   border-radius: 50%;
   animation: atlas-spin 0.9s linear infinite;
 }
@@ -1981,5 +1979,5 @@
 
 /* 亮色主题下库面板保持主题表面；观测台本体仍锁定暗色 */
 html[data-hl="light"] .atlas-library {
-  border-color: var(--color-border, #e5e7eb);
+  border-color: var(--color-border, var(--gaea-ink-primary));
 }

@@ -19,7 +19,7 @@ afterEach(() => {
 describe("GenuiPanel 会话 UI 面板", () => {
   it("空态提示；有内容时渲染 GenUI 块", () => {
     const { unmount } = render(<GenuiPanel sessionPath="s1" />);
-    expect(screen.getByText(/内容会显示在这里/)).toBeTruthy();
+    expect(screen.getByText(/内容会实时出现在这里/)).toBeTruthy();
     unmount();
 
     useGenuiPanelStore.getState().publish("s1", "m1#0", spec);
@@ -33,10 +33,10 @@ describe("GenuiPanel 会话 UI 面板", () => {
   it("清空需两击确认", () => {
     useGenuiPanelStore.getState().publish("s2", "m1#0", spec);
     render(<GenuiPanel sessionPath="s2" />);
-    const clear = screen.getByRole("button", { name: "清空" });
+    const clear = screen.getByRole("button", { name: "清空交互面板" });
     fireEvent.click(clear);
-    expect(screen.getByRole("button", { name: "确认清空？" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "确认清空？" }));
+    expect(screen.getByText("确认清空？")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "确认清空交互面板" }));
     expect(screen.queryByText("订单看板")).toBeNull();
     expect(useGenuiPanelStore.getState().sessions["s2"]).toBeUndefined();
   });

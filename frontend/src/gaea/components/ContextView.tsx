@@ -159,7 +159,7 @@ function CurrentContextCard({
   const marks = tiers
     ? ([
         { key: "soft", at: tiers.soft * 100, color: "var(--md-sys-color-outline-variant)", label: t("contextview.wmSoft", { pct: Math.round(tiers.soft * 100) }) },
-        { key: "ratio", at: tiers.ratio * 100, color: "var(--md-sys-color-warning, #f59e0b)", label: t("contextview.wmRatio", { pct: Math.round(tiers.ratio * 100) }) },
+        { key: "ratio", at: tiers.ratio * 100, color: "var(--gaea-state-warning)", label: t("contextview.wmRatio", { pct: Math.round(tiers.ratio * 100) }) },
         { key: "force", at: tiers.force * 100, color: "var(--md-sys-color-destructive)", label: t("contextview.wmForce", { pct: Math.round(tiers.force * 100) }) },
       ] as const)
     : [];
@@ -888,7 +888,7 @@ export function ContextTrendChart({
               y1={0}
               x2={(mi / bars.length) * 100}
               y2={34}
-              stroke="var(--md-sys-color-warning, #f59e0b)"
+              stroke="var(--gaea-state-warning)"
               strokeWidth={0.4}
             />
           ))}
@@ -983,7 +983,7 @@ export function ContextTrendChart({
             <polyline
               points={durPoints.map((p) => `${p.x},${p.y}`).join(" ")}
               fill="none"
-              stroke="var(--fg-dim, var(--md-sys-color-outline, #9e9e9e))"
+              stroke="var(--gaea-ink-secondary)"
               strokeWidth={1.2}
               data-testid="trend-duration-curve"
             />
@@ -1209,7 +1209,7 @@ export function ContextTrendChart({
                   );
                 })}
                 {compactSeqs.has(b.seq) && (
-                  <text x={x + bw / 2} y={padT - 3} fontSize={10} textAnchor="middle" fill="var(--warning, #f59e0b)">✂</text>
+                  <text x={x + bw / 2} y={padT - 3} fontSize={10} textAnchor="middle" fill="var(--gaea-state-warning)">✂</text>
                 )}
               </g>
             );
@@ -1277,7 +1277,7 @@ function StepDetail({
             <span className="text-fg-dim">{t("contextview.deltaNoChange")}</span>
           ) : (
             <>
-              <span className="font-mono font-medium tabular-nums" style={{ color: record.delta.tokens >= 0 ? "#22c55e" : "#ef4444" }}> {/* hex-exempt 增量语义色（与趋势 delta 模式同款：绿=净增/红=净减） */}
+              <span className="font-mono font-medium tabular-nums" style={{ color: record.delta.tokens >= 0 ? "var(--gaea-state-success)" : "var(--gaea-state-danger)" }}>
                 {record.delta.tokens >= 0 ? "+" : "-"}{fmtTokens(Math.abs(record.delta.tokens))}
               </span>
               {record.delta.approx && (

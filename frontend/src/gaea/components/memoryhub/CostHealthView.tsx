@@ -41,7 +41,7 @@ const Section = ({
       <b style={{ fontSize: 12.5 }}>{title}</b>
       <span
         className="px-1.5 rounded-full text-[10.5px]"
-        style={{ background: count > 0 ? tone : "var(--bg-soft, #f5f5f5)", color: count > 0 ? "var(--color-bg, #fff)" : "var(--color-text-secondary)" }}
+        style={{ background: count > 0 ? tone : "var(--gaea-surface-high)", color: count > 0 ? "var(--gaea-ink-on-accent)" : "var(--gaea-ink-secondary)" }}
       >
         {count}
       </span>
@@ -154,7 +154,7 @@ export function CostHealthView() {
         ) : (
           <div style={rowsStyle}>
             {report.codeMismatch.map((g, i) => (
-              <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid var(--border-subtle, #eee)" }}>
+              <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid var(--gaea-line-hairline)" }}>
                 「{g.title}」：
                 {g.items.map((it) => it.code).join(" / ")}
                 <button

@@ -350,7 +350,7 @@ export function BrowserPanel({
         <div
           data-testid="browser-zoom"
           className="fixed inset-0 flex items-center justify-center"
-          style={{ zIndex: Z_INDEX.MODAL + 10, background: "rgba(0,0,0,0.9)" }}
+          style={{ zIndex: Z_INDEX.MODAL + 10, background: "var(--gaea-scrim)" }}
           onClick={() => setZoom(false)}
         >
           <img

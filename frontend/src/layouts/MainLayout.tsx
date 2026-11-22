@@ -3,11 +3,11 @@ import React, { useState, useEffect, useRef, Suspense, useReducer, useCallback }
 import { Layout, Button, Space, Typography, Tooltip, Spin, notification, Popover } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
-  UpOutlined, DownOutlined, ThunderboltOutlined,
+  UpOutlined, DownOutlined, ThunderboltOutlined, HighlightOutlined,
 } from '@ant-design/icons'
 import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS } from '../stores/appStore'
+import { useAppStore, FEATURED_THEME_KEYS, THEME_PRESET_COLORS, THEME_PRESET_LABELS } from '../stores/appStore'
 import { TaskInboxHost } from '../components/TaskInboxHost'
 import { getModelMonitor } from '../api/engines'
 // 3.0「星枢 Constellation OS」壳层革命：顶栏横向菜单 → 左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道。
@@ -64,8 +64,8 @@ function resolvePageComponent(p: Page): React.ComponentType | undefined {
   return getPageComponent(m.page)
 }
 
-// 主题色点/标签：单一数据源 THEME_PRESETS（appStore，3.0 Wave 2 消除三处重复维护）
-const themeKeys = THEME_PRESETS.map((t) => t.key)
+// 顶栏只承载 12 套精选；15 套全量在设置页。
+const featuredThemeKeys = FEATURED_THEME_KEYS
 const themeDots = THEME_PRESET_COLORS
 const themeLabels = THEME_PRESET_LABELS
 
@@ -488,12 +488,19 @@ const MainLayout: React.FC = () => {
   const checkLogin = useAppStore((s) => s.checkLogin)
   const baseTheme = useAppStore((s) => s.baseTheme)
   const darkMode = useAppStore((s) => s.darkMode)
+  const surfaceStyle = useAppStore((s) => s.surfaceStyle)
+  const toggleGlassMode = useAppStore((s) => s.toggleGlassMode)
+  const glassMode = surfaceStyle === 'soft'
+  const quickThemeKeys = React.useMemo(
+    () => featuredThemeKeys.includes(baseTheme) ? featuredThemeKeys : [baseTheme, ...featuredThemeKeys],
+    [baseTheme],
+  )
   // 主题色点双态样式（浅色可见性修复，2026-10-09 用户报告「弹窗选择全是一个颜色」）：
   // 旧样式为暗色系设计——非激活 0.55 透明度 + 辉光阴影，在浅色白底上把七色洗成
   // 一样的浅灰圈。暗色保持原辉光语言；浅色=满透明度 + 深色描边环 + 无辉光。
   const themeDotStyle = (color: string, active: boolean): React.CSSProperties => darkMode
     ? {
-        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 55%, #000))`,
+        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 55%, var(--md-sys-color-surface-dim)))`,
         border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
         boxShadow: active
           ? `0 0 10px ${color}, 0 0 20px color-mix(in srgb, ${color} 45%, transparent)`
@@ -501,7 +508,7 @@ const MainLayout: React.FC = () => {
         opacity: active ? 1 : 0.55,
       }
     : {
-        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 62%, #000))`,
+        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 62%, var(--md-sys-color-surface-dim)))`,
         border: active ? '2px solid var(--color-text)' : '1px solid color-mix(in srgb, var(--color-text) 24%, transparent)',
         boxShadow: 'none',
         opacity: active ? 1 : 0.92,
@@ -578,6 +585,15 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
+      const target = e.target as HTMLElement | null
+      const editing = target?.tagName === 'INPUT'
+        || target?.tagName === 'TEXTAREA'
+        || target?.isContentEditable
+      if (!editing && !ctrl && e.altKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        toggleGlassMode()
+        return
+      }
       if (!ctrl) return
       if (e.key >= '1' && e.key <= '9') {
         const targets = getActiveMenuBoards()
@@ -599,7 +615,7 @@ const MainLayout: React.FC = () => {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [page])
+  }, [page, toggleGlassMode])
 
   // Content 布局 = manifest.layout（chat/gaea/pantheon=full，其余 padded）
   const currentLayout = getActiveBoard(page)?.layout ?? 'padded'
@@ -700,7 +716,7 @@ const MainLayout: React.FC = () => {
               title="主题"
               content={
                 <Space size={10} wrap style={{ padding: '2px 2px 4px' }}>
-                  {themeKeys.map((t) => {
+                  {quickThemeKeys.map((t) => {
                     const active = t === baseTheme
                     return (
                       <Tooltip key={t} title={themeLabels[t]}>
@@ -745,6 +761,17 @@ const MainLayout: React.FC = () => {
                 />
               </Tooltip>
             </Popover>
+            <Tooltip title={glassMode ? t('shell.strip.glassOff') : t('shell.strip.glassOn')}>
+              <Button
+                type="text"
+                size="small"
+                className={`v3-glass-toggle${glassMode ? ' is-active' : ''}`}
+                icon={<HighlightOutlined />}
+                aria-label={t('shell.strip.glassAria')}
+                aria-pressed={glassMode}
+                onClick={toggleGlassMode}
+              />
+            </Tooltip>
             {/* 搜索（原 projectOpen 门控随小说板块退役拆除，恒显示） */}
             <Tooltip title={t('shell.strip.searchTip')}>
               <Button type="text" size="small" icon={<SearchOutlined />} onClick={() => setSearchOpen(true)} aria-label={t('shell.strip.searchAria')} style={{ color: 'var(--color-text-secondary)' }} />

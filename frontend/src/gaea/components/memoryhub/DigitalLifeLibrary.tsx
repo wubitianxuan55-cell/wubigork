@@ -210,9 +210,9 @@ export function DigitalLifeLibrary() {
                 )}
               </div>
               <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 max-w-md">
-                <ScoreBar label="亲密度" value={c.intimacy} color="#f472b6" /> {/* hex-exempt 维度识别色 */}
-                <ScoreBar label="信任" value={c.trust} color="#34d399" /> {/* hex-exempt 维度识别色 */}
-                <ScoreBar label="安全" value={c.safety} color="#38bdf8" /> {/* hex-exempt 维度识别色 */}
+                <ScoreBar label="亲密度" value={c.intimacy} color="var(--gaea-chart-6)" />
+                <ScoreBar label="信任" value={c.trust} color="var(--gaea-chart-2)" />
+                <ScoreBar label="安全" value={c.safety} color="var(--gaea-chart-4)" />
               </div>
               <div className="mt-2 text-[11px] text-fg-faint">
                 最近互动 {fmtTime(c.last_interacted_at)} · 记忆事件 {c.memory_event_count} · 强化 {c.reinforcement}

@@ -1,0 +1,63 @@
+/*
+ * Layer 2: semantic appearance tokens.
+ * Components may consume only these tokens, never palette literals.
+ */
+
+:root {
+  --gaea-accent: var(--md-sys-color-primary);
+  --gaea-accent-ink: var(--md-sys-color-on-primary);
+  --gaea-accent-soft: color-mix(in srgb, var(--gaea-accent) 10%, transparent);
+  --gaea-accent-line: color-mix(in srgb, var(--gaea-accent) 28%, transparent);
+  --gaea-ambient: rgb(var(--gaea-ambience-rgb));
+  --gaea-ambient-soft: rgba(var(--gaea-ambience-rgb), 0.12);
+  --gaea-ambient-faint: rgba(var(--gaea-ambience-rgb), 0.055);
+
+  --gaea-surface-base: var(--md-sys-color-surface);
+  --gaea-surface-main: color-mix(in srgb, var(--md-sys-color-surface) 90%, var(--md-sys-color-surface-container));
+  --gaea-surface-raised: var(--md-sys-color-surface-container);
+  --gaea-surface-high: var(--md-sys-color-surface-container-high);
+  --gaea-surface-highest: var(--md-sys-color-surface-container-highest);
+  --gaea-surface-sunken: var(--md-sys-color-surface-dim);
+  --gaea-surface-overlay: color-mix(in srgb, var(--md-sys-color-surface-container-high) 94%, var(--md-sys-color-surface));
+
+  --gaea-ink-primary: var(--md-sys-color-text);
+  --gaea-ink-secondary: var(--md-sys-color-text-secondary);
+  --gaea-ink-tertiary: var(--md-sys-color-text-tertiary);
+  --gaea-ink-on-accent: var(--md-sys-color-on-primary);
+
+  --gaea-line-hairline: color-mix(in srgb, var(--gaea-ink-primary) 8%, transparent);
+  --gaea-line-soft: color-mix(in srgb, var(--gaea-ink-primary) 12%, transparent);
+  --gaea-line-strong: color-mix(in srgb, var(--gaea-ink-primary) 18%, transparent);
+
+  --gaea-state-success: var(--md-sys-color-success);
+  --gaea-state-warning: var(--md-sys-color-warning);
+  --gaea-state-danger: var(--md-sys-color-destructive);
+  --gaea-state-info: var(--md-sys-color-info);
+
+  --gaea-scrim: color-mix(in srgb, var(--gaea-surface-sunken) 76%, transparent);
+  --gaea-shadow-ambient: 0 18px 54px color-mix(in srgb, var(--gaea-surface-sunken) 28%, transparent);
+  --gaea-shadow-raised: 0 8px 24px color-mix(in srgb, var(--gaea-surface-sunken) 18%, transparent);
+  --gaea-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--gaea-accent) 18%, transparent);
+
+  --gaea-chart-1: var(--gaea-accent);
+  --gaea-chart-2: var(--md-sys-color-success);
+  --gaea-chart-3: var(--md-sys-color-warning);
+  --gaea-chart-4: var(--md-sys-color-info);
+  --gaea-chart-5: var(--md-sys-color-tertiary-container);
+  --gaea-chart-6: var(--md-sys-color-destructive);
+  --gaea-chart-7: color-mix(in srgb, var(--gaea-accent) 55%, var(--gaea-state-info));
+  --gaea-chart-8: color-mix(in srgb, var(--gaea-state-success) 55%, var(--gaea-state-info));
+  --gaea-chart-9: color-mix(in srgb, var(--gaea-state-warning) 55%, var(--gaea-state-danger));
+  --gaea-chart-10: color-mix(in srgb, var(--gaea-state-info) 60%, var(--gaea-chart-5));
+  --gaea-chart-11: color-mix(in srgb, var(--gaea-state-success) 45%, var(--gaea-state-warning));
+  --gaea-chart-muted: var(--gaea-ink-tertiary);
+  --gaea-chart-track: color-mix(in srgb, var(--gaea-ink-primary) 9%, transparent);
+  --gaea-link-same-tag: color-mix(in srgb, var(--gaea-chart-1) 30%, transparent);
+  --gaea-link-same-category: color-mix(in srgb, var(--gaea-chart-2) 30%, transparent);
+  --gaea-link-reference: color-mix(in srgb, var(--gaea-chart-6) 40%, transparent);
+  --gaea-link-produces: color-mix(in srgb, var(--gaea-chart-3) 30%, transparent);
+  --gaea-link-affects: color-mix(in srgb, var(--gaea-chart-muted) 25%, transparent);
+  --gaea-link-references: color-mix(in srgb, var(--gaea-chart-8) 45%, transparent);
+  --gaea-absolute-white: Canvas;
+  --gaea-absolute-black: CanvasText;
+}

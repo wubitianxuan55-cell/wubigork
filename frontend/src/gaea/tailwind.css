@@ -82,8 +82,8 @@
   --transition-normal: 150ms;
   --transition-slow: 200ms;
 
-  --color-black: #000;
-  --color-white: #fff;
+  --color-black: var(--gaea-absolute-black);
+  --color-white: var(--gaea-absolute-white);
 }
 
 /* ── base layer ── */

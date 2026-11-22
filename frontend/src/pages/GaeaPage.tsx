@@ -7,6 +7,9 @@ import '../gaea/office-ui.css'
 import '../gaea/office-conversation.css'
 import '../gaea/office-lingxi-skin.css'
 import '../gaea/office-sidebar.css'
+import '../gaea/appearance/semantic.css'
+import '../gaea/appearance/materials.css'
+import '../gaea/appearance/components.css'
 
 // 办公板块：完整使用 gaeaW 原生版面（对话区 + 左侧 Sidebar + 右侧面板）。
 // 后端绑定通过 gaea/lib/bridge.ts 适配层映射到 gaea 的 Gaea* 方法。

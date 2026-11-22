@@ -15,6 +15,7 @@ initRuntimePolyfill()
 import { ensureLightContrast } from './lib/accent'
 import { subscribeWailsEvent } from './gaea/lib/wailsEvents'
 import { handleImageGenPressureEvent } from './utils/imagegenPressure'
+import { SYNTAX_PALETTE } from './theme/syntaxPalette'
 
 /** hex 颜色 → 'r,g,b' 字符串（用于 --accent-rgb 覆盖） */
 function hexToRgb(hex: string): string {
@@ -29,6 +30,8 @@ const App: React.FC = () => {
   const darkMode = useAppStore((s) => s.darkMode)
   const density = useAppStore((s) => s.density)
   const motion = useAppStore((s) => s.motion)
+  const surfaceStyle = useAppStore((s) => s.surfaceStyle)
+  const ambienceStyle = useAppStore((s) => s.ambienceStyle)
   const accentColor = useAppStore((s) => s.accentColor)
   const fontFamily = useAppStore((s) => s.fontFamily)
   const fontSize = useAppStore((s) => s.fontSize)
@@ -42,7 +45,7 @@ const App: React.FC = () => {
 
   // 强调色自定义：覆盖主题默认 glow/primary（accentRgb 供 rgb() 使用）。
   // 亮态下对自定义强调色做对比度保障（ensureLightContrast）：暗色调亮的强调色
-  // （如 #1dd7bf）切亮色主题后压浅底对比仅 ~1.5，全站 accent 文字看不清——渲染
+  // 切亮色主题后若压浅底对比不足，全站 accent 文字会不可读——渲染
   // 时自动深化到 WCAG AA；暗态与用户存储的原始色均不变（v4.274）。
   // useMemo：无 accent 时保持 tokens 同一引用，避免 useEffect 每次渲染重复写 CSS 变量
   const effTokens = useMemo(() => {
@@ -102,15 +105,14 @@ const App: React.FC = () => {
     // Text
     set('--md-sys-color-text', effTokens.colorText)
     set('--md-sys-color-text-secondary', effTokens.colorTextSecondary)
-    // v4.362：tertiary 文本档进 ThemeTokens（原三别名硬编码 dark '#8b93a0' /
-    // light '#6b7280'——Violet 亮态 surface 仅 4.41:1 不达 AA 且改不到）。
+    // tertiary 文本档由 ThemeTokens 统一下发，避免跨主题硬编码漂移。
     // 三个变量名保留（25 个消费点零改动），值统一由 colorTextTertiary 下发。
     set('--md-sys-color-text-tertiary', effTokens.colorTextTertiary)
     // 幽灵令牌补定义（v4.350）：--v3-fg-soft/--v3-line-soft/--color-text-tertiary
     // 此前全仓零定义，所有消费点恒走 fallback 亮色值——暗主题下 11~12px 次要
     // 文字/边框对比不足（gray-500 暗底约 3.9:1 < AA）。
     set('--v3-fg-soft', effTokens.colorTextTertiary)
-    set('--v3-line-soft', darkMode ? 'rgba(255,255,255,0.10)' : '#e5e7eb') // hex-exempt
+    set('--v3-line-soft', effTokens.colorBorder)
     set('--color-text-tertiary', effTokens.colorTextTertiary)
     set('--md-sys-color-border', effTokens.colorBorder)
 
@@ -118,11 +120,7 @@ const App: React.FC = () => {
     set('--md-sys-color-success', effTokens.colorSuccess)
     set('--md-sys-color-warning', effTokens.colorWarning)
     set('--md-sys-color-destructive', effTokens.colorDestructive)
-    // -info 明暗分档（v4.350）：此前仅 gaea/tailwind.css 定义 --color-info 且转发的
-    // --md-sys-color-info 本身无注入源，gaea 板块外消费（文学板块面板
-    // 图表分组）整条 invalid；亮档取 sky-700（白底 4.6:1），暗档 sky-400。hex-exempt：
-    // 主题库无 info 字段，锁定值对齐 v4.349 lightFn 下沉色先例。
-    set('--md-sys-color-info', darkMode ? '#38bdf8' : '#0369a1') // hex-exempt
+    set('--md-sys-color-info', effTokens.colorInfo)
     // -error 语义别名（v4.350 补定义）：gaea 四组件 26 处消费 --md-sys-color-error
     // 但全仓从未定义（无 fallback 整条属性 invalid→失败态红点/红字/红框全消失），
     // 与 destructive 同值双名，12 主题自动正确。
@@ -150,6 +148,7 @@ const App: React.FC = () => {
     set('--gaea-glow', effTokens.glow)
     set('--gaea-glass-bg', effTokens.glassBg)
     set('--gaea-aurora-bg', effTokens.auroraBg)
+    set('--gaea-ambience-rgb', effTokens.ambienceRgb)
 
     // ═══ Backward-compat shims (old var names → new M3 tokens) ═══
     set('--accent-rgb', effTokens.accentRgb)
@@ -164,7 +163,7 @@ const App: React.FC = () => {
     set('--color-success', effTokens.colorSuccess)
     set('--color-warning', effTokens.colorWarning)
     set('--color-destructive', effTokens.colorDestructive)
-    set('--color-info', darkMode ? '#38bdf8' : '#0369a1') // hex-exempt
+    set('--color-info', effTokens.colorInfo)
     set('--color-bg-container', effTokens.colorBgContainer)
     set('--color-bg-layout', effTokens.colorBgLayout)
     // 3.0「星枢」v3 层消费的容器色 shim（v3-card / v3-rail-item.is-active / v3-model-pill 等）
@@ -194,6 +193,8 @@ const App: React.FC = () => {
     // 主题预设下发（v10「天玄」）：页面级星穹底纹与描线按预设开关，
     // 各页面以 data-theme 作用域隔离，其余预设零影响。
     root.dataset.theme = baseTheme
+    root.dataset.gaeaSurface = surfaceStyle
+    root.dataset.gaeaAmbience = ambienceStyle
     // 原生控件明暗（v4.351）：滚动条轨道角/表单控件随主题（此前全仓无声明，
     // 暗主题下原生控件残留亮色渲染）
     root.style.colorScheme = darkMode ? 'dark' : 'light'
@@ -202,7 +203,13 @@ const App: React.FC = () => {
     // 首帧脚本只读取一次显示模式；运行时切换主题时必须同步这个静态标记，
     // 否则浅色启动后切暗，index.html 的浅色页面底仍会保留，露出白色底板。
     root.toggleAttribute('data-bs-light', !darkMode)
-  }, [effTokens, darkMode, baseTheme])
+
+    for (const [scheme, palette] of Object.entries(SYNTAX_PALETTE)) {
+      for (const [token, color] of Object.entries(palette)) {
+        set(`--syntax-${scheme}-${token}`, color)
+      }
+    }
+  }, [effTokens, darkMode, baseTheme, surfaceStyle, ambienceStyle])
 
   // antd 主题对象同样 memo：ConfigProvider 收到新对象就会重跑主题算法
   // （token 合并 + 组件级派生）。此前内联字面量每次渲染都是新引用（v4.349）。

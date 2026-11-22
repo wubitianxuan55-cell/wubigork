@@ -6,19 +6,20 @@ import { ArrowRightOutlined, DatabaseOutlined, ReloadOutlined } from "@ant-desig
 import { app } from "../../lib/bridge";
 import { DOMAIN_COLORS, DOMAIN_KEYS, DOMAIN_LABELS } from "../../lib/domainColors";
 import type { GraphLink, GraphNode, MemoryGraphView, SemanticGraphView } from "../../lib/types";
+import { resolveThemeColor } from "../../../utils/theme";
 
 const TYPE_COLORS = DOMAIN_COLORS;
 const TYPE_LABELS = DOMAIN_LABELS;
 const TYPE_KEYS = DOMAIN_KEYS;
 const SEMANTIC_TYPES = new Set(["entity", "event", "source"]);
 const LINK_COLORS: Record<string, string> = {
-  "same-tag": "rgba(129,140,248,0.30)",
-  "same-category": "rgba(52,211,153,0.30)",
-  reference: "rgba(244,114,182,0.40)",
+  "same-tag": "var(--gaea-link-same-tag)",
+  "same-category": "var(--gaea-link-same-category)",
+  reference: "var(--gaea-link-reference)",
   // 语义图谱（source="semantic"）三向边：来源→事件→实体 + 实体互引。
-  produces: "rgba(251,146,60,0.30)",
-  affects: "rgba(148,163,184,0.25)",
-  references: "rgba(94,234,212,0.45)",
+  produces: "var(--gaea-link-produces)",
+  affects: "var(--gaea-link-affects)",
+  references: "var(--gaea-link-references)",
 };
 
 // 3d-force-graph 运行时导出是可调用 kapsule 工厂：ForceGraph3D()(domEl) → 链式实例；
@@ -89,9 +90,9 @@ export function GraphView(p: {
     const fg = createGraph()(containerRef.current)
       // WebGL 画布透明，主题背景由 hub.css 的画布层负责。这样 12 套主题切换时
       // CSS 与三维场景永远同源，不会残留上一套主题的整块背景色。
-      .backgroundColor("rgba(0,0,0,0)")
+      .backgroundColor("transparent")
       .nodeVal((d) => d.val ?? 1)
-      .nodeColor((d) => TYPE_COLORS[d.type] ?? "#64748b")
+      .nodeColor((d) => resolveThemeColor(TYPE_COLORS[d.type] ?? "var(--gaea-chart-muted)"))
       .nodeLabel(
         (d) =>
           `<div style="font:12px sans-serif;color:var(--fg);background:color-mix(in srgb, var(--bg-elev) 92%, transparent);border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;padding:6px 10px;max-width:260px">` +
@@ -100,7 +101,7 @@ export function GraphView(p: {
           `<div style="color:var(--fg-faint);line-height:1.4">${d.desc ?? ""}</div>` +
           `</div>`,
       )
-      .linkColor((l) => LINK_COLORS[l.type] ?? "rgba(148,163,184,0.25)")
+      .linkColor((l) => resolveThemeColor(LINK_COLORS[l.type] ?? "var(--gaea-link-affects)"))
       .linkWidth(1.2)
       .d3AlphaDecay(0.022)
       .warmupTicks(80)

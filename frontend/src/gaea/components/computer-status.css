@@ -11,11 +11,11 @@
   gap: 8px;
   padding: 6px 14px;
   border-radius: 999px;
-  background: var(--md-sys-color-surface-container-high, rgba(24, 24, 28, 0.88));
-  color: var(--md-sys-color-on-surface, #ececf1);
+  background: var(--gaea-surface-high);
+  color: var(--gaea-ink-primary);
   font-size: 12.5px;
   line-height: 1;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--gaea-shadow-raised);
   pointer-events: none;
 }
 
@@ -23,7 +23,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--md-sys-color-primary, #339cff);
+  background: var(--gaea-accent);
   animation: computer-status-pulse 1.2s ease-in-out infinite;
 }
 

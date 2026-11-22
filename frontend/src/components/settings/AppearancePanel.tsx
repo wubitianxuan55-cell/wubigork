@@ -2,9 +2,13 @@ import React, { useMemo, useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
-  SwapOutlined, AimOutlined, GlobalOutlined } from '@ant-design/icons'
+  SwapOutlined, AimOutlined, GlobalOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { Button, InputNumber, Segmented, Select } from 'antd'
-import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
+import {
+  useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, FONT_OPTIONS,
+  type DisplayMode, type ThemePreset, type Density, type MotionPref,
+  type SurfaceStyle, type AmbienceStyle,
+} from '../../stores/appStore'
 import { useI18n, useT, type LangPref } from '../../gaea/lib/i18n'
 import type { DictKey } from '../../gaea/locales/en'
 import SettingsSection from './SettingsSection'
@@ -12,16 +16,24 @@ import SettingsSection from './SettingsSection'
 // 主题选项：数据单一来源 THEME_PRESETS（appStore）；label/desc 经 i18n 组件内派生（原为模块级直用）。
 // THEME_LABEL_KEYS 与 appStore 的 ThemePreset 联合类型锁定：新增主题时 tsc 会强制补键。
 const THEME_LABEL_KEYS: Record<ThemePreset, { label: DictKey; desc: DictKey }> = {
-  nightJade: { label: 'settings.appear.themeNightJadeLabel', desc: 'settings.appear.themeNightJadeDesc' },
-  nightViolet: { label: 'settings.appear.themeNightVioletLabel', desc: 'settings.appear.themeNightVioletDesc' },
-  nightRose: { label: 'settings.appear.themeNightRoseLabel', desc: 'settings.appear.themeNightRoseDesc' },
-  nightAmber: { label: 'settings.appear.themeNightAmberLabel', desc: 'settings.appear.themeNightAmberDesc' },
-  nightMoss: { label: 'settings.appear.themeNightMossLabel', desc: 'settings.appear.themeNightMossDesc' },
-  nightSlate: { label: 'settings.appear.themeNightSlateLabel', desc: 'settings.appear.themeNightSlateDesc' },
-  tianXuan: { label: 'settings.appear.themeTianXuanLabel', desc: 'settings.appear.themeTianXuanDesc' },
+  cinnabar: { label: 'settings.appear.themeCinnabarLabel', desc: 'settings.appear.themeCinnabarDesc' },
+  dawn: { label: 'settings.appear.themeDawnLabel', desc: 'settings.appear.themeDawnDesc' },
+  tangerine: { label: 'settings.appear.themeTangerineLabel', desc: 'settings.appear.themeTangerineDesc' },
+  aurora: { label: 'settings.appear.themeAuroraLabel', desc: 'settings.appear.themeAuroraDesc' },
+  stone: { label: 'settings.appear.themeStoneLabel', desc: 'settings.appear.themeStoneDesc' },
+  amber: { label: 'settings.appear.themeAmberLabel', desc: 'settings.appear.themeAmberDesc' },
+  osmanthus: { label: 'settings.appear.themeOsmanthusLabel', desc: 'settings.appear.themeOsmanthusDesc' },
+  mint: { label: 'settings.appear.themeMintLabel', desc: 'settings.appear.themeMintDesc' },
+  sage: { label: 'settings.appear.themeSageLabel', desc: 'settings.appear.themeSageDesc' },
+  ripple: { label: 'settings.appear.themeRippleLabel', desc: 'settings.appear.themeRippleDesc' },
+  mist: { label: 'settings.appear.themeMistLabel', desc: 'settings.appear.themeMistDesc' },
+  lapis: { label: 'settings.appear.themeLapisLabel', desc: 'settings.appear.themeLapisDesc' },
+  lavender: { label: 'settings.appear.themeLavenderLabel', desc: 'settings.appear.themeLavenderDesc' },
+  silverrose: { label: 'settings.appear.themeSilverRoseLabel', desc: 'settings.appear.themeSilverRoseDesc' },
+  petal: { label: 'settings.appear.themePetalLabel', desc: 'settings.appear.themePetalDesc' },
 }
 
-interface ThemeOption { key: ThemePreset; label: string; desc: string; color: string }
+interface ThemeOption { key: ThemePreset; label: string; desc: string; color: string; featured: boolean }
 
 /** 主题 Select 的 option data 形状：color/desc 随 options 透传，optionRender 经 option.data 取用 */
 type ThemeSelectOption = {
@@ -29,13 +41,20 @@ type ThemeSelectOption = {
   label: string
   color: string
   desc: string
+  featured: boolean
 }
 
 /** 主题选项（label/desc 已本地化）；t 变更时重算（下拉选项与 hover 预览共用） */
 function useThemeOptions(): ThemeOption[] {
   const t = useT()
   return useMemo(
-    () => THEME_PRESETS.map((p) => ({ key: p.key, color: p.color, label: t(THEME_LABEL_KEYS[p.key].label), desc: t(THEME_LABEL_KEYS[p.key].desc) })),
+    () => THEME_PRESETS.map((p) => ({
+      key: p.key,
+      color: p.color,
+      featured: p.featured,
+      label: t(THEME_LABEL_KEYS[p.key].label),
+      desc: t(THEME_LABEL_KEYS[p.key].desc),
+    })),
     [t],
   )
 }
@@ -45,8 +64,8 @@ function ThemeOrb({ color, size = 20 }: { color: string; size?: number }) {
   return (
     <span style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 45%, #000))`,
-      boxShadow: `0 0 10px ${color}66, 0 0 20px ${color}33`,
+      background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 45%, var(--md-sys-color-surface-dim)))`,
+      boxShadow: `var(--gaea-shadow-raised)`,
     }} />
   )
 }
@@ -59,15 +78,13 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
     <div style={{
       borderRadius: 16, overflow: 'hidden',
       border: '1px solid var(--md-sys-color-outline-variant)',
-      boxShadow: '0 8px 30px color-mix(in srgb, var(--gaea-glow) 12%, transparent)',
+      boxShadow: 'var(--gaea-shadow-raised)',
       transition: 'all var(--md-sys-transition-fast)',
     }}>
       {/* 预览画布：深空星云 / 晨光背景跟随主题色与模式 */}
       <div style={{
         padding: '18px 20px',
-        background: darkMode
-          ? `linear-gradient(135deg, #0a0f1e 0%, ${t.color}33 100%)`
-          : `linear-gradient(135deg, #f8f6f1 0%, ${t.color}44 100%)`,
+        background: `linear-gradient(135deg, var(--md-sys-color-surface) 0%, color-mix(in srgb, ${t.color} 18%, var(--md-sys-color-surface-container)) 100%)`,
       }}>
         {/* 霓虹标题条（模拟设置中心玻璃区块） */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -75,7 +92,7 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
             width: 3, height: 14, borderRadius: 2,
             background: 'var(--gaea-glow)', boxShadow: '0 0 8px var(--gaea-glow)',
           }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}> {/* hex-exempt 主题预览固定明暗样张 */}
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>
             {t.label} · {darkMode ? tr('settings.appear.dark') : tr('settings.appear.light')}
           </span>
           <span style={{
@@ -90,19 +107,19 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
         {/* 玻璃卡片模拟 */}
         <div style={{
           borderRadius: 12, padding: '12px 14px',
-          background: darkMode ? 'color-mix(in srgb, var(--color-text) 7%, transparent)' : 'rgba(255,255,255,0.72)',
-          border: darkMode ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.10)', // hex-exempt 主题预览固定明暗样张（边框随档位）
+          background: 'var(--gaea-surface-overlay)',
+          border: '1px solid var(--gaea-line-soft)',
           backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <span style={{
               width: 16, height: 16, borderRadius: '50%',
-              background: `radial-gradient(circle at 35% 30%, ${t.color}, color-mix(in srgb, ${t.color} 45%, #000))`,
-              boxShadow: `0 0 10px ${t.color}`,
+              background: `radial-gradient(circle at 35% 30%, ${t.color}, color-mix(in srgb, ${t.color} 45%, var(--md-sys-color-surface-dim)))`,
+              boxShadow: 'var(--gaea-shadow-raised)',
             }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}>{tr('settings.appear.previewCardTitle')}</span> {/* hex-exempt 主题预览固定明暗样张 */}
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{tr('settings.appear.previewCardTitle')}</span>
           </div>
-          <div style={{ fontSize: 11, color: darkMode ? '#94a3b8' : '#64748b', lineHeight: 1.7 }}> {/* hex-exempt 主题预览固定明暗样张 */}
+          <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', lineHeight: 1.7 }}>
             {tr('settings.appear.previewCardDesc', { color: t.color })}
           </div>
         </div>
@@ -155,14 +172,28 @@ const AppearancePanel: React.FC = () => {
             >
               <ThemeOrb color={d.color} size={20} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{d.label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>
+                  <span>{d.label}</span>
+                  {d.featured && (
+                    <span style={{
+                      padding: '0 5px',
+                      border: '1px solid color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent)',
+                      borderRadius: 4,
+                      color: 'var(--md-sys-color-primary)',
+                      background: 'color-mix(in srgb, var(--md-sys-color-primary) 7%, transparent)',
+                      fontSize: 9,
+                      fontWeight: 600,
+                      lineHeight: '16px',
+                    }}>{t('settings.appear.featured')}</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>{d.desc}</div>
               </div>
               {d.value === baseTheme && <CheckOutlined style={{ color: 'var(--gaea-glow)', fontSize: 13 }} />}
             </div>
           )
         }}
-        options={themeOptions.map((o) => ({ value: o.key, label: o.label, color: o.color, desc: o.desc }))}
+        options={themeOptions.map((o) => ({ value: o.key, label: o.label, color: o.color, desc: o.desc, featured: o.featured }))}
       />
       {/* hover 预览说明行 */}
       <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', margin: '8px 0 12px' }}>
@@ -327,6 +358,49 @@ export const DensityPanel: React.FC = () => {
   )
 }
 
+/** SurfacePanel — 壳层表面材质：轻雾 / 柔雾 / 实底。 */
+export const SurfacePanel: React.FC = () => {
+  const t = useT()
+  const surfaceStyle = useAppStore((s) => s.surfaceStyle)
+  const setSurfaceStyle = useAppStore((s) => s.setSurfaceStyle)
+  return (
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><AppstoreOutlined /></span>} title={t('settings.appear.surfaceTitle')} desc={t('settings.appear.surfaceDesc')}>
+      <SegmentedRow<SurfaceStyle>
+        value={surfaceStyle}
+        onChange={setSurfaceStyle}
+        ariaLabel={t('settings.appear.surfaceTitle')}
+        options={[
+          { key: 'veil', label: t('settings.appear.surfaceVeil'), desc: t('settings.appear.surfaceVeilDesc'), icon: <BgColorsOutlined /> },
+          { key: 'soft', label: t('settings.appear.surfaceSoft'), desc: t('settings.appear.surfaceSoftDesc'), icon: <DashboardOutlined /> },
+          { key: 'solid', label: t('settings.appear.surfaceSolid'), desc: t('settings.appear.surfaceSolidDesc'), icon: <CompressOutlined /> },
+        ]}
+      />
+    </SettingsSection>
+  )
+}
+
+/** AmbiencePanel — 背景氛围：雾光 / 淡彩 / 纯色。 */
+export const AmbiencePanel: React.FC = () => {
+  const t = useT()
+  const ambienceStyle = useAppStore((s) => s.ambienceStyle)
+  const setAmbienceStyle = useAppStore((s) => s.setAmbienceStyle)
+  return (
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><BgColorsOutlined /></span>} title={t('settings.appear.ambienceTitle')} desc={t('settings.appear.ambienceDesc')}>
+      <SegmentedRow<AmbienceStyle>
+        value={ambienceStyle}
+        onChange={setAmbienceStyle}
+        ariaLabel={t('settings.appear.ambienceTitle')}
+        options={[
+          { key: 'bloom', label: t('settings.appear.ambienceBloom'), desc: t('settings.appear.ambienceBloomDesc'), icon: <BgColorsOutlined /> },
+          { key: 'wash', label: t('settings.appear.ambienceWash'), desc: t('settings.appear.ambienceWashDesc'), icon: <DashboardOutlined /> },
+          { key: 'grid', label: t('settings.appear.ambienceGrid'), desc: t('settings.appear.ambienceGridDesc'), icon: <AppstoreOutlined /> },
+          { key: 'off', label: t('settings.appear.ambienceOff'), desc: t('settings.appear.ambienceOffDesc'), icon: <CompressOutlined /> },
+        ]}
+      />
+    </SettingsSection>
+  )
+}
+
 /** MotionPanel — 动效强度：完整 / 减弱（可访问性） */
 export const MotionPanel: React.FC = () => {
   const t = useT()
@@ -352,6 +426,7 @@ export const MotionPanel: React.FC = () => {
 export const AccentPanel: React.FC = () => {
   const t = useT()
   const accentColor = useAppStore((s) => s.accentColor)
+  const baseTheme = useAppStore((s) => s.baseTheme)
   const setAccentColor = useAppStore((s) => s.setAccentColor)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><AimOutlined /></span>} title={t('settings.appear.accentTitle')} desc={t('settings.appear.accentDesc')}>
@@ -380,7 +455,7 @@ export const AccentPanel: React.FC = () => {
         }}>
           <input
             type="color"
-            value={accentColor || '#2dd4bf'} /* hex-exempt 默认强调色回退（与主题令牌一致） */
+            value={accentColor || THEME_PRESET_COLORS[baseTheme]}
             onChange={(e) => setAccentColor(e.target.value)}
             style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
           />

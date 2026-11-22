@@ -118,7 +118,7 @@ function FindingSection({ title, findings }: { title: string; findings: Workcost
         <div style={{ color: "var(--color-text-secondary)" }}>无</div>
       ) : (
         findings.map((f, i) => (
-          <div key={i} data-testid={`audit-finding-${f.kind}`} style={{ border: "1px solid var(--border-subtle, #eee)", borderRadius: 8, padding: "6px 10px", marginBottom: 6 }}>
+          <div key={i} data-testid={`audit-finding-${f.kind}`} style={{ border: "1px solid var(--gaea-line-hairline)", borderRadius: 8, padding: "6px 10px", marginBottom: 6 }}>
             <div>{f.detail}</div>
             <details style={{ marginTop: 4 }}>
               <summary style={{ cursor: "pointer", color: "var(--color-text-secondary)", fontSize: 11.5 }}>

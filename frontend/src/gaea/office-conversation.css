@@ -1182,7 +1182,7 @@
 }
 
 .office-approval-deny-reason__input:focus-visible {
-  outline: 2px solid var(--accent, #4f7cff);
+  outline: 2px solid var(--gaea-accent);
   outline-offset: 1px;
 }
 
@@ -1254,7 +1254,7 @@
 }
 
 .office-denied-dock__reinstate:hover {
-  border-color: var(--accent, #4f7cff);
+  border-color: var(--gaea-accent);
 }
 
 /* ── responsive and motion ─────────────────────────────────────────── */

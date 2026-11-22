@@ -32,7 +32,7 @@ export function ContextPill({ used, window: win, compactRatio, compactLeft, onCl
     pct >= 90
       ? "var(--md-sys-color-destructive)"
       : (compactPct > 0 && pct >= compactPct) || pct >= 75
-        ? "var(--md-sys-color-warning, #f59e0b)"
+        ? "var(--gaea-state-warning)"
         : "var(--md-sys-color-text-secondary)";
   const title =
     compactPct > 0 && compactLeft != null && compactLeft > 0

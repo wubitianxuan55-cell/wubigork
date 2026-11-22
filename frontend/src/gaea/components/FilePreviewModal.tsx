@@ -158,7 +158,7 @@ export function FilePreviewModal() {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
+      style={{ background: "var(--gaea-scrim)", backdropFilter: "blur(3px)" }}
       onClick={closeFilePreview}
       role="dialog"
       aria-modal="true"
@@ -167,7 +167,7 @@ export function FilePreviewModal() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="flex flex-col w-full max-w-[1000px] h-[86vh] max-h-[86vh] rounded-xl border border-border bg-bg-elev-2 shadow-[0_24px_64px_rgba(0,0,0,0.35)] overflow-hidden outline-none"
+        className="flex flex-col w-full max-w-[1000px] h-[86vh] max-h-[86vh] rounded-xl border border-border bg-bg-elev-2 shadow-[var(--gaea-shadow-ambient)] overflow-hidden outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -257,7 +257,7 @@ export function FilePreviewModal() {
           )}
 
           {!loading && preview?.kind === "image" && preview.dataUrl && (
-            <div className="flex items-center justify-center min-h-full p-6 bg-[#0d0f12]/60">
+            <div className="flex items-center justify-center min-h-full p-6 bg-bg/60">
               <img
                 src={preview.dataUrl}
                 alt={name}

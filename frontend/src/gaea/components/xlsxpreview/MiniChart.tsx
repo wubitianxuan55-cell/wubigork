@@ -4,8 +4,17 @@
  * 调色板为数据非 UI chrome（// hex-exempt）。
  */
 
-const PIE_COLORS = ["#5B8DEF", "#7BC47F", "#F2A65A", "#E57373", "#9B7EDE", "#4FC3C3", "#D4A5E5", "#8D9CAD"]; // hex-exempt 图表调色板（xlsx 原生图表）
-const CHART_BLUE = "#5B8DEF"; // hex-exempt 图表调色板
+const PIE_COLORS = [
+  "var(--gaea-chart-1)",
+  "var(--gaea-chart-2)",
+  "var(--gaea-chart-3)",
+  "var(--gaea-chart-6)",
+  "var(--gaea-chart-5)",
+  "var(--gaea-chart-7)",
+  "var(--gaea-chart-8)",
+  "var(--gaea-chart-muted)",
+];
+const CHART_BLUE = "var(--gaea-chart-1)";
 const MAX_MINI_POINTS = 12;
 
 export function MiniChart({ chartType, labels, values }: { chartType: string; labels: string[]; values: number[] }) {
@@ -41,7 +50,7 @@ export function MiniChart({ chartType, labels, values }: { chartType: string; la
     return (
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[560px] mt-1.5" data-testid="mini-chart" role="img">
         {segs.map((s, i) => (
-          <path key={i} d={s.d} fill={s.color} stroke="var(--bg)" strokeWidth="1" />
+          <path key={i} d={s.d} fill={s.color} stroke="var(--gaea-surface-base)" strokeWidth="1" />
         ))}
         {segs.map((s, i) => (
           <text
@@ -49,7 +58,7 @@ export function MiniChart({ chartType, labels, values }: { chartType: string; la
             x={170 + (i % 2) * 190}
             y={28 + Math.floor(i / 2) * 22}
             fontSize="11"
-            fill="var(--fg-dim, #9aa2ad)"
+            fill="var(--gaea-ink-secondary)"
           >
             <tspan fill={s.color}>■</tspan> {s.label} {s.pct}%
           </text>
@@ -82,11 +91,11 @@ export function MiniChart({ chartType, labels, values }: { chartType: string; la
         {pts.map((p, i) => (
           <g key={i}>
             <circle cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill={CHART_BLUE} />
-            <text x={p.x.toFixed(1)} y={(p.y - 6).toFixed(1)} fontSize="9" textAnchor="middle" fill="var(--fg-dim, #9aa2ad)">
+            <text x={p.x.toFixed(1)} y={(p.y - 6).toFixed(1)} fontSize="9" textAnchor="middle" fill="var(--gaea-ink-secondary)">
               {vals[i]}
             </text>
             {lbls[i] !== undefined && (
-              <text x={p.x.toFixed(1)} y={H - 6} fontSize="9" textAnchor="middle" fill="var(--fg-faint, #6b7280)">
+              <text x={p.x.toFixed(1)} y={H - 6} fontSize="9" textAnchor="middle" fill="var(--gaea-ink-tertiary)">
                 {trunc(lbls[i])}
               </text>
             )}
@@ -107,11 +116,11 @@ export function MiniChart({ chartType, labels, values }: { chartType: string; la
         return (
           <g key={i}>
             <rect x={x.toFixed(1)} y={y.toFixed(1)} width={w.toFixed(1)} height={h.toFixed(1)} rx="2" fill={CHART_BLUE} />
-            <text x={(x + w / 2).toFixed(1)} y={(y - 4).toFixed(1)} fontSize="9" textAnchor="middle" fill="var(--fg-dim, #9aa2ad)">
+            <text x={(x + w / 2).toFixed(1)} y={(y - 4).toFixed(1)} fontSize="9" textAnchor="middle" fill="var(--gaea-ink-secondary)">
               {v}
             </text>
             {lbls[i] !== undefined && (
-              <text x={(x + w / 2).toFixed(1)} y={H - 6} fontSize="9" textAnchor="middle" fill="var(--fg-faint, #6b7280)">
+              <text x={(x + w / 2).toFixed(1)} y={H - 6} fontSize="9" textAnchor="middle" fill="var(--gaea-ink-tertiary)">
                 {trunc(lbls[i])}
               </text>
             )}

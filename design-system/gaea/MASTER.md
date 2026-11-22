@@ -1,5 +1,10 @@
 # Design System Master File — gaea 3.0「星枢 Constellation OS」(v2)
 
+> **当前覆盖（2026-11-22）：v4「Bloom Surface」**。配色、材质、背景与壳层映射以
+> `design-system/gaea/appearance-system-v4.md` 为准；本文件以下 v3 规则仅保留历史
+> 结构信息，与 v4 冲突时以 v4 为准。旧 7 套主题已删除，现有主题为 Bloom 15 套
+> 全量配色与 12 套精选入口。
+
 > **LOGIC:** When building a specific page, first check `design-system/gaea/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
 > If not, strictly follow the rules below.

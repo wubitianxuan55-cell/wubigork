@@ -1,0 +1,196 @@
+/*
+ * Layer 3: material and ambience.
+ * Palette owns colour; this layer owns fill, blur, edge and atmosphere.
+ */
+
+:root {
+  --gaea-material-fill: color-mix(in srgb, var(--gaea-surface-raised) 82%, transparent);
+  --gaea-material-fill-strong: color-mix(in srgb, var(--gaea-surface-overlay) 90%, transparent);
+  --gaea-material-filter: blur(10px) saturate(1.08);
+  --gaea-material-edge: inset 0 0 0 1px var(--gaea-line-hairline);
+  --gaea-material-shadow: var(--gaea-shadow-raised);
+  --gaea-ambience-image: var(--gaea-aurora-bg);
+  --gaea-ambience-opacity: 1;
+  --gaea-shell-canvas-image: var(--gaea-ambience-image);
+  --gaea-shell-rail-fill: var(--gaea-material-fill);
+  --gaea-shell-sidebar-fill: var(--md-sys-color-shell-sidebar);
+  --gaea-shell-strip-fill: color-mix(in srgb, var(--gaea-surface-raised) 86%, transparent);
+  --gaea-shell-panel-fill: var(--gaea-surface-raised);
+  --gaea-shell-chat-start: var(--gaea-surface-base);
+  --gaea-shell-chat-end: var(--gaea-surface-main);
+  --gaea-shell-composer-fill: var(--gaea-material-fill-strong);
+  --gaea-shell-control-fill: var(--gaea-surface-base);
+  --gaea-shell-input-fill: var(--gaea-surface-overlay);
+  --gaea-shell-toolbar-fill: var(--gaea-surface-high);
+  --gaea-shell-sheen: none;
+  --gaea-shell-edge: var(--gaea-material-edge);
+  --gaea-shell-shadow: var(--gaea-material-shadow);
+  --gaea-shell-filter: var(--gaea-material-filter);
+  --gaea-shell-chat-filter: none;
+  --gaea-grid-line: var(--gaea-line-hairline);
+  --gaea-chat-grid-line: color-mix(in srgb, var(--gaea-line-soft) 72%, transparent);
+  --gaea-chat-grid-size: 80px;
+  --gaea-chat-grid-opacity: 0.82;
+  --gaea-chat-grid-mask: radial-gradient(
+    ellipse 92% 88% at 50% 34%,
+    black 8%,
+    color-mix(in srgb, black 66%, transparent) 54%,
+    transparent 100%
+  );
+}
+
+:root[data-gaea-surface="veil"] {
+  --gaea-material-fill: color-mix(in srgb, var(--gaea-surface-raised) 82%, transparent);
+  --gaea-material-fill-strong: color-mix(in srgb, var(--gaea-surface-overlay) 92%, transparent);
+  --gaea-material-filter: blur(10px) saturate(1.08);
+}
+
+:root[data-gaea-surface="soft"] {
+  --gaea-material-fill: color-mix(in srgb, var(--gaea-surface-raised) 30%, transparent);
+  --gaea-material-fill-strong: color-mix(in srgb, var(--gaea-surface-overlay) 46%, transparent);
+  --gaea-material-filter: blur(32px) saturate(1.7) contrast(1.05);
+  --gaea-material-edge:
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-ink-primary) 22%, transparent),
+    inset 0 0 0 1px var(--gaea-line-hairline);
+  --gaea-material-shadow:
+    0 26px 76px color-mix(in srgb, var(--gaea-surface-sunken) 34%, transparent),
+    0 2px 10px color-mix(in srgb, var(--gaea-surface-sunken) 16%, transparent);
+  --gaea-shell-canvas-image:
+    radial-gradient(620px circle at 8% 16%, color-mix(in srgb, var(--gaea-accent) 48%, transparent), transparent 70%),
+    radial-gradient(760px circle at 92% 8%, color-mix(in srgb, var(--gaea-ambient) 52%, transparent), transparent 68%),
+    radial-gradient(680px circle at 78% 92%, color-mix(in srgb, var(--gaea-state-info) 34%, transparent), transparent 72%),
+    linear-gradient(150deg, var(--gaea-surface-base), var(--gaea-surface-main));
+  --gaea-shell-sheen:
+    linear-gradient(
+      132deg,
+      color-mix(in srgb, var(--gaea-ink-primary) 16%, transparent) 0%,
+      transparent 32%,
+      color-mix(in srgb, var(--gaea-accent) 16%, transparent) 100%
+    );
+  --gaea-shell-rail-fill: color-mix(in srgb, var(--gaea-surface-raised) 18%, transparent);
+  --gaea-shell-sidebar-fill: color-mix(in srgb, var(--md-sys-color-shell-sidebar) 30%, transparent);
+  --gaea-shell-strip-fill: color-mix(in srgb, var(--gaea-surface-raised) 26%, transparent);
+  --gaea-shell-panel-fill: color-mix(in srgb, var(--gaea-surface-raised) 30%, transparent);
+  --gaea-shell-chat-start: color-mix(in srgb, var(--gaea-surface-base) 54%, transparent);
+  --gaea-shell-chat-end: color-mix(in srgb, var(--gaea-surface-main) 36%, transparent);
+  --gaea-shell-composer-fill: color-mix(in srgb, var(--gaea-surface-overlay) 36%, transparent);
+  --gaea-shell-control-fill: var(--gaea-material-fill-strong);
+  --gaea-shell-input-fill: transparent;
+  --gaea-shell-toolbar-fill: color-mix(in srgb, var(--gaea-surface-overlay) 28%, transparent);
+  --gaea-shell-chat-filter: var(--gaea-material-filter);
+}
+
+:root[data-gaea-surface="solid"] {
+  --gaea-material-fill: var(--gaea-surface-raised);
+  --gaea-material-fill-strong: var(--gaea-surface-overlay);
+  --gaea-material-filter: none;
+  --gaea-material-shadow: none;
+  --gaea-shell-canvas-image: var(--gaea-ambience-image);
+  --gaea-shell-rail-fill: var(--gaea-surface-raised);
+  --gaea-shell-sidebar-fill: var(--md-sys-color-shell-sidebar);
+  --gaea-shell-strip-fill: var(--gaea-surface-raised);
+  --gaea-shell-panel-fill: var(--gaea-surface-raised);
+  --gaea-shell-chat-start: var(--gaea-surface-base);
+  --gaea-shell-chat-end: var(--gaea-surface-main);
+  --gaea-shell-composer-fill: var(--gaea-surface-overlay);
+  --gaea-shell-control-fill: var(--gaea-surface-base);
+  --gaea-shell-input-fill: var(--gaea-surface-overlay);
+  --gaea-shell-toolbar-fill: var(--gaea-surface-high);
+  --gaea-shell-sheen: none;
+  --gaea-shell-edge: inset 0 0 0 1px var(--gaea-line-hairline);
+  --gaea-shell-shadow: none;
+  --gaea-shell-filter: none;
+  --gaea-shell-chat-filter: none;
+}
+
+:root[data-gaea-ambience="wash"] {
+  --gaea-ambience-image:
+    radial-gradient(120% 84% at 108% -10%, color-mix(in srgb, var(--gaea-ambient) 20%, transparent), transparent 64%),
+    linear-gradient(152deg, var(--gaea-surface-base), color-mix(in srgb, var(--gaea-surface-main) 88%, var(--gaea-ambient) 12%));
+}
+
+:root[data-gaea-ambience="grid"] {
+  --gaea-ambience-image:
+    radial-gradient(120% 90% at 100% -12%, color-mix(in srgb, var(--gaea-ambient) 12%, transparent), transparent 66%),
+    linear-gradient(152deg, var(--gaea-surface-base), var(--gaea-surface-main));
+}
+
+:root[data-gaea-ambience="bloom"] {
+  --gaea-grid-opacity: 0.42;
+  --gaea-chat-grid-line: color-mix(in srgb, var(--gaea-line-soft) 72%, transparent);
+  --gaea-chat-grid-opacity: 0.78;
+}
+:root[data-gaea-ambience="wash"] {
+  --gaea-grid-opacity: 0.48;
+  --gaea-chat-grid-line: color-mix(in srgb, var(--gaea-line-soft) 82%, transparent);
+  --gaea-chat-grid-opacity: 0.86;
+}
+:root[data-gaea-ambience="grid"] {
+  --gaea-grid-opacity: 0.72;
+  --gaea-grid-line: var(--gaea-line-soft);
+  --gaea-chat-grid-line: var(--gaea-line-soft);
+  --gaea-chat-grid-opacity: 1;
+  --gaea-chat-grid-mask: radial-gradient(
+    ellipse 104% 96% at 50% 32%,
+    black 14%,
+    color-mix(in srgb, black 76%, transparent) 58%,
+    transparent 100%
+  );
+}
+:root[data-gaea-ambience="off"] {
+  --gaea-grid-opacity: 0;
+  --gaea-chat-grid-line: transparent;
+  --gaea-chat-grid-opacity: 0;
+}
+
+:root[data-gaea-ambience="off"] {
+  --gaea-ambience-image: none;
+  --gaea-ambience-opacity: 0;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --gaea-material-fill: var(--gaea-surface-raised);
+    --gaea-material-fill-strong: var(--gaea-surface-overlay);
+    --gaea-material-filter: none;
+    --gaea-material-edge: inset 0 0 0 1px var(--gaea-line-hairline);
+    --gaea-material-shadow: none;
+    --gaea-shell-canvas-image: var(--gaea-ambience-image);
+    --gaea-shell-sheen: none;
+    --gaea-shell-rail-fill: var(--gaea-surface-raised);
+    --gaea-shell-sidebar-fill: var(--md-sys-color-shell-sidebar);
+    --gaea-shell-strip-fill: var(--gaea-surface-raised);
+    --gaea-shell-panel-fill: var(--gaea-surface-raised);
+    --gaea-shell-chat-start: var(--gaea-surface-base);
+    --gaea-shell-chat-end: var(--gaea-surface-main);
+    --gaea-shell-composer-fill: var(--gaea-surface-overlay);
+    --gaea-shell-control-fill: var(--gaea-surface-base);
+    --gaea-shell-input-fill: var(--gaea-surface-overlay);
+    --gaea-shell-toolbar-fill: var(--gaea-surface-high);
+    --gaea-shell-chat-filter: none;
+  }
+}
+
+@media (prefers-contrast: more), (forced-colors: active) {
+  :root {
+    --gaea-material-fill: Canvas;
+    --gaea-material-fill-strong: Canvas;
+    --gaea-material-filter: none;
+    --gaea-material-shadow: none;
+    --gaea-ambience-image: none;
+    --gaea-ambience-opacity: 0;
+    --gaea-shell-canvas-image: none;
+    --gaea-shell-sheen: none;
+    --gaea-shell-rail-fill: Canvas;
+    --gaea-shell-sidebar-fill: Canvas;
+    --gaea-shell-strip-fill: Canvas;
+    --gaea-shell-panel-fill: Canvas;
+    --gaea-shell-chat-start: Canvas;
+    --gaea-shell-chat-end: Canvas;
+    --gaea-shell-composer-fill: Canvas;
+    --gaea-shell-control-fill: Canvas;
+    --gaea-shell-input-fill: Canvas;
+    --gaea-shell-toolbar-fill: Canvas;
+    --gaea-shell-chat-filter: none;
+  }
+}

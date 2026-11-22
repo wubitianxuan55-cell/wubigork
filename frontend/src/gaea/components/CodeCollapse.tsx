@@ -25,7 +25,7 @@ const ZH_LABELS: CodeCollapseLabels = { expand: (n) => `展开全部（${n} 行�
 
 export function CodeCollapse({
   text,
-  fade = "var(--bg, #1B2336)",
+  fade = "var(--gaea-surface-base)",
   labels = ZH_LABELS,
   children,
 }: {
@@ -63,9 +63,9 @@ export function CodeCollapse({
           style={{
             display: "inline-flex", alignItems: "center", padding: "3px 12px", borderRadius: 999,
             border: "1px solid var(--md-sys-color-outline-variant)",
-            background: "var(--md-sys-color-surface-container-high, #1E293B)",
-            color: "var(--md-sys-color-on-surface-variant, #CBD5E1)", fontSize: 10.5,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+             background: "var(--gaea-surface-high)",
+             color: "var(--gaea-ink-secondary)", fontSize: 10.5,
+             boxShadow: "var(--gaea-shadow-raised)",
           }}
         >
           {open ? labels.collapse : labels.expand(lines)}

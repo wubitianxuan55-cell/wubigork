@@ -1,10 +1,10 @@
 const SUBAGENT_HUES = [
-  "hsl(146 48% 50%)",
-  "hsl(211 70% 60%)",
-  "hsl(45 79% 51%)",
-  "hsl(320 67% 63%)",
-  "hsl(184 62% 44%)",
-  "hsl(20 76% 57%)",
+  "var(--gaea-chart-2)",
+  "var(--gaea-chart-4)",
+  "var(--gaea-chart-3)",
+  "var(--gaea-chart-6)",
+  "var(--gaea-chart-7)",
+  "var(--gaea-chart-3)",
 ] as const;
 
 function hash(value: string): number {
@@ -27,11 +27,11 @@ export function agentHue(ref: string, index?: number): string {
 // 层读）。家系色保留在连线（家系=血缘维度，深度=层读维度，双维不打架）。
 const DEPTH_HUES = [
   "var(--fleet-violet, var(--info))", // depth 0 root：与主 agent 家系色同源
-  "hsl(211 70% 60%)",
-  "hsl(184 62% 44%)",
-  "hsl(45 79% 51%)",
-  "hsl(320 67% 63%)",
-  "hsl(146 48% 50%)",
+  "var(--gaea-chart-4)",
+  "var(--gaea-chart-7)",
+  "var(--gaea-chart-3)",
+  "var(--gaea-chart-6)",
+  "var(--gaea-chart-2)",
 ] as const;
 
 export function depthHue(depth: number): string {

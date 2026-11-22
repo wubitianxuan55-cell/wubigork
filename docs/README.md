@@ -15,6 +15,7 @@
 | 文档 | 状态 |
 |---|---|
 | gaea-build-guide.md | ✅ **日常构建与装机权威**：frontend 预构建、裸 Wails strip 构建、DLL 布局、冒烟与装机命令；含 TMP/TEMP、孤儿构建进程、编程板块 DSH 环境以及 Windows 子进程必须 `CREATE_NO_WINDOW` 的防 cmd 黑窗规则 |
+| third-party-notices.md | ✅ 第三方代码与设计来源许可记录；当前登记 dsh-bloom-theme 0.28.0（MIT）色板与四层外观架构参考 |
 
 ## 总纲（权威排序依据）
 

@@ -15,15 +15,15 @@ import { CAT_COLORS, CONTEXT_CATS } from "./cats";
 
 // ─── 语义色（六分类色单源在 cats.ts；下列为卡片专属的非分类语义色） ────
 const COLORS = {
-  donutTrack: "#8080802e", // hex-exempt Donut 轨道色（同 dsh 原版 #8080802e）
-  cacheHit: "#22c55e", // hex-exempt 缓存命中绿（= user 绿）
-  cacheMiss: "#a855f7", // hex-exempt 未缓存输入紫（= inject 紫）
-  output: "#3b82f6", // hex-exempt 输出蓝（= system 蓝）
-  modelWait: "#3b82f6", // hex-exempt 模型等待蓝
-  modelGen: "#06b6d4", // hex-exempt 模型生成青（= tool 青）
-  toolExec: "#f59e0b", // hex-exempt 工具执行橙（= tools 橙）
-  other: "#808080", // hex-exempt 其他开销灰
-  idle: "#808080", // hex-exempt 空闲窗口灰
+  donutTrack: "var(--gaea-chart-track)",
+  cacheHit: "var(--gaea-chart-2)",
+  cacheMiss: "var(--gaea-chart-5)",
+  output: "var(--gaea-chart-4)",
+  modelWait: "var(--gaea-chart-4)",
+  modelGen: "var(--gaea-chart-7)",
+  toolExec: "var(--gaea-chart-3)",
+  other: "var(--gaea-chart-muted)",
+  idle: "var(--gaea-chart-muted)",
 } as const;
 
 // 六分类图例：键名+语义色+文案全部从 cats.ts 单源派生（此前本地另抄一份
@@ -380,8 +380,8 @@ export function TokenCard({
         { key: "inject", label: t("contextview.catInject"), value: cat.inject, color: CAT_COLORS.inject },
         { key: "skill", label: t("contextview.catSkill"), value: cat.skill, color: CAT_COLORS.skill },
         { key: "tool", label: t("contextview.statToolCallsRow"), value: cat.tool + call, color: CAT_COLORS.tool },
-        { key: "reasoning", label: t("contextview.statThinking"), value: reasoning, color: "#6366f1" }, // hex-exempt Token 统计语义色
-        { key: "answers", label: t("contextview.statAnswers"), value: answers, color: "#ec4899" }, // hex-exempt Token 统计语义色
+        { key: "reasoning", label: t("contextview.statThinking"), value: reasoning, color: "var(--gaea-chart-5)" },
+        { key: "answers", label: t("contextview.statAnswers"), value: answers, color: "var(--gaea-chart-6)" },
       ]
     : [];
   const compTotal = compRows.reduce((s, r) => s + r.value, 0);
@@ -482,12 +482,12 @@ const TIMING_EMPTY_LABEL_KEYS = [
   "contextview.timingOther",
 ] as const;
 const TIMING_COLORS = {
-  wait: "#3b82f6", // hex-exempt 耗时统计语义色（模型等待）
-  gen: "#22c55e", // hex-exempt 耗时统计语义色（模型生成）
-  reasoning: "#8b5cf6", // hex-exempt 耗时统计语义色（模型思考）
-  text: "#06b6d4", // hex-exempt 耗时统计语义色（模型回复）
-  tools: "#f59e0b", // hex-exempt 耗时统计语义色（工具执行）
-  other: "#9ca3af", // hex-exempt 耗时统计语义色（其他）
+  wait: "var(--gaea-chart-4)",
+  gen: "var(--gaea-chart-2)",
+  reasoning: "var(--gaea-chart-5)",
+  text: "var(--gaea-chart-7)",
+  tools: "var(--gaea-chart-3)",
+  other: "var(--gaea-chart-muted)",
 };
 
 const TIMING_EMPTY_ROWS: TimingRow[] = TIMING_EMPTY_LABEL_KEYS.map((k) => ({

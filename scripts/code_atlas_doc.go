@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 const modulePath = "github.com/gaea/gaea"
@@ -649,7 +650,7 @@ func runJSON() {
 	}
 	_ = enc.Encode(map[string]any{
 		"meta": map[string]any{
-			"generated": "2026-11-10",
+			"generated": time.Now().Format("2006-01-02"),
 			"packages":  len(nodes),
 			"edges":     len(edges),
 			"srcLoc":    totalSrc,

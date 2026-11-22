@@ -31,7 +31,7 @@ export function GbaseGroupedView({ model, view }: { model: GbaseSheetModel; view
               <th
                 key={f}
                 className="sticky top-0 z-20 px-2 py-1 text-left text-[10.5px] font-normal text-fg-faint whitespace-nowrap"
-                style={{ background: "var(--bg-elevated, #181b21)", border: "1px solid rgba(128,128,140,0.16)" }}
+                 style={{ background: "var(--gaea-surface-high)", border: "1px solid var(--gaea-line-hairline)" }}
               >
                 {f}
               </th>
@@ -47,7 +47,7 @@ export function GbaseGroupedView({ model, view }: { model: GbaseSheetModel; view
                   <td
                     colSpan={fields.length}
                     className="px-2 py-1 cursor-pointer select-none bg-bg-soft/60 text-fg-dim"
-                    style={{ border: "1px solid rgba(128,128,140,0.16)", height: ROW_H }}
+                     style={{ border: "1px solid var(--gaea-line-hairline)", height: ROW_H }}
                     onClick={() =>
                       setCollapsed((prev) => {
                         const next = new Set(prev);
@@ -74,7 +74,7 @@ export function GbaseGroupedView({ model, view }: { model: GbaseSheetModel; view
                             key={f}
                             className="px-2 py-1 text-fg whitespace-nowrap overflow-hidden text-ellipsis max-w-[240px]"
                             style={{
-                              border: "1px solid rgba(128,128,140,0.16)",
+                               border: "1px solid var(--gaea-line-hairline)",
                               background: color ?? undefined,
                               fontVariantNumeric: "tabular-nums",
                             }}

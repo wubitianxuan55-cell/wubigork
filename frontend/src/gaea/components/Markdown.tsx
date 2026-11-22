@@ -50,6 +50,7 @@ import { useGenuiPanelStore } from "../lib/genuiPanel";
 import { ensureKatexCss, hasMathContent, normalizeMath } from "../lib/mathText";
 import { resolveMarkdownImagePath } from "../lib/markdownImage";
 import { ensureMermaid, mermaidTheme } from "../lib/mermaidRender";
+import { resolveThemeColor } from "../../utils/theme";
 
 // ── Mermaid 图表渲染（agent 生成的流程图/架构图/思维导图等）─────────────
 // mermaidTheme / ensureMermaid 单源于 lib/mermaidRender.ts（C 批蒸馏：聊天线
@@ -72,7 +73,7 @@ function utf8ToB64(s: string): string {
 
 // standaloneHtmlFromSvg 把渲染后的 Mermaid SVG 包成可独立打开的 HTML 页面。
 function standaloneHtmlFromSvg(svg: string): string {
-  const bg = mermaidTheme() === "dark" ? "#1e1e2e" : "#ffffff"; // hex-exempt mermaid 渲染底色（主题已分支）
+  const bg = resolveThemeColor("var(--gaea-surface-base)");
   return `<!doctype html>
 <html lang="zh">
 <head>
@@ -123,7 +124,9 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
         return;
       }
       const bg = getComputedStyle(el).backgroundColor;
-      ctx.fillStyle = bg && bg !== "rgba(0, 0, 0, 0)" ? bg : mermaidTheme() === "dark" ? "#1e1e2e" : "#ffffff"; // hex-exempt mermaid 渲染底色（主题已分支）
+      ctx.fillStyle = bg && bg !== "rgba(0, 0, 0, 0)"
+        ? bg
+        : resolveThemeColor("var(--gaea-surface-base)");
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const xml = new XMLSerializer().serializeToString(el);
       const img = new Image();

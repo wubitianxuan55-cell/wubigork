@@ -14,7 +14,7 @@
   --border-soft: color-mix(in srgb, var(--fg-faint) 16%, transparent);
   --border: color-mix(in srgb, var(--fg-faint) 26%, transparent);
   --ds-shadow-topbar: none;
-  --ds-shadow-composer: 0 12px 34px rgba(0, 0, 0, 0.22);
+  --ds-shadow-composer: var(--gaea-shadow-raised);
 
   /* v3 别名桥：foundation.css 的 .v3-* 原语直接消费 --color-* 别名；
      全局别名（App.tsx shim）缺位时，在 gaea 工作台内桥接 M3 令牌（零 hex） */

@@ -23,9 +23,9 @@ const SLOW_MS = 10_000;
 
 // STATUS_LABEL：不用 i18n（状态词与 dsh/终端语义对齐，mono 展示）。
 const STATUS_COLOR: Record<CmdStatus, string> = {
-  completed: "var(--md-sys-color-success, #22c55e)",
-  failed: "var(--md-sys-color-destructive, #ef4444)",
-  killed: "var(--md-sys-color-warning, #f59e0b)",
+  completed: "var(--gaea-state-success)",
+  failed: "var(--gaea-state-danger)",
+  killed: "var(--gaea-state-warning)",
 };
 
 // commandProgram 与 Go 侧 commandProgram 同口径的客户端近似（程序分布 chip）。

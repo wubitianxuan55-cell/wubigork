@@ -58,7 +58,7 @@ export function GbaseBoardView({
             data-lane-key={g.key}
             className="flex-1 min-w-[160px] max-w-[280px] rounded-lg bg-bg-soft/40 p-1.5"
             style={{
-              outline: dragOver === g.key ? "2px dashed var(--accent, #6366f1)" : "none",
+               outline: dragOver === g.key ? "2px dashed var(--gaea-accent)" : "none",
               minHeight: 80 + maxLane * 8,
             }}
             onDragOver={(e) => {
@@ -91,7 +91,7 @@ export function GbaseBoardView({
                   }}
                   className="rounded-md bg-bg-elevated px-2 py-1.5 mb-1.5 cursor-grab active:cursor-grabbing select-none"
                   style={{
-                    border: "1px solid rgba(128,128,140,0.16)",
+                     border: "1px solid var(--gaea-line-hairline)",
                     background: color ?? undefined,
                     opacity: dragging === r.rowIndex ? 0.5 : undefined,
                   }}

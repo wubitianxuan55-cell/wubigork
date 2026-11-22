@@ -117,7 +117,7 @@ export function ScreenCropOverlay({
             top: imgPos.top + sel.y,
             width: sel.w,
             height: sel.h,
-            boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
+             boxShadow: "0 0 0 9999px var(--gaea-scrim)",
           }}
         />
       )}

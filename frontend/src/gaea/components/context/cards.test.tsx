@@ -98,7 +98,7 @@ describe("TokenCard", () => {
     const dashed = Array.from(container.querySelectorAll<SVGCircleElement>("circle[stroke-dasharray]"));
     expect(dashed.length).toBe(3);
     const lens = dashed.map((c) => Number(c.getAttribute("stroke-dasharray")!.split(" ")[0]));
-    const green = container.querySelector('circle[stroke="#22c55e"]')!;
+    const green = container.querySelector('circle[stroke="var(--gaea-chart-2)"]')!;
     expect(green).toBeTruthy();
     const greenLen = Number(green.getAttribute("stroke-dasharray")!.split(" ")[0]);
     expect(greenLen / lens.reduce((a, b) => a + b, 0)).toBeCloseTo(400000 / 413000, 3);

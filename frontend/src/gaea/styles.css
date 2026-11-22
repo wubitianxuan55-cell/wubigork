@@ -14,31 +14,31 @@
 :root {
   /* ── surfaces — 引用主应用 M3 令牌（老栈 App.tsx 写入 :root），主题联动 ── */
   /*   回退值保留原暗色 palette，供主应用令牌未就绪时兜底             */
-  --bg: var(--md-sys-color-surface-dim, #0F172A);
-  --bg-soft: var(--md-sys-color-surface-container, #1B2336);
-  --bg-elev: var(--md-sys-color-surface-container-high, #1E293B);
-  --bg-elev-2: var(--md-sys-color-surface-container-highest, #272F42);
-  --sidebar-bg: var(--md-sys-color-shell-sidebar, var(--md-sys-color-surface, #0A111F));
-  --sidebar-hover: var(--md-sys-color-surface-container, #18202F);
-  --sidebar-active: var(--accent-soft, rgba(99, 102, 241, 0.14));
-  --border: var(--md-sys-color-outline, #475569);
-  --border-soft: var(--md-sys-color-outline-variant, #334155);
+  --bg: var(--md-sys-color-surface-dim);
+  --bg-soft: var(--md-sys-color-surface-container);
+  --bg-elev: var(--md-sys-color-surface-container-high);
+  --bg-elev-2: var(--md-sys-color-surface-container-highest);
+  --sidebar-bg: var(--md-sys-color-shell-sidebar);
+  --sidebar-hover: var(--md-sys-color-surface-container);
+  --sidebar-active: var(--gaea-accent-soft);
+  --border: var(--md-sys-color-outline);
+  --border-soft: var(--md-sys-color-outline-variant);
 
   /* ── text — 引用主应用文本令牌 ──────────────────────────────────── */
-  --fg: var(--md-sys-color-on-surface, #F8FAFC);
-  --fg-dim: var(--md-sys-color-on-surface-variant, #CBD5E1);
-  --fg-faint: var(--md-sys-color-text-secondary, #94A3B8);
+  --fg: var(--md-sys-color-on-surface);
+  --fg-dim: var(--md-sys-color-on-surface-variant);
+  --fg-faint: var(--md-sys-color-text-secondary);
 
   /* ── brand accent — 引用主应用主色 ──────────────────────────────── */
-  --accent: var(--md-sys-color-primary, #6366F1);
-  --accent-fg: var(--md-sys-color-on-primary, #FFFFFF);
+  --accent: var(--md-sys-color-primary);
+  --accent-fg: var(--md-sys-color-on-primary);
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
 
   /* ── semantic — ok/warn/err 跟随主应用令牌（hex 仅作兜底） ── */
-  --ok: var(--md-sys-color-success, #22C55E);
-  --warn: var(--md-sys-color-warning, #F59E0B);
-  --err: var(--md-sys-color-destructive, #EF4444);
-  --info: var(--md-sys-color-info, #38BDF8);
+  --ok: var(--md-sys-color-success);
+  --warn: var(--md-sys-color-warning);
+  --err: var(--md-sys-color-destructive);
+  --info: var(--md-sys-color-info);
   --warning: var(--warn);
   --error: var(--err);
   --danger: var(--err);
@@ -72,7 +72,7 @@
 
   /* ── --ds-* canonical 令牌完整定义（3.0 Wave 2 补全，此前仅 2/14 定义、27 处消费失效）── */
   --ds-bg-app: var(--bg);
-  --ds-overlay: rgba(0, 0, 0, 0.4);
+  --ds-overlay: var(--gaea-scrim);
   --ds-gradient-sidebar: linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
   --ds-gradient-topbar: linear-gradient(90deg, var(--bg) 0%, var(--bg-soft) 100%);
   --ds-font-display: var(--sans);
@@ -82,10 +82,10 @@
   --ds-radius-xl: var(--md-sys-radius-xl, 28px);
   --ds-radius-3xl: 24px;
   --ds-radius-pill: 999px;
-  --ds-shadow-card: var(--md-sys-elevation-2, 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15));
-  --ds-shadow-card-hover: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
-  --ds-shadow-panel: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
-  --ds-shadow-dropdown: var(--md-sys-elevation-4, 0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15));
+  --ds-shadow-card: var(--md-sys-elevation-2);
+  --ds-shadow-card-hover: var(--md-sys-elevation-3);
+  --ds-shadow-panel: var(--md-sys-elevation-3);
+  --ds-shadow-dropdown: var(--md-sys-elevation-4);
   --ds-danger: var(--err);
   --ds-danger-soft: color-mix(in srgb, var(--err) 14%, transparent);
   --ds-success: var(--ok);
@@ -1126,7 +1126,7 @@ body::after {
 }
 .fact-card-wrapper:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: var(--gaea-shadow-raised);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

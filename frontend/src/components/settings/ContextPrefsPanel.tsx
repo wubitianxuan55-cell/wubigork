@@ -174,7 +174,7 @@ const ContextPromptGroup: React.FC = () => {
 
   const areaStyle = { fontSize: 12 } as const
   return (
-    <div data-testid="ctx-prompt-group" style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--md-sys-color-outline-variant, rgba(0,0,0,0.08))' }}>
+    <div data-testid="ctx-prompt-group" style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--gaea-line-hairline)' }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)', marginBottom: 6 }}>
         {t('settings.context.promptGroup')}
       </div>

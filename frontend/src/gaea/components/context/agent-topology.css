@@ -89,7 +89,7 @@
 }
 
 .agent-topology-legend .is-sub {
-  background: hsl(146 48% 50%);
+  background: var(--gaea-state-success);
 }
 
 .agent-topology-legend .is-running {

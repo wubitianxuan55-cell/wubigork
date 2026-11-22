@@ -117,7 +117,7 @@ export function WorkcostBulkPriceModal({ open, onClose, onApplied }: WorkcostBul
               />
               <div style={{ maxHeight: 260, overflowY: "auto", marginTop: 8, fontSize: 12 }}>
                 {preview.matched.map((m) => (
-                  <div key={`m${m.row}`} style={{ padding: "3px 0", borderBottom: "1px solid var(--border-subtle, #eee)" }}>
+                  <div key={`m${m.row}`} style={{ padding: "3px 0", borderBottom: "1px solid var(--gaea-line-hairline)" }}>
                     <b>{m.title}</b>
                     {m.spec ? <span style={{ color: "var(--color-text-secondary)" }}>（{m.spec}）</span> : null}
                     ：{fmtPrice(m.oldPrice)} → <b>{fmtPrice(m.newPrice)}</b>
@@ -125,7 +125,7 @@ export function WorkcostBulkPriceModal({ open, onClose, onApplied }: WorkcostBul
                   </div>
                 ))}
                 {preview.skipped.map((s) => (
-                  <div key={`s${s.row}`} style={{ padding: "3px 0", color: "var(--color-danger, #c00)", borderBottom: "1px solid var(--border-subtle, #eee)" }}>
+                  <div key={`s${s.row}`} style={{ padding: "3px 0", color: "var(--gaea-state-danger)", borderBottom: "1px solid var(--gaea-line-hairline)" }}>
                     第 {s.row} 行「{s.title}」：{s.reason}
                   </div>
                 ))}

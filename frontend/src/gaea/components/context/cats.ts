@@ -35,11 +35,11 @@ export const CONTEXT_CAT_BROWSE: Record<string, DictKey> = Object.fromEntries(
 
 // 七分类语义色（效果图对齐：系统蓝/工具橙/用户绿/注入紫/技能洋红/助手深蓝/工具青）。
 export const CAT_COLORS: Record<ContextCatKey, string> = {
-  system: "#3b82f6", // hex-exempt 上下文七分类语义色（可视化调色板）
-  tools: "#f59e0b", // hex-exempt 上下文七分类语义色
-  user: "#22c55e", // hex-exempt 上下文七分类语义色
-  inject: "#a855f7", // hex-exempt 上下文七分类语义色
-  skill: "#ec4899", // hex-exempt 上下文七分类语义色（技能=洋红，与注入紫区分）
-  assistant: "#1e40af", // hex-exempt 上下文七分类语义色
-  tool: "#06b6d4", // hex-exempt 上下文七分类语义色
+  system: "var(--gaea-chart-4)",
+  tools: "var(--gaea-chart-3)",
+  user: "var(--gaea-chart-2)",
+  inject: "var(--gaea-chart-5)",
+  skill: "var(--gaea-chart-6)",
+  assistant: "var(--gaea-chart-1)",
+  tool: "var(--gaea-chart-7)",
 };

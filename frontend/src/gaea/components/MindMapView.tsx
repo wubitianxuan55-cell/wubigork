@@ -235,7 +235,7 @@ export function MindMapView({ text, title, onSave }: { text: string; title: stri
             aria-hidden="true"
           >
             {layout.edges.map((d, i) => (
-              <path key={i} d={d} fill="none" stroke="var(--border, rgba(128,128,140,0.3))" strokeWidth={1.2} />
+              <path key={i} d={d} fill="none" stroke="var(--gaea-line-soft)" strokeWidth={1.2} />
             ))}
           </svg>
           {layout.nodes.map((n) => {

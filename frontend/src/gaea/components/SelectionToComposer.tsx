@@ -83,7 +83,7 @@ export function SelectionToComposer() {
 
   return createPortal(
     <div
-      className="fixed z-[1200] flex items-center gap-1 rounded-lg border border-border bg-bg-elev-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] px-1.5 py-1 anim-menu-in"
+      className="fixed z-[1200] flex items-center gap-1 rounded-lg border border-border bg-bg-elev-2 shadow-[var(--gaea-shadow-raised)] px-1.5 py-1 anim-menu-in"
       style={{ left: pos.x, top: Math.max(8, pos.y - 38) }}
       role="toolbar"
       aria-label="选区操作"

@@ -642,7 +642,7 @@ export function DocxPreview({
       )}
 
       {selected && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-[min(760px,94%)] rounded-xl border border-border bg-bg-elev-2 shadow-[0_16px_48px_rgba(0,0,0,0.4)] overflow-hidden">
+         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-[min(760px,94%)] rounded-xl border border-border bg-bg-elev-2 shadow-[var(--gaea-shadow-ambient)] overflow-hidden">
           {!proposal ? (
             <>
               <div className="flex items-center gap-2 px-3 py-2 border-b border-border-soft">
@@ -793,21 +793,21 @@ export function DocxPreview({
           padding: 16px;
         }
         .docx-preview-root .docx-wrapper section.docx {
-          box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+           box-shadow: var(--gaea-shadow-raised);
           margin-bottom: 24px;
         }
         .docx-preview-body {
           background:
-            radial-gradient(circle at 50% 0%, rgba(120,130,150,0.10), transparent 55%),
-            var(--bg, #101318);
+             radial-gradient(circle at 50% 0%, var(--gaea-accent-soft), transparent 55%),
+             var(--gaea-surface-base);
         }
         .docx-preview-root ::selection {
-          background: rgba(92,140,255,0.32);
+           background: color-mix(in srgb, var(--gaea-accent) 32%, transparent);
         }
         .docx-preview-root p.docx-outline-flash {
-          outline: 2px solid rgba(92,140,255,0.72);
+           outline: 2px solid var(--gaea-accent);
           outline-offset: 2px;
-          background: rgba(92,140,255,0.10);
+           background: var(--gaea-accent-soft);
           border-radius: 3px;
         }
       `}</style>

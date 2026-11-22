@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { DOMAIN_COLORS, DOMAIN_LABELS } from "../../lib/domainColors";
+import { resolveThemeColor } from "../../../utils/theme";
 import type { GraphLink, GraphNode } from "../../lib/types";
 import { ATLAS_NODE_LIMIT } from "./atlasConfig";
 import { decodeBrainMesh } from "./brainMeshDecoder";
@@ -62,10 +63,10 @@ interface SceneState {
   voiceVisuals: VoiceVisuals | null;
 }
 
-const FALLBACK_TYPE_COLOR = "#94a3b8"; // hex-exempt：未知领域色
-const GOLD_HEX = "#ffb454"; // hex-exempt：左半球金
-const VIOLET_HEX = "#bc76ff"; // hex-exempt：右半球紫
-const WHITE_HEX = "#ffffff"; // hex-exempt：关系线/选中回退
+const FALLBACK_TYPE_COLOR = "var(--gaea-chart-muted)";
+const GOLD_HEX = "var(--gaea-chart-3)";
+const VIOLET_HEX = "var(--gaea-chart-5)";
+const WHITE_HEX = "var(--gaea-ink-primary)";
 
 function hashString(s: string): number {
   let h = 2166136261;
@@ -86,11 +87,12 @@ function makeGlowTexture(size = 64): THREE.CanvasTexture {
   c.height = size;
   const g = c.getContext("2d")!;
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.16, "rgba(255,255,255,0.9)");
-  grad.addColorStop(0.4, "rgba(255,255,255,0.35)");
-  grad.addColorStop(0.72, "rgba(255,255,255,0.08)");
-  grad.addColorStop(1, "rgba(255,255,255,0)");
+  const ink = resolveThemeColor("var(--gaea-ink-primary)");
+  grad.addColorStop(0, ink);
+  grad.addColorStop(0.16, `color-mix(in srgb, ${ink} 90%, transparent)`);
+  grad.addColorStop(0.4, `color-mix(in srgb, ${ink} 35%, transparent)`);
+  grad.addColorStop(0.72, `color-mix(in srgb, ${ink} 8%, transparent)`);
+  grad.addColorStop(1, "transparent");
   g.fillStyle = grad;
   g.fillRect(0, 0, size, size);
   const tex = new THREE.CanvasTexture(c);
@@ -103,16 +105,19 @@ function makeRingTexture(size = 96): THREE.CanvasTexture {
   c.width = size;
   c.height = size;
   const g = c.getContext("2d")!;
-  g.strokeStyle = "rgba(255,255,255,0.95)";
+  const ink = resolveThemeColor("var(--gaea-ink-primary)");
+  g.strokeStyle = ink;
   g.lineWidth = 3;
   g.beginPath();
   g.arc(size / 2, size / 2, size * 0.38, 0, Math.PI * 2);
   g.stroke();
-  g.strokeStyle = "rgba(255,255,255,0.25)";
+  g.globalAlpha = 0.25;
+  g.strokeStyle = ink;
   g.lineWidth = 1;
   g.beginPath();
   g.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
   g.stroke();
+  g.globalAlpha = 1;
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -125,10 +130,12 @@ function makeRadialTexture(rgb: string, alpha = 0.5): THREE.CanvasTexture {
   c.height = size;
   const g = c.getContext("2d")!;
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, `rgba(${rgb},${alpha})`);
-  grad.addColorStop(0.35, `rgba(${rgb},${alpha * 0.42})`);
-  grad.addColorStop(0.7, `rgba(${rgb},${alpha * 0.12})`);
-  grad.addColorStop(1, `rgba(${rgb},0)`);
+  const [r, gValue, b, a] = rgb.split(",").map((part) => Number.parseFloat(part));
+  const alphaScale = Number.isFinite(a) ? a : 1;
+  grad.addColorStop(0, `rgba(${r},${gValue},${b},${alpha * alphaScale})`);
+  grad.addColorStop(0.35, `rgba(${r},${gValue},${b},${alpha * alphaScale * 0.42})`);
+  grad.addColorStop(0.7, `rgba(${r},${gValue},${b},${alpha * alphaScale * 0.12})`);
+  grad.addColorStop(1, `rgba(${r},${gValue},${b},0)`);
   g.fillStyle = grad;
   g.fillRect(0, 0, size, size);
   const tex = new THREE.CanvasTexture(c);
@@ -144,18 +151,20 @@ function makeBeamTexture(): THREE.CanvasTexture {
   c.height = h;
   const g = c.getContext("2d")!;
   const horiz = g.createLinearGradient(0, 0, w, 0);
-  horiz.addColorStop(0, "rgba(150,240,255,0)");
-  horiz.addColorStop(0.4, "rgba(200,250,255,0.55)");
-  horiz.addColorStop(0.5, "rgba(255,255,255,0.95)");
-  horiz.addColorStop(0.6, "rgba(200,250,255,0.55)");
-  horiz.addColorStop(1, "rgba(150,240,255,0)");
+  const ink = resolveThemeColor("var(--gaea-ink-primary)");
+  const accent = resolveThemeColor("var(--gaea-accent)");
+  horiz.addColorStop(0, accent);
+  horiz.addColorStop(0.4, accent);
+  horiz.addColorStop(0.5, ink);
+  horiz.addColorStop(0.6, accent);
+  horiz.addColorStop(1, accent);
   g.fillStyle = horiz;
   g.fillRect(0, 0, w, h);
   const vert = g.createLinearGradient(0, 0, 0, h);
-  vert.addColorStop(0, "rgba(0,0,0,0)");
-  vert.addColorStop(0.18, "rgba(0,0,0,1)");
-  vert.addColorStop(0.82, "rgba(0,0,0,1)");
-  vert.addColorStop(1, "rgba(0,0,0,0)");
+  vert.addColorStop(0, "transparent");
+  vert.addColorStop(0.18, ink);
+  vert.addColorStop(0.82, ink);
+  vert.addColorStop(1, "transparent");
   g.globalCompositeOperation = "destination-in";
   g.fillStyle = vert;
   g.fillRect(0, 0, w, h);
@@ -170,8 +179,8 @@ const nodeGlowTexture = () => (cachedNodeGlow ??= makeGlowTexture());
 const nodeRingTexture = () => (cachedNodeRing ??= makeRingTexture());
 
 function pickColor(node: GraphNode, right: boolean): THREE.Color {
-  const domain = new THREE.Color(DOMAIN_COLORS[node.type] ?? FALLBACK_TYPE_COLOR);
-  const hemi = new THREE.Color(right ? VIOLET_HEX : GOLD_HEX);
+  const domain = new THREE.Color(resolveThemeColor(DOMAIN_COLORS[node.type] ?? FALLBACK_TYPE_COLOR));
+  const hemi = new THREE.Color(resolveThemeColor(right ? VIOLET_HEX : GOLD_HEX));
   return domain.lerp(hemi, 0.32);
 }
 
@@ -339,8 +348,8 @@ export function MemoryAtlasStage(p: MemoryAtlasStageProps) {
     geo.setIndex(new THREE.BufferAttribute(mesh.tri, 1));
     geo.computeVertexNormals();
     const vColors = new Float32Array(V * 3);
-    const gold = new THREE.Color(GOLD_HEX);
-    const violet = new THREE.Color(VIOLET_HEX);
+    const gold = new THREE.Color(resolveThemeColor(GOLD_HEX));
+    const violet = new THREE.Color(resolveThemeColor(VIOLET_HEX));
     for (let i = 0; i < V; i++) {
       const c = (mesh.pos[i * 3] < 0 ? gold : violet).clone();
       c.multiplyScalar(0.5 + mesh.shade[i] * 0.72);
@@ -889,8 +898,8 @@ export function MemoryAtlasStage(p: MemoryAtlasStageProps) {
       const b = byId.get(String(link.target));
       if (!a || !b) continue;
       positions.push(a.position.x, a.position.y, a.position.z, b.position.x, b.position.y, b.position.z);
-      const ca = nodeColors.get(a.userData.id as string) ?? new THREE.Color(WHITE_HEX);
-      const cb = nodeColors.get(b.userData.id as string) ?? new THREE.Color(WHITE_HEX);
+      const ca = nodeColors.get(a.userData.id as string) ?? new THREE.Color(resolveThemeColor(WHITE_HEX));
+      const cb = nodeColors.get(b.userData.id as string) ?? new THREE.Color(resolveThemeColor(WHITE_HEX));
       const c = ca.clone().lerp(cb, 0.5);
       colors.push(c.r * 0.7, c.g * 0.7, c.b * 0.7, c.r * 0.7, c.g * 0.7, c.b * 0.7);
     }
