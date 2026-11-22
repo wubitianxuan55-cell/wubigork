@@ -1170,6 +1170,22 @@ export namespace app {
 	        this.size = source["size"];
 	    }
 	}
+	export class ExportTocEntry {
+	    text: string;
+	    level: number;
+	    page: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportTocEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text = source["text"];
+	        this.level = source["level"];
+	        this.page = source["page"];
+	    }
+	}
 	export class ExportDeliverableInput {
 	    markdown: string;
 	    format: string;
@@ -1179,6 +1195,11 @@ export namespace app {
 	    toc: boolean;
 	    header: string;
 	    footer: string;
+	    subtitle: string;
+	    author: string;
+	    bid_copy: string;
+	    bid_date: string;
+	    toc_entries?: ExportTocEntry[];
 	    output_path: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1195,8 +1216,31 @@ export namespace app {
 	        this.toc = source["toc"];
 	        this.header = source["header"];
 	        this.footer = source["footer"];
+	        this.subtitle = source["subtitle"];
+	        this.author = source["author"];
+	        this.bid_copy = source["bid_copy"];
+	        this.bid_date = source["bid_date"];
+	        this.toc_entries = this.convertValues(source["toc_entries"], ExportTocEntry);
 	        this.output_path = source["output_path"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ExportDeliverableResult {
 	    path: string;
@@ -1216,6 +1260,7 @@ export namespace app {
 	        this.size = source["size"];
 	    }
 	}
+	
 	export class FactView {
 	    key: string;
 	    value: string;
