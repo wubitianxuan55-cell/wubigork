@@ -167,6 +167,12 @@ func (s *Set) RecallBlockFused(text string, budget int) string {
 		if !m.InvalidAt.IsZero() {
 			continue
 		}
+		// 带正文的置顶条已由缓存前缀的【固化记忆】块全量携带（boot
+		// BuildPinnedFactsBlock，两空间都注入）——逐轮再带=白烧预算；正文空的
+		// 置顶条前缀块跳过（索引行已覆盖的口径），这里仍保留。
+		if m.Pinned && strings.TrimSpace(m.Body) != "" {
+			continue
+		}
 		if m.Kind != KindProcedural && !episodicTriggered(text, m) && !keywordHit(text, m) {
 			continue
 		}
@@ -220,6 +226,9 @@ func (s *Set) RecallBlockFused(text string, budget int) string {
 		m, ok := byName[name]
 		if !ok || !m.InvalidAt.IsZero() {
 			continue
+		}
+		if m.Pinned && strings.TrimSpace(m.Body) != "" {
+			continue // 同上：前缀已携带，发现面不再重复
 		}
 		inputs = append(inputs, RecallFuseInput{
 			Name:    name,

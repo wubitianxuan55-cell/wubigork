@@ -98,7 +98,7 @@ func TestFuseRecallArmsDormantPenalty(t *testing.T) {
 	if !approx(byName["sleepy"].Final, RecallWeightLexical*DormantPenalty) {
 		t.Fatalf("sleepy=%v", byName["sleepy"].Final)
 	}
-	if !approx(byName["pinned-sleepy"].Final, (RecallWeightLexical+RecallWeightPinned)) {
+	if !approx(byName["pinned-sleepy"].Final, (RecallWeightLexical + RecallWeightPinned)) {
 		t.Fatalf("pinned-sleepy=%v（pinned 应豁免休眠惩罚）", byName["pinned-sleepy"].Final)
 	}
 	if byName["sleepy"].Arms[0] != RecallArmLexical {

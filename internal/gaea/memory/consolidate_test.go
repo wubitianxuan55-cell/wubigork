@@ -10,10 +10,10 @@ func vec3(a, b, c float32) []float32 { return []float32{a, b, c} }
 func TestVectorSimilarPairs(t *testing.T) {
 	vecs := map[string][]float32{
 		"a": vec3(1, 0, 0),
-		"b": vec3(1, 0, 0), // 与 a 同向 → cos=1
+		"b": vec3(1, 0, 0),     // 与 a 同向 → cos=1
 		"c": vec3(0.9, 0.1, 0), // 与 a 高相似
-		"d": vec3(0, 0, 1),  // 正交
-		"e": vec3(0, 0, 0),  // 零向量跳过
+		"d": vec3(0, 0, 1),     // 正交
+		"e": vec3(0, 0, 0),     // 零向量跳过
 	}
 	pairs := VectorSimilarPairs([]string{"a", "b", "c", "d", "e"}, vecs, 0.85, 20000, 8)
 	// 期望：a-b(1.0)、a-c/b-c 高分；a-d、b-d 正交不报；e 无向量不报。
