@@ -677,6 +677,20 @@
 .hub-hit-tag--left  { color: var(--gaea-state-success); background: color-mix(in srgb, var(--gaea-state-success) 14%, transparent); }
 .hub-hit-tag--main  { color: var(--gaea-chart-5); background: color-mix(in srgb, var(--gaea-chart-5) 14%, transparent); }
 
+/* ── 星云召回（四臂融合，Nebula Memory 蒸馏）──────────────────── */
+.hub-hit-tag--recall { color: var(--gaea-chart-1); background: color-mix(in srgb, var(--gaea-chart-1) 14%, transparent); }
+.atlas-recall-group { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--hub-line); }
+.atlas-recall-head { display: flex; align-items: center; gap: 8px; margin: 2px 2px 8px; }
+.atlas-recall-title { font-size: 12px; font-weight: 600; color: var(--hub-ink); }
+.atlas-recall-degraded { font-size: 11px; color: color-mix(in srgb, var(--hub-ink) 55%, transparent); }
+.hub-hit-arms { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex: 0 0 auto; }
+.hub-arm { font-style: normal; font-size: 10px; line-height: 1; padding: 3px 5px; border-radius: 4px; white-space: nowrap; }
+.hub-arm--lexical  { color: var(--gaea-chart-5); background: color-mix(in srgb, var(--gaea-chart-5) 14%, transparent); }
+.hub-arm--semantic { color: var(--gaea-chart-2); background: color-mix(in srgb, var(--gaea-chart-2) 14%, transparent); }
+.hub-arm--graph    { color: var(--gaea-chart-3); background: color-mix(in srgb, var(--gaea-chart-3) 14%, transparent); }
+.hub-arm--pinned   { color: var(--gaea-chart-4); background: color-mix(in srgb, var(--gaea-chart-4) 14%, transparent); }
+.hub-arm-score { font-style: normal; font-size: 10px; color: var(--hub-ink); opacity: 0.72; min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+
 /* ── 工作台骨架 ───────────────────────────────────────────────── */
 .hub-body {
   position: relative;

@@ -39,6 +39,7 @@ func (b *MemoryB) GaeaMemoryLifecycle() MemoryLifecycleView { return b.a.GaeaMem
 func (b *MemoryB) GaeaMemoryMerge(targetName string, sourceNames []string) (string, error) { return b.a.GaeaMemoryMerge(targetName, sourceNames) }
 func (b *MemoryB) GaeaMemoryMorningBrief() (string, error) { return b.a.GaeaMemoryMorningBrief() }
 func (b *MemoryB) GaeaMemoryPin(name string, pinned bool) error { return b.a.GaeaMemoryPin(name, pinned) }
+func (b *MemoryB) GaeaMemoryRecall(query string, limit int) MemoryRecallView { return b.a.GaeaMemoryRecall(query, limit) }
 func (b *MemoryB) GaeaMemorySemanticGraph() SemanticGraphView { return b.a.GaeaMemorySemanticGraph() }
 func (b *MemoryB) GaeaMemorySetRetentionDays(days int) error { return b.a.GaeaMemorySetRetentionDays(days) }
 func (b *MemoryB) GaeaMemorySuggestions() MemorySuggestionsView { return b.a.GaeaMemorySuggestions() }

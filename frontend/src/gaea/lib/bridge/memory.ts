@@ -11,6 +11,7 @@ import type {
   MemoryLifecycleView,
   MemoryEvalReport,
   MemoryDuplicateView,
+  MemoryRecallView,
   MemoryGraphView,
   SemanticGraphView,
   MemoryHubOverview,
@@ -157,6 +158,9 @@ export interface MemoryBindings {
   MemoryMorningBrief(): Promise<string>;
   // ── 办公记忆查重/合并 ──
   MemoryDuplicates(min: number): Promise<MemoryDuplicateView[]>;
+  // MemoryRecall 星云召回（四臂融合检索，Nebula Memory 蒸馏 P1）：
+  // 词法/语义/图谱/置顶四臂带臂归因；degraded 如实标注本次降级臂。
+  MemoryRecall(query: string, limit: number): Promise<MemoryRecallView>;
   MemoryMerge(targetName: string, sourceNames: string[]): Promise<string>;
   // ── 办公记忆归档生命周期（T6-8.2 / 记忆统一层）──
   // MemoryArchivedList 分页列出归档（含超过 90 天的硬删除候选），

@@ -35,6 +35,28 @@ export type MemoryArchivedView = WireShape<AppModels.MemoryArchivedView>;
 
 export type MemoryLifecycleView = WireShape<AppModels.MemoryLifecycleView>;
 
+// MemoryRecallHit / MemoryRecallView 星云召回（GaeaMemoryRecall，Nebula Memory
+// 蒸馏 P1 四臂融合）：词法 lexical / 语义 semantic / 图谱 graph / 置顶 pinned，
+// 命中带臂归因（可解释 wire 面）；degraded 如实标注本次降级臂（无 embedder 等）。
+// 手写接口（MemoryEvalReport 先例：不依赖 wailsjs 生成物，防包环）。
+export interface MemoryRecallHit {
+  name: string;
+  title: string;
+  kind: string;
+  type: string;
+  space: string;
+  preview: string;
+  score: number;
+  arms: string[];
+  pinned: boolean;
+}
+export interface MemoryRecallView {
+  query: string;
+  total: number;
+  hits: MemoryRecallHit[];
+  degraded?: Record<string, string>;
+}
+
 // MemoryEvalReport 是记忆注入体检报告（GaeaMemoryEvalRun，市场调研候选2）。
 // 手写接口（wailsjs models 为生成物不随源入库，MemoryArchivedPage 同口径）。
 export interface MemoryEvalReport {

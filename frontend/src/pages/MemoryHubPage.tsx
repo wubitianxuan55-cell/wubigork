@@ -23,7 +23,14 @@ import { app } from "../gaea/lib/bridge";
 import { SCOPE_OPTIONS, useSpaceScope } from "../gaea/lib/useSpaceScope";
 import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
 import { DOMAIN_COLORS, DOMAIN_LABELS } from "../gaea/lib/domainColors";
-import type { GraphLink, GraphNode, MemoryHubOverview, SearchScope } from "../gaea/lib/types";
+import type {
+  GraphLink,
+  GraphNode,
+  MemoryHubOverview,
+  MemoryRecallHit,
+  MemoryRecallView,
+  SearchScope,
+} from "../gaea/lib/types";
 import { ATLAS_NODE_LIMIT } from "../gaea/components/memoryhub/atlasConfig";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
@@ -127,6 +134,14 @@ const TAB_LABELS: Record<string, string> = {
   source: "来源",
 };
 
+// 星云召回臂归因标签（与后端 canonical 序一致：lexical/semantic/graph/pinned）。
+const RECALL_ARM_LABEL: Record<string, string> = {
+  lexical: "词法",
+  semantic: "语义",
+  graph: "图谱",
+  pinned: "置顶",
+};
+
 // 三脑检索 + 工作区全文搜索的合并命中。
 interface HubSearchHit {
   kind: "brain" | "file";
@@ -188,6 +203,8 @@ function MemoryHubPage() {
 
   const [brainQuery, setBrainQuery] = useState("");
   const [hits, setHits] = useState<HubSearchHit[]>([]);
+  // 星云召回（四臂融合，Nebula Memory 蒸馏 P1）：独立于 UnifiedSearch 的记忆库检索组。
+  const [recall, setRecall] = useState<MemoryRecallView | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchOutcome, setSearchOutcome] = useState<"idle" | "empty" | "error">("idle");
   const searchSeqRef = useRef(0);
@@ -255,6 +272,7 @@ function MemoryHubPage() {
     const q = brainQuery.trim();
     if (!q) {
       setHits([]);
+      setRecall(null);
       setSearchOutcome("idle");
       return;
     }
@@ -266,6 +284,7 @@ function MemoryHubPage() {
       if (seq !== searchSeqRef.current) return;
       if (!v) {
         setHits([]);
+        setRecall(null);
         setSearchOutcome("error");
         return;
       }
@@ -284,6 +303,10 @@ function MemoryHubPage() {
       ];
       setHits(merged);
       setSearchOutcome(merged.length === 0 ? "empty" : "idle");
+      // 星云召回独立组（失败/竞态静默让位主检索面；seq 对齐防旧响应覆盖新查询）。
+      app.MemoryRecall(q, 6)
+        .then((r) => { if (seq === searchSeqRef.current) setRecall(r); })
+        .catch(() => { if (seq === searchSeqRef.current) setRecall(null); });
     } catch {
       if (seq !== searchSeqRef.current) return;
       setHits([]);
@@ -419,6 +442,31 @@ function MemoryHubPage() {
   });
   const compositionTotal = composition.reduce((s, x) => s + x.n, 0);
 
+  const renderRecallRow = (h: MemoryRecallHit, i: number) => (
+    <div
+      key={`recall:${h.name}:${i}`}
+      className="hub-hit"
+      role="button"
+      tabIndex={0}
+      onClick={() => openHit({ kind: "brain", brain: "brain.left", entity: h.title || h.name, text: h.preview })}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openHit({ kind: "brain", brain: "brain.left", entity: h.title || h.name, text: h.preview });
+        }
+      }}
+    >
+      <span className="hub-hit-tag hub-hit-tag--recall">星云</span>
+      <span className="hub-hit-entity-static">{h.title || h.name}</span>
+      <span className="hub-hit-text">{h.preview}</span>
+      <span className="hub-hit-arms">
+        {h.arms.map((arm) => (
+          <i key={arm} className={`hub-arm hub-arm--${arm}`}>{RECALL_ARM_LABEL[arm] ?? arm}</i>
+        ))}
+        <em className="hub-arm-score">{Math.round(h.score * 100)}%</em>
+      </span>
+    </div>
+  );
   const renderHitRow = (h: HubSearchHit, i: number) => (
     <div
       key={`${h.kind}:${h.brain}:${h.entity}:${i}`}
@@ -633,7 +681,7 @@ function MemoryHubPage() {
                 value={brainQuery}
                 onChange={(e) => {
                   setBrainQuery(e.target.value);
-                  if (!e.target.value.trim()) { setHits([]); setSearchOutcome("idle"); }
+                  if (!e.target.value.trim()) { setHits([]); setRecall(null); setSearchOutcome("idle"); }
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
                 placeholder="三脑检索 · 工作区资料"
@@ -788,7 +836,7 @@ function MemoryHubPage() {
             <button
               type="button"
               className="atlas-icon-btn"
-              onClick={() => { setHits([]); setSearchOutcome("idle"); setDetail(null); }}
+              onClick={() => { setHits([]); setRecall(null); setSearchOutcome("idle"); setDetail(null); }}
               aria-label="关闭检索结果"
               title="关闭检索结果"
             >
@@ -825,7 +873,22 @@ function MemoryHubPage() {
                 <span>没有找到相关内容，换个关键词试试</span>
               </div>
             ) : (
-              <div className="atlas-hit-list">{hits.map(renderHitRow)}</div>
+              <div className="atlas-hit-list">
+                {recall && (recall.hits.length > 0 || Object.keys(recall.degraded ?? {}).length > 0) && (
+                  <div className="atlas-recall-group">
+                    <div className="atlas-recall-head">
+                      <span className="atlas-recall-title">星云召回 · 四臂融合</span>
+                      {recall.degraded && Object.entries(recall.degraded).map(([arm, why]) => (
+                        <span key={arm} className="atlas-recall-degraded" title={why}>
+                          {RECALL_ARM_LABEL[arm] ?? arm}臂未参与
+                        </span>
+                      ))}
+                    </div>
+                    {recall.hits.map(renderRecallRow)}
+                  </div>
+                )}
+                {hits.map(renderHitRow)}
+              </div>
             )}
           </div>
         ) : graphLoading ? (

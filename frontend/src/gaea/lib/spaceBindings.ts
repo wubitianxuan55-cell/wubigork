@@ -605,6 +605,7 @@ export const GAEA_METHOD_FACETS = {
   KnowledgeReview: "work",
   KnowledgeMerge: "work",
   MemoryDuplicates: "work",
+  MemoryRecall: "work",
   MemoryMerge: "work",
   MemoryArchivedList: "work",
   MemoryCleanupArchived: "work",

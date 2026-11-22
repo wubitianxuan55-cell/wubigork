@@ -42,6 +42,7 @@ type MemoryMethods = Pick<
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
   | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryEvalRun" | "MemoryBrief" | "SetMemoryBrief"
+  | "MemoryRecall"
   | "WenxueMemoryBrowse"
   | "MemoryMorningBrief"
 >;
@@ -520,6 +521,9 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async KnowledgeMerge(_target: string, _sources: string[]) {
       return _target;
+    },
+    async MemoryRecall(query: string, _limit: number) {
+      return { query, total: 0, hits: [], degraded: { semantic: "dev mock：无 embedding" } };
     },
     async MemoryDuplicates(_min: number) {
       return [

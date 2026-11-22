@@ -351,6 +351,7 @@ export const gaeaToGaea = {
   KnowledgeReview: "GaeaKnowledgeReview",
   KnowledgeMerge: "GaeaKnowledgeMerge",
   MemoryDuplicates: "GaeaMemoryDuplicates",
+  MemoryRecall: "GaeaMemoryRecall",
   MemoryMerge: "GaeaMemoryMerge",
   MemoryArchivedList: "GaeaMemoryArchivedList",
   MemoryCleanupArchived: "GaeaMemoryCleanupArchived",
