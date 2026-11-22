@@ -309,6 +309,79 @@ body::after {
   display: none;
 }
 
+/*
+ * Route surface contract
+ * ----------------------
+ * The shell owns the material tier. Board pages may add structure or accent
+ * glows, but must not paint an opaque canvas over the rail/strip/composer
+ * material. Page CSS is lazy-loaded, so these selectors deliberately outrank
+ * single-class board rules and repeat the same material tokens everywhere.
+ *
+ * The contract only activates for veil/matte/liquid. Solid mode deliberately
+ * keeps each board's original opaque layout.
+ */
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter > div {
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter .gaea-app-layout > .layout {
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter :is(
+  .v3-panel,
+  .v3-card,
+  .gaea-app-layout,
+  .chat-main,
+  .chat-topic-sidebar,
+  .chat-inspector,
+  .chat-composer-wrap,
+  .office-sidebar,
+  .ig-result-canvas,
+  .ig-control-rail,
+  .ig-top-strip,
+  .ig-task-center,
+  .ig-bottom-bar,
+  .cost-database-main,
+  .cost-ledger-sheet,
+  .pantheon-rail,
+  .pantheon-council-preview,
+  .atlas-ambience,
+  .atlas-stream,
+  .clib-masthead,
+  .clib-inspector,
+  .wx-main,
+  .wx-rail,
+  .wx-playbook,
+  .wx-channel-control,
+  .wx-route-card,
+  .sched-command-deck,
+  .sched-toolbar,
+  .sched-gantt-frame,
+  .sched-gantt-tablepane,
+  .sched-gantt-canvaspane,
+  .sched-dock,
+  .rt-section,
+  .rt-runtime-card,
+  .rt-resource-card,
+  .rt-empty-state,
+  .rt-engine-card,
+  .mc-rail,
+  .mc-model-card,
+  .mc-empty
+) {
+  background-color: var(--gaea-material-fill) !important;
+  background-image: var(--gaea-shell-sheen) !important;
+  -webkit-backdrop-filter: var(--gaea-material-filter) !important;
+  backdrop-filter: var(--gaea-material-filter) !important;
+}
+
 .v3-panel {
   background-color: var(--gaea-panel-tint-2);
   background-image:

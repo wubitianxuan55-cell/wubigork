@@ -99,6 +99,32 @@ describe('gaea 四层外观架构', () => {
     expect(app).toContain('root.dataset.gaeaMeteorSpeed')
   })
 
+  it('所有一级板块根表面继承同一套玻璃材质契约', () => {
+    const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
+    const pageCss = readFileSync(join(frontendRoot, 'pages/GaeaPage.tsx'), 'utf8')
+    expect(pageCss).toContain("import '../gaea/appearance/components.css'")
+    expect(components).toContain('.page-enter > div')
+    expect(components).toContain(':not([data-gaea-surface="solid"])')
+    expect(components).toContain('background-color: transparent !important')
+    expect(components).toContain('background-color: var(--gaea-material-fill) !important')
+    expect(components).toContain('background-image: var(--gaea-shell-sheen) !important')
+    expect(components).toContain('backdrop-filter: var(--gaea-material-filter) !important')
+    for (const root of [
+      '.chat-main',
+      '.office-sidebar',
+      '.ig-result-canvas',
+      '.cost-database-main',
+      '.pantheon-rail',
+      '.atlas-ambience',
+      '.wx-main',
+      '.sched-command-deck',
+      '.rt-section',
+      '.mc-rail',
+    ]) {
+      expect(components).toContain(root)
+    }
+  })
+
   it('壳层只消费材质契约，玻璃态差异留在材料层', () => {
     const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
     const materials = readFileSync(join(frontendRoot, 'gaea/appearance/materials.css'), 'utf8')
