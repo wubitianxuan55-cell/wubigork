@@ -379,6 +379,56 @@ func (s Store) CiteCounts() map[string]int {
 	return out
 }
 
+// GraphNeighbors 返回实体级互引邻接表（mem_graph_edges etype=references，
+// 双向；键=memory slug）。星云召回图谱臂/聊天席融合注入的数据源；读取上限
+// 5000 边（物化投影规模护栏）。SQLite 后端专属；file 后端/图库不可用=nil
+//（调用方按无图处理）。只读。
+func (s Store) GraphNeighbors() map[string][]string {
+	b, ok := s.engine().(*sqliteBackend)
+	if !ok {
+		return nil
+	}
+	// 物化水位懒重建：面板没开过图谱页时 mem_graph_edges 可能落后于事件日志
+	//——注入面不能吃陈旧图（EnsureGraphFresh 是廉价水位比对）。
+	if _, err := EnsureGraphFresh(b.db); err != nil {
+		return nil
+	}
+	rows, err := b.db.Query(`SELECT src, tgt FROM mem_graph_edges WHERE etype = 'references' LIMIT 5000`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	slug := func(id string) string {
+		rest := strings.TrimPrefix(id, "mem:")
+		if i := strings.Index(rest, "/"); i >= 0 {
+			return rest[i+1:]
+		}
+		return rest
+	}
+	adj := map[string][]string{}
+	seen := map[string]bool{}
+	add := func(a, b2 string) {
+		if a == b2 || a == "" || b2 == "" {
+			return
+		}
+		key := a + "\x00" + b2
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		adj[a] = append(adj[a], b2)
+		adj[b2] = append(adj[b2], a)
+	}
+	for rows.Next() {
+		var src, tgt string
+		if err := rows.Scan(&src, &tgt); err != nil {
+			return adj
+		}
+		add(slug(src), slug(tgt))
+	}
+	return adj
+}
+
 // InSpace 返回按空间收窄**读路径**的 Store 视图（S1.2 B「spaceList 风格单点」
 // 的视图形态）：space 非空时 List/Index/Get/Touch 只作用于该空间（SQLite 走
 // space_id 谓词；file 后端目录隔离、与全量等价）；写路径仍以 Memory.Space

@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/skill"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 const sessionFactsSectionID = "sessionfacts.list"
@@ -111,7 +113,18 @@ func (c *Controller) Compose(text string) string {
 		// 先发 phase 让预处理窗有可见事件（Why：Compose 在 TurnStarted 之前，
 		// 原本全程静默）。与 runSendTurn/runTurnWithRaw 的 phase 同一转译通道。
 		c.emitPhase(phaseRecallingMemory)
-		if block := c.mem.RecallBlock(text, 0); block != "" {
+		// 记忆注入分席（用户拍板 2026-11-22，Nebula Memory 蒸馏接入）：聊天席
+		// （play 分区）吃星云四臂轻量融合（词法+图谱发现+置顶+稳定性衰减）；
+		// 办公席（work/平铺）维持旧口径逐字节不变——办公与文学板块保 prompt
+		// 缓存命中率优先（文学走独立引擎，本就不在此面）。sessionPath 空=会话
+		// 未落盘，保守回旧口径。
+		var block string
+		if c.sessionPath != "" && session.SpaceForPath(c.sessionPath) == spaces.SpacePlay {
+			block = c.mem.RecallBlockFused(text, 0)
+		} else {
+			block = c.mem.RecallBlock(text, 0)
+		}
+		if block != "" {
 			text = block + "\n\n" + text
 		}
 	}

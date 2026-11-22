@@ -133,6 +133,127 @@ func (s *Set) RecallBlock(text string, budget int) string {
 	return block
 }
 
+// RecallBlockFused 是**聊天席（play 空间）专属**的四臂轻量融合注入（Nebula
+// Memory 蒸馏接入，用户拍板 2026-11-22：聊天接、办公/文学保缓存命中率不接）。
+//
+// 候选集与 RecallBlock 同口径（procedural 常驻 + episodic 触发 + 关键词命中，
+// 失效条目排除）+ 图谱臂发现的互引邻居（想起 A 带出 B——chat 席独有的发现
+// 面）；排序换 FuseRecallArms：词法 recallScore 归一 + 图谱 1 跳扩散 + 置顶
+// +0.10 + 稳定性衰减（引用多衰减慢）× 休眠惩罚。预算与渲染面与 RecallBlock
+// 完全一致。语义向量臂不进热路径（每轮嵌查询=百毫秒级延迟，聊天席不可接受）。
+// 数据源 Store.CiteCounts/GraphNeighbors 各一条聚合 SQL（毫秒级）。
+func (s *Set) RecallBlockFused(text string, budget int) string {
+	if s == nil {
+		return ""
+	}
+	ms := s.Store.List()
+	if len(ms) == 0 {
+		return ""
+	}
+	if budget <= 0 {
+		budget = recallBudget
+	}
+	now := time.Now()
+	byName := make(map[string]Memory, len(ms))
+	for _, m := range ms {
+		byName[m.Name] = m
+	}
+
+	// 词法臂：recallScore 归一（同一打分公式，办公席不变）
+	scored := make([]rankedMemory, 0, len(ms))
+	base := make(map[string]bool, len(ms))
+	maxLex := 0.0
+	for _, m := range ms {
+		if !m.InvalidAt.IsZero() {
+			continue
+		}
+		if m.Kind != KindProcedural && !episodicTriggered(text, m) && !keywordHit(text, m) {
+			continue
+		}
+		sc := recallScore(text, m, now)
+		if sc > maxLex {
+			maxLex = sc
+		}
+		scored = append(scored, rankedMemory{m: m, score: sc})
+		base[m.Name] = true
+	}
+	lex := make(map[string]float64, len(scored))
+	if maxLex > 0 {
+		for _, r := range scored {
+			lex[r.m.Name] = r.score / maxLex
+		}
+	}
+	// 图谱臂：词法 top 种子沿互引邻接扩散（邻居即使零词面命中也可入选——
+	// 发现面是聊天席独有的增量）。
+	sort.Slice(scored, func(i, j int) bool {
+		if scored[i].score != scored[j].score {
+			return scored[i].score > scored[j].score
+		}
+		return scored[i].m.Name < scored[j].m.Name
+	})
+	seeds := make([]RecallArmHit, 0, RecallSeedCount)
+	for _, r := range scored {
+		if len(seeds) >= RecallSeedCount {
+			break
+		}
+		seeds = append(seeds, RecallArmHit{Name: r.m.Name, Score: lex[r.m.Name]})
+	}
+	graphHits := ExpandGraphSeeds(seeds, s.Store.GraphNeighbors())
+
+	// 融合输入：基础候选 ∪ 图谱发现（发现项 zero 词法臂）。
+	citeCounts := s.Store.CiteCounts()
+	inputs := make([]RecallFuseInput, 0, len(scored)+len(graphHits))
+	for _, r := range scored {
+		inputs = append(inputs, RecallFuseInput{
+			Name:    r.m.Name,
+			Lexical: lex[r.m.Name],
+			Graph:   graphHits[r.m.Name],
+			Pinned:  r.m.Pinned,
+			Dormant: LifecycleOf(r.m, now, 0) == LifecycleDecaying,
+			Decay:   RecallDecayFactor(r.m, citeCounts[r.m.Name], now),
+		})
+	}
+	for name, g := range graphHits {
+		if base[name] {
+			continue
+		}
+		m, ok := byName[name]
+		if !ok || !m.InvalidAt.IsZero() {
+			continue
+		}
+		inputs = append(inputs, RecallFuseInput{
+			Name:    name,
+			Graph:   g,
+			Pinned:  m.Pinned,
+			Dormant: LifecycleOf(m, now, 0) == LifecycleDecaying,
+			Decay:   RecallDecayFactor(m, citeCounts[name], now),
+		})
+	}
+	fused := FuseRecallArms(inputs)
+
+	var b strings.Builder
+	b.WriteString(recallHeader + "\n")
+	written := 0
+	for _, h := range fused {
+		m, ok := byName[h.Name]
+		if !ok {
+			continue
+		}
+		line := formatRecallLine(m)
+		lineRunes := utf8.RuneCountInString(line)
+		if written+lineRunes > budget {
+			continue
+		}
+		b.WriteString(line)
+		written += lineRunes
+	}
+	block := strings.TrimSpace(b.String())
+	if block == recallHeader {
+		return ""
+	}
+	return block
+}
+
 // recallHeader 是注入块头（无注入行时用于早退判断）。
 const recallHeader = "## 记忆上下文（按相关度/近期自动注入；采纳某条时在句末标注其 [MEM:引用键]，记忆可能过时，以工作区文件为准）"
 

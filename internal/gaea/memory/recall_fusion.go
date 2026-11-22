@@ -31,6 +31,9 @@ const (
 // GraphArmDecay 是图谱臂的邻居分衰减：邻居分 = 种子分 × 0.5（1 跳）。
 const GraphArmDecay = 0.5
 
+// RecallSeedCount 是图谱臂的种子数上限（词法/语义 top 合并后取前 N）。
+const RecallSeedCount = 5
+
 // DormantPenalty 是休眠记忆在融合打分里的乘子（Nebula dormant 蒸馏值）。
 const DormantPenalty = 0.55
 

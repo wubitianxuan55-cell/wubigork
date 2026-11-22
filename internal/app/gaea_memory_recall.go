@@ -43,9 +43,6 @@ type MemoryRecallView struct {
 	Degraded map[string]string `json:"degraded,omitempty"`
 }
 
-// recallSeedCount 图谱臂种子数（词法/语义 top 合并后取前 N）。
-const recallSeedCount = 5
-
 // GaeaMemoryRecall 记忆中枢四臂融合召回（办公记忆库）。
 func (a *App) GaeaMemoryRecall(query string, limit int) MemoryRecallView {
 	view := MemoryRecallView{Query: query, Hits: []MemoryRecallHit{}, Degraded: map[string]string{}}
@@ -115,7 +112,7 @@ func (a *App) GaeaMemoryRecall(query string, limit int) MemoryRecallView {
 		} else if g, err := memory.MaterializedGraph(gdb); err != nil {
 			view.Degraded[memory.RecallArmGraph] = err.Error()
 		} else {
-			graphHits = memory.ExpandGraphSeeds(recallTopSeeds(lexHits, semHits, recallSeedCount), recallEntityAdjacency(g))
+			graphHits = memory.ExpandGraphSeeds(recallTopSeeds(lexHits, semHits, memory.RecallSeedCount), recallEntityAdjacency(g))
 		}
 	} else {
 		view.Degraded[memory.RecallArmGraph] = "语义图库不可用"
