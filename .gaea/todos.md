@@ -1,5 +1,7 @@
 # 任务进度
 
+| ✅ | **Bloom 0.29 配色大脑桌面构建与 Git 打包**（2026-11-22）：提交 `96335e75`；独立干净树前端 Vite 31.92s、UCRT64 Wails 1m0.058s（bindings 未跳过）、内容漂移 0、正式 payload 冒烟 200；定向 110/110；全量 4704/4706、两失败文件隔离 44/44；包 `releases/gaea-bloom029-20261122-96335e75/`，六项 SHA256 已记录；未装机、未 push |
+
 | ✅ | **Bloom 0.29 配色大脑对齐**（2026-11-22）：按 `origin/main bd3e93f / 0.29.0` 接入亮色 readableAccent（accentL 88% + black 12%）、文案/边框/状态 tertiary/侧栏 active 阶梯；修复 reduced-transparency 根选择器失效；定向 4 文件 110 例、tsc、改动面 ESLint、Vite 21.97s 构建通过；右侧 IAB 已打开；未 Wails/打包/装机/push |
 
 | ✅ | **Bloom 0.29 源码级对齐：背景、材质、色块网格**（2026-11-22）：按上游 `bd3e93f` 重做 6 列色块网格/单字/诗句字幕与入场动画；移除 MainLayout `Content` 的不透明 `--gaea-glass-bg`，dark canvas 空白点取样 `(34,44,53)` 对上游 `(33,44,52)`；15 套 accent 保持原值并改为真实 OKLCH 混色；移植 `blur(3px)+SVG lens` liquid、58/24 frosted、48/12 matte，以及 330 节点确定性星尘/流星；亮暗氛围分别持久化；全量前端 518 文件 4674 例通过（末项 `ToolCard.test` 动态 import 的既有 `EnvironmentTeardownError` 仍由 Vitest 作为 unhandled error 报出，单跑该文件 2/2 绿）、tsc 0、改动面 ESLint 0、Vite `25.27s` 构建成功（既有 CSS/chunk 警告）；右侧浏览器实页停留 `mist / dark / soft / corner`；未提交/Wails/装机 |

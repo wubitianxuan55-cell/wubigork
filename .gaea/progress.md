@@ -1,3 +1,26 @@
+## Bloom 0.29 配色大脑桌面构建与 Git 打包（2026-11-22）
+
+- **提交边界**：外观提交 `96335e75`（`feat(gaea): align Bloom appearance
+  tokens with upstream`，36 文件）；主树探针 `probe-memory-out.jsonl`、
+  `scripts/cache_probe_live.go` 与既有 release ZIP 未进入提交和包。
+- **干净构建**：`.worktrees/pkg-96335e75` detached 检出该提交；复用主树
+  `frontend/node_modules` junction。先 `npm run build`，Vite `31.92s` / 6611
+  modules；再以系统默认 `TMP/TEMP`、`CGO_ENABLED=1`、ucrt64 gcc 执行
+  `wails build -s -ldflags "-s -w" -trimpath`，`1m0.058s`，bindings 未跳过。
+- **漂移与冒烟**：Wails 再生成仅 CRLF/EOL 噪音，`git diff --ignore-cr-at-eol`
+  内容差异文件数 0；正式 payload `/api/health` **200**，PID 61612 已回收。
+- **测试口径**：定向 4 文件 **110/110**；全量前端 518 文件 / 4706 例，4704
+  通过、2 例满并发失败（ContextView 水位标、SchedulingSection 故障转移开关），
+  两文件隔离复跑 **44/44**。本地快闸被未改动 Go 基线的 98 项 golangci 问题阻断。
+- **卫生边界**：`check-docs` 仍被既有未登记文档
+  `gaea-agent-memory-nebula-distill-2026-11.md` 与
+  `gaea-day-log-2026-11-22.md` 阻断，本次不混入无关文档索引改动。
+- **交付**：`releases/gaea-bloom029-20261122-96335e75/`。exe 61,657,088 B
+  `9D619B62…993803`；桌面 ZIP 35,466,750 B `3F831790…E232EF`；源码 ZIP
+  829,064,469 B / 6971 条 `06F240A7…BD1815`。三枚 DLL 与六项总和见
+  `PACKAGE-INFO.md` / `SHA256SUMS.txt`。
+- **边界**：产品版本保持 `4.544.0`；未装机、未 push。
+
 ## Bloom 0.29 配色大脑对齐（2026-11-22）
 
 - **上游基线**：`C:\AI\re\dsh-bloom-theme` 拉取 `origin/main` 至
@@ -13,7 +36,7 @@
   已选择材质时也会退实底，并同步关闭 trigger/popover 的滤镜。
 - **门禁**：外观/主题/设置定向 **4 文件 110 例**、`tsc -b` 0、改动面 ESLint 0、
   Vite 生产构建成功 `21.97s`（仅既有 CSS/chunk 警告）。右侧 IAB 已打开
-  `http://127.0.0.1:5173/?mock=1`。
+  `http://127.0.0.1:5174/?mock=1`。
 - **边界**：未构建 Wails、未打包、未装机、未 push。
 
 ## Bloom 0.29 完全对齐：色块网格、OKLCH 表面与双套氛围（2026-11-22）
