@@ -56,6 +56,15 @@ body::after {
   background-attachment: fixed;
 }
 
+.gaea-app-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.gaea-shell-content {
+  z-index: 1;
+}
+
 .gaea-app-layout.ant-layout,
 .gaea-app-layout .layout {
   background: transparent;
@@ -68,7 +77,7 @@ body::after {
   right: 0;
   width: 360px;
   height: 220px;
-  z-index: -1;
+  z-index: 0;
   opacity: 0.7;
   overflow: hidden;
   pointer-events: none;

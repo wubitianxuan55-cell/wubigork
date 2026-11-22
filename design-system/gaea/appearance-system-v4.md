@@ -86,9 +86,10 @@ gaea 是长时间运行的本地 AI 工作台。外观必须让正文、证据�
 - 对话主画布保持透明并透出 body 氛围；顶栏、侧栏、输入岛与右侧工作区才承载
   材质表面。主内容 `Content` 也必须透明；旧 `.cyber-grid / star-dots /
   space-dust` 常驻层已删除，避免盖住 body 的四角氛围。
-- Bloom 星尘保留上游 `z-index: -1`；`.gaea-app-layout` 必须建立独立的
-  `isolation: isolate` stacking context，让星河位于壳层背景之上、业务内容
-  之下。缺少该上下文时，全屏 galaxy 粒子会被整块布局背景吞掉。
+- Bloom 星尘的父级 `.gaea-app-shell` 建立独立 `isolation: isolate`
+  stacking context；星尘使用 `z-index: 0`，业务壳 `.gaea-shell-content`
+  使用 `z-index: 1`。这样星河明确位于壳层背景之上、业务内容之下，不依赖
+  浏览器对负数 `z-index` 的边缘行为；桌面 WebView 与网页版保持一致。
 
 ## 配色全集
 

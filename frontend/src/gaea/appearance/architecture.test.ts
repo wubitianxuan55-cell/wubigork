@@ -80,6 +80,8 @@ describe('gaea 四层外观架构', () => {
     expect(components).toContain('[data-gaea-ambience-dark="galaxy"]')
     expect(components).toContain('@keyframes gaea-meteor')
     expect(components).toContain('isolation: isolate')
+    expect(components).toContain('.gaea-app-shell {')
+    expect(components).toContain('.gaea-shell-content {')
     expect(components).toContain('[data-gaea-meteor-density="sparse"]')
     expect(components).toContain('[data-gaea-meteor-speed="fast"]')
     expect(components).toContain('[data-gaea-meteor-color="solid"]')

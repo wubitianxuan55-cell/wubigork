@@ -634,10 +634,13 @@ const MainLayout: React.FC = () => {
   }, [navigateBoard])
 
   return (
-    <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
+    <Layout
+      className="gaea-app-shell"
+      style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}
+    >
       <BloomStardust />
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+      <div className="gaea-shell-content" style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {/* ═══ 左侧指挥轨道（2026-10-27 常驻显示：不再自动隐藏，固定悬浮左缘） ═══ */}
         <div className="v3-rail-dock">
           <CommandRail
