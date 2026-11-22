@@ -32,6 +32,7 @@ export function WenxueGalleryHub({ variant = "page" }: { variant?: "page" | "pan
   const [loadErr, setLoadErr] = useState("");
   const [filter, setFilter] = useState<"all" | "uploads" | "workspace">("all");
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
+  const [failed, setFailed] = useState<Set<string>>(() => new Set());
   const [lightbox, setLightbox] = useState<WenxueImageItem | null>(null);
 
   const load = async () => {
@@ -63,9 +64,18 @@ export function WenxueGalleryHub({ variant = "page" }: { variant?: "page" | "pan
           next.set(rel, { rel, dataUrl: preview.dataUrl });
           return next;
         });
+        setFailed((prev) => {
+          if (!prev.has(rel)) return prev;
+          const next = new Set(prev);
+          next.delete(rel);
+          return next;
+        });
+      } else {
+        setFailed((prev) => new Set(prev).add(rel));
       }
     } catch {
       // 取图失败：卡片显示占位，不炸整墙
+      setFailed((prev) => new Set(prev).add(rel));
     }
   };
 
@@ -81,18 +91,25 @@ export function WenxueGalleryHub({ variant = "page" }: { variant?: "page" | "pan
   }, [visible]);
 
   const genCount = (items ?? []).filter((it) => it.source === "uploads").length;
+  const workspaceCount = (items ?? []).filter((it) => it.source === "workspace").length;
 
   const filters = (
     <div className="wx-gallery-filters" role="group" aria-label="图片来源筛选">
-      {([["all", "全部"], ["uploads", "生成"], ["workspace", "其他"]] as const).map(([key, label]) => (
+      {([
+        ["all", "全部", items?.length ?? 0],
+        ["uploads", "生成", genCount],
+        ["workspace", "其他", workspaceCount],
+      ] as const).map(([key, label, count]) => (
         <button
           key={key}
           type="button"
           className={`wx-gallery-filter${filter === key ? " is-active" : ""}`}
           aria-pressed={filter === key}
+          aria-label={label}
           onClick={() => setFilter(key)}
         >
-          {label}
+          <span>{label}</span>
+          <b>{count}</b>
         </button>
       ))}
     </div>
@@ -123,10 +140,24 @@ export function WenxueGalleryHub({ variant = "page" }: { variant?: "page" | "pan
                   aria-label={`查看大图：${it.name}`}
                   onClick={() => setLightbox(it)}
                 >
-                  {img ? (
-                    <img src={img.dataUrl} alt={it.name} loading="lazy" />
+                  {img && !failed.has(it.rel) ? (
+                    <img
+                      src={img.dataUrl}
+                      alt=""
+                      loading="lazy"
+                      onError={() => {
+                        setFailed((prev) => new Set(prev).add(it.rel));
+                        setLoaded((prev) => {
+                          const next = new Map(prev);
+                          next.delete(it.rel);
+                          return next;
+                        });
+                      }}
+                    />
                   ) : (
-                    <span className="wx-gallery-thumb-placeholder" aria-hidden><ImageIcon size={18} /></span>
+                    <span className="wx-gallery-thumb-placeholder" role="img" aria-label={`${it.name} 预览不可用`}>
+                      <ImageIcon size={18} />
+                    </span>
                   )}
                 </button>
                 <figcaption className="wx-gallery-meta">

@@ -1,4 +1,11 @@
-import { createElement, useEffect, type ComponentType } from "react";
+import {
+  createElement,
+  useEffect,
+  useId,
+  useRef,
+  type ComponentType,
+  type KeyboardEvent,
+} from "react";
 import { Dropdown, Popover, Switch } from "antd";
 import type { MenuProps } from "antd";
 import { usePaneTabsStore } from "../lib/paneTabs";
@@ -11,6 +18,8 @@ import { confirmDiscardEditor } from "../lib/editorDrafts";
 import { FilePreview } from "./FilePreview";
 import { BrowserPane } from "./BrowserPane";
 import { SubagentPaneChat } from "./SubagentPaneChat";
+import { ChevronRight, PanelRightClose, Plus, Settings } from "../icons";
+import "./workspace-pane.css";
 
 // WorkspacePane — 右栏工作台 pane（对标 dsh-better-sidebar）。
 //
@@ -24,10 +33,83 @@ import { SubagentPaneChat } from "./SubagentPaneChat";
 //
 // 文件 tab 内容复用 FilePreview（embedded：docx/xlsx/md 等能力原样保留）。
 
-const TAB_STRIP_BTN =
-  "relative flex items-center gap-1 pl-2 pr-1 py-1 rounded-t-md border-0 bg-transparent cursor-pointer text-[11px] select-none shrink-0 transition-colors";
-const TAB_STRIP_ACTIVE = "text-accent bg-accent/10";
-const TAB_STRIP_IDLE = "text-fg-dim hover:bg-bg-soft";
+const WORKSPACE_TAB_COPY: Record<WorkspaceTabId, string> = {
+  files: "浏览项目文件与目录",
+  deliverables: "查看交付物与文件变更",
+  browser: "观察网页操作与截图",
+  git: "状态、暂存与提交",
+  ui: "生成式交互面板与看板",
+  cad: "图纸解析、文本与识图",
+  schedule: "甘特、网络图与计划体检",
+};
+
+function WorkspacePanelManager({
+  enabled,
+  setEnabled,
+}: {
+  enabled: Record<WorkspaceTabId, boolean>;
+  setEnabled: (id: WorkspaceTabId, value: boolean) => void;
+}) {
+  return (
+    <div className="workspace-manager" role="group" aria-label="管理工作台面板">
+      <div className="workspace-manager__head">
+        <strong>工作台面板</strong>
+        <span>{WORKSPACE_TABS.filter((tab) => enabled[tab.id]).length}/{WORKSPACE_TABS.length} 已启用</span>
+      </div>
+      <div className="workspace-manager__list">
+        {WORKSPACE_TABS.map((tab) => (
+          <label key={tab.id} className="workspace-manager__row">
+            <span className="workspace-manager__icon" aria-hidden="true">
+              <tab.icon size={13} />
+            </span>
+            <span className="workspace-manager__copy">
+              <strong>{tab.label}</strong>
+              <span>{WORKSPACE_TAB_COPY[tab.id]}</span>
+            </span>
+            <Switch
+              size="small"
+              checked={enabled[tab.id]}
+              aria-label={`启用 ${tab.label}`}
+              data-testid={`tab-enable-${tab.id}`}
+              onChange={(value) => setEnabled(tab.id, value)}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="workspace-manager__note">停用只隐藏入口，已经打开的页签不会被强制关闭。</p>
+    </div>
+  );
+}
+
+function WorkspaceIllustration() {
+  return (
+    <svg
+      className="workspace-illustration"
+      viewBox="0 0 112 78"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path className="workspace-illustration__route" d="M17 61C27 43 43 29 62 25c16-4 29-1 38 8" />
+      <circle className="workspace-illustration__node" cx="17" cy="61" r="3" />
+      <circle className="workspace-illustration__node workspace-illustration__node--accent" cx="99" cy="33" r="3" />
+
+      <rect className="workspace-illustration__window" x="22" y="10" width="62" height="45" rx="7" />
+      <path className="workspace-illustration__hairline" d="M22 20h62" />
+      <circle className="workspace-illustration__dot" cx="29" cy="15" r="1.4" />
+      <circle className="workspace-illustration__dot" cx="34" cy="15" r="1.4" />
+      <circle className="workspace-illustration__dot" cx="39" cy="15" r="1.4" />
+
+      <rect className="workspace-illustration__paper" x="42" y="28" width="52" height="36" rx="6" />
+      <path className="workspace-illustration__muted" d="M50 37h25M50 42h31M50 47h20" />
+      <rect className="workspace-illustration__bar" x="51" y="53" width="5" height="5" rx="1.5" />
+      <rect className="workspace-illustration__bar workspace-illustration__bar--mid" x="59" y="50" width="5" height="8" rx="1.5" />
+      <rect className="workspace-illustration__bar workspace-illustration__bar--accent" x="67" y="48" width="5" height="10" rx="1.5" />
+
+      <path className="workspace-illustration__tick" d="M84 28v-9M84 19l-4 4M84 19l4 4" />
+      <path className="workspace-illustration__spark" d="M88 12h7M91.5 8.5v7" />
+    </svg>
+  );
+}
 
 export function WorkspacePane({
   context,
@@ -52,6 +134,10 @@ export function WorkspacePane({
   // （App 从 office 写类工具成功回执派生，800ms 防抖合并连写后递增）。
   const reloadTicks = usePaneTabsStore((s) => s.reloadTicks);
   const activeTab = tabs.find((t) => t.id === active) ?? tabs[tabs.length - 1];
+  const activeTabId = activeTab?.id;
+  const paneId = useId();
+  const stripRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const api = usePaneTabsStore.getState;
   const openView = (viewId: WorkspaceTabId, title: string) => api().openView(viewId, title);
@@ -79,67 +165,125 @@ export function WorkspacePane({
     return typeof n === "number" && n > 0 ? n : 0;
   };
 
+  const manageContent = (
+    <WorkspacePanelManager enabled={enabled} setEnabled={setEnabled} />
+  );
+
+  useEffect(() => {
+    if (!activeTabId) return;
+    const node = tabRefs.current[activeTabId];
+    node?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeTabId]);
+
   // ── 欢迎卡片态（无任何 tab） ───────────────────────────────
   if (tabs.length === 0) {
-    // 面板管理：全部清单逐行开关（可选卡如 CAD 的唯一常驻开关入口；＋下拉的
-    // 「（未启用）」组是另一条即点即用路径）。
-    const manageContent = (
-      <div className="flex flex-col gap-2 min-w-[150px]">
-        {WORKSPACE_TABS.map((tab) => (
-          <label key={tab.id} className="flex items-center justify-between gap-3 text-[12px] cursor-pointer">
-            <span>{tab.label}</span>
-            <Switch
-              size="small"
-              checked={enabled[tab.id]}
-              aria-label={`启用 ${tab.label}`}
-              data-testid={`tab-enable-${tab.id}`}
-              onChange={(v) => setEnabled(tab.id, v)}
-            />
-          </label>
-        ))}
-      </div>
-    );
+    const featuredTab = enabledTabs[0];
+    const secondaryTabs = enabledTabs.slice(1);
     return (
-      <div data-workspace-pane className="flex flex-col h-full min-h-0">
-        <div className="px-3 pt-2.5 pb-1 text-[11px] text-fg-dim flex items-center justify-between gap-2">
-          <span>选择要打开的工作台页面</span>
-          <Popover content={manageContent} trigger="click" placement="bottomRight">
+      <section
+        data-workspace-pane
+        className="workspace-shell workspace-shell--home"
+        aria-label="工作台"
+      >
+        <header className="workspace-home__head">
+          <div className="workspace-home__topline">
+            <span className="workspace-home__eyebrow">WORKSPACE</span>
+            <div className="workspace-home__actions">
+              <Popover content={manageContent} trigger="click" placement="bottomRight">
+                <button
+                  type="button"
+                  data-testid="tabs-manage"
+                  className="workspace-icon-button"
+                  aria-label="管理工作台面板"
+                  title="管理工作台面板"
+                >
+                  <Settings size={14} aria-hidden />
+                </button>
+              </Popover>
+              <button
+                type="button"
+                className="workspace-icon-button"
+                aria-label="收起工作台"
+                title="收起工作台"
+                onClick={() => context.onClosePanel?.()}
+              >
+                <PanelRightClose size={14} aria-hidden />
+              </button>
+            </div>
+          </div>
+          <div className="workspace-home__hero">
+            <div className="workspace-home__heading">
+              <h2>工作台</h2>
+              <p>选择要打开的工作台页面</p>
+            </div>
+            <WorkspaceIllustration />
+          </div>
+        </header>
+
+        <div className="workspace-home__scroll">
+          {featuredTab && (
             <button
               type="button"
-              data-testid="tabs-manage"
-              className="border-0 bg-transparent text-fg-dim cursor-pointer text-[11px] hover:text-accent p-0"
+              data-welcome-card={featuredTab.id}
+              className="workspace-launch-feature"
+              aria-label={`打开${featuredTab.label}`}
+              onClick={() => openView(featuredTab.id, featuredTab.label)}
             >
-              管理
-            </button>
-          </Popover>
-        </div>
-        <div className="grid grid-cols-2 gap-2 px-3 py-2">
-          {enabledTabs.map((tab) => {
-            const count = badgeOf(tab.id);
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                data-welcome-card={tab.id}
-                className="flex flex-col items-start gap-2 rounded-xl border border-border-soft bg-bg-elev px-3 py-2.5 text-left cursor-pointer transition-colors hover:bg-bg-soft"
-                onClick={() => openView(tab.id, tab.label)}
-              >
-                <span className="flex w-full items-center gap-1.5">
-                  <tab.icon size={15} aria-hidden style={{ color: "var(--gaea-glow)" }} />
-                  {count > 0 && (
-                    <span className="ml-auto inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[9px] font-medium"
-                      style={{ background: "var(--gaea-glow)", color: "var(--color-on-primary)" }}
-                    >
-                      {count > 99 ? "99+" : count}
-                    </span>
-                  )}
+              <span className="workspace-launch-feature__icon" aria-hidden="true">
+                <featuredTab.icon size={19} />
+              </span>
+              <span className="workspace-launch-feature__copy">
+                <strong>{featuredTab.label}</strong>
+                <span>{WORKSPACE_TAB_COPY[featuredTab.id]}</span>
+              </span>
+              {badgeOf(featuredTab.id) > 0 && (
+                <span className="workspace-launch-badge">
+                  {badgeOf(featuredTab.id) > 99 ? "99+" : badgeOf(featuredTab.id)}
                 </span>
-                <span className="text-[12px] font-medium text-fg">{tab.label}</span>
-              </button>
-            );
-          })}
+              )}
+              <span className="workspace-launch-feature__action" aria-hidden="true">
+                <ChevronRight size={14} />
+              </span>
+            </button>
+          )}
+
+          {secondaryTabs.length > 0 && (
+            <div className="workspace-launch-grid">
+              {secondaryTabs.map((tab) => {
+                const count = badgeOf(tab.id);
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    data-welcome-card={tab.id}
+                    className="workspace-launch-card"
+                    aria-label={`打开${tab.label}`}
+                    onClick={() => openView(tab.id, tab.label)}
+                  >
+                    <span className="workspace-launch-card__top">
+                      <span className="workspace-launch-card__icon" aria-hidden="true">
+                        <tab.icon size={15} />
+                      </span>
+                      {count > 0 && (
+                        <span className="workspace-launch-badge">
+                          {count > 99 ? "99+" : count}
+                        </span>
+                      )}
+                    </span>
+                    <strong>{tab.label}</strong>
+                    <span>{WORKSPACE_TAB_COPY[tab.id]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <footer className="workspace-home__foot">
+            <span>{enabledTabs.length} 个面板可用</span>
+            <span>{disabledTabs.length > 0 ? `${disabledTabs.length} 个已隐藏` : "全部面板已显示"}</span>
+          </footer>
         </div>
-      </div>
+      </section>
     );
   }
 
@@ -180,105 +324,176 @@ export function WorkspacePane({
     content = getWorkspaceRegistration(activeTab.viewId as WorkspaceTabId).render(context);
   }
 
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab?.id));
+  const panelId = `${paneId}-panel`;
+  const tabIdOf = (index: number) => `${paneId}-tab-${index}`;
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    let nextIndex = index;
+    if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = tabs.length - 1;
+    else if (event.key === "ArrowLeft") nextIndex = index <= 0 ? tabs.length - 1 : index - 1;
+    else nextIndex = index >= tabs.length - 1 ? 0 : index + 1;
+    const next = tabs[nextIndex];
+    if (!next) return;
+    activateTab(next.id);
+    tabRefs.current[next.id]?.focus();
+  };
+
   return (
-    <div data-workspace-pane className="flex flex-col h-full min-h-0">
-      {/* pane tab 条：视图 tab 与文件 tab 混排（better-sidebar 语义） */}
-      <div
-        className="flex items-stretch gap-0.5 px-1.5 pt-1 overflow-x-auto shrink-0 border-b border-border-soft"
-        role="tablist"
-        aria-label="工作台标签页"
-      >
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTab?.id;
-          const icon =
-            tab.kind === "view"
-              ? (() => {
-                  const def = WORKSPACE_TABS.find((d) => d.id === tab.viewId);
-                  return def ? createElement(def.icon, { size: 12 }) : null;
-                })()
-              : createElement(FileTypeIcon as ComponentType<{ name: string; size?: number }>, {
-                  name: (tab.path ?? "").split(/[\\/]/).pop() ?? tab.title,
-                  size: 12,
-                });
-          const count =
-            tab.kind === "view" && tab.viewId ? badgeOf(tab.viewId as WorkspaceTabId) : 0;
-          return (
-            <div
-              key={tab.id}
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={0}
-              title={tab.kind === "file" ? tab.path : tab.title}
-              data-pane-tab={tab.id}
-              className={`${TAB_STRIP_BTN} ${isActive ? TAB_STRIP_ACTIVE : TAB_STRIP_IDLE}`}
-              onClick={() => activateTab(tab.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  activateTab(tab.id);
-                }
-              }}
-            >
-              {icon}
-              <span className="truncate max-w-[120px]">{tab.title}</span>
-              {count > 0 && (
-                <span
-                  className="inline-flex min-w-3.5 h-3.5 items-center justify-center rounded-full px-1 text-[8px] font-medium"
-                  style={{ background: "var(--gaea-glow)", color: "var(--color-on-primary)" }}
-                >
-                  {count > 99 ? "99+" : count}
-                </span>
-              )}
-              <button
-                type="button"
-                aria-label={`关闭 ${tab.title}`}
-                title={`关闭 ${tab.title}`}
-                className="flex items-center justify-center w-4 h-4 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeTab(tab.id);
-                }}
-              >
-                <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
-                  <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.4" />
-                </svg>
-              </button>
-            </div>
-          );
-        })}
-        <Dropdown
-          trigger={["click"]}
-          menu={{
-            // v4.524：启用组在上，未启用组（显式标注）分隔线后——点击即启用并
-            // 打开（显式点击=用户意图，可选卡的一条发现路径）。
-            items: [
-              ...enabledTabs.map((t) => ({ key: t.id, label: t.label })),
-              ...(disabledTabs.length > 0
-                ? [
-                    { type: "divider" as const },
-                    ...disabledTabs.map((t) => ({ key: t.id, label: `${t.label}（未启用）` })),
-                  ]
-                : []),
-            ] as MenuProps["items"],
-            onClick: ({ key }) => {
-              const def = WORKSPACE_TABS.find((t) => t.id === key);
-              if (!def) return;
-              if (!enabled[def.id]) setEnabled(def.id, true);
-              openView(def.id, def.label);
-            },
+    <section
+      data-workspace-pane
+      className="workspace-shell workspace-shell--active"
+      aria-label="工作台"
+    >
+      <div className="workspace-tabbar">
+        <div
+          ref={stripRef}
+          className="workspace-tabbar__scroll"
+          role="tablist"
+          aria-label="工作台标签页"
+          onKeyDown={(event) => {
+            const target = event.target;
+            if (target instanceof HTMLButtonElement && target.getAttribute("role") === "tab") {
+              const index = tabs.findIndex((tab) => tab.id === target.getAttribute("data-tab-id"));
+              if (index >= 0) onTabKeyDown(event, index);
+            }
           }}
         >
+          {tabs.map((tab, index) => {
+            const isActive = tab.id === activeTab?.id;
+            const icon =
+              tab.kind === "view"
+                ? (() => {
+                    const def = WORKSPACE_TABS.find((d) => d.id === tab.viewId);
+                    return def ? createElement(def.icon, { size: 13 }) : null;
+                  })()
+                : createElement(FileTypeIcon as ComponentType<{ name: string; size?: number }>, {
+                    name: (tab.path ?? "").split(/[\\/]/).pop() ?? tab.title,
+                    size: 13,
+                  });
+            const count =
+              tab.kind === "view" && tab.viewId ? badgeOf(tab.viewId as WorkspaceTabId) : 0;
+            return (
+              <div
+                key={tab.id}
+                data-pane-tab={tab.id}
+                data-active={isActive}
+                data-tab-kind={tab.kind}
+                data-view-id={tab.viewId ?? ""}
+                className="workspace-tab"
+              >
+                <button
+                  ref={(node) => { tabRefs.current[tab.id] = node; }}
+                  type="button"
+                  role="tab"
+                  id={tabIdOf(index)}
+                  data-tab-id={tab.id}
+                  aria-label={tab.kind === "file" ? `文件 ${tab.title}` : tab.title}
+                  aria-selected={isActive}
+                  aria-controls={panelId}
+                  tabIndex={isActive ? 0 : -1}
+                  title={tab.kind === "file" ? tab.path : tab.title}
+                  className="workspace-tab__main"
+                  onClick={() => activateTab(tab.id)}
+                >
+                  <span className="workspace-tab__icon">{icon}</span>
+                  <span className="workspace-tab__title">{tab.title}</span>
+                  {count > 0 && (
+                    <span className="workspace-tab__badge" title={`${count} 个新项目`}>
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`关闭 ${tab.title}`}
+                  title={`关闭 ${tab.title}`}
+                  className="workspace-tab__close"
+                  onClick={() => closeTab(tab.id)}
+                >
+                  <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
+                    <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="workspace-tabbar__actions">
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                ...enabledTabs.map((tab) => ({
+                  key: tab.id,
+                  label: tab.label,
+                  icon: createElement(tab.icon, { size: 13 }),
+                })),
+                ...(disabledTabs.length > 0
+                  ? [
+                      { type: "divider" as const },
+                      ...disabledTabs.map((tab) => ({
+                        key: tab.id,
+                        label: `${tab.label}（未启用）`,
+                        icon: createElement(tab.icon, { size: 13 }),
+                      })),
+                    ]
+                  : []),
+              ] as MenuProps["items"],
+              onClick: ({ key }) => {
+                const def = WORKSPACE_TABS.find((tab) => tab.id === key);
+                if (!def) return;
+                if (!enabled[def.id]) setEnabled(def.id, true);
+                openView(def.id, def.label);
+              },
+            }}
+          >
+            <button
+              type="button"
+              title="新建标签页"
+              aria-label="新建标签页"
+              className="workspace-icon-button"
+            >
+              <Plus size={14} aria-hidden />
+            </button>
+          </Dropdown>
+
+          <Popover content={manageContent} trigger="click" placement="bottomRight">
+            <button
+              type="button"
+              title="管理工作台面板"
+              aria-label="管理工作台面板"
+              className="workspace-icon-button"
+            >
+              <Settings size={14} aria-hidden />
+            </button>
+          </Popover>
+
           <button
             type="button"
-            title="新建标签页"
-            aria-label="新建标签页"
-            className="shrink-0 flex items-center justify-center w-5 h-5 my-1 ml-0.5 rounded border border-dashed border-border-strong bg-transparent text-fg-faint cursor-pointer hover:text-accent hover:border-accent transition-colors"
+            title="收起工作台"
+            aria-label="收起工作台"
+            className="workspace-icon-button"
+            onClick={() => context.onClosePanel?.()}
           >
-            <span aria-hidden>＋</span>
+            <PanelRightClose size={14} aria-hidden />
           </button>
-        </Dropdown>
+        </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">{content}</div>
-    </div>
+
+      <div
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={tabIdOf(activeIndex)}
+        className="workspace-shell__body"
+      >
+        <div className="workspace-shell__content">{content}</div>
+      </div>
+    </section>
   );
 }

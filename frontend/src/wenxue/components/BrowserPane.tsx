@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { normalizeBrowserUrl } from "../lib/browserPolicy";
+import { ArrowUp, ChevronRight, ExternalLink, Globe, RefreshCw, Shield } from "../icons";
 
 // 浏览器视图 tab（对标 better-sidebar BrowserView）：地址栏 + 沙箱 iframe。
 // 安全模型：iframe 永不带 allow-same-origin / allow-top-navigation；地址栏只
@@ -8,7 +9,7 @@ const BROWSER_IFRAME_SANDBOX =
   "allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-popups-to-escape-sandbox";
 
 const ICON_BTN =
-  "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors disabled:opacity-40 disabled:cursor-default";
+  "browser-pane__icon-button flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors disabled:opacity-35 disabled:cursor-default";
 
 export function BrowserPane({
   url,
@@ -70,13 +71,13 @@ export function BrowserPane({
 
   const current = cursor >= 0 ? history[cursor] : url;
   return (
-    <div className="flex flex-col h-full min-h-0 text-[12px]">
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border-soft">
+    <div className="browser-pane flex flex-col h-full min-h-0 text-[12px]">
+      <div className="browser-pane__toolbar flex items-center gap-1 px-2 py-1.5 border-b border-border-soft">
         <button type="button" className={ICON_BTN} aria-label="后退" disabled={cursor <= 0} onClick={goBack}>
-          ←
+          <ChevronRight size={13} style={{ transform: "rotate(180deg)" }} aria-hidden />
         </button>
         <button type="button" className={ICON_BTN} aria-label="前进" disabled={cursor >= history.length - 1} onClick={goForward}>
-          →
+          <ChevronRight size={13} aria-hidden />
         </button>
         <button
           type="button"
@@ -84,21 +85,24 @@ export function BrowserPane({
           aria-label="刷新"
           onClick={() => { if (url) setReloadKey((k) => k + 1); }}
         >
-          ↻
+          <RefreshCw size={13} aria-hidden />
         </button>
-        <input
-          value={input}
-          placeholder="输入网址，例如 example.com"
-          spellCheck={false}
-          aria-label="浏览器地址"
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") navigateTo(input);
-          }}
-          className="flex-1 min-w-0 h-7 px-2 rounded-md border border-border-soft bg-transparent text-fg placeholder:text-fg-faint/70 outline-none focus:border-accent transition-colors"
-        />
+        <label className="browser-pane__address flex-1 min-w-0 flex items-center gap-1.5 h-7 px-2 rounded-md border border-border-soft bg-bg-soft/45 focus-within:border-accent transition-colors">
+          <Globe size={11} aria-hidden className="shrink-0 text-fg-faint" />
+          <input
+            value={input}
+            placeholder="输入网址，例如 example.com"
+            spellCheck={false}
+            aria-label="浏览器地址"
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") navigateTo(input);
+            }}
+            className="min-w-0 flex-1 border-0 bg-transparent text-fg placeholder:text-fg-faint/70 outline-none"
+          />
+        </label>
         <button type="button" className={ICON_BTN} aria-label="前往" onClick={() => navigateTo(input)}>
-          ⏎
+          <ArrowUp size={13} style={{ transform: "rotate(90deg)" }} aria-hidden />
         </button>
         {current && (
           <button
@@ -108,19 +112,20 @@ export function BrowserPane({
             title="在浏览器中打开"
             onClick={() => window.open(current, "_blank", "noopener")}
           >
-            ↗
+            <ExternalLink size={13} aria-hidden />
           </button>
         )}
       </div>
       {message && (
-        <div className="px-3 py-1.5 text-[11px] text-(color:--md-sys-color-text-secondary) bg-(color:--md-sys-color-surface-container-high)">
+        <div role="alert" className="browser-pane__message px-3 py-1.5 text-[11px] text-(color:--md-sys-color-text-secondary) bg-(color:--md-sys-color-surface-container-high)">
           {message}
         </div>
       )}
-      <div className="flex items-center gap-2 px-3 py-1 border-b border-border-soft text-[10.5px] text-fg-dim">
+      <div className="browser-pane__security flex items-center gap-2 px-3 py-1 border-b border-border-soft text-[10.5px] text-fg-dim">
+        <Shield size={11} aria-hidden className="shrink-0" />
         <span
           className="w-1.5 h-1.5 rounded-full"
-          style={{ background: unlock ? "var(--md-sys-color-destructive, #ef4444)" : "var(--md-sys-color-success, #22c55e)" }}
+          style={{ background: unlock ? "var(--md-sys-color-error)" : "var(--color-success)" }}
         />
         <span className="truncate">
           {unlock
@@ -130,7 +135,7 @@ export function BrowserPane({
         {!unlock && (
           <button
             type="button"
-            className="ml-auto shrink-0 rounded px-1.5 py-0.5 border border-border-soft bg-transparent text-fg-dim cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+            className="browser-pane__unlock ml-auto shrink-0 rounded px-1.5 py-0.5 border border-border-soft bg-transparent text-fg-dim cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
             onClick={() => setUnlock(true)}
           >
             临时解锁（不安全）
@@ -139,7 +144,7 @@ export function BrowserPane({
         {unlock && (
           <button
             type="button"
-            className="ml-auto shrink-0 rounded px-1.5 py-0.5 border border-border-soft bg-transparent text-fg-dim cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+            className="browser-pane__unlock ml-auto shrink-0 rounded px-1.5 py-0.5 border border-border-soft bg-transparent text-fg-dim cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
             onClick={() => setUnlock(false)}
           >
             恢复沙箱
@@ -158,9 +163,14 @@ export function BrowserPane({
             title={url}
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-fg-faint">
-            <span className="text-[22px] opacity-60">◉</span>
-            <span className="text-[11px]">输入网址开始浏览（沙箱模式）</span>
+          <div className="browser-pane__empty flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+            <span className="browser-pane__empty-icon" aria-hidden>
+              <Globe size={22} />
+            </span>
+            <span className="flex flex-col gap-1">
+              <strong>在沙箱中打开网页</strong>
+              <span>输入公开网址后回车，页面不会接触本地文件或界面数据</span>
+            </span>
           </div>
         )}
       </div>

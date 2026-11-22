@@ -1059,7 +1059,7 @@ export default function App() {
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
           {/* pane 工作台：空态欢迎卡 → 点卡片开视图 tab；资源管理器内点文件
               新增文件 tab（对标 better-sidebar；内容分发在 WorkspacePane 内）。
-              文学工作台仅保留文件、产物、浏览器、Git 与 UI 工作面板。 */}
+              文学工作台保留文件、产物、浏览器、Git、UI 与插图工作面板。 */}
           <WorkspacePane
             context={panelContext}
             badges={tabBadges}

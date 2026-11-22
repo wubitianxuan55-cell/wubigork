@@ -6,7 +6,7 @@ import { CHAT_VIEW_TAB_IDS, ChatTabs } from "./ChatTabs";
 // characters/reading/memory 三次真机定罪的回归锚）。
 
 describe("ChatTabs 对话标签栏（图文八 tab）", () => {
-  it("渲染 8 个 tab：对话/轨迹/上下文/洞察/角色/阅读/设定/记忆，顺序一致（插图移右栏 2026-11-18）", () => {
+  it("渲染 8 个 tab：对话/轨迹/上下文/洞察/角色/阅读/设定/记忆，顺序一致", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
     const labels = Array.from(document.querySelectorAll("button")).map((b) => b.textContent);
     expect(labels).toEqual(["对话", "轨迹", "上下文", "洞察", "角色", "阅读", "设定", "记忆"]);

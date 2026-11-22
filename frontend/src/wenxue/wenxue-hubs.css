@@ -2142,13 +2142,29 @@
 
 /* ── 插图标签（2026-11-18）：图册网格/筛选/灯箱 ───────────────────── */
 
+.wx-root .wx-hub--gallery .wx-hub__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 22px 24px;
+  overflow-y: auto;
+}
+
+.wx-root .wx-hub--gallery .wx-hub-empty {
+  flex: 1;
+}
+
 .wx-root .wx-gallery-filters {
   display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 10px;
 }
 
 .wx-root .wx-gallery-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 3px 10px;
   border: 1px solid var(--border-soft, var(--md-sys-color-outline-variant));
   border-radius: 999px;
@@ -2156,6 +2172,18 @@
   color: var(--fg-faint);
   font-size: 11px;
   cursor: pointer;
+}
+
+.wx-root .wx-gallery-filter b {
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 550;
+  line-height: 1.5;
 }
 
 .wx-root .wx-gallery-filter.is-active {
@@ -2167,6 +2195,7 @@
 .wx-root .wx-gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  align-items: start;
   gap: 10px;
 }
 
@@ -2197,6 +2226,10 @@
 }
 
 .wx-root .wx-gallery-thumb-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
   color: var(--fg-faint);
 }
 

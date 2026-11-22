@@ -449,51 +449,9 @@ export function GitPanel({
 
   return (
     <div className="flex min-h-0 flex-col py-1">
-      <div className="v3-panel-head">
+      <div className="v3-panel-head git-panel-head">
         <GitBranch size={12} aria-hidden style={{ color: "var(--gaea-glow)" }} />
         <span className="v3-panel-title">Git 工作台</span>
-        <span className="ml-1 flex rounded-md border border-border-soft p-0.5">
-          <button
-            type="button"
-            aria-pressed={lens === "git"}
-            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "git" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
-            onClick={() => setLens("git")}
-          >
-            Git
-          </button>
-          <button
-            type="button"
-            aria-pressed={lens === "unified"}
-            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "unified" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
-            onClick={() => setLens("unified")}
-          >
-            统一
-          </button>
-          <button
-            type="button"
-            aria-pressed={lens === "session"}
-            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "session" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
-            onClick={() => setLens("session")}
-          >
-            本轮文件
-          </button>
-          <button
-            type="button"
-            aria-pressed={lens === "worktrees"}
-            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "worktrees" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
-            onClick={() => setLens("worktrees")}
-          >
-            工作树
-          </button>
-          <button
-            type="button"
-            aria-pressed={lens === "graph"}
-            className={`cursor-pointer rounded px-1.5 py-0.5 text-[9.5px] border-0 ${lens === "graph" ? "bg-accent text-accent-fg" : "bg-transparent text-fg-faint hover:text-fg"}`}
-            onClick={() => setLens("graph")}
-          >
-            提交图
-          </button>
-        </span>
         <span className="v3-panel-spacer" />
         {lens !== "session" && status?.branch && (
           <span className="font-mono text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
@@ -518,6 +476,26 @@ export function GitPanel({
         >
           <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
         </button>}
+      </div>
+      <div className="git-lensbar" role="group" aria-label="Git 视图">
+        {([
+          ["git", "Git"],
+          ["unified", "统一"],
+          ["session", "本轮文件"],
+          ["worktrees", "工作树"],
+          ["graph", "提交图"],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={lens === key}
+            data-active={lens === key}
+            className="git-lensbar__button"
+            onClick={() => setLens(key)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       {lens === "session" ? (
         <div className="min-h-0 flex-1 overflow-auto">

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { Modal } from "antd";
 import { WorkspacePane } from "./WorkspacePane";
 import { ToastProvider } from "./Toast";
-import { resetPaneTabsForTest } from "../lib/paneTabs";
+import { resetPaneTabsForTest, usePaneTabsStore } from "../lib/paneTabs";
 import type { PreviewResult } from "../lib/types";
 import { registerEditorDraft, unregisterEditorDraft } from "../lib/editorDrafts";
 
@@ -63,15 +63,20 @@ const ctx = {
 describe("WorkspacePane pane 工作台（对标 better-sidebar）", () => {
   it("空态 = 欢迎卡片；点「文件」卡片开资源管理器视图 tab", async () => {
     mocks.listDir.mockResolvedValue([{ name: "README.md", isDir: false }]);
-    render(
+    const { container } = render(
       <ToastProvider>
         <WorkspacePane context={ctx} />
       </ToastProvider>,
     );
     expect(screen.getByText("选择要打开的工作台页面")).toBeTruthy();
+    expect(container.querySelector(".workspace-illustration")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "任务" })).toBeNull();
     fireEvent.click(screen.getByText("文件", { exact: true }));
     expect(await screen.findByText("README.md")).toBeTruthy();
+    expect(container.querySelector(".workspace-view-context")).toBeNull();
+    const fileTab = screen.getByRole("tab", { name: "文件" });
+    expect(fileTab.closest("[data-tab-kind]")?.getAttribute("data-tab-kind")).toBe("view");
+    expect(fileTab.closest("[data-view-id]")?.getAttribute("data-view-id")).toBe("files");
   });
 
   it("资源管理器内点文件 → 新增文件 tab 浏览；关闭文件 tab 回资源管理器", async () => {
@@ -116,6 +121,35 @@ describe("WorkspacePane pane 工作台（对标 better-sidebar）", () => {
     expect((confirmConfig as unknown as { title: string }).title).toBe("有未保存的修改");
     expect(screen.getByRole("tab", { name: /README\.md/ })).toBeTruthy();
     unregisterEditorDraft("README.md", owner);
+  });
+
+  it("页签使用 roving focus，方向键/End 切换且关闭钮不与 tab 嵌套", async () => {
+    const store = usePaneTabsStore.getState();
+    store.openFile("README.md", "README.md");
+    store.openFile("notes.md", "notes.md");
+    store.activate("file:README.md");
+    render(
+      <ToastProvider>
+        <WorkspacePane context={ctx} />
+      </ToastProvider>,
+    );
+
+    const first = screen.getByRole("tab", { name: /README\.md/ });
+    const second = screen.getByRole("tab", { name: /notes\.md/ });
+    expect(first.tabIndex).toBe(0);
+    expect(second.tabIndex).toBe(-1);
+    expect(first.querySelector("button")).toBeNull();
+    const tablist = screen.getByRole("tablist", { name: "工作台标签页" });
+    expect(within(tablist).queryByRole("button", { name: "新建标签页" })).toBeNull();
+    expect(screen.getByRole("button", { name: "新建标签页" })).toBeTruthy();
+
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    await waitFor(() => expect(second.getAttribute("aria-selected")).toBe("true"));
+    expect(document.activeElement).toBe(second);
+
+    fireEvent.keyDown(second, { key: "End" });
+    expect(second.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(second);
   });
 });
 

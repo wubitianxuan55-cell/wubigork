@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- ChatTabId/白名单与页签组件同源导出，拆文件会重新引入多次漏白名单事故。 */
 import type React from "react";
 import { BarChart3, BookOpen, Brain, ListTree, MessageSquare, PieChart, ScrollText, Users } from "../icons";
 

@@ -10,7 +10,7 @@
 // 零新绑定：视图与检查器全部复用 schedule/ 既有件。
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Segmented } from "antd";
-import { ExternalLink } from "../../icons";
+import { ExternalLink, Plus, Rollback } from "../../icons";
 import { emitFrontendEvent, FRONTEND_EVENTS } from "../../../events";
 import { useScheduleStore, initScheduleSync } from "../../../schedule/store";
 import { computeCpm } from "../../../schedule/cpm";
@@ -135,30 +135,37 @@ export function ScheduleTool({ onAsk }: { onAsk?: (text: string) => void }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2 text-[12px]" data-testid="sched-tool">
       {/* 工具栏：工程名 + 视图四档 + 撤销/重做 + 完整工作台深链接 */}
-      <div className="flex shrink-0 items-center gap-2 overflow-x-auto">
-        <b className="max-w-[180px] truncate text-[12px] font-medium" title={project.name}>
-          {project.name || "未命名工程"}
-        </b>
+      <div className="sched-tool-toolbar shrink-0">
+        <div className="sched-tool-toolbar__identity">
+          <b className="truncate text-[12px] font-medium" title={project.name}>
+            {project.name || "未命名工程"}
+          </b>
+          <span>
+            <b>{leafCount}</b> 项工作 · 关键 <b>{criticalCount}</b> 项
+          </span>
+        </div>
         <Segmented
+          block
           size="small"
           value={activeView}
           onChange={(v) => setView(v as ToolView)}
           options={TOOL_VIEWS.map((v) => ({ value: v, label: VIEW_LABELS[v] }))}
           data-testid="sched-tool-views"
         />
-        <Button size="small" disabled={past.length === 0} onClick={() => undo()} aria-label="撤销" data-testid="sched-tool-undo">
-          撤销
-        </Button>
-        <Button size="small" disabled={future.length === 0} onClick={() => redo()} aria-label="重做" data-testid="sched-tool-redo">
-          重做
-        </Button>
-        <Button size="small" onClick={() => addTask()} data-testid="sched-tool-add">
-          添加任务
-        </Button>
-        <span className="flex-1" />
-        <Button size="small" icon={<ExternalLink size={11} />} onClick={openFullWorkbench} data-testid="sched-tool-full" title="打开完整编制工作台（导入导出/工程管理/资源/模板）">
-          完整工作台
-        </Button>
+        <div className="sched-tool-toolbar__actions">
+          <Button size="small" icon={<Rollback size={11} />} disabled={past.length === 0} onClick={() => undo()} aria-label="撤销" title="撤销" data-testid="sched-tool-undo">
+            <span className="sched-toolbar-action-label">撤销</span>
+          </Button>
+          <Button size="small" icon={<Rollback size={11} style={{ transform: "rotate(180deg)" }} />} disabled={future.length === 0} onClick={() => redo()} aria-label="重做" title="重做" data-testid="sched-tool-redo">
+            <span className="sched-toolbar-action-label">重做</span>
+          </Button>
+          <Button size="small" icon={<Plus size={11} />} onClick={() => addTask()} aria-label="添加任务" title="添加任务" data-testid="sched-tool-add">
+            <span className="sched-toolbar-action-label">添加任务</span>
+          </Button>
+          <Button size="small" icon={<ExternalLink size={11} />} onClick={openFullWorkbench} aria-label="完整工作台" data-testid="sched-tool-full" title="打开完整编制工作台（导入导出/工程管理/资源/模板）">
+            <span className="sched-toolbar-action-label">完整工作台</span>
+          </Button>
+        </div>
       </div>
 
       {!cpm.ok && cpm.error && (

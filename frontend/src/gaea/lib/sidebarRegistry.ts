@@ -29,6 +29,15 @@ import { GenuiPanel } from "../components/GenuiPanel";
 const LazyCadPanel = lazy(() => import("../components/cad/CadPanel").then((m) => ({ default: m.CadPanel })));
 const LazyScheduleTool = lazy(() => import("../components/schedule/ScheduleTool").then((m) => ({ default: m.ScheduleTool })));
 
+function workspaceLoading(label: string): ReactNode {
+  return createElement(
+    "div",
+    { className: "workspace-view-loading", role: "status", "aria-live": "polite" },
+    createElement("span", { className: "workspace-view-loading__mark", "aria-hidden": true }),
+    createElement("span", null, label),
+  );
+}
+
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "./workspaceTabs";
@@ -129,7 +138,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   cad: (ctx) =>
     createElement(
       Suspense,
-      { fallback: createElement("div", { className: "p-4 text-[12px] text-fg-dim" }, "正在加载图纸工具…") },
+      { fallback: workspaceLoading("正在载入图纸工作台…") },
       createElement(LazyCadPanel, { onAsk: ctx.onAsk }),
     ),
   // 进度计划工具面：视图/检查器复用 schedule/ 既有件，与 SchedulePage 共享
@@ -137,7 +146,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   schedule: (ctx) =>
     createElement(
       Suspense,
-      { fallback: createElement("div", { className: "p-4 text-[12px] text-fg-dim" }, "正在加载进度工具…") },
+      { fallback: workspaceLoading("正在载入进度工作台…") },
       createElement(LazyScheduleTool, { onAsk: ctx.onAsk }),
     ),
 };
