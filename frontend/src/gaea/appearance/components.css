@@ -289,6 +289,18 @@ body::after {
   }
 }
 
+/* App-level “reduced motion” must leave the ambience visible as a static field. */
+:root[data-gaea-mode] .ui-reduced-motion .gaea-stardust > i,
+:root[data-gaea-mode] .ui-reduced-motion .gaea-stardust > i.s-amb,
+:root[data-gaea-mode] .ui-reduced-motion .gaea-stardust > i.s-galaxy-edge {
+  animation: none;
+  opacity: 0.4;
+}
+
+:root[data-gaea-mode] .ui-reduced-motion .gaea-stardust > b.s-met {
+  display: none;
+}
+
 .v3-panel {
   background-color: var(--gaea-panel-tint-2);
   background-image:
