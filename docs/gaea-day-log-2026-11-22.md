@@ -109,3 +109,16 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
   与 d6add4b0 及更早包不同）**；zip 86DBD681…/src.zip 48E50ABE… 留盘不入库；装机位
   0BCAACE7…（主树 19:29 构建，同码不同时间戳，同源核验 ✓）。装机拉起 PID 72764（19:29）。
 - worktree 已回收。余留：.worktrees/pkg-4d23703e（workbench-tabs 批旧树，非本批）。
+
+### 补段：编程板块外观配色——Bloom 主题 v0.28.0 装机（官方 npm 通道）
+
+- gaea 侧 Bloom 架构 v4（7fcd1ff5）已收官无遗留；本刀=**DSH 编程板块**装 webkubor/dsh-bloom-theme
+  **v0.28.0**（npm dist-tags.latest=本地参考克隆同版）：官方 tarball 解包进
+  `C:\AI\dsh\home\profiles\web\node_modules\dsh-bloom-theme`（零依赖 lib 齐装），profile manifest
+  bundles 尾追加+dependencies 0.28.0（备份 package.json.bak-20261122-bloom）。
+- 验证：3091 起站零插件报错；插件页「Bloom 莫兰迪主题」已安装+启用 [checked]；主题渲染实锤
+  （227 个 bloom DOM 节点+截图莫兰迪渐变/玻璃卡片肉眼可见）；Bloom 面板入口在其「更多」子菜单
+  （.dsh-bloom-more 版本钮在位），色板切换留用户交互。3091 留跑（浏览器恢复即用）。
+- 坑（走查配方新增）：**Bloom 氛围动画使 Playwright actionability 稳定检查永不通过**——bloom 页面
+  CDP 驱动一律 JS click（evaluate 内 .click()）绕过；locator 点击全超时。
+- 回滚：删 node_modules/dsh-bloom-theme+manifest 两行还原（备份在）。
