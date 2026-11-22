@@ -8,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/k2-fsa/sherpa-onnx-go-windows/v2 v2.0.1
+	github.com/k2-fsa/sherpa-onnx-go-windows/v2 v2.0.2
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/richardlehane/mscfb v1.0.8
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e

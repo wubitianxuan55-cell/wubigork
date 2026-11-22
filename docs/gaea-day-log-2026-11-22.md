@@ -56,3 +56,12 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
   委派/轨迹/编队渲染全正常。
 - 走查姿势追加：composer 注入用 `document.execCommand('insertText')` + 直点 aria-label=
   「发送消息」按钮（fill+Enter 在 reload 后不触发提交的同坑新配方）。
+
+### 补段：关联软件官方最新版更新批（11-22 续）
+
+- **sherpa-onnx**：go 绑定 k2-fsa/sherpa-onnx-go-windows/v2 v2.0.1→**v2.0.2**（官方 11-19 发），build/bin 与装机位 sherpa 两 DLL 换 v2.0.2、ORT 1.31.1 保留（k2-fsa 捆的是 ORT 1.17.1，不能跟走）。yalue/onnxruntime_go 试 bump v1.38.0 失败退回 **v1.28.0**：v1.38 绑定请求 ORT API 38，需 ORT DLL≥1.38；且 **microsoft/onnxruntime GitHub 仓 2026-11 中旬消失**（疑似安全事件，官方未公告迁移，NuGet/PyPI 未受影响）——不从野镜像拉 DLL，**ORT 钉 1.31.1**（2026-10-23 官方构建）。
+- **System32 新坑（全机级）**：2026-11-11 起 Windows 系统组件在 `System32\onnxruntime.dll` 放 ORT 1.17.1（germanium）。go test 临时 exe / wails 的 gen_bindings 子进程无同目录 DLL 时按搜索序被劫持：语音 cgo 测试族崩 0xc0000005（"requested API version [28] not available"），wails build 报 0xc0000135。修=**`scripts/cgo_test_dll_prep.cmd`**（`go test -exec` 包装器，DLL 三件套复制到测试 exe 旁，`GAEA_TEST_DLL_DIR` 可覆盖）+ 构建时 PATH 前置 `build/bin`。构建指南坑表已补行。
+- **llama.cpp**：官方 v1.0.0 系纯源码发布，二进制走 nightly **b12359 win-vulkan-x64**（Clang 20.1.8，36MB）→ 落 `C:\AI\gaea-VOICE\voice-v2\bin\`（bundle 位=`voiceV2LLMBinPath` 解析第一优先，qwen35/gemma4 两档自管 llama 从此吃官方最新）。实弹：qwen35 35B 25s 加载、MTP draft 上下文创建、mmproj 装载、补全回 `OK-35B` 全通；`--spec-type draft-mtp`/`-md`/`--spec-draft-ngl`/`--chat-template-file` 等旗面 b12359 全兼容。engine_update_check「llama」本地=官方 1.0.0，更新提示消失。
+- **纠正 11-20 旧账**：`uocr2-llama\bin` 与 `bin-ocr-0.8.0-dev` 逐字节同一份构建（都是 b11980+unlimited-ocr2.patch，llama.dll 实含 arch；bin-mainline-broken-20261111 归档目录就在 bin/ 内）——「bin/ 恢复 mainline 归 qwen35」实际未落，qwen35 此前跑的一直是 OCR 补丁构建。本批 bundle 位补上真 mainline 后，OCR（钉 bin-ocr）与 qwen35（bundle bin）通道才算真正分离。OCR 钉住位复查 10s 加载/health 200 ✓。
+- **不动项**：whirl（本地 0.2.5.1 领先官方 tag v020-rc11）、Strata（本地仓 0.2.13-rc 领先发布 v0.2.9）、ovis（自建 llama 0.4.0-dev 专 arch）、breeze-tts2（权重冻结）。**ComfyUI**：AMD standalone pack v0.20.1-env1 仍为最新 pack；核心 v0.20.1 vs 上游 v0.46.2——pack 内原地升级涉 ROCm 钉死 env，挂拍板。unlimited python venv（OCR 慢速腿）pip 已坏且被 llama 通道替代 10~14x，挂清理拍板。
+- 验证链：voice native ok 5.7s + internal/app 全绿 177.5s（均走 wrapper）→ npm 31.3s → wails 24.78s → 冒烟 /api/health 200（PID 36032 回收）→ INSTALL OK（exe 5ECEC355…，15:46:01，三 DLL 同批）→ 装机拉起 PID 13396>构建时刻。

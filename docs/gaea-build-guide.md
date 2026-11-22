@@ -35,6 +35,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gaea_install.ps1
 | `build.bat` 在 **Generating bindings** 报 `frontend/wailsjs/runtime/package.json: Access is denied` | 已复现为 `.tmp` 的 `TMP/TEMP` 重定向触发 Wails 清理/解压 runtime 冲突。先完成 `frontend\npm.cmd run build`，再在**使用系统默认 TMP/TEMP 的新终端**按同一 `CGO_ENABLED=1`/`CC`/`PATH` 运行裸 `wails build -s -ldflags "-s -w" -trimpath`。不要再跳过 bindings。 |
 | 独立 `.worktrees` 工作树内可直接构建，但 `Start-Process` 启动其 `build/bin/gaea.exe` 被本机策略拦截（2026-11-12） | 将**同一构建**的 exe+三 DLL 复制到 `releases/<package>/payload/` 正式路径，以绝对路径运行 `scripts\smoke.ps1 -ExePath <payload>\gaea.exe`；核验哈希后用该 payload 打包。不要把启动策略拦截误判为构建失败，也不要改从 `.tmp` 启动。 |
 | System32 ORT 劫持 DLL | ucrt64 bin 必须前置在 PATH，防止劫持 DLL 随 exe |
+| **System32 自带 onnxruntime.dll 1.17.1（2026-11-11 起 Windows 系统组件「germanium」）**：go test 的临时 exe 与 wails 的 gen_bindings 子进程无同目录 DLL 时按搜索序吃到 System32 ORT——语音 cgo 测试族必崩（0xc0000005，"requested API version [28] not available"），gen_bindings 报 0xc0000135 连带 wails build 失败 | 测试：`go test -exec 'C:\AI\wubigrok\scripts\cgo_test_dll_prep.cmd' <pkg>`（wrapper 把 DLL 三件套复制到测试 exe 旁，exe 目录搜索序第一优先；`GAEA_TEST_DLL_DIR` 可覆盖来源，缺省 build\bin）；构建：PATH 前置 `build/bin`（含与 go.mod 配对的 sherpa v2.0.2 + ORT 1.31.1 三件套）再跑 `wails build` |
 | 版本号真源 = `wails.json` 的 `productVersion` | `versioninfo.rc` 是死文件，改它无效 |
 | 测试/运行 exe 找不到 DLL | exe 与三 DLL 必须同目录 |
 | 桌面散件旧 exe（2026-10-31 事故） | 用户跑的一直是桌面旧壳；装机脚本默认清桌面散件 |
