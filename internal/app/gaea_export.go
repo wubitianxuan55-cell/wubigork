@@ -100,9 +100,11 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 	// （S4 产物路径分区：work 恒 .gaea/exports 现状不动，play 落 .gaea/play/exports）。
 	var outPath string
 	if strings.TrimSpace(in.OutputPath) != "" {
-		p, perr := wspath.ResolveRelWithin(gaeaCwd(), in.OutputPath)
+		// 声明写路径宽容解析（P2-11）：工作区内绝对路径自动转相对（工作区外
+		// 仍拒）；相对口径逐字节不变。
+		p, perr := wspath.RelIfWithin(gaeaCwd(), in.OutputPath)
 		if perr != nil {
-			return ExportDeliverableResult{}, fmt.Errorf("非法 output_path（须为工作区相对路径）: %s", in.OutputPath)
+			return ExportDeliverableResult{}, fmt.Errorf("非法 output_path（工作区相对或工作区内绝对路径）: %s", in.OutputPath)
 		}
 		if ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(p), ".")); ext != format {
 			return ExportDeliverableResult{}, fmt.Errorf("output_path 扩展名 %q 与 format %q 不一致", ext, format)

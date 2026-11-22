@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/jpeg"
-	_ "image/png"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -36,6 +36,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -88,14 +89,14 @@ func (longdocVerifyTool) Name() string   { return "longdoc_verify" }
 func (longdocVerifyTool) ReadOnly() bool { return true }
 
 func (longdocVerifyTool) Description() string {
-	return "方案档专属交付验证（只读、确定性、零 LLM；技术标实测验证体系工具化）。四门：chapter=单章验收（题注↔引用↔章末索引三方同步+图引存在性+docx 内嵌图 md5 逐一比对+占位残留+禁用词否定语境排除+口径词计数）；cross=跨章核查（图表编号跨章唯一+引用↔题注并集对账+跨章引用语义初筛〔引用句↔被引标题 bigram 重合，低重合=引用错表高疑标记，不判 fail〕+禁用词全册+口径词×各章出现矩阵+各章字数）；book=整册终验（docx 内嵌数/占位文本/章标题在册/styles.xml 颜色字号字面量读数/页眉页脚域/分节数/源 md 完整）；ink=渲染页像素判色（doc_render 出图后暗部平均色，饱和度差>25 判彩色——标题改色是否真生效用它）。期望图表数/禁用词/口径词等项目耦合项全部调用时传参。清单结构机检另有 longdoc_manifest check；编号撞号跳号单章内形态用 md_validate（paths 多文件=全册并集对账）。"
+	return "方案档专属交付验证（只读、确定性、零 LLM；技术标实测验证体系工具化）。五门：chapter=单章验收（题注↔引用↔章末索引三方同步+图引存在性+docx 内嵌图 md5 逐一比对+占位残留+禁用词否定语境排除+口径词计数）；cross=跨章核查（图表编号跨章唯一+引用↔题注并集对账+跨章引用语义初筛〔引用句↔被引标题 bigram 重合，低重合=引用错表高疑标记，不判 fail〕+禁用词全册+口径词×各章出现矩阵+各章字数）；book=整册终验（docx 内嵌数/占位文本/章标题在册/styles.xml 颜色字号字面量读数/页眉页脚域/分节数/源 md 完整）；ink=渲染页像素判色（doc_render 出图后暗部平均色，饱和度差>25 判彩色——标题改色是否真生效用它）；layout=版面机检（空白页/墨覆盖两口径〔整页面积与已占用版面分母同给〕/图片有效 ppi/文本越界 bbox——图文占比不再靠手搓脚本三版口径打架）。期望图表数/禁用词/口径词等项目耦合项全部调用时传参。清单结构机检另有 longdoc_manifest check；编号撞号跳号单章内形态用 md_validate（paths 多文件=全册并集对账）。"
 }
 
 func (longdocVerifyTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object","required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["chapter","cross","book","ink"],"description":"chapter=单章验收；cross=跨章核查；book=整册终验；ink=像素判色"},
+  "action":{"type":"string","enum":["chapter","cross","book","ink","layout"],"description":"chapter=单章验收；cross=跨章核查；book=整册终验；ink=像素判色；layout=版面机检（空白页/墨覆盖两口径/图片有效dpi/文本越界——docx 或 pdf 输入）"},
   "path":{"type":"string","description":"chapter：章节 md 路径"},
   "paths":{"type":"array","items":{"type":"string"},"description":"cross/book：md 清单（book=各章源文件，用于章标题在册与源文件完整）"},
   "docx":{"type":"string","description":"chapter/book：对照 docx（chapter=单章导出件，book=整册）"},
@@ -129,6 +130,8 @@ func (longdocVerifyTool) ReadTarget(args json.RawMessage) (string, bool) {
 		primary = p.Docx
 	case "ink":
 		primary = p.PNG
+	case "layout":
+		primary = p.Docx
 	}
 	if strings.TrimSpace(primary) == "" {
 		return "", false
@@ -140,7 +143,7 @@ func (longdocVerifyTool) ReadTarget(args json.RawMessage) (string, bool) {
 	return abs, true
 }
 
-func (t longdocVerifyTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
+func (t longdocVerifyTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p ldvParams
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("longdoc_verify 参数解析失败: %w", err)
@@ -166,6 +169,11 @@ func (t longdocVerifyTool) Execute(_ context.Context, args json.RawMessage) (str
 			return "", fmt.Errorf("ink 门需要 png（doc_render 渲染页）")
 		}
 		return t.runInk(&p)
+	case "layout":
+		if strings.TrimSpace(p.Docx) == "" {
+			return "", fmt.Errorf("layout 门需要 docx 或 pdf（整册文件路径）")
+		}
+		return t.runLayout(ctx, &p)
 	default:
 		return "", fmt.Errorf("未知 action %q（chapter/cross/book/ink）", p.Action)
 	}
@@ -1044,3 +1052,186 @@ func (t longdocVerifyTool) runInk(p *ldvParams) (string, error) {
 
 // 接口钉（编译期锁 family 形态）。
 var _ tool.Tool = longdocVerifyTool{}
+
+// ── layout：版面机检（P1-6，2026-11-21 沿江反馈：图文占比全靠自写脚本量，
+// 三版口径 43%→19.2%→24.6% 能差一倍）──────────────────────────────────
+//
+// 确定性面四件（零 LLM，poppler 三件套）：①空白页（72dpi 墨像素<0.5%）②墨
+// 覆盖两口径（整页面积分母=默认公布口径；已占用版面分母=墨 bbox——两数同给
+// 不打架）③图片清单+有效 ppi（<96 warn=插入尺寸放大致糊）④文本越界（bbox
+// xMax>页宽=物理裁切）。表格断表/图题同页等语义面留技能层（qc_geom）。
+
+func (t longdocVerifyTool) runLayout(ctx context.Context, p *ldvParams) (string, error) {
+	src, err := longdocResolvePath(p.Docx)
+	if err != nil {
+		return "", err
+	}
+	// docx → 临时 PDF（pdf 直读）。
+	pdfPath := src
+	cleanup := ""
+	switch strings.ToLower(filepath.Ext(src)) {
+	case ".pdf":
+	case ".docx", ".doc":
+		tmp, terr := os.CreateTemp("", "gaea-layout-*.pdf")
+		if terr != nil {
+			return "", terr
+		}
+		cleanup = tmp.Name()
+		_ = tmp.Close()
+		defer func() { _ = os.Remove(cleanup) }()
+		if cerr := docmd.ConvertToPdfFile(src, cleanup); cerr != nil {
+			return "", fmt.Errorf("layout 门 docx→PDF 失败: %w", cerr)
+		}
+		pdfPath = cleanup
+	default:
+		return "", fmt.Errorf("layout 门输入须为 docx 或 pdf（当前 %s）", filepath.Ext(src))
+	}
+	r := &ldvReceipt{}
+
+	// ① 像素面：72dpi 渲染逐页墨覆盖。
+	pngs, perr := docmd.RenderPDFPageRange(ctx, pdfPath, filepath.Join(os.TempDir(), "gaea-layout-page"), 72, 0, 0)
+	type pageInk struct {
+		Page                  int
+		InkPctPage, InkPctOcc float64 // 整页面积分母 / 已占用版面（墨 bbox）分母
+	}
+	var inks []pageInk
+	if perr == nil {
+		defer func() {
+			for _, png := range pngs {
+				_ = os.Remove(png)
+			}
+		}()
+		for i, png := range pngs {
+			ink, pctPage, pctOcc := ldvPageInk(png)
+			if ink < 0 {
+				continue // 解码失败页跳过（如实不猜）
+			}
+			inks = append(inks, pageInk{Page: i + 1, InkPctPage: pctPage, InkPctOcc: pctOcc})
+			if ink < 0.005 {
+				r.fail("空白页：第 %d 页墨覆盖 %.2f%%（<0.5%%）——成册出现空白页=分页/空段问题", i+1, pctPage*100)
+			}
+		}
+	} else {
+		r.line("[1] 像素面不可用（%v）——空白页/墨覆盖跳过", perr)
+	}
+
+	// ② 文本面：bbox 越界。
+	pages, terr := docmd.PDFTextBBoxes(pdfPath)
+	if terr == nil {
+		overflow := 0
+		for pi, pg := range pages {
+			for _, w := range pg.Words {
+				if w.XMax > pg.Width+0.5 || w.XMin < -0.5 {
+					overflow++
+					if overflow <= 8 {
+						r.fail("文本越界：第 %d 页词 %q xMax=%.1f 超页宽 %.1f（物理裁切，渲染才能看到）", pi+1, ldvShort(w.Text, 16), w.XMax, pg.Width)
+					}
+				}
+			}
+		}
+		if overflow > 8 {
+			r.fail("文本越界共 %d 处（上列前 8）", overflow)
+		}
+	} else {
+		r.line("[2] 文本 bbox 面不可用（%v）——越界检查跳过", terr)
+	}
+
+	// ③ 图片面：有效 ppi。
+	imgs, ierr := docmd.PDFImagesInfo(pdfPath)
+	if ierr == nil {
+		low := 0
+		var imgAreaTotal float64
+		var pageArea float64
+		if len(pages) > 0 {
+			pageArea = pages[0].Width * pages[0].Height
+		}
+		for _, im := range imgs {
+			// 插入尺寸（pt）=像素/ppi；页面积占比（图号占页折算的数据源）。
+			if pageArea > 0 && im.XPPI > 0 && im.YPPI > 0 {
+				imgAreaTotal += (float64(im.Width) / im.XPPI) * (float64(im.Height) / im.YPPI)
+			}
+			if im.XPPI < 96 || im.YPPI < 96 {
+				low++
+				if low <= 8 {
+					r.line("    [warn] 第 %d 页图片 %d×%d 有效 %0.fppi（<96=插入尺寸放大，打印可能糊）", im.Page, im.Width, im.Height, (im.XPPI+im.YPPI)/2)
+				}
+			}
+		}
+		r.line("[3] 图片 %d 张（有效 ppi<96 共 %d 张）；图面折算占版 %.1f%%", len(imgs), low, pct(imgAreaTotal, pageArea))
+	} else {
+		r.line("[3] 图片面不可用（%v）", ierr)
+	}
+
+	// ④ 墨覆盖两口径总览（默认公布口径=整页面积分母；已占用版面分母同给）。
+	if len(inks) > 0 {
+		r.line("[4] 逐页墨覆盖（页面积%% / 已占用版面%%——对外报数注明口径）：")
+		for i, k := range inks {
+			if i >= 40 {
+				r.line("    …余 %d 页略", len(inks)-i)
+				break
+			}
+			r.line("    P%-3d %5.1f%%  %5.1f%%", k.Page, k.InkPctPage*100, k.InkPctOcc*100)
+		}
+	}
+	r.line("layout 门说明：空白页/文本越界=硬伤；图片低 ppi=warn；表格断表/图题同页等语义面留技能层。")
+	return r.String("longdoc_verify · layout"), nil
+}
+
+// ldvPageInk 单页墨分析：返回 (墨像素占比, 整页分母覆盖, 已占用分母覆盖)；
+// 解码失败返回 -1。
+func ldvPageInk(png string) (float64, float64, float64) {
+	f, err := os.Open(png)
+	if err != nil {
+		return -1, 0, 0
+	}
+	defer func() { _ = f.Close() }()
+	img, err := pngDecode(f)
+	if err != nil {
+		return -1, 0, 0
+	}
+	b := img.Bounds()
+	total := 0
+	ink := 0
+	minX, minY, maxX, maxY := b.Dx(), b.Dy(), 0, 0
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			rr, gg, bb, _ := img.At(x, y).RGBA()
+			total++
+			// 墨判定：任一通道低于 75%亮度（灰框/淡色都算墨——版面占用语义）。
+			if rr>>8 < 192 || gg>>8 < 192 || bb>>8 < 192 {
+				ink++
+				if x < minX {
+					minX = x
+				}
+				if x > maxX {
+					maxX = x
+				}
+				if y < minY {
+					minY = y
+				}
+				if y > maxY {
+					maxY = y
+				}
+			}
+		}
+	}
+	if total == 0 || ink == 0 {
+		return 0, 0, 0
+	}
+	pctPage := float64(ink) / float64(total)
+	bbox := (maxX - minX + 1) * (maxY - minY + 1)
+	pctOcc := float64(ink) / float64(bbox)
+	return pctPage, pctPage, pctOcc
+}
+
+// pngDecode image.Decode 的 png 特化（ink 门同款管线）。
+func pngDecode(f *os.File) (image.Image, error) {
+	return png.Decode(f)
+}
+
+func pct(a, b float64) float64 {
+	if b <= 0 {
+		return 0
+	}
+	return a / b * 100
+}

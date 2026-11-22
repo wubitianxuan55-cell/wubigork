@@ -45,9 +45,9 @@ func (a *App) officeBatchTaskHandler(ctx context.Context, t *tasks.Task, p *task
 	}
 	outDirAbs := ""
 	if strings.TrimSpace(in.OutDir) != "" {
-		p2, err := wspath.ResolveRelWithin(gaeaCwd(), in.OutDir)
+		p2, err := wspath.RelIfWithin(gaeaCwd(), in.OutDir)
 		if err != nil {
-			return fmt.Errorf("非法 outDir（须为工作区相对路径）: %s", in.OutDir)
+			return fmt.Errorf("非法 outDir（工作区相对或工作区内绝对路径）: %s", in.OutDir)
 		}
 		outDirAbs = p2
 		if err := os.MkdirAll(outDirAbs, 0o755); err != nil {

@@ -545,6 +545,15 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
 	// （此前 WithTranscripts 只有测试调用，真机子代理 tab 无数据可显示）。
 	taskTool.WithTranscripts(subagentStore)
+	// P1-7（2026-11-21 沿江反馈）：wait 收 sa_/mt_ 引用——agent.WaitSubagents
+	// 经注入缝进 builtin wait（builtin 不能反向 import agent，环约束）。
+	builtin.SetSubagentWaiter(func(ctx context.Context, refs []string, timeoutSec int) []builtin.SubagentWaitRow {
+		var out []builtin.SubagentWaitRow
+		for _, r := range agent.WaitSubagents(ctx, refs, time.Duration(timeoutSec)*time.Second) {
+			out = append(out, builtin.SubagentWaitRow{Ref: r.Ref, Status: r.Status, Output: r.Output})
+		}
+		return out
+	})
 
 	// v4.64 Side Chat 式追问：把「用户在子代理 tab 里追问」的执行器交给宿主
 	// （App 绑定 GaeaSubagentFollowUp）。事件只走专用流式通道（文本增量），
@@ -758,9 +767,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 	execSess := agent.NewSession(execPrompt)
 	executor := agent.New(execProv, reg, execSess, agent.Options{
-		MaxSteps:      maxSteps,
-		Temperature:   cfg.Agent.Temperature,
-		Pricing:       entry.Price,
+		MaxSteps:    maxSteps,
+		Temperature: cfg.Agent.Temperature,
+		Pricing:     entry.Price,
 		// B5 工具归因：runner 把模型 id 盖戳到工具/请求头事件（ResolveModel
 		// 已归一出实际模型，含 provider/model 引用与 Models 列表缺省）。
 		ModelName:     entry.Model,
@@ -929,19 +938,19 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 
 	ctrlOpts := control.Options{
-		Runner:         runner,
-		Executor:       executor,
-		Sink:           sink,
-		Policy:         policy,
-		ApprovalMode:   perm.ApprovalMode,
-		SectionDiff:    cfg.Agent.SectionDiff,
-		Guardian:       opts.Guardian,
-		Label:          label,
-		SystemPrompt:   sysPrompt,
-		SessionDir:     orDefault(opts.SessionDir, config.SessionDir()),
-		Host:           pluginHost,
-		Commands:       cmds,
-		Skills:         skills,
+		Runner:       runner,
+		Executor:     executor,
+		Sink:         sink,
+		Policy:       policy,
+		ApprovalMode: perm.ApprovalMode,
+		SectionDiff:  cfg.Agent.SectionDiff,
+		Guardian:     opts.Guardian,
+		Label:        label,
+		SystemPrompt: sysPrompt,
+		SessionDir:   orDefault(opts.SessionDir, config.SessionDir()),
+		Host:         pluginHost,
+		Commands:     cmds,
+		Skills:       skills,
 		// P8 断网闸（交互路径四个换级点共用 newGate 后统一包装）。
 		DenyNetworkTools: !cfg.Sandbox.Network,
 		// 刀1 断网闸逐主机修正案：开关+持久台账快照+配置回写回调（headless

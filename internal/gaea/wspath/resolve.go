@@ -114,3 +114,31 @@ func ResolveRelWithin(root, rel string) (string, error) {
 	}
 	return joined, nil
 }
+
+// RelIfWithin 声明写路径的宽容解析（2026-11-21 反馈 P2-11：同一批工具四种
+// 路径口径互不兼容，output_path 传绝对路径被「须为工作区相对路径」拒）：
+// 工作区内绝对路径自动转相对再走 ResolveRelWithin（工作区外仍拒）；相对
+// 路径行为与旧口径逐字节一致。声明路径=实际落点 语义不变——只是入口不再
+// 逼模型换写法。
+func RelIfWithin(root, p string) (string, error) {
+	q := strings.TrimSpace(p)
+	if q == "" {
+		return "", fmt.Errorf("%w: %s", ErrPathEscape, p)
+	}
+	fromSlash := filepath.FromSlash(q)
+	if filepath.IsAbs(fromSlash) {
+		absRoot, err := filepath.Abs(filepath.FromSlash(root))
+		if err != nil {
+			return "", fmt.Errorf("wspath: 根目录解析失败 %q: %w", root, err)
+		}
+		if !Within(absRoot, filepath.Clean(fromSlash)) {
+			return "", fmt.Errorf("%w: %s（绝对路径须在工作区内；工作区外路径仍拒）", ErrPathEscape, p)
+		}
+		rel, err := filepath.Rel(absRoot, filepath.Clean(fromSlash))
+		if err != nil {
+			return "", fmt.Errorf("%w: %s", ErrPathEscape, p)
+		}
+		return ResolveRelWithin(root, rel)
+	}
+	return ResolveRelWithin(root, q)
+}

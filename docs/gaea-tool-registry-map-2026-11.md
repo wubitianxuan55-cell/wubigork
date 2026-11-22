@@ -86,6 +86,7 @@
 | `office_status` | extra-app | work | read | none | dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配） |
 | `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
 | `promote_session_facts` | build-internal | shared | write | none | PersistWrite：事实晋升可查 |
+| `quarantine_list` | builtin-workspace | work | read | none | 账本批次按 stamp 去重与同 stamp 最后一条一致；行数≠批次数 |
 | `read_file` | builtin-workspace | work | read | none | 内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny |
 | `read_skill` | builtin-domain | shared | read | none | 返回技能正文 |
 | `read_spill` | builtin-domain | shared | read | none | 溢出读与落盘内容一致 |

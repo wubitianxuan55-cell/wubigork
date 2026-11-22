@@ -181,11 +181,12 @@ func TestAdjudicateOnlyTouchesComplete(t *testing.T) {
 }
 
 func TestChildCompletionVerdictNoReport(t *testing.T) {
+	// 首刀 A（pan_1795306273871）：无报告不再静默——恒附 unreported 块。
 	sess := childSessionWithReceipts()
-	if v := childCompletionVerdict(sess); v != "" {
-		t.Fatalf("无报告不应附裁语: %q", v)
+	if v := childCompletionBlock(sess); !strings.Contains(v, "unreported") {
+		t.Fatalf("无报告应恒附 unreported 块: %q", v)
 	}
-	if v := childCompletionVerdict(nil); v != "" {
+	if v := childCompletionBlock(nil); v != "" {
 		t.Fatalf("nil 会话应返回空: %q", v)
 	}
 }
@@ -199,9 +200,9 @@ func TestChildCompletionVerdictDowngradeVisible(t *testing.T) {
 		{ID: "t3", Name: completeSubtaskName, Arguments: string(raw)},
 	}})
 	sess.Add(provider.Message{Role: provider.RoleTool, ToolCallID: "t3", Name: completeSubtaskName, Content: "accepted"})
-	v := childCompletionVerdict(sess)
-	if !strings.Contains(v, "partial") || !strings.Contains(v, "go vet") {
-		t.Fatalf("降级裁语应含结论与缺失证据: %q", v)
+	v := childCompletionBlock(sess)
+	if !strings.Contains(v, "status=partial") || !strings.Contains(v, "go vet") {
+		t.Fatalf("降级块应含结论与缺失证据: %q", v)
 	}
 }
 

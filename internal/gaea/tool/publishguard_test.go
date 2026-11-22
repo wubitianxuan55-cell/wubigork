@@ -371,3 +371,107 @@ func TestSpikePublishGuardSnapshotCost(t *testing.T) {
 		t.Fatalf("快照遍历开销异常（>2s）：begin=%v scan=%v", beginCost, scanCost)
 	}
 }
+
+// TestPublishGuardProcessFileExemption 过程件豁免（P0-1 建议三，2026-11-21）：
+// _draft/ 段路径与文件名含探针字样（probe/test/tmp/draft/草稿/临时）不判
+// durable——实测往 _draft/probe/ 写探针 docx 也被拦、每次交付多绕路。
+func TestPublishGuardProcessFileExemption(t *testing.T) {
+	g, _ := d6Guard(t)
+	ws := g.roots[0]
+	if err := g.Begin(); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		"_draft/build/过程稿.docx", // _draft 段豁免
+		"_probe/探针.docx",        // _probe 段豁免
+		"工作区根/probe探测.docx",     // 文件名 probe 豁免
+		"工作区根/临时台账.docx",        // 文件名 临时 豁免
+		"工作区根/正式交付物.docx",       // 不豁免（对照）
+	} {
+		abs := filepath.Join(ws, filepath.FromSlash(rel))
+		os.MkdirAll(filepath.Dir(abs), 0o755)
+		if err := os.WriteFile(abs, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	vs, err := g.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vs) != 1 || vs[0].RelPath != "工作区根/正式交付物.docx" {
+		var got []string
+		for _, v := range vs {
+			got = append(got, v.RelPath)
+		}
+		t.Fatalf("应只拦正式交付物（过程件全豁免），实得 %v", got)
+	}
+}
+
+// TestPublishGuardAtomicDirIsolation 目录级原子隔离（P1-12：mv 目录→骨架搬走
+// +durable 被逐件隔离=半完成中间态）。真实 mv 形态=整目录在 Begin 前已存在
+// （durable 与非 durable 伴行件 mtime 均旧），Begin 后整体搬入 → 整树隔离不
+// 留空壳；往既有目录塞文件/目录内现写进行中内容=维持逐件。
+func TestPublishGuardAtomicDirIsolation(t *testing.T) {
+	g, _ := d6Guard(t)
+	ws := g.roots[0]
+	// Begin 前在工作区外备好整目录（mtime=旧，模拟随迁旧文件）。
+	outer := filepath.Join(t.TempDir(), "交付包")
+	os.MkdirAll(filepath.Join(outer, "子目录"), 0o755)
+	os.WriteFile(filepath.Join(outer, "标书.docx"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(outer, "子目录", "说明.md"), []byte("y"), 0o644)
+	os.WriteFile(filepath.Join(outer, "附表.xlsx"), []byte("z"), 0o644)
+	// mtime 需严格早于 Begin——显式回拨 1 分钟防同刻精度边界。
+	past := time.Now().Add(-time.Minute)
+	os.Chtimes(filepath.Join(outer, "子目录", "说明.md"), past, past)
+	os.Chtimes(filepath.Join(outer, "标书.docx"), past, past)
+	os.Chtimes(filepath.Join(outer, "附表.xlsx"), past, past)
+
+	if err := g.Begin(); err != nil {
+		t.Fatal(err)
+	}
+	// 形态一：整目录 mv 进工作区（os.Rename 模拟 mv，mtime 保持旧值）。
+	if err := os.Rename(outer, filepath.Join(ws, "交付包")); err != nil {
+		t.Fatal(err)
+	}
+	// 形态二：往既有目录（工作区根，Begin 时已存在）现写 durable。
+	os.WriteFile(filepath.Join(ws, "散件.docx"), []byte("w"), 0o644)
+	// 形态三：新建目录+现写进行中内容（docx+md 都是新文件）→ 不得整搬。
+	wipDir := filepath.Join(ws, "编稿中")
+	os.MkdirAll(wipDir, 0o755)
+	os.WriteFile(filepath.Join(wipDir, "草稿.md"), []byte("正在写"), 0o644)
+	os.WriteFile(filepath.Join(wipDir, "稿件.docx"), []byte("d"), 0o644)
+
+	vs, err := g.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vs) != 4 {
+		t.Fatalf("应检出 4 件 durable 越界（散件/交付包2/编稿中1（稿件）），实得 %d", len(vs))
+	}
+	moved, qerr := g.Quarantine(vs)
+	if qerr != nil {
+		t.Fatal(qerr)
+	}
+	if len(moved) != 5 {
+		t.Fatalf("moved 应 5 件（整目录3+散件1+编稿中 docx 逐件1，md 留守），实得 %v", moved)
+	}
+	// 整目录连骨架消失；编稿中目录与 md 留在工作区（进行中内容不动）。
+	if _, err := os.Stat(filepath.Join(ws, "交付包")); !os.IsNotExist(err) {
+		t.Fatal("整目录应连骨架一起隔离，不留空壳")
+	}
+	if _, err := os.Stat(filepath.Join(wipDir, "草稿.md")); err != nil {
+		t.Fatalf("进行中的 md 不应被整目录带走: %v", err)
+	}
+	dest := g.LastQuarantineDest()
+	for _, rel := range []string{"标书.docx", "附表.xlsx", filepath.Join("子目录", "说明.md")} {
+		if _, err := os.Stat(filepath.Join(dest, "交付包", rel)); err != nil {
+			t.Fatalf("隔离区缺整目录成员 %s: %v", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dest, "散件.docx")); err != nil {
+		t.Fatalf("隔离区缺散件: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "编稿中", "稿件.docx")); err != nil {
+		t.Fatalf("编稿中 docx 应逐件隔离: %v", err)
+	}
+}

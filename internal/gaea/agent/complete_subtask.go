@@ -41,11 +41,30 @@ type completionCriterion struct {
 	Evidence []completionEvidence `json:"evidence,omitempty"`
 }
 
+// completionArtifact 交付产物（众神殿 pan_1795306273871 首刀 A：独立于
+// criteria.evidence——evidence 是「判据支撑」，artifacts 是「交付物清单」，
+// 复用会把读过的输入误认成交付物）。宿主核验：子会话回执有该路径的成功
+// 落盘（写族/交付工具）=verified，否则 unverified（缺证据不升级，裁决条件）。
+type completionArtifact struct {
+	Path string `json:"path"`
+	Note string `json:"note,omitempty"`
+}
+
+// completionBlocker 结构化阻塞（首刀 A：与 unresolved 分立——blockers=需要
+// 父代理或用户动作才能解除的阻塞；unresolved=已知缺口/后续跟进。不得由
+// unresolved 改名声称，两字段并存语义不叠）。
+type completionBlocker struct {
+	Reason string `json:"reason"`
+	Needed string `json:"needed_from_parent,omitempty"` // 需要父/用户提供的动作或输入
+}
+
 // completionReport 完成报告（complete_subtask 参数形状）。
 type completionReport struct {
 	Status     string                `json:"status"` // complete|partial|blocked|failed
 	Summary    string                `json:"summary"`
 	Criteria   []completionCriterion `json:"acceptance_criteria,omitempty"`
+	Artifacts  []completionArtifact  `json:"artifacts,omitempty"`
+	Blockers   []completionBlocker   `json:"blockers,omitempty"`
 	Unresolved []string              `json:"unresolved,omitempty"`
 }
 
@@ -74,6 +93,18 @@ func parseCompletionReport(raw string) (completionReport, error) {
 			return r, fmt.Errorf("criterion %q status must be satisfied or unsatisfied", c.ID)
 		}
 	}
+	for i := range r.Artifacts {
+		r.Artifacts[i].Path = strings.TrimSpace(r.Artifacts[i].Path)
+		if r.Artifacts[i].Path == "" {
+			return r, fmt.Errorf("artifacts[%d].path is required", i)
+		}
+	}
+	for i := range r.Blockers {
+		r.Blockers[i].Reason = strings.TrimSpace(r.Blockers[i].Reason)
+		if r.Blockers[i].Reason == "" {
+			return r, fmt.Errorf("blockers[%d].reason is required", i)
+		}
+	}
 	return r, nil
 }
 
@@ -85,11 +116,11 @@ type completeSubtaskTool struct{}
 func (completeSubtaskTool) Name() string { return completeSubtaskName }
 
 func (completeSubtaskTool) Description() string {
-	return "Submit the structured completion report for this sub-task: status (complete/partial/blocked/failed), a summary, and acceptance_criteria — each with a status and evidence the host can verify from this session's own receipts (verification=cited command actually ran successfully here; diff=cited paths actually written; files=cited paths read or written; review/manual are never self-certifying). The host lowers any claim its receipts do not back; nothing is raised. Submitting always succeeds."
+	return "Submit the structured completion report for this sub-task: status (complete/partial/blocked/failed), a summary, acceptance_criteria — each with a status and evidence the host can verify from this session's own receipts (verification=cited command actually ran successfully here; diff=cited paths actually written; files=cited paths read or written; review/manual are never self-certifying) — plus artifacts (deliverables produced this run; the host marks each verified only when a successful write/produce receipt covers it) and blockers (structured: what blocks you and what you need from the parent to unblock; do NOT rename unresolved entries as blockers). The host lowers any claim its receipts do not back; nothing is raised. Submitting always succeeds."
 }
 
 func (completeSubtaskTool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"status":{"type":"string","enum":["complete","partial","blocked","failed"],"description":"Your claim about the run."},"summary":{"type":"string","description":"What was done, in a few sentences."},"acceptance_criteria":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"status":{"type":"string","enum":["satisfied","unsatisfied"]},"evidence":{"type":"array","items":{"type":"object","properties":{"kind":{"type":"string","enum":["verification","diff","files","review","manual"]},"summary":{"type":"string"},"command":{"type":"string","description":"For verification: the command that proves it (must have run successfully in this session)."},"paths":{"type":"array","items":{"type":"string"},"description":"For diff/files: the paths that prove it."}}}}}},"unresolved":{"type":"array","items":{"type":"string"},"description":"Known gaps or follow-ups."}},"required":["status","summary"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"status":{"type":"string","enum":["complete","partial","blocked","failed"],"description":"Your claim about the run."},"summary":{"type":"string","description":"What was done, in a few sentences."},"acceptance_criteria":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"status":{"type":"string","enum":["satisfied","unsatisfied"]},"evidence":{"type":"array","items":{"type":"object","properties":{"kind":{"type":"string","enum":["verification","diff","files","review","manual"]},"summary":{"type":"string"},"command":{"type":"string","description":"For verification: the command that proves it (must have run successfully in this session)."},"paths":{"type":"array","items":{"type":"string"},"description":"For diff/files: the paths that prove it."}}}}}},"artifacts":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string","description":"交付物路径（文件优先绝对/工作区相对原样）"},"note":{"type":"string","description":"一句话说明该产物是什么"}},"required":["path"]},"description":"本次产出的交付物清单（独立于 acceptance_criteria.evidence——evidence 证判据，artifacts 列产物）。宿主按会话回执核验：有成功落盘记录=verified，无=unverified。"},"blockers":{"type":"array","items":{"type":"object","properties":{"reason":{"type":"string","description":"被什么阻塞（一句话）"},"needed_from_parent":{"type":"string","description":"解除需要父代理/用户提供的动作或输入"}},"required":["reason"]},"description":"结构化阻塞：需要父代理或用户动作才能解除的卡点（与 unresolved 分立——后者是已知缺口/后续跟进，勿混用）。"},"unresolved":{"type":"array","items":{"type":"string"},"description":"Known gaps or follow-ups."}},"required":["status","summary"]}`)
 }
 
 func (completeSubtaskTool) ReadOnly() bool { return true }
@@ -132,7 +163,8 @@ type receiptPair struct {
 }
 
 // collectReceipts 把子会话折叠成回执清单：assistant 的工具调用与其 tool 结果
-// 按 ToolCallID 配对。
+// 按 ToolCallID 配对。Path 取交付路径优先（output_path——办公交付工具的产物
+// 声明键，pan_1795306273871 action-2 的路径面），回退通用 path 族键。
 func collectReceipts(msgs []provider.Message) []receiptPair {
 	results := map[string]provider.Message{}
 	for _, m := range msgs {
@@ -153,7 +185,7 @@ func collectReceipts(msgs []provider.Message) []receiptPair {
 			if json.Unmarshal([]byte(tc.Arguments), &a) == nil {
 				p.Command = strings.TrimSpace(a.Command)
 			}
-			p.Path = extractFilePath(tc.Name, tc.Arguments)
+			p.Path = extractDeliverablePath(tc.Name, tc.Arguments)
 			if res, ok := results[tc.ID]; ok {
 				p.Failed = isErrorMessage(res)
 			} else {
@@ -161,6 +193,77 @@ func collectReceipts(msgs []provider.Message) []receiptPair {
 			}
 			out = append(out, p)
 		}
+	}
+	return out
+}
+
+// extractDeliverablePath 交付路径提取（action-2 核心面）：output_path/out_dir
+// （交付工具产物声明键）优先，回退通用 path 族。生产类工具的成功回执即
+// artifacts 核验的「宿主观察到成功落盘」证据。
+func extractDeliverablePath(name string, args string) string {
+	for _, key := range []string{`"output_path"`, `"out_dir"`, `"path"`, `"file_path"`, `"destination"`} {
+		if v := extractJSONStringField(args, key); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// extractJSONStringField 从 JSON 参数文本手搓提取一个字符串键的值（与
+// extractFilePath 同款解析口径，键可指定）。
+func extractJSONStringField(args, key string) string {
+	lower := strings.ToLower(args)
+	idx := strings.Index(lower, key)
+	if idx < 0 {
+		return ""
+	}
+	rest := args[idx+len(key):]
+	colon := strings.Index(rest, ":")
+	if colon < 0 {
+		return ""
+	}
+	val := strings.TrimSpace(rest[colon+1:])
+	val = strings.Trim(val, `"`)
+	if end := strings.IndexAny(val, `,}`); end >= 0 {
+		val = val[:end]
+	}
+	val = strings.Trim(strings.TrimSpace(val), `"`)
+	if val == "" {
+		return ""
+	}
+	var decoded string
+	if err := json.Unmarshal([]byte(`"`+val+`"`), &decoded); err == nil {
+		return decoded
+	}
+	return val
+}
+
+// isProduceReceipt 产出类工具（成功回执=产物落盘证据）。
+func isProduceReceipt(name string) bool {
+	switch name {
+	case "office_generate", "docx_apply", "docx_accept", "pptx_apply", "xlsx_apply",
+		"longdoc_build", "wenxue_book_build", "image_gen", "format_convert":
+		return true
+	}
+	return isWriteReceipt(name)
+}
+
+// verifyArtifacts 产物核验（裁决条件：只有宿主观察到成功落盘才能 verified；
+// 缺证据=unverified，绝不升级）。
+func verifyArtifacts(arts []completionArtifact, receipts []receiptPair) []string {
+	out := make([]string, 0, len(arts))
+	for _, a := range arts {
+		verified := false
+		for _, p := range receipts {
+			if p.Failed || p.Path == "" || !isProduceReceipt(p.Name) {
+				continue
+			}
+			if receiptPathMatch(p.Path, a.Path) || receiptPathMatch(a.Path, p.Path) {
+				verified = true
+				break
+			}
+		}
+		out = append(out, a.Path+map[bool]string{true: " [verified]", false: " [unverified]"}[verified])
 	}
 	return out
 }
@@ -281,22 +384,85 @@ func adjudicateCompletion(r completionReport, receipts []receiptPair) (completio
 	return r, reasons
 }
 
-// childCompletionVerdict 收尾裁决入口：子会话无报告返回空串（不附裁语）；
-// 有报告则附裁决结论（降级时逐条理由——父模型看到的是「为什么降」而非只看到降）。
-func childCompletionVerdict(sess *Session) string {
+// childCompletionBlock 父侧完成块（pan_1795306273871 首刀 A：「task 结果始终
+// 附 compact 完成块，非 complete 时展开」——无报告不再静默，恒标 unreported）。
+// compact 恒一行（并行多子代理的上下文税可控）；full 只在非干净面展开
+// （status≠complete/降级/阻塞/unverified/unresolved），每类 cap 5 条截断。
+func childCompletionBlock(sess *Session) string {
 	if sess == nil {
 		return ""
 	}
 	report, ok := lastCompletionReport(sess.Messages)
 	if !ok {
-		return ""
+		return "\n[completion] unreported — 子代理未提交结构化完成报告；以上为自由文本结论，采信前按需追问核实（产物/风险以报告为准的口径不适用）。"
 	}
 	receipts := collectReceipts(sess.Messages)
 	final, reasons := adjudicateCompletion(report, receipts)
-	if len(reasons) == 0 {
-		return fmt.Sprintf("\n[completion verdict] status=%s accepted; %d criteria backed by session receipts.",
-			final.Status, len(final.Criteria))
+	artStates := verifyArtifacts(final.Artifacts, receipts)
+	unverified := 0
+	for _, s := range artStates {
+		if strings.HasSuffix(s, "[unverified]") {
+			unverified++
+		}
 	}
-	return fmt.Sprintf("\n[completion verdict] host lowered status %s → %s against this session's receipts:\n- %s",
-		report.Status, final.Status, strings.Join(reasons, "\n- "))
+	satisfied := 0
+	for _, c := range final.Criteria {
+		if c.Status == "satisfied" {
+			satisfied++
+		}
+	}
+	compact := fmt.Sprintf("\n[completion] status=%s criteria=%d/%d backed artifacts=%d（unverified %d）blockers=%d unresolved=%d",
+		final.Status, satisfied, len(final.Criteria), len(artStates), unverified, len(final.Blockers), len(final.Unresolved))
+	clean := final.Status == "complete" && len(reasons) == 0 && len(final.Blockers) == 0 &&
+		unverified == 0 && len(final.Unresolved) == 0
+	if clean {
+		return compact + " — 全部判据有回执支撑。"
+	}
+	var b strings.Builder
+	b.WriteString(compact)
+	if len(reasons) > 0 {
+		fmt.Fprintf(&b, "\n  降级（宿主只降不升）：")
+		for i, r := range reasons {
+			if i >= 5 {
+				fmt.Fprintf(&b, "\n    …等 %d 条", len(reasons)-i)
+				break
+			}
+			fmt.Fprintf(&b, "\n    - %s", r)
+		}
+	}
+	if len(final.Blockers) > 0 {
+		b.WriteString("\n  blockers（需父/用户动作解除）：")
+		for i, bl := range final.Blockers {
+			if i >= 5 {
+				fmt.Fprintf(&b, "\n    …等 %d 条", len(final.Blockers)-i)
+				break
+			}
+			if bl.Needed != "" {
+				fmt.Fprintf(&b, "\n    - %s（需：%s）", bl.Reason, bl.Needed)
+			} else {
+				fmt.Fprintf(&b, "\n    - %s", bl.Reason)
+			}
+		}
+	}
+	if len(artStates) > 0 {
+		b.WriteString("\n  artifacts：")
+		for i, s := range artStates {
+			if i >= 5 {
+				fmt.Fprintf(&b, "\n    …等 %d 件", len(artStates)-i)
+				break
+			}
+			fmt.Fprintf(&b, "\n    - %s", s)
+		}
+	}
+	if len(final.Unresolved) > 0 {
+		b.WriteString("\n  unresolved（已知缺口/后续）：")
+		for i, u := range final.Unresolved {
+			if i >= 5 {
+				fmt.Fprintf(&b, "\n    …等 %d 条", len(final.Unresolved)-i)
+				break
+			}
+			fmt.Fprintf(&b, "\n    - %s", u)
+		}
+	}
+	return b.String()
 }

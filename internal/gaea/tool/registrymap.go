@@ -58,6 +58,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"vision":           {"builtin-workspace", "work", "read", "none", "描述对应图片内容"},
 	"doc_render":       {"builtin-workspace", "work", "read", "none", "只读渲染 PNG；覆盖率字段 P2"},
 	"md_validate":      {"builtin-workspace", "work", "read", "none", "编号/引用/列数机检与回执一致（只读；多代理并行编制撞号实测落地）"},
+	"quarantine_list":  {"builtin-workspace", "work", "read", "none", "账本批次按 stamp 去重与同 stamp 最后一条一致；行数≠批次数"},
 	"ai_feedback":      {"builtin-workspace", "shared", "write", "none", "条目入 <userDir>/ai-feedback.jsonl，面板反馈区可核销（gaea 自管数据区，非用户文件）"},
 	"screen_capture":   {"builtin-workspace", "work", "read", "none", "截图落 .gaea/uploads 系统路径"},
 	"web_fetch":        {"builtin-workspace", "work", "read", "none", "抓取内容与源一致（mode=auto 正文主提取判据不足回退整页/full 整页；注明 URL+时间）"},

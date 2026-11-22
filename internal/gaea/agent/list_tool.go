@@ -111,6 +111,14 @@ func (t *SubagentListTool) Execute(ctx context.Context, args json.RawMessage) (s
 		if !r.UpdatedAt.IsZero() {
 			line += fmt.Sprintf(" (updated %s)", time.Since(r.UpdatedAt).Truncate(time.Second))
 		}
+		// P1-7 进度可见性：running 期显示最近动作（主控不必再 sleep 轮询猜进度）。
+		if r.Status == SubagentRunning && strings.TrimSpace(r.LastAction) != "" {
+			act := strings.TrimSpace(r.LastAction)
+			if len([]rune(act)) > 40 {
+				act = string([]rune(act)[:40]) + "…"
+			}
+			line += "\n    last: " + act
+		}
 		// 假 running 判活（B2 蒸馏）：running/queued 且本进程无在跑句柄且
 		// UpdatedAt 停更 = 大概率重启遗留。只标注不改写 meta（无租约语义，
 		// 多窗同开时不替别的进程做破坏性裁决）；模型据此避开 interrupt/等待，

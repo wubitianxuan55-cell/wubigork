@@ -630,8 +630,21 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		// ——工具实例绑定本运行引用，兄弟运行互不可见；父注册表永不持有
 		// （它只属于子代理）。transcripts 缺席（run.Ref 空）不注入：无 ref
 		// 无法署名，诚实缺位优于匿名消息。
+		// action-4（pan_1795306273871）：嵌套中间层已从父表继承向下版
+		// （agent_id steer）——同名 Add 会静默覆盖丢失向下能力；改为合并件
+		// （缺 agent_id=向上回报，带 agent_id=向下 steer）。叶子层（到底）
+		// 父表无此工具，维持纯向上版。
 		if ref := subagentRunRef(run); strings.TrimSpace(ref) != "" {
-			subReg.Add(&sendMessageTool{ref: ref})
+			up := &sendMessageTool{ref: ref}
+			if existing, ok := subReg.Get("send_message"); ok {
+				if down, ok2 := existing.(*SendMessageTool); ok2 {
+					subReg.Add(&dualSendMessageTool{up: up, down: down})
+				} else {
+					subReg.Add(up)
+				}
+			} else {
+				subReg.Add(up)
+			}
 		}
 	}
 	childSessionID := subagentRunRef(run)
@@ -1171,8 +1184,12 @@ func (t *TaskTool) WithTranscripts(store *SubagentStore) *TaskTool {
 	t.transcripts = store
 	if store != nil {
 		pendingFlush = store.TakePending
+		progressSink = store.TouchAction // P1-7：子代理工具调用进度回写 meta
+		subWaitStore = store             // P1-7：wait sa_/mt_ 阻塞等待的数据面
 	} else {
 		pendingFlush = nil
+		progressSink = nil
+		subWaitStore = nil
 	}
 	return t
 }
@@ -1349,6 +1366,11 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 		if !isValidJSONValue(result) {
 			result = "[output_schema: sub-agent returned non-JSON; parent should retry]" + "\n" + result
 		}
+		// action-4（pan_1795306273871）：output_schema 结果保持纯 JSON（程序
+		// 调用方解析不破坏），完成状态经事件面到达父侧——不进上下文但可见。
+		if cb := childCompletionBlock(sess); cb != "" {
+			sink.Emit(event.Event{Kind: event.SubagentMessage, Text: strings.TrimSpace(cb), SubagentRef: subagentRunRef(run)})
+		}
 		t.mergeSubUsage(&subUsage)
 		return result, sess, nil
 	}
@@ -1365,24 +1387,17 @@ func (t *TaskTool) runSubSession(ctx context.Context, provOverride provider.LLMP
 		// 日志 kind=subagent_message（旧日志无此 kind，读端跳过，兼容）。
 		sink.Emit(event.Event{Kind: event.SubagentMessage, Text: result, SubagentRef: subagentRunRef(run)})
 	}
-	if err == nil && len(outputSchema) > 0 {
-		// output_schema set: verify the result is parseable JSON.
-		// We don't validate every field (full JSON Schema needs a lib),
-		// but we confirm the sub-agent returned well-formed JSON.
-		var parsed interface{}
-		if json.Unmarshal([]byte(result), &parsed) != nil {
-			result = "[output_schema: sub-agent returned non-JSON; parent should retry]" + "\n" + result
-		}
-		t.mergeSubUsage(&subUsage)
-		return result, sess, nil
-	}
+	// （死分支清理，pan_1795306273871 action-4：上方 schemaGuard 早退后此处
+	// outputSchema 恒空，旧二次校验块永不可达——删除。output_schema 结果保持
+	// 纯 JSON 不附完成块；完成状态经 SubagentMessage 事件面到达父侧，不破坏
+	// 程序调用方的 JSON 解析。）
 	if err == nil {
 		t.mergeSubUsage(&subUsage)
-		// A11 完成裁决（Reasonix 2.x complete_subtask 蒸馏）：子代理提交过
-		// 结构化报告就对照其会话回执只降不升，裁决语附在结果尾部给父模型。
-		if verdict := childCompletionVerdict(sess); verdict != "" {
-			result += verdict
-		}
+		// A11 完成裁决（Reasonix 2.x 蒸馏）+ 首刀 A（pan_1795306273871）：
+		// 完成块**恒附**——有报告对照子会话回执只降不升（compact 一行，非干净
+		// 面展开 full）；无报告不再静默，标 unreported 让父知道「结论未经结构化
+		// 报告背书」。
+		result += childCompletionBlock(sess)
 		// V10.12: wrap successful sub-agent results in structured XML tags
 		// so the parent can reliably identify the result. Borrowed from opencode.
 		return wrapTaskResult(result), sess, nil
@@ -1588,6 +1603,13 @@ var subRuns sync.Map // ref → *subRunHandle
 // pendingFlush 是排队消息 flush 钩子（刀2 send_message）：WithTranscripts
 // 注册 store.TakePending；nil = 无 store（ephemeral），无排队面。
 var pendingFlush func(ref string) []string
+
+// progressSink 子代理进度回写（P1-7）：WithTranscripts 接线 store.TouchAction；
+// executeOne 在子代理上下文（SubagentRefFromContext 非空）每次工具调用后触发。
+var progressSink func(ref, action string)
+
+// subWaitStore wait sa_/mt_ 阻塞等待的数据面（P1-7）：WithTranscripts 接线。
+var subWaitStore *SubagentStore
 
 type subRunHandle struct {
 	runner *AgentRunner

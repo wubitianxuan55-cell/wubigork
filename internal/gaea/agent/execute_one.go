@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -291,6 +292,21 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			}
 		} else {
 			a.evidence.Record(evidence.ReceiptFromToolCall(call.Name, json.RawMessage(call.Arguments), err == nil, t.ReadOnly()))
+		}
+	}
+	// P1-7 进度可见性（2026-11-21 沿江反馈：并行子代理只有 [running]+updated Ns
+	// ago，主控全盲只能 sleep 轮询）：子代理上下文的每次工具调用回写 lastAction
+	// 进 meta 侧车——subagent_list 立即可见「正在做什么」，fire-and-forget。
+	if progressSink != nil {
+		if ref := SubagentRefFromContext(cctx); ref != "" {
+			action := call.Name
+			if p := extractFilePath(call.Name, call.Arguments); p != "" {
+				action += " " + filepath.Base(p)
+			}
+			if err != nil {
+				action += "（失败）"
+			}
+			progressSink(ref, action)
 		}
 	}
 	// PostToolUse hooks observe the result (they can't block); fired whether the

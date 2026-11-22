@@ -56,6 +56,7 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		diagramGen{workDir: w.Dir},
 		visionTool{workDir: w.Dir},
 		docRender{workDir: w.Dir},
+		quarantineList{workDir: w.Dir},
 		screenCapture{workDir: w.Dir},
 		webFetch{proxySpec: w.ProxySpec},
 		sidebarOpen{root: w.Dir},

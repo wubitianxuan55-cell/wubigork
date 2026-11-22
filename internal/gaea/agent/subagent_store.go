@@ -89,6 +89,10 @@ type SubagentMeta struct {
 	// transcript 快照/轮询链路带出。空 = 最近一次追问无失败（每次追问开跑
 	// 即清旧值，失败态只属于最近一次）。旧 meta 无此字段按无失败降级。
 	FollowUpError string `json:"followUpError,omitempty"`
+	// LastAction 进度可见性（P1-7）：running 期最近一次工具动作摘要
+	// （如 "bash 渲染第3章"）；LastActionAt 配对时间戳。终态后不再刷新。
+	LastAction   string    `json:"lastAction,omitempty"`
+	LastActionAt time.Time `json:"lastActionAt,omitempty"`
 	// ── 出发快照（B1，Reasonix 2.x ContextCapsule 蒸馏的最小形态，v4.524）──
 	// spawn 时刻的不可变出发清单，审计/调试面：回答「这个孩子当时看见了什么、
 	// 用什么跑的」。语义=**一次写定**：写路径只填空位（applySnapshot），
@@ -448,6 +452,24 @@ func (s *SubagentStore) baseMeta(ref string) SubagentMeta {
 		return m
 	}
 	return SubagentMeta{Ref: ref}
+}
+
+// TouchAction 进度可见性（2026-11-21 反馈 P1-7：并行子代理只有 [running]+N 秒
+// 前更新，主控全盲只能 sleep 轮询）：子代理每次工具调用后记 lastAction。
+// fire-and-forget 语义（错误只吞不炸主链路——进度面失败不阻断子代理工作）。
+func (s *SubagentStore) TouchAction(ref, action string) {
+	if s == nil || ref == "" || strings.TrimSpace(action) == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta := s.baseMeta(ref)
+	if meta.Status != SubagentRunning {
+		return // 终态/排队态不刷进度（防 stale 写回）
+	}
+	meta.LastAction = action
+	meta.LastActionAt = time.Now()
+	_ = s.saveMetaUnlocked(meta)
 }
 
 // MarkRunning writes the .meta sidecar with Status=running so a
@@ -1062,6 +1084,8 @@ type SubagentRunInfo struct {
 	// SessionPath 是归属会话（2026-11-18 会话隔离刀）：运行按会话严格过滤，
 	// 跨会话不再串池。旧档无字段=不可见于编队/清单（磁盘不动）。
 	SessionPath string
+	// LastAction running 期最近工具动作（P1-7 进度可见性；终态后停更）。
+	LastAction string
 }
 
 // listRunsLimit 是单次枚举的条数上限：对话窗口是稀缺资源，模型要找的
@@ -1095,17 +1119,18 @@ func (s *SubagentStore) ListRuns() ([]SubagentRunInfo, error) {
 			continue // 损坏 meta：单条跳过，不炸整表（对齐 dsh corrupt 降级）
 		}
 		runs = append(runs, SubagentRunInfo{
-			Ref:       meta.Ref,
-			Status:    meta.Status,
-			Kind:      meta.Kind,
-			Title:     meta.Title,
-			CreatedAt: meta.CreatedAt,
-			UpdatedAt: meta.UpdatedAt,
-			ParentRef: meta.ParentRef,
-			Depth:     meta.Depth,
-			Model:     meta.Model,
-			Effort:    meta.Effort,
+			Ref:         meta.Ref,
+			Status:      meta.Status,
+			Kind:        meta.Kind,
+			Title:       meta.Title,
+			CreatedAt:   meta.CreatedAt,
+			UpdatedAt:   meta.UpdatedAt,
+			ParentRef:   meta.ParentRef,
+			Depth:       meta.Depth,
+			Model:       meta.Model,
+			Effort:      meta.Effort,
 			SessionPath: meta.SessionPath,
+			LastAction:  meta.LastAction,
 		})
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt.After(runs[j].CreatedAt) })

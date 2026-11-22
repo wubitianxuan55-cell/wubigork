@@ -61,6 +61,29 @@
   CSS/chunk 警告）。实页走查暗/亮双主题、办公/文学双板、340px 窄栏、Git/UI/
   浏览器/进度计划与图册页签；未构建 Wails、未装机。
 
+## 办公右侧能力面板 UI 重设计（2026-11-21）
+
+用户令「使用技能重新设计办公板块的 MCP 与技能面板，特别是工具标签页」，
+第二轮补充「对右侧面板 UI 进行优化设计」。按 redesign-existing-projects +
+ui-ux-pro-max 审计后，在现有 React/Tailwind v4/主题令牌栈内增量改造，不改
+bridge 与 MCP 管理逻辑、不迁框架。
+
+- **抽屉壳**：标题改为图标锁合 + 副标题；状态摘要、三页签、内容滚动分层；
+  页签采用 MCP/工具/技能短标签，完整名进 aria-label；方向键/Home/End 采用
+  roving focus，访问过的页签保持挂载，切换不丢搜索或展开状态。
+- **工具页**：工具目录获得首屏主位；搜索升级为名称/说明检索，补结果计数、
+  无结果空态与清除动作；工具面从 8 行常驻开关收成摘要卡，默认折叠，保留
+  精简/标准预设、组级开关与注册闸语义。
+- **列表视觉**：工具与技能从连续独立圆角卡片收敛为同一表面内的平面清单，
+  用分组标题、细分隔线与单主色强调建立层次；补加载骨架、错误/成功提示、
+  空态与亮暗主题状态。
+- **MCP/技能**：服务器工具行补在线/异常/停用文字徽标，开关和增删操作统一
+  尺寸与焦点；技能页补搜索清除、范围/子代理/调用次数信息，并压缩卡片噪声。
+- **验证**：新增三页签键盘/状态保留与工具搜索空态回归；定向 3 文件
+  **7/7** 绿、`tsc -b` 0、改动面 ESLint 0 error、`npm run build` **37.53s**
+  绿（既有 Wenxue CSS/chunk 警告）；亮暗实页与 360/440px 抽屉走查，无横向
+  溢出，关键正文/次级对比度实测 **5.56–14.33:1**。未构建 Wails、未装机。
+
 ## 平台缺陷清单 D1–D10 修复（2026-11-20）
 
 接用户提供的《gaea 平台缺陷清单》继续收口；工作树原有 D1/D2/D3/D5/D9
@@ -6739,3 +6762,54 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   payload 冒烟 200（PID 3984）。
 - SHA256：exe 6A0FDBE50D27220E…；三 DLL 与上两包一致；zip E3646329…/src.zip A15F5FB2… 留盘。
 - 装机位=包 hash 同源核验 OK（PID 62624，INSTALL OK）。
+
+## 2026-11-22 挂池五项清零批（F 批：P1-6/P1-12/P1-7/_draft 豁免/output_path 兼容）
+
+- **F4 过程件豁免**：PublishGuard.Scan 豁免 `_draft/`、`_probe/` 段路径+文件名含
+  probe/test/tmp/draft/草稿/临时（探针/草稿不是交付件；实测往 _draft/probe 写探针 docx 被拦）。
+- **F5 声明写路径宽容解析**：wspath.RelIfWithin（工作区内绝对→相对，工作区外仍拒，相对口径
+  逐字节不变）接进 GaeaExport/WenxueExport/office_batch 三出口（P2-11 四口径互不兼容收口）。
+- **F2 隔离面双件**：①quarantine_list 新工具（builtin work 只读；按 stamp 去重=一行一次状态
+  变更、终态取最后一条；status 过滤；契约行+spacetags 静态表+文档重导三处同批——spacetags
+  守卫当场逮漏）②目录级原子隔离：Begin 记目录集+时刻，Quarantine 判定三要件（父目录本批新建
+  ∧durable 全违规∧非 durable 伴行件 mtime<Begin=mv 随迁旧件）→整树连骨架一次隔离不留空壳；
+  进行中编稿（现写新文件）不整搬、往既有目录塞件维持逐件（钉=三形态夹具）。
+- **F3 wait+进度**：wait 分流 sa_/mt_ 引用（builtin.SetSubagentWaiter 注入缝——builtin 不能
+  反向 import agent，boot 接线 agent.WaitSubagents：2s 轮询到终态/超时如实 running/未知引用
+  unknown）；子代理每次工具调用回写 meta.lastAction（TouchAction fire-and-forget，终态停更），
+  subagent_list running 行显 last: 动作——主控不再 sleep 轮询全盲。
+- **F1 版面机检门 layout**：longdoc_verify 第五门（docx/pdf 输入；docx→soffice→PDF）四件
+  确定性面：空白页（72dpi 墨<0.5% 硬伤）/墨覆盖两口径恒同给（整页面积%%+已占用版面%%——口径
+  不再打架）/图片清单+有效 ppi（<96 warn，图面折算占版%）/文本越界（bbox xMax>页宽=物理裁切
+  硬伤）。docmd 新三件：pdfimages 三级查找+PDFImagesInfo、PDFTextBBoxes（-bbox regex 解析）。
+  表格断表/图题同页语义面留技能层。E2E 12s 真链钉（spec 双分页断造空白页）。
+- 测试：新增 8 钉全绿；wspath/tool/agent/builtin/boot/app 全量 181.9s 绿。
+  **装机 exe 1D796326E932AE24（=build/bin 同源）PID 55524，冒烟 200 INSTALL OK**。未提交（挂拍板）。
+
+## 2026-11-22 众神殿父子交互裁决执行批（pan_1795306273871_ba6804e2f74f，签注 accepted）
+
+裁决四 action 按序落（基线→首刀→核验→第二刀）：
+
+- **action-3 基线回放（先行）**：沿江工作区子代理运行 137 条（22 真子代理+115 model_tool），
+  complete_subtask 报告率 **0%**——「父已强制读取完整报告」被实锤推翻，首刀正当性坐实。
+  （只读聚合统计，无原文外传。）
+- **action-1 首刀 A（complete_subtask 结构化完成交接）**：报告加 `artifacts`（交付物清单，独立
+  于 criteria.evidence——evidence 证判据/artifacts 列产物，复用会把读过的输入误认成交付物）+
+  结构化 `blockers`（需父/用户动作解除，与 unresolved 分立不得改名互冒）；父侧 `task` 结果
+  **恒附完成块**（childCompletionBlock）：无报告=unreported 不再静默；compact 恒一行（并行
+  上下文税可控），非干净面（status≠complete/降级/blockers/unverified/unresolved）才展开 full
+  （每类 cap 5）。artifacts 宿主核验=子会话成功产出回执（extractDeliverablePath 取
+  output_path/out_dir 优先）路径匹配→verified，缺证据=unverified 绝不升级。
+- **action-2 产物核验链**：回执面（第一优先证据源）已落地（见上）；办公 Journal 面（父
+  SessionPath 匹配）评估后记档不接——成功工具回执本身即最强证据（含 output_path 声明），
+  跨包 plumbing 增量≈0，如实记录不冒充。
+- **action-4 第二刀四件**：①output_schema 早退路径完成状态经 SubagentMessage 事件面到达父侧
+  （JSON 本体不动，程序调用方解析不破坏）②task.go 1372-1381 死分支删除（schemaGuard 早退后
+  永不可达）③嵌套中间层 send_message 双向合并件 dualSendMessageTool（缺 agent_id=向父汇报/
+  带 agent_id=向下 steer 自己子树——此前同名 Add 静默覆盖丢失向下能力）④wait 终态文案不再
+  指向已退役 read_subagent_result（改自动回投口径）。
+- **B1（子→父 blocking 请求回合/子代理直连用户）不立项**（裁决：无办公实弹收益样本+审批闸
+  不可直达+死锁风险；若实弹日志显示 blocked 频繁且父晚读超一回合可重启）。
+- 测试：首刀五钉（unreported/blocked 展开/artifacts verified+unverified/干净面 compact/双向
+  分向）+旧 verdict 测试随新契约更新；agent 全量 18.9s+builtin/boot/app（187.4s）全绿。
+  **装机 exe AB6863197E0B55E7（=build/bin 同源）PID 63000，冒烟 200 INSTALL OK**。未提交（挂拍板）。

@@ -197,3 +197,34 @@ func TestResolveRelWithinCaseInsensitiveRoot(t *testing.T) {
 		t.Fatalf("解析结果必须落在原 root 内：%q", got)
 	}
 }
+
+// TestRelIfWithin 声明写路径宽容解析（P2-11）：工作区内绝对路径自动转相对、
+// 工作区外仍拒、相对口径逐字节不变。
+func TestRelIfWithin(t *testing.T) {
+	root := t.TempDir()
+	abs := filepath.Join(root, "报告", "总结.docx")
+	// 工作区内绝对（两种斜杠）→ 等价于相对解析结果。
+	for _, p := range []string{abs, filepath.ToSlash(abs)} {
+		got, err := RelIfWithin(root, p)
+		if err != nil {
+			t.Fatalf("工作区内绝对应放行 %q: %v", p, err)
+		}
+		want, _ := ResolveRelWithin(root, "报告/总结.docx")
+		if got != want {
+			t.Fatalf("绝对转相对结果不一致: %q vs %q", got, want)
+		}
+	}
+	// 相对：与旧口径逐字节一致。
+	got, err := RelIfWithin(root, "报告/总结.docx")
+	if err != nil || got != filepath.Join(root, "报告", "总结.docx") {
+		t.Fatalf("相对口径漂移: %q %v", got, err)
+	}
+	// 工作区外绝对：仍拒。
+	if _, err := RelIfWithin(root, filepath.Join(t.TempDir(), "x.docx")); err == nil {
+		t.Fatal("工作区外绝对路径应拒绝")
+	}
+	// 逃逸相对（..）：仍拒。
+	if _, err := RelIfWithin(root, "../x.docx"); err == nil {
+		t.Fatal("逃逸相对路径应拒绝")
+	}
+}

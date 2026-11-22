@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -47,7 +48,9 @@ type PublishGuard struct {
 	quarantine     string
 	durable        map[string]bool
 	base           map[string]publishFileState
-	source         string // D6 账本来源标注（foreground/background）
+	baseDirs       map[string]bool // 执行前已存在的目录集（目录级原子隔离判定）
+	beginTime      time.Time       // Begin 时刻（随迁旧文件判据：mv 不改 mtime）
+	source         string          // D6 账本来源标注（foreground/background）
 	commandPreview string
 	lastLedger     *quarantineLedger
 }
@@ -91,17 +94,30 @@ func NewPublishGuard(roots []string, quarantine string, durable map[string]bool)
 // `~$` Office 锁件目录防误捕。
 func (g *PublishGuard) Begin() error {
 	g.base = make(map[string]publishFileState)
+	g.baseDirs = make(map[string]bool)
+	g.beginTime = time.Now()
 	for _, root := range g.roots {
 		if err := g.walk(root, func(path string, st fs.FileInfo) {
 			g.base[path] = publishFileState{size: st.Size(), mtime: st.ModTime()}
 		}); err != nil {
 			return err
 		}
+		// 目录集快照（目录级原子隔离判定用）：执行后新出现的目录=本批目录级
+		// 移动/新建的候选面（P1-12：目录骨架搬走、durable 被逐件隔离=中间态）。
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && d.IsDir() && !g.withinQuarantine(path) {
+				g.baseDirs[path] = true
+			}
+			return nil
+		})
 	}
 	return nil
 }
 
 // Scan 执行后比对。返回 durable 档的新增/修改清单；不存在越界时返回 nil。
+// 过程件豁免（2026-11-21 反馈 P0-1 建议三）：探针/草稿类不是交付件——
+// `_draft/` 段路径与文件名含探针字样（probe/test/tmp/draft/草稿/临时）不判
+// durable（实测往 _draft/probe/ 写一个探针 docx 也被拦）。
 func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 	if g.base == nil {
 		return nil, fmt.Errorf("publishguard: Scan before Begin")
@@ -118,14 +134,45 @@ func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 	for path, st := range cur {
 		before, existed := g.base[path]
 		if !existed {
-			out = append(out, g.violationFor(path, st, "created"))
+			if v := g.violationFor(path, st, "created"); !v.exempt() {
+				out = append(out, v)
+			}
 			continue
 		}
 		if before.size != st.size || !before.mtime.Equal(st.mtime) {
-			out = append(out, g.violationFor(path, st, "modified"))
+			if v := g.violationFor(path, st, "modified"); !v.exempt() {
+				out = append(out, v)
+			}
 		}
 	}
 	return out, nil
+}
+
+// publishExemptNameTokens 探针/草稿文件名特征（小写匹配）。
+var publishExemptNameTokens = []string{"probe", "test", "tmp", "draft", "草稿", "临时"}
+
+// exempt 报告本越界件是否属过程件豁免面（P0-1 建议三）：路径含 `_draft/`
+// 段，或文件名含探针字样。豁免=不隔离不拦（过程件不是交付件）；真交付物
+// 落这些名字属命名自误，非本边界职责。
+func (v PublishViolation) exempt() bool {
+	rel := strings.ToLower(v.RelPath)
+	for _, seg := range strings.Split(rel, "/") {
+		if seg == "_draft" || seg == "_probe" {
+			return true
+		}
+	}
+	base := rel
+	if i := strings.LastIndex(rel, "/"); i >= 0 {
+		base = rel[i+1:]
+	}
+	// 扩展名前的 stem 判 token（防 docx 名里恰好撞 test 的低概率面：要求
+	// token 是 stem 的独立子串形态——直接子串匹配已够用，命名惯例面）。
+	for _, tok := range publishExemptNameTokens {
+		if strings.Contains(base, tok) {
+			return true
+		}
+	}
+	return false
 }
 
 // Quarantine 把越界件移出正式工作区（隔离目录下按时间戳子目录保留相对结构），
@@ -140,7 +187,75 @@ func (g *PublishGuard) Quarantine(vs []PublishViolation) ([]string, error) {
 	led := beginQuarantineRecord(g.quarantine, g.source, g.commandPreview, vs)
 	g.lastLedger = led
 	stamp := led.rec.Stamp
+	// 目录级原子隔离（2026-11-21 反馈 P1-12：mv 目录→骨架搬走+durable 被逐件
+	// 隔离=「半完成」中间态，事后要写脚本三方对账）。判定三要件：①violation
+	// 的父目录是本批新建（不在 Begin 目录快照）；②目录内全部 durable 文件都
+	// 属本批越界件；③目录内非 durable 伴行件的 mtime 早于 Begin（mv 不改
+	// mtime=随迁旧文件；新建目录里现写的 md 是新文件，不该被整目录带走——
+	// 进行中的编稿不是目录移动）。三要件齐→整个目录一次搬进隔离区（保持相对
+	// 结构，不留空壳目录）；否则维持逐件。
+	claimed := map[string]bool{}
+	vset := map[string]bool{}
 	for _, v := range vs {
+		vset[v.Path] = true
+	}
+	dirMoved := func(dir string) ([]string, bool) {
+		if g.baseDirs[dir] {
+			return nil, false // 既有目录：非整目录新建形态
+		}
+		var files []string
+		ok := true
+		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			if !d.Type().IsRegular() {
+				return nil
+			}
+			st, serr := d.Info()
+			if serr != nil {
+				ok = false
+				return nil
+			}
+			files = append(files, path)
+			isDurable := g.isDurable(path)
+			switch {
+			case isDurable && !vset[path]:
+				ok = false // durable 却不在越界集（快照前已有？防御面）
+			case !isDurable && !st.ModTime().Before(g.beginTime):
+				ok = false // 非随迁旧文件=目录内现写的进行中内容，不整搬
+			}
+			return nil
+		})
+		if !ok || len(files) == 0 {
+			return nil, false
+		}
+		return files, true
+	}
+	// 按路径深度升序尝试（外层目录先整搬，内层 violation 随之外搬后自然 claimed）。
+	sorted := append([]PublishViolation(nil), vs...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Path < sorted[j].Path })
+	for _, v := range sorted {
+		if claimed[v.Path] {
+			continue
+		}
+		parent := filepath.Dir(v.Path)
+		if files, ok := dirMoved(parent); ok {
+			rel, rerr := filepath.Rel(g.roots[0], parent)
+			if rerr == nil && !strings.HasPrefix(rel, "..") {
+				dst := filepath.Join(g.quarantine, stamp, filepath.FromSlash(filepath.ToSlash(rel)))
+				if err := os.MkdirAll(filepath.Dir(dst), 0o755); err == nil {
+					if err := os.Rename(parent, dst); err == nil {
+						moved = append(moved, files...)
+						for _, f := range files {
+							claimed[f] = true
+						}
+						continue // 整目录原子搬完
+					}
+				}
+			}
+			// 整目录搬失败（跨卷等）→ 落回逐件路径，如实报错面不变。
+		}
 		dst := filepath.Join(g.quarantine, stamp, filepath.FromSlash(v.RelPath))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", v.Path, err))
@@ -158,6 +273,7 @@ func (g *PublishGuard) Quarantine(vs []PublishViolation) ([]string, error) {
 			}
 		}
 		moved = append(moved, v.Path)
+		claimed[v.Path] = true
 	}
 	led.finish(moved, errs)
 	if len(errs) > 0 {

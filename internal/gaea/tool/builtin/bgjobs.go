@@ -163,22 +163,46 @@ func (killShell) Execute(ctx context.Context, args json.RawMessage) (string, err
 
 // --- wait: block until background jobs finish, then return their results ---
 
+// subagentWaiter wait 收 sa_/mt_ 引用的注入缝（P1-7，2026-11-21 沿江反馈：wait
+// 传 sa_ 报 No background jobs to wait for，主控只能 sleep 轮询撞 5 分钟硬超时）。
+// builtin 不能反向 import agent（环）——boot 装配点注入 agent.WaitSubagents；
+// 未接线保持旧行为（只认 bash job ids）。
+var subagentWaiter func(ctx context.Context, refs []string, timeoutSec int) []SubagentWaitRow
+
+// SubagentWaitRow 注入缝的行契约（agent.SubagentWaitResult 的镜像，避免环）。
+type SubagentWaitRow struct {
+	Ref    string
+	Status string
+	Output string
+}
+
+// SetSubagentWaiter boot 装配点接线（agent 包提供实现）。
+func SetSubagentWaiter(f func(ctx context.Context, refs []string, timeoutSec int) []SubagentWaitRow) {
+	subagentWaiter = f
+}
+
 type waitJob struct{}
 
 func (waitJob) Name() string { return "wait" }
 
 func (waitJob) Description() string {
-	return "Block until background jobs finish, then return each job's status and final output/answer. Use to collect the result of a task(run_in_background) or bash(run_in_background) before continuing. Omit job_ids to wait for every running job."
+	return "Block until background jobs finish, then return each job's status and final output/answer. Use to collect the result of a task(run_in_background) or bash(run_in_background) before continuing. Omit job_ids to wait for every running job. job_ids 也接受子代理引用（sa_…/mt_…）——阻塞等它们到终态（completed/failed/aborted），完成后用 read_subagent_result 取结果；进度可先看 subagent_list 的 last: 动作行。"
 }
 
 func (waitJob) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"job_ids":{"type":"array","items":{"type":"string"},"description":"Background job ids to wait for. Omit to wait for every currently-running job."},"timeout_seconds":{"type":"integer","description":"Optional maximum seconds to block before returning current progress. Omit to wait until the jobs finish.","minimum":1}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"job_ids":{"type":"array","items":{"type":"string"},"description":"Background job ids 或子代理引用（sa_…/mt_…）to wait for. Omit to wait for every currently-running job."},"timeout_seconds":{"type":"integer","description":"Optional maximum seconds to block before returning current progress. Omit to wait until the jobs finish.","minimum":1}}}`)
 }
 
 func (waitJob) ReadOnly() bool { return true }
 
 func (waitJob) CompactDescription() string     { return compactDesc["wait"] }
 func (waitJob) CompactSchema() json.RawMessage { return compactSchema["wait"] }
+
+// isSubagentRefShape sa_/mt_ 前缀判定（与 agent.IsSubagentRef 同口径的本地镜像，
+// 避免环；接线缝在场才分流）。
+func isSubagentRefShape(ref string) bool {
+	return len(ref) > 3 && (ref[:3] == "sa_" || ref[:3] == "mt_")
+}
 
 func (waitJob) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
@@ -190,31 +214,51 @@ func (waitJob) Execute(ctx context.Context, args json.RawMessage) (string, error
 			return "", fmt.Errorf("invalid args: %w", err)
 		}
 	}
-	jm, ok := jobs.FromContext(ctx)
-	if !ok {
-		return "", fmt.Errorf("background jobs are not available in this context")
-	}
 	timeout := p.TimeoutSeconds
 	if timeout <= 0 {
 		timeout = 300 // 默认 5 分钟，防止无限等待
 	}
-	results := jm.Wait(ctx, p.JobIDs, timeout)
-	if len(results) == 0 {
+	// P1-7 分流：sa_/mt_ 引用走子代理等待面（阻塞到终态），其余走 job 管理器。
+	var saRefs, jobIDs []string
+	for _, id := range p.JobIDs {
+		if subagentWaiter != nil && isSubagentRefShape(id) {
+			saRefs = append(saRefs, id)
+		} else {
+			jobIDs = append(jobIDs, id)
+		}
+	}
+	var parts []string
+	if len(jobIDs) > 0 || len(p.JobIDs) == 0 {
+		jm, ok := jobs.FromContext(ctx)
+		if !ok && len(p.JobIDs) > 0 {
+			return "", fmt.Errorf("background jobs are not available in this context")
+		}
+		if ok {
+			results := jm.Wait(ctx, jobIDs, timeout)
+			for _, r := range results {
+				label := r.ID
+				if r.Label != "" {
+					label = fmt.Sprintf("%s (%s)", r.ID, r.Label)
+				}
+				line := fmt.Sprintf("[%s] %s", label, r.Status)
+				if strings.TrimSpace(r.Output) != "" {
+					line += "\n" + r.Output
+				}
+				parts = append(parts, line)
+			}
+		}
+	}
+	if len(saRefs) > 0 && subagentWaiter != nil {
+		for _, r := range subagentWaiter(ctx, saRefs, timeout) {
+			line := fmt.Sprintf("[%s] %s", r.Ref, r.Status)
+			if strings.TrimSpace(r.Output) != "" {
+				line += "\n" + r.Output
+			}
+			parts = append(parts, line)
+		}
+	}
+	if len(parts) == 0 {
 		return "No background jobs to wait for.", nil
 	}
-	var b strings.Builder
-	for i, r := range results {
-		if i > 0 {
-			b.WriteString("\n\n")
-		}
-		label := r.ID
-		if r.Label != "" {
-			label = fmt.Sprintf("%s (%s)", r.ID, r.Label)
-		}
-		fmt.Fprintf(&b, "[%s] %s", label, r.Status)
-		if strings.TrimSpace(r.Output) != "" {
-			b.WriteString("\n" + r.Output)
-		}
-	}
-	return b.String(), nil
+	return strings.Join(parts, "\n\n"), nil
 }
