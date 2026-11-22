@@ -1,3 +1,22 @@
+## Bloom 外观架构 v4 与 Git 打包（2026-11-22）
+
+- **功能提交**：`7fcd1ff5`（`feat(gaea): rebuild appearance system around Bloom architecture`，
+  76 文件，+3036/−1359）。删除旧 7 套主题，建立 palette → semantic → materials → components
+  四层架构；移植 Bloom 全量 15 套、精选 12 套，默认 `ripple / 天青`。
+- **能力面**：亮暗/跟随系统、三种表面材质、四种背景氛围、一键玻璃态；玻璃态统一
+  `--gaea-shell-*` 契约并解开全局 `v3-rail`/`v3-telemetry` 与路由容器的错误作用域。
+  聊天画布恢复 80px 网格，以径向 mask 从中心向四周渐隐。
+- **清理与守卫**：UI、图表、语法高亮、预览组件完成语义色迁移；新增四层架构检查、
+  组件层禁止材质特例、渐隐网格和玻璃态契约回归。
+- **验收**：外观/主题/设置/对比度/图表/上下文/GenUI 定向 8 文件 `106/106`；
+  干净工作树前端 Vite `27.25s`，UCRT64 Wails `47.13s`（bindings 未跳过）；
+  bindings 再生成仅 CRLF 噪音，`git diff --ignore-space-at-eol` 内容漂移 0。
+- **交付**：`releases/gaea-appearance-v4-20261122-7fcd1ff5/`；payload 正式路径
+  `/api/health` 200（PID 16416 已回收）。exe `268F8558…3807E0`，二进制 ZIP
+  `713260DE…64EDC9`，`git archive` 源码 ZIP `0501E823…FD2128`；六项校验和复算全 OK。
+- **边界**：产品版本保持 `4.544.0`，未抬号；未覆盖安装、未 push。主树既有历史 ZIP
+  与 `scripts/cache_probe_live.go` 未混入本包。
+
 ## 工作台 UI 桌面构建与 Git 打包（2026-11-22）
 
 - **提交边界**：功能提交 `cf422218`（工作台页签与各面板 UI/UX）；最终提交
