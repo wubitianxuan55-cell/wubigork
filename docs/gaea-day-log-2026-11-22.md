@@ -98,3 +98,14 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - Compose 分席端到端机器钉（input_memory_scope_test.go）：play→发现臂生效 / work→旧口径 / 空 sessionPath→保守旧口径——用户拍板的三分支全锁。
 - 测试污染定性：`internal/gaea/control/resumed.jsonl.meta` 是跟踪夹具被 control 测试跑动改写 updated_at（既有卫生问题，非本批引入）——git checkout 还原，记挂池。
 - 验证：memory+control 全绿；装机 24.9s 冒烟 200 INSTALL OK（PID 72764>构建时刻）。
+
+### 打包记录——gaea-memory-distill-20261122-98466698（关联软件官方最新批+记忆中枢蒸馏全链）
+
+- 业务链 fc41b54a（sherpa v2.0.2/ORT 钉 1.31.1/官方 llama b12359）+ 4c1eb517（P1 星云召回）+
+  34a550dc（P2/P3）+ 1e50e689（聊天席融合分席）+ 52f5b187（完善批）+ day-log 笔；记录笔 6e8c2c82。
+- 干净工作树 .tmp/gaea-pkg-98466698 构建（pnpm 28.3s+npm 32.5s+wails 60.3s；主树拷三 DLL 入
+  worktree build/bin 供 gen_bindings PATH）；payload 正式路径冒烟 200（PID 18184 回收）。
+- SHA256：exe 6E8FB1DF…；onnxruntime 与历届一致；**sherpa 两 DLL=v2.0.2 新哈希（首次进发布件，
+  与 d6add4b0 及更早包不同）**；zip 86DBD681…/src.zip 48E50ABE… 留盘不入库；装机位
+  0BCAACE7…（主树 19:29 构建，同码不同时间戳，同源核验 ✓）。装机拉起 PID 72764（19:29）。
+- worktree 已回收。余留：.worktrees/pkg-4d23703e（workbench-tabs 批旧树，非本批）。
