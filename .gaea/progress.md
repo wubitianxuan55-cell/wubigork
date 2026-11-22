@@ -6842,3 +6842,12 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   （PID 19528）。
 - SHA256：exe BCBEA091EF210C44…；三 DLL 与前包一致；zip 6EA95E3E…/src.zip 23F84310… 留盘。
 - 装机位=包 hash 同源核验（见装机行）。
+
+## 2026-11-22 编程板块·DSH 隔离栈全量升级（core rc.5+9 插件+REA 6.10.1+dsh-wubi 两笔适配）
+
+- 详见 docs/gaea-day-log-2026-11-22.md。要点：DSH core 0.2.2-rc.1→rc.5；dshmarket 1.77.1
+  （本地 patch 退役）；dsh-wubi 289838c（needle 复验+#13/#18/#35 变体）+c5c76d2（#56/#77
+  回退压缩态手术——真机实锤退役不成立，rc.5 原生只恢复输入框不清对话流）；junction 断链
+  根修（link spec 与手动 junction 须同批改）；REA 技能 v63/263 同步。
+- 验证：预设 registered 20 插件 broken=null、技能 23/23、工具箱 15/15、REA 263 实数、
+  实弹 3 轮+两轮回退走查（reload 重放全净）。gaea 仓代码零改动；3091 清场待用户点启动。
