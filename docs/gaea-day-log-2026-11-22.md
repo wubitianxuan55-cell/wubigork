@@ -122,3 +122,20 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - 坑（走查配方新增）：**Bloom 氛围动画使 Playwright actionability 稳定检查永不通过**——bloom 页面
   CDP 驱动一律 JS click（evaluate 内 .click()）绕过；locator 点击全超时。
 - 回滚：删 node_modules/dsh-bloom-theme+manifest 两行还原（备份在）。
+
+### 补段：DSH 桌面端插件对齐 gaea 编程板块（用户拍板）
+
+- 桌面家 `C:\Users\wubi\.dsh`（profile=desktop，pnpm workspace hoisted；对齐时未运行✓）。
+- **版本对齐**（→隔离栈同版）：genui 0.16.0→0.17.0、skill-explorer 0.4.19→0.4.21、context
+  0.85.1→0.87.0、unlag 1.17.8→1.17.10、dshmarket 1.73.20→1.77.1；pnpm-workspace
+  minimumReleaseAgeExclude 镜像隔离栈已验证清单（8 条；billion-context 桌面无此包剔除）。
+- **新增插件**：@michengai/dsh-skills-manager 1.5.0、dsh-bloom-theme 0.28.0（pnpm install
+  5.6s +13/-2 全 store 复用）；**记忆星云 v1.3.8** 官方事务安装器落 desktop profile
+  （-DshHome C:\Users\wubi\.dsh，健康检查过，备份 upgrade-20261122-212500-15988）。
+- **MCP 接线**：desktop cordis.patch.yml 追加 agent-memory-mcp 行（系统 node v25.2.1，
+  NEBULA_DATA_DIR=C:\Users\wubi\.dsh\memory-nebula-data；备份 cordis.patch.yml.bak-20261122-align）；
+  桌面库 MCP 探针 nodes=0→remember→recall 0.4492 全绿（首版探针误打隔离库——JSON 转义吃
+  反斜杠第四次复发，Write 工具正斜杠路径重写后验真）。
+- **不对齐项**：dsh-wubi（隔离根守卫 DSH_WUBI_ISOLATED_ROOT 与桌面家互斥）；dsh-dream-skin
+  11.16.0 桌面独有保留不剥。桌面已拉起待用户目检（插件页/Bloom/记忆星云三处）。
+- 回滚：package.json.bak-20261122-align + cordis.patch.yml.bak-20261122-align + nebula 备份目录。
