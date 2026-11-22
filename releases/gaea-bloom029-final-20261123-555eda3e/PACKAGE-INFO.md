@@ -15,6 +15,8 @@
   `build\bin\gaea.exe` SHA256 `7A29D84C6678E530ADBBCC92EF821C07916AD86474FA3D4A78AF42F64F784221`
 - 漂移：Wails 再次生成仅 CRLF/EOL 噪音，忽略 EOL 后内容差异文件数 `0`
 - 冒烟：正式 payload `/api/health` 返回 `200`，PID `68940` 已回收
+- payload 可视化复核：另起调试实例，确认青金主色 `#7faee9`、270 星点、
+  标准密度 40 流星及三束彩色流星均来自包内 exe
 
 ## 核心修复
 
@@ -40,6 +42,8 @@
   `C:\AI\wubigrok\temp\gaea-desktop-final-aligned.png`
   `C:\AI\wubigrok\temp\gaea-vite-final-aligned.png`
   `C:\AI\wubigrok\temp\gaea-desktop-bloom029-settings-final.png`
+  `C:\AI\wubigrok\temp\gaea-payload-final-555eda3e.png`
+  `C:\AI\wubigrok\temp\gaea-payload-settings-final.png`
 
 ## 差异说明
 

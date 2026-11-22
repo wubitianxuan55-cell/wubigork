@@ -27,7 +27,10 @@
   `FC1B741E…84CFAD`；三 DLL 与既有基线一致。截图在
   `temp/gaea-desktop-final-aligned.png`、
   `temp/gaea-vite-final-aligned.png`、
-  `temp/gaea-desktop-bloom029-settings-final.png`。
+  `temp/gaea-desktop-bloom029-settings-final.png`、
+  `temp/gaea-payload-final-555eda3e.png`、
+  `temp/gaea-payload-settings-final.png`。payload 另起调试实例复核：
+  主色 `#7faee9`、270 星点、40 标准流星、三束彩色流星均来自包内 exe。
 - **边界**：未装机、未 push；真实后端与 Vite mock 的会话内容/引擎状态不参与
   皮肤一致性判断。
 
