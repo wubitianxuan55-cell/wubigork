@@ -91,3 +91,10 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - 测试：图谱发现（互引邻居零词面入选+办公席同查询不入选=分席实证）/稳定性排序（同词龄同词面，引用多排前）/降级（无图无引用回纯词法）三钉+办公席旧测试零改动通过；control 包 2.7s 绿。
 - 坑：JSON heredoc 转义连环吃反斜杠（`"\n"` 劈行+NUL 两犯）——批内字符串手术一律改 Edit 工具直修。
 - 装机：exe 重建 24.2s→冒烟 200→INSTALL OK（19:24:59）→拉起 PID 21692>构建时刻。
+
+### 补段：聊天席融合注入完善批（去重置顶+分席机器钉）
+
+- RecallBlockFused 跳过「带正文的置顶条」：boot 固化块已全量携带进缓存前缀，逐轮重复=白烧预算；正文空置顶保留。
+- Compose 分席端到端机器钉（input_memory_scope_test.go）：play→发现臂生效 / work→旧口径 / 空 sessionPath→保守旧口径——用户拍板的三分支全锁。
+- 测试污染定性：`internal/gaea/control/resumed.jsonl.meta` 是跟踪夹具被 control 测试跑动改写 updated_at（既有卫生问题，非本批引入）——git checkout 还原，记挂池。
+- 验证：memory+control 全绿；装机 24.9s 冒烟 200 INSTALL OK（PID 72764>构建时刻）。
