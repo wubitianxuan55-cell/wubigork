@@ -1,3 +1,66 @@
+## 工作台 UI 桌面构建与 Git 打包（2026-11-22）
+
+- **提交边界**：功能提交 `cf422218`（工作台页签与各面板 UI/UX）；最终提交
+  `4d23703e`（Wails 绑定物化 `ExportTocEntry` 与标书导出字段）。能力面板重构、
+  F 批 Go 内核与临时试验脚本仍留在主工作树，未进入本包。
+- **干净构建**：`.worktrees/pkg-4d23703e` 检出 `4d23703e`；前端依赖按
+  `pnpm --frozen-lockfile` 准备，`npm run build` 38.31s；UCRT64 GCC +
+  `CGO_ENABLED=1` + 系统 TMP/TEMP，`wails build -s -ldflags "-s -w" -trimpath`
+  52.275s，**Skip Bindings=false**。
+- **验收**：定向 8 文件 **96/96**、正式 payload `/api/health` **200**
+  （PID 37464 已回收）；payload 四件、桌面 ZIP、`git archive` 源码 ZIP 共六项
+  SHA256 已复算。构建后 Wails 包装文件与 `go.mod` 仅 CRLF 噪音，内容零漂移。
+- **交付**：`releases/gaea-workbench-tabs-20261122-4d23703e/`；exe 61,400,064 B
+  SHA256 `24817586…8F9833`，桌面 ZIP 35,123,360 B
+  `CEBBCD58…5015ADA`，源码 ZIP 828,931,977 B / 6,916 条
+  `1829AE7C…3FC88F8E`。三枚 DLL 与上包一致；未装机、未 push。
+
+## 办公 / 文学工作台 UI 与文学插图页签修正（2026-11-21）
+
+用户依次要求优化左右两侧工作台、文学右侧补回「插图」页签，并明确办公工作台
+也要同步改。按同一套工作台视觉语言完成双板收口，业务数据面与 bridge 未改。
+
+- **文学页签位置**：`插图` 保持在右侧工作台，**不进**对话/轨迹/上下文主标签栏；
+  主栏维持原有八标签，右栏 gallery 入口与 `WenxueGalleryHub` 数据面接通。
+- **插图图册**：修复共享 Hub 横向 flex 导致筛选条和图片墙被拉成竖栏的问题；
+  改为“筛选行 + 自适应图片墙”，筛选按钮补来源计数，图片加载失败统一转占位，
+  不再显示浏览器破图图标。
+- **办公工作台**：启动页改为带主题感知矢量插图的主入口、文件优先卡与两列面板
+  入口；页签条固定新建/管理/收起操作，活动页签支持方向键/Home/End roving focus；
+  初版曾增加逐视图上下文头，随后真机审计确认会与面板自身标题形成三层重复，已在
+  同日续刀中移除并改为直接承接各面板自己的唯一标题行。
+- **文学工作台**：复用同一工作台壳与紧凑 CSS，入口调整为文件、产物、浏览器、
+  Git、UI、插图六卡；同样具备插图头、管理面板、固定操作区、页签键盘与视图
+  上下文头。
+- **验证**：办公 WorkspacePane、文学 WorkspacePane、ChatTabs、Gallery 定向
+  **4 文件 23/23** 绿；`tsc -b` 0；改动面 ESLint 0 error；`npm run build`
+  **28.42s** 绿（既有 Wenxue CSS/chunk 警告）；浏览器实页核对文学八标签、
+  右栏插图入口、筛选计数、图片占位及双板工作台启动页。未构建 Wails、未装机。
+
+## 工作台页签与各面板 UX 续刀（2026-11-21）
+
+用户要求继续重设计右侧工作台各标签页。按 `redesign-existing-projects` 真机审计 +
+`ui-ux-pro-max` 的导航、焦点、空态与 reduced-motion 规则，在既有未提交工作树上
+增量收口；不改 bridge、业务数据面或页签持久化契约。
+
+- **页签轨道**：移除页签、视图上下文头和面板自身标题的三层重复；右栏 ≤420px 时
+  非活动视图收成图标、活动页签保留标题与关闭钮，≤300px 才全图标化。页签保留
+  roving focus、方向键/Home/End、稳定 `aria-label` 与徽标圆点；非活动关闭钮不再
+  占用布局宽度，避免窄栏页签被无意义挤出。
+- **各面板**：文件/产物直接使用自身唯一标题；浏览器页把 `← → ↻ ⏎ ↗ ◉` 字符
+  替换为统一矢量图标，地址校验改为就近 `role=alert`，补可操作沙箱空态；Git 将
+  五档视图从标题行拆成独立可滚动第二行；UI 页补图标化说明空态与面板围栏示例；
+  进度计划工具条改为“工程摘要 + 操作 / 四档视图”两层，≤420px 四个操作自动收成
+  带 title/aria-label 的图标；CAD/进度懒加载统一为带状态播报的加载转轮。
+- **双板一致性**：办公与文学 WorkspacePane / BrowserPane / GenuiPanel / GitPanel
+  同步改造；办公与文学共享 `workspace-pane.css`，全部使用现有主题令牌，未新增
+  硬编码主题色或图标来源。
+- **验证**：WorkspacePane（办公/文学）、BrowserPane、Git、ScheduleTool、
+  Deliverables/Changes/Explorer 与 sidebarRegistry 定向 **8 文件 96/96** 绿；
+  `tsc -b` 0；改动面 ESLint 0 error；`npm run build` **28.51s** 绿（既有 Wenxue
+  CSS/chunk 警告）。实页走查暗/亮双主题、办公/文学双板、340px 窄栏、Git/UI/
+  浏览器/进度计划与图册页签；未构建 Wails、未装机。
+
 ## 平台缺陷清单 D1–D10 修复（2026-11-20）
 
 接用户提供的《gaea 平台缺陷清单》继续收口；工作树原有 D1/D2/D3/D5/D9
