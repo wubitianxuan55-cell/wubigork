@@ -1,3 +1,31 @@
+## Bloom 0.29 玻璃态全板块覆盖（2026-11-23）
+
+- **反馈复现**：切换一级板块后发现玻璃态只覆盖壳层和部分工作区。
+  逐页扫描确认多个板块仍在路由根或主容器绘制整页实底，包括聊天、
+  文学、绘梦、造价、众神殿、记忆中枢、微信与进度计划；运行监测另页头、
+  KPI、图表和质量卡保留 74% 实底。
+- **根修**：在 `components.css` 增加路由表面材质契约。非 `solid` 模式下，
+  `.page-enter` 根层强制透明，主工作区、`v3-panel`、`v3-card` 和上述板块
+  的主容器统一消费 `--gaea-material-fill` / `--gaea-shell-sheen` /
+  `--gaea-material-filter`；实底模式保持原页面布局不变。
+- **实页矩阵**：Vite 逐一切换 12 个一级板块，根层均透明；玻璃模式下
+  不再存在面积 >10 万像素且不透明度 >70% 的残留主容器。毛玻璃、磨砂、
+  液态玻璃分别实测为 58%+blur24、48%+grain+blur12、
+  25%+sheen+blur3 lens；亮暗两种模式均验证。
+- **提交**：全板块路由契约 `b917ed6d`；运行监测子容器补齐 `326d6eef`。
+- **验收**：定向 `AppearancePanel/appStore/四层架构` 3 文件 `31/31`，
+  改动面 ESLint 0；主树 Vite `33.48s` + Wails `28.69s`，
+  `build\bin\gaea.exe` SHA256 `586775CA94011D8605B983BC00183C5893E04C696EE0F6B165AB883C3E93B40D`。
+- **干净交付**：`.worktrees/pkg-326d6eef` detached 检出 `326d6eef`；
+  Vite `37.19s` + Wails `47.817s`，bindings 未跳过，忽略 EOL 后漂移 0；
+  payload 冒烟 200（PID 12336 已回收）。包内 exe 实机复核文学、
+  进度计划、运行监测，12 个一级板块主表面均无整块实底。
+- **交付包**：`releases/gaea-bloom029-glass-all-20261123-326d6eef/`。
+  exe 61,664,256 B SHA256 `AF66B6ED…CD07EF1`；桌面 ZIP 35,469,268 B
+  `F8B6B08D…FB436D`；源码 ZIP 829,080,512 B `42741D98…7A5A4`；
+  三 DLL 与既有基线一致。截图 `temp/gaea-payload-glass-all-final.png`。
+- **边界**：未装机、未 push；旧的 `b917ed6d` 中间包不用于交付。
+
 ## Bloom 0.29 最终对齐审计与桌面交付（2026-11-23）
 
 - **基线纠正**：参考仓工作区当时检出的是 0.28，最终审计统一改用

@@ -1,5 +1,7 @@
 # 任务进度
 
+| ✅ | **Bloom 0.29 玻璃态全板块覆盖**（2026-11-23）：复现并根修一级板块页面级实底覆盖；路由根层透明，主工作区、`v3-panel`、`v3-card` 统一消费 `--gaea-material-fill` / `--gaea-shell-sheen` / `--gaea-material-filter`，补齐聊天文绘造价众神殿记忆微信进度等主容器及运行监测页头/KPI/图表/质量区；实底模式不额外覆盖。Vite 12 板块矩阵通过；三材质、亮暗、减少透明度降级均验证；定向 31/31、ESLint 0；提交 `b917ed6d` + `326d6eef`；主树与干净树 Wails 构建及 payload 冒烟 200；包 `releases/gaea-bloom029-glass-all-20261123-326d6eef/`，六项 SHA256 已记录；未装机、未 push |
+
 | ✅ | **Bloom 0.29 最终对齐审计与桌面交付**（2026-11-23）：基线改回上游 `origin/main bd3e93f / 0.29.0`；定位桌面残留自定义强调色与 Vite 同秒缓存旧模块两个非构建假象；真实 Vite/桌面完成 15 主题 × 亮暗 30 组计算令牌、3 材质、4 暗氛围、4 亮氛围、减弱/完整动效和流星颜色/密度/速度全矩阵核验；修复彩色流星 `.m2/.m3` 级联覆盖（`555eda3e`）；定向 30/30；主树 Vite 28.37s + Wails 34.434s，干净树 Vite 27.41s + Wails 55.951s，内容漂移 0，payload 冒烟 200；包 `releases/gaea-bloom029-final-20261123-555eda3e/`，六项 SHA256 已记录；未装机、未 push |
 
 | ✅ | **Bloom 0.29 星河修复与流星控制**（2026-11-22）：修复 `.gaea-app-layout` stacking context，桌面/网页实拍均出现 galaxy 星尘；补齐流星颜色/密度/速度三组控制与持久化；提交 `9a7475ad`+`a37b7548`；定向 30/30、tsc、ESLint、主树 Vite 31.53s + Wails 28.625s、干净树 Vite 34.83s + Wails 56.851s、冒烟 200；包 `releases/gaea-bloom029-starlight-20261122-a37b7548/`；未装机、未 push |
