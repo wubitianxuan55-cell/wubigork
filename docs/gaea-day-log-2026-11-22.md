@@ -65,3 +65,12 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - **纠正 11-20 旧账**：`uocr2-llama\bin` 与 `bin-ocr-0.8.0-dev` 逐字节同一份构建（都是 b11980+unlimited-ocr2.patch，llama.dll 实含 arch；bin-mainline-broken-20261111 归档目录就在 bin/ 内）——「bin/ 恢复 mainline 归 qwen35」实际未落，qwen35 此前跑的一直是 OCR 补丁构建。本批 bundle 位补上真 mainline 后，OCR（钉 bin-ocr）与 qwen35（bundle bin）通道才算真正分离。OCR 钉住位复查 10s 加载/health 200 ✓。
 - **不动项**：whirl（本地 0.2.5.1 领先官方 tag v020-rc11）、Strata（本地仓 0.2.13-rc 领先发布 v0.2.9）、ovis（自建 llama 0.4.0-dev 专 arch）、breeze-tts2（权重冻结）。**ComfyUI**：AMD standalone pack v0.20.1-env1 仍为最新 pack；核心 v0.20.1 vs 上游 v0.46.2——pack 内原地升级涉 ROCm 钉死 env，挂拍板。unlimited python venv（OCR 慢速腿）pip 已坏且被 llama 通道替代 10~14x，挂清理拍板。
 - 验证链：voice native ok 5.7s + internal/app 全绿 177.5s（均走 wrapper）→ npm 31.3s → wails 24.78s → 冒烟 /api/health 200（PID 36032 回收）→ INSTALL OK（exe 5ECEC355…，15:46:01，三 DLL 同批）→ 装机拉起 PID 13396>构建时刻。
+
+### 补段：编程板块接入 Nebula Memory（yb-zhai/agent-memory）+ 记忆中枢对齐蒸馏
+
+- **上游识别**：Nebula Memory v1.3.8（dsh-memory-nebula），零依赖 Node 本地记忆（4 臂召回+JSONL+FSRS 访问动力学+consolidate），MIT，自带 DSH 插件安装器；Hindsight 语义层未开源（纯本地不自动积累）。克隆 `C:\AI\re\agent-memory` @ eeb378a（B 区第 15 个，README 已登记）。
+- **安装**：install.ps1 -Profile web -DshHome C:\AI\dsh\home（事务式：备份 SHA256→暂存换装→健康检查→失败回滚）→ 插件落 home\plugins + profile manifest bundles/dependencies + memory-nebula.json（data=C:\AI\dsh\home\memory-nebula-data）。
+- **会话侧**：home cordis.patch.yml（原空 []）挂 `dsh-mcp-client` 行（serverName: agent-memory，stdio，env.NEBULA_DATA_DIR 同库同源，4 工具 ≈1k tokens 全局挂载）；备份 .bak-20261122。
+- **实弹链**：MCP stdio 探针（initialize→4 工具→remember→recall 0.1519→stats）✓；web 起站侧边栏「记忆星云」入口 ✓；红队会话端到端（6 步 770K tok——红队面工具重+模型先查配置）真实写入 nodes.jsonl mmwrjw5txc81ff8f4 ✓；3091/8898 已清场恢复 gaea 点启动态。
+- **发现**：①面板与 MCP 同库双实例各持内存视图——MCP 写入后 /healthz units 仍 1（无文件 watch）；②MCP 写入 source="unknown"；③新会话继承预设坑复现（验收会话落红队面）。
+- **蒸馏**：报告=docs/gaea-agent-memory-nebula-distill-2026-11.md（gaea 记忆中枢四件可借：四臂召回+arm 归因/FSRS 动力学/consolidate 事实化/层次化；重叠面不抄；P1~P5 提案交拍板池）；逆向说明=C:\AI\re\agent-memory\docs\蒸馏-gaea记忆中枢对齐-2026-11-22.md（file:line 锚全录）。gaea 记忆中枢代码零改动。
