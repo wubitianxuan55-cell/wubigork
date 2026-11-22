@@ -1,5 +1,7 @@
 # 任务进度
 
+| ✅ | **Bloom 0.29 最终对齐审计与桌面交付**（2026-11-23）：基线改回上游 `origin/main bd3e93f / 0.29.0`；定位桌面残留自定义强调色与 Vite 同秒缓存旧模块两个非构建假象；真实 Vite/桌面完成 15 主题 × 亮暗 30 组计算令牌、3 材质、4 暗氛围、4 亮氛围、减弱/完整动效和流星颜色/密度/速度全矩阵核验；修复彩色流星 `.m2/.m3` 级联覆盖（`555eda3e`）；定向 30/30；主树 Vite 28.37s + Wails 34.434s，干净树 Vite 27.41s + Wails 55.951s，内容漂移 0，payload 冒烟 200；包 `releases/gaea-bloom029-final-20261123-555eda3e/`，六项 SHA256 已记录；未装机、未 push |
+
 | ✅ | **Bloom 0.29 星河修复与流星控制**（2026-11-22）：修复 `.gaea-app-layout` stacking context，桌面/网页实拍均出现 galaxy 星尘；补齐流星颜色/密度/速度三组控制与持久化；提交 `9a7475ad`+`a37b7548`；定向 30/30、tsc、ESLint、主树 Vite 31.53s + Wails 28.625s、干净树 Vite 34.83s + Wails 56.851s、冒烟 200；包 `releases/gaea-bloom029-starlight-20261122-a37b7548/`；未装机、未 push |
 
 | ✅ | **Bloom 0.29 配色大脑桌面构建与 Git 打包**（2026-11-22）：提交 `96335e75`；独立干净树前端 Vite 31.92s、UCRT64 Wails 1m0.058s（bindings 未跳过）、内容漂移 0、正式 payload 冒烟 200；定向 110/110；全量 4704/4706、两失败文件隔离 44/44；包 `releases/gaea-bloom029-20261122-96335e75/`，六项 SHA256 已记录；未装机、未 push |

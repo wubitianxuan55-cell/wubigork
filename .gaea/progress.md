@@ -1,3 +1,36 @@
+## Bloom 0.29 最终对齐审计与桌面交付（2026-11-23）
+
+- **基线纠正**：参考仓工作区当时检出的是 0.28，最终审计统一改用
+  `origin/main` `bd3e93f9a708d0d951156866a6f2274d0d33c824`（0.29.0）。
+- **桌面/Vite 根因**：Vite 是当前源码 + HMR，exe 是构建时冻结的
+  `frontend/dist`；两套 profile 的偏好也相互独立。桌面曾残留自定义强调色
+  `#1dd7bf`，Vite 为青金主题色 `#7faee9`。同时 Vite 曾因同秒编辑缓存
+  继续执行旧 `BloomStardust` 模块。恢复同状态并刷新 mtime 后才做有效对照。
+- **矩阵核验**：在 `1264×761` 下用真实 Vite 页面和 `build\bin\gaea.exe`
+  逐项切换并读取计算样式。15 主题 × 亮/暗 30 组的主色、主色容器、画布、
+  容器、高容器、motion1/2/3 全部一致；3 材质、4 暗氛围、4 亮氛围的
+  background/mask/filter/尺寸均一致；减弱动效为 270 静态星点、流星隐藏，
+  完整动效为 270 星运动、标准密度 40 流星。
+- **新增根修**：彩色流星 `.m2/.m3` 原选择器被完整 galaxy 基础规则以更高
+  优先级覆盖，画面一直只取 motion1。改为同特异性的完整作用域选择器，
+  实测彩色为 `#7faee9 / #50b9df / #ac9fe5`，纯色统一为当前 accent；
+  密度 `20/40/60`、速度 `1.6/1/0.6` 均实测生效。提交 `555eda3e`。
+- **验收**：定向 `AppearancePanel/appStore/四层架构` 3 文件 `30/30`；
+  主树 Vite `28.37s` + Wails `34.434s`，exe 61,651,456 B
+  SHA256 `7A29D84C…F784221`，正式路径冒烟 200。
+- **干净交付**：`.worktrees/pkg-555eda3e` detached 检出 `555eda3e`；
+  Vite `27.41s` + Wails `55.951s`，bindings 未跳过，忽略 EOL 后内容漂移 0；
+  payload 冒烟 200（PID 68940 已回收）。
+- **交付包**：`releases/gaea-bloom029-final-20261123-555eda3e/`。
+  payload exe 61,662,720 B SHA256 `274BE4A6…72036`；桌面 ZIP
+  35,468,728 B `6C0CAF53…1A87B45`；源码 ZIP 829,074,786 B
+  `FC1B741E…84CFAD`；三 DLL 与既有基线一致。截图在
+  `temp/gaea-desktop-final-aligned.png`、
+  `temp/gaea-vite-final-aligned.png`、
+  `temp/gaea-desktop-bloom029-settings-final.png`。
+- **边界**：未装机、未 push；真实后端与 Vite mock 的会话内容/引擎状态不参与
+  皮肤一致性判断。
+
 ## Bloom 0.29 星河修复与流星控制（2026-11-22）
 
 - **基线纠正**：严格以 `dsh-bloom-theme origin/main`
