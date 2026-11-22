@@ -118,6 +118,7 @@ describe('gaea 四层外观架构', () => {
       '.atlas-ambience',
       '.wx-main',
       '.sched-command-deck',
+      '.rt-page-header',
       '.rt-section',
       '.mc-rail',
     ]) {
