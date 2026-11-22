@@ -44,6 +44,7 @@ import AppearancePanel, {
   DensityPanel,
   FontPanel,
   LanguagePanel,
+  MeteorPanel,
   MotionPanel,
   SurfacePanel,
 } from './AppearancePanel'
@@ -61,13 +62,14 @@ const GENERAL_TABS: SettingsPanelTab[] = [
     label: '外观',
     description: '选择主题色系与明暗模式，并实时预览最终效果。',
     icon: <BgColorsOutlined />,
-    keywords: ['外观', '主题', '色系', '暗色', '亮色', '明暗', '模式', '预览'],
+    keywords: ['外观', '主题', '色系', '暗色', '亮色', '明暗', '模式', '预览', '氛围', '流星', '星尘', '星辰', '密度', '速度', '纯色', '彩色'],
     content: (
       <>
         <AppearancePanel />
         <DarkModePanel />
         <SurfacePanel />
         <AmbiencePanel />
+        <MeteorPanel />
       </>
     ),
   },

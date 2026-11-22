@@ -44,6 +44,9 @@ const SURFACE_RESTORE_KEY = 'gaea-surface-style-restore'
 const AMBIENCE_KEY = 'gaea-ambience-style'
 const LIGHT_AMBIENCE_KEY = 'gaea-ambience-light'
 const DARK_AMBIENCE_KEY = 'gaea-ambience-dark'
+const METEOR_COLOR_KEY = 'gaea-meteor-color'
+const METEOR_DENSITY_KEY = 'gaea-meteor-density'
+const METEOR_SPEED_KEY = 'gaea-meteor-speed'
 const THEME_ROTATION_KEY = 'gaea-theme-rotation-minutes'
 const SHELL_SPACE_KEY = 'gaea.shell.space'
 
@@ -79,8 +82,14 @@ export type SurfaceBaseStyle = Exclude<SurfaceStyle, 'soft'>
 export type AmbienceStyle = 'bloom' | 'wash' | 'grid' | 'off'
 export type LightAmbienceStyle = 'stream' | 'wash' | 'clear' | 'off'
 export type DarkAmbienceStyle = 'corner' | 'diagonal' | 'galaxy' | 'off'
+export type MeteorColorMode = 'colorful' | 'solid'
+export type MeteorDensity = 'sparse' | 'standard' | 'dense'
+export type MeteorSpeed = 'slow' | 'standard' | 'fast'
 export const LIGHT_AMBIENCE_STYLES = ['stream', 'wash', 'clear', 'off'] as const
 export const DARK_AMBIENCE_STYLES = ['corner', 'diagonal', 'galaxy', 'off'] as const
+export const METEOR_COLOR_MODES = ['colorful', 'solid'] as const
+export const METEOR_DENSITIES = ['sparse', 'standard', 'dense'] as const
+export const METEOR_SPEEDS = ['slow', 'standard', 'fast'] as const
 export const THEME_ROTATION_MINUTES = [0, 5, 15, 30, 60] as const
 export type ThemeRotationMinutes = typeof THEME_ROTATION_MINUTES[number]
 
@@ -159,6 +168,30 @@ function loadDarkAmbienceStyle(): DarkAmbienceStyle {
   return 'corner'
 }
 
+function loadMeteorColorMode(): MeteorColorMode {
+  try {
+    const value = localStorage.getItem(METEOR_COLOR_KEY)
+    if (METEOR_COLOR_MODES.includes(value as MeteorColorMode)) return value as MeteorColorMode
+  } catch {}
+  return 'colorful'
+}
+
+function loadMeteorDensity(): MeteorDensity {
+  try {
+    const value = localStorage.getItem(METEOR_DENSITY_KEY)
+    if (METEOR_DENSITIES.includes(value as MeteorDensity)) return value as MeteorDensity
+  } catch {}
+  return 'standard'
+}
+
+function loadMeteorSpeed(): MeteorSpeed {
+  try {
+    const value = localStorage.getItem(METEOR_SPEED_KEY)
+    if (METEOR_SPEEDS.includes(value as MeteorSpeed)) return value as MeteorSpeed
+  } catch {}
+  return 'standard'
+}
+
 function loadThemeRotationMinutes(): ThemeRotationMinutes {
   try {
     const value = Number(localStorage.getItem(THEME_ROTATION_KEY))
@@ -232,6 +265,9 @@ interface AppState {
   ambienceStyle: AmbienceStyle
   lightAmbienceStyle: LightAmbienceStyle
   darkAmbienceStyle: DarkAmbienceStyle
+  meteorColorMode: MeteorColorMode
+  meteorDensity: MeteorDensity
+  meteorSpeed: MeteorSpeed
   themeRotationMinutes: ThemeRotationMinutes
   accentColor: string
   fontFamily: string
@@ -251,6 +287,9 @@ interface AppState {
   setAmbienceStyle: (style: AmbienceStyle) => void
   setLightAmbienceStyle: (style: LightAmbienceStyle) => void
   setDarkAmbienceStyle: (style: DarkAmbienceStyle) => void
+  setMeteorColorMode: (mode: MeteorColorMode) => void
+  setMeteorDensity: (density: MeteorDensity) => void
+  setMeteorSpeed: (speed: MeteorSpeed) => void
   setThemeRotationMinutes: (minutes: ThemeRotationMinutes) => void
   setAccentColor: (color: string) => void
   setFontFamily: (font: string) => void
@@ -276,6 +315,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   ambienceStyle: loadAmbienceStyle(),
   lightAmbienceStyle: loadLightAmbienceStyle(),
   darkAmbienceStyle: loadDarkAmbienceStyle(),
+  meteorColorMode: loadMeteorColorMode(),
+  meteorDensity: loadMeteorDensity(),
+  meteorSpeed: loadMeteorSpeed(),
   themeRotationMinutes: loadThemeRotationMinutes(),
   accentColor: loadAccent(),
   fontFamily: loadFontFamily(),
@@ -380,6 +422,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ darkAmbienceStyle })
     try {
       localStorage.setItem(DARK_AMBIENCE_KEY, darkAmbienceStyle)
+    } catch {}
+  },
+
+  setMeteorColorMode: (meteorColorMode) => {
+    if (!METEOR_COLOR_MODES.includes(meteorColorMode)) return
+    set({ meteorColorMode })
+    try {
+      localStorage.setItem(METEOR_COLOR_KEY, meteorColorMode)
+    } catch {}
+  },
+
+  setMeteorDensity: (meteorDensity) => {
+    if (!METEOR_DENSITIES.includes(meteorDensity)) return
+    set({ meteorDensity })
+    try {
+      localStorage.setItem(METEOR_DENSITY_KEY, meteorDensity)
+    } catch {}
+  },
+
+  setMeteorSpeed: (meteorSpeed) => {
+    if (!METEOR_SPEEDS.includes(meteorSpeed)) return
+    set({ meteorSpeed })
+    try {
+      localStorage.setItem(METEOR_SPEED_KEY, meteorSpeed)
     } catch {}
   },
 

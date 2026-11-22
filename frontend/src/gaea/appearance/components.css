@@ -104,7 +104,8 @@ body::after {
     display: block;
   }
 
-  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met:nth-of-type(n + 41) {
+  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"]:not([data-gaea-meteor-density="dense"]) .gaea-stardust > b.s-met:nth-of-type(n + 41),
+  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"][data-gaea-meteor-density="sparse"] .gaea-stardust > b.s-met:nth-of-type(n + 21) {
     display: none;
   }
 }
@@ -136,6 +137,18 @@ body::after {
 
 .gaea-stardust > b.s-met.m3 {
   --stardust-colour: var(--gaea-motion-3);
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"][data-gaea-meteor-color="solid"] .gaea-stardust > b.s-met {
+  --stardust-colour: var(--gaea-accent);
+}
+
+:root[data-gaea-meteor-speed="slow"] {
+  --gaea-meteor-pace: 1.6;
+}
+
+:root[data-gaea-meteor-speed="fast"] {
+  --gaea-meteor-pace: 0.6;
 }
 
 :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-amb.t,

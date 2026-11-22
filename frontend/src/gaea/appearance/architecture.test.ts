@@ -69,6 +69,7 @@ describe('gaea 四层外观架构', () => {
 
   it('深色星尘使用上游确定性粒子序列与模式开关', () => {
     const stardust = readFileSync(join(frontendRoot, 'components/BloomStardust.tsx'), 'utf8')
+    const app = readFileSync(join(frontendRoot, 'App.tsx'), 'utf8')
     const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
     for (const token of ['index < 64', 'index < 26', 'index < 28', 'index < 36', 'index < 44', 'index < 72', 'index < 60']) {
       expect(stardust).toContain(token)
@@ -79,6 +80,13 @@ describe('gaea 四层外观架构', () => {
     expect(components).toContain('[data-gaea-ambience-dark="galaxy"]')
     expect(components).toContain('@keyframes gaea-meteor')
     expect(components).toContain('isolation: isolate')
+    expect(components).toContain('[data-gaea-meteor-density="sparse"]')
+    expect(components).toContain('[data-gaea-meteor-speed="fast"]')
+    expect(components).toContain('[data-gaea-meteor-color="solid"]')
+    expect(stardust).toContain('var(--gaea-meteor-pace, 1)')
+    expect(app).toContain('root.dataset.gaeaMeteorColor')
+    expect(app).toContain('root.dataset.gaeaMeteorDensity')
+    expect(app).toContain('root.dataset.gaeaMeteorSpeed')
   })
 
   it('壳层只消费材质契约，玻璃态差异留在材料层', () => {

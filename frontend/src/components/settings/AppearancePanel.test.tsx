@@ -5,6 +5,7 @@ import AppearancePanel, {
   AmbiencePanel,
   DarkModePanel,
   DensityPanel,
+  MeteorPanel,
   MotionPanel,
   SurfacePanel,
 } from './AppearancePanel'
@@ -34,7 +35,15 @@ const openSelect = (container: HTMLElement) => {
 
 beforeEach(() => {
   localStorage.clear()
-  useAppStore.setState({ baseTheme: 'ripple', mode: 'dark', density: 'standard', motion: 'full' })
+  useAppStore.setState({
+    baseTheme: 'ripple',
+    mode: 'dark',
+    density: 'standard',
+    motion: 'full',
+    meteorColorMode: 'colorful',
+    meteorDensity: 'standard',
+    meteorSpeed: 'standard',
+  })
   Object.defineProperty(navigator, 'language', { value: 'zh-CN', configurable: true })
 })
 
@@ -112,5 +121,28 @@ describe('Bloom 主题选择器', () => {
     fireEvent.click(screen.getByRole('radio', { name: '水彩晕染' }))
     expect(useAppStore.getState().lightAmbienceStyle).toBe('wash')
     expect(localStorage.getItem('gaea-ambience-light')).toBe('wash')
+  })
+
+  it('流星细节仅在暗色漫天星辰下出现', () => {
+    useAppStore.setState({ darkMode: true, darkAmbienceStyle: 'corner' })
+    const { rerender } = render(wrap(<MeteorPanel />))
+    expect(screen.queryByText(byDirectText('流星'))).toBeNull()
+    useAppStore.setState({ darkAmbienceStyle: 'galaxy' })
+    rerender(wrap(<MeteorPanel />))
+    expect(screen.getByText(byDirectText('流星'))).toBeTruthy()
+  })
+
+  it('流星颜色、密度与速度切换并持久化', () => {
+    useAppStore.setState({ darkMode: true, darkAmbienceStyle: 'galaxy' })
+    render(wrap(<MeteorPanel />))
+    fireEvent.click(screen.getByText(byDirectText('纯色')))
+    expect(useAppStore.getState().meteorColorMode).toBe('solid')
+    expect(localStorage.getItem('gaea-meteor-color')).toBe('solid')
+    fireEvent.click(screen.getByText(byDirectText('密集')))
+    expect(useAppStore.getState().meteorDensity).toBe('dense')
+    expect(localStorage.getItem('gaea-meteor-density')).toBe('dense')
+    fireEvent.click(screen.getByText(byDirectText('快')))
+    expect(useAppStore.getState().meteorSpeed).toBe('fast')
+    expect(localStorage.getItem('gaea-meteor-speed')).toBe('fast')
   })
 })

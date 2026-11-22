@@ -119,6 +119,21 @@ describe('主题选择持久化', () => {
     useAppStore.getState().setThemeRotationMinutes(7 as never)
     expect(useAppStore.getState().themeRotationMinutes).toBe(15)
   })
+
+  it('流星颜色、密度与速度持久化并拒绝非法值', () => {
+    localStorage.clear()
+    useAppStore.getState().setMeteorColorMode('solid')
+    useAppStore.getState().setMeteorDensity('dense')
+    useAppStore.getState().setMeteorSpeed('fast')
+    expect(useAppStore.getState().meteorColorMode).toBe('solid')
+    expect(useAppStore.getState().meteorDensity).toBe('dense')
+    expect(useAppStore.getState().meteorSpeed).toBe('fast')
+    expect(localStorage.getItem('gaea-meteor-color')).toBe('solid')
+    expect(localStorage.getItem('gaea-meteor-density')).toBe('dense')
+    expect(localStorage.getItem('gaea-meteor-speed')).toBe('fast')
+    useAppStore.getState().setMeteorDensity('invalid' as never)
+    expect(useAppStore.getState().meteorDensity).toBe('dense')
+  })
 })
 
 describe('useAppStore.space', () => {

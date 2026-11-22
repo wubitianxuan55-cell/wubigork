@@ -36,6 +36,9 @@ const App: React.FC = () => {
   const surfaceStyle = useAppStore((s) => s.surfaceStyle)
   const lightAmbienceStyle = useAppStore((s) => s.lightAmbienceStyle)
   const darkAmbienceStyle = useAppStore((s) => s.darkAmbienceStyle)
+  const meteorColorMode = useAppStore((s) => s.meteorColorMode)
+  const meteorDensity = useAppStore((s) => s.meteorDensity)
+  const meteorSpeed = useAppStore((s) => s.meteorSpeed)
   const accentColor = useAppStore((s) => s.accentColor)
   const fontFamily = useAppStore((s) => s.fontFamily)
   const fontSize = useAppStore((s) => s.fontSize)
@@ -242,6 +245,9 @@ const App: React.FC = () => {
     root.dataset.gaeaSurface = surfaceStyle
     root.dataset.gaeaAmbienceLight = lightAmbienceStyle
     root.dataset.gaeaAmbienceDark = darkAmbienceStyle
+    root.dataset.gaeaMeteorColor = meteorColorMode
+    root.dataset.gaeaMeteorDensity = meteorDensity
+    root.dataset.gaeaMeteorSpeed = meteorSpeed
     // 原生控件明暗（v4.351）：滚动条轨道角/表单控件随主题（此前全仓无声明，
     // 暗主题下原生控件残留亮色渲染）
     root.style.colorScheme = darkMode ? 'dark' : 'light'
@@ -263,6 +269,9 @@ const App: React.FC = () => {
     surfaceStyle,
     lightAmbienceStyle,
     darkAmbienceStyle,
+    meteorColorMode,
+    meteorDensity,
+    meteorSpeed,
   ])
 
   // antd 主题对象同样 memo：ConfigProvider 收到新对象就会重跑主题算法

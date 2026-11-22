@@ -96,8 +96,8 @@ function makeMeteor(next: () => number, index: number): StardustNode {
       '--rot': `${(-28 - next() * 16).toFixed(1)}deg`,
       '--travel': `${(920 + next() * 980).toFixed(0)}px`,
       '--peak': (0.75 + next() * 0.25).toFixed(2),
-      animationDuration: `${duration.toFixed(2)}s`,
-      animationDelay: `${(-next() * duration).toFixed(2)}s`,
+      animationDuration: `calc(${duration.toFixed(2)}s * var(--gaea-meteor-pace, 1))`,
+      animationDelay: `calc(${(-next() * duration).toFixed(2)}s * var(--gaea-meteor-pace, 1))`,
     },
   }
 }

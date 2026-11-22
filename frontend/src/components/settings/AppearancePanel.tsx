@@ -2,12 +2,13 @@ import React, { useMemo, useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
-  SwapOutlined, AimOutlined, GlobalOutlined, AppstoreOutlined } from '@ant-design/icons'
+  SwapOutlined, AimOutlined, GlobalOutlined, AppstoreOutlined, StarOutlined } from '@ant-design/icons'
 import { Button, InputNumber, Segmented, Select } from 'antd'
 import {
   useAppStore, THEME_PRESETS, FONT_OPTIONS,
   type DisplayMode, type ThemePreset, type Density, type MotionPref,
   type SurfaceStyle, type LightAmbienceStyle, type DarkAmbienceStyle,
+  type MeteorColorMode, type MeteorDensity, type MeteorSpeed,
 } from '../../stores/appStore'
 import { useI18n, useT, type LangPref } from '../../gaea/lib/i18n'
 import type { DictKey } from '../../gaea/locales/en'
@@ -446,6 +447,61 @@ export const AmbiencePanel: React.FC = () => {
             />
           </div>
         )}
+      </div>
+    </SettingsSection>
+  )
+}
+
+/** 流星细节只在暗色「漫天星辰」下出现，与 upstream 的设置行一致。 */
+export const MeteorPanel: React.FC = () => {
+  const t = useT()
+  const darkMode = useAppStore((s) => s.darkMode)
+  const darkAmbienceStyle = useAppStore((s) => s.darkAmbienceStyle)
+  const meteorColorMode = useAppStore((s) => s.meteorColorMode)
+  const meteorDensity = useAppStore((s) => s.meteorDensity)
+  const meteorSpeed = useAppStore((s) => s.meteorSpeed)
+  const setMeteorColorMode = useAppStore((s) => s.setMeteorColorMode)
+  const setMeteorDensity = useAppStore((s) => s.setMeteorDensity)
+  const setMeteorSpeed = useAppStore((s) => s.setMeteorSpeed)
+
+  if (!darkMode || darkAmbienceStyle !== 'galaxy') return null
+
+  return (
+    <SettingsSection
+      icon={<span style={{ fontSize: 15 }}><StarOutlined /></span>}
+      title={t('settings.appear.meteorTitle')}
+      desc={t('settings.appear.meteorDesc')}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <SegmentedRow<MeteorColorMode>
+          value={meteorColorMode}
+          onChange={setMeteorColorMode}
+          ariaLabel={t('settings.appear.meteorColor')}
+          options={[
+            { key: 'colorful', label: t('settings.appear.meteorColorful'), desc: t('settings.appear.meteorColorfulDesc'), icon: <BgColorsOutlined /> },
+            { key: 'solid', label: t('settings.appear.meteorSolid'), desc: t('settings.appear.meteorSolidDesc'), icon: <AimOutlined /> },
+          ]}
+        />
+        <SegmentedRow<MeteorDensity>
+          value={meteorDensity}
+          onChange={setMeteorDensity}
+          ariaLabel={t('settings.appear.meteorDensity')}
+          options={[
+            { key: 'sparse', label: t('settings.appear.meteorSparse'), icon: <DashboardOutlined /> },
+            { key: 'standard', label: t('settings.appear.meteorStandard'), icon: <DashboardOutlined /> },
+            { key: 'dense', label: t('settings.appear.meteorDense'), icon: <DashboardOutlined /> },
+          ]}
+        />
+        <SegmentedRow<MeteorSpeed>
+          value={meteorSpeed}
+          onChange={setMeteorSpeed}
+          ariaLabel={t('settings.appear.meteorSpeed')}
+          options={[
+            { key: 'slow', label: t('settings.appear.meteorSlow'), icon: <SwapOutlined /> },
+            { key: 'standard', label: t('settings.appear.meteorStandard'), icon: <SwapOutlined /> },
+            { key: 'fast', label: t('settings.appear.meteorFast'), icon: <ThunderboltOutlined /> },
+          ]}
+        />
       </div>
     </SettingsSection>
   )

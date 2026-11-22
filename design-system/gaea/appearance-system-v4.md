@@ -64,6 +64,10 @@ gaea 是长时间运行的本地 AI 工作台。外观必须让正文、证据�
 - 浅色雾光复用上游 `stream / wash / clear` 三张 SVG fog mask；深色使用四角
   radial ambience；`corner / diagonal / galaxy` 复用上游确定性星尘序列，
   分别显示右上角、左下角与全屏星系层，`galaxy` 另含 60 颗流星候选。
+- 流星三组细节与上游同源：颜色 `colorful / solid`、密度
+  `sparse / standard / dense`、速度 `slow / standard / fast`。选择只写入
+  `gaea-meteor-*` 持久化键；根节点下发 `data-gaea-meteor-*`，CSS 分别控制
+  60/40/20 颗显示、`1.6 / 1 / 0.6` 时间倍率与单色/三色光谱。
 - 材质档位：毛玻璃、磨砂玻璃、液态玻璃、实底。一键玻璃态按钮或 `Alt+G`
   在液态玻璃与上次非液态材质之间切换，并持久化。
 
