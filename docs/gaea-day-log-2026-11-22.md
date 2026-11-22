@@ -82,3 +82,12 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - **P3 向量巩固臂**：`consolidate.go` 纯函数（余弦 ≥0.85、对上限 20000、每名 8、800 条 O(n²) 护栏）收编 `GaeaMemoryDuplicates` 第二来源（Source=vector/fuzzy，pair 键去重）——评审制红线不破（只建议，人工合并走既有 MemoryMerge 弹窗）；duplicates 弹窗来源徽章；`semantic.Store.VectorsOf` 只读取数口+ensureOfficeVectorIndex 抽出共用。
 - **坑**：①JSON heredoc 转义吃反斜杠→Go 源码进真实 NUL（`invalid NUL character`）——chr(92) 拼装修复；②裸 `&App{}` 测试踩 nil core（engineMgr 内嵌指针）×2——divergence 钉测试改 core 构造+vectorConsolidatePairs 加 nil-core 守卫；③wailsjs 模型再生后 mock 生命周期双处（gaea/wenxue）需补 stabilityDays/citeCount。
 - **验证**：memory 全绿 6s + app 全量 161s 绿（cgo wrapper）+contract 5/5+drift 锁 726 OK+前端 tsc/构建绿（27.7s/29.7s）；wails 24.8s→冒烟 200→INSTALL OK exe 75DF6055（17:14:57）装机拉起 PID 59288>构建时刻。
+
+### 补段：记忆注入分席——聊天席接融合、办公/文学保缓存（用户拍板）
+
+- 拍板口径：星云融合只接**聊天板块**（play 分区）；办公板块与文学板块保 prompt 缓存命中率不接（文学走独立引擎本就不在注入面）。
+- 落地：`RecallBlockFused`（play 专属四臂轻量融合=词法 recallScore 归一+图谱发现臂+置顶+P2 稳定性衰减×休眠；候选集与旧口径同门；语义向量臂不进热路径=每轮嵌查询百毫秒级不可接受）+Compose 分席（`session.SpaceForPath==play`→融合；work/平铺/空 sessionPath→`RecallBlock` 逐字旧口径）。
+- 配套：`Store.GraphNeighbors`（references 双向邻接，LIMIT 5000，EnsureGraphFresh 水位懒重建防陈旧图——注入面不吃陈旧图）；`RecallSeedCount` 常量收敛包内单源。
+- 测试：图谱发现（互引邻居零词面入选+办公席同查询不入选=分席实证）/稳定性排序（同词龄同词面，引用多排前）/降级（无图无引用回纯词法）三钉+办公席旧测试零改动通过；control 包 2.7s 绿。
+- 坑：JSON heredoc 转义连环吃反斜杠（`"\n"` 劈行+NUL 两犯）——批内字符串手术一律改 Edit 工具直修。
+- 装机：exe 重建 24.2s→冒烟 200→INSTALL OK（19:24:59）→拉起 PID 21692>构建时刻。
