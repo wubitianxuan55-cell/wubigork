@@ -452,110 +452,6 @@ body {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ══ 未来感 · Neo-Futuristic Layer（深空星云 / 玻璃拟态 / 霓虹）══
-   ═══════════════════════════════════════════════════════════ */
-
-/* ── 全屏背景层（MainLayout 挂载 .gaea-bg）── */
-.gaea-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-/* 赛博网格 */
-.gaea-bg .cyber-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(var(--md-sys-color-outline-variant) 1px, transparent 1px),
-    linear-gradient(90deg, var(--md-sys-color-outline-variant) 1px, transparent 1px);
-  background-size: 56px 56px;
-  opacity: 0.28;
-  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
-}
-/* 星点 */
-.gaea-bg .star-dots {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1.2px 1.2px at 12% 28%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1px 1px at 68% 12%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1.4px 1.4px at 82% 42%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1px 1px at 24% 64%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1.2px 1.2px at 44% 86%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1px 1px at 92% 74%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1.1px 1.1px at 6% 88%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1px 1px at 56% 4%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1.2px 1.2px at 33% 46%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(1px 1px at 76% 60%, var(--gaea-glow) 50%, transparent 55%);
-  opacity: 0.5;
-  animation: starTwinkle 6s ease-in-out infinite alternate;
-}
-/* 虚空微尘：细密粒子缓慢漂移，营造粒子悬浮虚空感 */
-.gaea-bg .space-dust {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(0.8px 0.8px at 5% 16%, rgba(255, 255, 255, 0.55) 50%, transparent 55%),
-    radial-gradient(0.6px 0.6px at 14% 74%, rgba(255, 255, 255, 0.4) 50%, transparent 55%),
-    radial-gradient(0.9px 0.9px at 22% 34%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(0.6px 0.6px at 31% 90%, rgba(255, 255, 255, 0.45) 50%, transparent 55%),
-    radial-gradient(0.7px 0.7px at 39% 48%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(0.5px 0.5px at 47% 8%, rgba(255, 255, 255, 0.35) 50%, transparent 55%),
-    radial-gradient(0.9px 0.9px at 55% 62%, rgba(255, 255, 255, 0.5) 50%, transparent 55%),
-    radial-gradient(0.6px 0.6px at 63% 26%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(0.7px 0.7px at 71% 82%, rgba(255, 255, 255, 0.4) 50%, transparent 55%),
-    radial-gradient(0.5px 0.5px at 79% 40%, rgba(255, 255, 255, 0.35) 50%, transparent 55%),
-    radial-gradient(0.8px 0.8px at 87% 66%, var(--gaea-glow) 50%, transparent 55%),
-    radial-gradient(0.6px 0.6px at 93% 12%, rgba(255, 255, 255, 0.45) 50%, transparent 55%),
-    radial-gradient(0.7px 0.7px at 97% 50%, rgba(255, 255, 255, 0.4) 50%, transparent 55%);
-  opacity: 0.4;
-  animation: dustDrift 20s ease-in-out infinite alternate;
-  will-change: transform;
-}
-@keyframes dustDrift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(26px, -20px, 0) scale(1.06); }
-}
-/* 漂浮光球（aurora orb） */
-.gaea-bg .aurora-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.5;
-  will-change: transform;
-}
-.gaea-bg .aurora-orb.orb-a {
-  width: 420px; height: 420px;
-  top: -120px; left: -80px;
-  background: radial-gradient(circle, var(--gaea-glow), transparent 70%);
-  animation: orbFloatA 22s ease-in-out infinite alternate;
-}
-.gaea-bg .aurora-orb.orb-b {
-  width: 360px; height: 360px;
-  bottom: -100px; right: -60px;
-  background: radial-gradient(circle, var(--gaea-glow), transparent 70%);
-  opacity: 0.35;
-  animation: orbFloatB 28s ease-in-out infinite alternate;
-}
-
-@keyframes starTwinkle {
-  0%   { opacity: 0.3; }
-  50%  { opacity: 0.65; }
-  100% { opacity: 0.35; }
-}
-@keyframes orbFloatA {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(70px, 50px) scale(1.15); }
-}
-@keyframes orbFloatB {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(-60px, -40px) scale(0.9); }
-}
-
 /* ── 玻璃拟态工具类 ── */
 /* gp-panel = 3.0 设计系统玻璃容器基座（§2.1）：氛围层之上的容器层，信息层用实底卡不叠玻璃 */
 .md-glass {
@@ -629,22 +525,6 @@ body {
 .welcome-login-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 0 34px color-mix(in srgb, var(--gaea-glow) 65%, transparent) !important;
-}
-
-/* ── 主题色块 hover / focus ── */
-/* display 补丁（2026-10-09 用户报告「主题弹窗选择全是一个颜色」）：span 默认
-   inline，width/height 被忽略——七颗点全部塌成一样的细竖条；inline-block 后
-   16px 圆点才成立。 */
-.theme-dot {
-  display: inline-block;
-}
-.theme-dot:hover {
-  transform: scale(1.22) !important;
-  opacity: 1 !important;
-}
-.theme-dot:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
 }
 
 /* ── 聊天输入栏聚焦霓虹 ── */

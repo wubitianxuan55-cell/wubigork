@@ -1,14 +1,16 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef, Suspense, useReducer, useCallback } from 'react'
-import { Layout, Button, Space, Typography, Tooltip, Spin, notification, Popover } from 'antd'
+import { Layout, Button, Typography, Tooltip, Spin, notification } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
   UpOutlined, DownOutlined, ThunderboltOutlined, HighlightOutlined,
 } from '@ant-design/icons'
 import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-import { useAppStore, FEATURED_THEME_KEYS, THEME_PRESET_COLORS, THEME_PRESET_LABELS } from '../stores/appStore'
+import { useAppStore } from '../stores/appStore'
 import { TaskInboxHost } from '../components/TaskInboxHost'
+import { ThemeMenuTrigger } from '../components/AppearanceMenu'
+import BloomStardust from '../components/BloomStardust'
 import { getModelMonitor } from '../api/engines'
 // 3.0「星枢 Constellation OS」壳层革命：顶栏横向菜单 → 左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道。
 // 板块数据源依旧 manifest 驱动（后端 GetBoardManifests，失败回退静态 canonicalBoards）。
@@ -63,11 +65,6 @@ function resolvePageComponent(p: Page): React.ComponentType | undefined {
   if (!m) return undefined
   return getPageComponent(m.page)
 }
-
-// 顶栏只承载 12 套精选；15 套全量在设置页。
-const featuredThemeKeys = FEATURED_THEME_KEYS
-const themeDots = THEME_PRESET_COLORS
-const themeLabels = THEME_PRESET_LABELS
 
 // ─── 遥测数据模型 ─────────────────────────────────────────────
 interface MonitorStats {
@@ -486,39 +483,14 @@ const MainLayout: React.FC = () => {
   const loggedIn = useAppStore((s) => s.loggedIn)
   const login = useAppStore((s) => s.login)
   const checkLogin = useAppStore((s) => s.checkLogin)
-  const baseTheme = useAppStore((s) => s.baseTheme)
   const darkMode = useAppStore((s) => s.darkMode)
   const surfaceStyle = useAppStore((s) => s.surfaceStyle)
   const toggleGlassMode = useAppStore((s) => s.toggleGlassMode)
   const glassMode = surfaceStyle === 'soft'
-  const quickThemeKeys = React.useMemo(
-    () => featuredThemeKeys.includes(baseTheme) ? featuredThemeKeys : [baseTheme, ...featuredThemeKeys],
-    [baseTheme],
-  )
-  // 主题色点双态样式（浅色可见性修复，2026-10-09 用户报告「弹窗选择全是一个颜色」）：
-  // 旧样式为暗色系设计——非激活 0.55 透明度 + 辉光阴影，在浅色白底上把七色洗成
-  // 一样的浅灰圈。暗色保持原辉光语言；浅色=满透明度 + 深色描边环 + 无辉光。
-  const themeDotStyle = (color: string, active: boolean): React.CSSProperties => darkMode
-    ? {
-        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 55%, var(--md-sys-color-surface-dim)))`,
-        border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
-        boxShadow: active
-          ? `0 0 10px ${color}, 0 0 20px color-mix(in srgb, ${color} 45%, transparent)`
-          : `0 0 6px color-mix(in srgb, ${color} 30%, transparent)`,
-        opacity: active ? 1 : 0.55,
-      }
-    : {
-        background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 62%, var(--md-sys-color-surface-dim)))`,
-        border: active ? '2px solid var(--color-text)' : '1px solid color-mix(in srgb, var(--color-text) 24%, transparent)',
-        boxShadow: 'none',
-        opacity: active ? 1 : 0.92,
-      }
-  const setTheme = useAppStore((s) => s.setTheme)
   const toggleDarkMode = useAppStore((s) => s.toggleDarkMode)
 
   const [searchOpen, setSearchOpen] = useState(false)
   // 简化批：strip 常驻主题色点 7 颗收进单钮弹出（触发钮=当前主题色）
-  const [themeOpen, setThemeOpen] = useState(false)
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([DEFAULT_BOARD_ID]))
   // Voice V2 Lab 开关：仅 ?voicev2=1 打开（一次性读取，无 UI 入口）
   const [voiceV2LabOpen] = useState(() => new URLSearchParams(window.location.search).has('voicev2'))
@@ -663,14 +635,7 @@ const MainLayout: React.FC = () => {
 
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-      {/* ── 未来感背景层（星云 + 网格 + 星点，fixed 且不拦截事件）── */}
-      <div className="gaea-bg" aria-hidden="true">
-        <div className="cyber-grid" />
-        <div className="star-dots" />
-        <div className="aurora-orb orb-a" />
-        <div className="aurora-orb orb-b" />
-        <div className="space-dust" />
-      </div>
+      <BloomStardust />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {/* ═══ 左侧指挥轨道（2026-10-27 常驻显示：不再自动隐藏，固定悬浮左缘） ═══ */}
@@ -706,61 +671,7 @@ const MainLayout: React.FC = () => {
                 <span className="v3-pill-label">{pillModel || '选择模型'}</span>
               </button>
             </Tooltip>
-            {/* 主题（简化批）：7 颗常驻色点收进单钮弹出——触发钮即当前主题色，
-                弹层内色点的切换行为/键盘可达逐字保留，功能零删除。 */}
-            <Popover
-              open={themeOpen}
-              onOpenChange={setThemeOpen}
-              trigger="click"
-              placement="bottomRight"
-              title="主题"
-              content={
-                <Space size={10} wrap style={{ padding: '2px 2px 4px' }}>
-                  {quickThemeKeys.map((t) => {
-                    const active = t === baseTheme
-                    return (
-                      <Tooltip key={t} title={themeLabels[t]}>
-                        <span
-                          className="theme-dot"
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`切换主题 ${themeLabels[t]}`}
-                          aria-pressed={active}
-                          onClick={() => { setTheme(t); setThemeOpen(false) }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTheme(t); setThemeOpen(false) } }}
-                          style={{
-                            width: 16, height: 16, borderRadius: '50%',
-                            ...themeDotStyle(themeDots[t], active),
-                            cursor: 'pointer',
-                            transform: active ? 'scale(1.1)' : 'scale(1)',
-                            transition: 'opacity 0.15s, border 0.15s, transform 0.2s, box-shadow 0.2s',
-                          }}
-                        />
-                      </Tooltip>
-                    )
-                  })}
-                </Space>
-              }
-            >
-              <Tooltip title={`主题：${themeLabels[baseTheme]}`}>
-                <span
-                  className="theme-dot"
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`切换主题（当前 ${themeLabels[baseTheme]}）`}
-                  aria-haspopup="true"
-                  aria-expanded={themeOpen}
-                  onClick={() => setThemeOpen((o) => !o)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setThemeOpen((o) => !o) } }}
-                  style={{
-                    width: 16, height: 16, borderRadius: '50%',
-                    ...themeDotStyle(themeDots[baseTheme], true),
-                    cursor: 'pointer',
-                    transition: 'box-shadow 0.2s',
-                  }}
-                />
-              </Tooltip>
-            </Popover>
+            <ThemeMenuTrigger />
             <Tooltip title={glassMode ? t('shell.strip.glassOff') : t('shell.strip.glassOn')}>
               <Button
                 type="text"
@@ -801,7 +712,7 @@ const MainLayout: React.FC = () => {
               <Content style={{
                 padding: isFullLayout ? 0 : '8px 16px 16px',
                 paddingBottom: isFullLayout ? 0 : '16px',
-                background: isFullLayout ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
+                background: 'transparent',
                 overflow: isFullLayout ? 'hidden' : 'auto',
                 flex: 1,
                 display: 'flex',

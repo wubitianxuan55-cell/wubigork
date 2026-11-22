@@ -16,8 +16,8 @@
   --mc-text: var(--md-sys-color-text);
   --mc-muted: var(--md-sys-color-text-secondary);
   --mc-border: var(--md-sys-color-outline-variant);
-  --mc-surface: var(--md-sys-color-surface-container); /* 实底卡（设计系统：信息层不叠玻璃） */
-  --mc-surface-strong: var(--md-sys-color-surface-container-high);
+  --mc-surface: var(--gaea-surface-low); /* 实底卡（设计系统：信息层不叠玻璃） */
+  --mc-surface-strong: var(--gaea-surface-high);
   --mc-ok: var(--md-sys-color-success);
   --mc-warn: var(--md-sys-color-warning);
   --mc-danger: var(--color-destructive); /* 替代硬编码 #fb7185，随主题（暗 #ef4444 / 亮 #dc2626） */

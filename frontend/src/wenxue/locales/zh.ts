@@ -887,7 +887,7 @@ export const zh: Record<DictKey, string> = {
   "settings.appear.livePreviewTitle": "外观实时预览",
   "settings.appear.livePreviewDesc": "当前主题与显示模式的组合效果；打开下拉悬停选项可即时预览，点击才生效。",
   "settings.appear.themeTitle": "主题色系",
-  "settings.appear.themeDesc": "设置页提供 15 套 OKLCH 配色，顶栏快捷切换 12 套精选；可读主色与莫兰迪氛围色分层联动。",
+  "settings.appear.themeDesc": "设置页与顶栏都可直接选择 15 套 OKLCH 配色；可读主色与莫兰迪氛围色分层联动。",
   "settings.appear.dark": "暗色",
   "settings.appear.light": "亮色",
   "settings.appear.previewing": "预览中",

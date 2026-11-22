@@ -887,7 +887,7 @@ export const en = {
   "settings.appear.livePreviewTitle": "Live appearance preview",
   "settings.appear.livePreviewDesc": "The combined effect of the current theme and display mode; open the dropdown and hover an option to preview instantly — click to apply.",
   "settings.appear.themeTitle": "Theme colors",
-  "settings.appear.themeDesc": "Choose from 15 OKLCH palettes in Settings, with 12 curated quick choices in the top bar.",
+  "settings.appear.themeDesc": "Choose from all 15 OKLCH palettes in Settings or the top bar.",
   "settings.appear.dark": "Dark",
   "settings.appear.light": "Light",
   "settings.appear.previewing": "Previewing",

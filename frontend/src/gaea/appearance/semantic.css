@@ -4,7 +4,7 @@
  */
 
 :root {
-  --gaea-accent: var(--md-sys-color-primary);
+  --gaea-accent: var(--gaea-accent-readable, var(--md-sys-color-primary));
   --gaea-accent-ink: var(--md-sys-color-on-primary);
   --gaea-accent-soft: color-mix(in srgb, var(--gaea-accent) 10%, transparent);
   --gaea-accent-line: color-mix(in srgb, var(--gaea-accent) 28%, transparent);
@@ -14,25 +14,58 @@
 
   --gaea-surface-base: var(--md-sys-color-surface);
   --gaea-surface-main: color-mix(in srgb, var(--md-sys-color-surface) 90%, var(--md-sys-color-surface-container));
+  --gaea-surface-low: var(--md-sys-color-surface-container-low);
   --gaea-surface-raised: var(--md-sys-color-surface-container);
   --gaea-surface-high: var(--md-sys-color-surface-container-high);
   --gaea-surface-highest: var(--md-sys-color-surface-container-highest);
   --gaea-surface-sunken: var(--md-sys-color-surface-dim);
+  --gaea-surface-bright: var(--md-sys-color-surface-bright);
   --gaea-surface-overlay: color-mix(in srgb, var(--md-sys-color-surface-container-high) 94%, var(--md-sys-color-surface));
+  --gaea-panel-tint-1: var(--gaea-surface-tint-1, var(--gaea-surface-raised));
+  --gaea-panel-tint-2: var(--gaea-surface-tint-2, var(--md-sys-color-surface-container-high));
+  --gaea-panel-tint-3: var(--gaea-surface-tint-3, var(--md-sys-color-surface-container-highest));
 
   --gaea-ink-primary: var(--md-sys-color-text);
-  --gaea-ink-secondary: var(--md-sys-color-text-secondary);
-  --gaea-ink-tertiary: var(--md-sys-color-text-tertiary);
+  --gaea-ink-secondary: var(--gaea-label-secondary, var(--md-sys-color-text-secondary));
+  --gaea-ink-tertiary: var(--gaea-label-tertiary, var(--md-sys-color-text-tertiary));
+  --gaea-ink-caption: var(--gaea-label-caption, var(--gaea-ink-tertiary));
+  --gaea-ink-dimmed: var(--gaea-label-dimmed, var(--gaea-ink-tertiary));
   --gaea-ink-on-accent: var(--md-sys-color-on-primary);
 
-  --gaea-line-hairline: color-mix(in srgb, var(--gaea-ink-primary) 8%, transparent);
-  --gaea-line-soft: color-mix(in srgb, var(--gaea-ink-primary) 12%, transparent);
-  --gaea-line-strong: color-mix(in srgb, var(--gaea-ink-primary) 18%, transparent);
+  --gaea-line-hairline: var(
+    --gaea-border-1,
+    color-mix(in srgb, var(--gaea-ink-primary) 8%, transparent)
+  );
+  --gaea-line-soft: var(
+    --gaea-border-2,
+    color-mix(in srgb, var(--gaea-ink-primary) 12%, transparent)
+  );
+  --gaea-line-strong: var(
+    --gaea-border-3,
+    color-mix(in srgb, var(--gaea-ink-primary) 18%, transparent)
+  );
+  --gaea-line-max: var(
+    --gaea-border-4,
+    color-mix(in srgb, var(--gaea-ink-primary) 24%, transparent)
+  );
 
   --gaea-state-success: var(--md-sys-color-success);
   --gaea-state-warning: var(--md-sys-color-warning);
   --gaea-state-danger: var(--md-sys-color-destructive);
   --gaea-state-info: var(--md-sys-color-info);
+  --gaea-state-success-bg: var(
+    --gaea-state-success-tertiary,
+    color-mix(in oklch, var(--gaea-state-success) 10%, var(--gaea-surface-base))
+  );
+  --gaea-state-warning-bg: var(
+    --gaea-state-warning-tertiary,
+    color-mix(in oklch, var(--gaea-state-warning) 10%, var(--gaea-surface-base))
+  );
+  --gaea-warning-ink: var(--gaea-state-warning-label, var(--gaea-state-warning));
+  --gaea-state-danger-bg: var(
+    --gaea-state-danger-hover,
+    color-mix(in oklch, var(--gaea-state-danger) 10%, transparent)
+  );
 
   --gaea-scrim: color-mix(in srgb, var(--gaea-surface-sunken) 76%, transparent);
   --gaea-shadow-ambient: 0 18px 54px color-mix(in srgb, var(--gaea-surface-sunken) 28%, transparent);
@@ -60,4 +93,6 @@
   --gaea-link-references: color-mix(in srgb, var(--gaea-chart-8) 45%, transparent);
   --gaea-absolute-white: Canvas;
   --gaea-absolute-black: CanvasText;
+  --gaea-optics-white: oklch(100% 0 0);
+  --gaea-optics-black: oklch(0% 0 0);
 }

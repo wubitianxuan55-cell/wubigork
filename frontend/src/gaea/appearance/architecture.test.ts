@@ -52,17 +52,32 @@ describe('gaea 四层外观架构', () => {
     expect(violations).toEqual([])
   })
 
-  it('对话画布用独立渐隐层绘制可配置网格', () => {
-    const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
+  it('亮暗背景分别保存，并各自映射到上游三种氛围', () => {
     const materials = readFileSync(join(frontendRoot, 'gaea/appearance/materials.css'), 'utf8')
-    expect(components).toContain('.gaea-app-layout .chat-pane::before')
-    expect(components).toContain('linear-gradient(to right, var(--gaea-chat-grid-line) 1px, transparent 1px)')
-    expect(components).toContain('linear-gradient(to bottom, var(--gaea-chat-grid-line) 1px, transparent 1px)')
-    expect(components).toContain('var(--gaea-chat-grid-size) var(--gaea-chat-grid-size)')
-    expect(components).toContain('mask-image: var(--gaea-chat-grid-mask)')
-    expect(materials).toContain('--gaea-chat-grid-size: 80px')
-    expect(materials).toContain('--gaea-chat-grid-mask: radial-gradient(')
-    expect(materials).toContain('--gaea-chat-grid-line: transparent')
+    const app = readFileSync(join(frontendRoot, 'App.tsx'), 'utf8')
+    expect(app).toContain('root.dataset.gaeaAmbienceLight')
+    expect(app).toContain('root.dataset.gaeaAmbienceDark')
+    for (const preset of ['stream', 'wash', 'clear']) {
+      expect(materials).toContain(`[data-gaea-ambience-light="${preset}"]`)
+      expect(materials).toContain(`url("#gaea-fog-${preset}")`)
+    }
+    for (const preset of ['corner', 'diagonal', 'galaxy']) {
+      expect(materials).toContain(`[data-gaea-ambience-dark="${preset}"]`)
+    }
+    expect(materials).not.toContain('--gaea-chat-grid-line')
+  })
+
+  it('深色星尘使用上游确定性粒子序列与模式开关', () => {
+    const stardust = readFileSync(join(frontendRoot, 'components/BloomStardust.tsx'), 'utf8')
+    const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
+    for (const token of ['index < 64', 'index < 26', 'index < 28', 'index < 36', 'index < 44', 'index < 72', 'index < 60']) {
+      expect(stardust).toContain(token)
+    }
+    expect(stardust).toContain("tag: 'b'")
+    expect(components).toContain(':not([data-gaea-ambience-dark="off"])')
+    expect(components).toContain('[data-gaea-ambience-dark="diagonal"]')
+    expect(components).toContain('[data-gaea-ambience-dark="galaxy"]')
+    expect(components).toContain('@keyframes gaea-meteor')
   })
 
   it('壳层只消费材质契约，玻璃态差异留在材料层', () => {
@@ -74,8 +89,6 @@ describe('gaea 四层外观架构', () => {
       '--gaea-shell-sidebar-fill',
       '--gaea-shell-strip-fill',
       '--gaea-shell-panel-fill',
-      '--gaea-shell-chat-start',
-      '--gaea-shell-chat-end',
       '--gaea-shell-composer-fill',
       '--gaea-shell-sheen',
       '--gaea-shell-filter',
@@ -87,6 +100,76 @@ describe('gaea 四层外观架构', () => {
       expect(components).toContain(`var(${token})`)
       expect(materials).toContain(`${token}:`)
     }
-    expect(materials).toContain('--gaea-material-filter: blur(32px) saturate(1.7) contrast(1.05)')
+    expect(materials).toContain(':root[data-gaea-surface="veil"]')
+    expect(materials).toContain('--gaea-material-filter: blur(24px) saturate(1.15)')
+    expect(materials).toContain(':root[data-gaea-surface="matte"]')
+    expect(materials).toContain('--gaea-material-filter: blur(12px) saturate(1.02)')
+    expect(materials).toContain(':root[data-gaea-surface="soft"]')
+    expect(materials).toContain('--gaea-material-filter: blur(3px) url("#gaea-liquid-lens") saturate(1.2)')
+  })
+
+  it('表面色阶随主题分五层，面板消费同色族三种色相层', () => {
+    const tokens = readFileSync(join(frontendRoot, 'theme/tokens.ts'), 'utf8')
+    const semantic = readFileSync(join(frontendRoot, 'gaea/appearance/semantic.css'), 'utf8')
+    const materials = readFileSync(join(frontendRoot, 'gaea/appearance/materials.css'), 'utf8')
+    const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
+    const settings = readFileSync(join(frontendRoot, 'pages/settings-page.css'), 'utf8')
+
+    for (const field of ['surfaceContainerLow', 'surfaceTint1', 'surfaceTint2', 'surfaceTint3']) {
+      expect(tokens).toContain(`${field}: string`)
+    }
+    for (const token of ['--gaea-panel-tint-1', '--gaea-panel-tint-2', '--gaea-panel-tint-3']) {
+      expect(semantic).toContain(`${token}:`)
+      expect(`${materials}\n${components}`).toContain(`var(${token})`)
+    }
+    expect(components).toContain('.v3-card {')
+    expect(components).toContain('var(--gaea-panel-tint-1)')
+    expect(settings).toContain('background-color: color-mix(in srgb, var(--gaea-surface-raised) 72%, transparent)')
+  })
+
+  it('颜色令牌对齐 Bloom 0.29 的可读轨、文案阶梯与状态 tertiary', () => {
+    const tokens = readFileSync(join(frontendRoot, 'theme/tokens.ts'), 'utf8')
+    const app = readFileSync(join(frontendRoot, 'App.tsx'), 'utf8')
+    const semantic = readFileSync(join(frontendRoot, 'gaea/appearance/semantic.css'), 'utf8')
+
+    expect(tokens).toContain('mixOklchHex(accentRaw, black, 0.12)')
+    for (const [field, transparentPercent] of [
+      ['labelSecondary', 'darkMode ? 30 : 28'],
+      ['labelTertiary', 'darkMode ? 35 : 32'],
+      ['labelCaption', 'darkMode ? 40 : 35'],
+      ['labelDimmed', 'darkMode ? 43 : 37'],
+    ] as const) {
+      expect(tokens).toContain(`const ${field} = mixTransparent(text, ${transparentPercent})`)
+      expect(app).toContain(`'--gaea-${field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)}'`)
+    }
+    for (const field of ['border1', 'border2', 'border3', 'border4']) {
+      expect(tokens).toContain(`const ${field} =`)
+      expect(app).toContain(`'--gaea-${field.replace('border', 'border-')}'`)
+    }
+    expect(tokens).toContain('mixBackground(success, rawSurface, darkMode ? 78 : 88)')
+    expect(tokens).toContain('mixBackground(warning, rawSurface, darkMode ? 78 : 88)')
+    expect(tokens).toContain('mixBackground(accent, rawSurface, darkMode ? 78 : 88)')
+    expect(semantic).toContain('var(--gaea-label-secondary')
+    expect(semantic).toContain('--gaea-border-4,')
+    expect(semantic).toContain('--gaea-state-warning-tertiary,')
+  })
+
+  it('降低透明度偏好对已选择材质的根节点同样生效', () => {
+    const materials = readFileSync(join(frontendRoot, 'gaea/appearance/materials.css'), 'utf8')
+    expect(materials).toContain('@media (prefers-reduced-transparency: reduce) {\n  :root {')
+    expect(materials).not.toContain(':root:not([data-gaea-surface])')
+    expect(materials).toContain('--gaea-shell-trigger-filter: none')
+    expect(materials).toContain('--gaea-shell-popover-filter: none')
+  })
+
+  it('顶栏配色使用六列色块网格与独立字幕，细节控制留在设置页', () => {
+    const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
+    const menu = readFileSync(join(frontendRoot, 'components/AppearanceMenu.tsx'), 'utf8')
+    expect(components).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))')
+    expect(components).toContain('.gaea-theme-menu__swatch')
+    expect(components).toContain('.gaea-theme-menu__caption')
+    expect(menu).toContain('THEME_GLYPHS')
+    expect(menu).not.toContain('setAmbienceStyle')
+    expect(menu).not.toContain('setSurfaceStyle')
   })
 })

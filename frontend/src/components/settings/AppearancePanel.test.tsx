@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import AppearancePanel, {
@@ -91,19 +91,26 @@ describe('Bloom 主题选择器', () => {
   it('表面材质切换', () => {
     useAppStore.setState({ surfaceStyle: 'veil' })
     render(wrap(<SurfacePanel />))
-    fireEvent.click(screen.getByText(byDirectText('实底')))
-    expect(useAppStore.getState().surfaceStyle).toBe('solid')
-    expect(localStorage.getItem('gaea-surface-style')).toBe('solid')
+    fireEvent.click(screen.getByText(byDirectText('磨砂玻璃')))
+    expect(useAppStore.getState().surfaceStyle).toBe('matte')
+    expect(localStorage.getItem('gaea-surface-style')).toBe('matte')
+    fireEvent.click(screen.getByText(byDirectText('液态玻璃')))
+    expect(useAppStore.getState().surfaceStyle).toBe('soft')
+    expect(localStorage.getItem('gaea-surface-style')).toBe('soft')
   })
 
-  it('背景氛围切换', () => {
-    useAppStore.setState({ ambienceStyle: 'bloom' })
+  it('亮暗背景氛围分别切换并持久化', async () => {
+    useAppStore.setState({ darkMode: true, lightAmbienceStyle: 'stream', darkAmbienceStyle: 'corner' })
     render(wrap(<AmbiencePanel />))
-    fireEvent.click(screen.getByText(byDirectText('淡彩')))
-    expect(useAppStore.getState().ambienceStyle).toBe('wash')
-    expect(localStorage.getItem('gaea-ambience-style')).toBe('wash')
-    fireEvent.click(screen.getByText(byDirectText('网格')))
-    expect(useAppStore.getState().ambienceStyle).toBe('grid')
-    expect(localStorage.getItem('gaea-ambience-style')).toBe('grid')
+    expect(screen.queryByRole('radio', { name: '水彩晕染' })).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: '对角漫染' }))
+    expect(useAppStore.getState().darkAmbienceStyle).toBe('diagonal')
+    expect(localStorage.getItem('gaea-ambience-dark')).toBe('diagonal')
+    await act(async () => {
+      useAppStore.setState({ darkMode: false })
+    })
+    fireEvent.click(screen.getByRole('radio', { name: '水彩晕染' }))
+    expect(useAppStore.getState().lightAmbienceStyle).toBe('wash')
+    expect(localStorage.getItem('gaea-ambience-light')).toBe('wash')
   })
 })

@@ -1,3 +1,53 @@
+## Bloom 0.29 配色大脑对齐（2026-11-22）
+
+- **上游基线**：`C:\AI\re\dsh-bloom-theme` 拉取 `origin/main` 至
+  `bd3e93f9a708d0d951156866a6f2274d0d33c824`（0.29.0），逐项对照
+  `theme-tokens.ts`、`palette.ts`、`tokens.ts` 与 `switcher` 颜色映射。
+- **可读强调轨**：亮色改为 upstream `accentL 88% + black 12%`，暗色直接使用
+  `accentD`；原始 accent 只用于表面/色块染色，`onPrimary` 回到上游背景前景。
+- **语义阶梯**：接入亮 28/32/35/37、暗 30/35/40/43 的文案四档，亮暗各自
+  独立四档边框，以及 success/warning tertiary、warning label、danger hover、
+  business tertiary 与侧栏 active/hover token。
+- **菜单与无障碍**：色块单字、选中勾与 hover 光晕接上游视觉值；修复
+  `prefers-reduced-transparency` 被 `:not([data-gaea-surface])` 永久挡掉的问题，
+  已选择材质时也会退实底，并同步关闭 trigger/popover 的滤镜。
+- **门禁**：外观/主题/设置定向 **4 文件 110 例**、`tsc -b` 0、改动面 ESLint 0、
+  Vite 生产构建成功 `21.97s`（仅既有 CSS/chunk 警告）。右侧 IAB 已打开
+  `http://127.0.0.1:5173/?mock=1`。
+- **边界**：未构建 Wails、未打包、未装机、未 push。
+
+## Bloom 0.29 完全对齐：色块网格、OKLCH 表面与双套氛围（2026-11-22）
+
+- **上游基线**：重读 `dsh-bloom-theme` 最新 `origin/main`
+  `bd3e93f9a708d0d951156866a6f2274d0d33c824`（0.29.0）源码，按实现细节
+  逐项替换此前的近似方案。
+- **顶栏入口**：切换为上游 0.29 六列色块网格，15 套配色全部展示；每格使用
+  `morandi → accentL` 三段渐变与国风单字，深色切换为 `accentD`；悬停/键盘聚焦
+  更新同一行色名与诗句字幕；补关闭按钮、选中环、焦点返回与 320ms View Transition。
+- **配色大脑**：15 套 accent 保持上游原值；新增真实 OKLCH 混色，不再用 sRGB
+  通道插值。base/layer-2/layer-3 与侧栏按目标彩度反推 accent 混入比，
+  `surfaceTint1/2/3` 回到上游 `bg / layer-2 / layer-3`，莫兰迪只用于氛围、
+  光晕和细线。
+- **材质**：毛玻璃 58% + `blur(24px)`；磨砂 48% + `blur(12px)` + SVG 颗粒；
+  液态 25% + `blur(3px) url(#gaea-liquid-lens) saturate(1.2)`。对话主画布
+  改为透出 body 氛围，内容面统一消费 `--gaea-shell-*` 契约。
+- **背景**：亮暗分别持久化。浅色提供 `斜光流转 / 水彩晕染 / 清透留白 /
+  不显示`，对应三张 SVG fog mask；深色提供 `角落微光 / 对角漫染 / 漫天星辰 /
+  不显示`，叠加四角 radial ambience，并逐行移植上游 330 节点确定性星尘/流星序列。
+- **根因修复**：主内容 `Content` 内联 `--gaea-glass-bg` 把 body 四角氛围盖成
+  一整块实底；移除该内联背景后，dark canvas 空白区取样与 0.29 参考图一致。
+  旧 cyber-grid/star-dots/space-dust 常驻层同时删除。
+- **自动换色**：0/5/15/30/60 分钟持久化；候选集与上游一致，为全量 15 套。
+- **验证**：全量前端 `518` 文件 / `4674` 例均通过；`tsc -b` 0；改动面 ESLint
+  0；Vite 生产构建 `25.27s` 成功（既有 CSS parser/chunk 警告）。全量进程末尾
+  仍报 `wenxue/components/ToolCard.test.tsx` 的既有
+  `EnvironmentTeardownError`（动态 `mock/voice.ts` 在环境回收后完成 import），
+  测试本身 2/2，单跑该文件亦 2/2 绿，与本轮外观链路无关。
+- **实拍**：右侧浏览器停留 `mist / dark / soft / corner`；暗色主画布空白点
+  `(34,44,53)` 与上游 0.29 参考 `(33,44,52)` 对齐，`Content` 透明，
+  `.gaea-stardust` 节点数 330。
+- **边界**：未提交、未构建 Wails、未装机、未 push。
+
 ## Bloom 外观架构 v4 与 Git 打包（2026-11-22）
 
 - **功能提交**：`7fcd1ff5`（`feat(gaea): rebuild appearance system around Bloom architecture`，

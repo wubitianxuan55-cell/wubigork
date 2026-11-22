@@ -4,28 +4,54 @@
  */
 
 body {
-  background-color: var(--gaea-surface-base);
+  position: relative;
+  z-index: 0;
+  background-color: var(--gaea-ambience-base, var(--gaea-surface-base));
   background-image: var(--gaea-shell-canvas-image);
+  background-attachment: fixed;
   color: var(--gaea-ink-primary);
 }
 
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--gaea-fog-glaze);
+  -webkit-mask-image: var(--gaea-fog-mask);
+  mask-image: var(--gaea-fog-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
 .gaea-app-layout {
-  --office-panel: var(--gaea-surface-raised);
+  --office-panel: var(--gaea-surface-low);
   --office-panel-raised: var(--gaea-surface-high);
-  --office-canvas: var(--gaea-surface-base);
+  --office-canvas: var(--gaea-surface-low);
   --office-line: var(--gaea-line-hairline);
   --office-line-strong: var(--gaea-line-soft);
   --office-muted: var(--gaea-ink-secondary);
   --office-accent-wash: var(--gaea-accent-soft);
   --office-accent-line: var(--gaea-accent-line);
-  --office-canvas-cool: var(--gaea-surface-main);
+  --office-canvas-cool: var(--gaea-panel-tint-2);
   --office-grid-line: transparent;
   --office-aura: transparent;
   --office-cloud: transparent;
   --office-cloud-soft: transparent;
   --office-input-surface: var(--gaea-surface-overlay);
   --office-shadow: var(--gaea-shadow-raised);
-  background: var(--gaea-surface-base);
+  background-color: var(--gaea-ambience-base, var(--gaea-surface-base));
+  background-image: var(--gaea-shell-canvas-image);
+  background-attachment: fixed;
 }
 
 .gaea-app-layout.ant-layout,
@@ -33,45 +59,230 @@ body {
   background: transparent;
 }
 
-.gaea-app-layout .gaea-bg {
-  opacity: var(--gaea-ambience-opacity);
+.gaea-stardust {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 220px;
+  z-index: -1;
+  opacity: 0.7;
+  overflow: hidden;
+  pointer-events: none;
+  background: none;
 }
 
-.gaea-app-layout .gaea-bg .cyber-grid,
-.gaea-app-layout .gaea-bg .star-dots,
-.gaea-app-layout .gaea-bg .space-dust {
+:root[data-gaea-mode="dark"]:not([data-gaea-ambience-dark="off"]) .gaea-stardust {
+  display: block;
+}
+
+:root[data-gaea-mode="dark"]:is(
+  [data-gaea-ambience-dark="diagonal"],
+  [data-gaea-ambience-dark="galaxy"]
+) .gaea-stardust {
+  width: 100vw;
+  height: 100vh;
+  -webkit-mask-image: radial-gradient(ellipse 62% 52% at 50% 52%, transparent 38%, black 86%);
+  mask-image: radial-gradient(ellipse 62% 52% at 50% 52%, transparent 38%, black 86%);
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust {
+  opacity: 1;
+  -webkit-mask-image: radial-gradient(ellipse 56% 46% at 50% 54%, color-mix(in srgb, black 25%, transparent) 30%, black 80%);
+  mask-image: radial-gradient(ellipse 56% 46% at 50% 54%, color-mix(in srgb, black 25%, transparent) 30%, black 80%);
+}
+
+.gaea-stardust > b.s-met {
   display: none;
 }
 
-:root:not([data-gaea-ambience="off"]) .gaea-app-layout .gaea-bg .cyber-grid {
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met {
+    display: block;
+  }
+
+  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met:nth-of-type(n + 41) {
+    display: none;
+  }
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > b.s-met {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0;
+  transform-origin: 0 50%;
+  --stardust-colour: var(--gaea-motion-1);
+  background:
+    linear-gradient(
+      90deg,
+      var(--gaea-optics-white) 0%,
+      color-mix(in oklch, var(--stardust-colour) 70%, var(--gaea-optics-white)) 6%,
+      color-mix(in oklch, var(--stardust-colour), transparent 35%) 30%,
+      transparent 100%
+    );
+  filter:
+    drop-shadow(0 0 3px color-mix(in oklch, var(--stardust-colour) 80%, var(--gaea-optics-white)))
+    drop-shadow(0 0 10px var(--stardust-colour));
+  animation: gaea-meteor linear infinite;
+  will-change: transform, opacity;
+}
+
+.gaea-stardust > b.s-met.m2 {
+  --stardust-colour: var(--gaea-motion-2);
+}
+
+.gaea-stardust > b.s-met.m3 {
+  --stardust-colour: var(--gaea-motion-3);
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-amb.t,
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-bl.t {
+  background: color-mix(in oklch, var(--gaea-motion-2) 55%, var(--gaea-optics-white));
+  box-shadow: 0 0 calc(var(--glow, 3px) * 1.6) var(--gaea-motion-2);
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-amb:not(.t) {
+  background: color-mix(in oklch, var(--gaea-motion-3) 45%, var(--gaea-optics-white));
+  box-shadow: 0 0 calc(var(--glow, 3px) * 1.6) var(--gaea-motion-3);
+}
+
+@keyframes gaea-meteor {
+  0% {
+    transform: rotate(var(--rot)) translateX(0);
+    opacity: 0;
+  }
+  2% {
+    opacity: var(--peak);
+  }
+  18% {
+    opacity: var(--peak);
+  }
+  24% {
+    transform: rotate(var(--rot)) translateX(calc(var(--travel) * -1));
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(var(--rot)) translateX(calc(var(--travel) * -1));
+    opacity: 0;
+  }
+}
+
+.gaea-stardust > i.s-bl,
+.gaea-stardust > i.s-amb,
+.gaea-stardust > i.s-galaxy-edge {
+  display: none;
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="diagonal"] .gaea-stardust > i.s-bl,
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-bl,
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-amb,
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-galaxy-edge {
   display: block;
+}
+
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-amb,
+:root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-galaxy-edge {
+  animation-name: gaea-spark-drift, gaea-galaxy-firefly;
+}
+
+@keyframes gaea-galaxy-firefly {
+  0%,
+  100% {
+    opacity: calc(var(--peak) * 0.24);
+  }
+  22% {
+    opacity: var(--peak);
+  }
+  42% {
+    opacity: calc(var(--peak) * 0.4);
+  }
+  66% {
+    opacity: calc(var(--peak) * 0.9);
+  }
+  84% {
+    opacity: calc(var(--peak) * 0.3);
+  }
+}
+
+.gaea-stardust > i {
+  display: block;
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  background: var(--gaea-optics-white);
+  box-shadow: 0 0 var(--glow, 3px) color-mix(in srgb, var(--gaea-optics-white) 70%, transparent);
+  animation-name: gaea-spark-drift, gaea-spark-twinkle;
+  animation-timing-function: cubic-bezier(0.25, 0.6, 0.35, 1), ease-in-out;
+  animation-iteration-count: infinite, infinite;
+  will-change: transform, opacity;
+}
+
+.gaea-stardust > i.t {
+  background: color-mix(in oklch, var(--gaea-accent) 40%, var(--gaea-optics-white));
+  box-shadow: 0 0 var(--glow, 3px) color-mix(in oklch, var(--gaea-accent), transparent 15%);
+}
+
+@keyframes gaea-spark-drift {
+  0% {
+    transform: translate(0, 0) scale(0.3);
+  }
+  25% {
+    transform: translate(calc(var(--dx) * 0.35), calc(var(--dy) * 0.35)) scale(0.9);
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(1);
+  }
+}
+
+@keyframes gaea-spark-twinkle {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: var(--peak);
+  }
+  35% {
+    opacity: calc(var(--peak) * 0.3);
+  }
+  55% {
+    opacity: var(--peak);
+  }
+  75% {
+    opacity: calc(var(--peak) * 0.15);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaea-stardust > i,
+  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-amb,
+  :root[data-gaea-mode="dark"][data-gaea-ambience-dark="galaxy"] .gaea-stardust > i.s-galaxy-edge {
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
+.v3-panel {
+  background-color: var(--gaea-panel-tint-2);
   background-image:
-    linear-gradient(var(--gaea-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--gaea-grid-line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  opacity: var(--gaea-grid-opacity, 0.42);
-  -webkit-mask-image: radial-gradient(ellipse 92% 82% at 50% 18%, black 24%, transparent 78%);
-  mask-image: radial-gradient(ellipse 92% 82% at 50% 18%, black 24%, transparent 78%);
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--gaea-panel-tint-1) 54%, transparent),
+      color-mix(in srgb, var(--gaea-panel-tint-3) 24%, transparent)
+    );
 }
 
-.gaea-app-layout .gaea-bg .aurora-orb {
-  width: 52vw;
-  height: 52vw;
-  min-width: 520px;
-  min-height: 520px;
-  background: radial-gradient(circle, var(--gaea-ambient-soft), transparent 70%);
-  filter: blur(80px);
-  opacity: 0.72;
-}
-
-.gaea-app-layout .gaea-bg .orb-a {
-  top: -28%;
-  right: -10%;
-}
-
-.gaea-app-layout .gaea-bg .orb-b {
-  bottom: -36%;
-  left: 8%;
+.v3-card {
+  background-color: var(--gaea-panel-tint-1);
+  background-image:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--gaea-panel-tint-1) 92%, var(--gaea-surface-highest)),
+      color-mix(in srgb, var(--gaea-panel-tint-2) 78%, var(--gaea-surface-raised))
+    );
 }
 
 .v3-rail {
@@ -124,11 +335,11 @@ body {
 
 .v3-strip {
   border-bottom: 1px solid var(--gaea-line-hairline);
-  background-color: var(--gaea-shell-strip-fill) !important;
-  background-image: var(--gaea-shell-sheen) !important;
-  box-shadow: var(--gaea-shell-edge), var(--gaea-shell-shadow) !important;
-  backdrop-filter: var(--gaea-shell-filter) !important;
-  -webkit-backdrop-filter: var(--gaea-shell-filter) !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .v3-model-pill {
@@ -182,6 +393,511 @@ body {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gaea-ink-primary) 12%, transparent);
 }
 
+.gaea-theme-trigger {
+  min-width: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid var(--gaea-line-hairline);
+  border-radius: 9px;
+  color: var(--gaea-ink-secondary);
+  background-color: var(--gaea-shell-trigger-fill);
+  background-image: var(--gaea-shell-trigger-image);
+  box-shadow: var(--gaea-shell-edge);
+  backdrop-filter: var(--gaea-shell-trigger-filter);
+  -webkit-backdrop-filter: var(--gaea-shell-trigger-filter);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--md-sys-transition-fast),
+    border-color var(--md-sys-transition-fast),
+    background-color var(--md-sys-transition-fast),
+    box-shadow var(--md-sys-transition-fast);
+}
+
+.gaea-theme-trigger:hover,
+.gaea-theme-trigger[aria-expanded="true"] {
+  color: var(--gaea-ink-primary);
+  border-color: var(--gaea-line-soft);
+  box-shadow: 0 0 14px -6px var(
+    --gaea-bloom-glow,
+    color-mix(in oklch, var(--gaea-accent) 28%, transparent)
+  );
+}
+
+.gaea-theme-trigger__name {
+  max-width: 56px;
+  overflow: hidden;
+  color: var(--gaea-ink-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gaea-theme-trigger__chevron {
+  color: var(--gaea-ink-tertiary);
+  font-size: 9px;
+  transition: transform var(--md-sys-transition-fast);
+}
+
+.gaea-theme-trigger[aria-expanded="true"] .gaea-theme-trigger__chevron {
+  transform: rotate(180deg);
+}
+
+.gaea-theme-dot {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 1px color-mix(in srgb, var(--gaea-ink-on-accent) 42%, transparent),
+    inset 0 -1px 1px color-mix(in srgb, var(--gaea-absolute-black) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--gaea-ink-primary) 14%, transparent);
+}
+
+.gaea-theme-popover .ant-popover-container,
+.gaea-theme-popover .ant-popover-inner {
+  padding: 0;
+}
+
+.gaea-theme-popover,
+.gaea-theme-popover .ant-popover-content,
+.gaea-theme-popover .ant-popover-container {
+  animation: none !important;
+}
+
+.gaea-theme-popover .ant-popover-inner {
+  overflow: hidden;
+  border: 1px solid var(--gaea-line-hairline);
+  border-radius: 12px;
+  color: var(--gaea-ink-primary);
+  background: var(--gaea-shell-popover-fill);
+  box-shadow: var(--gaea-shell-edge), var(--gaea-shadow-ambient);
+  backdrop-filter: var(--gaea-shell-popover-filter);
+  -webkit-backdrop-filter: var(--gaea-shell-popover-filter);
+}
+
+.gaea-theme-menu {
+  width: min(312px, calc(100vw - 88px));
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 0 6px;
+  scrollbar-width: thin;
+  transform-origin: top right;
+  animation: gaea-menu-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes gaea-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes gaea-menu-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.gaea-theme-menu__option,
+.gaea-theme-menu__section-title,
+.gaea-theme-menu__caption,
+.gaea-theme-menu__mode,
+.gaea-theme-menu__hint,
+.gaea-theme-menu__foot {
+  animation: gaea-menu-row-in 240ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.gaea-theme-menu__option {
+  animation-delay: calc(30ms + var(--gaea-row-index, 0) * 12ms);
+}
+
+.gaea-theme-menu__section-title,
+.gaea-theme-menu__caption,
+.gaea-theme-menu__mode,
+.gaea-theme-menu__hint,
+.gaea-theme-menu__foot {
+  animation-delay: 174ms;
+}
+
+.gaea-theme-menu__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px 10px;
+  border-bottom: 0;
+  background: color-mix(in srgb, var(--gaea-material-fill-strong) 94%, transparent);
+  box-shadow: 0 6px 10px -8px color-mix(in oklch, var(--gaea-accent) 22%, transparent);
+  backdrop-filter: var(--gaea-material-filter);
+  -webkit-backdrop-filter: var(--gaea-material-filter);
+}
+
+.gaea-theme-menu__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gaea-theme-menu__current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--gaea-ink-secondary);
+  background: var(--gaea-accent-soft);
+  font-size: 12px;
+}
+
+.gaea-theme-menu__current .gaea-theme-dot {
+  width: 11px;
+  height: 11px;
+}
+
+.gaea-theme-menu__close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--gaea-ink-tertiary);
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gaea-theme-menu__close:hover {
+  color: var(--gaea-ink-primary);
+  background: var(--gaea-accent-soft);
+}
+
+.gaea-theme-menu__section-title {
+  padding: 10px 14px 4px;
+  color: var(--gaea-ink-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.gaea-theme-menu__palette {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.gaea-theme-menu__option {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: var(--gaea-ink-primary);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform var(--md-sys-transition-fast),
+    background-color var(--md-sys-transition-fast);
+}
+
+.gaea-theme-menu__option:hover,
+.gaea-theme-menu__option:focus-visible {
+  background: rgba(var(--gaea-ambience-rgb), 0.14);
+}
+
+.gaea-theme-menu__option[data-active="true"] {
+  background: rgba(var(--gaea-ambience-rgb), 0.12);
+}
+
+.gaea-theme-menu__swatch {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9px;
+  background:
+    linear-gradient(
+      150deg,
+      var(--gaea-swatch-a) 0%,
+      var(--gaea-swatch-b) 52%,
+      color-mix(in oklch, var(--gaea-swatch-b) 84%, black) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-surface-bright) 34%, transparent),
+    inset 0 -2px 5px -1px color-mix(in srgb, var(--gaea-surface-sunken) 26%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gaea-ink-primary) 10%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--gaea-surface-sunken) 32%, transparent);
+  transition: transform var(--md-sys-transition-fast);
+}
+
+:root[data-gaea-mode="dark"] .gaea-theme-menu__swatch {
+  background:
+    linear-gradient(
+      150deg,
+      var(--gaea-swatch-a) 0%,
+      var(--gaea-swatch-bd) 52%,
+      color-mix(in oklch, var(--gaea-swatch-bd) 82%, black) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-surface-bright) 16%, transparent),
+    inset 0 -2px 5px -1px color-mix(in srgb, var(--gaea-surface-sunken) 42%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gaea-surface-bright) 10%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--gaea-surface-sunken) 45%, transparent);
+}
+
+.gaea-theme-menu__option:hover .gaea-theme-menu__swatch {
+  transform: scale(1.08);
+}
+
+.gaea-theme-menu__option[data-active="true"] .gaea-theme-menu__swatch {
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklch, var(--gaea-accent) 70%, transparent),
+    0 0 0 2px color-mix(in oklch, var(--gaea-accent) 22%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--gaea-surface-sunken) 28%, transparent);
+}
+
+.gaea-theme-menu__glyph {
+  color: color-mix(in srgb, var(--gaea-absolute-white) 94%, transparent);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--gaea-optics-black) 32%, transparent);
+}
+
+.gaea-theme-menu__check {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 13px;
+  height: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--gaea-absolute-white);
+  background: var(--gaea-accent);
+  box-shadow: 0 1px 3px -1px color-mix(in srgb, var(--gaea-surface-sunken) 40%, transparent);
+  font-size: 8px;
+  opacity: 0;
+}
+
+.gaea-theme-menu__option[data-active="true"] .gaea-theme-menu__check {
+  opacity: 1;
+}
+
+.gaea-theme-menu__caption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 20px;
+  margin: 2px 12px 4px;
+  padding: 3px 6px;
+  border-radius: 9px;
+  color: var(--gaea-ink-secondary);
+  background: color-mix(in srgb, var(--gaea-surface-low) 55%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.gaea-theme-menu__caption strong {
+  flex: 0 0 auto;
+  color: var(--gaea-ink-primary);
+  font-weight: 650;
+}
+
+.gaea-theme-menu__caption span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gaea-theme-menu__mode {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin: 0 14px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--gaea-accent) 6%, transparent);
+}
+
+.gaea-theme-menu__mode button {
+  min-width: 0;
+  min-height: 30px;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: var(--gaea-ink-tertiary);
+  background: transparent;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    color var(--md-sys-transition-fast),
+    background-color var(--md-sys-transition-fast),
+    box-shadow var(--md-sys-transition-fast);
+}
+
+.gaea-theme-menu__mode button:hover {
+  color: var(--gaea-ink-primary);
+  background: var(--gaea-accent-soft);
+}
+
+.gaea-theme-menu__mode button[data-active="true"] {
+  color: var(--gaea-accent);
+  background: var(--gaea-surface-base);
+  box-shadow: 0 1px 3px -1px color-mix(in oklch, var(--gaea-accent) 30%, transparent);
+}
+
+.gaea-theme-menu__hint {
+  margin: 7px 14px 2px;
+  color: var(--gaea-ink-secondary);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.gaea-theme-menu__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px 8px;
+  background: color-mix(in srgb, var(--gaea-material-fill-strong) 94%, transparent);
+  box-shadow: 0 -6px 10px -8px color-mix(in oklch, var(--gaea-accent) 18%, transparent);
+  backdrop-filter: var(--gaea-material-filter);
+  -webkit-backdrop-filter: var(--gaea-material-filter);
+}
+
+.gaea-theme-menu__brand {
+  color: var(--gaea-ink-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.gaea-theme-menu__more {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--gaea-ink-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color var(--md-sys-transition-fast),
+    border-color var(--md-sys-transition-fast),
+    background-color var(--md-sys-transition-fast);
+}
+
+.gaea-theme-menu__more:hover {
+  color: var(--gaea-ink-primary);
+  background: transparent;
+}
+
+@media (max-width: 1180px) {
+  .gaea-theme-trigger {
+    width: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .gaea-theme-trigger__name,
+  .gaea-theme-trigger__chevron {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 1ms;
+  }
+
+  .gaea-theme-trigger,
+  .gaea-theme-trigger__chevron,
+  .gaea-theme-menu__option,
+  .gaea-theme-menu__swatch,
+  .gaea-theme-menu__mode button,
+  .gaea-theme-menu__more {
+    transition: none;
+  }
+
+  .gaea-theme-menu,
+  .gaea-theme-menu__option,
+  .gaea-theme-menu__section-title,
+  .gaea-theme-menu__caption,
+  .gaea-theme-menu__mode,
+  .gaea-theme-menu__hint,
+  .gaea-theme-menu__foot {
+    animation: none;
+  }
+}
+
+.ui-reduced-motion .gaea-theme-trigger,
+.ui-reduced-motion .gaea-theme-trigger__chevron,
+.ui-reduced-motion .gaea-theme-menu__option,
+.ui-reduced-motion .gaea-theme-menu__swatch,
+.ui-reduced-motion .gaea-theme-menu__mode button,
+.ui-reduced-motion .gaea-theme-menu__more {
+  transition: none;
+}
+
+.ui-reduced-motion .gaea-theme-menu,
+.ui-reduced-motion .gaea-theme-menu__option,
+.ui-reduced-motion .gaea-theme-menu__section-title,
+.ui-reduced-motion .gaea-theme-menu__caption,
+.ui-reduced-motion .gaea-theme-menu__mode,
+.ui-reduced-motion .gaea-theme-menu__hint,
+.ui-reduced-motion .gaea-theme-menu__foot {
+  animation: none;
+}
+
 .v3-telemetry {
   border-top: 1px solid var(--gaea-line-hairline);
   background-color: var(--gaea-shell-strip-fill) !important;
@@ -205,7 +921,7 @@ body {
   border-right: 1px solid var(--gaea-line-hairline);
   background-color: var(--gaea-shell-sidebar-fill) !important;
   background-image: var(--gaea-shell-sheen) !important;
-  box-shadow: inset -1px 0 0 var(--gaea-line-hairline) !important;
+  box-shadow: var(--gaea-shell-edge), var(--gaea-shell-shadow) !important;
   backdrop-filter: var(--gaea-shell-filter) !important;
   -webkit-backdrop-filter: var(--gaea-shell-filter) !important;
 }
@@ -236,37 +952,13 @@ body {
 
 .gaea-app-layout .chat-pane {
   background-color: transparent !important;
-  background-image:
-    radial-gradient(900px circle at 102% -12%, color-mix(in srgb, var(--gaea-ambient) 15%, transparent), transparent 62%),
-    var(--gaea-shell-sheen),
-    linear-gradient(155deg, var(--gaea-shell-chat-start), var(--gaea-shell-chat-end)) !important;
-  background-size: auto;
-  background-position: center;
-  backdrop-filter: var(--gaea-shell-chat-filter) !important;
-  -webkit-backdrop-filter: var(--gaea-shell-chat-filter) !important;
-}
-
-.gaea-app-layout .chat-pane::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, var(--gaea-chat-grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--gaea-chat-grid-line) 1px, transparent 1px);
-  background-size: var(--gaea-chat-grid-size) var(--gaea-chat-grid-size);
-  background-position: center;
-  opacity: var(--gaea-chat-grid-opacity);
-  -webkit-mask-image: var(--gaea-chat-grid-mask);
-  mask-image: var(--gaea-chat-grid-mask);
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .gaea-app-layout .chat-pane.office-chat-active {
-  background-image:
-    radial-gradient(820px circle at 104% -14%, color-mix(in srgb, var(--gaea-ambient) 9%, transparent), transparent 64%),
-    var(--gaea-shell-sheen),
-    linear-gradient(165deg, var(--gaea-shell-chat-start), var(--gaea-shell-chat-end)) !important;
+  background-image: none !important;
 }
 
 .gaea-app-layout .office-topbar,
@@ -274,7 +966,7 @@ body {
   border-bottom: 1px solid var(--gaea-line-hairline) !important;
   background-color: var(--gaea-shell-strip-fill) !important;
   background-image: var(--gaea-shell-sheen) !important;
-  box-shadow: var(--gaea-shell-edge) !important;
+  box-shadow: var(--gaea-shell-edge), var(--gaea-shell-shadow) !important;
   backdrop-filter: var(--gaea-shell-filter) !important;
   -webkit-backdrop-filter: var(--gaea-shell-filter) !important;
 }
@@ -348,6 +1040,86 @@ body {
 .gaea-app-layout .office-send-button:disabled {
   color: var(--gaea-ink-tertiary) !important;
   background: var(--gaea-surface-high) !important;
+}
+
+:root[data-gaea-mode="light"] .gaea-app-layout .office-send-button {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  color: color-mix(in oklch, var(--gaea-accent) 70%, var(--gaea-ink-secondary)) !important;
+  background: transparent !important;
+  background-image:
+    radial-gradient(
+      ellipse at 28% 13%,
+      var(--gaea-optics-white),
+      color-mix(in srgb, var(--gaea-optics-white) 45%, transparent) 28%,
+      transparent 54%
+    ),
+    radial-gradient(
+      ellipse at 79% 82%,
+      color-mix(in oklch, var(--gaea-motion-3) 20%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--gaea-motion-1) 7%, color-mix(in srgb, var(--gaea-optics-white) 92%, transparent)),
+      color-mix(in oklch, var(--gaea-motion-2) 14%, color-mix(in srgb, var(--gaea-optics-white) 78%, transparent))
+    ) !important;
+  box-shadow:
+    inset 0 1px 2px var(--gaea-optics-white),
+    inset 0 -2px 3px color-mix(in oklch, var(--gaea-motion-2) 18%, transparent),
+    0 7px 14px -6px color-mix(in oklch, var(--gaea-motion-1) 26%, transparent),
+    0 2px 4px color-mix(in srgb, var(--gaea-optics-black) 10%, transparent) !important;
+  backdrop-filter: blur(2px) url("#gaea-liquid-lens") saturate(1.15);
+  -webkit-backdrop-filter: blur(2px) url("#gaea-liquid-lens") saturate(1.15);
+}
+
+:root[data-gaea-mode="dark"] .gaea-app-layout .office-send-button {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  color: var(--gaea-ink-primary) !important;
+  background: transparent !important;
+  background-image:
+    radial-gradient(ellipse at 28% 17%, color-mix(in srgb, var(--gaea-optics-white) 26%, transparent), transparent 62%),
+    radial-gradient(
+      ellipse at 79% 82%,
+      color-mix(in oklch, var(--gaea-motion-3) 16%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--gaea-panel-tint-2) 88%, var(--gaea-motion-1)),
+      color-mix(in oklch, var(--gaea-surface-base) 90%, var(--gaea-motion-2))
+    ) !important;
+  box-shadow:
+    inset 0 1px 1px color-mix(in srgb, var(--gaea-optics-white) 34%, transparent),
+    inset 0 -2px 3px color-mix(in srgb, var(--gaea-optics-black) 28%, transparent),
+    0 6px 12px -6px color-mix(in srgb, var(--gaea-optics-black) 35%, transparent) !important;
+  backdrop-filter: blur(2px) url("#gaea-liquid-lens") saturate(1.15);
+  -webkit-backdrop-filter: blur(2px) url("#gaea-liquid-lens") saturate(1.15);
+}
+
+:root[data-gaea-mode="light"] .gaea-app-layout .office-send-button:disabled:not([data-sending]),
+:root[data-gaea-mode="dark"] .gaea-app-layout .office-send-button:disabled:not([data-sending]) {
+  opacity: 0.68;
+  color: var(--gaea-ink-primary) !important;
+  background: transparent !important;
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .gaea-app-layout .office-send-button {
+    border: 1px solid currentColor !important;
+    background: Canvas !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 .gaea-app-layout .office-quick-action {

@@ -42,6 +42,9 @@ const FONT_SIZE_KEY = 'gaea-font-size'
 const SURFACE_KEY = 'gaea-surface-style'
 const SURFACE_RESTORE_KEY = 'gaea-surface-style-restore'
 const AMBIENCE_KEY = 'gaea-ambience-style'
+const LIGHT_AMBIENCE_KEY = 'gaea-ambience-light'
+const DARK_AMBIENCE_KEY = 'gaea-ambience-dark'
+const THEME_ROTATION_KEY = 'gaea-theme-rotation-minutes'
 const SHELL_SPACE_KEY = 'gaea.shell.space'
 
 /** Preset UI font families. */
@@ -71,9 +74,15 @@ function loadFontSize(): number {
 
 export type Density = 'standard' | 'compact'
 export type MotionPref = 'full' | 'reduced'
-export type SurfaceStyle = 'veil' | 'soft' | 'solid'
+export type SurfaceStyle = 'veil' | 'matte' | 'soft' | 'solid'
 export type SurfaceBaseStyle = Exclude<SurfaceStyle, 'soft'>
 export type AmbienceStyle = 'bloom' | 'wash' | 'grid' | 'off'
+export type LightAmbienceStyle = 'stream' | 'wash' | 'clear' | 'off'
+export type DarkAmbienceStyle = 'corner' | 'diagonal' | 'galaxy' | 'off'
+export const LIGHT_AMBIENCE_STYLES = ['stream', 'wash', 'clear', 'off'] as const
+export const DARK_AMBIENCE_STYLES = ['corner', 'diagonal', 'galaxy', 'off'] as const
+export const THEME_ROTATION_MINUTES = [0, 5, 15, 30, 60] as const
+export type ThemeRotationMinutes = typeof THEME_ROTATION_MINUTES[number]
 
 function loadDensity(): Density {
   try {
@@ -94,15 +103,15 @@ function loadMotion(): MotionPref {
 function loadSurfaceStyle(): SurfaceStyle {
   try {
     const value = localStorage.getItem(SURFACE_KEY)
-    if (value === 'veil' || value === 'soft' || value === 'solid') return value
+    if (value === 'veil' || value === 'matte' || value === 'soft' || value === 'solid') return value
   } catch {}
-  return 'veil'
+  return 'soft'
 }
 
 function loadSurfaceStyleBeforeGlass(): SurfaceBaseStyle {
   try {
     const value = localStorage.getItem(SURFACE_RESTORE_KEY)
-    if (value === 'veil' || value === 'solid') return value
+    if (value === 'veil' || value === 'matte' || value === 'solid') return value
   } catch {}
   return 'veil'
 }
@@ -112,7 +121,52 @@ function loadAmbienceStyle(): AmbienceStyle {
     const value = localStorage.getItem(AMBIENCE_KEY)
     if (value === 'bloom' || value === 'wash' || value === 'grid' || value === 'off') return value
   } catch {}
-  return 'grid'
+  return 'bloom'
+}
+
+function legacyLightAmbience(value: string | null): LightAmbienceStyle {
+  if (value === 'wash') return 'wash'
+  if (value === 'off') return 'off'
+  return 'stream'
+}
+
+function legacyDarkAmbience(value: string | null): DarkAmbienceStyle {
+  if (value === 'wash') return 'diagonal'
+  if (value === 'grid') return 'galaxy'
+  if (value === 'off') return 'off'
+  return 'corner'
+}
+
+function loadLightAmbienceStyle(): LightAmbienceStyle {
+  try {
+    const value = localStorage.getItem(LIGHT_AMBIENCE_KEY)
+    if (LIGHT_AMBIENCE_STYLES.includes(value as LightAmbienceStyle)) {
+      return value as LightAmbienceStyle
+    }
+    return legacyLightAmbience(localStorage.getItem(AMBIENCE_KEY))
+  } catch {}
+  return 'stream'
+}
+
+function loadDarkAmbienceStyle(): DarkAmbienceStyle {
+  try {
+    const value = localStorage.getItem(DARK_AMBIENCE_KEY)
+    if (DARK_AMBIENCE_STYLES.includes(value as DarkAmbienceStyle)) {
+      return value as DarkAmbienceStyle
+    }
+    return legacyDarkAmbience(localStorage.getItem(AMBIENCE_KEY))
+  } catch {}
+  return 'corner'
+}
+
+function loadThemeRotationMinutes(): ThemeRotationMinutes {
+  try {
+    const value = Number(localStorage.getItem(THEME_ROTATION_KEY))
+    if (THEME_ROTATION_MINUTES.includes(value as ThemeRotationMinutes)) {
+      return value as ThemeRotationMinutes
+    }
+  } catch {}
+  return 0
 }
 
 function loadAccent(): string {
@@ -161,7 +215,7 @@ function loadBaseTheme(): ThemePreset {
     if (isThemePreset(value)) return value
     if (value) localStorage.removeItem(THEME_KEY)
   } catch {}
-  return 'ripple'
+  return 'mist'
 }
 
 interface AppState {
@@ -176,6 +230,9 @@ interface AppState {
   surfaceStyle: SurfaceStyle
   surfaceStyleBeforeGlass: SurfaceBaseStyle
   ambienceStyle: AmbienceStyle
+  lightAmbienceStyle: LightAmbienceStyle
+  darkAmbienceStyle: DarkAmbienceStyle
+  themeRotationMinutes: ThemeRotationMinutes
   accentColor: string
   fontFamily: string
   fontSize: number
@@ -192,6 +249,9 @@ interface AppState {
   setSurfaceStyle: (style: SurfaceStyle) => void
   toggleGlassMode: () => void
   setAmbienceStyle: (style: AmbienceStyle) => void
+  setLightAmbienceStyle: (style: LightAmbienceStyle) => void
+  setDarkAmbienceStyle: (style: DarkAmbienceStyle) => void
+  setThemeRotationMinutes: (minutes: ThemeRotationMinutes) => void
   setAccentColor: (color: string) => void
   setFontFamily: (font: string) => void
   setFontSize: (size: number) => void
@@ -214,6 +274,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   surfaceStyle: loadSurfaceStyle(),
   surfaceStyleBeforeGlass: loadSurfaceStyleBeforeGlass(),
   ambienceStyle: loadAmbienceStyle(),
+  lightAmbienceStyle: loadLightAmbienceStyle(),
+  darkAmbienceStyle: loadDarkAmbienceStyle(),
+  themeRotationMinutes: loadThemeRotationMinutes(),
   accentColor: loadAccent(),
   fontFamily: loadFontFamily(),
   fontSize: loadFontSize(),
@@ -221,10 +284,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setTheme: (base) => {
     if (!isThemePreset(base)) return
-    set({ baseTheme: base })
-    try {
-      localStorage.setItem(THEME_KEY, base)
-    } catch {}
+    const apply = () => {
+      set({ baseTheme: base })
+      try {
+        localStorage.setItem(THEME_KEY, base)
+      } catch {}
+    }
+    if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+      document.startViewTransition(apply)
+    } else {
+      apply()
+    }
   },
 
   toggleDarkMode: () => {
@@ -287,9 +357,37 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setAmbienceStyle: (ambienceStyle) => {
-    set({ ambienceStyle })
+    const lightAmbienceStyle = legacyLightAmbience(ambienceStyle)
+    const darkAmbienceStyle = legacyDarkAmbience(ambienceStyle)
+    set({ ambienceStyle, lightAmbienceStyle, darkAmbienceStyle })
     try {
       localStorage.setItem(AMBIENCE_KEY, ambienceStyle)
+      localStorage.setItem(LIGHT_AMBIENCE_KEY, lightAmbienceStyle)
+      localStorage.setItem(DARK_AMBIENCE_KEY, darkAmbienceStyle)
+    } catch {}
+  },
+
+  setLightAmbienceStyle: (lightAmbienceStyle) => {
+    if (!LIGHT_AMBIENCE_STYLES.includes(lightAmbienceStyle)) return
+    set({ lightAmbienceStyle })
+    try {
+      localStorage.setItem(LIGHT_AMBIENCE_KEY, lightAmbienceStyle)
+    } catch {}
+  },
+
+  setDarkAmbienceStyle: (darkAmbienceStyle) => {
+    if (!DARK_AMBIENCE_STYLES.includes(darkAmbienceStyle)) return
+    set({ darkAmbienceStyle })
+    try {
+      localStorage.setItem(DARK_AMBIENCE_KEY, darkAmbienceStyle)
+    } catch {}
+  },
+
+  setThemeRotationMinutes: (themeRotationMinutes) => {
+    if (!THEME_ROTATION_MINUTES.includes(themeRotationMinutes)) return
+    set({ themeRotationMinutes })
+    try {
+      localStorage.setItem(THEME_ROTATION_KEY, String(themeRotationMinutes))
     } catch {}
   },
 

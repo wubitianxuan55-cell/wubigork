@@ -70,7 +70,7 @@ export const SETTINGS_CATEGORIES: Category[] = [
     labelKey: 'settings.cat.general',
     desc: '外观',
     descKey: 'settings.cat.generalDesc',
-    keywords: ['通用', '外观', '主题', '暗色', '亮色', '深色', '浅色', '模式', '字体', '字号', '密度', '动效', '动画', '强调色', '颜色', '显示', '语言', '界面语言', '英文', '繁体', 'language'],
+    keywords: ['通用', '外观', '主题', '暗色', '亮色', '深色', '浅色', '模式', '字体', '字号', '密度', '动效', '动画', '强调色', '颜色', '显示', '自动换色', '轮换', '语言', '界面语言', '英文', '繁体', 'language'],
     panel: (query, tab, onTabChange) => (
       <GeneralSettingsPanel query={query} initialTab={tab} onTabChange={onTabChange} />
     ),

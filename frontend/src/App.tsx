@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import MainLayout from './layouts/MainLayout'
 import BootSplash from './components/BootSplash'
+import BloomSvgDefs from './components/BloomSvgDefs'
 import { useAppStore, getThemeTokens, FONT_OPTIONS } from './stores/appStore'
 import { initBridge } from './gaea/lib/bridge'
 import { initRuntimePolyfill } from './api/runtimePolyfill'
@@ -16,6 +17,7 @@ import { ensureLightContrast } from './lib/accent'
 import { subscribeWailsEvent } from './gaea/lib/wailsEvents'
 import { handleImageGenPressureEvent } from './utils/imagegenPressure'
 import { SYNTAX_PALETTE } from './theme/syntaxPalette'
+import { useThemeAutoRotation } from './hooks/useThemeAutoRotation'
 
 /** hex 颜色 → 'r,g,b' 字符串（用于 --accent-rgb 覆盖） */
 function hexToRgb(hex: string): string {
@@ -26,12 +28,14 @@ function hexToRgb(hex: string): string {
 }
 
 const App: React.FC = () => {
+  useThemeAutoRotation()
   const baseTheme = useAppStore((s) => s.baseTheme)
   const darkMode = useAppStore((s) => s.darkMode)
   const density = useAppStore((s) => s.density)
   const motion = useAppStore((s) => s.motion)
   const surfaceStyle = useAppStore((s) => s.surfaceStyle)
-  const ambienceStyle = useAppStore((s) => s.ambienceStyle)
+  const lightAmbienceStyle = useAppStore((s) => s.lightAmbienceStyle)
+  const darkAmbienceStyle = useAppStore((s) => s.darkAmbienceStyle)
   const accentColor = useAppStore((s) => s.accentColor)
   const fontFamily = useAppStore((s) => s.fontFamily)
   const fontSize = useAppStore((s) => s.fontSize)
@@ -51,7 +55,13 @@ const App: React.FC = () => {
   const effTokens = useMemo(() => {
     if (!accentColor) return tokens
     const eff = darkMode ? accentColor : ensureLightContrast(accentColor)
-    return { ...tokens, glow: eff, colorPrimary: eff, accentRgb: hexToRgb(eff) || tokens.accentRgb }
+    return {
+      ...tokens,
+      glow: eff,
+      colorPrimary: eff,
+      accentReadable: eff,
+      accentRgb: hexToRgb(eff) || tokens.accentRgb,
+    }
   }, [tokens, accentColor, darkMode])
 
   // 图像生成内存压力预检（v4.409）：后端 comfyui 提交口命中低内存即发
@@ -78,6 +88,7 @@ const App: React.FC = () => {
     set('--md-sys-color-on-tertiary-container', effTokens.onTertiaryContainer)
 
     // M3 Surface
+    set('--gaea-ambience-base', effTokens.bodyBackground)
     set('--md-sys-color-surface', effTokens.surface)
     set('--md-sys-color-on-surface', effTokens.onSurface)
     set('--md-sys-color-surface-variant', effTokens.surfaceVariant)
@@ -85,11 +96,15 @@ const App: React.FC = () => {
     // surface-container-low：M3 tonal 阶介于 surface 与 container 之间（v4.350
     // 补档——此前全仓零定义，SubagentThread 输入区/VersionTimeline 对比底等
     // 消费点整条属性 invalid）。不逐主题加值，注入处对既有两档插值。
-    set('--md-sys-color-surface-container-low', `color-mix(in srgb, ${effTokens.surface} 55%, ${effTokens.surfaceContainer})`)
+    set('--md-sys-color-surface-container-low', effTokens.surfaceContainerLow)
     set('--md-sys-color-surface-container', effTokens.surfaceContainer)
     set('--md-sys-color-surface-container-high', effTokens.surfaceContainerHigh)
     set('--md-sys-color-surface-container-highest', effTokens.surfaceContainerHighest)
+    set('--gaea-surface-tint-1', effTokens.surfaceTint1)
+    set('--gaea-surface-tint-2', effTokens.surfaceTint2)
+    set('--gaea-surface-tint-3', effTokens.surfaceTint3)
     set('--md-sys-color-surface-dim', effTokens.surfaceDim)
+    set('--md-sys-color-surface-bright', effTokens.surfaceBright)
 
     // M3 Outline
     set('--md-sys-color-outline', effTokens.outline)
@@ -121,6 +136,33 @@ const App: React.FC = () => {
     set('--md-sys-color-warning', effTokens.colorWarning)
     set('--md-sys-color-destructive', effTokens.colorDestructive)
     set('--md-sys-color-info', effTokens.colorInfo)
+    set('--gaea-accent-readable', effTokens.accentReadable)
+    set('--gaea-state-success-primary', effTokens.colorSuccess)
+    set('--gaea-state-success-secondary', effTokens.colorSuccess)
+    set('--gaea-state-success-tertiary', effTokens.stateSuccessTertiary)
+    set('--gaea-state-warning-primary', effTokens.colorWarning)
+    set('--gaea-state-warning-secondary', effTokens.colorWarning)
+    set('--gaea-state-warning-tertiary', effTokens.stateWarningTertiary)
+    set('--gaea-state-warning-label', effTokens.stateWarningLabel)
+    set('--gaea-state-danger-primary', effTokens.colorDestructive)
+    set('--gaea-state-danger-secondary', effTokens.stateDangerSecondary)
+    set('--gaea-state-danger-hover', effTokens.stateDangerHoverBg)
+    set('--gaea-business-tertiary', effTokens.businessTertiary)
+    set('--gaea-label-secondary', effTokens.labelSecondary)
+    set('--gaea-label-tertiary', effTokens.labelTertiary)
+    set('--gaea-label-caption', effTokens.labelCaption)
+    set('--gaea-label-dimmed', effTokens.labelDimmed)
+    set('--gaea-border-1', effTokens.border1)
+    set('--gaea-border-2', effTokens.border2)
+    set('--gaea-border-3', effTokens.border3)
+    set('--gaea-border-4', effTokens.border4)
+    set('--gaea-bloom-hairline', effTokens.bloomHairline)
+    set('--gaea-bloom-hairline-strong', effTokens.bloomHairlineStrong)
+    set('--gaea-bloom-glow', effTokens.bloomGlow)
+    set('--gaea-bloom-code-bg', effTokens.bloomCodeBg)
+    set('--gaea-sidebar-nav-active', effTokens.sidebarNavActive)
+    set('--gaea-sidebar-nav-active-accent', effTokens.sidebarNavActiveAccent)
+    set('--gaea-sidebar-nav-hover', effTokens.sidebarNavHover)
     // -error 语义别名（v4.350 补定义）：gaea 四组件 26 处消费 --md-sys-color-error
     // 但全仓从未定义（无 fallback 整条属性 invalid→失败态红点/红字/红框全消失），
     // 与 destructive 同值双名，12 主题自动正确。
@@ -149,6 +191,9 @@ const App: React.FC = () => {
     set('--gaea-glass-bg', effTokens.glassBg)
     set('--gaea-aurora-bg', effTokens.auroraBg)
     set('--gaea-ambience-rgb', effTokens.ambienceRgb)
+    set('--gaea-motion-1', effTokens.motion1)
+    set('--gaea-motion-2', effTokens.motion2)
+    set('--gaea-motion-3', effTokens.motion3)
 
     // ═══ Backward-compat shims (old var names → new M3 tokens) ═══
     set('--accent-rgb', effTokens.accentRgb)
@@ -193,8 +238,10 @@ const App: React.FC = () => {
     // 主题预设下发（v10「天玄」）：页面级星穹底纹与描线按预设开关，
     // 各页面以 data-theme 作用域隔离，其余预设零影响。
     root.dataset.theme = baseTheme
+    root.dataset.gaeaMode = darkMode ? 'dark' : 'light'
     root.dataset.gaeaSurface = surfaceStyle
-    root.dataset.gaeaAmbience = ambienceStyle
+    root.dataset.gaeaAmbienceLight = lightAmbienceStyle
+    root.dataset.gaeaAmbienceDark = darkAmbienceStyle
     // 原生控件明暗（v4.351）：滚动条轨道角/表单控件随主题（此前全仓无声明，
     // 暗主题下原生控件残留亮色渲染）
     root.style.colorScheme = darkMode ? 'dark' : 'light'
@@ -209,7 +256,14 @@ const App: React.FC = () => {
         set(`--syntax-${scheme}-${token}`, color)
       }
     }
-  }, [effTokens, darkMode, baseTheme, surfaceStyle, ambienceStyle])
+  }, [
+    effTokens,
+    darkMode,
+    baseTheme,
+    surfaceStyle,
+    lightAmbienceStyle,
+    darkAmbienceStyle,
+  ])
 
   // antd 主题对象同样 memo：ConfigProvider 收到新对象就会重跑主题算法
   // （token 合并 + 组件级派生）。此前内联字面量每次渲染都是新引用（v4.349）。
@@ -239,6 +293,7 @@ const App: React.FC = () => {
       motion === 'reduced' ? 'ui-reduced-motion' : '',
     ].filter(Boolean).join(' ')}>
       <ConfigProvider theme={antdTheme}>
+        <BloomSvgDefs />
         {/* S2.2 i18n 全铺：LocaleProvider 提到根级，壳层/页面共用 gaea 字典 */}
         <LocaleProvider>
           {/* 启动动画：覆盖首帧，播完自卸（reduced-motion 降级） */}

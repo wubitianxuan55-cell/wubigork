@@ -3,7 +3,8 @@
 > **当前覆盖（2026-11-22）：v4「Bloom Surface」**。配色、材质、背景与壳层映射以
 > `design-system/gaea/appearance-system-v4.md` 为准；本文件以下 v3 规则仅保留历史
 > 结构信息，与 v4 冲突时以 v4 为准。旧 7 套主题已删除，现有主题为 Bloom 15 套
-> 全量配色与 12 套精选入口。
+> 全量配色入口；自动换色同样使用 15 套。顶栏采用 Bloom 0.29 六列色块网格，
+> 材质与亮暗背景细节收在设置页。
 
 > **LOGIC:** When building a specific page, first check `design-system/gaea/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
@@ -31,7 +32,7 @@
 > 左侧**指挥轨道**（模块导航 dock）、顶部**轨道条**（AI 状态与模型）、底部**遥测轨道**
 > （引擎与资源实时遥测）、中央**板块工作台**（3 分区可调）。氛围层保留 aurora 深空，
 > 容器层升级为 **Luminous Glass 2.0**（玻璃 + 1px 渐变高光线 + 柔光），
-> 信息层用实底卡。12 套主题（6 色系 × 明暗）令牌体系完整保留——换主题 = 换令牌表。
+> 信息层用实底卡。15 套主题（8 色族 × 明暗）令牌体系完整保留——换主题 = 换令牌表。
 
 三条原则：
 1. **座舱分层**：氛围层（aurora）→ 轨道层（rail/strip/telemetry，玻璃+高光）→ 工作台层
@@ -41,7 +42,7 @@
 3. **AI 可见、可感知**：模型 pill、流式呼吸灯、遥测 sparkline、过程卡——AI 状态
    在轨道条/遥测轨道上一眼可读，与静态内容明确区分。
 
-### Color Palette（令牌化，跟随 12 主题；示例 nightJade 暗）
+### Color Palette（令牌化，跟随 15 主题；示例 nightJade 暗）
 
 | Role | Token | Example (nightJade dark) | Usage |
 |------|-------|--------------------------|-------|
@@ -179,12 +180,12 @@
 
 ## Pre-Delivery Checklist
 
-- [ ] 正文对比度 ≥4.5:1 / 次要 ≥3:1（12 主题抽查）
+- [ ] 正文对比度 ≥4.5:1 / 次要 ≥3:1（15 主题抽查）
 - [ ] 键盘全可达：rail 方向键/Enter 导航、⌘K、焦点环可见
 - [ ] reduced-motion 降级（orb 静态、sparkline 静态、入场淡入）
 - [ ] 无 emoji 图标、图标集一致（antd）
 - [ ] 可点元素 cursor-pointer、hover ≤2px
 - [ ] 状态三重传达（色/图标/文）
-- [ ] 明暗双模式正常（12 套主题）
+- [ ] 明暗双模式正常（15 套主题）
 - [ ] 无硬编码色值（含 v3 派生令牌）
 - [ ] 遥测数值与引擎状态真实联动（非假数据）

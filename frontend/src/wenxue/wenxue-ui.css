@@ -10,9 +10,9 @@
 
 .wx-root .gaea-app-layout {
 
-  --office-panel: var(--md-sys-color-surface-container, var(--bg-soft));
-  --office-panel-raised: var(--md-sys-color-surface-container-high, var(--bg-elev));
-  --office-canvas: var(--md-sys-color-surface, var(--bg));
+  --office-panel: var(--gaea-panel-tint-1, var(--md-sys-color-surface-container, var(--bg-soft)));
+  --office-panel-raised: var(--gaea-panel-tint-2, var(--md-sys-color-surface-container-high, var(--bg-elev)));
+  --office-canvas: var(--gaea-surface-low, var(--md-sys-color-surface, var(--bg)));
   --office-line: color-mix(in srgb, var(--fg) 10%, transparent);
   --office-line-strong: color-mix(in srgb, var(--fg) 18%, transparent);
   --office-muted: color-mix(in srgb, var(--fg-dim) 82%, var(--bg));

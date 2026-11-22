@@ -181,7 +181,9 @@ export interface ThemePresetMeta {
   key: ThemePreset
   label: string
   desc: string
+  lightColor: string
   color: string
+  morandi: string
   family: PaletteFamily
   featured: boolean
 }
@@ -202,22 +204,26 @@ export const STATE_PALETTE = {
     light: 'oklch(45% 0.11 75)',
     dark: 'oklch(80% 0.12 75)',
   },
+  warningLabel: {
+    light: 'oklch(40% 0.09 75)',
+    dark: 'oklch(88% 0.1 75)',
+  },
   danger: {
     light: 'oklch(45% 0.16 25)',
     dark: 'oklch(72% 0.16 25)',
   },
 } as const
 
-const META_SEEDS: Omit<ThemePresetMeta, 'color'>[] = [
+const META_SEEDS: Omit<ThemePresetMeta, 'lightColor' | 'color' | 'morandi'>[] = [
   { key: 'cinnabar', label: '朱砂', desc: '日出江花红胜火 · 温润果决', family: 'red', featured: true },
   { key: 'dawn', label: '粉霞', desc: '晓看红湿处 · 柔和温暖', family: 'red', featured: true },
   { key: 'tangerine', label: '橙黄', desc: '最是橙黄橘绿时 · 明快专注', family: 'orange', featured: true },
   { key: 'aurora', label: '落霞', desc: '落霞与孤鹜齐飞 · 暖光流动', family: 'orange', featured: true },
-  { key: 'stone', label: '赭石', desc: '秋山敛余照 · 沉稳克制', family: 'orange', featured: false },
-  { key: 'amber', label: '琥珀', desc: '玉碗盛来琥珀光 · 温暖沉浸', family: 'orange', featured: false },
+  { key: 'stone', label: '赭石', desc: '秋山敛余照 · 沉稳克制', family: 'orange', featured: true },
+  { key: 'amber', label: '琥珀', desc: '玉碗盛来琥珀光 · 温暖沉浸', family: 'orange', featured: true },
   { key: 'osmanthus', label: '轻黄', desc: '暗淡轻黄体性柔 · 安静明亮', family: 'yellow', featured: true },
   { key: 'mint', label: '草色', desc: '草色遥看近却无 · 清新舒展', family: 'green', featured: true },
-  { key: 'sage', label: '竹青', desc: '绿竹猗猗 · 自然舒展', family: 'green', featured: false },
+  { key: 'sage', label: '竹青', desc: '绿竹猗猗 · 自然舒展', family: 'green', featured: true },
   { key: 'ripple', label: '天青', desc: '雨过天青云破处 · 清透专注', family: 'cyan', featured: true },
   { key: 'mist', label: '黛蓝', desc: '山色有无中 · 清冷静定', family: 'blue', featured: true },
   { key: 'lapis', label: '青金', desc: '碧海青天夜夜心 · 深邃沉静', family: 'blue', featured: true },
@@ -228,7 +234,9 @@ const META_SEEDS: Omit<ThemePresetMeta, 'color'>[] = [
 
 export const THEME_PRESETS: ThemePresetMeta[] = META_SEEDS.map((preset) => ({
   ...preset,
+  lightColor: oklchToHex(PALETTE_SPECS[preset.key].accentL),
   color: oklchToHex(PALETTE_SPECS[preset.key].accentD),
+  morandi: `rgb(${PALETTE_SPECS[preset.key].morandi})`,
 }))
 
 export const FEATURED_THEME_PRESETS = THEME_PRESETS.filter((preset) => preset.featured)

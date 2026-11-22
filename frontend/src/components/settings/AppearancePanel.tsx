@@ -5,33 +5,14 @@ import {
   SwapOutlined, AimOutlined, GlobalOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { Button, InputNumber, Segmented, Select } from 'antd'
 import {
-  useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, FONT_OPTIONS,
+  useAppStore, THEME_PRESETS, FONT_OPTIONS,
   type DisplayMode, type ThemePreset, type Density, type MotionPref,
-  type SurfaceStyle, type AmbienceStyle,
+  type SurfaceStyle, type LightAmbienceStyle, type DarkAmbienceStyle,
 } from '../../stores/appStore'
 import { useI18n, useT, type LangPref } from '../../gaea/lib/i18n'
 import type { DictKey } from '../../gaea/locales/en'
+import { THEME_COPY_KEYS } from '../../theme/locale'
 import SettingsSection from './SettingsSection'
-
-// 主题选项：数据单一来源 THEME_PRESETS（appStore）；label/desc 经 i18n 组件内派生（原为模块级直用）。
-// THEME_LABEL_KEYS 与 appStore 的 ThemePreset 联合类型锁定：新增主题时 tsc 会强制补键。
-const THEME_LABEL_KEYS: Record<ThemePreset, { label: DictKey; desc: DictKey }> = {
-  cinnabar: { label: 'settings.appear.themeCinnabarLabel', desc: 'settings.appear.themeCinnabarDesc' },
-  dawn: { label: 'settings.appear.themeDawnLabel', desc: 'settings.appear.themeDawnDesc' },
-  tangerine: { label: 'settings.appear.themeTangerineLabel', desc: 'settings.appear.themeTangerineDesc' },
-  aurora: { label: 'settings.appear.themeAuroraLabel', desc: 'settings.appear.themeAuroraDesc' },
-  stone: { label: 'settings.appear.themeStoneLabel', desc: 'settings.appear.themeStoneDesc' },
-  amber: { label: 'settings.appear.themeAmberLabel', desc: 'settings.appear.themeAmberDesc' },
-  osmanthus: { label: 'settings.appear.themeOsmanthusLabel', desc: 'settings.appear.themeOsmanthusDesc' },
-  mint: { label: 'settings.appear.themeMintLabel', desc: 'settings.appear.themeMintDesc' },
-  sage: { label: 'settings.appear.themeSageLabel', desc: 'settings.appear.themeSageDesc' },
-  ripple: { label: 'settings.appear.themeRippleLabel', desc: 'settings.appear.themeRippleDesc' },
-  mist: { label: 'settings.appear.themeMistLabel', desc: 'settings.appear.themeMistDesc' },
-  lapis: { label: 'settings.appear.themeLapisLabel', desc: 'settings.appear.themeLapisDesc' },
-  lavender: { label: 'settings.appear.themeLavenderLabel', desc: 'settings.appear.themeLavenderDesc' },
-  silverrose: { label: 'settings.appear.themeSilverRoseLabel', desc: 'settings.appear.themeSilverRoseDesc' },
-  petal: { label: 'settings.appear.themePetalLabel', desc: 'settings.appear.themePetalDesc' },
-}
 
 interface ThemeOption { key: ThemePreset; label: string; desc: string; color: string; featured: boolean }
 
@@ -47,15 +28,16 @@ type ThemeSelectOption = {
 /** 主题选项（label/desc 已本地化）；t 变更时重算（下拉选项与 hover 预览共用） */
 function useThemeOptions(): ThemeOption[] {
   const t = useT()
+  const darkMode = useAppStore((s) => s.darkMode)
   return useMemo(
     () => THEME_PRESETS.map((p) => ({
       key: p.key,
-      color: p.color,
+      color: darkMode ? p.color : p.lightColor,
       featured: p.featured,
-      label: t(THEME_LABEL_KEYS[p.key].label),
-      desc: t(THEME_LABEL_KEYS[p.key].desc),
+      label: t(THEME_COPY_KEYS[p.key].label),
+      desc: t(THEME_COPY_KEYS[p.key].desc),
     })),
-    [t],
+    [darkMode, t],
   )
 }
 
@@ -174,18 +156,6 @@ const AppearancePanel: React.FC = () => {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>
                   <span>{d.label}</span>
-                  {d.featured && (
-                    <span style={{
-                      padding: '0 5px',
-                      border: '1px solid color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent)',
-                      borderRadius: 4,
-                      color: 'var(--md-sys-color-primary)',
-                      background: 'color-mix(in srgb, var(--md-sys-color-primary) 7%, transparent)',
-                      fontSize: 9,
-                      fontWeight: 600,
-                      lineHeight: '16px',
-                    }}>{t('settings.appear.featured')}</span>
-                  )}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>{d.desc}</div>
               </div>
@@ -210,11 +180,12 @@ const AppearancePanel: React.FC = () => {
 
 /** SegmentedRow — 行式选择条目：左侧当前项图标 + label/desc 摘要，右侧 Segmented 分段切换。
  *  紧凑替代原 ChoiceCards 卡片网格，与 FontPanel/AccentPanel 的行式风格统一（显示模式/密度/动效共用）。 */
-function SegmentedRow<T extends string>({ value, onChange, options, ariaLabel }: {
+function SegmentedRow<T extends string>({ value, onChange, options, ariaLabel, iconOnly = false }: {
   value: T
   onChange: (v: T) => void
   ariaLabel: string
   options: { key: T; label: string; desc?: string; icon?: React.ReactNode }[]
+  iconOnly?: boolean
 }) {
   // 左侧摘要跟随当前选中项（icon + label + desc 随切换联动）
   const current = options.find((o) => o.key === value)
@@ -240,13 +211,66 @@ function SegmentedRow<T extends string>({ value, onChange, options, ariaLabel }:
         options={options.map((o) => ({
           value: o.key,
           label: (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span
+              className={`settings-segmented-choice${iconOnly ? ' is-icon-only' : ''}`}
+              title={o.label}
+            >
               {o.icon && <span style={{ fontSize: 13 }}>{o.icon}</span>}
-              {o.label}
+              <span className={iconOnly ? 'settings-visually-hidden' : undefined}>{o.label}</span>
             </span>
           ),
         }))}
       />
+    </div>
+  )
+}
+
+function TextureGlyph({ kind }: { kind: SurfaceStyle }) {
+  return <span className={`appearance-texture-glyph is-${kind}`} aria-hidden="true" />
+}
+
+type AmbienceGlyphKind =
+  | LightAmbienceStyle
+  | DarkAmbienceStyle
+  | 'stream'
+  | 'wash'
+  | 'clear'
+  | 'corner'
+  | 'diagonal'
+  | 'galaxy'
+  | 'off'
+
+function AmbienceGlyph({ kind }: { kind: AmbienceGlyphKind }) {
+  return <span className={`appearance-ambience-glyph is-${kind}`} aria-hidden="true" />
+}
+
+function AmbienceIconChoices<T extends string>({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: T
+  onChange: (value: T) => void
+  options: { key: T; label: string; icon: React.ReactNode }[]
+  ariaLabel: string
+}) {
+  return (
+    <div className="appearance-ambience-choices" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((option) => (
+        <button
+          key={option.key}
+          type="button"
+          role="radio"
+          aria-label={option.label}
+          title={option.label}
+          aria-checked={value === option.key}
+          data-active={value === option.key}
+          onClick={() => onChange(option.key)}
+        >
+          {option.icon}
+        </button>
+      ))}
     </div>
   )
 }
@@ -358,7 +382,7 @@ export const DensityPanel: React.FC = () => {
   )
 }
 
-/** SurfacePanel — 壳层表面材质：轻雾 / 柔雾 / 实底。 */
+/** SurfacePanel — 壳层表面材质：毛玻璃 / 磨砂玻璃 / 液态玻璃 / 实底。 */
 export const SurfacePanel: React.FC = () => {
   const t = useT()
   const surfaceStyle = useAppStore((s) => s.surfaceStyle)
@@ -369,34 +393,60 @@ export const SurfacePanel: React.FC = () => {
         value={surfaceStyle}
         onChange={setSurfaceStyle}
         ariaLabel={t('settings.appear.surfaceTitle')}
+        iconOnly
         options={[
-          { key: 'veil', label: t('settings.appear.surfaceVeil'), desc: t('settings.appear.surfaceVeilDesc'), icon: <BgColorsOutlined /> },
-          { key: 'soft', label: t('settings.appear.surfaceSoft'), desc: t('settings.appear.surfaceSoftDesc'), icon: <DashboardOutlined /> },
-          { key: 'solid', label: t('settings.appear.surfaceSolid'), desc: t('settings.appear.surfaceSolidDesc'), icon: <CompressOutlined /> },
+          { key: 'veil', label: t('settings.appear.surfaceVeil'), desc: t('settings.appear.surfaceVeilDesc'), icon: <TextureGlyph kind="veil" /> },
+          { key: 'matte', label: t('settings.appear.surfaceMatte'), desc: t('settings.appear.surfaceMatteDesc'), icon: <TextureGlyph kind="matte" /> },
+          { key: 'soft', label: t('settings.appear.surfaceSoft'), desc: t('settings.appear.surfaceSoftDesc'), icon: <TextureGlyph kind="soft" /> },
         ]}
       />
     </SettingsSection>
   )
 }
 
-/** AmbiencePanel — 背景氛围：雾光 / 淡彩 / 纯色。 */
+/** AmbiencePanel — 亮色与深色背景分别保存，对齐 Bloom 0.29 的两套氛围预设。 */
 export const AmbiencePanel: React.FC = () => {
   const t = useT()
-  const ambienceStyle = useAppStore((s) => s.ambienceStyle)
-  const setAmbienceStyle = useAppStore((s) => s.setAmbienceStyle)
+  const darkMode = useAppStore((s) => s.darkMode)
+  const lightAmbienceStyle = useAppStore((s) => s.lightAmbienceStyle)
+  const darkAmbienceStyle = useAppStore((s) => s.darkAmbienceStyle)
+  const setLightAmbienceStyle = useAppStore((s) => s.setLightAmbienceStyle)
+  const setDarkAmbienceStyle = useAppStore((s) => s.setDarkAmbienceStyle)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><BgColorsOutlined /></span>} title={t('settings.appear.ambienceTitle')} desc={t('settings.appear.ambienceDesc')}>
-      <SegmentedRow<AmbienceStyle>
-        value={ambienceStyle}
-        onChange={setAmbienceStyle}
-        ariaLabel={t('settings.appear.ambienceTitle')}
-        options={[
-          { key: 'bloom', label: t('settings.appear.ambienceBloom'), desc: t('settings.appear.ambienceBloomDesc'), icon: <BgColorsOutlined /> },
-          { key: 'wash', label: t('settings.appear.ambienceWash'), desc: t('settings.appear.ambienceWashDesc'), icon: <DashboardOutlined /> },
-          { key: 'grid', label: t('settings.appear.ambienceGrid'), desc: t('settings.appear.ambienceGridDesc'), icon: <AppstoreOutlined /> },
-          { key: 'off', label: t('settings.appear.ambienceOff'), desc: t('settings.appear.ambienceOffDesc'), icon: <CompressOutlined /> },
-        ]}
-      />
+      <div className="appearance-ambience-stack">
+        {darkMode ? (
+          <div className="appearance-ambience-row">
+            <span className="appearance-ambience-row__label">{t('settings.appear.ambienceDark')}</span>
+            <AmbienceIconChoices<DarkAmbienceStyle>
+              value={darkAmbienceStyle}
+              onChange={setDarkAmbienceStyle}
+              ariaLabel={t('settings.appear.ambienceDark')}
+              options={[
+                { key: 'corner', label: t('settings.appear.ambienceCorner'), icon: <AmbienceGlyph kind="corner" /> },
+                { key: 'diagonal', label: t('settings.appear.ambienceDiagonal'), icon: <AmbienceGlyph kind="diagonal" /> },
+                { key: 'galaxy', label: t('settings.appear.ambienceGalaxy'), icon: <AmbienceGlyph kind="galaxy" /> },
+                { key: 'off', label: t('settings.appear.ambienceOff'), icon: <AmbienceGlyph kind="off" /> },
+              ]}
+            />
+          </div>
+        ) : (
+          <div className="appearance-ambience-row">
+            <span className="appearance-ambience-row__label">{t('settings.appear.ambienceLight')}</span>
+            <AmbienceIconChoices<LightAmbienceStyle>
+              value={lightAmbienceStyle}
+              onChange={setLightAmbienceStyle}
+              ariaLabel={t('settings.appear.ambienceLight')}
+              options={[
+                { key: 'stream', label: t('settings.appear.ambienceStream'), icon: <AmbienceGlyph kind="stream" /> },
+                { key: 'wash', label: t('settings.appear.ambienceWash'), icon: <AmbienceGlyph kind="wash" /> },
+                { key: 'clear', label: t('settings.appear.ambienceClear'), icon: <AmbienceGlyph kind="clear" /> },
+                { key: 'off', label: t('settings.appear.ambienceOff'), icon: <AmbienceGlyph kind="off" /> },
+              ]}
+            />
+          </div>
+        )}
+      </div>
     </SettingsSection>
   )
 }
@@ -406,17 +456,55 @@ export const MotionPanel: React.FC = () => {
   const t = useT()
   const motion = useAppStore((s) => s.motion)
   const setMotion = useAppStore((s) => s.setMotion)
+  const rotationMinutes = useAppStore((s) => s.themeRotationMinutes)
+  const setRotationMinutes = useAppStore((s) => s.setThemeRotationMinutes)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><ThunderboltOutlined /></span>} title={t('settings.appear.motionTitle')} desc={t('settings.appear.motionDesc')}>
-      <SegmentedRow<MotionPref>
-        value={motion}
-        onChange={setMotion}
-        ariaLabel={t('settings.appear.motionTitle')}
-        options={[
-          { key: 'full',    label: t('settings.appear.motionFull'), desc: t('settings.appear.motionFullDesc'), icon: <ThunderboltOutlined /> },
-          { key: 'reduced', label: t('settings.appear.motionReduced'), desc: t('settings.appear.motionReducedDesc'), icon: <MoonOutlined /> },
-        ]}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <SegmentedRow<MotionPref>
+          value={motion}
+          onChange={setMotion}
+          ariaLabel={t('settings.appear.motionTitle')}
+          options={[
+            { key: 'full',    label: t('settings.appear.motionFull'), desc: t('settings.appear.motionFullDesc'), icon: <ThunderboltOutlined /> },
+            { key: 'reduced', label: t('settings.appear.motionReduced'), desc: t('settings.appear.motionReducedDesc'), icon: <MoonOutlined /> },
+          ]}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span
+            style={{
+              width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+              color: 'var(--md-sys-color-text-secondary)',
+              background: 'var(--md-sys-color-surface-variant)',
+            }}
+          >
+            <SwapOutlined />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>
+              {t('settings.appear.autoRotate')}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>
+              {t('settings.appear.autoRotateHint')}
+            </div>
+          </div>
+          <Select
+            size="small"
+            value={rotationMinutes}
+            style={{ width: 150 }}
+            aria-label={t('settings.appear.autoRotate')}
+            onChange={setRotationMinutes}
+            options={[
+              { value: 0, label: t('settings.appear.autoRotateOff') },
+              { value: 5, label: t('settings.appear.autoRotateMinutes', { n: 5 }) },
+              { value: 15, label: t('settings.appear.autoRotateMinutes', { n: 15 }) },
+              { value: 30, label: t('settings.appear.autoRotateMinutes', { n: 30 }) },
+              { value: 60, label: t('settings.appear.autoRotateMinutes', { n: 60 }) },
+            ]}
+          />
+        </div>
+      </div>
     </SettingsSection>
   )
 }
@@ -427,7 +515,9 @@ export const AccentPanel: React.FC = () => {
   const t = useT()
   const accentColor = useAppStore((s) => s.accentColor)
   const baseTheme = useAppStore((s) => s.baseTheme)
+  const darkMode = useAppStore((s) => s.darkMode)
   const setAccentColor = useAppStore((s) => s.setAccentColor)
+  const palette = THEME_PRESETS.find((preset) => preset.key === baseTheme) ?? THEME_PRESETS[0]
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><AimOutlined /></span>} title={t('settings.appear.accentTitle')} desc={t('settings.appear.accentDesc')}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -455,7 +545,7 @@ export const AccentPanel: React.FC = () => {
         }}>
           <input
             type="color"
-            value={accentColor || THEME_PRESET_COLORS[baseTheme]}
+            value={accentColor || (darkMode ? palette.color : palette.lightColor)}
             onChange={(e) => setAccentColor(e.target.value)}
             style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
           />

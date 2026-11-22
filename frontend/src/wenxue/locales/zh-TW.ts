@@ -891,7 +891,7 @@ export const zhTW: Record<DictKey, string> = {
   "settings.appear.livePreviewTitle": "外觀即時預覽",
   "settings.appear.livePreviewDesc": "目前主題與顯示模式的組合效果；開啟下拉懸停選項可即時預覽，點擊才生效。",
   "settings.appear.themeTitle": "主題色系",
-  "settings.appear.themeDesc": "設定頁提供 15 套 OKLCH 配色，頂欄快速切換 12 套精選；可讀主色與莫蘭迪氛圍色分層連動。",
+  "settings.appear.themeDesc": "設定頁與頂欄都可直接選擇 15 套 OKLCH 配色；可讀主色與莫蘭迪氛圍色分層連動。",
   "settings.appear.dark": "暗色",
   "settings.appear.light": "亮色",
   "settings.appear.previewing": "預覽中",

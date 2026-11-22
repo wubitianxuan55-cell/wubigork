@@ -2,15 +2,21 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { THEME_PRESETS, getThemeTokens, type ThemePreset } from './appStore'
+import { NEUTRAL_PALETTE, PALETTE_SPECS } from '../theme/bloomPalette'
+import { mixOklchHex, oklchToHex } from '../theme/color'
 
 const PRESETS: ThemePreset[] = THEME_PRESETS.map((preset) => preset.key)
+const BLACK = oklchToHex(NEUTRAL_PALETTE.black)
 const BODY_TOKENS = [
   'colorText',
   'colorTextSecondary',
   'colorTextTertiary',
-  'colorPrimary',
+] as const
+const STATE_TOKENS = [
   'colorSuccess',
   'colorWarning',
+  'colorDestructive',
+  'colorInfo',
 ] as const
 
 function srgbChannel(value: number): number {
@@ -38,6 +44,9 @@ describe('Bloom 15 套主题对比度契约', () => {
         const backgrounds = [
           ['surface', tokens.surface],
           ['colorBgContainer', tokens.colorBgContainer],
+          ['surfaceTint1', tokens.surfaceTint1],
+          ['surfaceTint2', tokens.surfaceTint2],
+          ['surfaceTint3', tokens.surfaceTint3],
         ] as const
         for (const token of BODY_TOKENS) {
           for (const [backgroundName, background] of backgrounds) {
@@ -47,6 +56,15 @@ describe('Bloom 15 套主题对比度契约', () => {
               `${preset}${dark ? 'D' : 'L'} ${token} on ${backgroundName}`,
             ).toBeGreaterThanOrEqual(4.5)
           }
+        }
+        // Upstream sharedDswTokens keeps semantic state hues fixed and guarantees
+        // their primary/secondary track against the palette base, not every
+        // elevated surface. Raised status surfaces consume the tertiary track.
+        for (const token of STATE_TOKENS) {
+          expect(
+            contrast(tokens[token], tokens.bodyBackground),
+            `${preset}${dark ? 'D' : 'L'} ${token} on base`,
+          ).toBeGreaterThanOrEqual(4.5)
         }
       })
     }
@@ -58,13 +76,29 @@ describe('Bloom 壳层与按钮前景契约', () => {
     for (const dark of [true, false]) {
       it(`${preset}${dark ? 'D' : 'L'} 侧栏正文与主按钮前景可读`, () => {
         const tokens = getThemeTokens(preset, dark)
-        for (const token of ['colorText', 'colorTextSecondary', 'colorTextTertiary', 'colorPrimary'] as const) {
+        for (const token of ['colorText', 'colorTextSecondary', 'colorTextTertiary'] as const) {
           expect(
             contrast(tokens[token], tokens.shellSidebar),
             `${preset}${dark ? 'D' : 'L'} ${token} on shellSidebar`,
           ).toBeGreaterThanOrEqual(4.5)
         }
         expect(contrast(tokens.onPrimary, tokens.colorPrimary)).toBeGreaterThanOrEqual(4.5)
+      })
+    }
+  }
+})
+
+describe('Bloom 0.29 可读强调轨契约', () => {
+  for (const preset of PRESETS) {
+    for (const dark of [true, false]) {
+      it(`${preset}${dark ? 'D' : 'L'} 使用上游 readableAccent 与背景前景`, () => {
+        const tokens = getThemeTokens(preset, dark)
+        const palette = PALETTE_SPECS[preset]
+        const rawAccent = oklchToHex(dark ? palette.accentD : palette.accentL)
+        const expected = dark ? rawAccent : mixOklchHex(rawAccent, BLACK, 0.12)
+        expect(tokens.colorPrimary).toBe(expected)
+        expect(tokens.accentReadable).toBe(expected)
+        expect(tokens.onPrimary).toBe(tokens.bodyBackground)
       })
     }
   }

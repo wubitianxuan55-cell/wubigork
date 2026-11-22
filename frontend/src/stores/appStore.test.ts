@@ -6,19 +6,18 @@ import {
   useAppStore,
   type ThemePreset,
 } from './appStore'
+import { relativeLuminance } from '../theme/color'
 
 const PRESETS: ThemePreset[] = THEME_PRESETS.map((preset) => preset.key)
 const HEX = /^#[0-9a-fA-F]{6}$/
 
 describe('Bloom 15 套主题注册表与令牌完整性', () => {
-  it('全量 15 套，精选 12 套，三个非精选色仍保留', () => {
+  it('全量 15 套均进入上游配色与自动换色序列', () => {
     expect(THEME_PRESETS).toHaveLength(15)
-    expect(FEATURED_THEME_PRESETS).toHaveLength(12)
+    expect(FEATURED_THEME_PRESETS).toHaveLength(15)
     expect(new Set(PRESETS).size).toBe(15)
     expect(PRESETS).toEqual(expect.arrayContaining(['stone', 'amber', 'sage']))
-    expect(FEATURED_THEME_PRESETS.map((preset) => preset.key)).not.toEqual(
-      expect.arrayContaining(['stone', 'amber', 'sage']),
-    )
+    expect(FEATURED_THEME_PRESETS.map((preset) => preset.key)).toEqual(PRESETS)
   })
 
   it('15 × 明暗全部产出完整令牌集', () => {
@@ -59,6 +58,35 @@ describe('Bloom 15 套主题注册表与令牌完整性', () => {
     expect(dark.radiusMd).toBe(light.radiusMd)
     expect(dark.transitionNormal).toBe(light.transitionNormal)
   })
+
+  it('15 套主题各有五个可区分表面层，并与明暗方向一致', () => {
+    for (const preset of PRESETS) {
+      const light = getThemeTokens(preset, false)
+      const dark = getThemeTokens(preset, true)
+      const lightLevels = [
+        light.surface,
+        light.surfaceContainerLow,
+        light.surfaceContainer,
+        light.surfaceContainerHigh,
+        light.surfaceContainerHighest,
+      ]
+      expect(new Set(lightLevels).size, `${preset} light levels`).toBe(lightLevels.length)
+      expect(relativeLuminance(light.surfaceContainerHighest), `${preset} light depth`)
+        .toBeLessThan(relativeLuminance(light.surface))
+
+      expect(new Set([
+        dark.surface,
+        dark.surfaceContainerLow,
+        dark.surfaceContainer,
+        dark.surfaceContainerHigh,
+        dark.surfaceContainerHighest,
+      ]).size, `${preset} dark levels`).toBe(5)
+      expect(relativeLuminance(dark.surfaceContainerHighest), `${preset} dark lift`)
+        .toBeGreaterThan(relativeLuminance(dark.surface))
+      expect(new Set([dark.surfaceTint1, dark.surfaceTint2, dark.surfaceTint3]).size)
+        .toBe(3)
+    }
+  })
 })
 
 describe('主题选择持久化', () => {
@@ -81,6 +109,15 @@ describe('主题选择持久化', () => {
     useAppStore.getState().toggleGlassMode()
     expect(useAppStore.getState().surfaceStyle).toBe('solid')
     expect(localStorage.getItem('gaea-surface-style')).toBe('solid')
+  })
+
+  it('自动换色间隔持久化并拒绝非法值', () => {
+    localStorage.clear()
+    useAppStore.getState().setThemeRotationMinutes(15)
+    expect(useAppStore.getState().themeRotationMinutes).toBe(15)
+    expect(localStorage.getItem('gaea-theme-rotation-minutes')).toBe('15')
+    useAppStore.getState().setThemeRotationMinutes(7 as never)
+    expect(useAppStore.getState().themeRotationMinutes).toBe(15)
   })
 })
 

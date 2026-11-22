@@ -13,15 +13,10 @@ function byteHex(value: number): string {
   return Math.round(clamp01(value) * 255).toString(16).padStart(2, '0')
 }
 
-export function oklchToHex(spec: string): string {
-  const match = /oklch\(\s*([\d.]+)%\s+([\d.]+)\s+([\d.]+)\s*\)/i.exec(spec)
-  if (!match) return '#000000' // hex-exempt: unreachable fallback for invalid source input
-
-  const lightness = Number(match[1]) / 100
-  const chroma = Number(match[2])
-  const hue = (Number(match[3]) * Math.PI) / 180
-  const a = chroma * Math.cos(hue)
-  const b = chroma * Math.sin(hue)
+function oklchValueToHex(lightness: number, chroma: number, hue: number): string {
+  const radians = (hue * Math.PI) / 180
+  const a = chroma * Math.cos(radians)
+  const b = chroma * Math.sin(radians)
 
   const lPrime = lightness + 0.3963377774 * a + 0.2158037573 * b
   const mPrime = lightness - 0.1055613458 * a - 0.0638541728 * b
@@ -36,6 +31,12 @@ export function oklchToHex(spec: string): string {
   return `#${byteHex(linearToSrgb(r))}${byteHex(linearToSrgb(g))}${byteHex(linearToSrgb(blue))}`
 }
 
+export function oklchToHex(spec: string): string {
+  const match = /oklch\(\s*([\d.]+)%\s+([\d.]+)\s+([\d.]+)\s*\)/i.exec(spec)
+  if (!match) return '#000000' // hex-exempt: unreachable fallback for invalid source input
+  return oklchValueToHex(Number(match[1]) / 100, Number(match[2]), Number(match[3]))
+}
+
 export function hexToRgbTuple(hex: string): [number, number, number] {
   const normalized = hex.replace('#', '')
   const full = normalized.length === 3
@@ -47,6 +48,51 @@ export function hexToRgbTuple(hex: string): [number, number, number] {
     Number.parseInt(full.slice(2, 4), 16),
     Number.parseInt(full.slice(4, 6), 16),
   ]
+}
+
+function srgbToLinear(value: number): number {
+  const c = value / 255
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+}
+
+function hexToOklch(hex: string): { l: number; c: number; h: number } {
+  const [rByte, gByte, bByte] = hexToRgbTuple(hex)
+  const r = srgbToLinear(rByte)
+  const g = srgbToLinear(gByte)
+  const b = srgbToLinear(bByte)
+
+  const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+  const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+  const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+  const lRoot = Math.cbrt(l)
+  const mRoot = Math.cbrt(m)
+  const sRoot = Math.cbrt(s)
+
+  const lightness = 0.2104542553 * lRoot + 0.793617785 * mRoot - 0.0040720468 * sRoot
+  const a = 1.9779984951 * lRoot - 2.428592205 * mRoot + 0.4505937099 * sRoot
+  const bAxis = 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.808675766 * sRoot
+  const chroma = Math.hypot(a, bAxis)
+  let hue = (Math.atan2(bAxis, a) * 180) / Math.PI
+  if (hue < 0) hue += 360
+  return { l: lightness, c: chroma, h: hue }
+}
+
+/**
+ * Match CSS `color-mix(in oklch, ...)`: interpolate lightness, chroma and the
+ * shortest hue arc instead of blending raw sRGB channels.
+ */
+export function mixOklchHex(a: string, b: string, weightB: number): string {
+  const first = hexToOklch(a)
+  const second = hexToOklch(b)
+  const weight = clamp01(weightB)
+  const firstHue = first.c < 0.0001 ? second.h : first.h
+  const secondHue = second.c < 0.0001 ? first.h : second.h
+  const hueDelta = ((secondHue - firstHue + 540) % 360) - 180
+  return oklchValueToHex(
+    first.l + (second.l - first.l) * weight,
+    first.c + (second.c - first.c) * weight,
+    (firstHue + hueDelta * weight + 360) % 360,
+  )
 }
 
 export function rgba(hex: string, alpha: number): string {
