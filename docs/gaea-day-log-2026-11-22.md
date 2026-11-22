@@ -74,3 +74,11 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - **实弹链**：MCP stdio 探针（initialize→4 工具→remember→recall 0.1519→stats）✓；web 起站侧边栏「记忆星云」入口 ✓；红队会话端到端（6 步 770K tok——红队面工具重+模型先查配置）真实写入 nodes.jsonl mmwrjw5txc81ff8f4 ✓；3091/8898 已清场恢复 gaea 点启动态。
 - **发现**：①面板与 MCP 同库双实例各持内存视图——MCP 写入后 /healthz units 仍 1（无文件 watch）；②MCP 写入 source="unknown"；③新会话继承预设坑复现（验收会话落红队面）。
 - **蒸馏**：报告=docs/gaea-agent-memory-nebula-distill-2026-11.md（gaea 记忆中枢四件可借：四臂召回+arm 归因/FSRS 动力学/consolidate 事实化/层次化；重叠面不抄；P1~P5 提案交拍板池）；逆向说明=C:\AI\re\agent-memory\docs\蒸馏-gaea记忆中枢对齐-2026-11-22.md（file:line 锚全录）。gaea 记忆中枢代码零改动。
+
+### 补段：记忆中枢蒸馏施工 P1+P2+P3 三刀（Nebula Memory → gaea，用户拍板开工）
+
+- **P1 星云召回（4c1eb517）**：`memory/recall_fusion.go` 四臂融合纯函数（0.40 词法+0.35 语义+0.15 图谱+0.10 置顶，fusion.go 可解释先例；图谱臂=事件图 references 邻居 1 跳 ×0.5，发现语义——种子已命中的不重复归因）+`GaeaMemoryRecall` 绑定（BM25 同 memory_search 索引/office 向量 Ensure 缓存口径/物化图邻接/置顶恒进；失效条目排除同注入面；无 embedder 臂级降级如实标注 Degraded）；前端记忆中枢搜索新增「星云召回 · 四臂融合」独立组（臂徽章+分数 chip，零回归不动 UnifiedSearch）；绑定链四表同批（gen_bindings 再生+bindingNames 手补一名+legacy/signatures 再生+bridge 四件+mock 契约）。
+- **P2 稳定性（34a550dc）**：decay.go 纯函数 `StabilityDays`（30d×1.5^引用 封顶 240d）+`RecallDecayFactor`（pinned/无时间戳免疫）；数据源=`Store.CiteCounts`（memory_events op=cite 聚合，零 schema 迁移）；dormant≡衰减态（LifecycleDecaying）不新增第四态；星云召回融合吃 Decay×Dormant 乘子；LifecycleView additive 三字段（stabilityDays/citeCount/dormant）+「休眠惩罚 ×0.55」徽章。
+- **P3 向量巩固臂**：`consolidate.go` 纯函数（余弦 ≥0.85、对上限 20000、每名 8、800 条 O(n²) 护栏）收编 `GaeaMemoryDuplicates` 第二来源（Source=vector/fuzzy，pair 键去重）——评审制红线不破（只建议，人工合并走既有 MemoryMerge 弹窗）；duplicates 弹窗来源徽章；`semantic.Store.VectorsOf` 只读取数口+ensureOfficeVectorIndex 抽出共用。
+- **坑**：①JSON heredoc 转义吃反斜杠→Go 源码进真实 NUL（`invalid NUL character`）——chr(92) 拼装修复；②裸 `&App{}` 测试踩 nil core（engineMgr 内嵌指针）×2——divergence 钉测试改 core 构造+vectorConsolidatePairs 加 nil-core 守卫；③wailsjs 模型再生后 mock 生命周期双处（gaea/wenxue）需补 stabilityDays/citeCount。
+- **验证**：memory 全绿 6s + app 全量 161s 绿（cgo wrapper）+contract 5/5+drift 锁 726 OK+前端 tsc/构建绿（27.7s/29.7s）；wails 24.8s→冒烟 200→INSTALL OK exe 75DF6055（17:14:57）装机拉起 PID 59288>构建时刻。
