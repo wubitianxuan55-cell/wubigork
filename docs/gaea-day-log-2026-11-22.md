@@ -139,3 +139,15 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - **不对齐项**：dsh-wubi（隔离根守卫 DSH_WUBI_ISOLATED_ROOT 与桌面家互斥）；dsh-dream-skin
   11.16.0 桌面独有保留不剥。桌面已拉起待用户目检（插件页/Bloom/记忆星云三处）。
 - 回滚：package.json.bak-20261122-align + cordis.patch.yml.bak-20261122-align + nebula 备份目录。
+
+### 补段：Bloom 主题 0.29.0 双边同步（上游更新，用户拍板）
+
+- 上游核对：main=bd3e93f **package.json 0.29.0**（changelog 2026-11-19，唯一 feature=设置迁入
+  「设置 › Bloom 外观」下拉瘦身 #140——本地参考克隆恰已带该提交）；**tag v0.29.0 未打、npm E404
+  未发布**——同步走官方 GitHub 源码构建（worktree at origin/main，pnpm+bundle 342KB/36 源文件，
+  构建后 worktree 已回收）。
+- 两边部署：lib 整体替换+manifest 0.28.0→0.29.0（隔离栈 C:\AI\dsh + 桌面 ~/.dsh）。隔离栈
+  重启验证：DOM 版本标签 "Bloom v0.29.0" ✓（168 bloom 节点）；桌面端重启吃新版（Electron 5 进程起）。
+- **账实提醒：npm 尚未发布 0.29.0（E404）**——manifest 版本号跑在 registry 前面，desktop 下次
+  pnpm install 会因 registry 缺 0.29.0 报错；npm 发版后重装官方包回通道（或临时回退 0.28.0）。
+- 参考克隆（B 区）本地 ahead 1 = 0.29.0 的 feature 提交，behind 1 = 上游发版 chore——非分叉，无需处置。
