@@ -44,3 +44,15 @@ profile `package.json` 的 `link:` spec 一直指向已迁走的 `clones/dsh-wub
 - gaea 侧零改动：entry `node_modules\@deepseek-ai\dsh\lib\bin.js` 路径不变；REA preflight 查红队预设 `id: rea-mcp` 行不变。
 - 遗留挂池：①实时回退用户气泡残留（reload 自愈，与 rc.1 口径一致，观感反馈再议）；②红队会话 REA 工具面 229→263 的角色自检卡读数变化待实弹；③rc.2 的子代理命名多级协作/AgentTeam/搜索 API 迁移等新能力未走查。
 - dsh-wubi 仓 ahead 3（6c5f7ea+5ae0ed8+本批两笔）未 push，push 留用户。
+
+### 补段：双面工具定义读数（上下文诊断面板，同日续）
+
+- **标准会话**（模式菜单切标准+首轮实弹）：总 20.7k/首轮，**工具定义 ≈10.5k**、系统提示词
+  ≈8.4k、注入内容 ≈1.1k、技能注入 ≈739——优于 11-08 基线（当年标准面 ~90 项 ≈20k/总 21.6K）。
+  回复「好」零插值错，133 tok/s。走查会话一发现：`新建会话` 会**继承当前选中会话的预设**
+  （session header agentPreset=redteam 实锤）——要标准面必须模式菜单显式切「标准模式」。
+- **红队会话**：**工具定义 ≈328.4k**（REA 263 v6.10.1+红队 54 席全家桶）——前批三轮实弹
+  （「正常」会话）实为红队预设路径，等于把红队会话链也验了：零插值错、缓存 8%→69%、
+  委派/轨迹/编队渲染全正常。
+- 走查姿势追加：composer 注入用 `document.execCommand('insertText')` + 直点 aria-label=
+  「发送消息」按钮（fill+Enter 在 reload 后不触发提交的同坑新配方）。
