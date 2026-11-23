@@ -6,6 +6,7 @@ import (
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/netclient"
 	"io"
+	"net/http"
 	"time"
 )
 
@@ -30,9 +31,21 @@ func DiscoverEndpoints(cfg *config.Config) (*OIDCDiscovery, error) {
 		discoveryURL = cfg.OIDCDiscoveryURL
 	}
 	client := netclient.NewSimpleClient(15 * time.Second)
-	resp, err := client.Get(discoveryURL)
+	// 代理路径下的 auth.x.ai 会间歇性 EOF/TLS 中断（TUN 分流节点抖动，2026-11-23
+	// 实测日志三次登录两死法之一），单发即败的登录对用户不可恢复——带退避重试。
+	var resp *http.Response
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		resp, err = client.Get(discoveryURL)
+		if err == nil {
+			break
+		}
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * 800 * time.Millisecond)
+		}
+	}
 	if err != nil {
-		return nil, fmt.Errorf("OIDC Discovery 请求失败: %w", err)
+		return nil, fmt.Errorf("OIDC Discovery 请求失败（已重试 3 次）: %w", err)
 	}
 	defer resp.Body.Close()
 
