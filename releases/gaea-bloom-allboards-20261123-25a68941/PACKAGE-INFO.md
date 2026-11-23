@@ -33,6 +33,8 @@
 - `tsc -b`：0；改动面 ESLint：0
 - 真实用户配置启动最终 payload：`prefers-reduced-motion=no-preference`，
   40 条流星正常显示
+- 最终 payload 已覆盖安装，`INSTALL OK`，PID `16048`，启动时间
+  `14:17:10` > 构建时间 `14:14:54`，装机 exe 与 payload 同哈希
 - 文学活动 `.gaea-app-layout`：背景、背景图、滤镜全部透明
 - 办公、文学（含已选会话）、聊天输入面逐项计算样式相等：
   `background-color`、`background-image`、`backdrop-filter`、

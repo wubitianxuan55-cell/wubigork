@@ -37,7 +37,7 @@
   正式 payload `/api/health` **200**。
 - **装机实拍**：`C:\AI\gaea-app\gaea.exe` SHA256
   `3F8CE4D9F63A4468E0B706A0ECBC9E3A30C9450F7BB8A86FC1D49BE4F9F7C809`，
-  payload 与装机位同哈希；INSTALL OK，PID 30264 启动于 14:16:29 >
+  payload 与装机位同哈希；INSTALL OK，PID 16048 启动于 14:17:10 >
   构建 14:14:54。装机版文学页实测 `prefers-reduced-motion=no-preference`、
   活动 `.gaea-app-layout` 背景/背景图/滤镜均为 none、`stardustZ=0`、
   40 流星；截图确认星河与流星穿过文学工作区。办公/文学/聊天三套输入面逐项
