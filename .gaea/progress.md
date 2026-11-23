@@ -1,3 +1,26 @@
+## 树上在途件全收口·四笔提交+包 gaea-20261123-b1591b4d（2026-11-23）
+
+- **背景**：方案档接线批后用户拍板「未提交的文件一起构建提交」——77 件全盘点。
+  归属核验（逐 diff 看）：app.go/gaea_ui_extra/gaea_unified_search/jailbreak/
+  main.go 全属文学私密线，无第四条线；`probe-memory-out.jsonl`（运行态残留）与
+  `releases/**` zip 大件按纪律排除不入库。
+- **提交前验证**：Go vet（app/config/maturecraft）净；定向 `Privacy|Orphan` 绿+
+  `WenxueSkillSeed|WenxueSkills|WenxueWorkspace|NovelChapterBranch` 绿+
+  config/maturecraft 全量绿；前端 `tsc -b` 0+私密组件 8/8。
+- **四笔**：`28933717` feat(wenxue) 图文私密保护四形态+novel-chapter-branches
+  技能种子（49 文件 +2678/−111，wenxue_privacy 四态后端+前端三件+
+  unified_search 图文剥离+config 私密键+9333 取证注+绑定面再生）；
+  `9168f07a` fix(gaea) 编程板块 web 遗孤回收根修（netstat 探 PID+等端口释放+
+  树杀，三探针可替换缝）；`b1591b4d` chore(gaea) cdp-walk 双栈
+  （[::1]:9333 形态+GAEA_WALK_HOST 钉壳）+cache_probe_live.go 随批入库。
+  树上代码面清零。
+- **包**：`releases/gaea-20261123-b1591b4d/`（干净树 pkg-b1591b4d detached：
+  pnpm 24.7s+Vite 25.23s+Wails 55.57s bindings 未跳过；漂移 27 文件忽略 EOL
+  内容差 0；payload 冒烟 **200** PID 35160 已回收）；exe 61,733,888 B
+  `1413DA5D…942646A`；桌面 ZIP 34,851,897 B `C2D5293B…E6A17C`；源码 ZIP
+  829,135,537 B `17646CD7…A9353`；三 DLL 同基线。PACKAGE-INFO+SHA256SUMS
+  入库（docs 提交）。未装机未 push（装机会杀壳——旧壳 62656 还开着，先关再装）。
+
 ## 方案模式·参照知识库接线（2026-11-23）
 
 - **需求收敛**：用户最初提「方案模式增加方案库（参照索引导入的方案）」，三问拍板
