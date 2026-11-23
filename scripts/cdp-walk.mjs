@@ -4,7 +4,21 @@
 // 端口可经 GAEA_WALK_PORT 覆盖（默认 9333）——9333 被其他 WebView2 应用
 // （如 kidsabc）占用时，走查壳换端口 + 本工具同端口即可并行不串台。
 const WALK_PORT = process.env.GAEA_WALK_PORT || "9333";
-const list = await (await fetch(`http://127.0.0.1:${WALK_PORT}/json`)).json();
+// WebView2 有时把调试口绑在 IPv6 环回（[::1]:9333，2026-11-23 走查壳实测）——
+// 双栈都试；GAEA_WALK_HOST 可显式钉死（多 gaea 实例并行时按 host 选壳，
+// 防止驱动打错实例——踩过一次：实盘壳与沙箱壳各绑一栈）。
+const WALK_HOST = process.env.GAEA_WALK_HOST || "";
+async function listTargets() {
+  const hosts = WALK_HOST ? [WALK_HOST] : ["127.0.0.1", "[::1]"];
+  for (const host of hosts) {
+    try {
+      const res = await fetch(`http://${host}:${WALK_PORT}/json`);
+      if (res.ok) return await res.json();
+    } catch (_) { /* try next host */ }
+  }
+  throw new Error(`CDP ${WALK_PORT}（${hosts.join("/")}）均拒连（壳未起或端口不符）`);
+}
+const list = await listTargets();
 const targetIdx = process.argv.indexOf("--target");
 const targetHint = targetIdx > 0 ? process.argv[targetIdx + 1] : "";
 const pages = list.filter((t) => t.type === "page");
