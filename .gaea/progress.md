@@ -23,26 +23,34 @@
   不新增任何假的星轨或强制动效。架构测试锁定 `:is()` 材质列表不得重新纳入
   `.gaea-app-layout`，并锁定文学式懒加载后仍生效的透明规则。
 - **输入玻璃二次复现**：办公 composer 为透明填充 + shell sheen + 当前材质
-  filter；文学空会话卡被懒加载 CSS 刷成 94% 实底、输入行 96%、工具条 92%，
+  filter；文学卡被懒加载 CSS 刷成 94% 实底、输入行 96%、工具条 92%，
   聊天 `.chat-composer` 则被刷成 `--chat-surface-raised` 实底且
   `backdrop-filter:none`。三块视觉确实不一致。
-- **输入玻璃根修**：文学空会话 composer/input/toolbar 与聊天
+- **输入玻璃根修**：文学所有会话状态的 composer/input/toolbar 与聊天
   `.chat-composer.gaea-glass-shell` 改消费 `--gaea-shell-composer-fill`、
   `--gaea-shell-sheen`、`--gaea-shell-filter`、`--gaea-shell-edge/shadow`；
   聚焦态统一到 accent/focus/raised。文学保留办公式 16px 输入卡，聊天保留自身
   760px 输入岛与 18px 圆角，只统一材质，不改布局。
 - **验证**：外观/store/设置定向 **3 文件 32/32**、`tsc -b` 0、改动面 ESLint 0；
-  前端 `npm.cmd run build` 24.98s；UCRT64 Wails 31.455s（bindings 未跳过）；
-  正式路径 `/api/health` **200**。
+  干净树前端 `npm.cmd run build` 31.99s；UCRT64 Wails 48.596s
+  （bindings 未跳过）；`git diff --ignore-cr-at-eol` 内容漂移 0；
+  正式 payload `/api/health` **200**。
 - **装机实拍**：`C:\AI\gaea-app\gaea.exe` SHA256
-  `F5B6368D987034DF1B0892E18BC6BBF44691893A735A240B47C14111FF42C491`，
-  build/bin 与装机位同哈希；INSTALL OK，PID 9884 启动于 14:05:20 >
-  构建 14:05:13。装机版文学页实测 `prefers-reduced-motion=no-preference`、
+  `3F8CE4D9F63A4468E0B706A0ECBC9E3A30C9450F7BB8A86FC1D49BE4F9F7C809`，
+  payload 与装机位同哈希；INSTALL OK，PID 30264 启动于 14:16:29 >
+  构建 14:14:54。装机版文学页实测 `prefers-reduced-motion=no-preference`、
   活动 `.gaea-app-layout` 背景/背景图/滤镜均为 none、`stardustZ=0`、
   40 流星；截图确认星河与流星穿过文学工作区。办公/文学/聊天三套输入面逐项
   计算样式对比：background/background-image/backdrop-filter/box-shadow/border
   全部相等；当前 veil 材质实测三者均为 58% + blur24。
-- **边界**：源码改动未提交、未 push；本轮不抬产品版本。
+- **提交**：核心 `bdc03895`；补齐文学所有会话状态 `25a68941`。
+- **交付包**：`releases/gaea-bloom-allboards-20261123-25a68941/`；
+  payload 四件+桌面 ZIP+源码 ZIP 六项 SHA256 已落
+  `PACKAGE-INFO.md` / `SHA256SUMS.txt`。桌面 ZIP 35,490,408 B
+  `504451BC…C444826`；源码 ZIP 829,142,883 B
+  `25B409A6…45D61F9`。`bdc03895` 预备包因文学已选会话仍是实底，
+  已作废不作交付。
+- **边界**：未 push；本轮不抬产品版本。
 
 ## 树上在途件全收口·四笔提交+包 gaea-20261123-b1591b4d（2026-11-23）
 
