@@ -441,6 +441,8 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - 方案库（一级板块，`internal/gaea/proposal` + `ProposalB`）：历史方案按标题 1~4 级存取，
   录入只在办公「方案」运行模式里由模型经 `proposal_save` 完成；检索复用本地 embedding /
   reranker 客户端，不另造检索工具。设计拍板与坑见 `.gaea/progress.md` 2026-11-24 条。
+  正式库里的方案「包3技术标 第三版」（3 节短文）是用户 2026-11-24 拍板保留的
+  测试夹具，供后续优化做测试，**勿删**。
 - 角色库剧照默认跟随绘梦（ImageBackend/ImageModel），可在模型中心单独绑定
 - 文生视频依赖本地 ComfyUI 安装 LTX-Video 模型
 - 里程碑：2026-08-12 完成通用办公全面打磨（显示/布局/安全三线：成本库/记忆/知识库/技能写入全部硬性确认
