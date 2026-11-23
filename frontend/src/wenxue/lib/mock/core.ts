@@ -27,6 +27,8 @@ type CoreMethods = Pick<
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace" | "EngineInit"
   | "WenxueCreateNovel" | "WenxueDeleteNovel" | "WenxueListWorkspaces" | "WenxueListSessions"
   | "WenxueListProjectSessions" | "WenxueMeta" | "WenxueNewSession" | "WenxueSwitchWorkspace"
+  | "WenxuePrivacyOverview" | "WenxuePrivacySetPin" | "WenxuePrivacyUnlock"
+  | "WenxuePrivacyLock" | "WenxuePrivacySetMaskOnBlur" | "WenxuePrivacySetBookHidden"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
   | "ContextUsage" | "ContextView" | "ContextDna" | "ContextCommands" | "ContextNodeDetail" | "ContextSurface" | "Trajectory" | "AgentNetwork" | "Jobs" | "ContextInsights" | "FamilyEvents"
   | "GaeaBrowserObserve" | "GaeaSubagentContextView"
@@ -130,6 +132,75 @@ export function buildCore(s: MakeMockState): CoreMethods {
       switchWorkspace(s, path);
       for (const group of s.projectGroupsMock) group.current = group.path === path;
       return s.cwd;
+    },
+    // ── 私密保护面（2026-11-23）：内存态镜像 Go 行为（锁定态书单滤隐藏书、
+    // Overview 锁定态隐藏书名/路径置空、退避 30s、改 PIN 即回锁）。 ──
+    async WenxuePrivacyOverview() {
+      const locked = s.privacy.pin !== "" && !s.privacy.unlocked;
+      const books = s.workspaces
+        .filter(isTuwenPath)
+        .filter((p) => p !== tuwenRoot)
+        .map((p) => {
+          const name = p.split("/").filter(Boolean).pop() ?? p;
+          const hidden = s.privacy.hidden.has(name);
+          return {
+            name: locked && hidden ? "" : name,
+            path: locked && hidden ? "" : p,
+            adultLevel: hidden ? "深度成人（无限制）" : "全年龄",
+            hidden,
+            current: p === s.cwd,
+          };
+        });
+      return {
+        pinSet: s.privacy.pin !== "",
+        unlocked: !locked,
+        maskOnBlur: s.privacy.maskOnBlur,
+        hiddenCount: s.privacy.hidden.size,
+        books,
+      };
+    },
+    async WenxuePrivacySetPin(pin: string, oldPin: string) {
+      const p = pin.trim();
+      if (!/^\d{4,12}$/.test(p)) throw new Error("PIN 须为 4~12 位数字");
+      if (s.privacy.pin !== "" && oldPin.trim() !== s.privacy.pin) {
+        throw new Error("原 PIN 不正确");
+      }
+      s.privacy.pin = p;
+      s.privacy.unlocked = false;
+      s.privacy.fails = 0;
+      s.privacy.lockUntil = 0;
+    },
+    async WenxuePrivacyUnlock(pin: string) {
+      if (s.privacy.pin === "") throw new Error("尚未设置 PIN");
+      if (Date.now() < s.privacy.lockUntil) {
+        throw new Error("尝试次数过多，请稍后再试");
+      }
+      if (pin.trim() !== s.privacy.pin) {
+        s.privacy.fails += 1;
+        if (s.privacy.fails >= 5) {
+          s.privacy.lockUntil = Date.now() + 30_000;
+          s.privacy.fails = 0;
+          throw new Error("尝试次数过多，已临时锁定 30 秒");
+        }
+        throw new Error("PIN 不正确");
+      }
+      s.privacy.unlocked = true;
+      s.privacy.fails = 0;
+      s.privacy.lockUntil = 0;
+      return true;
+    },
+    async WenxuePrivacyLock() {
+      s.privacy.unlocked = false;
+    },
+    async WenxuePrivacySetMaskOnBlur(on: boolean) {
+      s.privacy.maskOnBlur = on;
+    },
+    async WenxuePrivacySetBookHidden(name: string, hidden: boolean) {
+      if (!name || name.includes("/") || name.includes("\\")) {
+        throw new Error("书名不合法");
+      }
+      if (hidden) s.privacy.hidden.add(name);
+      else s.privacy.hidden.delete(name);
     },
     async PickWorkspace() {
       // Browser dev has no native dialog; simulate picking a folder and re-root so

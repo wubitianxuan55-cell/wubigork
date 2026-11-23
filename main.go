@@ -70,6 +70,13 @@ func main() {
 	// WebView2 页面，不改变系统浏览器；否则 Chromium 会把 AudioContext
 	// 保持在 suspended，导致桌面端看起来“有音效开关但完全没声音”。
 	const autoplayFlag = "--autoplay-policy=no-user-gesture-required"
+	// 注（2026-11-23 取证）：wails v2.13 在 disable-features 非空时（msSmartScreenProtection
+	// 恒在，上游无开关）会无条件追加 --remote-debugging-port=9333（恒开 CDP
+	// 远程调试口）。曾尝试经本 env 放 --remote-debugging-port=0 反制，但
+	// go-webview2 的 env_create.go 在创建环境时清空本变量（Setenv("")），
+	// wails 组装的 args 恒覆盖——反制无效，只能接受现状或升/patch 上游
+	// （挂拍板池）。攻击面评估：端口只绑本机回环，会话/配置本就是磁盘明文，
+	// CDP 边际增量有限。GAEA_WEBVIEW_DEBUG=1 走查依赖同一端口，不受影响。
 	extraArgs := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
 	addedFlag := false
 	for _, flag := range []string{micPermFlag, autoplayFlag} {

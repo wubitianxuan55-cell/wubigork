@@ -13,8 +13,9 @@ import (
 // TestWenxueSkillSeedMirrorDrift 资产双源防漂移：internal/app/wenxue_skill_seed
 // 快照必须与仓内 .gaea/skills 源逐字节一致（双向：仓源有→嵌入有且同文；
 // 嵌入有→仓源有）。改技能资产时两处同批（同「新增工具三处同批」纪律）。
+// 全档位件与无限制档专属件同守卫。
 func TestWenxueSkillSeedMirrorDrift(t *testing.T) {
-	for _, name := range wenxueSeedSkillNames {
+	for _, name := range append(append([]string{}, wenxueSeedSkillNames...), wenxueSeedSkillNamesUnrestricted...) {
 		repoDir := filepath.Join("..", "..", ".gaea", "skills", name)
 		embedded := map[string][]byte{}
 		srcRoot := "wenxue_skill_seed/" + name
@@ -75,11 +76,12 @@ func TestWenxueSkillSeedMirrorDrift(t *testing.T) {
 	}
 }
 
-// TestWenxueSeedBookSkills 播种语义：只补缺失/幂等/用户改动保留/空根拒绝。
+// TestWenxueSeedBookSkills 播种语义：只补缺失/幂等/用户改动保留/空根拒绝/
+// 无限制档门控（非无限制书不落盘专属件）。
 func TestWenxueSeedBookSkills(t *testing.T) {
 	root := t.TempDir()
 
-	n := wenxueSeedBookSkills(root)
+	n := wenxueSeedBookSkills(root, false)
 	if n == 0 {
 		t.Fatal("首播应落盘文件")
 	}
@@ -90,8 +92,24 @@ func TestWenxueSeedBookSkills(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".gaea", "skills", "novel-agents", "agents", "story-architect.md")); err != nil {
 		t.Fatalf("派发契约伴随件（角色卡）未播种: %v", err)
 	}
+	// 非无限制书：无限制档专属件不落盘。
+	if _, err := os.Stat(filepath.Join(root, ".gaea", "skills", "novel-chapter-branches", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("非无限制书不应播种无限制档专属件: %v", err)
+	}
 
-	if n2 := wenxueSeedBookSkills(root); n2 != 0 {
+	// 无限制书：专属件落盘且幂等。
+	nuRoot := t.TempDir()
+	if nU := wenxueSeedBookSkills(nuRoot, true); nU == 0 {
+		t.Fatal("无限制书首播应落盘文件")
+	}
+	if _, err := os.Stat(filepath.Join(nuRoot, ".gaea", "skills", "novel-chapter-branches", "SKILL.md")); err != nil {
+		t.Fatalf("无限制书未播种 novel-chapter-branches: %v", err)
+	}
+	if nU2 := wenxueSeedBookSkills(nuRoot, true); nU2 != 0 {
+		t.Fatalf("无限制书二次播种应幂等（count=0），got %d", nU2)
+	}
+
+	if n2 := wenxueSeedBookSkills(root, false); n2 != 0 {
 		t.Fatalf("二次播种应幂等（count=0），got %d", n2)
 	}
 
@@ -100,14 +118,14 @@ func TestWenxueSeedBookSkills(t *testing.T) {
 	if err := os.WriteFile(overwritten, []byte(`{"user":"edit"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_ = wenxueSeedBookSkills(root)
+	_ = wenxueSeedBookSkills(root, false)
 	body, _ := os.ReadFile(overwritten)
 	if string(body) != `{"user":"edit"}` {
 		t.Fatal("用户改动被播种覆盖（应先到先得）")
 	}
 
 	// 空根诚实拒绝。
-	if n3 := wenxueSeedBookSkills("   "); n3 != 0 {
+	if n3 := wenxueSeedBookSkills("   ", false); n3 != 0 {
 		t.Fatalf("空根应拒绝播种，got %d", n3)
 	}
 	// 目录足迹：只允许落在 .gaea/skills 子树内。

@@ -36,7 +36,11 @@ import {
   DashboardOutlined,
   DownOutlined,
   EditOutlined,
+  EyeInvisibleOutlined,
   EyeOutlined,
+  KeyOutlined,
+  LockOutlined,
+  UnlockOutlined,
   FileExcelOutlined,
   FileImageOutlined,
   FileOutlined,
@@ -136,6 +140,11 @@ export const Diff: Icon = wrap(DiffOutlined);
 export const Gauge: Icon = wrap(DashboardOutlined);
 export const ExternalLink: Icon = wrap(LinkOutlined);
 export const Eye: Icon = wrap(EyeOutlined);
+// 私密保护区（2026-11-23）：眼睛开合/锁/钥匙三对。
+export const EyeOff: Icon = wrap(EyeInvisibleOutlined);
+export const KeyRound: Icon = wrap(KeyOutlined);
+export const Lock: Icon = wrap(LockOutlined);
+export const LockOpen: Icon = wrap(UnlockOutlined);
 export const File: Icon = wrap(FileOutlined);
 export const FileImage: Icon = wrap(FileImageOutlined);
 export const FileSpreadsheet: Icon = wrap(FileExcelOutlined);

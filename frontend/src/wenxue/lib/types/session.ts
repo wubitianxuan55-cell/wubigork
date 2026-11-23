@@ -29,7 +29,10 @@ export interface ProjectGroup {
   modTime: number; // 分组内最近会话时间（unix milliseconds）
 }
 
-export type WorkspaceView = WireShape<AppModels.WorkspaceView>;
+// WorkspaceView — wailsjs 生成面 + adultLevel 前置声明：Go 侧已加 AdultLevel
+// 字段（私密保护面按档位分流，见 wenxue_privacy.go），wailsjs models 随下次
+// wails build 再生后两边同形；交集写法在再生前后都成立（可选字段）。
+export type WorkspaceView = WireShape<AppModels.WorkspaceView> & { adultLevel?: string };
 
 // SpaceOption 是双空间静态枚举项（GaeaSpaceList，work/play 固定两值）。
 export type SpaceOption = WireShape<AppModels.SpaceOption>;

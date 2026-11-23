@@ -1346,6 +1346,9 @@ type WorkspaceView struct {
 	Path    string `json:"path"`
 	Name    string `json:"name"`
 	Current bool   `json:"current"`
+	// AdultLevel 书籍成人等级（仅图文工作空间填充，读 书籍信息.md 档位行；
+	// 空=非图文或档位不可判。私密保护面据此分流，见 wenxue_privacy.go）。
+	AdultLevel string `json:"adultLevel,omitempty"`
 }
 
 // GaeaPickWorkspace 弹出系统目录对话框选择/新建工作空间并切换。

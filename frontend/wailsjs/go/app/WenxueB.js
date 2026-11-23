@@ -298,6 +298,30 @@ export function WenxuePreview(arg1) {
   return window['go']['app']['WenxueB']['WenxuePreview'](arg1);
 }
 
+export function WenxuePrivacyLock() {
+  return window['go']['app']['WenxueB']['WenxuePrivacyLock']();
+}
+
+export function WenxuePrivacyOverview() {
+  return window['go']['app']['WenxueB']['WenxuePrivacyOverview']();
+}
+
+export function WenxuePrivacySetBookHidden(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxuePrivacySetBookHidden'](arg1, arg2);
+}
+
+export function WenxuePrivacySetMaskOnBlur(arg1) {
+  return window['go']['app']['WenxueB']['WenxuePrivacySetMaskOnBlur'](arg1);
+}
+
+export function WenxuePrivacySetPin(arg1, arg2) {
+  return window['go']['app']['WenxueB']['WenxuePrivacySetPin'](arg1, arg2);
+}
+
+export function WenxuePrivacyUnlock(arg1) {
+  return window['go']['app']['WenxueB']['WenxuePrivacyUnlock'](arg1);
+}
+
 export function WenxuePromptGet() {
   return window['go']['app']['WenxueB']['WenxuePromptGet']();
 }

@@ -18,6 +18,7 @@ const ADULT_LEVEL_HINT: Record<string, string> = {
   "深度成人（无限制）": "无任何安全底线；性/暴力/黑暗/禁忌题材全部正面直写，不回避、不淡化、不审查。随书注入云端模型破甲契约。",
 };
 import { useT } from "../lib/i18n";
+import { PrivacySidebarSection } from "./PrivacySidebarSection";
 import { WorkspaceSidebarToggleIcon } from "../../components/WorkspaceSidebarToggleIcon";
 import { sessionTitle } from "../lib/session";
 import { relativeTime } from "../lib/time";
@@ -1063,6 +1064,10 @@ export function Sidebar({
             </button>
           </div>
         )}
+
+        {/* 私密保护区（2026-11-23 无限制档小说）：自含 hook 零穿线，锁定态
+            占位行/解锁、解锁态逐书隐藏开关/回锁/PIN/遮罩开关。 */}
+        {!collapsed && <PrivacySidebarSection />}
 
         <Modal
           open={novelDialogOpen}

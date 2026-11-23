@@ -43,6 +43,8 @@ func loadDefaults(home string) *Config {
 		FuncVisionEnabled:  true, // 办公识图默认启用：绑定即生效，未绑定走 gaea.toml [vision]
 		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
 		SensitiveLocal: true,
+		// 图文私密保护：失焦自动遮罩默认开（2026-11-23 无限制档小说四形态）。
+		WenxuePrivacyMaskOnBlur: true,
 		// 2026-08-28：办公板块功能级 AI 调用默认本地优先（数据不出本机 + 省 token）。
 		OfficeLocal: true,
 		// 读屏纵深（v4.8）：摘要默认开（只走本地 Herdsman，失败退回截断）；
@@ -244,6 +246,15 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.WenxueWorkspace != "" {
 				cfg.WenxueWorkspace = cf.WenxueWorkspace
+			}
+			if cf.WenxuePrivacyPinHash != "" {
+				cfg.WenxuePrivacyPinHash = cf.WenxuePrivacyPinHash
+			}
+			if cf.WenxuePrivacyHiddenBooks != "" {
+				cfg.WenxuePrivacyHiddenBooks = cf.WenxuePrivacyHiddenBooks
+			}
+			if cf.WenxuePrivacyMaskOnBlur != nil {
+				cfg.WenxuePrivacyMaskOnBlur = *cf.WenxuePrivacyMaskOnBlur
 			}
 			if cf.ComfyUIPath != "" {
 				cfg.ComfyUIPath = cf.ComfyUIPath

@@ -143,7 +143,7 @@ func (a *App) GaeaUnifiedSearch(query string, topN int, scope ...string) (Unifie
 	if strings.TrimSpace(query) == "" {
 		return view, nil
 	}
-	view.Keyword = a.workspaceSearchHits(query, topN)
+	view.Keyword = a.wenxueDropTuwenKeywordHits(a.workspaceSearchHits(query, topN))
 	view.Brain = a.brainSearchHits(query, sc)
 	if topN <= 0 {
 		topN = 10
@@ -153,7 +153,7 @@ func (a *App) GaeaUnifiedSearch(query string, topN int, scope ...string) (Unifie
 		return view, err
 	}
 	if files != nil {
-		view.Files = files
+		view.Files = wenxueDropTuwenFileHits(files)
 	}
 	// 审计 P1 AP5-05：semantic 组与 file 组同用调用方 topN（此前固定 6/20）。
 	sem, err := a.semanticSearchHits(query, topN)

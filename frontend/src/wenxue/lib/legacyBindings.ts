@@ -121,6 +121,7 @@ export const legacyBindings = [
   "GaeaLocalServiceModels",
   "GaeaMaterials",
   "GaeaMemory",
+  "GaeaMemoryRecall",
   "GaeaMemorySuggestions",
   "GaeaMeta",
   "GaeaNewSession",

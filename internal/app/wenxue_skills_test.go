@@ -3,6 +3,8 @@ package app
 // wenxue_skills_test.go — 图文技能面单测（2026-11-15 刀2）。
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -30,6 +32,54 @@ func TestWenxueSkillFilterAllowsNovelDomainAndMeta(t *testing.T) {
 		if !wenxueSkillFilter(n) {
 			t.Fatalf("小说域/元技能 %s 应对图文引擎可见", n)
 		}
+	}
+}
+
+// TestWenxueSkillFilterUnrestrictedGate 无限制档专属技能动态档位闸（2026-11-23
+// 用户拍板「无限制时才加载」）：书籍信息.md 档位行=事实源——缺失/全年龄/降档
+// 残留三形态不可见（宁紧勿松），无限制书可见；普通技能不吃档位闸。
+func TestWenxueSkillFilterUnrestrictedGate(t *testing.T) {
+	_, root := isolateWenxueRuntime(t)
+	book := filepath.Join(root, "测试书")
+	if err := os.MkdirAll(book, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wenxuePersistWorkspace(book)
+	info := filepath.Join(book, "书籍信息.md")
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(info, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 旧书缺书籍信息.md：不可见。
+	if wenxueSkillFilter("novel-chapter-branches") {
+		t.Fatal("缺书籍信息.md 时专属技能应不可见（宁紧勿松）")
+	}
+	// 全年龄：不可见。
+	write("- 书名：测试书\n\n- 成人等级：全年龄\n")
+	if wenxueSkillFilter("novel-chapter-branches") {
+		t.Fatal("全年龄书专属技能应不可见")
+	}
+	// 无限制：可见。
+	write("- 书名：测试书\n\n- 成人等级：深度成人（无限制）\n")
+	if !wenxueSkillFilter("novel-chapter-branches") {
+		t.Fatal("无限制书专属技能应可见")
+	}
+	// 降档残留（文件还在）：闸兜住不可见。
+	write("- 书名：测试书\n\n- 成人等级：成人（限制级）\n")
+	if wenxueSkillFilter("novel-chapter-branches") {
+		t.Fatal("降档后残留专属技能应不可见")
+	}
+	// 普通技能不吃档位闸（无限制书下恒可见）。
+	write("- 书名：测试书\n\n- 成人等级：深度成人（无限制）\n")
+	if !wenxueSkillFilter("novel-deslop") {
+		t.Fatal("普通技能不应吃档位闸")
+	}
+	// 办公域技能仍恒隐藏（allowlist 面不动）。
+	if wenxueSkillFilter("docx") {
+		t.Fatal("办公域技能应仍被 allowlist 隐藏")
 	}
 }
 
@@ -62,8 +112,8 @@ func TestWenxueWorkbenchV1Body(t *testing.T) {
 		}
 	}
 	for _, banned := range []string{
-		"长篇小说创作专属板块", // 旧自称（范围已放宽到各类小说）
-		".gaea/exports/",  // 固定导出根不得进文学侧文本
+		"长篇小说创作专属板块",     // 旧自称（范围已放宽到各类小说）
+		".gaea/exports/", // 固定导出根不得进文学侧文本
 	} {
 		if strings.Contains(wenxueWorkbenchBody, banned) {
 			t.Errorf("workbench 正文含禁词 %q", banned)

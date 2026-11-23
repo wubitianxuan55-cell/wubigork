@@ -160,6 +160,9 @@ func (a *App) WenxueListSessions() []SessionMeta {
 }
 
 // WenxueListProjectSessions 以小说目录为项目分组（控制器锚换 wx）。
+// 隐藏书（私密保护清单）整组跳过——含现书：侧栏书单/会话/首页最近作品
+// 三面浏览视图都不暴露（2026-11-23 眼睛失效根修；引擎锚与会话数据不动，
+// 现书会话仍在聊天区可用）。
 func (a *App) WenxueListProjectSessions() []ProjectGroup {
 	current := wenxueWorkspace()
 	curSession := ""
@@ -168,6 +171,9 @@ func (a *App) WenxueListProjectSessions() []ProjectGroup {
 	}
 	groups := make([]ProjectGroup, 0)
 	for _, ws := range a.WenxueListWorkspaces() {
+		if wenxuePrivacyBookHidden(ws.Name) {
+			continue
+		}
 		sessions := a.listSessionsForDir(
 			gaeaConfig.WorkspaceSessionDir(ws.Path, ""),
 			curSession,

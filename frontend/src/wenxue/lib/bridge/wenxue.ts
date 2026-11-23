@@ -48,4 +48,36 @@ export interface WenxueExtraBindings {
   WenxueToolSurface(): Promise<ToolSurfaceViewB>;
   /** 切换当前小说工作空间，越界路径由后端拒绝。 */
   WenxueSwitchWorkspace(path: string): Promise<string>;
+  // ── 私密保护面（2026-11-23 无限制档小说四形态，Go 侧 wenxue_privacy.go）──
+  /** 私密总览：PIN/解锁态/遮罩开关/隐藏计数/逐书档位与隐藏位（锁定态隐藏书
+   *  名字与路径已由后端置空）。 */
+  WenxuePrivacyOverview(): Promise<WenxuePrivacyOverview>;
+  /** 设置/修改 PIN（已设 PIN 时 oldPin 必须正确；成功即回锁）。 */
+  WenxuePrivacySetPin(pin: string, oldPin: string): Promise<void>;
+  /** 会话解锁（连续 5 次失败退避 30s）。 */
+  WenxuePrivacyUnlock(pin: string): Promise<boolean>;
+  /** 手动回锁（即时生效）。 */
+  WenxuePrivacyLock(): Promise<void>;
+  /** 失焦自动遮罩总开关。 */
+  WenxuePrivacySetMaskOnBlur(on: boolean): Promise<void>;
+  /** 单书隐藏开关（同步目录系统隐藏属性）。 */
+  WenxuePrivacySetBookHidden(name: string, hidden: boolean): Promise<void>;
+}
+
+// WenxuePrivacyBook 单书隐私条目（锁定态隐藏书 Name/Path 为空串）。
+export interface WenxuePrivacyBook {
+  name: string;
+  path: string;
+  adultLevel: string;
+  hidden: boolean;
+  current: boolean;
+}
+
+// WenxuePrivacyOverview 私密保护总览（Sidebar 隐私区与遮罩/解锁流数据源）。
+export interface WenxuePrivacyOverview {
+  pinSet: boolean;
+  unlocked: boolean;
+  maskOnBlur: boolean;
+  hiddenCount: number;
+  books: WenxuePrivacyBook[];
 }

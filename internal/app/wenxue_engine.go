@@ -295,12 +295,12 @@ func (a *App) wenxueResumeLastSession(ctrl *control.Controller) {
 	}
 	loaded, err := ctrl.ResumeFromDisk(infos[0].Path)
 	if err != nil {
-		slog.Warn("图文引擎自动恢复最近会话失败", "path", infos[0].Path, "error", err)
+		slog.Warn("图文引擎自动恢复最近会话失败", "path", wenxueRedactPath(infos[0].Path), "error", err)
 		return
 	}
 	injectInterruption(loaded, infos[0].Path)
 	ctrl.SeedContextUsage()
-	slog.Info("图文引擎已自动恢复最近会话", "path", infos[0].Path, "messages", len(loaded.Messages))
+	slog.Info("图文引擎已自动恢复最近会话", "path", wenxueRedactPath(infos[0].Path), "messages", len(loaded.Messages))
 }
 
 // wenxueReloadIfInit 图文引擎已初始化时按当前配置重建（办公设置变更/切书后

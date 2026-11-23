@@ -39,6 +39,20 @@ export interface MakeMockState {
   setMorningPreload(v: boolean): void;
   setDreamMode(v: string): void;
   setEngineFailover(v: boolean): void;
+  // 私密保护面（2026-11-23 无限制档小说四形态）：内存态镜像 Go 会话态——
+  // 默认未设 PIN（=不锁）对齐后端缺省；vitest 场景经 setPrivacy 注入。
+  privacy: MockPrivacyState;
+  setPrivacy(v: MockPrivacyState): void;
+}
+
+// MockPrivacyState — mock 私密面内存态（books 键=书名）。
+export interface MockPrivacyState {
+  pin: string; // 空=未设 PIN
+  unlocked: boolean;
+  maskOnBlur: boolean;
+  hidden: Set<string>;
+  fails: number;
+  lockUntil: number; // epoch ms；>Date.now() 时拒绝尝试
 }
 
 // mockSwitchWorkspace：切换工作区并置顶（原 makeMockApp 内部函数）。
@@ -229,6 +243,11 @@ export function createMockState(): MakeMockState {
     dreamMode: "suggest",
     // 故障转移默认关（Go 侧默认 false；Get/SetEngineFailover 见 mock/model.ts）。
     engineFailover: false,
+    // 私密面缺省：未设 PIN 不锁（Go 缺省一致）；遮罩默认开。
+    privacy: { pin: "", unlocked: false, maskOnBlur: true, hidden: new Set<string>(), fails: 0, lockUntil: 0 },
+    setPrivacy(v) {
+      s.privacy = v;
+    },
     setCapServers(v) {
       s.capServers = v;
     },

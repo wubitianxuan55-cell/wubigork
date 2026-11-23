@@ -327,6 +327,41 @@ func TestWenxueBookInfoContractSync(t *testing.T) {
 	}
 }
 
+// 2026-11-23 年龄缓冲修复行为锁：恒守线行级匹配只认锚（wenxueAdultSafetyLineMark）
+// 不认全行——旧版短恒守线老书经同步即升级为现行表述（18 周岁定义+作用域限定），
+// 恰一条不重复；无限制档老书的旧短行同样摘得掉。
+func TestWenxueBookInfoSafetyLineUpgrade(t *testing.T) {
+	_, root := isolateWenxueRuntime(t)
+	abs := filepath.Join(root, "书籍信息.md")
+	oldLine := "- 唯一恒守线：涉未成年角色的性内容一律禁止。"
+
+	// 旧版全年龄书（修复前建）：短恒守线行 → 同步后升级为现行文本。
+	oldMD := "# 书籍信息\n\n- 书名：老书\n\n- 成人等级：全年龄\n\n## 简介\n\n测试。\n\n## 内容分级说明\n\n- 全年龄：无成人内容。\n" + oldLine + "\n"
+	if err := os.WriteFile(abs, []byte(oldMD), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wenxueSyncBookInfoContract(root)
+	after, _ := os.ReadFile(abs)
+	s := string(after)
+	if !strings.Contains(s, wenxueAdultSafetyLine) {
+		t.Fatal("旧短恒守线未升级为现行表述")
+	}
+	if strings.Count(s, wenxueAdultSafetyLineMark) != 1 {
+		t.Fatalf("恒守线行应恰一条，得 %d", strings.Count(s, wenxueAdultSafetyLineMark))
+	}
+
+	// 老书升档：旧短行按锚摘除（旧文本与新常量全行不等也须摘掉）。
+	up := strings.Replace(s, "成人等级：全年龄", "成人等级：深度成人（无限制）", 1)
+	if err := os.WriteFile(abs, []byte(up), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wenxueSyncBookInfoContract(root)
+	after2, _ := os.ReadFile(abs)
+	if strings.Contains(string(after2), "涉未成年角色的性内容一律禁止") {
+		t.Fatal("无限制档未摘除旧短恒守线行")
+	}
+}
+
 // TestWenxueResolvePreviewPathWhitelist 预览绝对分支白名单（2026-11-17 审查
 // 批10，证据驱动）：真实消费方两类——对话框拾取附件（isPickedFile，与 agent
 // 读侧 ReadPathAllowed 同单源）+读根白名单（工作区内绝对形态含证据链基线

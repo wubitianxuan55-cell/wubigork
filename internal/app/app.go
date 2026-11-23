@@ -297,6 +297,10 @@ type App struct {
 
 	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
 	intentClassifierFn func(text string) *intent.Intent
+
+	// wenxuePrivacyState 图文私密保护会话态（解锁/退避计数；零值可用，
+	// 见 wenxue_privacy.go——重启回锁，内存不持久化）。
+	wenxuePrivacyState wenxuePrivacyState
 }
 
 // clientRef 读当前 AI client（审计 P1 AP8-01：读侧统一走读锁快照；并发换入

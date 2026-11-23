@@ -137,15 +137,25 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.QualityMaxRetries = n
 		return nil
 	},
-	KeyTTSBinaryPath:     func(cf *configFile, v string) error { cf.TTSBinaryPath = v; return nil },
-	KeyTTSModelPath:      func(cf *configFile, v string) error { cf.TTSModelPath = v; return nil },
-	KeyImageBackend:      func(cf *configFile, v string) error { cf.ImageBackend = v; return nil },
-	KeyComfyUIURL:        func(cf *configFile, v string) error { cf.ComfyUIURL = v; return nil },
-	KeyImageSaveDir:      func(cf *configFile, v string) error { cf.ImageSaveDir = v; return nil },
-	KeyImageModel:        func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
-	KeyPortraitBackend:   func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
-	KeyPortraitModel:     func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
-	KeyWenxueWorkspace:   func(cf *configFile, v string) error { cf.WenxueWorkspace = v; return nil },
+	KeyTTSBinaryPath:            func(cf *configFile, v string) error { cf.TTSBinaryPath = v; return nil },
+	KeyTTSModelPath:             func(cf *configFile, v string) error { cf.TTSModelPath = v; return nil },
+	KeyImageBackend:             func(cf *configFile, v string) error { cf.ImageBackend = v; return nil },
+	KeyComfyUIURL:               func(cf *configFile, v string) error { cf.ComfyUIURL = v; return nil },
+	KeyImageSaveDir:             func(cf *configFile, v string) error { cf.ImageSaveDir = v; return nil },
+	KeyImageModel:               func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
+	KeyPortraitBackend:          func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
+	KeyPortraitModel:            func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
+	KeyWenxueWorkspace:          func(cf *configFile, v string) error { cf.WenxueWorkspace = v; return nil },
+	KeyWenxuePrivacyPinHash:     func(cf *configFile, v string) error { cf.WenxuePrivacyPinHash = v; return nil },
+	KeyWenxuePrivacyHiddenBooks: func(cf *configFile, v string) error { cf.WenxuePrivacyHiddenBooks = v; return nil },
+	KeyWenxuePrivacyMaskOnBlur: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.WenxuePrivacyMaskOnBlur = b
+		return nil
+	},
 	KeyComfyUIPath:       func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
 	KeyComfyUIPythonPath: func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
 	KeyTianxuanPath:      func(cf *configFile, v string) error { cf.TianxuanPath = v; return nil },

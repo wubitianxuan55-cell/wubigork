@@ -89,6 +89,8 @@ func wenxuePersistWorkspace(abs string) {
 }
 
 // WenxueListWorkspaces 图文工作空间列表：tuwen 根的子目录（每部小说一个）。
+// 条目带成人等级（adultLevel，读 书籍信息.md 档位行）；锁定态（PIN 已设未
+// 解锁）下隐藏清单内的书不进列表（私密保护面，见 wenxue_privacy.go）。
 func (a *App) WenxueListWorkspaces() []WorkspaceView {
 	root := wenxueWorkspaceRoot()
 	_ = os.MkdirAll(root, 0o755)
@@ -104,7 +106,12 @@ func (a *App) WenxueListWorkspaces() []WorkspaceView {
 			continue
 		}
 		abs := filepath.Join(root, e.Name())
-		out = append(out, WorkspaceView{Path: abs, Name: e.Name(), Current: wenxueSamePath(abs, current)})
+		out = append(out, WorkspaceView{
+			Path:       abs,
+			Name:       e.Name(),
+			Current:    wenxueSamePath(abs, current),
+			AdultLevel: wenxueBookAdultLevelAt(abs),
+		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Current != out[j].Current {
@@ -112,7 +119,7 @@ func (a *App) WenxueListWorkspaces() []WorkspaceView {
 		}
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
-	return out
+	return a.wenxueFilterHiddenWorkspaces(out)
 }
 
 // WenxueMeta 返回图文侧看到的会话元信息（2026-11-15 刀1）：独立引擎锚——
@@ -232,8 +239,17 @@ var wenxueAdultLevelGuidance = map[string]string{
 // 任何恒守线（其余档仍写涉未成年线）。
 const wenxueAdultUnrestricted = "深度成人（无限制）"
 
-// wenxueAdultSafetyLine 非无限制档的恒守线（无限制档不注入）。
-const wenxueAdultSafetyLine = "唯一恒守线：涉未成年角色的性内容一律禁止。"
+// wenxueAdultSafetyLineMark 恒守线稳定锚：行级匹配/摘除只认锚不认全行——
+// 锚后的边界说明可随版本演进，老书经 wenxueEnsureSafetyLine 热重载即升级。
+const wenxueAdultSafetyLineMark = "唯一恒守线：涉未成年角色的性内容一律禁止"
+
+// wenxueAdultSafetyLine 非无限制档的恒守线（无限制档不注入）。锚句不变；
+// 后缀把「未成年」钉死为年满 18 周岁、并把线的作用域限定在性/亲密内容——
+// 防模型把恒守线过度泛化成「全员 ≥21 岁」的保守缓冲（2026-11-23 用户实测：
+// 剧情点名的低龄角色被擅自改写成 21 以上；模型对「成年」缺省按 21 理解）。
+const wenxueAdultSafetyLine = wenxueAdultSafetyLineMark +
+	"。成年人=年满18周岁；此线只约束性/亲密内容——不出现在亲密戏中的普通角色" +
+	"年龄按剧情设定，不设下限，不得因保守擅自抬高（如把少年角色写成21岁以上）。"
 
 // WenxueNovelInfo 新建小说关键信息（infoJSON 反序列化目标）。
 type WenxueNovelInfo struct {
@@ -283,7 +299,11 @@ func (a *App) WenxueCreateNovel(name string, infoJSON string) (WorkspaceView, er
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return WorkspaceView{}, fmt.Errorf("创建工作空间失败: %w", err)
 	}
-	slog.Info("图文新建小说工作空间", "dir", dir, "adult_level", info.AdultLevel)
+	slog.Info("图文新建小说工作空间", "dir", wenxueRedactPath(dir), "adult_level", info.AdultLevel)
+	// 无限制档新书自动入隐藏清单 + 目录加系统隐藏属性（私密保护面，失败不阻断）。
+	if info.AdultLevel == wenxueAdultUnrestricted {
+		a.wenxueAutoHideUnrestricted(n)
+	}
 	// 定稿目录脚手架（发布稿域，阅读刀约定；WenxueSwitchWorkspace 亦兜底）。
 	_ = os.MkdirAll(filepath.Join(dir, "定稿"), 0o755)
 	if got := a.WenxueSwitchWorkspace(dir); got != dir {
@@ -366,6 +386,26 @@ func wenxueAdultLevelFromInfo(text string) string {
 	return ""
 }
 
+// wenxueBookAdultLevelAt 读指定书根书籍信息.md 的成人等级（缺文件/不可判=""）。
+// 切书点播种用：此时 wenxueWorkspace() 还指旧书，档位必须按目标书读。
+func wenxueBookAdultLevelAt(bookRoot string) string {
+	abs, err := wspath.ResolveRelWithin(bookRoot, "书籍信息.md")
+	if err != nil {
+		return ""
+	}
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		return ""
+	}
+	return wenxueAdultLevelFromInfo(string(raw))
+}
+
+// wenxueCurrentBookAdultLevel 当前书成人等级（wenxueSkillFilter 动态档位闸用；
+// 缺书籍信息.md / 档位行不可判 = ""，按非无限制处理——宁紧勿松）。
+func wenxueCurrentBookAdultLevel() string {
+	return wenxueBookAdultLevelAt(wenxueWorkspace())
+}
+
 // wenxueSyncBookInfoContract 契约投影一致性校正（幂等；档位行不可判即不动）。
 func wenxueSyncBookInfoContract(root string) {
 	abs, err := wspath.ResolveRelWithin(root, "书籍信息.md")
@@ -427,23 +467,28 @@ func wenxueEnsureJbContract(text string, unrestricted bool) string {
 	return strings.TrimRight(text, "\n") + "\n\n" + wenxueBookInfoJbHeading + "\n\n" + jb + "\n"
 }
 
-// wenxueEnsureSafetyLine 恒守线行按档位归位：无限制档摘行；其余档确保恒守线
-// 行在「内容分级说明」节尾（节缺失则追加文件尾）。
+// wenxueEnsureSafetyLine 恒守线行按档位归位：无限制档摘行（认锚，旧版短行
+// 也摘得掉）；其余档摘掉旧行后把现行恒守线文本归位到「内容分级说明」节尾
+// （节缺失则追加文件尾）——旧版短行热重载即升级为现行表述，幂等。
 func wenxueEnsureSafetyLine(text string, level string) string {
 	if level == wenxueAdultUnrestricted {
 		kept := make([]string, 0, 32)
 		for _, ln := range strings.Split(text, "\n") {
-			if strings.Contains(ln, wenxueAdultSafetyLine) {
+			if strings.Contains(ln, wenxueAdultSafetyLineMark) {
 				continue
 			}
 			kept = append(kept, ln)
 		}
 		return strings.Join(kept, "\n")
 	}
-	if strings.Contains(text, wenxueAdultSafetyLine) {
-		return text
+	kept := make([]string, 0, 32)
+	for _, ln := range strings.Split(text, "\n") {
+		if strings.Contains(ln, wenxueAdultSafetyLineMark) {
+			continue
+		}
+		kept = append(kept, ln)
 	}
-	lines := strings.Split(text, "\n")
+	lines := kept
 	secStart := -1
 	for i, ln := range lines {
 		if strings.TrimSpace(ln) == "## 内容分级说明" {
@@ -523,7 +568,7 @@ func (a *App) WenxueDeleteNovel(path string) error {
 	if err := os.RemoveAll(abs); err != nil {
 		return fmt.Errorf("删除小说失败: %w", err)
 	}
-	slog.Info("图文删除小说工作空间", "dir", abs, "current", isCurrent)
+	slog.Info("图文删除小说工作空间", "dir", wenxueRedactPath(abs), "current", isCurrent)
 	return nil
 }
 
@@ -555,8 +600,10 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	// novel-review 三件进书 .gaea/skills（store 发现链首根）——只补缺失文件
 	// 幂等、用户改动保留；在切书重建前落盘，新控制器 store 快照即可见
 	// （run_skill 派发契约的 read_file 伴随件随目录就位）。
-	if n := wenxueSeedBookSkills(abs); n > 0 {
-		slog.Info("图文书技能播种", "book", abs, "files", n)
+	// 2026-11-23：无限制档专属件（novel-chapter-branches）按目标书档位门控
+	// 播种——非无限制书不落盘，可见性再由 wenxueSkillFilter 动态档位闸兜住。
+	if n := wenxueSeedBookSkills(abs, wenxueBookAdultLevelAt(abs) == wenxueAdultUnrestricted); n > 0 {
+		slog.Info("图文书技能播种", "book", wenxueRedactPath(abs), "files", n)
 	}
 	wenxuePersistWorkspace(abs)
 	// 释放图文文件树监视（旧根句柄），树重开时按新根重建。
@@ -567,7 +614,7 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	// 错写）、新书写入被拒。回合运行中不重建（打断在途回合比旧锚更糟），
 	// 警告留痕，重载时机交给回合结束后的 Reload/NewSession。
 	if c := wenxueCtrl(); c != nil && c.Running() {
-		slog.Warn("图文回合运行中，切书保持旧引擎（写入/读取边界仍锚旧书）", "ws", abs)
+		slog.Warn("图文回合运行中，切书保持旧引擎（写入/读取边界仍锚旧书）", "ws", wenxueRedactPath(abs))
 		return abs
 	}
 	a.wenxueReloadIfInit()
@@ -1965,10 +2012,17 @@ func wenxueListDirEntries(rel string) ([]DirEntry, error) {
 
 // wenxueMarkdownToPdf 受控 Markdown → docx（临时）→ soffice PDF，
 // 供 WenxueExportDeliverable 的 pdf 格式复用交付模板链路。
+// 中间件落书内 .gaea/work/tmp（私密保护：正文不短驻系统 %TEMP%；soffice
+// 临时目录不可写时回退系统临时目录保导出可用）。
 func wenxueMarkdownToPdf(in ExportDeliverableInput, title, outPath string) error {
-	tmpDir, err := os.MkdirTemp("", "gaea-pdf-*")
+	tmpRoot := filepath.Join(wenxueWorkspace(), ".gaea", "work", "tmp")
+	_ = os.MkdirAll(tmpRoot, 0o755)
+	tmpDir, err := os.MkdirTemp(tmpRoot, "pdf-*")
 	if err != nil {
-		return err
+		tmpDir, err = os.MkdirTemp("", "gaea-pdf-*")
+		if err != nil {
+			return err
+		}
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 	docxPath := filepath.Join(tmpDir, safeDeliverableName(title)+".docx")

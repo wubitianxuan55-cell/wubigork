@@ -63,6 +63,8 @@ import { useSidebar } from "./hooks/useSidebar";
 import CompactContext from "./hooks/useCompact";
 import { readWorkbenchValue, writeWorkbenchValue } from "./lib/workbenchStorage";
 import { wenxueHomePrivacyPref } from "./lib/homePrivacyPref";
+import { useWenxuePrivacy } from "./app/useWenxuePrivacy";
+import { PrivacyMask } from "./components/PrivacyMask";
 
 import {
   SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
@@ -97,6 +99,9 @@ import { useAppKeyboard } from "./app/useAppKeyboard";
 export default function App() {
   const toast = useToast();
   const [homePrivacy, setHomePrivacy] = useState(() => wenxueHomePrivacyPref.load());
+  // 私密保护面（2026-11-23）：失焦遮罩布防/解锁态单源（Sidebar 隐私区自含
+  // 独立 hook 实例，动作后经 wenxue:workspace-changed 广播互相同步）。
+  const privacy = useWenxuePrivacy();
   const toggleHomePrivacy = useCallback(() => {
     setHomePrivacy((current) => {
       const next = !current;
@@ -152,7 +157,15 @@ export default function App() {
   // 记忆 tab 已退役（2026-11-16 记忆左右脑批）：memView 视图快照不再进 UI，
   // setMemView 仅为 useSessionHandlers 契约保留。
   const [, setMemView] = useState<MemoryView | null>(null);
-  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups, projectGroupsLoaded } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
+  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups, projectGroupsLoaded, refreshProjectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
+  // 私密保护面联动（2026-11-23 眼睛失效根修）：隐藏/还原书后 Go 侧书单即变，
+  // 侧栏分组（书单+会话+首页最近作品三面共用 projectGroups）必须重拉——
+  // useSessionManager 本身不监听该事件（办公共用 hook，不加文学事件）。
+  useEffect(() => {
+    const onChange = () => { void refreshProjectGroups(); };
+    window.addEventListener("wenxue:workspace-changed", onChange);
+    return () => window.removeEventListener("wenxue:workspace-changed", onChange);
+  }, [refreshProjectGroups]);
   const newSessionAndReset = useCallback(async () => { await startNewSession(); }, [startNewSession]);
   // GenUI action 宿主：运行中 → steer（注入当前回合），空闲 → send（短展示文案 +
   // 完整信封原文走 SubmitDisplay raw）。paylod 紧凑化防超长。
@@ -721,7 +734,7 @@ export default function App() {
           <header className="office-topbar flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
             <div className="office-topbar__primary">
               <div className="flex items-center gap-2 min-w-0">
-                {cwd && (<button className="office-workspace-switch toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{homePrivacy && currentProject ? "私密作品" : cwdName}</span><ChevronDown size={11} /></button>)}
+                {cwd && (<button className="office-workspace-switch toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{(homePrivacy && currentProject) || privacy.currentBookHidden ? "私密作品" : cwdName}</span><ChevronDown size={11} /></button>)}
               </div>
             </div>
             <ChatTabs
@@ -1110,6 +1123,11 @@ export default function App() {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
       />
+
+      {/* 私密保护：失焦自动遮罩（2026-11-23 无限制档小说四形态之一）。
+          布防=失焦遮罩开关开 && 当前书无限制档（useWenxuePrivacy 判定）；
+          点击摘罩，锁定态先走 PIN 解锁。 */}
+      <PrivacyMask armed={privacy.maskArmed} locked={privacy.locked} onUnlock={privacy.unlock} />
 
       {/* C4 选区转对话：办公板内选中正文 → 浮动「转为提问」→ 引用插入输入框（v3.1.1） */}
       <SelectionToComposer />

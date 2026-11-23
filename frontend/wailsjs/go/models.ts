@@ -5079,6 +5079,64 @@ export namespace app {
 		}
 	}
 	
+	export class WenxuePrivacyBook {
+	    name: string;
+	    path: string;
+	    adultLevel: string;
+	    hidden: boolean;
+	    current: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WenxuePrivacyBook(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.adultLevel = source["adultLevel"];
+	        this.hidden = source["hidden"];
+	        this.current = source["current"];
+	    }
+	}
+	export class WenxuePrivacyOverview {
+	    pinSet: boolean;
+	    unlocked: boolean;
+	    maskOnBlur: boolean;
+	    hiddenCount: number;
+	    books: WenxuePrivacyBook[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WenxuePrivacyOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pinSet = source["pinSet"];
+	        this.unlocked = source["unlocked"];
+	        this.maskOnBlur = source["maskOnBlur"];
+	        this.hiddenCount = source["hiddenCount"];
+	        this.books = this.convertValues(source["books"], WenxuePrivacyBook);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class WenxuePromptView {
 	    prompt: string;
 	    file: string;
@@ -5341,6 +5399,7 @@ export namespace app {
 	    path: string;
 	    name: string;
 	    current: boolean;
+	    adultLevel?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkspaceView(source);
@@ -5351,6 +5410,7 @@ export namespace app {
 	        this.path = source["path"];
 	        this.name = source["name"];
 	        this.current = source["current"];
+	        this.adultLevel = source["adultLevel"];
 	    }
 	}
 	export class XlsxChartInput {

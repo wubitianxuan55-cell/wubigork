@@ -51,12 +51,19 @@ const (
 	KeyFuncGaeaEngine   = "func_gaea_engine"
 	KeyFuncGaeaModel    = "func_gaea_model"
 	// 图文板块（wenxue）：文学创作主 agent 独立绑定（未绑定回落 func_gaea）
-	KeyFuncWenxueEngine  = "func_wenxue_engine"
-	KeyFuncWenxueModel   = "func_wenxue_model"
-	KeyFuncCharLibEngine = "func_characterlib_engine"
-	KeyFuncCharLibModel  = "func_characterlib_model"
-	KeyFuncRoutineEngine = "func_routine_engine"
-	KeyFuncRoutineModel  = "func_routine_model"
+	KeyFuncWenxueEngine = "func_wenxue_engine"
+	KeyFuncWenxueModel  = "func_wenxue_model"
+	// 图文私密保护（2026-11-23 无限制档小说四形态）：pin_hash = "salt:sha256hex"
+	// （随机 16B salt，PIN 明文不落盘，空=未设 PIN 不锁）；hidden_books = JSON
+	// ["书名",…]（驱动书单隐藏 + 目录 FILE_ATTRIBUTE_HIDDEN）；mask_on_blur =
+	// 失焦自动遮罩总开关（默认开）。
+	KeyWenxuePrivacyPinHash     = "wenxue_privacy_pin_hash"
+	KeyWenxuePrivacyHiddenBooks = "wenxue_privacy_hidden_books"
+	KeyWenxuePrivacyMaskOnBlur  = "wenxue_privacy_mask_on_blur"
+	KeyFuncCharLibEngine        = "func_characterlib_engine"
+	KeyFuncCharLibModel         = "func_characterlib_model"
+	KeyFuncRoutineEngine        = "func_routine_engine"
+	KeyFuncRoutineModel         = "func_routine_model"
 	// 办公识图（vision）：视觉模型独立绑定。未绑定时视觉链路沿用 gaea.toml
 	// [vision] 静态注入（默认本机 herdsman Qwen3.6 视觉模型）；绑定后识图
 	// （看懂图/微信图片/图片附件等）改走绑定引擎的 OpenAI 兼容端点。

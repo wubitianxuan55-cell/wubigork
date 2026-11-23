@@ -156,6 +156,18 @@ export function WenxuePinnedMaterials():Promise<Array<app.FileSearchHit>>;
 
 export function WenxuePreview(arg1:string):Promise<app.PreviewResult>;
 
+export function WenxuePrivacyLock():Promise<void>;
+
+export function WenxuePrivacyOverview():Promise<app.WenxuePrivacyOverview>;
+
+export function WenxuePrivacySetBookHidden(arg1:string,arg2:boolean):Promise<void>;
+
+export function WenxuePrivacySetMaskOnBlur(arg1:boolean):Promise<void>;
+
+export function WenxuePrivacySetPin(arg1:string,arg2:string):Promise<void>;
+
+export function WenxuePrivacyUnlock(arg1:string):Promise<boolean>;
+
 export function WenxuePromptGet():Promise<app.WenxuePromptView>;
 
 export function WenxuePromptSet(arg1:string,arg2:string):Promise<void>;

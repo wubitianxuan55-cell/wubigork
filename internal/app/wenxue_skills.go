@@ -31,11 +31,28 @@ var wenxueAllowedSkills = map[string]bool{
 	// 中性元技能
 	"genui":         true, // GenUI 词汇（回答即 UI）
 	"skill-creator": true, // 造技能元技能
+	// 无限制档专属（见 wenxueUnrestrictedOnlySkills：文件门控播种 + filter 档位闸）
+	"novel-chapter-branches": true,
 }
 
-// wenxueSkillFilter 报告技能是否对图文会话可见。
+// wenxueUnrestrictedOnlySkills 无限制档专属技能（2026-11-23 用户拍板）：当前书
+// 非 深度成人（无限制） 时五面不可见——「无限制时才加载」在索引/slash/run_skill/
+// read_skill/能力抽屉同源成立；播种面只对无限制书落盘（wenxueSeedBookSkills），
+// 降档残留文件由本闸兜住（不删用户文件，先到先得）。
+var wenxueUnrestrictedOnlySkills = map[string]bool{
+	"novel-chapter-branches": true, // H文写作纪律（章末三分支/征服过程/字数门）
+}
+
+// wenxueSkillFilter 报告技能是否对图文会话可见。无限制档专属技能再吃一道
+// 动态档位闸（当前书档位，书籍信息.md 事实源）。
 func wenxueSkillFilter(name string) bool {
-	return wenxueAllowedSkills[name]
+	if !wenxueAllowedSkills[name] {
+		return false
+	}
+	if wenxueUnrestrictedOnlySkills[name] {
+		return wenxueCurrentBookAdultLevel() == wenxueAdultUnrestricted
+	}
+	return true
 }
 
 // wenxueSkillExtras 图文引擎内嵌技能三件（boot.Options.SkillExtras）。
@@ -100,6 +117,9 @@ const wenxueWorkbenchBody = `# 图文工作台纪律（小说创作）
   章节/候选/<章名>/ 只存同章 A/B/C 候选稿，不算章节本身。
 - 角色/（或 characters/、人物/）——角色卡，一角色一个 md 文件：
   首行一级标题=角色名，正文分「设定 / 外貌 / 性格 / 口头禅 / 关系 / 当前状态」。
+  角色年龄按剧情设定照实填写（用户点名 17 岁就写 17 岁），不得因保守擅自抬高
+  年龄（如一律写成 21 岁以上）；涉亲密戏的尺度约束以书籍信息成人等级与恒守线
+  为准，普通角色年龄不受其限。
 - 时间线/（或 timeline/）——**整条时间线记在单一文档** 时间线/时间线.md
   （一行一条「第N章 · 一句话事件」，章序即推演序）——整篇可读方便推演与
   检索，不要一事件一文件；旧的多文件布局仍可读，但新事件一律追加到单档。

@@ -42,6 +42,14 @@ export const GAEA_METHOD_FACETS = {
   //（面板服务图文引擎语境）。
   WenxueToolSurface: "work",
   WenxueSwitchWorkspace: "work",
+  // ── 私密保护面（2026-11-23）：文学板块自有 UI（Sidebar 隐私区/失焦遮罩/
+  // PIN 解锁流），work 锚（play 空间无文学工作台）。 ──
+  WenxuePrivacyOverview: "work",
+  WenxuePrivacySetPin: "work",
+  WenxuePrivacyUnlock: "work",
+  WenxuePrivacyLock: "work",
+  WenxuePrivacySetMaskOnBlur: "work",
+  WenxuePrivacySetBookHidden: "work",
   // 编程板块：隔离 DSH Web 进程管理仅由 independent 入口消费。
   GetProgrammingWebPreflight: "independent",
   GetProgrammingWebStatus: "independent",

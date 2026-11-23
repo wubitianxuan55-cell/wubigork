@@ -18,8 +18,9 @@ package app
 // 纪律：只补缺失文件（用户改动/词表覆盖先到先得），永不覆盖已有文件；幂等
 // （二次播种 count=0）；失败告警不阻断建书/切书。办公引擎零触碰。
 //
-// 资产双源防漂移：本目录是仓内 .gaea/skills 三件的快照拷贝，漂移守卫见
-// wenxue_skill_seed_test.go（嵌入 FS 与仓源头文件逐字节比对）。
+// 资产双源防漂移：本目录是仓内 .gaea/skills 的快照拷贝，漂移守卫见
+// wenxue_skill_seed_test.go（嵌入 FS 与仓源头文件逐字节比对，全档位件与
+// 无限制档专属件同守卫）。
 
 import (
 	"embed"
@@ -35,18 +36,29 @@ import (
 //go:embed all:wenxue_skill_seed
 var wenxueSkillSeedFS embed.FS
 
-// wenxueSeedSkillNames 播种技能清单（与 wenxueAllowedSkills 三个仓源件对齐；
+// wenxueSeedSkillNames 播种技能清单（全档位；与 wenxueAllowedSkills 对齐；
 // story-long-write/story-deslop/wenxue-workbench 是内嵌 Body 三件不经此链）。
 var wenxueSeedSkillNames = []string{"novel-agents", "novel-deslop", "novel-review"}
 
-// wenxueSeedBookSkills 把三件小说域技能播种进书工作空间 .gaea/skills/。
-// 返回新落盘文件数；bookRoot 越界/空根时诚实拒绝（不写盘）。
-func wenxueSeedBookSkills(bookRoot string) int {
+// wenxueSeedSkillNamesUnrestricted 无限制档专属播种清单（2026-11-23 用户拍板）：
+// 只在 深度成人（无限制） 书落盘——文件在 store 首根才可被发现链索引；
+// 非无限制书不落盘即五面不可见。降档不删文件（先到先得纪律），残留可见性由
+// wenxueSkillFilter 的动态档位闸兜住（无限制时才加载，五面同源成立）。
+var wenxueSeedSkillNamesUnrestricted = []string{"novel-chapter-branches"}
+
+// wenxueSeedBookSkills 把小说域技能播种进书工作空间 .gaea/skills/。
+// unrestricted=true 时额外播种无限制档专属件。返回新落盘文件数；
+// bookRoot 越界/空根时诚实拒绝（不写盘）。
+func wenxueSeedBookSkills(bookRoot string, unrestricted bool) int {
 	if strings.TrimSpace(bookRoot) == "" {
 		return 0
 	}
+	names := wenxueSeedSkillNames
+	if unrestricted {
+		names = append(append([]string{}, wenxueSeedSkillNames...), wenxueSeedSkillNamesUnrestricted...)
+	}
 	count := 0
-	for _, name := range wenxueSeedSkillNames {
+	for _, name := range names {
 		srcRoot := "wenxue_skill_seed/" + name
 		err := fs.WalkDir(wenxueSkillSeedFS, srcRoot, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {

@@ -5,47 +5,50 @@ package config
 
 // configFile 表示 ~/.gaea_config.json 的结构
 type configFile struct {
-	XaiClientID         string            `json:"xai_client_id"`
-	NovelsDir           string            `json:"novels_dir"`
-	HTTPTimeoutSeconds  int               `json:"http_timeout_seconds"`
-	DefaultTemperature  float64           `json:"default_temperature"`
-	AnalysisTemperature float64           `json:"analysis_temperature"`
-	ReasoningEffort     string            `json:"reasoning_effort"`    // Grok 推理深度: "low" / "high"
-	QualityThreshold    int               `json:"quality_threshold"`   // 章节质量阈值 1-10，低于此触发自动重试
-	QualityMaxRetries   int               `json:"quality_max_retries"` // 最大自动重试次数
-	TTSBinaryPath       string            `json:"tts_binary_path,omitempty"`
-	TTSModelPath        string            `json:"tts_model_path,omitempty"`
-	ImageBackend        string            `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "glm"
-	ComfyUIURL          string            `json:"comfyui_url,omitempty"`
-	ImageSaveDir        string            `json:"image_save_dir,omitempty"`         // 图片生成存放目录
-	ImageModel          string            `json:"image_model,omitempty"`            // 图片模型
-	PortraitBackend     string            `json:"portrait_backend,omitempty"`       // 角色库剧照后端（空=跟随绘梦）
-	PortraitModel       string            `json:"portrait_model,omitempty"`         // 角色库剧照模型（空=跟随绘梦）
-	WenxueWorkspace     string            `json:"wenxue_workspace,omitempty"`       // 文学板块（图文）当前小说工作空间
-	ComfyUIPath         string            `json:"comfyui_path,omitempty"`           // ComfyUI 安装目录
-	ComfyUIPythonPath   string            `json:"comfyui_python_path,omitempty"`    // Python 解释器路径
-	TTSPort             int               `json:"tts_port,omitempty"`               // TTS 服务端口
-	TTSBackend          string            `json:"tts_backend,omitempty"`            // TTS 后端: "cpu" | "cuda"
-	TTSSpeed            float64           `json:"tts_speed,omitempty"`              // TTS 语速
-	ActiveEngineID      string            `json:"active_engine_id,omitempty"`       // 活跃模型引擎 ID
-	Model               string            `json:"model,omitempty"`                  // 默认 LLM 模型名
-	DeepseekAPIKey      string            `json:"deepseek_api_key,omitempty"`       // DeepSeek API Key
-	GLMAPIKey           string            `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
-	OpenCodeGoAPIKey    string            `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
-	CustomEngineKeys    map[string]string `json:"custom_engine_keys,omitempty"`     // 自定义引擎 Key 库（engineID → 密文）
-	ActiveASREngine     string            `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
-	ActiveASRModel      string            `json:"active_asr_model,omitempty"`       // 语音识别激活模型
-	ActiveTTSEngine     string            `json:"active_tts_engine,omitempty"`      // 语音合成激活引擎
-	ActiveTTSModel      string            `json:"active_tts_model,omitempty"`       // 语音合成激活模型
-	TTSVoice            string            `json:"tts_voice,omitempty"`              // 语音合成音色
-	ActiveOCREngine     string            `json:"active_ocr_engine,omitempty"`      // OCR 激活引擎
-	ActiveOCRModel      string            `json:"active_ocr_model,omitempty"`       // OCR 激活模型
-	ActiveOCRLocal      string            `json:"active_ocr_local,omitempty"`       // OCR 本地引擎定点（空=docmd auto 链）
-	VoicePersonality    string            `json:"voice_personality,omitempty"`      // 语音对话角色
-	FuncChatVoiceEngine string            `json:"func_chat_voice_engine,omitempty"` // 聊天语音合成引擎
-	FuncChatVoiceModel  string            `json:"func_chat_voice_model,omitempty"`  // 聊天语音合成模型
-	FuncChatEngine      string            `json:"func_chat_engine,omitempty"`
-	FuncChatModel       string            `json:"func_chat_model,omitempty"`
+	XaiClientID              string            `json:"xai_client_id"`
+	NovelsDir                string            `json:"novels_dir"`
+	HTTPTimeoutSeconds       int               `json:"http_timeout_seconds"`
+	DefaultTemperature       float64           `json:"default_temperature"`
+	AnalysisTemperature      float64           `json:"analysis_temperature"`
+	ReasoningEffort          string            `json:"reasoning_effort"`    // Grok 推理深度: "low" / "high"
+	QualityThreshold         int               `json:"quality_threshold"`   // 章节质量阈值 1-10，低于此触发自动重试
+	QualityMaxRetries        int               `json:"quality_max_retries"` // 最大自动重试次数
+	TTSBinaryPath            string            `json:"tts_binary_path,omitempty"`
+	TTSModelPath             string            `json:"tts_model_path,omitempty"`
+	ImageBackend             string            `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "glm"
+	ComfyUIURL               string            `json:"comfyui_url,omitempty"`
+	ImageSaveDir             string            `json:"image_save_dir,omitempty"`              // 图片生成存放目录
+	ImageModel               string            `json:"image_model,omitempty"`                 // 图片模型
+	PortraitBackend          string            `json:"portrait_backend,omitempty"`            // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel            string            `json:"portrait_model,omitempty"`              // 角色库剧照模型（空=跟随绘梦）
+	WenxueWorkspace          string            `json:"wenxue_workspace,omitempty"`            // 文学板块（图文）当前小说工作空间
+	WenxuePrivacyPinHash     string            `json:"wenxue_privacy_pin_hash,omitempty"`     // 图文私密保护：PIN 哈希（salt:sha256hex，空=未设 PIN）
+	WenxuePrivacyHiddenBooks string            `json:"wenxue_privacy_hidden_books,omitempty"` // 图文私密保护：隐藏书清单（JSON ["书名",…]）
+	WenxuePrivacyMaskOnBlur  *bool             `json:"wenxue_privacy_mask_on_blur,omitempty"` // 图文私密保护：失焦自动遮罩（nil=默认开）
+	ComfyUIPath              string            `json:"comfyui_path,omitempty"`                // ComfyUI 安装目录
+	ComfyUIPythonPath        string            `json:"comfyui_python_path,omitempty"`         // Python 解释器路径
+	TTSPort                  int               `json:"tts_port,omitempty"`                    // TTS 服务端口
+	TTSBackend               string            `json:"tts_backend,omitempty"`                 // TTS 后端: "cpu" | "cuda"
+	TTSSpeed                 float64           `json:"tts_speed,omitempty"`                   // TTS 语速
+	ActiveEngineID           string            `json:"active_engine_id,omitempty"`            // 活跃模型引擎 ID
+	Model                    string            `json:"model,omitempty"`                       // 默认 LLM 模型名
+	DeepseekAPIKey           string            `json:"deepseek_api_key,omitempty"`            // DeepSeek API Key
+	GLMAPIKey                string            `json:"glm_api_key,omitempty"`                 // GLM (智谱) API Key
+	OpenCodeGoAPIKey         string            `json:"opencode_go_api_key,omitempty"`         // OpenCode Go API Key
+	CustomEngineKeys         map[string]string `json:"custom_engine_keys,omitempty"`          // 自定义引擎 Key 库（engineID → 密文）
+	ActiveASREngine          string            `json:"active_asr_engine,omitempty"`           // 语音识别激活引擎
+	ActiveASRModel           string            `json:"active_asr_model,omitempty"`            // 语音识别激活模型
+	ActiveTTSEngine          string            `json:"active_tts_engine,omitempty"`           // 语音合成激活引擎
+	ActiveTTSModel           string            `json:"active_tts_model,omitempty"`            // 语音合成激活模型
+	TTSVoice                 string            `json:"tts_voice,omitempty"`                   // 语音合成音色
+	ActiveOCREngine          string            `json:"active_ocr_engine,omitempty"`           // OCR 激活引擎
+	ActiveOCRModel           string            `json:"active_ocr_model,omitempty"`            // OCR 激活模型
+	ActiveOCRLocal           string            `json:"active_ocr_local,omitempty"`            // OCR 本地引擎定点（空=docmd auto 链）
+	VoicePersonality         string            `json:"voice_personality,omitempty"`           // 语音对话角色
+	FuncChatVoiceEngine      string            `json:"func_chat_voice_engine,omitempty"`      // 聊天语音合成引擎
+	FuncChatVoiceModel       string            `json:"func_chat_voice_model,omitempty"`       // 聊天语音合成模型
+	FuncChatEngine           string            `json:"func_chat_engine,omitempty"`
+	FuncChatModel            string            `json:"func_chat_model,omitempty"`
 	// ── 旧品牌遗留（聊天/轻语合并前）：仅用于读取迁移，不再写入 ──
 	FuncWhisperEngine  string `json:"func_whisper_engine,omitempty"`
 	FuncWhisperModel   string `json:"func_whisper_model,omitempty"`
@@ -165,15 +168,20 @@ type Config struct {
 	TTSBackend    string  // 推理后端: cpu / cuda / vulkan（默认 cuda）
 	TTSSpeed      float64 // 默认朗读语速（0.25-4.0，默认 1.0）
 	// 图片生成后端
-	ImageBackend      string // "xai" (默认) | "comfyui" | "herdsman" | "glm"
-	ComfyUIURL        string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
-	ImageSaveDir      string // 生成图片存放目录，空字符串=不存盘
-	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "krea2" | "z-image-turbo" | "qwen-image-2.1-turbo" | "qwen-image-2.1-edit" | "flux"
-	PortraitBackend   string // 角色库剧照后端（空=跟随绘梦）
-	PortraitModel     string // 角色库剧照模型（空=跟随绘梦）
-	WenxueWorkspace   string // 文学板块（图文）当前小说工作空间（C:\AI	uwen 子目录绝对路径）
-	ComfyUIPath       string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
-	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
+	ImageBackend    string // "xai" (默认) | "comfyui" | "herdsman" | "glm"
+	ComfyUIURL      string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
+	ImageSaveDir    string // 生成图片存放目录，空字符串=不存盘
+	ImageModel      string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "krea2" | "z-image-turbo" | "qwen-image-2.1-turbo" | "qwen-image-2.1-edit" | "flux"
+	PortraitBackend string // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel   string // 角色库剧照模型（空=跟随绘梦）
+	// 图文私密保护（2026-11-23 无限制档小说）：PIN 哈希（salt:sha256hex，空=未设
+	// PIN 不锁）/ 隐藏书清单（JSON ["书名",…]）/ 失焦自动遮罩开关（默认开）。
+	WenxuePrivacyPinHash     string
+	WenxuePrivacyHiddenBooks string
+	WenxuePrivacyMaskOnBlur  bool
+	WenxueWorkspace          string // 文学板块（图文）当前小说工作空间（C:\AI	uwen 子目录绝对路径）
+	ComfyUIPath              string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
+	ComfyUIPythonPath        string // Python 解释器路径（留空则自动查找）
 	// tianxuan 独立引擎项目根目录（C:\AI\tianxuan）。
 	TianxuanPath string
 	// strata 独立引擎项目根目录（C:\AI\gaea-ENGINES\strata\repo）。
