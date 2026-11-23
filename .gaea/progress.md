@@ -11,11 +11,19 @@
   无命中不阻塞）再落清单」；③锚测试 `TestProposalRunModeKnowledgeRef` 钉两处
   接线防回退（standard/cost 恒不含 knowledge_search）。
 - **验证**：定向 `go test ./internal/app -run 'RunMode|ComposeModeLine|OfficeMode|KnowledgeRef'`
-  **6/6 绿**（确定性测试对新增句不敏感）；go vet 净；技能名清单测试不钉正文。
+  **6/6 绿**（含确定性/矩阵/配置归一/身份稿/工具面注册/新锚六例）；go vet 净；技能名清单测试不钉正文。
   构建：活壳占 build\bin（PID 62656，10:57 起，可视窗口）未杀——走**改名腾位**法
   （旧 exe 改名 `gaea-prev-62656.exe`，运行中进程不受影响，壳关闭后可删）；前端
   Vite 32.5s + `wails build -s` 37.7s（bindings 未跳过，ucrt64+build/bin 双前置）；
   冒烟 `smoke.ps1` **200**（GAEA_HTTP_PORT=18999 避让活壳，PID 53632 已回收）。
+- **提交与交付**：feat `5245fdec`（4 文件选择性提交，wenxue 隐私线在途改动零混入）。
+  交付包 `releases/gaea-proposal-kbref-20261123-5245fdec/`：干净工作树
+  `.worktrees/pkg-5245fdec` detached 检出，pnpm install 27s + Vite 28.36s +
+  Wails 绿（bindings 未跳过）；漂移 wailsjs 27 文件+go.mod 忽略 EOL 后内容差 0
+  （纯 CRLF 噪音）；payload 冒烟 **200**（PID 70992 已回收，18999 避让活壳）；
+  exe 61,664,768 B SHA256 `22CD2CEC…58593DE`；桌面 ZIP 34,823,565 B
+  `82854F30…620D729`；源码 ZIP 829,085,963 B `D1AF3FFF…9CF2826`；三 DLL 与
+  bloom029 基线一致。PACKAGE-INFO + SHA256SUMS 入库，大件留盘。
 - **边界**：CDP 实机走查被活壳挡（9333 被 PID 62656 的 WebView2=16284 占用，
   用户未答复是否可关）——壳关闭后补：切方案档新会话→上下文面板确认模式行含
   参照句→knowledge_search 命中已导入设计方案条目。未提交（树上有 wenxue 隐私线
