@@ -539,3 +539,23 @@ func TestOfficeModeSystemPrompt(t *testing.T) {
 		t.Fatalf("空白配置键应回落内置默认")
 	}
 }
+
+// TestProposalRunModeKnowledgeRef 方案档参照知识库接线锚（2026-11-23）：ModeLine
+// 与长文技能正文都必须点名 knowledge_search 与『设计方案』参照口径（写方案前
+// 检索已导入历史方案对照骨架与评分点）；standard/cost 档不得携带该句。
+func TestProposalRunModeKnowledgeRef(t *testing.T) {
+	proposalLine := officeRunModeLine(OfficeRunModeProposal)
+	for _, want := range []string{"knowledge_search", "设计方案"} {
+		if !strings.Contains(proposalLine, want) {
+			t.Fatalf("方案档 ModeLine 缺参照锚 %q", want)
+		}
+	}
+	for _, mode := range []string{OfficeRunModeStandard, OfficeRunModeCost} {
+		if line := officeRunModeLine(mode); strings.Contains(line, "knowledge_search") {
+			t.Fatalf("%s 档 ModeLine 不应携带知识库参照句", mode)
+		}
+	}
+	if body := officeProposalLongformBody; !strings.Contains(body, "knowledge_search") || !strings.Contains(body, "设计方案") {
+		t.Fatalf("长文技能正文缺「先检索设计方案类参照再落清单」步")
+	}
+}

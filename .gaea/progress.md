@@ -1,3 +1,26 @@
+## 方案模式·参照知识库接线（2026-11-23）
+
+- **需求收敛**：用户最初提「方案模式增加方案库（参照索引导入的方案）」，三问拍板
+  后用户再砍为「直接使用知识库」——方案库=知识库『设计方案』分类视图（导入链/
+  INDEX.md 索引/knowledge_search 全现成），零新存储/零新绑定/零新 UI，只补
+  「提示接线」。
+- **改动（2 文件+1 测试）**：①`officeRunModeLineProposal` 补句「知识库『设计方案』
+  分类中已导入的历史方案可作参照：动笔前用 knowledge_search 按关键词检索，命中后
+  对照其章节骨架与评分点口径」（standard/cost 档不动）；②`officeProposalLongformBody`
+  阶段①插「动笔前先检索参照（命中多篇挑最相近 1~3 篇读全文对照骨架/评分点，
+  无命中不阻塞）再落清单」；③锚测试 `TestProposalRunModeKnowledgeRef` 钉两处
+  接线防回退（standard/cost 恒不含 knowledge_search）。
+- **验证**：定向 `go test ./internal/app -run 'RunMode|ComposeModeLine|OfficeMode|KnowledgeRef'`
+  **6/6 绿**（确定性测试对新增句不敏感）；go vet 净；技能名清单测试不钉正文。
+  构建：活壳占 build\bin（PID 62656，10:57 起，可视窗口）未杀——走**改名腾位**法
+  （旧 exe 改名 `gaea-prev-62656.exe`，运行中进程不受影响，壳关闭后可删）；前端
+  Vite 32.5s + `wails build -s` 37.7s（bindings 未跳过，ucrt64+build/bin 双前置）；
+  冒烟 `smoke.ps1` **200**（GAEA_HTTP_PORT=18999 避让活壳，PID 53632 已回收）。
+- **边界**：CDP 实机走查被活壳挡（9333 被 PID 62656 的 WebView2=16284 占用，
+  用户未答复是否可关）——壳关闭后补：切方案档新会话→上下文面板确认模式行含
+  参照句→knowledge_search 命中已导入设计方案条目。未提交（树上有 wenxue 隐私线
+  在途改动，提交归属挂拍板）、未装机、未 push。
+
 ## Bloom 0.29 玻璃态全板块覆盖（2026-11-23）
 
 - **反馈复现**：切换一级板块后发现玻璃态只覆盖壳层和部分工作区。

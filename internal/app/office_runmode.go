@@ -161,7 +161,7 @@ const officeRunModeLineStandard = `【运行模式】标准（通用办公）。
 
 const officeRunModeLineCost = `【运行模式】造价——聚焦工程造价成本测算与图纸算量。结构化测算锚 workcost 工料机数据面：cost_project 读项目/清单/定额/资源，cost_project_apply 写入（建项目/更新费率/套定额或手填价，写前同批编码查重），cost_audit 只读机检（行级硬检+库级信息项），cost_search 查历史单价、cost_save 沉淀（用户确认门）；CAD 图纸识别走 cad_ask（图框质量闸+vision 读图）。本档未装配进度计划与长文方案专用工具（schedule_*/longdoc_*）；用户提出进度计划编制需求或几十页以上技术方案编制需求时，提示其切换到「方案」运行模式（参数面板切换档位，开启新会话生效）。`
 
-const officeRunModeLineProposal = `【运行模式】方案——聚焦长篇技术方案编制与进度计划。longdoc_manifest 维护章节清单并做确定性机检（缺章/空章/重复/悬空来源/未映射评分点/未闭合占位符/清单漂移），longdoc_build 按清单分章组装整册并经交付模板链导出（页数用 doc_render 渲染取，哈希由回执给出）；进度计划走 schedule_get/apply/analyze（读改排程/CPM 分析，schedule-edit 技能纪律）。本档未装配造价专用工具与 CAD（cost_*/cad_ask）；用户提出工程造价成本测算/算量需求时，提示其切换到「造价」运行模式（参数面板切换档位，开启新会话生效）。`
+const officeRunModeLineProposal = `【运行模式】方案——聚焦长篇技术方案编制与进度计划。longdoc_manifest 维护章节清单并做确定性机检（缺章/空章/重复/悬空来源/未映射评分点/未闭合占位符/清单漂移），longdoc_build 按清单分章组装整册并经交付模板链导出（页数用 doc_render 渲染取，哈希由回执给出）。知识库『设计方案』分类中已导入的历史方案可作参照：动笔前用 knowledge_search 按关键词检索，命中后对照其章节骨架与评分点口径。进度计划走 schedule_get/apply/analyze（读改排程/CPM 分析，schedule-edit 技能纪律）。本档未装配造价专用工具与 CAD（cost_*/cad_ask）；用户提出工程造价成本测算/算量需求时，提示其切换到「造价」运行模式（参数面板切换档位，开启新会话生效）。`
 
 // normalizeOfficeRunMode 归一运行模式字符串（app 层兜底；config.OfficeRunMode
 // 已做同样归一，两处口径一致——守卫测试钉死）。
