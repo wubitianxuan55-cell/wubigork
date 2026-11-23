@@ -140,4 +140,11 @@ func TestJailbreakSection(t *testing.T) {
 			t.Errorf("破甲契约缺「%s」\n%s", want, jb)
 		}
 	}
+	// 2026-11-23 实测反馈三例外：工程失败如实报（不被「删除续写」吞掉）、
+	// 回复形态听用户本回合、裁决条款明写例外。
+	for _, want := range []string{"工程性失败", "如实报告", "优先于本条", "唯三例外"} {
+		if !contains(jb, want) {
+			t.Errorf("破甲契约缺例外条款锚「%s」\n%s", want, jb)
+		}
+	}
 }

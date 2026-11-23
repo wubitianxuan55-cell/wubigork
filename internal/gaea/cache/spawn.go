@@ -80,18 +80,11 @@ const subagentSecurityPrefix = `你是 Hephaestus 的安全审计子代理。你
 - 按风险等级分类：critical / high / medium / low
 - 返回审计报告：风险描述 + 攻击路径 + 修复建议`
 
-const subagentWritingPrefix = `你是网文创作子代理。你的角色卡由派发方在任务中指明
-（.gaea/skills/novel-agents/agents/<role>.md）——先读卡再行事，卡片契约优先于本前缀。
-
-核心规则：
-- 角色卡的字段约定（outline.json / characters.json 等）以项目实际 schema 为准，冲突时以代码为准并回报
-- 只读角色（一致性检查/章节抽取/故事勘探）不得写任何文件
-- 写作产出遵守卡片「输出契约」的文件路径与格式
-- 返回自包含结果——父代理只看到你的最终答案`
-
 // receiptFooter 实测反馈④（2026-11-20）：回执末两行对账口径，与
-// DefaultTaskSystemPrompt 同源要求。五前缀统一拼接，文本恒固定——同类
+// DefaultTaskSystemPrompt 同源要求。前缀统一拼接，文本恒固定——同类
 // 子代理仍共享同一前缀文本，缓存命中不受影响。
+// （2026-11-23：subagent_writing 网文创作模板随 novel-agents 技能退役删除，
+// 五前缀收敛为四。）
 const receiptFooter = `
 
 末尾固定附两行（供父代理横向对账多份回执）：[findings] 关键发现至多 3 条（无则写 none）；[risks] 风险项至多 2 条（无则写 none）。字符/汉字计量由系统自动附加（[metrics] 行），不要自报字数。`
@@ -103,6 +96,5 @@ func BuiltinSpawnTemplates() []SpawnTemplate {
 		{Kind: TaskKind("subagent_research"), Prefix: subagentResearchPrefix + receiptFooter, Description: "外部调研"},
 		{Kind: TaskKind("subagent_review"), Prefix: subagentReviewPrefix + receiptFooter, Description: "代码审查"},
 		{Kind: TaskKind("subagent_security"), Prefix: subagentSecurityPrefix + receiptFooter, Description: "安全审计"},
-		{Kind: TaskKind("subagent_writing"), Prefix: subagentWritingPrefix + receiptFooter, Description: "网文创作角色卡"},
 	}
 }

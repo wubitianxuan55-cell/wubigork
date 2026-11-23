@@ -1026,6 +1026,50 @@
   flex: 1;
 }
 
+/* 阅读页眉改写（2026-11-23 用户反馈：108px 大横幅挤占书页）——压缩为单行
+   窄条：眉题/描述退场，标题缩到 15px，指标小卡化，动作钮矮化。只作用于
+   wx-hub--reading，角色/设定/记忆/画廊页眉不动。 */
+.wx-root .wx-hub--reading .wx-hub__masthead {
+  min-height: 0;
+  grid-template-columns: auto auto 1fr;
+  gap: clamp(10px, 1.6vw, 18px);
+  padding: 7px clamp(18px, 3vw, 34px) 6px;
+}
+
+.wx-root .wx-hub--reading .wx-hub__eyebrow,
+.wx-root .wx-hub--reading .wx-hub__description {
+  display: none;
+}
+
+.wx-root .wx-hub--reading .wx-hub__title {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.wx-root .wx-hub--reading .wx-hub__metric {
+  min-width: 0;
+  padding: 2px 10px;
+}
+
+.wx-root .wx-hub--reading .wx-hub__metric dt {
+  font-size: 9px;
+}
+
+.wx-root .wx-hub--reading .wx-hub__metric dd {
+  font-size: 13px;
+}
+
+.wx-root .wx-hub--reading .wx-hub__metric span {
+  display: none;
+}
+
+.wx-root .wx-hub--reading .wx-hub-action {
+  min-height: 24px;
+  padding: 0 9px;
+  font-size: 10.5px;
+}
+
 .wx-root .wx-reading.is-focus .wx-reading__workspace {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -1249,6 +1293,53 @@
   background: var(--wx-accent-wash);
 }
 
+/* 排版组（字体选择 + 字号滑杆，2026-11-23）：字号由滑动条连续调节，
+   数值只读展示；选项全部系统自带字体栈。 */
+.wx-root .wx-reading__typeset {
+  gap: 8px;
+  padding: 2px 9px;
+}
+
+.wx-root .wx-reading__fontselect {
+  max-width: 96px;
+  height: 22px;
+  border: 0;
+  color: var(--wx-ink-soft);
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.wx-root .wx-reading__fontselect:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wx-root .wx-reading__fontselect option {
+  color: var(--wx-ink);
+  background: var(--wx-paper, var(--bg));
+}
+
+.wx-root .wx-reading__sizeslider {
+  width: 92px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.wx-root .wx-reading__sizeslider:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.wx-root .wx-reading__sizevalue {
+  min-width: 18px;
+  color: var(--wx-ink-faint);
+  font-family: var(--font-mono, var(--mono));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .wx-root .wx-reading__progress {
   height: 2px;
   flex: none;
@@ -1329,7 +1420,9 @@
 
 .wx-root .wx-reading-prose .md {
   color: var(--wx-ink);
-  font-family: var(--wx-serif);
+  /* 字体随阅读排版偏好（--wx-reading-font 由 WenxueReadingHub 注入）；
+    首字沉降样式已按 2026-11-23 用户拍板移除——首字与正文同大同色。 */
+  font-family: var(--wx-reading-font, var(--wx-serif));
   font-size: var(--wx-reading-size);
   line-height: var(--wx-reading-leading);
 }
@@ -1339,15 +1432,6 @@
   text-align: justify;
   text-justify: inter-ideograph;
   text-wrap: pretty;
-}
-
-.wx-root .wx-reading-prose .md > p:first-of-type::first-letter {
-  float: left;
-  margin: 0.08em 0.12em 0 0;
-  color: var(--accent);
-  font-family: var(--wx-serif);
-  font-size: 3.15em;
-  line-height: 0.82;
 }
 
 .wx-root .wx-reading-prose .md h1,

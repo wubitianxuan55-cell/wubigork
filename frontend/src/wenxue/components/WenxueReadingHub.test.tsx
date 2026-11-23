@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { WenxueReadingHub } from "./WenxueReadingHub";
 
@@ -23,6 +23,9 @@ vi.mock("../lib/bridge", () => ({
 }));
 
 describe("WenxueReadingHub", () => {
+  // 排版偏好走 localStorage，先清防用例间串味。
+  beforeEach(() => { localStorage.clear(); });
+
   it("依据定稿目录生成导航（序章在前，章号升序）并渲染首章阅读窗", async () => {
     render(<WenxueReadingHub />);
     await waitFor(() => expect(screen.getByTestId("wenxue-reading-item-1")).toBeTruthy());
@@ -48,13 +51,44 @@ describe("WenxueReadingHub", () => {
     await waitFor(() => expect(screen.getByText("雨夜。巷口的路灯忽明忽暗。")).toBeTruthy());
   });
 
-  it("支持字号调整和沉浸专注模式", async () => {
+  it("字号滑动调节与字体切换生效（排版偏好）", async () => {
     render(<WenxueReadingHub />);
     await waitFor(() => screen.getByTestId("wenxue-reading-item-1"));
-    fireEvent.click(screen.getByLabelText("放大正文字号"));
-    expect(screen.getByTitle("当前 18px")).toBeTruthy();
+    // 字号滑动：14–24 步进 1，数值即时展示。
+    const slider = screen.getByLabelText("正文字号") as HTMLInputElement;
+    expect(slider.min).toBe("14");
+    expect(slider.max).toBe("24");
+    fireEvent.change(slider, { target: { value: "19" } });
+    expect(screen.getByTitle("当前 19px")).toBeTruthy();
+    const prose = document.querySelector<HTMLElement>(".wx-reading-prose")!;
+    expect(prose.style.getPropertyValue("--wx-reading-size")).toBe("19px");
+    // 字体切换：选中楷体后 prose 注入对应字体栈。
+    fireEvent.change(screen.getByLabelText("正文字体"), { target: { value: "kai" } });
+    expect(prose.style.getPropertyValue("--wx-reading-font")).toContain("KaiTi");
+    // 偏好持久化进 localStorage（跨重启保留）。
+    const saved = JSON.parse(localStorage.getItem("gaea.wenxue.reading.prefs") ?? "{}");
+    expect(saved.fontSize).toBe(19);
+    expect(saved.fontKey).toBe("kai");
+  });
+
+  it("沉浸专注模式开关", async () => {
+    render(<WenxueReadingHub />);
+    await waitFor(() => screen.getByTestId("wenxue-reading-item-1"));
     fireEvent.click(screen.getByRole("button", { name: /专注阅读/ }));
     expect(screen.getByRole("button", { name: /退出专注/ })).toBeTruthy();
     expect(document.querySelector('[data-testid="wenxue-reading-hub"]')?.className).toContain("is-focus");
+  });
+
+  it("书页 Ctrl+滚轮缩放字号，普通滚轮不劫持", async () => {
+    render(<WenxueReadingHub />);
+    await waitFor(() => expect(screen.getByText("一切开始之前。")).toBeTruthy());
+    const scroll = document.querySelector(".wx-reading__scroll")!;
+    // Ctrl+上滚放大：17 → 18，与滑杆同一偏好源。
+    fireEvent.wheel(scroll, { deltaY: -120, ctrlKey: true });
+    expect(screen.getByTitle("当前 18px")).toBeTruthy();
+    expect(screen.getByTitle("正文字号 18px（Ctrl+滚轮也可缩放）")).toBeTruthy();
+    // 普通滚轮（无 Ctrl）保持原生滚动语义，不改变字号。
+    fireEvent.wheel(scroll, { deltaY: 120 });
+    expect(screen.getByTitle("当前 18px")).toBeTruthy();
   });
 });

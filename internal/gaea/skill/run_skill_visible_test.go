@@ -42,7 +42,7 @@ func TestRunSkillFromSetResolvesExtrasBody(t *testing.T) {
 
 // ② 被 filter 拒名 fail-closed：unknown 且提示名单只列可见（不泄露隐藏名）。
 func TestRunSkillFromSetFailsClosedOnHiddenName(t *testing.T) {
-	visible := []Skill{{Name: "novel-review", Description: "评审", Body: "review body"}}
+	visible := []Skill{{Name: "demo-review", Description: "评审", Body: "review body"}}
 	tl := NewRunSkillToolFromSet(visible, nil)
 	out, err := runSkillOnce(t, tl, "docx", "")
 	if err == nil {
@@ -54,7 +54,7 @@ func TestRunSkillFromSetFailsClosedOnHiddenName(t *testing.T) {
 	if strings.Contains(err.Error(), "gongwen") {
 		t.Fatalf("unknown 提示名单不应泄露隐藏名: %v", err)
 	}
-	if !strings.Contains(err.Error(), "novel-review") {
+	if !strings.Contains(err.Error(), "demo-review") {
 		t.Fatalf("unknown 提示名单应只列可见: %v", err)
 	}
 }
@@ -122,14 +122,14 @@ func TestRunSkillFromSetSubagentGoesToRunner(t *testing.T) {
 	called := false
 	runner := func(ctx context.Context, sk Skill, task string) (string, error) {
 		called = true
-		if sk.Name != "novel-agents" || task != "写第三章" {
+		if sk.Name != "demo-writing" || task != "写第三章" {
 			t.Fatalf("runner 应收到完整 Skill 与任务: %s %q", sk.Name, task)
 		}
 		return "子代理完成", nil
 	}
-	visible := []Skill{{Name: "novel-agents", RunAs: RunSubagent, Body: "子代理卡"}}
+	visible := []Skill{{Name: "demo-writing", RunAs: RunSubagent, Body: "子代理卡"}}
 	tl := NewRunSkillToolFromSet(visible, runner)
-	out, err := runSkillOnce(t, tl, "novel-agents", "写第三章")
+	out, err := runSkillOnce(t, tl, "demo-writing", "写第三章")
 	if err != nil {
 		t.Fatalf("subagent 技能应进 runner: %v", err)
 	}

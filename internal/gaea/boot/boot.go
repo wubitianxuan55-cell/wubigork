@@ -149,7 +149,7 @@ type Options struct {
 	// SkillFilter / SkillExtras（2026-11-15 刀2，图文板块技能子集）：filter
 	// 非空时技能索引/slash 条目/run_skill/ctrl.Skills/read_skill 只留放行
 	// 名单（deny-by-absence，未过闸名如实 not found）；extras 追加宿主内嵌
-	// 技能（图文三件：story-long-write/story-deslop/wenxue-workbench）。
+	// 技能（图文内嵌：wenxue-workbench）。
 	// 双 nil = 现状逐字节（办公引擎不传）。
 	SkillFilter func(name string) bool
 	SkillExtras []skill.Skill
@@ -1261,8 +1261,6 @@ func subagentSkillToTemplateKind(skillName string) cache.TaskKind {
 		return "subagent_review"
 	case "security-review", "security_review":
 		return "subagent_security"
-	case "novel-agents": // v4.336：网文创作七角色子代理（写作域角色卡）
-		return "subagent_writing"
 	default:
 		return ""
 	}

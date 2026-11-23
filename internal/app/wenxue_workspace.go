@@ -596,12 +596,12 @@ func (a *App) WenxueSwitchWorkspace(path string) string {
 	// 域约定，阅读标签页与 wenxue_final_* 工具共享，2026-11-15 阅读刀）。
 	_ = os.MkdirAll(filepath.Join(abs, ".gaea"), 0o755)
 	_ = os.MkdirAll(filepath.Join(abs, "定稿"), 0o755)
-	// 小说域技能播种（2026-11-17 审查批5 刀2）：novel-agents/novel-deslop/
-	// novel-review 三件进书 .gaea/skills（store 发现链首根）——只补缺失文件
-	// 幂等、用户改动保留；在切书重建前落盘，新控制器 store 快照即可见
-	// （run_skill 派发契约的 read_file 伴随件随目录就位）。
-	// 2026-11-23：无限制档专属件（novel-chapter-branches）按目标书档位门控
-	// 播种——非无限制书不落盘，可见性再由 wenxueSkillFilter 动态档位闸兜住。
+	// 无限制档专属技能播种（2026-11-17 审查批5 刀2 立链；2026-11-23 收敛）：
+	// novel-chapter-branches 进书 .gaea/skills（store 发现链首根）——只补缺失
+	// 文件幂等、用户改动保留；在切书重建前落盘，新控制器 store 快照即可见。
+	// 按目标书档位门控播种——非无限制书不落盘，可见性再由 wenxueSkillFilter
+	// 动态档位闸兜住。（全档位三件 novel-agents/novel-deslop/novel-review 已随
+	// 2026-11-23 拍板退役，播种链不再携带。）
 	if n := wenxueSeedBookSkills(abs, wenxueBookAdultLevelAt(abs) == wenxueAdultUnrestricted); n > 0 {
 		slog.Info("图文书技能播种", "book", wenxueRedactPath(abs), "files", n)
 	}

@@ -69,7 +69,7 @@ func TestWenxueSystemPromptV1FrozenBody(t *testing.T) {
 		"长篇、中篇、短篇小说",
 		"不覆盖散文、剧本、诗歌和非小说评论",
 		"read_skill 读 wenxue-workbench",
-		"主动调用 remember",
+		"记忆只走确认制", // 2026-11-23 对齐 workbench：不主动记录，用户明确要求才 remember
 	} {
 		if !strings.Contains(p, sub) {
 			t.Errorf("文学身份稿缺 v1.0 锚 %q", sub)

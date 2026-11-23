@@ -2,15 +2,16 @@ import type { TaskTemplate } from "./types";
 
 // 内置任务模板兜底（2026-11-15 刀4 小说化）：后端命令库为空或加载失败时
 // （首启/离线），命令面板仍有常用写作任务。图文板块模板=长篇小说创作九条，
-// 与图文专属工具四族（wenxue_*）和内嵌技能（story-long-write/story-deslop/
-// wenxue-workbench）同源配套。
+// 与图文专属工具四族（wenxue_*）和内嵌技能（wenxue-workbench）同源配套。
+// （2026-11-23：模板文案不再指向已退役的 story-deslop/story-long-write 技能，
+// 润色口径内联在模板提示词里自足成立。）
 export const FALLBACK_TEMPLATES: TaskTemplate[] = [
   {
     name: "chapter-first",
     title: "开篇钩子",
     description: "黄金三章第一章：500 字内起冲突，行动显性格，末尾留悬念",
     prompt:
-      "为当前小说撰写第一章（或重写开篇）：先读 角色卡与时间线 把握设定，然后按黄金三章原则写正文——前 500 字内出现矛盾/冲突，主角性格通过行动体现（不可旁白说明），章末留一个让读者想继续的悬念。写完把新事件追加到时间线、更新相关角色卡的「当前状态」。写作用 story-deslop 口径自查一遍再交稿。",
+      "为当前小说撰写第一章（或重写开篇）：先读 角色卡与时间线 把握设定，然后按黄金三章原则写正文——前 500 字内出现矛盾/冲突，主角性格通过行动体现（不可旁白说明），章末留一个让读者想继续的悬念。写完把新事件追加到时间线、更新相关角色卡的「当前状态」。交稿前自查一遍：删 AI 套话、句子长短交替有呼吸、情绪词换身体反应。",
   },
   {
     name: "chapter-continue",
@@ -59,7 +60,7 @@ export const FALLBACK_TEMPLATES: TaskTemplate[] = [
     title: "润色去味",
     description: "按去 AI 味口径润色指定章节",
     prompt:
-      "润色指定章节（先问清章号或用 wenxue_chapter_list 确认）：按 story-deslop 口径逐段自查——删 AI 套话、调句子呼吸（长短交替、极短句至多一处）、情绪词换身体反应、对话加长度差与角色腔；保持情节与字数大体不变，润完用 wenxue_chapter_write 覆写（overwrite=true）。",
+      "润色指定章节（先问清章号或用 wenxue_chapter_list 确认）：逐段按去 AI 味口径自查——删 AI 套话、调句子呼吸（长短交替、极短句至多一处）、情绪词换身体反应、对话加长度差与角色腔；保持情节与字数大体不变，润完用 wenxue_chapter_write 覆写（overwrite=true）。",
   },
   {
     name: "recap-review",

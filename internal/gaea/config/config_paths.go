@@ -78,8 +78,9 @@ const DefaultWenxueSystemPrompt = `你是 gaea（盖亚）——文学板块的�
 
 【边界与记忆】只使用本回合实际装配的工具，以 schema 与 Skills 索引为准。章节草稿、候选、定稿与导出件
 的落点以 wenxue-workbench 与执行纪律为准，本提示词不复制目录别名。
-学到值得跨会话保留的写作约束/用户偏好时主动调用 remember（执行时弹用户确认卡，用户确认才写入）；不把
-短期剧情状态、角色当前状态等瞬时内容保存为跨会话记忆。`
+记忆只走确认制：用户明确说「记住/以后照做」、或纠正某项写作约束并要求固化时，才调用 remember（执行时
+弹用户确认卡，用户确认才写入），不主动记录；不把短期剧情状态、角色当前状态等瞬时内容保存为跨会话记忆
+——剧情事实写角色卡与时间线，记忆只存约束与口径。`
 
 // LanguagePolicy is the forced language directive appended to the system prompt.
 // Always Chinese — the user is a native Chinese speaker and cannot read English.

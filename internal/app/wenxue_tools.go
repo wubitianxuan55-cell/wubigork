@@ -89,6 +89,7 @@ func wenxueExtraTools(a *App) []tool.Tool {
 		wenxueFinalListTool(),
 		wenxueFinalReadTool(),
 		wenxueFinalWriteTool(),
+		wenxueChapterDeliverTool(),
 		wenxueBookBuildTool(a),
 	}
 }
@@ -178,7 +179,35 @@ func wenxueCountWords(s string) int {
 	return n
 }
 
-const wenxueWordCountRule = "字数=Unicode 非空白字符数（rune；按写入文件全文，标题若在 content 中则计入；含标点，不含空格/换行/制表符）；contentChars=全文含空白的 Unicode 字符数"
+// wenxueCountHanzi 纯汉字数：只数 Han 区字符（不含标点/空白/拉丁）。
+// 2026-11-23 实测反馈：写作技能门禁按「正文汉字数」判定（3000 字线），
+// 旧口径（非空白 rune 含标点）恒比汉字数虚高，模型对线会误判——回执双口径
+// 并报，技能阈值一律对 hanzi。
+func wenxueCountHanzi(s string) int {
+	n := 0
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			n++
+		}
+	}
+	return n
+}
+
+const wenxueWordCountRule = "字数=Unicode 非空白字符数（rune；含标点，不含空格/换行/制表符）；hanzi=纯汉字数（只数 Han 区字符，不含标点/空白）——技能字数门禁（如 ≥3000）一律对 hanzi 对线；contentChars=全文含空白的 Unicode 字符数"
+
+// wenxueHanziGate 字数门禁（2026-11-23 实测反馈「不过线不要当成写完」）：
+// minHanzi>0 且 hanzi 不达线时拒写（硬闸，宁拒不误标完成）。写技能门禁
+// （novel-chapter-branches ≥3000 汉字）由模型按本书契约传 min_hanzi 落地。
+func wenxueHanziGate(tool, content string, minHanzi int) error {
+	if minHanzi <= 0 {
+		return nil
+	}
+	hanzi := wenxueCountHanzi(content)
+	if hanzi < minHanzi {
+		return fmt.Errorf("字数门禁未过（%s）：正文汉字 %d < 要求 %d（口径：纯汉字不含标点/空白；扩写后再交，不要口头估算）", tool, hanzi, minHanzi)
+	}
+	return nil
+}
 
 // wenxueIsUnderFinalDir 报告 rel 是否落在定稿域目录内（域隔离判据：章节
 // 工具不写定稿、定稿工具只写定稿——草稿/定稿分离由工具域强制）。
@@ -490,8 +519,8 @@ func wenxueChapterReadTool() *wenxueTool {
 func wenxueChapterWriteTool() *wenxueTool {
 	return &wenxueTool{
 		name:     "wenxue_chapter_write",
-		desc:     "写/建一章正文：全量覆盖或新建。overwrite=false 时目标已存在即拒（宁拒不误改）；回执带字数与前后章衔接提示。",
-		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"目标文件工作区相对路径（缺省按 number+title 在约定章节目录生成 序号-标题.md）"},"number":{"type":"integer","description":"章号（用于定位/命名）"},"title":{"type":"string","description":"章节标题（新建命名用）"},"content":{"type":"string","description":"章节正文全文"},"overwrite":{"type":"boolean","description":"允许覆盖已存在文件，缺省 false"}},"required":["content"],"additionalProperties":false}`,
+		desc:     "写/建一章正文：全量覆盖或新建。overwrite=false 时目标已存在即拒（宁拒不误改）；回执带字数（words/hanzi 双口径）与前后章衔接提示；传 min_hanzi 时作字数硬门禁，不过线拒写。",
+		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"目标文件工作区相对路径（缺省按 number+title 在约定章节目录生成 序号-标题.md）"},"number":{"type":"integer","description":"章号（用于定位/命名）"},"title":{"type":"string","description":"章节标题（新建命名用）"},"content":{"type":"string","description":"章节正文全文"},"overwrite":{"type":"boolean","description":"允许覆盖已存在文件，缺省 false"},"min_hanzi":{"type":"integer","description":"字数硬门禁：正文纯汉字数最低线（如本书契约要求 3000 就传 3000）；不过线拒写，缺省不设线"}},"required":["content"],"additionalProperties":false}`,
 		readOnly: false,
 		run: func(args json.RawMessage) (string, error) {
 			var in struct {
@@ -500,6 +529,7 @@ func wenxueChapterWriteTool() *wenxueTool {
 				Title     string `json:"title"`
 				Content   string `json:"content"`
 				Overwrite bool   `json:"overwrite"`
+				MinHanzi  int    `json:"min_hanzi"`
 			}
 			if err := json.Unmarshal(args, &in); err != nil {
 				return "", err
@@ -547,6 +577,10 @@ func wenxueChapterWriteTool() *wenxueTool {
 			}
 			if ext := strings.ToLower(filepath.Ext(abs)); ext != ".md" && ext != ".markdown" && ext != ".txt" {
 				return "", fmt.Errorf("章节正文仅支持 md/markdown/txt，收到 %s", ext)
+			}
+			// 字数硬门禁（写盘前判，不过线不落盘不标完成）。
+			if err := wenxueHanziGate("wenxue_chapter_write", in.Content, in.MinHanzi); err != nil {
+				return "", err
 			}
 			existed := false
 			if info, err := os.Stat(abs); err == nil {
@@ -601,7 +635,8 @@ func wenxueChapterWriteTool() *wenxueTool {
 				Writeback: wb,
 			})
 			out := map[string]any{
-				"saved": meta, "words": meta.Words, "prevWords": prevWords,
+				"saved": meta, "words": meta.Words, "hanzi": wenxueCountHanzi(in.Content),
+				"prevWords": prevWords,
 				"delta": meta.Words - prevWords, "prev": prev, "next": next,
 				"revision":     wenxueRevision(in.Content),
 				"contentChars": utf8.RuneCountInString(in.Content), "wordCountRule": wenxueWordCountRule,
@@ -877,10 +912,72 @@ func wenxueCharacterListTool(a *App) *wenxueTool {
 	}
 }
 
+// wenxueResolveCharacterCard 按名定位角色卡（2026-11-23 实测反馈放宽）：
+// 三级匹配——① 卡名精确等值；② 文件名 stem 等值（卡内长标题覆盖 name 时兜底）；
+// ③ 去括号等值+唯一子串（「舅妈」命中「舅妈（王秀芬）」；多张命中=歧义报名单）。
+// 失败时列出目录里实际有的卡名，不给空口「不存在」。
+func wenxueResolveCharacterCard(root, want string) (string, error) {
+	want = strings.TrimSpace(want)
+	if want == "" {
+		return "", fmt.Errorf("name 为空；先用 wenxue_character_list")
+	}
+	cards := wenxueListCharacters(root)
+	names := make([]string, 0, len(cards))
+	for _, c := range cards {
+		if n, _ := c["name"].(string); n != "" {
+			names = append(names, n)
+		}
+	}
+	stem := func(p string) string {
+		return strings.TrimSuffix(filepath.Base(filepath.ToSlash(p)), filepath.Ext(p))
+	}
+	stripParen := func(s string) string {
+		if i := strings.IndexAny(s, "（("); i > 0 {
+			return strings.TrimSpace(s[:i])
+		}
+		return strings.TrimSpace(s)
+	}
+	// ① 卡名精确等值。
+	for _, c := range cards {
+		if n, _ := c["name"].(string); n == want {
+			return c["path"].(string), nil
+		}
+	}
+	for _, c := range cards {
+		if p, _ := c["path"].(string); stem(p) == want {
+			return p, nil
+		}
+	}
+	for _, c := range cards {
+		if n, _ := c["name"].(string); stripParen(n) == want && stripParen(n) != "" {
+			return c["path"].(string), nil
+		}
+	}
+	// ③b 唯一子串命中（任一方向包含）；多张命中=歧义。
+	var hits []string
+	for _, c := range cards {
+		n, _ := c["name"].(string)
+		if n != "" && (strings.Contains(n, want) || strings.Contains(want, n)) {
+			hits = append(hits, c["path"].(string))
+		}
+	}
+	if len(hits) == 1 {
+		return hits[0], nil
+	}
+	if len(hits) > 1 {
+		return "", fmt.Errorf("角色名 %q 命中 %d 张卡（歧义）；用 path 精确指定或换更全的名字。实际卡：%s", want, len(hits), strings.Join(hits, ", "))
+	}
+	preview := names
+	if len(preview) > 8 {
+		preview = append(preview[:8], "…")
+	}
+	return "", fmt.Errorf("未定位到角色卡（name=%q）；先用 wenxue_character_list。目录里实际有：%s", want, strings.Join(preview, ", "))
+}
+
 func wenxueCharacterReadTool() *wenxueTool {
 	return &wenxueTool{
 		name:     "wenxue_character_read",
-		desc:     "读一张角色卡全文。按 path 或 name 定位。",
+		desc:     "读一张角色卡全文。按 path 或 name 定位；name 支持精确/文件名/去括号备注/唯一子串四级匹配，失败时返回实际卡名名单。",
 		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"角色卡相对路径（优先）"},"name":{"type":"string","description":"角色名（path 缺省时按名匹配）"}},"additionalProperties":false}`,
 		readOnly: true,
 		run: func(args json.RawMessage) (string, error) {
@@ -894,15 +991,11 @@ func wenxueCharacterReadTool() *wenxueTool {
 			root := wenxueWorkspace()
 			rel := filepath.ToSlash(strings.TrimSpace(in.Path))
 			if rel == "" {
-				for _, c := range wenxueListCharacters(root) {
-					if c["name"] == strings.TrimSpace(in.Name) {
-						rel = c["path"].(string)
-						break
-					}
+				resolved, err := wenxueResolveCharacterCard(root, in.Name)
+				if err != nil {
+					return "", err
 				}
-			}
-			if rel == "" {
-				return "", fmt.Errorf("未定位到角色卡（path=%q name=%q）；先用 wenxue_character_list", in.Path, in.Name)
+				rel = resolved
 			}
 			body, _, err := wenxueReadBody(root, rel)
 			if err != nil {
@@ -1558,8 +1651,8 @@ func wenxueFinalReadTool() *wenxueTool {
 func wenxueFinalWriteTool() *wenxueTool {
 	return &wenxueTool{
 		name:     "wenxue_final_write",
-		desc:     "写/更新定稿章节（发布稿专用；只允许写定稿目录）。用户明确说「定稿」「入库」「发布稿」时才用；草稿请用 wenxue_chapter_write。",
-		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"定稿文件相对路径（须在定稿目录内；缺省按 number+title 生成 序号-标题.md）"},"number":{"type":"integer","description":"章号"},"title":{"type":"string","description":"章节标题（新建命名用）"},"content":{"type":"string","description":"定稿全文"},"overwrite":{"type":"boolean","description":"允许覆盖已存在定稿，缺省 false"}},"required":["content"],"additionalProperties":false}`,
+		desc:     "写/更新定稿章节（发布稿专用；只允许写定稿目录）。用户明确说「定稿」「入库」「发布稿」时才用；草稿请用 wenxue_chapter_write。传 min_hanzi 时作字数硬门禁；回执附本章确定性体检（quality，仅提示非阻断）。",
+		schema:   `{"type":"object","properties":{"path":{"type":"string","description":"定稿文件相对路径（须在定稿目录内；缺省按 number+title 生成 序号-标题.md）"},"number":{"type":"integer","description":"章号"},"title":{"type":"string","description":"章节标题（新建命名用）"},"content":{"type":"string","description":"定稿全文"},"overwrite":{"type":"boolean","description":"允许覆盖已存在定稿，缺省 false"},"min_hanzi":{"type":"integer","description":"字数硬门禁：正文纯汉字数最低线；不过线拒写，缺省不设线"}},"required":["content"],"additionalProperties":false}`,
 		readOnly: false,
 		run: func(args json.RawMessage) (string, error) {
 			var in struct {
@@ -1568,6 +1661,7 @@ func wenxueFinalWriteTool() *wenxueTool {
 				Title     string `json:"title"`
 				Content   string `json:"content"`
 				Overwrite bool   `json:"overwrite"`
+				MinHanzi  int    `json:"min_hanzi"`
 			}
 			if err := json.Unmarshal(args, &in); err != nil {
 				return "", err
@@ -1610,6 +1704,10 @@ func wenxueFinalWriteTool() *wenxueTool {
 			if info, err := os.Stat(abs); err == nil && !in.Overwrite {
 				return "", fmt.Errorf("定稿已存在（%d 字节，%s）；确认覆盖请传 overwrite=true", info.Size(), info.ModTime().Format("15:04:05"))
 			}
+			// 字数硬门禁（写盘前判）。
+			if err := wenxueHanziGate("wenxue_final_write", in.Content, in.MinHanzi); err != nil {
+				return "", err
+			}
 			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 				return "", err
 			}
@@ -1624,13 +1722,126 @@ func wenxueFinalWriteTool() *wenxueTool {
 			wenxueFunnelAppend(root, wenxueFunnelEvent{
 				Type: "final", Chapter: meta.Number, Path: meta.Path,
 			})
-			return wenxueJSON(map[string]any{
-				"saved": meta, "words": meta.Words, "prevWords": prevWords,
+			// 入库内联体检（2026-11-23 实测反馈）：对本章确定性检查（编号/正文
+			// 体量），回执如实带结果——只有发现才携带，全绿省略；提示性非阻断
+			// （全书级一致性仍走 wenxue_quality_check 与 book_build 硬闸）。
+			quality := map[string]any{}
+			if meta.Number <= 0 {
+				quality["chapterNumber"] = "未编号（文件名无前导序号，阅读页按名称排序）"
+			}
+			if h := wenxueCountHanzi(in.Content); h < 500 {
+				quality["thinChapter"] = fmt.Sprintf("正文汉字仅 %d（<500，疑似占位/断章）", h)
+			}
+			out := map[string]any{
+				"saved": meta, "words": meta.Words, "hanzi": wenxueCountHanzi(in.Content),
+				"prevWords": prevWords,
 				"delta":        meta.Words - prevWords,
 				"contentChars": utf8.RuneCountInString(in.Content), "wordCountRule": wenxueWordCountRule,
 				"hint": "定稿已入库：阅读标签页刷新即见；阅读 tab 与 wenxue_final_list/read 共享此目录",
+			}
+			if len(quality) > 0 {
+				out["quality"] = quality
+				out["hint"] = "定稿已入库，但体检有提示（见 quality）；阅读标签页刷新即见"
+			}
+			return wenxueJSON(out)
+		},
+	}
+}
+
+func wenxueChapterDeliverTool() *wenxueTool {
+	return &wenxueTool{
+		name: "wenxue_chapter_deliver",
+		desc: "单章交付（2026-11-23 实测反馈）：把一章正文复制成独立 md 交付件（不搬原稿、不进定稿）。缺省落 .gaea/exports/单章/，回执给绝对路径与 hanzi 汉字数；阅读页只扫定稿目录，交付件不会出现在阅读页（本回执已如实声明）。",
+		schema:   `{"type":"object","properties":{"number":{"type":"integer","description":"章号（path 缺省时在章节/定稿目录按章号定位）"},"path":{"type":"string","description":"源章节文件相对路径（优先；章节/ 或 定稿/ 内）"},"source":{"type":"string","enum":["draft","final"],"description":"源目录：draft=章节目录（当前正文，缺省）/final=定稿目录"},"output_path":{"type":"string","description":"交付件落点（工作区内相对/绝对路径，须为 .md；缺省 .gaea/exports/单章/序号-标题.md）"}},"additionalProperties":false}`,
+		readOnly: false,
+		run: func(args json.RawMessage) (string, error) {
+			var in struct {
+				Number     int    `json:"number"`
+				Path       string `json:"path"`
+				Source     string `json:"source"`
+				OutputPath string `json:"output_path"`
+			}
+			if err := json.Unmarshal(args, &in); err != nil {
+				return "", err
+			}
+			root := wenxueWorkspace()
+			rel := filepath.ToSlash(strings.TrimSpace(in.Path))
+			if rel == "" {
+				if in.Number <= 0 {
+					return "", fmt.Errorf("需提供 number 或 path（source=%s）", in.Source)
+				}
+				var chapters []wenxueChapterMeta
+				if in.Source == "final" {
+					chapters = wenxueListFinalChapters(root)
+				} else {
+					chapters = wenxueListChapters(root)
+				}
+				for _, c := range chapters {
+					if c.Number == in.Number {
+						rel = c.Path
+						break
+					}
+				}
+				if rel == "" {
+					return "", fmt.Errorf("未定位到章（number=%d source=%s）；先用 wenxue_chapter_list / wenxue_final_list 核对", in.Number, in.Source)
+				}
+			}
+			body, _, err := wenxueReadBody(root, rel)
+			if err != nil {
+				return "", fmt.Errorf("读取源章失败（%s）: %w", rel, err)
+			}
+			meta := wenxueParseChapterMeta(body, rel)
+			// 落点：声明路径或默认 .gaea/exports/单章/；禁止写进定稿（交付件
+			// 不回灌定稿域），禁止覆盖已有交付件（宁拒不误改）。
+			outRel := filepath.ToSlash(strings.TrimSpace(in.OutputPath))
+			if outRel == "" {
+				outRel = fmt.Sprintf(".gaea/exports/单章/%03d-%s.md", meta.Number, sanitizeFileName(meta.Title))
+			}
+			if wenxueIsUnderFinalDir(root, outRel) {
+				return "", fmt.Errorf("交付件不写定稿目录（%s）；缺省落 .gaea/exports/单章/", outRel)
+			}
+			if ext := strings.ToLower(filepath.Ext(outRel)); ext != ".md" && ext != ".markdown" {
+				return "", fmt.Errorf("交付件仅支持 md/markdown，收到 %s", ext)
+			}
+			outAbs, err := wspath.ResolveRelWithin(root, outRel)
+			if err != nil {
+				return "", fmt.Errorf("非法交付路径: %s", outRel)
+			}
+			if _, err := os.Stat(outAbs); err == nil {
+				return "", fmt.Errorf("交付件已存在（%s）；确认覆盖请换 output_path 或先删旧件", outRel)
+			}
+			if err := os.MkdirAll(filepath.Dir(outAbs), 0o755); err != nil {
+				return "", err
+			}
+			if err := os.WriteFile(outAbs, []byte(body), 0o644); err != nil {
+				return "", err
+			}
+			wenxueFunnelAppend(root, wenxueFunnelEvent{
+				Type: "deliver", Entry: "chapter_deliver", Kind: in.Source,
+				Chapter: meta.Number, Path: outRel, Words: meta.Words,
+			})
+			return wenxueJSON(map[string]any{
+				"delivered": outAbs, "source": rel,
+				"words": meta.Words, "hanzi": wenxueCountHanzi(body),
+				"wordCountRule": wenxueWordCountRule,
+				"hint":           "交付件独立于定稿：阅读页只扫定稿目录，不会收录本件；需要入库请走 wenxue_final_write",
 			})
 		},
+	}
+}
+
+// wenxueParseChapterMeta 从正文与路径推导章元数据（标题优先首行一级标题，
+// 无标题行用文件名 stem；供单章交付命名与记账，不触碰磁盘缓存）。
+func wenxueParseChapterMeta(body, rel string) wenxueChapterMeta {
+	slash := filepath.ToSlash(rel)
+	stem := strings.TrimSuffix(filepath.Base(slash), filepath.Ext(slash))
+	number, title, _ := wenxueStemNumber(stem)
+	if t := strings.TrimSpace(wenxueFirstLine(body)); strings.HasPrefix(t, "# ") {
+		title = strings.TrimSpace(strings.TrimPrefix(t, "# "))
+	}
+	return wenxueChapterMeta{
+		Path: slash, Name: filepath.Base(slash),
+		Number: number, Title: title, Words: wenxueCountWords(body),
 	}
 }
 
@@ -1683,8 +1894,8 @@ func sanitizeFileName(name string) string {
 
 // ── 质检族（2026-11-17 审查批8 开工，原挂池项）────────────────────────
 // 全书确定性体检（零 LLM）：按图文 md 工作区约定全新自建——不背 novelgate
-// 的 JSON 项目数据模型（随小说板退役删除），LLM 评审归 novel-review 技能
-// （分工与技能文档一致）。分组回执仅非空携带（窄告警口径），items 封顶。
+// 的 JSON 项目数据模型（随小说板退役删除）。分组回执仅非空携带（窄告警
+// 口径），items 封顶。
 
 // wenxueQualityItem 单条发现（path=工作区相对路径或文件:行）。
 type wenxueQualityItem struct {
@@ -1711,7 +1922,7 @@ func wenxueQualityCheckTool() *wenxueTool {
 	const name = "wenxue_quality_check"
 	return &wenxueTool{
 		name:     name,
-		desc:     "全书确定性体检（零 LLM）：章节编号连续性（跳号/重号/未编号）、角色卡六节完整性、时间线未锚与中文序号行、设定空文档/无标题、孤儿候选目录；分组回执仅非空携带，items 封顶 8。LLM 评审归 novel-review 技能。",
+		desc:     "全书确定性体检（零 LLM）：章节编号连续性（跳号/重号/未编号）、角色卡六节完整性、时间线未锚与中文序号行、设定空文档/无标题、孤儿候选目录；分组回执仅非空携带，items 封顶 8。",
 		schema:   `{"type":"object","properties":{},"additionalProperties":false}`,
 		readOnly: true,
 		run: func(args json.RawMessage) (string, error) {
@@ -1883,7 +2094,6 @@ func wenxueQualityCheckTool() *wenxueTool {
 // 确定性指标报告路线（与质检族同哲学，零 LLM）：退役的 novelstyle
 // digest/fingerprint 与 project 模型深耦合不可廉价包装，本件按图文 md 约定
 // 重建——指标报告 + 书内基线快照差值（文风漂移检测的确定性形态）。
-// LLM 风格画像/评分归 novel-review 技能与后续拍板。
 
 // wenxueStyleStart 高频句首（AI 腔自查信号：同一句首两字连用过多）。
 type wenxueStyleStart struct {
@@ -2011,7 +2221,7 @@ func wenxueStyleReportTool() *wenxueTool {
 	const name = "wenxue_style_report"
 	return &wenxueTool{
 		name:     name,
-		desc:     "文风确定性指标报告（零 LLM）：章均句长/段长/对话占比/叹问密度/高频句首（AI 腔自查）。save_baseline=true 把全书汇总指标存为书内基线（.gaea/style-baseline.json）；此后报告自动附与基线的差值（漂移检测）。LLM 风格评审归 novel-review。",
+		desc:     "文风确定性指标报告（零 LLM）：章均句长/段长/对话占比/叹问密度/高频句首（AI 腔自查）。save_baseline=true 把全书汇总指标存为书内基线（.gaea/style-baseline.json）；此后报告自动附与基线的差值（漂移检测）。",
 		schema:   `{"type":"object","properties":{"number":{"type":"integer","description":"只报告指定章（缺省=全书各章+汇总）"},"save_baseline":{"type":"boolean","description":"把当前全书汇总指标存为书内基线（仅全书口径）"},"path":{"type":"string","description":"按路径指定单章（与 number 互斥，path 优先）"}},"additionalProperties":false}`,
 		readOnly: true,
 		run: func(args json.RawMessage) (string, error) {

@@ -22,7 +22,7 @@ func TestWenxueSingleModelPromptContract(t *testing.T) {
 		"wenxue_final_write",            // 定稿唯一通道
 		"wenxue_quality_check",          // 成批章节体检
 		"complete_step",                 // 签退
-		"主动调用 remember",               // 记忆确认制
+		"记忆只走确认制",               // 记忆确认制（2026-11-23 对齐 workbench：不主动记录）
 		"不承诺「数据不出机」",           // 数据边界（文学允许外部检索与生图）
 		"宿主当前空间的默认导出落点",       // 导出句空间中立
 	} {

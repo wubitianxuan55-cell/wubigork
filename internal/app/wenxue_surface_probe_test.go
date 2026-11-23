@@ -45,6 +45,7 @@ func TestWenxueSurfaceKeepsExclusiveFamily(t *testing.T) {
 		"wenxue_timeline_read", "wenxue_timeline_append", "wenxue_stats",
 		"wenxue_quality_check", "wenxue_style_report",
 		"wenxue_final_list", "wenxue_final_read", "wenxue_final_write",
+		"wenxue_chapter_deliver", // 2026-11-23 实测反馈：单章交付
 	} {
 		if !keep[n] {
 			t.Fatalf("图文专属工具 %s 应装配进图文引擎", n)

@@ -27,6 +27,54 @@ interface ReadingChapter {
 
 const DIR_CANDIDATES = ["定稿", "final", "finalized"];
 
+// 阅读排版偏好（2026-11-23 用户拍板：字体可选/字号滑动改/首字不放大）。
+// 字体全部走系统自带栈（Windows 优先），默认档沿用书宋 --wx-serif；
+// 偏好存 localStorage（键名空间化，读写失败静默回默认）。
+const READING_FONTS = [
+  { key: "default", label: "书宋 · 默认", stack: "var(--wx-serif)" },
+  { key: "song", label: "宋体", stack: '"SimSun", "Songti SC", "Noto Serif CJK SC", serif' },
+  { key: "yahei", label: "雅黑", stack: '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif' },
+  { key: "kai", label: "楷体", stack: '"KaiTi", "Kaiti SC", "STKaiti", serif' },
+  { key: "fangsong", label: "仿宋", stack: '"FangSong", "Fangsong SC", "STFangsong", serif' },
+] as const;
+
+type ReadingFontKey = (typeof READING_FONTS)[number]["key"];
+
+const READING_SIZE_MIN = 14;
+const READING_SIZE_MAX = 24;
+const READING_PREFS_KEY = "gaea.wenxue.reading.prefs";
+
+interface ReadingPrefs {
+  fontSize: number;
+  fontKey: ReadingFontKey;
+}
+
+function clampReadingSize(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return 17;
+  return Math.min(READING_SIZE_MAX, Math.max(READING_SIZE_MIN, Math.round(n)));
+}
+
+function loadReadingPrefs(): ReadingPrefs {
+  const fallback: ReadingPrefs = { fontSize: 17, fontKey: "default" };
+  try {
+    const raw = localStorage.getItem(READING_PREFS_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<ReadingPrefs>;
+    const font = READING_FONTS.find((f) => f.key === parsed.fontKey);
+    return {
+      fontSize: clampReadingSize(parsed.fontSize),
+      fontKey: font ? font.key : "default",
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function readingFontStack(key: ReadingFontKey): string {
+  return READING_FONTS.find((f) => f.key === key)?.stack ?? READING_FONTS[0].stack;
+}
+
 function parseChapterName(name: string): { number: number; title: string } {
   const stem = name.replace(/\.(md|markdown|txt)$/i, "");
   const m = stem.match(/^(\d+)[-_\s.：:]*(.*)$/);
@@ -50,7 +98,7 @@ export function WenxueReadingHub() {
   const [bookTitle, setBookTitle] = useState("当前作品");
   const [tocQuery, setTocQuery] = useState("");
   const [focusMode, setFocusMode] = useState(false);
-  const [fontSize, setFontSize] = useState(17);
+  const [prefs, setPrefs] = useState<ReadingPrefs>(loadReadingPrefs);
   const [scrollPct, setScrollPct] = useState(0);
   const loadToken = useRef(0);
   const readToken = useRef(0);
@@ -168,6 +216,17 @@ export function WenxueReadingHub() {
 
   const idx = chapters.findIndex((c) => c.path === selected);
   const current = idx >= 0 ? chapters[idx] : undefined;
+  const fontSize = prefs.fontSize;
+  const fontKey = prefs.fontKey;
+  const fontLabel = READING_FONTS.find((f) => f.key === fontKey)?.label ?? READING_FONTS[0].label;
+
+  // 排版偏好持久化：字号/字体跨重启保留（读写失败静默——隐私模式等场景）。
+  useEffect(() => {
+    try {
+      localStorage.setItem(READING_PREFS_KEY, JSON.stringify(prefs));
+    } catch { /* 忽略持久化失败 */ }
+  }, [prefs]);
+
   const totalWords = useMemo(() => chapters.reduce((sum, c) => sum + c.words, 0), [chapters]);
   const displayBody = useMemo(() => withoutLeadingH1(body), [body]);
   const headings = useMemo(
@@ -201,6 +260,24 @@ export function WenxueReadingHub() {
     );
     nodes?.[headingIndex]?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  // Ctrl+滚轮缩放字号（2026-11-23 用户反馈）：书页上滚放大/下滚缩小，与滑杆
+  // 同源同一偏好。普通滚轮保持原生滚动不劫持；必须拦 Ctrl 态默认行为，否则
+  // WebView2 会把它当页面缩放。监听挂原生非 passive（React onWheel 是被动
+  // 监听，preventDefault 不生效）；书页容器随章节挂载，依赖章节路径重挂。
+  const chapterPath = current?.path;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const dir = event.deltaY < 0 ? 1 : -1;
+      setPrefs((p) => ({ ...p, fontSize: clampReadingSize(p.fontSize + dir) }));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [chapterPath]);
 
   return (
     <WenxueHubFrame
@@ -330,26 +407,41 @@ export function WenxueReadingHub() {
                     <p>{bookTitle} · {chapterLabel(current)}</p>
                     <h2>{current.title}</h2>
                   </div>
-                  <div className="wx-reading__toolgroup" aria-label="阅读字号">
-                    <button
-                      type="button"
-                      onClick={() => setFontSize((value) => Math.max(15, value - 1))}
-                      title="缩小正文字号"
-                      aria-label="缩小正文字号"
+                  <div
+                    className="wx-reading__toolgroup wx-reading__typeset"
+                    aria-label="阅读排版"
+                  >
+                    <select
+                      className="wx-reading__fontselect"
+                      value={fontKey}
+                      onChange={(event) => setPrefs((p) => ({
+                        ...p,
+                        fontKey: event.target.value as ReadingFontKey,
+                      }))}
+                      aria-label="正文字体"
+                      title="正文字体"
                     >
-                      A−
-                    </button>
-                    <button type="button" aria-pressed="true" title={`当前 ${fontSize}px`}>
+                      {READING_FONTS.map((font) => (
+                        <option key={font.key} value={font.key}>{font.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="range"
+                      className="wx-reading__sizeslider"
+                      min={READING_SIZE_MIN}
+                      max={READING_SIZE_MAX}
+                      step={1}
+                      value={fontSize}
+                      onChange={(event) => setPrefs((p) => ({
+                        ...p,
+                        fontSize: clampReadingSize(event.target.value),
+                      }))}
+                    aria-label="正文字号"
+                    title={`正文字号 ${fontSize}px（Ctrl+滚轮也可缩放）`}
+                    />
+                    <span className="wx-reading__sizevalue" title={`当前 ${fontSize}px`}>
                       {fontSize}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFontSize((value) => Math.min(22, value + 1))}
-                      title="放大正文字号"
-                      aria-label="放大正文字号"
-                    >
-                      A+
-                    </button>
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -383,6 +475,7 @@ export function WenxueReadingHub() {
                       style={{
                         "--wx-reading-size": `${fontSize}px`,
                         "--wx-reading-leading": "2.02",
+                        "--wx-reading-font": readingFontStack(fontKey),
                       } as CSSProperties}
                     >
                       {reading ? (
@@ -466,7 +559,7 @@ export function WenxueReadingHub() {
                 <section className="wx-hub-paper wx-reading__aux-card">
                   <h3>阅读节奏</h3>
                   <p className="mt-2 text-[10px] leading-relaxed text-fg-faint">
-                    正文字号 {fontSize}px，行距 2.02。建议每 {Math.max(1, Math.round(readingMinutes(current.words) / 2))} 分钟停一次，检查节奏与信息密度。
+                    正文字号 {fontSize}px · {fontLabel}，行距 2.02；书页上 Ctrl+滚轮可缩放字号。建议每 {Math.max(1, Math.round(readingMinutes(current.words) / 2))} 分钟停一次，检查节奏与信息密度。
                   </p>
                   <div className="mt-2 flex items-center gap-1.5 text-[9.5px] text-fg-faint">
                     <Clock size={10} aria-hidden />
