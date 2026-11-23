@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -11,7 +10,6 @@ import (
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/i18n"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 )
 
@@ -576,126 +574,6 @@ func parseScope(s string) memory.Scope {
 	}
 }
 
-// KnowledgeSummary 是知识条目的轻量视图。
-type KnowledgeSummary struct {
-	Name      string    `json:"name"`
-	Title     string    `json:"title"`
-	Category  string    `json:"category"`
-	Phase     string    `json:"phase"` // FE1-03：列表投影补齐（此前前端阶段过滤恒空）
-	Tags      []string  `json:"tags"`
-	Status    string    `json:"status"`
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-// KnowledgeEntry 是包含正文的完整知识条目。
-type KnowledgeEntry struct {
-	Name       string    `json:"name"`
-	Title      string    `json:"title"`
-	Category   string    `json:"category"`
-	Phase      string    `json:"phase"`
-	Discipline string    `json:"discipline"`
-	Tags       []string  `json:"tags"`
-	Status     string    `json:"status"`
-	Version    int       `json:"version"`
-	Author     string    `json:"author"`
-	Reviewer   string    `json:"reviewer"`
-	Source     string    `json:"source"`
-	Body       string    `json:"body"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
-}
-
-// GaeaKnowledgeList 返回知识条目摘要列表。绑定无 error 出口：库读失败只能
-// 降级为空 + slog 留痕（审计 P0#6 GA3-01 残余，见回报）。
-func (a *App) GaeaKnowledgeList() []KnowledgeSummary {
-	store, err := knowledge.Global().Store()
-	if err != nil {
-		return []KnowledgeSummary{}
-	}
-	list, err := store.List()
-	if err != nil {
-		slog.Warn("knowledge: 列表读取失败，绑定降级为空列表", "error", err)
-		return []KnowledgeSummary{}
-	}
-	out := make([]KnowledgeSummary, 0, len(list))
-	for _, s := range list {
-		out = append(out, KnowledgeSummary{Name: s.Name, Title: s.Title, Category: s.Category, Phase: s.Phase, Tags: nonNilStrings(s.Tags), Status: s.Status, UpdatedAt: s.UpdatedAt})
-	}
-	return out
-}
-
-// GaeaKnowledgeSearch 全文检索知识库（标题/分类/标签/正文），返回匹配条目摘要。
-// 空 query 等价于 List；category/phase/status 为 "all" 或空时不过滤。
-func (a *App) GaeaKnowledgeSearch(query, category, phase, status string) []KnowledgeSummary {
-	store, err := knowledge.Global().Store()
-	if err != nil {
-		return []KnowledgeSummary{}
-	}
-	filter := knowledge.Filter{Category: category, Phase: phase, Status: status}
-	if filter.Category == "all" {
-		filter.Category = ""
-	}
-	if filter.Phase == "all" {
-		filter.Phase = ""
-	}
-	if filter.Status == "all" {
-		filter.Status = ""
-	}
-	results, err := knowledge.Search(store, query, filter)
-	if err != nil {
-		// 审计 P0#6 GA3-01：库读失败不得报成「没有匹配条目」。
-		slog.Warn("knowledge: 检索读取失败，绑定降级为空结果", "error", err)
-		return []KnowledgeSummary{}
-	}
-	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回。
-	if len(results) < 3 && strings.TrimSpace(query) != "" {
-		if sem := a.semanticKnowledgeRecall(query, results, 10); len(sem) > 0 {
-			results = sem
-		}
-	}
-	// 本地语义精排（bge-reranker-v2-m3），失败自动回退。
-	if reranked := a.rerankKnowledgeResults(query, results, 20); len(reranked) > 0 {
-		results = reranked
-	} else if len(results) > 20 {
-		results = results[:20]
-	}
-	out := make([]KnowledgeSummary, 0, len(results))
-	for _, e := range results {
-		out = append(out, KnowledgeSummary{Name: e.Name, Title: e.Title, Category: e.Category, Tags: nonNilStrings(e.Tags), Status: e.Status, UpdatedAt: e.UpdatedAt})
-	}
-	return out
-}
-
-// GaeaKnowledgeGet 返回单条知识条目（未找到返回 nil）。
-func (a *App) GaeaKnowledgeGet(name string) *KnowledgeEntry {
-	store, err := knowledge.Global().Store()
-	if err != nil {
-		return nil
-	}
-	e, err := store.Get(name)
-	if err != nil || e == nil {
-		return nil
-	}
-	return &KnowledgeEntry{Name: e.Name, Title: e.Title, Category: e.Category, Phase: e.Phase, Discipline: e.Discipline, Tags: nonNilStrings(e.Tags), Status: e.Status, Version: e.Version, Author: e.Author, Reviewer: e.Reviewer, Source: e.Source, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
-}
-
-// GaeaKnowledgeSave 保存知识条目。
-func (a *App) GaeaKnowledgeSave(e KnowledgeEntry) error {
-	store, err := knowledge.Global().Store()
-	if err != nil {
-		return err
-	}
-	return saveKnowledgeVersioned(store, knowledge.Entry{Name: e.Name, Title: e.Title, Category: e.Category, Phase: e.Phase, Discipline: e.Discipline, Tags: e.Tags, Status: e.Status, Version: e.Version, Author: e.Author, Reviewer: e.Reviewer, Source: e.Source, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt})
-}
-
-// GaeaKnowledgeDelete 删除知识条目。
-func (a *App) GaeaKnowledgeDelete(name string) error {
-	store, err := knowledge.Global().Store()
-	if err != nil {
-		return err
-	}
-	return store.Delete(name)
-}
 
 // ── 能力 / 插件 / 技能 ────────────────────────────────────────────
 

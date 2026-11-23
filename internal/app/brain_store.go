@@ -93,8 +93,7 @@ func (b *BrainStore) Search(query string, brains ...string) ([]Hit, error) {
 //     scope 可见、""=全部（旧行为）；
 //   - brain.left（办公 facts）：同库混存两空间，按 space 走 ListInSpace 谓词
 //     （数据源实现 spaceLeftSource 时生效）；
-//   - brain.main（profile + knowledge）：共享面不过滤——画像与工程知识库无
-//     空间维度，两空间同可见。
+//   - brain.main（profile）：共享面不过滤——画像无空间维度，两空间同可见。
 //
 // space 为空与 Search 完全等价（既有调用零行为变化）。
 func (b *BrainStore) SearchInSpace(query, space string, brains ...string) ([]Hit, error) {

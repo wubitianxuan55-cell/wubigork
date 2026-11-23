@@ -540,22 +540,26 @@ func TestOfficeModeSystemPrompt(t *testing.T) {
 	}
 }
 
-// TestProposalRunModeKnowledgeRef 方案档参照知识库接线锚（2026-11-23）：ModeLine
-// 与长文技能正文都必须点名 knowledge_search 与『设计方案』参照口径（写方案前
-// 检索已导入历史方案对照骨架与评分点）；standard/cost 档不得携带该句。
-func TestProposalRunModeKnowledgeRef(t *testing.T) {
+// TestProposalRunModeLibraryRef 方案档参照方案库接线锚（2026-11-23 知识库退役改接
+// 方案库）：ModeLine 与长文技能正文都必须点名 proposal_search 与「章节骨架」
+// 参照口径（写方案前按标题层级检索历史方案对照骨架与评分点）；standard/cost 档
+// 不得携带该句；知识库旧锚不得回流。
+func TestProposalRunModeLibraryRef(t *testing.T) {
 	proposalLine := officeRunModeLine(OfficeRunModeProposal)
-	for _, want := range []string{"knowledge_search", "设计方案"} {
+	for _, want := range []string{"proposal_search", "proposal_read", "proposal_save", "章节骨架"} {
 		if !strings.Contains(proposalLine, want) {
 			t.Fatalf("方案档 ModeLine 缺参照锚 %q", want)
 		}
 	}
+	if strings.Contains(proposalLine, "knowledge_search") {
+		t.Fatal("方案档 ModeLine 不应再引用已退役的 knowledge_search")
+	}
 	for _, mode := range []string{OfficeRunModeStandard, OfficeRunModeCost} {
-		if line := officeRunModeLine(mode); strings.Contains(line, "knowledge_search") {
-			t.Fatalf("%s 档 ModeLine 不应携带知识库参照句", mode)
+		if line := officeRunModeLine(mode); strings.Contains(line, "proposal_search") {
+			t.Fatalf("%s 档 ModeLine 不应携带方案库参照句", mode)
 		}
 	}
-	if body := officeProposalLongformBody; !strings.Contains(body, "knowledge_search") || !strings.Contains(body, "设计方案") {
-		t.Fatalf("长文技能正文缺「先检索设计方案类参照再落清单」步")
+	if body := officeProposalLongformBody; !strings.Contains(body, "proposal_search") || !strings.Contains(body, "章节骨架") || strings.Contains(body, "knowledge_search") {
+		t.Fatalf("长文技能正文缺「先按标题层级检索方案库参照再落清单」步")
 	}
 }

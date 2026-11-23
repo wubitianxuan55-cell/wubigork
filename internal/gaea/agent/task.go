@@ -921,7 +921,7 @@ func FilterRegistry(parent *tool.Registry, names []string, exclude ...string) *t
 		}
 		// 持久化写入工具（工具注册表 PersistWrite 标记，T6-2.5）一律不继承：
 		// 子代理运行在 headless 审批通道（Approver 为空 → 自动放行），若继承
-		// 这些工具可绕过主代理的逐条确认，静默写入成本库 / 记忆 / 知识库 /
+		// 这些工具可绕过主代理的逐条确认，静默写入成本库 / 记忆 / 方案库 /
 		// 技能文件。这些写入必须由主代理执行并逐条经用户确认。新增持久化写
 		// 工具只需在注册处加标记即自动纳入禁写集合。
 		if tool.IsPersistWrite(tl) {

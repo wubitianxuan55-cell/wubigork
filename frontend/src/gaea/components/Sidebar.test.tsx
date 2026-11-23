@@ -39,8 +39,7 @@ function renderSidebar(groups: ProjectGroup[] = [group], sidebarWidth = 264, col
     onOpenSubagentThread: vi.fn(),
     onOpenHistory: vi.fn(),
     onOpenCaps: vi.fn(),
-    onOpenKnowledge: vi.fn(),
-    startResize: vi.fn(),
+      startResize: vi.fn(),
     resizeWithKeyboard: vi.fn(),
     onDoubleClickResize: vi.fn(),
   };
@@ -69,7 +68,6 @@ function renderSidebar(groups: ProjectGroup[] = [group], sidebarWidth = 264, col
           onOpenSubagentThread={callbacks.onOpenSubagentThread}
           onOpenHistory={callbacks.onOpenHistory}
           onOpenCaps={callbacks.onOpenCaps}
-          onOpenKnowledge={callbacks.onOpenKnowledge}
           startResize={callbacks.startResize}
           resizeWithKeyboard={callbacks.resizeWithKeyboard}
           onDoubleClickResize={callbacks.onDoubleClickResize}
@@ -87,7 +85,7 @@ describe("Sidebar 项目分组与会话操作", () => {
   it("v4.73：左侧不再渲染「记忆」入口（已迁主区记忆 tab）", () => {
     renderSidebar();
     expect(screen.queryByTitle("记忆")).toBeNull();
-    expect(screen.getByTitle("知识库")).toBeTruthy();
+    expect(screen.queryByTitle("知识库")).toBeNull();
   });
 
   it("不再渲染过时的办公空间与娱乐空间切换", () => {
@@ -119,7 +117,7 @@ describe("Sidebar 项目分组与会话操作", () => {
     expect(screen.getByRole("button", { name: "新建项目" })).toBeTruthy();
     fireEvent.click(screen.getByTestId("sidebar-new-session-collapsed"));
     expect(c.onNewSession).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "知识库" })).toBeTruthy();
+
     expect(screen.getByRole("button", { name: "MCP 与技能" })).toBeTruthy();
     expect(c.view.container.querySelector(".office-sidebar__collapsed-actions")).not.toBeNull();
   });

@@ -269,6 +269,7 @@
 gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后端 + React/TypeScript/Vite 前端）。
 核心能力：文档撰写、表格处理、格式转换（docx/xlsx/pdf → Markdown）、图表生成、报告拼装、
 知识库与记忆中枢、方案编写。品牌定位已从「土壤修复工程办公」全面转为「通用办公」。
+（知识库已于 2026-11-23 整体退役，由方案库接位：见「已知注意」。）
 
 ## 技术栈与关键约定
 
@@ -428,6 +429,18 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 
 ## 已知注意
 
+- **跑 Go 测试前把 `APPDATA` / `XDG_CONFIG_HOME` 重定向到临时目录**（2026-11-24 实测）：
+  `config.MemoryUserDir()` 走 `os.UserConfigDir()`，Windows 上读的是 `%AppData%`——只改
+  USERPROFILE/HOME 拦不住对库的访问。`internal/gaea/tool/builtin` 全量有既有用例会打开
+  正式 Hephaestus.db（新迁移会因此被直接应用到正式库），`internal/app` 检索族测试会连
+  真实引擎清真实向量。测试内隔离写法见 `internal/app/gaea_proposal_test.go` 的
+  `proposalBindingEnv`（重定向 + fail-closed 核对 + 关库）。
+- 本机默认没有 gcc 时，`go build ./internal/app/` 在 `runtime/cgo` 就失败退出，不会报出
+  app 包自身的编译错误（容易误读成通过）：类型检查用 `CGO_ENABLED=0 go build ./...`，
+  真构建仍按「构建入口」走 ucrt64。
+- 方案库（一级板块，`internal/gaea/proposal` + `ProposalB`）：历史方案按标题 1~4 级存取，
+  录入只在办公「方案」运行模式里由模型经 `proposal_save` 完成；检索复用本地 embedding /
+  reranker 客户端，不另造检索工具。设计拍板与坑见 `.gaea/progress.md` 2026-11-24 条。
 - 角色库剧照默认跟随绘梦（ImageBackend/ImageModel），可在模型中心单独绑定
 - 文生视频依赖本地 ComfyUI 安装 LTX-Video 模型
 - 里程碑：2026-08-12 完成通用办公全面打磨（显示/布局/安全三线：成本库/记忆/知识库/技能写入全部硬性确认

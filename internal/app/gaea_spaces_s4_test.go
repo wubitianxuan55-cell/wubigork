@@ -12,12 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xuri/excelize/v2"
 
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
@@ -189,31 +187,6 @@ func TestCrosslinkWorkExportsDirUnchanged(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(ws, ".gaea", "play")); !os.IsNotExist(err) {
 		t.Errorf("缺省 work 不应建 play 分区目录: %v", err)
-	}
-}
-
-// ── 知识导出（gaea_knowledge_meta.go）：knowledge 属 work 固定 ──
-
-func TestKnowledgeExportAlwaysWorkDir(t *testing.T) {
-	ws, restore := s4SpaceIsolate(t, spaces.SpacePlay)
-	// 先关闭隔离 APPDATA 下的 Hephaestus.db 单例（Windows 文件锁会卡住
-	// t.TempDir 清理），再恢复环境——顺序反了会关到真实用户目录的句柄。
-	defer func() {
-		_ = db.CloseDatabase(gaeaConfig.MemoryUserDir())
-		restore()
-	}()
-	a := &App{}
-	n, err := a.GaeaKnowledgeExport("")
-	if err != nil {
-		t.Fatalf("知识导出失败: %v", err)
-	}
-	t.Logf("知识导出 %d 条（空库可为 0）", n)
-	want := filepath.Join(ws, ".gaea", "exports", "knowledge-"+time.Now().Format("20060102"))
-	if _, err := os.Stat(want); err != nil {
-		t.Errorf("knowledge 导出目录应固定在 work 现状路径 %s: %v", want, err)
-	}
-	if _, err := os.Stat(filepath.Join(ws, ".gaea", "play")); !os.IsNotExist(err) {
-		t.Errorf("knowledge 导出不随会话空间分区（play 目录不应创建）: %v", err)
 	}
 }
 

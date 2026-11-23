@@ -10,7 +10,6 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
@@ -56,7 +55,6 @@ func newUnifiedSearchEnv(t *testing.T) {
 		db.CloseDatabase(home)
 		SetAppSemanticStoreForTest(nil)
 		SetAppEmbedderForTest(nil)
-		knowledge.SetStoreForTest(nil)
 		ResetOfficeStoreForTest()
 		ResetCostStoreForTest()
 	})
@@ -65,15 +63,10 @@ func newUnifiedSearchEnv(t *testing.T) {
 	SetOfficeStoreForTest(memory.SQLiteStoreFor(gdb, home, home))
 	SetCostStoreForTest(cost.Open(gdb))
 
-	isoStore, err := knowledge.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	knowledge.SetStoreForTest(isoStore)
 }
 
 // TestGaeaUnifiedSearch_Combined 组合结果正确性：一次调用同时返回
-// 关键词全文命中（工作区文件）与跨库语义命中（知识/成本/办公三类）。
+// 关键词全文命中（工作区文件）与跨库语义命中（成本/办公两类）。
 func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 	t.Chdir(t.TempDir())
 	if err := os.MkdirAll("docs", 0o755); err != nil {
@@ -83,18 +76,6 @@ func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 		t.Fatal(err)
 	}
 	newUnifiedSearchEnv(t)
-
-	// 工程知识库条目（语义跨库命中：knowledge）
-	ks, err := knowledge.Global().Store()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ks.Save(knowledge.Entry{
-		Name: "pile-guide", Title: "桩基施工要点", Category: knowledge.CatCase,
-		Body: "振动锤选型需匹配地质，桩基施工工艺详见规范。",
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// 显式填充嵌入的 *core：embedding 未配置时 localSearchEmbedder 会走到
 	// resolveHerdsmanSearchModel（读 a.engineMgr），零值 App 的 core 为 nil 会崩溃。
@@ -131,9 +112,8 @@ func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 		t.Fatalf("关键词未命中 docs/方案.md: %+v", view.Keyword)
 	}
 
-	// 语义段：跨库命中 knowledge/cost/office 三种
+	// 语义段：跨库命中 cost/office 两种
 	wantSem := map[string]bool{
-		"knowledge/pile-guide": false,
 		"cost/pile-rent":       false,
 		"office/office-pile":   false,
 	}

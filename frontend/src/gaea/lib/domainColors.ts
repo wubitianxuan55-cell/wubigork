@@ -10,7 +10,6 @@
 
 /** 记忆库领域分类 → 主题语义色。 */
 export const DOMAIN_COLORS: Record<string, string> = {
-  knowledge: "var(--gaea-chart-1)",
   profile: "var(--gaea-chart-5)",
   office: "var(--gaea-chart-2)",
   whisper: "var(--gaea-chart-6)",
@@ -25,7 +24,6 @@ export const DOMAIN_COLORS: Record<string, string> = {
 
 /** 领域分类 → 中文标签（图谱图例/库徽标共用）。 */
 export const DOMAIN_LABELS: Record<string, string> = {
-  knowledge: "知识",
   profile: "画像",
   office: "办公记忆",
   whisper: "聊天记忆",
@@ -37,4 +35,4 @@ export const DOMAIN_LABELS: Record<string, string> = {
 };
 
 /** 领域分类 key 清单（图谱图例/筛选用，稳定顺序）。 */
-export const DOMAIN_KEYS = ["knowledge", "profile", "office", "whisper", "material", "cost", "entity", "event", "source"] as const;
+export const DOMAIN_KEYS = ["profile", "office", "whisper", "material", "cost", "entity", "event", "source"] as const;

@@ -11,7 +11,6 @@ import {
   NodeIndexOutlined,
   PauseOutlined,
   ReloadOutlined,
-  RightOutlined,
   RobotOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -38,9 +37,6 @@ import "../gaea/components/memoryhub/hub.css";
 import "../gaea/components/memoryhub/atlas.css";
 
 // ── 各库面板懒加载（沿用 H2 拆包：主 chunk 不背 3d-force-graph / Markdown）──
-const KnowledgePanel = React.lazy(() =>
-  import("../gaea/components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })),
-);
 const ProfileLibrary = React.lazy(() =>
   import("../gaea/components/memoryhub/ProfileLibrary").then((m) => ({ default: m.ProfileLibrary })),
 );
@@ -72,11 +68,10 @@ const FilePreviewModal = React.lazy(() =>
   import("../gaea/components/FilePreviewModal").then((m) => ({ default: m.FilePreviewModal })),
 );
 
-type LibraryKey = "knowledge" | "profile" | "office" | "wenxue" | "materials" | "whisper" | "graph" | "digitallife" | "database";
+type LibraryKey = "profile" | "office" | "wenxue" | "materials" | "whisper" | "graph" | "digitallife" | "database";
 
 // 各库霓虹色（与 3D 图谱/领域色同源；仅用于识别，不承担主题语义）
 const LIB_COLORS: Record<LibraryKey, string> = {
-  knowledge: DOMAIN_COLORS.knowledge,
   profile: DOMAIN_COLORS.profile,
   office: DOMAIN_COLORS.office,
   wenxue: DOMAIN_COLORS.wenxue,
@@ -96,7 +91,6 @@ interface LibraryDef {
 }
 
 const LIBRARIES: LibraryDef[] = [
-  { key: "knowledge", label: "知识库", icon: <BookOpen size={14} />, hint: "规范 / 案例 / 经验条目", en: "KNOWLEDGE" },
   { key: "profile", label: "用户画像", icon: <Brain size={14} />, hint: "跨板块共享画像", en: "PROFILE" },
   { key: "office", label: "办公记忆", icon: <FileText size={14} />, hint: "跨会话办公事实", en: "OFFICE" },
   { key: "wenxue", label: "图文记忆", icon: <BookOpen size={14} />, hint: "图文脑小说事实 · 只读", en: "WENXUE" },
@@ -112,7 +106,7 @@ const EXPLORE_LIBS = LIBRARIES.slice(5);
 
 const FALLBACK_NODE_COLOR = "#94a3b8"; // hex-exempt：未知类型节点的回退色
 
-const TYPE_ORDER = ["knowledge", "profile", "office", "whisper", "material", "cost", "database"];
+const TYPE_ORDER = ["profile", "office", "whisper", "material", "cost", "database"];
 
 const NODE_LABELS: Record<string, string> = {
   ...DOMAIN_LABELS,
@@ -122,7 +116,6 @@ const NODE_LABELS: Record<string, string> = {
 
 // 右栏 tabs 的短标签（窄栏里 7 个域要挤进一行）。
 const TAB_LABELS: Record<string, string> = {
-  knowledge: "知识",
   profile: "画像",
   office: "办公",
   whisper: "聊天",
@@ -288,7 +281,7 @@ function MemoryHubPage() {
         setSearchOutcome("error");
         return;
       }
-      const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公", file: "语义·资料" };
+      const kindLabel: Record<string, string> = { cost: "语义·成本", office: "语义·办公", file: "语义·资料" };
       const merged: HubSearchHit[] = [
         ...(v.brain ?? []).map((h) => ({ kind: "brain" as const, brain: h.brain, entity: h.entity, text: h.text })),
         ...(v.keyword ?? []).map((f) => ({
@@ -337,10 +330,9 @@ function MemoryHubPage() {
   };
 
   const counts: Partial<Record<LibraryKey, number | "—" | "…">> = overviewError
-    ? { knowledge: "—", profile: "—", office: "—", wenxue: "—", materials: "—", whisper: "—", database: "—" }
+    ? { profile: "—", office: "—", wenxue: "—", materials: "—", whisper: "—", database: "—" }
     : overview
     ? {
-        knowledge: overview.knowledgeCount,
         profile: overview.profileCount,
         office: overview.officeCount,
         wenxue: overview.wenxueCount,
@@ -348,10 +340,10 @@ function MemoryHubPage() {
         whisper: overview.whisperCount,
         database: overview.sessionCount,
       }
-    : { knowledge: "…", profile: "…", office: "…", wenxue: "…", materials: "…", whisper: "…", database: "…" };
+    : { profile: "…", office: "…", wenxue: "…", materials: "…", whisper: "…", database: "…" };
 
   const totalOverview = overview
-    ? overview.knowledgeCount + overview.profileCount + overview.officeCount + overview.wenxueCount + overview.pinnedCount + overview.whisperCount + overview.costCount
+    ? overview.profileCount + overview.officeCount + overview.wenxueCount + overview.pinnedCount + overview.whisperCount + overview.costCount
     : null;
   // 星图上的真实节点数优先（它包含成本等未单列库的域），失败时回退总览。
   const visualTotal = graphNodes.length || totalOverview;
@@ -412,7 +404,6 @@ function MemoryHubPage() {
   const openLibraryForNode = (node: GraphNode) => {
     const lib = libraryForType(node.type);
     if (lib) selectCategory(lib);
-    else selectCategory("knowledge");
   };
 
   const openHit = (h: HubSearchHit) => setDetail({ kind: "hit", hit: h });
@@ -534,7 +525,7 @@ function MemoryHubPage() {
           <div className="hub-detail-head">
             <span
               className="hub-detail-dot"
-              style={{ background: LIB_COLORS[(libraryForType(detail.node.type) ?? "knowledge") as LibraryKey] }}
+              style={{ background: LIB_COLORS[(libraryForType(detail.node.type)) as LibraryKey] }}
             />
             <span className="hub-detail-type">{NODE_LABELS[detail.node.type] ?? detail.node.type}</span>
           </div>
@@ -948,10 +939,7 @@ function MemoryHubPage() {
                     <DatabaseOutlined />
                   </div>
                   <strong>记忆还未连成脉络</strong>
-                  <p>在对话里保存一条偏好，或从知识库添加第一条资料。新的关系会在这里自然展开。</p>
-                  <button type="button" onClick={() => selectCategory("knowledge")}>
-                    从知识库开始 <RightOutlined aria-hidden="true" />
-                  </button>
+                  <p>在对话里保存一条偏好。新的关系会在这里自然展开。</p>
                 </div>
               ) : (
                 <ol className="atlas-memory-list">
@@ -1008,11 +996,6 @@ function MemoryHubPage() {
           <div className="atlas-library-body">
             <Suspense fallback={<HubViewFallback />}>
               <LocaleProvider>
-                {active === "knowledge" && (
-                  <div className="h-full">
-                    <KnowledgePanel variant="page" onClose={() => selectCategory("home")} />
-                  </div>
-                )}
                 {active === "profile" && <ProfileLibrary />}
                 {active === "office" && <OfficeMemoryLibrary />}
                 {active === "wenxue" && <WenxueMemoryLibrary />}
@@ -1026,7 +1009,7 @@ function MemoryHubPage() {
                       variant="page"
                       source={graphSource}
                       sourceSwitch={graphSourceSwitch}
-                      onEmptyAction={() => selectCategory("knowledge")}
+                      onEmptyAction={undefined}
                     />
                   </div>
                 )}

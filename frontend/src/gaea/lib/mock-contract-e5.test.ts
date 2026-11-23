@@ -42,7 +42,7 @@ describe("E5 契约层 mock（进料与质量）", () => {
     expect(v.keyword.length + v.semantic.length).toBeGreaterThan(0);
     // 语义命中带库徽标字段
     v.semantic.forEach((h) => {
-      expect(["cost", "knowledge", "office", "file"]).toContain(h.kind);
+      expect(["cost", "office", "file"]).toContain(h.kind);
     });
   });
 

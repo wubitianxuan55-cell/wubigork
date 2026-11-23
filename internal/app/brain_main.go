@@ -1,16 +1,12 @@
 package app
 
 import (
-	"fmt"
-
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 )
 
-// mainBrain 主脑：全局画像（profile）+ 知识库（knowledge）。
+// mainBrain 主脑：全局画像（profile）。知识库 2026-11-23 退役后不再有 kb 源。
 type mainBrain struct {
 	profile *memory.ProfileStore
-	kb      *knowledge.Store
 }
 
 func (m *mainBrain) Read(entity string) ([]Fact, error) {
@@ -18,11 +14,6 @@ func (m *mainBrain) Read(entity string) ([]Fact, error) {
 	if m.profile != nil {
 		if mem, ok := m.profile.Get(entity); ok {
 			out = append(out, Fact{Brain: BrainMain, Entity: mem.Name, Attribute: "profile", Value: mem.Body})
-		}
-	}
-	if m.kb != nil {
-		if e, err := m.kb.Get(entity); err == nil && e != nil {
-			out = append(out, Fact{Brain: BrainMain, Entity: e.Name, Attribute: "knowledge", Value: e.Body})
 		}
 	}
 	return out, nil
@@ -43,18 +34,6 @@ func (m *mainBrain) Search(query string) ([]Hit, error) {
 		for _, mem := range m.profile.All() {
 			if matchAny(query, mem.Name, mem.Title, mem.Description, mem.Body) {
 				out = append(out, Hit{Brain: BrainMain, Entity: mem.Name, Text: mem.Body})
-			}
-		}
-	}
-	if m.kb != nil {
-		list, err := m.kb.List()
-		if err != nil {
-			// 审计 P0#6 GA3-01：知识库读失败不得静默当成「没有条目」。
-			return nil, fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", err)
-		}
-		for _, s := range list {
-			if matchAny(query, s.Name, s.Title, s.Category) {
-				out = append(out, Hit{Brain: BrainMain, Entity: s.Name, Text: s.Title})
 			}
 		}
 	}

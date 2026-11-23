@@ -117,11 +117,9 @@ export function subjectOf(name: string, args: string): string {
     case "schedule_analyze":
       // 缺省路径在 Go 侧解析（当前计划），args 里可能没有——给可读回退
       return str(a, "path") || "当前计划";
-    case "knowledge_search":
+    case "cost_search":
     case "memory_search":
       return str(a, "query");
-    case "knowledge_add":
-      return str(a, "title");
     case "read_skill":
       return str(a, "name");
     case "doc_render":
@@ -395,20 +393,14 @@ export function summarize(name: string, args: string, output?: string, error?: s
       } catch {}
       return "";
     }
-    case "knowledge_add": {
-      const text = extractOutputFromEnvelope(output);
-      return text.includes("已保存知识条目") ? t("tool.kbSaved") : "";
-    }
-    case "knowledge_search": {
-      const text = extractOutputFromEnvelope(output);
-      const n = (text.match(/^### /gm) || []).length;
-      return n > 0 ? countOf(n, "tool.hitOne", "tool.hitOther") : "";
-    }
+    case "cost_search":
     case "memory_search": {
-      // memory_search 直接返回纯文本编号列表（非信封）
+      // memory_search 直接返回纯文本编号列表（非信封）；cost_search 信封走「### 」小节计数（同形态）
+      const text = extractOutputFromEnvelope(output);
+      const sections = (text.match(/^### /gm) || []).length;
       const numbered = (output.match(/^\d+\. /gm) || []).length;
       const more = output.match(/\.\.\. and (\d+) more/);
-      const total = numbered + (more ? Number(more[1]) : 0);
+      const total = sections + numbered + (more ? Number(more[1]) : 0);
       return total > 0 ? countOf(total, "tool.hitOne", "tool.hitOther") : "";
     }
     case "read_skill":

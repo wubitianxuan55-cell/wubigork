@@ -15,7 +15,7 @@ interface UseAppKeyboardParams {
   closeFilePreview: () => void;
   newSessionAndReset: () => Promise<void>;
   openHistory: () => Promise<void>;
-  openKnowledge?: () => void;
+
   toggleSidebar: () => void;
   toggleWorkspacePanel: () => void;
   setPaletteOpen: (open: boolean) => void;
@@ -24,7 +24,7 @@ interface UseAppKeyboardParams {
 export function useAppKeyboard(params: UseAppKeyboardParams) {
   const {
     state, closeTopmost, workspacePanelOpen, previewFile, toggleFocus,
-    closeFilePreview, newSessionAndReset, openHistory, openKnowledge,
+    closeFilePreview, newSessionAndReset, openHistory,
     toggleSidebar, toggleWorkspacePanel, setPaletteOpen, anyOpen, cancel,
   } = params;
 
@@ -69,7 +69,6 @@ export function useAppKeyboard(params: UseAppKeyboardParams) {
       if (ke.key === "n" && !state.running) { ke.preventDefault(); void newSessionAndReset(); return; }
       if (ke.key === "k") { ke.preventDefault(); setPaletteOpen(true); return; }
       if (ke.key === "H" && ke.shiftKey) { ke.preventDefault(); void openHistory(); return; }
-      if (ke.key === "K" && ke.shiftKey) { ke.preventDefault(); openKnowledge?.(); return; }
       if (ke.key === "b") { ke.preventDefault(); toggleSidebar(); return; }
       if (ke.key === "j") { ke.preventDefault(); toggleWorkspacePanel(); return; }
       if (ke.key === "F" && ke.shiftKey) { ke.preventDefault(); toggleFocus(); return; }
@@ -77,5 +76,5 @@ export function useAppKeyboard(params: UseAppKeyboardParams) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPaletteOpen 为 React dispatch（稳定引用），原 deps 数组语义保留
-  }, [state.running, state.approval, state.ask, anyOpen, cancel, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview, newSessionAndReset, openHistory, openKnowledge, toggleSidebar, toggleWorkspacePanel]);
+  }, [state.running, state.approval, state.ask, anyOpen, cancel, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview, newSessionAndReset, openHistory, toggleSidebar, toggleWorkspacePanel]);
 }

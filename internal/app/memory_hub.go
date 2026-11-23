@@ -14,7 +14,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/event"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/pins"
 	"github.com/gaea/gaea/internal/whisper"
@@ -28,7 +27,7 @@ var hubRefRe = regexp.MustCompile(`\[\[([^\]|]+)(?:\|[^\]]+)?\]\]`)
 // ── 记忆中枢绑定（主脑前端入口的统一管理接口）───────────────────────
 //
 // 记忆中枢 = 三脑架构的前端呈现：左脑办公记忆（Hephaestus.db facts）、
-// 主脑全局画像（profile）+ 知识库（knowledge）、右脑轻语记忆（hermes.db 只读）。
+// 主脑全局画像（profile）、右脑轻语记忆（hermes.db 只读）。
 // 成本库等未来库沿用同一"库管理"模式扩展。
 
 // ProfileFactView 主脑全局画像事实视图（与 memory.Memory 对应）。
@@ -71,7 +70,6 @@ type WhisperEpisodeView struct {
 
 // MemoryHubOverview 记忆中枢聚合总览（各库统计 + 最近条目）。
 type MemoryHubOverview struct {
-	KnowledgeCount int `json:"knowledgeCount"`
 	ProfileCount   int `json:"profileCount"`
 	OfficeCount    int `json:"officeCount"`
 	CostCount      int `json:"costCount"`
@@ -305,14 +303,6 @@ func (a *App) GaeaWenxueMemoryBrowse() WenxueMemoryBrowseView {
 func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	ov := MemoryHubOverview{}
 
-	if store, err := knowledge.Global().Store(); err == nil {
-		if list, lerr := store.List(); lerr == nil {
-			ov.KnowledgeCount = len(list)
-		} else {
-			// 审计 P0#6 GA3-01：读失败不得静默报 0 条。
-			slog.Warn("knowledge: 中枢总览读取失败，计数降级", "error", lerr)
-		}
-	}
 	ov.ProfileCount = len(a.hubProfileStore().All())
 	ov.OfficeCount = len(a.hubOfficeStore().List())
 	// 审计 GA6-09：成本库读失败不得静默按空库计数（部分数据仍计入，错误留痕）。
@@ -334,18 +324,12 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 		ov.UploadCount += ups
 	}
 
-	// 最近更新时间：知识库条目带 UpdatedAt；办公 facts/画像的时间由各自
+	// 最近更新时间：成本库条目带 UpdatedAt；办公 facts/画像的时间由各自
 	// 后端维护（SQLite updated_at），前端按条目展示。
 	var latest time.Time
-	if store, err := knowledge.Global().Store(); err == nil {
-		if list, lerr := store.List(); lerr == nil {
-			for _, s := range list {
-				if s.UpdatedAt.After(latest) {
-					latest = s.UpdatedAt
-				}
-			}
-		} else {
-			slog.Warn("knowledge: 中枢总览读取失败，最近更新降级", "error", lerr)
+	for _, s := range costList {
+		if s.UpdatedAt.After(latest) {
+			latest = s.UpdatedAt
 		}
 	}
 	if !latest.IsZero() {
@@ -369,7 +353,7 @@ func hubPinnedCount() int {
 type GraphNode struct {
 	ID   string  `json:"id"`
 	Name string  `json:"name"`
-	Type string  `json:"type"` // knowledge / profile / office / whisper / material
+	Type string  `json:"type"` // profile / office / whisper / material
 	Desc string  `json:"desc"`
 	Val  float64 `json:"val"` // 节点大小（重要度）
 }
@@ -420,26 +404,6 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 			}
 		}
 		g.Links = append(g.Links, GraphLink{Source: src, Target: tgt, Type: typ})
-	}
-
-	// 知识条目
-	if store, err := knowledge.Global().Store(); err == nil {
-		entries, rerr := store.ReadAll()
-		if rerr != nil {
-			// 审计 P0#6 GA3-01：读失败不得静默画成「知识库无节点」。
-			slog.Warn("knowledge: 记忆图读取知识条目失败，本次跳过知识节点", "error", rerr)
-		}
-		for _, e := range entries {
-			id := "k:" + e.Name
-			addNode(id, e.Title, "knowledge", e.Category+" · "+e.Discipline, 1)
-			nameID[e.Name] = id
-			if e.Category != "" {
-				catIndex[e.Category] = append(catIndex[e.Category], id)
-			}
-			for _, t := range e.Tags {
-				tagIndex[t] = append(tagIndex[t], id)
-			}
-		}
 	}
 
 	// 主脑画像

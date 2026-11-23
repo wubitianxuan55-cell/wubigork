@@ -2469,230 +2469,6 @@ export namespace app {
 	        this.startedAt = source["startedAt"];
 	    }
 	}
-	export class KnowledgeEntry {
-	    name: string;
-	    title: string;
-	    category: string;
-	    phase: string;
-	    discipline: string;
-	    tags: string[];
-	    status: string;
-	    version: number;
-	    author: string;
-	    reviewer: string;
-	    source: string;
-	    body: string;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new KnowledgeEntry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.title = source["title"];
-	        this.category = source["category"];
-	        this.phase = source["phase"];
-	        this.discipline = source["discipline"];
-	        this.tags = source["tags"];
-	        this.status = source["status"];
-	        this.version = source["version"];
-	        this.author = source["author"];
-	        this.reviewer = source["reviewer"];
-	        this.source = source["source"];
-	        this.body = source["body"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class KnowledgeHistoryView {
-	    name: string;
-	    title: string;
-	    version: number;
-	    category: string;
-	    phase: string;
-	    discipline: string;
-	    tags: string[];
-	    status: string;
-	    author: string;
-	    reviewer: string;
-	    source: string;
-	    body: string;
-	    changedAt: string;
-	    note: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new KnowledgeHistoryView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.title = source["title"];
-	        this.version = source["version"];
-	        this.category = source["category"];
-	        this.phase = source["phase"];
-	        this.discipline = source["discipline"];
-	        this.tags = source["tags"];
-	        this.status = source["status"];
-	        this.author = source["author"];
-	        this.reviewer = source["reviewer"];
-	        this.source = source["source"];
-	        this.body = source["body"];
-	        this.changedAt = source["changedAt"];
-	        this.note = source["note"];
-	    }
-	}
-	export class KnowledgeImportRowView {
-	    name: string;
-	    title: string;
-	    category: string;
-	    phase: string;
-	    discipline: string;
-	    tags: string[];
-	    status: string;
-	    source: string;
-	    body: string;
-	    existingName: string;
-	    matchNote: string;
-	    similarName: string;
-	    similarNote: string;
-	    raw: string;
-	    skip: boolean;
-	    skipReason: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new KnowledgeImportRowView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.title = source["title"];
-	        this.category = source["category"];
-	        this.phase = source["phase"];
-	        this.discipline = source["discipline"];
-	        this.tags = source["tags"];
-	        this.status = source["status"];
-	        this.source = source["source"];
-	        this.body = source["body"];
-	        this.existingName = source["existingName"];
-	        this.matchNote = source["matchNote"];
-	        this.similarName = source["similarName"];
-	        this.similarNote = source["similarNote"];
-	        this.raw = source["raw"];
-	        this.skip = source["skip"];
-	        this.skipReason = source["skipReason"];
-	    }
-	}
-	export class KnowledgeImportPreview {
-	    path: string;
-	    fileName: string;
-	    columns: string[];
-	    unmapped: string[];
-	    rows: KnowledgeImportRowView[];
-	    message: string;
-	    aiUsed: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new KnowledgeImportPreview(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.path = source["path"];
-	        this.fileName = source["fileName"];
-	        this.columns = source["columns"];
-	        this.unmapped = source["unmapped"];
-	        this.rows = this.convertValues(source["rows"], KnowledgeImportRowView);
-	        this.message = source["message"];
-	        this.aiUsed = source["aiUsed"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	export class KnowledgeSummary {
-	    name: string;
-	    title: string;
-	    category: string;
-	    phase: string;
-	    tags: string[];
-	    status: string;
-	    // Go type: time
-	    updatedAt: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new KnowledgeSummary(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.title = source["title"];
-	        this.category = source["category"];
-	        this.phase = source["phase"];
-	        this.tags = source["tags"];
-	        this.status = source["status"];
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class LocalServiceModel {
 	    engineId: string;
 	    modelId: string;
@@ -2953,7 +2729,6 @@ export namespace app {
 		}
 	}
 	export class MemoryHubOverview {
-	    knowledgeCount: number;
 	    profileCount: number;
 	    officeCount: number;
 	    costCount: number;
@@ -2970,7 +2745,6 @@ export namespace app {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.knowledgeCount = source["knowledgeCount"];
 	        this.profileCount = source["profileCount"];
 	        this.officeCount = source["officeCount"];
 	        this.costCount = source["costCount"];
@@ -3652,6 +3426,144 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class ProposalSearchResultView {
+	    hits: proposal.Hit[];
+	    mode: string;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposalSearchResultView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hits = this.convertValues(source["hits"], proposal.Hit);
+	        this.mode = source["mode"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProposalSectionBodyView {
+	    id: number;
+	    proposalTitle: string;
+	    status: string;
+	    title: string;
+	    titlePath: string;
+	    chars: number;
+	    body: string;
+	    children: proposal.Child[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposalSectionBodyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.proposalTitle = source["proposalTitle"];
+	        this.status = source["status"];
+	        this.title = source["title"];
+	        this.titlePath = source["titlePath"];
+	        this.chars = source["chars"];
+	        this.body = source["body"];
+	        this.children = this.convertValues(source["children"], proposal.Child);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProposalSectionView {
+	    id: number;
+	    parentId: number;
+	    level: number;
+	    seq: number;
+	    title: string;
+	    titlePath: string;
+	    chars: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposalSectionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.parentId = source["parentId"];
+	        this.level = source["level"];
+	        this.seq = source["seq"];
+	        this.title = source["title"];
+	        this.titlePath = source["titlePath"];
+	        this.chars = source["chars"];
+	    }
+	}
+	export class ProposalSummaryView {
+	    name: string;
+	    title: string;
+	    projectType: string;
+	    year: string;
+	    status: string;
+	    summary: string;
+	    source: string;
+	    sourceFile: string;
+	    updatedAt: string;
+	    sections: number;
+	    chars: number;
+	    indexDone: number;
+	    indexTotal: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposalSummaryView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.projectType = source["projectType"];
+	        this.year = source["year"];
+	        this.status = source["status"];
+	        this.summary = source["summary"];
+	        this.source = source["source"];
+	        this.sourceFile = source["sourceFile"];
+	        this.updatedAt = source["updatedAt"];
+	        this.sections = source["sections"];
+	        this.chars = source["chars"];
+	        this.indexDone = source["indexDone"];
+	        this.indexTotal = source["indexTotal"];
+	    }
+	}
 	export class ProviderView {
 	    name: string;
 	    kind: string;
@@ -4151,22 +4063,6 @@ export namespace app {
 		    }
 		    return a;
 		}
-	}
-	export class SimilarView {
-	    name: string;
-	    title: string;
-	    score: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new SimilarView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.title = source["title"];
-	        this.score = source["score"];
-	    }
 	}
 	export class SkillCaptureInput {
 	    name: string;
@@ -9349,6 +9245,91 @@ export namespace pricefeed {
 	        this.lastFetchAt = source["lastFetchAt"];
 	        this.createdAt = source["createdAt"];
 	    }
+	}
+
+}
+
+export namespace proposal {
+	
+	export class Child {
+	    id: number;
+	    level: number;
+	    title: string;
+	    chars: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Child(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.level = source["level"];
+	        this.title = source["title"];
+	        this.chars = source["chars"];
+	    }
+	}
+	export class Hit {
+	    proposalName: string;
+	    proposalTitle: string;
+	    projectType: string;
+	    year: string;
+	    status: string;
+	    sectionId: number;
+	    level: number;
+	    title: string;
+	    titlePath: string;
+	    chars: number;
+	    childCount: number;
+	    snippet: string;
+	    matched: string[];
+	    keywordScore?: number;
+	    semanticScore?: number;
+	    rerankScore?: number;
+	    children?: Child[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Hit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.proposalName = source["proposalName"];
+	        this.proposalTitle = source["proposalTitle"];
+	        this.projectType = source["projectType"];
+	        this.year = source["year"];
+	        this.status = source["status"];
+	        this.sectionId = source["sectionId"];
+	        this.level = source["level"];
+	        this.title = source["title"];
+	        this.titlePath = source["titlePath"];
+	        this.chars = source["chars"];
+	        this.childCount = source["childCount"];
+	        this.snippet = source["snippet"];
+	        this.matched = source["matched"];
+	        this.keywordScore = source["keywordScore"];
+	        this.semanticScore = source["semanticScore"];
+	        this.rerankScore = source["rerankScore"];
+	        this.children = this.convertValues(source["children"], Child);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

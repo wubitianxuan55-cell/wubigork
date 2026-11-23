@@ -76,11 +76,11 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
       if (!query.trim()) return [];
       return [
         {
-          kind: "knowledge", name: "雾港-世界观", score: 0.86,
+          kind: "office", name: "雾港-世界观", score: 0.86,
           text: "雾港世界观 南方海岸手工灯塔城市 渔业与船舶维修 灯塔光「灯语」传讯…",
         },
         {
-          kind: "knowledge", name: "灯语-力量体系", score: 0.71,
+          kind: "office", name: "灯语-力量体系", score: 0.71,
           text: "灯语编码 长亮=平安 两短一长=有人到港 连续急闪=封港 掌握完整灯语表者仅剩黑匣子…",
         },
       ];

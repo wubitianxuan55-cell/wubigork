@@ -7,7 +7,7 @@ import (
 )
 
 // TestManifestCompleteness manifest 完整性：canonical 清单通过 ValidateAll，
-// 且包含 §3.1 的 9 个 canonical 板块 + D7 的 knowledge 独立板块。
+// 且包含 §3.1 的 9 个 canonical 板块（knowledge 板块 2026-11-23 退役不再在列）。
 func TestManifestCompleteness(t *testing.T) {
 	manifests := BuiltinManifests()
 	if err := ValidateAll(manifests); err != nil {
@@ -34,9 +34,6 @@ func TestManifestCompleteness(t *testing.T) {
 		if !ids[want] {
 			t.Errorf("canonical 清单缺少板块 %q", want)
 		}
-	}
-	if !ids["knowledge"] {
-		t.Errorf("D7 决策：knowledge 应恢复挂载为独立板块，但清单缺失")
 	}
 	// weixin 服务板块必须在列（§3.1 层间不一致 #3）
 	if !ids["weixin"] {
@@ -71,7 +68,6 @@ func TestManifestSpaceAssignments(t *testing.T) {
 		"characterlib": SpacePlay,
 		"settings":     SpaceShared,
 		"weixin":       SpaceWork,
-		"knowledge":    SpaceWork,
 		"schedule":     SpaceWork,
 		"wenxue":       SpaceWork,
 	}

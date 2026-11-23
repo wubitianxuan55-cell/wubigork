@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 // TestSemanticSearchTool_EndToEnd 本地 bge-m3 mock + 临时向量库：
-// 云端 agent 通过 semantic_search 工具按语义命中成本/知识条目。
+// 云端 agent 通过 semantic_search 工具按语义命中成本条目。
 func TestSemanticSearchTool_EndToEnd(t *testing.T) {
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -62,26 +62,19 @@ func TestSemanticSearchTool_EndToEnd(t *testing.T) {
 	})
 	SetAppSemanticStoreForTest(semantic.Open(gdb))
 	SetAppEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
-	// 知识全局服务是进程级单例：早前测试的懒开句柄可能已被其 CloseDatabase
-	// 关闭（P0#6 把「库不可读」如实上抛后暴露）。重置后按本测 HOME 懒开新句柄，
-	// 用例从此与执行顺序无关。
-	knowledge.ResetForTest()
-
-	// 播种两条知识条目：此前该测试从未播种数据，本地靠开发者真实成本库
+	// 播种成本条目：此前该测试从未播种数据，本地靠开发者真实成本库
 	// 里恰有「驳接爪」条目才侥幸命中（runner 空库实锤未命中）。embedder
 	// mock 按「驳接爪/水泥」给正交向量，检索应命中播种条目。
-	kb, kerr := knowledge.Global().Store()
-	if kerr != nil {
-		t.Fatalf("knowledge store: %v", kerr)
-	}
-	if err := kb.Save(knowledge.Entry{Name: "驳接爪工艺", Body: "不锈钢驳接爪 90 度安装工艺，幕墙转角固定件。"}); err != nil {
+	SetCostStoreForTest(cost.Open(gdb))
+	a := &App{}
+	cs := a.hubCostStore()
+	if err := cs.Save(cost.Entry{Name: "驳接爪工艺", Title: "驳接爪工艺 不锈钢驳接爪 90 度安装工艺，幕墙转角固定件", Category: "材料", Unit: "个", Price: 35}); err != nil {
 		t.Fatalf("seed 驳接爪: %v", err)
 	}
-	if err := kb.Save(knowledge.Entry{Name: "水泥养护", Body: "水泥浇筑完成后 7 天养护期。"}); err != nil {
+	if err := cs.Save(cost.Entry{Name: "水泥养护", Title: "水泥养护 水泥浇筑完成后 7 天养护期", Category: "材料", Unit: "项", Price: 10}); err != nil {
 		t.Fatalf("seed 水泥: %v", err)
 	}
 
-	a := &App{}
 	tool := semanticSearchTool{a: a}
 
 	reply, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"不锈钢驳接爪 90 度"}`))

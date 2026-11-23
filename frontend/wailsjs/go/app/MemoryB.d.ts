@@ -8,32 +8,6 @@ export function GaeaAIFeedbackDelete(arg1:string):Promise<void>;
 
 export function GaeaAIFeedbackList():Promise<Array<feedback.Item>>;
 
-export function GaeaKnowledgeDelete(arg1:string):Promise<void>;
-
-export function GaeaKnowledgeExport(arg1:string):Promise<number>;
-
-export function GaeaKnowledgeFindSimilar(arg1:string):Promise<Array<app.SimilarView>>;
-
-export function GaeaKnowledgeGet(arg1:string):Promise<app.KnowledgeEntry>;
-
-export function GaeaKnowledgeHistory(arg1:string):Promise<Array<app.KnowledgeHistoryView>>;
-
-export function GaeaKnowledgeImportAIParse(arg1:string):Promise<app.KnowledgeImportPreview>;
-
-export function GaeaKnowledgeImportApply(arg1:Array<app.KnowledgeEntry>):Promise<number>;
-
-export function GaeaKnowledgeImportPreview(arg1:string):Promise<app.KnowledgeImportPreview>;
-
-export function GaeaKnowledgeList():Promise<Array<app.KnowledgeSummary>>;
-
-export function GaeaKnowledgeMerge(arg1:string,arg2:Array<string>):Promise<string>;
-
-export function GaeaKnowledgeReview(arg1:string,arg2:boolean,arg3:string):Promise<void>;
-
-export function GaeaKnowledgeSave(arg1:app.KnowledgeEntry):Promise<void>;
-
-export function GaeaKnowledgeSearch(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Array<app.KnowledgeSummary>>;
-
 export function GaeaMemory():Promise<app.MemoryView>;
 
 export function GaeaMemoryArchivedList(arg1:number,arg2:number):Promise<app.MemoryArchivedPage>;

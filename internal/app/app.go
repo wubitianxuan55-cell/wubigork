@@ -584,11 +584,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.chatStore = chat.NewStore(filepath.Join(a.whisperDataRoot, "chat"))
 	a.initBrain()
 	a.initModules()
-	// 审计 GA3-13 接线：启动路径读旧知识库迁移状态——失败时经既有 gaea-event
-	// notice + slog.Warn 上报（迁移失败不阻断知识库，只是「部分迁移」，但用户
-	// 侧必须看得见，否则「条目少了」无从归因）。首次打开库即触发迁移，故此处
-	// 是「启动即可见」的唯一时机。
-	a.reportKnowledgeMigrationState()
 	stage("charlib+stores")
 	// Voice V2（刀6）：8792 记忆网关已退役——LLM 腿进程内直连聊天板块功能绑定
 	// （voice_v2_go_legs.go），无独立本地服务。旧 sidecar 的 8123 直连残留由

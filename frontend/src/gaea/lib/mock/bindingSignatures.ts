@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 732 名（原生变参 19 名已收窄标注）。
+// 共 724 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -209,19 +209,6 @@ export const bindingSignatures = {
   GaeaImageDirector: { argc: 1, variadic: false, params: "req ImageDirectorRequest" },
   GaeaJobs: { argc: 0, variadic: false, params: "" },
   GaeaJournalList: { argc: 1, variadic: false, params: "limit int" },
-  GaeaKnowledgeDelete: { argc: 1, variadic: false, params: "name string" },
-  GaeaKnowledgeExport: { argc: 1, variadic: false, params: "dir string" },
-  GaeaKnowledgeFindSimilar: { argc: 1, variadic: false, params: "title string" },
-  GaeaKnowledgeGet: { argc: 1, variadic: false, params: "name string" },
-  GaeaKnowledgeHistory: { argc: 1, variadic: false, params: "name string" },
-  GaeaKnowledgeImportAIParse: { argc: 1, variadic: false, params: "path string" },
-  GaeaKnowledgeImportApply: { argc: 1, variadic: false, params: "rows []KnowledgeEntry" },
-  GaeaKnowledgeImportPreview: { argc: 1, variadic: false, params: "path string" },
-  GaeaKnowledgeList: { argc: 0, variadic: false, params: "" },
-  GaeaKnowledgeMerge: { argc: 2, variadic: false, params: "targetName string, sourceNames []string" },
-  GaeaKnowledgeReview: { argc: 3, variadic: false, params: "name string, approve bool, reviewer string" },
-  GaeaKnowledgeSave: { argc: 1, variadic: false, params: "e KnowledgeEntry" },
-  GaeaKnowledgeSearch: { argc: 4, variadic: false, params: "query string, category string, phase string, status string" },
   GaeaListDir: { argc: 1, variadic: false, params: "rel string" },
   GaeaListDirBatch: { argc: 2, variadic: false, params: "paths []string, exclude []string" },
   GaeaListProjectSessions: { argc: 0, variadic: false, params: "" },
@@ -290,6 +277,11 @@ export const bindingSignatures = {
   GaeaProfileResolveConflict: { argc: 2, variadic: false, params: "name string, prefer string" },
   GaeaProfileSave: { argc: 1, variadic: false, params: "f ProfileFactView" },
   GaeaPromoteSubagent: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
+  GaeaProposalDelete: { argc: 1, variadic: false, params: "name string" },
+  GaeaProposalList: { argc: 0, variadic: false, params: "" },
+  GaeaProposalOutline: { argc: 1, variadic: false, params: "name string" },
+  GaeaProposalRead: { argc: 1, variadic: false, params: "sectionID int64" },
+  GaeaProposalSearch: { argc: 7, variadic: false, params: "query string, scope string, level int, projectType string, year string, within string, limit int" },
   GaeaReadFile: { argc: 1, variadic: false, params: "rel string" },
   GaeaReadFileB64: { argc: 1, variadic: false, params: "path string" },
   GaeaReadFilePage: { argc: 2, variadic: false, params: "rel string, offset int64" },
@@ -753,5 +745,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 732。
-export const bindingSignatureCount = 732;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 724。
+export const bindingSignatureCount = 724;

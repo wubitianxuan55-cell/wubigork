@@ -59,8 +59,6 @@
 | `install_skill` | build-internal | shared | write | none | PersistWrite：技能落盘可查 |
 | `interrupt_agent` | build-internal | shared | meta | none | 中断信号送达 |
 | `kill_shell` | builtin-domain | work | write | none | 目标 job 终止（级联子树） |
-| `knowledge_add` | builtin-domain | work | write | none | PersistWrite：知识库写入可查 |
-| `knowledge_search` | builtin-domain | work | read | none | 召回与库一致 |
 | `longdoc_build` | builtin-domain | work | write | none | 声明路径=实际落点；机检 0 硬伤才组装；sha256 可复算 |
 | `longdoc_manifest` | builtin-domain | work | write | none | 机检可复算（确定性判定）；清单=唯一事实源 |
 | `longdoc_verify` | builtin-domain | work | read | none | 只读确定性四门（章/跨/册/判色）；验证体系工具化（2026-11-21 复盘收编） |
@@ -86,6 +84,9 @@
 | `office_status` | extra-app | work | read | none | dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配） |
 | `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
 | `promote_session_facts` | build-internal | shared | write | none | PersistWrite：事实晋升可查 |
+| `proposal_read` | builtin-domain | work | read | none | 整节/命中段落与库一致，分页可续读 |
+| `proposal_save` | builtin-domain | work | write | none | PersistWrite：方案库写入可查；父级在前逐级展开，正文与源文件逐字一致，同名覆盖须显式确认 |
+| `proposal_search` | builtin-domain | work | read | none | 召回与库一致；全文管精确词，语义路走本地 embedding，本地 reranker 精排 |
 | `quarantine_list` | builtin-workspace | work | read | none | 账本批次按 stamp 去重与同 stamp 最后一条一致；行数≠批次数 |
 | `read_file` | builtin-workspace | work | read | none | 内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny |
 | `read_skill` | builtin-domain | shared | read | none | 返回技能正文 |
@@ -118,16 +119,17 @@
 | `wenxue_book_build` | extra-app | work | write | none | 声明路径=实际落点；final 机检 0 硬伤才组装（未编号/重号/空章/占位/插值不闭合）；sha256 可复算；配额/跳号=warn 不拦 |
 | `wenxue_candidate_promote` | extra-app | work | write | none | 候选提升前自动归档当前正文；只写章节目录，不写定稿 |
 | `wenxue_candidate_write` | extra-app | work | write | none | 候选落章节/候选/<章名>/；不改正文/定稿；同名默认拒 |
+| `wenxue_chapter_deliver` | extra-app | work | write | none | 交付件=源章当前字节复制；缺省落 .gaea/exports/单章/；禁写定稿域；已存在即拒；回执给绝对路径+hanzi |
 | `wenxue_chapter_list` | extra-app | work | read | none | 清单与约定章节目录实况一致（章号/标题/字数） |
 | `wenxue_chapter_read` | extra-app | work | read | none | 内容与目标章一致；附上一章结尾衔接段 |
-| `wenxue_chapter_write` | extra-app | work | write | none | 落盘内容与回执一致；overwrite=false 已存在即拒（宁拒不误改）；仅 md/markdown/txt |
+| `wenxue_chapter_write` | extra-app | work | write | none | 落盘内容与回执一致；overwrite=false 已存在即拒（宁拒不误改）；仅 md/markdown/txt；min_hanzi 显式门禁（不过线不落盘） |
 | `wenxue_character_import` | extra-app | work | write | none | 库卡全字段映射六节落盘（设定节记来源 id）；库只读不回写；overwrite 显式闸 |
 | `wenxue_character_list` | extra-app | work | read | none | 清单与角色目录实况一致（名/字数/摘要） |
 | `wenxue_character_read` | extra-app | work | read | none | 内容与目标卡一致 |
 | `wenxue_character_write` | extra-app | work | write | none | 落盘内容与回执一致；已存在即拒（overwrite 显式）；自动补首行一级标题 |
 | `wenxue_final_list` | extra-app | work | read | none | 清单与定稿目录实况一致（发布稿域，非草稿） |
 | `wenxue_final_read` | extra-app | work | read | none | 内容与目标定稿一致 |
-| `wenxue_final_write` | extra-app | work | write | none | 落盘内容与回执一致；仅定稿目录内（域隔离）；overwrite 显式闸 |
+| `wenxue_final_write` | extra-app | work | write | none | 落盘内容与回执一致；仅定稿目录内（域隔离）；overwrite 显式闸；min_hanzi 显式门禁；回执附内联体检（quality 仅提示非阻断） |
 | `wenxue_quality_check` | extra-app | work | read | none | 体检分组与文件实况一致（章节编号/角色卡缺节/时间线锚/设定空文档/孤儿候选；仅非空携带） |
 | `wenxue_stats` | extra-app | work | read | none | 统计快照与工作区实况一致（字数/文件计数/最近修改） |
 | `wenxue_style_report` | extra-app | work | read | none | 指标与文本实况一致（确定性口径）；基线差值=当前汇总−基线 |
@@ -147,7 +149,7 @@
 |---|---|---|---|
 | deliver-write（交付写） | 声明路径=实际落点；落账可查（Journal/库）；越界与非法输入正确失败 | office_generate / docx_apply / pptx_apply / xlsx_apply / schedule_apply / write_file |
 | domain-compute（领域计算） | 计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed | schedule_analyze / cost_indicators / cost_compose |
-| read-retrieval（读取检索） | 命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率） | grep / read_file / knowledge_search / memory_search / cost_search |
+| read-retrieval（读取检索） | 命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率） | grep / read_file / memory_search / cost_search |
 | task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | dag_plan / task / todo_write |
 
 适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；若出现第五装配面（如按 `boot.go` 注释绕过 Build 的自定义装配器）则本清单失效，需重新盘点。

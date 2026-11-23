@@ -36,7 +36,7 @@ func TestToolSpaceClassification(t *testing.T) {
 		"web_fetch", "web_search", "format_convert", "chart_gen", "diagram_gen", "diagram",
 		"screen_capture", "vision", "ocr",
 		"cost_search", "cost_save", "cost_indicators",
-		"knowledge_add", "knowledge_search", "semantic_search",
+		"semantic_search",
 		"routine_llm", "translate_text", "fact_add", "fact_list", "fact_clear",
 	}
 	for _, name := range work {

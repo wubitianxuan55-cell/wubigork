@@ -18,7 +18,6 @@ import (
 	gconfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 	"github.com/gaea/gaea/internal/modelengine"
 )
@@ -77,9 +76,6 @@ func costAIParseApp(t *testing.T, handler http.HandlerFunc) (*App, *httptest.Ser
 		t.Fatal("GetDatabase nil")
 	}
 	t.Cleanup(func() {
-		// 知识全局服务的默认后端即本句柄（db.GetDatabase(MemoryUserDir())）；
-		// 不重置会让全局缓存指向已关闭句柄，污染后续测试（P0#6 上抛后暴露）。
-		knowledge.ResetForTest()
 		db.CloseDatabase(gconfig.MemoryUserDir())
 	})
 	SetCostStoreForTest(cost.Open(gdb))

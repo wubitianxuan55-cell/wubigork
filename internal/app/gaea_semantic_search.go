@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
 )
 
 // SemanticHitView 是跨库统一语义检索的命中视图。
 type SemanticHitView struct {
-	Kind  string  `json:"kind"` // cost / knowledge / office / file
+	Kind  string  `json:"kind"` // cost / office / file
 	Name  string  `json:"name"`
 	Score float64 `json:"score"`
 	Text  string  `json:"text"`
@@ -130,32 +129,6 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 		}
 	}
 
-	// 工程知识库
-	if ks, err := knowledge.Global().Store(); err == nil {
-		entries, rerr := ks.ReadAll()
-		if rerr != nil {
-			// 审计 P0#6 GA3-01：读失败如实上抛，不得当「知识库为空」跳过索引。
-			return nil, fmt.Errorf("知识库暂不可读（读取失败），可重试: %w", rerr)
-		}
-		if len(entries) > 0 {
-			docs := make([]semantic.Doc, 0, len(entries))
-			keep := make(map[string]bool, len(entries))
-			for _, e2 := range entries {
-				docs = append(docs, semantic.Doc{
-					ID:   e2.Name,
-					Text: e2.Title + " " + e2.Category + " " + e2.Body,
-				})
-				keep[e2.Name] = true
-			}
-			if counts["knowledge"] != len(docs) {
-				if _, err := st.Ensure(ctx, e, "knowledge", docs); err != nil {
-					return nil, err
-				}
-				_, _ = st.Stale("knowledge", keep)
-			}
-		}
-	}
-
 	// 办公记忆 facts
 	facts := a.hubOfficeStore().List()
 	if len(facts) > 0 {
@@ -182,7 +155,7 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 	if topN <= 0 {
 		topN = 20
 	}
-	kinds := []string{"cost", "knowledge", "office", "file"}
+	kinds := []string{"cost", "office", "file"}
 	perKind := topN / len(kinds)
 	if perKind < 1 {
 		perKind = 1

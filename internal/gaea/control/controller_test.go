@@ -128,14 +128,14 @@ func TestCostSaveApprovalSubject(t *testing.T) {
 	}
 }
 
-// TestMemoryWriteAlwaysRequiresApproval 回归：记忆/知识库写入也必须逐条确认——
+// TestMemoryWriteAlwaysRequiresApproval 回归：记忆/成本库写入也必须逐条确认——
 // yolo 权限级别不自动放行，会话放行不被记忆。
 func TestMemoryWriteAlwaysRequiresApproval(t *testing.T) {
 	c, ids, prompts := approvalIDs()
 	c.SetPermLevel("yolo")
 	g := gateApprover{c}
 
-	for _, tool := range []string{"remember", "knowledge_add"} {
+	for _, tool := range []string{"remember", "cost_save"} {
 		args := json.RawMessage(`{"title":"测试条目","description":"示例描述","category":"经验总结","body":"正文"}`)
 		done := make(chan bool, 1)
 		go func() {
@@ -157,18 +157,12 @@ func TestMemoryWriteAlwaysRequiresApproval(t *testing.T) {
 	}
 }
 
-// TestMemoryApprovalSubjects 验证记忆/知识库审批摘要包含关键字段。
+// TestMemoryApprovalSubjects 验证记忆审批摘要包含关键字段。
 func TestMemoryApprovalSubjects(t *testing.T) {
 	rm := rememberApprovalSubject(json.RawMessage(`{"name":"prefers-tabs","title":"用户偏好","description":"喜欢先给大纲再展开","type":"user"}`))
 	for _, want := range []string{"写入永久记忆：用户偏好", "喜欢先给大纲再展开", "类型 user"} {
 		if !strings.Contains(rm, want) {
 			t.Fatalf("remember subject %q 缺少 %q", rm, want)
-		}
-	}
-	ka := knowledgeAddApprovalSubject(json.RawMessage(`{"title":"土壤修复验收标准","category":"规范标准","body":"验收应包含…","source":"生态环境部"}`))
-	for _, want := range []string{"写入知识库：土壤修复验收标准", "分类 规范标准", "来源 生态环境部"} {
-		if !strings.Contains(ka, want) {
-			t.Fatalf("knowledge_add subject %q 缺少 %q", ka, want)
 		}
 	}
 }

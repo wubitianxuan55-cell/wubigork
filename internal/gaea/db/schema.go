@@ -830,3 +830,78 @@ ALTER TABLE facts ADD COLUMN invalid_at TEXT NOT NULL DEFAULT '';
 const SchemaV34 = `
 ALTER TABLE gf_bill_items ADD COLUMN list_price REAL NOT NULL DEFAULT 0;
 `
+
+// SchemaV35 方案库（2026-11-23 用户拍板：知识库整体退役，方案库与造价库并列
+// 一级板块，服务办公板块的方案模式）。按标题层级 1~4 级存取与检索：模型在
+// 方案模式内自行分级划储存（无独立解析入口）。proposals=方案成品（标题/类型/
+// 年度/来源工作区），sections=标题节点（level 1~4 + parent_id + 标题路径 +
+// 正文 + 排序），FTS5 trigram 全文索引随 sections 增量维护。
+const SchemaV35 = `
+CREATE TABLE IF NOT EXISTS proposals (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT NOT NULL UNIQUE,
+  title        TEXT NOT NULL DEFAULT '',
+  project_type TEXT NOT NULL DEFAULT '',
+  year         TEXT NOT NULL DEFAULT '',
+  source       TEXT NOT NULL DEFAULT '',
+  workspace    TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT '现行',
+  summary      TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT '',
+  updated_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_proposals_type ON proposals(project_type);
+CREATE INDEX IF NOT EXISTS idx_proposals_year ON proposals(year);
+CREATE TABLE IF NOT EXISTS proposal_sections (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  proposal_id INTEGER NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+  parent_id  INTEGER NOT NULL DEFAULT 0,
+  level      INTEGER NOT NULL DEFAULT 1,
+  seq        INTEGER NOT NULL DEFAULT 0,
+  title      TEXT NOT NULL DEFAULT '',
+  title_path TEXT NOT NULL DEFAULT '',
+  body       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_proposal_sections_pid ON proposal_sections(proposal_id, parent_id, seq);
+CREATE INDEX IF NOT EXISTS idx_proposal_sections_level ON proposal_sections(proposal_id, level);
+CREATE VIRTUAL TABLE IF NOT EXISTS proposal_fts USING fts5(
+  title, body, proposal_id UNINDEXED, section_id UNINDEXED, tokenize='trigram'
+);
+`
+
+// SchemaV36 方案库·录入与语义索引补面（2026-11-23 方案库完善批）：
+//   - proposals 增 source_file/ingest_line/ingest_hash：源文件锚点分批录入的
+//     续录游标（已录到第几行）与前缀指纹（录入期间源文件被改即拒续录）；
+//   - proposal_sections 增 src_line：该节标题在源文件里的行号（溯源用）；
+//   - proposal_chunks：小节的语义索引块（正文按段落切块，块前拼标题路径后
+//     向量化）。vec 为 float32 小端 BLOB（NULL=待向量化），text 是向量化原文
+//     快照（变更检测）。FTS 的 rowid 对齐 proposal_sections.id（按 rowid 删改）。
+//   - proposal_embed_meta：向量所用 embedding 模型与维度（单行）。切模型后旧
+//     向量不可比——读侧模型不一致时跳过语义路而非静默混比，写侧重建时整库
+//     置空重嵌。
+const SchemaV36 = `
+ALTER TABLE proposals ADD COLUMN source_file TEXT NOT NULL DEFAULT '';
+ALTER TABLE proposals ADD COLUMN ingest_line INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE proposals ADD COLUMN ingest_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE proposal_sections ADD COLUMN src_line INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS proposal_chunks (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  proposal_id INTEGER NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+  section_id  INTEGER NOT NULL REFERENCES proposal_sections(id) ON DELETE CASCADE,
+  seq         INTEGER NOT NULL DEFAULT 0,
+  start       INTEGER NOT NULL DEFAULT 0,
+  len         INTEGER NOT NULL DEFAULT 0,
+  text        TEXT NOT NULL DEFAULT '',
+  vec         BLOB,
+  updated_at  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_proposal_chunks_sec ON proposal_chunks(section_id, seq);
+CREATE INDEX IF NOT EXISTS idx_proposal_chunks_novec ON proposal_chunks(proposal_id) WHERE vec IS NULL;
+CREATE TABLE IF NOT EXISTS proposal_embed_meta (
+  id    INTEGER PRIMARY KEY CHECK (id = 1),
+  model TEXT NOT NULL DEFAULT '',
+  dim   INTEGER NOT NULL DEFAULT 0
+);
+`

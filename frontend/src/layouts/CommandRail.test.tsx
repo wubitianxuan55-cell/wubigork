@@ -38,7 +38,7 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
   it('全量一级导航：办公默认 + 全部 inMenu 板块同栏尽收（首页已删除；进度计划 2026-11-14 拍板恢复一级；文学 2026-11-15 接替退役小说板块一级位）', () => {
     renderRail()
     expect(navLabels()).toEqual([
-      '聊天', '文学', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '方案库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
@@ -82,7 +82,8 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
   it('一级导航均渲染矢量图标，微信助手使用品牌图标', () => {
     renderRail()
     const labels = navLabels().filter((label): label is string => Boolean(label))
-    expect(labels).toHaveLength(12)
+    // 2026-11-24 方案库（与造价数据库并列）进主 rail：13 个一级板块
+    expect(labels).toHaveLength(13)
     for (const label of labels) {
       const button = screen.getByLabelText(label)
       expect(button.querySelector('.v3-rail-icon svg')).not.toBeNull()

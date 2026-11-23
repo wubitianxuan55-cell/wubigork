@@ -144,16 +144,16 @@ func TestFillFromManifestsHappyPath(t *testing.T) {
 }
 
 // TestGetBoardManifestsCanonical GetBoardManifests 返回 canonical 清单：
-// 15 个 canonical 板块（含 cost 成本库 + 恢复的 code 编程入口 + pantheon +
-// v4.110.0 schedule + 2026-11-15 wenxue 文学（办公板块完整前端拷贝）；
-// 2026-10-27 sin 退役=导航级合并进小说板块第六页签）
-// + knowledge 独立板块（D7），含 weixin 服务板块；
+// 15 个 canonical 板块（含 cost 成本库 + 2026-11-24 proposal 方案库 + 恢复的 code
+// 编程入口 + pantheon + v4.110.0 schedule + 2026-11-15 wenxue 文学（办公板块完整
+// 前端拷贝）；2026-10-27 sin 退役=导航级合并进小说板块第六页签）
+// 含 weixin 服务板块（knowledge 板块 2026-11-23 退役）；
 // JSON 字段对齐 doc §5.2 TS schema；CoreB 委托与 App 方法一致。
 func TestGetBoardManifestsCanonical(t *testing.T) {
 	a := &App{}
 	manifests := a.GetBoardManifests()
 	if len(manifests) != 15 {
-		t.Fatalf("GetBoardManifests 应返回 15 个板块（14 canonical〔含 pantheon、wenxue；novel 2026-11-15 退役〕+ knowledge D7），got %d", len(manifests))
+		t.Fatalf("GetBoardManifests 应返回 15 个板块（14 canonical〔含 pantheon、wenxue、proposal；novel 2026-11-15 退役〕，knowledge D7 已退役），got %d", len(manifests))
 	}
 	byID := map[string]board.Manifest{}
 	for _, m := range manifests {
@@ -173,14 +173,6 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 	}
 	if wx.Page != "WeixinPage" || len(wx.Bindings) != 0 {
 		t.Errorf("weixin 应挂载 WeixinPage 触点板块，got %+v", wx)
-	}
-	// knowledge 独立板块（D7 恢复挂载）
-	kn, ok := byID["knowledge"]
-	if !ok {
-		t.Fatal("knowledge 独立板块缺失（D7）")
-	}
-	if kn.Page == "" || kn.InMenu == nil || !*kn.InMenu {
-		t.Errorf("knowledge 应挂载为可导航板块，got %+v", kn)
 	}
 	// 2026-11-08 用户恢复编程一级入口：独立窗口分面唯一成员，无旧进程管理绑定。
 	code, ok := byID["code"]
@@ -202,6 +194,18 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 		len(ct.Bindings) != 1 || ct.Bindings[0] != "CostB" {
 		t.Errorf("成本库板块 manifest 字段不齐: %+v", ct)
 	}
+	// 方案库（2026-11-24）：与造价数据库并列的一级板块，排序号紧随其后（6 号让给
+	// 方案库后，众神殿及其后板块顺延一位）；录入在办公方案模式里完成，板块只挂
+	// ProposalB（清单/标题树/阅读/检索/删除）。
+	pl, ok := byID["proposal"]
+	if !ok {
+		t.Fatal("方案库一级板块缺失")
+	}
+	if pl.Label != "方案库" || pl.Page != "ProposalLibraryPage" || pl.Icon != "GaeaProposal" ||
+		pl.InMenu == nil || !*pl.InMenu || pl.MenuOrder != 6 || pl.Space != board.SpaceWork ||
+		!pl.Lazy || pl.Layout != "padded" || len(pl.Bindings) != 1 || pl.Bindings[0] != "ProposalB" {
+		t.Errorf("方案库板块 manifest 字段不齐: %+v", pl)
+	}
 	// 进度计划（2026-11-14 用户拍板）：从办公板块分离为一级板块——InMenu=true 回
 	// 顶栏菜单/启动器，办公侧承接入口保留（文件面 .gsched 摘要卡/命令面板/右栏 Tab）。
 	sc, ok := byID["schedule"]
@@ -209,7 +213,7 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 		t.Fatal("进度计划板块缺失")
 	}
 	if sc.Label != "进度计划" || sc.Page != "SchedulePage" || sc.InMenu == nil || !*sc.InMenu ||
-		sc.MenuOrder != 12 {
+		sc.MenuOrder != 13 {
 		t.Errorf("schedule 应 InMenu=true（一级板块恢复）: %+v", sc)
 	}
 	// chat 板块字段抽样对齐 TS schema

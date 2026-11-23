@@ -2,7 +2,7 @@ package app
 
 // wenxue_tool_policy.go — 图文板块（wenxue）会话工具策略（2026-11-15 刀1，案A）。
 //
-// 图文=长篇小说创作专属板块：办公域工具（office 全族/CAD/造价/知识库/进度计划/
+// 图文=长篇小说创作专属板块：办公域工具（office 全族/CAD/造价/进度计划/
 // 浏览器自动化/图表与文档渲染等）在图文引擎装配期物理不装。名单与前端
 // frontend/src/wenxue/lib/disabledDomains.ts 的 DISABLED_TOOL_NAMES 同源对齐
 // （前端是兜底展示面，这里是引擎侧唯一事实面）；改名单两处同批。
@@ -25,12 +25,13 @@ var wenxueDeniedTools = []string{
 	// office COM 档（本机有 Office/WPS 才注册的那批）
 	"office_open", "office_status", "office_read", "office_edit", "office_render",
 	"office_save", "office_close", "office_help", "office_macro", "office_selection",
-	// CAD / 造价 / 知识库
+	// CAD / 造价
 	"cad_ask",
 	"cost_search", "cost_save", "cost_compose", "cost_indicators",
-	"knowledge_add", "knowledge_search",
-	// 知识库语义检索（specialist 面）
+	// 跨库语义检索（specialist 面）
 	"semantic_search",
+	// 方案库三件（方案模式专属）
+	"proposal_save", "proposal_search", "proposal_read",
 	// 进度计划三件（shared 装配，图文不装）
 	"schedule_get", "schedule_apply", "schedule_analyze",
 	// 图表/图面/文档渲染/格式转换/截屏（小说创作无消费面）

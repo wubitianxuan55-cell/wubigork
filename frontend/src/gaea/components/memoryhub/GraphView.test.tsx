@@ -68,7 +68,7 @@ vi.mock("../../lib/bridge", () => ({
 // 三种类型节点 + 两种边（同标签 / 引用），覆盖过滤逻辑。
 const GRAPH: MemoryGraphView = {
   nodes: [
-    { id: "n1", name: "项目策划案", type: "knowledge", desc: "关于项目策划案的知识描述", val: 3 },
+    { id: "n1", name: "项目策划案", type: "office", desc: "关于项目策划案的办公记忆", val: 3 },
     { id: "n2", name: "深夜闲聊", type: "whisper", desc: "与 gaea 深夜聊天的记忆片段", val: 2 },
     { id: "n3", name: "钢材成本", type: "cost", desc: "钢材市场价格条目", val: 1 },
   ],
@@ -94,7 +94,7 @@ describe("GraphView 记忆 3D 图谱", () => {
     expect(screen.getByText(/3 节点 · 2 边/)).toBeTruthy();
 
     await waitFor(() => expect(graphStub.calls.length).toBeGreaterThan(0));
-    expect(graphStub.calls.at(-1)!.nodes.map((n) => n.type).sort()).toEqual(["cost", "knowledge", "whisper"]);
+    expect(graphStub.calls.at(-1)!.nodes.map((n) => n.type).sort()).toEqual(["cost", "office", "whisper"]);
     expect(graphStub.calls.at(-1)!.links).toHaveLength(2);
   });
 
@@ -107,7 +107,7 @@ describe("GraphView 记忆 3D 图谱", () => {
 
     await waitFor(() => expect(graphStub.calls.at(-1)!.nodes).toHaveLength(2));
     const filtered = graphStub.calls.at(-1)!;
-    expect(filtered.nodes.map((n) => n.type).sort()).toEqual(["knowledge", "whisper"]);
+    expect(filtered.nodes.map((n) => n.type).sort()).toEqual(["office", "whisper"]);
     // 与被过滤节点相连的边同步剔除（cost 节点相关边消失）
     expect(filtered.links).toHaveLength(1);
     expect(filtered.links[0]).toMatchObject({ source: "n1", target: "n2" });
@@ -130,9 +130,9 @@ describe("GraphView 记忆 3D 图谱", () => {
 
     // Modal 标题/正文由多个文本节点拼成，用 dialog 容器 textContent 断言
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toContain("知识");
+    expect(dialog.textContent).toContain("办公记忆");
     expect(dialog.textContent).toContain("项目策划案");
-    expect(dialog.textContent).toContain("关于项目策划案的知识描述");
+    expect(dialog.textContent).toContain("关于项目策划案的办公记忆");
     expect(dialog.textContent).toContain("ID: n1");
   });
 

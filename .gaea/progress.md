@@ -1,3 +1,37 @@
+## 方案库功能体系完善（2026-11-24，已构建冒烟，未提交未装机）
+
+- **拍板**（用户）：检索复用现成本地模型客户端（Herdsman embedding + reranker），
+  不另造检索工具；录入=模型只定标题层级、正文由工具从源文件逐字切；界面一并做。
+- **存储层** `internal/gaea/proposal`：SchemaV36（proposals 增 source_file/ingest_line/
+  ingest_hash，sections 增 src_line，proposal_chunks 语义块表〔float32 BLOB〕+
+  proposal_embed_meta 模型标记）。录入两形态（outline 按源文件标题行切正文 / sections
+  直给），分批续录（mode=append，末节正文待截取期间状态「录入中」，源文件前缀指纹
+  防中途改动），同名覆盖须 overwrite=true。标题锚点分级匹配：Markdown 标题行 > 不以
+  句读收尾的短行 > 正文句，目录行（标题后只剩页码/点线）恒排除。检索=全文路（trigram
+  短语 + 两字词 LIKE）+ 语义路（段落向量，块前拼标题路径）→ 名次融合 → 本地精排，
+  本地模型不可用逐级降级为全文路。
+- **工具与提示词**：proposal_save/search/read 重写（契约行、compact 表、审批摘要、
+  工作区绑定）；方案模式 ModeLine / 身份提示词 / proposal-longform 技能同步录入与
+  取材流程。绑定面 ProposalB 五方法（List/Outline/Read/Search/Delete，722→724）。
+- **一级板块「方案库」**：`ProposalLibraryPage` 三栏（方案清单/命中 → 1~4 级标题树 →
+  阅读窗）+ 检索条（全文+语义/只搜标题、类型/年度/层级）+ 四态 + 空库三步引导；
+  menuOrder=6 紧随造价库，众神殿及其后板块序号 +1（两端同步）；页面规范
+  `design-system/gaea/pages/proposal.md`；无头浏览器走查亮/暗/窄窗/空库过。
+- **实测**：真实技术标（27.3 万字/419 页/241 标题）录入 0.2s、954 块 bge-m3 向量化
+  24s、检索 0.5~1.3s 含精排，精确词与自然语言问法均命中正确小节；真实程序经 HTTP
+  桥调用五绑定核对字段形状一致，并抓到「层级/类型/年度过滤对语义路不生效」已修。
+- **验证**：Go 全量 131 包绿（仅 docmd uocr2 / voice realtime 实弹两包既有环境红，
+  零依赖）；前端 517 文件 4734 例，本次改动相关全绿（CommandRail 同步 13 板块），
+  3 例负载期不稳单跑绿；tsc/ESLint/vet 0；绑定漂移 OK@724；Vite 30.9s + Wails
+  36.3s→24.8s（bindings 未跳过）；冒烟 200；exe SHA256 `b63526b0…`。
+- **须用户知情**：①正式库已是 V36——builtin 包全量测试有既有用例会开正式库（未定位
+  到具体用例），V36 挂进迁移链后跑测试即被应用；只加列加表，旧版兼容。②正式库里有
+  11-23 测试遗留的夹具方案「包3技术标 第三版」（3 节、每节十余字），未动，待用户定。
+  ③`node scripts/check-docs.mjs` 既有 FAIL：docs/README.md 未登记两份他线文档。
+- **挂池**：由真实 LLM 在标题稀疏文档上自行定级录入的实弹（试点用机械标题代替）；
+  短问法排序（章引言先于最具体的节）；切换 embedding 模型会整库重嵌；文学树
+  bindingSignatures.ts 镜像陈旧（817 名含已退役 novel）；提交与装机待用户发话。
+
 ## xAI 登录三死因修复（2026-11-23）
 
 - **日志实锤三次点击三死法**（gaea-20261123.log）：①14:31/15:29 discovery EOF

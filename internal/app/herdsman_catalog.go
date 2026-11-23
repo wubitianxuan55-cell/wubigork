@@ -241,7 +241,7 @@ func herdsmanModelHint(name string, capabilities []string) string {
 	case has("qwen3-embedding") || has("bge-m3") || has("embedding"):
 		return "本地语义向量（embedding），驱动语义召回与文件索引"
 	case has("qwen3-reranker") || has("bge-reranker") || has("rerank"):
-		return "本地精排（rerank），成本库/知识库检索重排序"
+		return "本地精排（rerank），成本库检索重排序"
 	case has("paddleocr") || has("ocr"):
 		return "快速 OCR（约 90ms）：中文混合场景有错字，失败自动回退 OvisOCR2"
 	case has("mineru") || has("document-parse") || has("parse"):

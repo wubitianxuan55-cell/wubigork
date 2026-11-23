@@ -182,3 +182,15 @@ export function GaeaRuntimeIcon(props: BoardIconProps) {
     </IconFrame>
   )
 }
+
+/** 方案库：成册方案的书脊与逐级缩进的标题层级（章 → 节 → 目）。 */
+export function GaeaProposalIcon(props: BoardIconProps) {
+  return (
+    <IconFrame {...props}>
+      <path d="M6.75 3.75h10.5A1.25 1.25 0 0 1 18.5 5v14a1.25 1.25 0 0 1-1.25 1.25h-10.5z" />
+      <path d="M6.75 3.75A1.75 1.75 0 0 0 5 5.5v13a1.75 1.75 0 0 0 1.75 1.75" />
+      <path d="M9 8h6.5M11.5 11.5h4M11.5 15h4" />
+      <path d="M9 11v4.75" />
+    </IconFrame>
+  )
+}

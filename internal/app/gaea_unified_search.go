@@ -87,10 +87,9 @@ func searchScope(scope string) string {
 // kind 映射过滤（勘察锚点 5）：
 //   - office（办公 facts）：facts 同库混存两空间——按 ListInSpace(scope) 的
 //     名称集映射剔除（唯一键 (project, name) 全局唯一，名称即身份）；
-//   - cost / knowledge / file：不过滤（勘察锚点 5）——三库当前只在 work 语义
-//     落库、无 play 侧数据可漏（红线「工位搜不到乐园记忆」不受影响），且
-//     knowledge 与 brain.main 工程知识库同属共享面（play 可见，见 brain 组）；
-//   - 未知 kind：保守丢弃（fail-closed 宁缺毋漏；当前四库封闭不会触达，
+//   - cost / file：不过滤（勘察锚点 5）——两库当前只在 work 语义
+//     落库、无 play 侧数据可漏（红线「工位搜不到乐园记忆」不受影响）；
+//   - 未知 kind：保守丢弃（fail-closed 宁缺毋漏；当前三库封闭不会触达，
 //     scope="" 不走本过滤）。whisper 不入 semantic 库（play 专属走
 //     brain.right，由 brain 组隔离）。
 func (a *App) filterSemanticHitsByScope(hits []SemanticHitView, scope string) []SemanticHitView {

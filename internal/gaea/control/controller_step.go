@@ -62,7 +62,7 @@ func (c *Controller) SetPermLevelReported(level string) (StepUpdateStatus, strin
 // 调用方必须已持 c.mu 且已确认 !running。
 func (c *Controller) applyPermLevelLocked(level string) {
 	c.permLevel = level
-	// 持久化写入（成本库/记忆/知识库）必须逐条确认：
+	// 持久化写入（成本库/记忆/方案库）必须逐条确认：
 	// 任何权限级别都保留 AlwaysAsk 硬门（按空间策略参数化，S1.5-A）。
 	switch level {
 	case "auto":

@@ -116,7 +116,7 @@ func (t ocrTool) Execute(ctx context.Context, args json.RawMessage) (string, err
 var _ tool.Tool = ocrTool{}
 
 // semanticSearchTool 跨库语义检索工具：本地 bge-m3 向量化 + 重排，
-// 默认在成本库/工程知识库/办公记忆中按语义找相关内容；scope=file 时检索工作区已索引文件。
+// 默认在成本库/办公记忆中按语义找相关内容；scope=file 时检索工作区已索引文件。
 type semanticSearchTool struct {
 	a *App
 }
@@ -124,7 +124,7 @@ type semanticSearchTool struct {
 func (t semanticSearchTool) Name() string { return "semantic_search" }
 
 func (t semanticSearchTool) Description() string {
-	return "跨库语义检索（本地 bge-m3）：默认在成本库/工程知识库/办公记忆中按语义查找相关内容；scope=file 时在工作区已索引文件（md/txt/docx/xlsx/pdf/pptx 等）中查找。返回命中条目与相似度。" +
+	return "跨库语义检索（本地 bge-m3）：默认在成本库/办公记忆中按语义查找相关内容；scope=file 时在工作区已索引文件（md/txt/docx/xlsx/pdf/pptx 等）中查找。返回命中条目与相似度。" +
 		"适合记不清关键词、用自然语言描述想找的内容。通常 1-3 秒；不消耗主模型 token。"
 }
 
@@ -133,7 +133,7 @@ func (t semanticSearchTool) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "query":{"type":"string","description":"自然语言检索语句，例如\"不锈钢驳接爪 90 度 价格\""},
-  "scope":{"type":"string","enum":["all","file"],"description":"可选：all=成本库/知识库/办公记忆（默认）；file=工作区已索引文件"}
+  "scope":{"type":"string","enum":["all","file"],"description":"可选：all=成本库/办公记忆（默认）；file=工作区已索引文件"}
 },
 "required":["query"]
 }`)

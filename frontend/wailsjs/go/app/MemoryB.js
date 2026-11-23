@@ -10,58 +10,6 @@ export function GaeaAIFeedbackList() {
   return window['go']['app']['MemoryB']['GaeaAIFeedbackList']();
 }
 
-export function GaeaKnowledgeDelete(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeDelete'](arg1);
-}
-
-export function GaeaKnowledgeExport(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeExport'](arg1);
-}
-
-export function GaeaKnowledgeFindSimilar(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeFindSimilar'](arg1);
-}
-
-export function GaeaKnowledgeGet(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeGet'](arg1);
-}
-
-export function GaeaKnowledgeHistory(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeHistory'](arg1);
-}
-
-export function GaeaKnowledgeImportAIParse(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeImportAIParse'](arg1);
-}
-
-export function GaeaKnowledgeImportApply(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeImportApply'](arg1);
-}
-
-export function GaeaKnowledgeImportPreview(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeImportPreview'](arg1);
-}
-
-export function GaeaKnowledgeList() {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeList']();
-}
-
-export function GaeaKnowledgeMerge(arg1, arg2) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeMerge'](arg1, arg2);
-}
-
-export function GaeaKnowledgeReview(arg1, arg2, arg3) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeReview'](arg1, arg2, arg3);
-}
-
-export function GaeaKnowledgeSave(arg1) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeSave'](arg1);
-}
-
-export function GaeaKnowledgeSearch(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['MemoryB']['GaeaKnowledgeSearch'](arg1, arg2, arg3, arg4);
-}
-
 export function GaeaMemory() {
   return window['go']['app']['MemoryB']['GaeaMemory']();
 }

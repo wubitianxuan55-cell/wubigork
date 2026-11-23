@@ -14,7 +14,7 @@ func TestMainBrainProfileRoundTrip(t *testing.T) {
 		t.Fatal("gaea db unavailable")
 	}
 	defer gdb.Close()
-	mb := &mainBrain{profile: memory.NewProfileStore(gdb), kb: nil}
+	mb := &mainBrain{profile: memory.NewProfileStore(gdb)}
 	if err := mb.Write("甲方A", "偏好", "保守报价"); err != nil {
 		t.Fatal(err)
 	}

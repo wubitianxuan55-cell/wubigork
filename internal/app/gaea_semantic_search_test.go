@@ -14,7 +14,6 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
@@ -73,7 +72,6 @@ func countingEmbedEnv(t *testing.T) (a *App, embedded *[]string, mu *sync.Mutex)
 		db.CloseDatabase(home)
 		SetAppSemanticStoreForTest(nil)
 		SetAppEmbedderForTest(nil)
-		knowledge.SetStoreForTest(nil)
 		ResetOfficeStoreForTest()
 		ResetCostStoreForTest()
 	})
@@ -82,29 +80,14 @@ func countingEmbedEnv(t *testing.T) (a *App, embedded *[]string, mu *sync.Mutex)
 	SetOfficeStoreForTest(memory.SQLiteStoreFor(gdb, home, home))
 	SetCostStoreForTest(cost.Open(gdb))
 
-	isoStore, err := knowledge.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	knowledge.SetStoreForTest(isoStore)
 
 	a = &App{core: &core{}}
 	return a, &recorded, &mu2
 }
 
-// seedSemanticData 灌入三类可命中「振动锤」的跨库条目。
+// seedSemanticData 灌入两类可命中「振动锤」的跨库条目（成本/办公）。
 func seedSemanticData(t *testing.T, a *App) {
 	t.Helper()
-	ks, err := knowledge.Global().Store()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ks.Save(knowledge.Entry{
-		Name: "pile-guide", Title: "桩基施工要点", Category: knowledge.CatCase,
-		Body: "振动锤选型需匹配地质，桩基施工工艺详见规范。",
-	}); err != nil {
-		t.Fatal(err)
-	}
 	if err := a.hubCostStore().Save(cost.Entry{
 		Name: "pile-rent", Title: "振动锤租赁台班", Category: "机械", Unit: "台班", Price: 6500,
 	}); err != nil {
@@ -118,7 +101,7 @@ func seedSemanticData(t *testing.T, a *App) {
 }
 
 // TestGaeaSemanticSearchNoFullEnsure 索引就绪后二次查询不触发全量 Ensure：
-// 只嵌 query（3 个有向量的 kind 各 1 次），不重嵌任何文档文本。
+// 只嵌 query（2 个有向量的 kind 各 1 次），不重嵌任何文档文本。
 func TestGaeaSemanticSearchNoFullEnsure(t *testing.T) {
 	a, recorded, mu := countingEmbedEnv(t)
 	seedSemanticData(t, a)
@@ -131,15 +114,15 @@ func TestGaeaSemanticSearchNoFullEnsure(t *testing.T) {
 		t.Fatal("首查应命中跨库条目")
 	}
 
-	// 首查：Ensure 嵌入 3 个文档 + 3 个 kind 的 query 嵌入 = 6 次嵌入。
+	// 首查：Ensure 嵌入 2 个文档 + 2 个 kind 的 query 嵌入 = 4 次嵌入。
 	mu.Lock()
 	first := len(*recorded)
 	mu.Unlock()
-	if first != 6 {
-		t.Fatalf("首查嵌入次数 = %d, want 6（3 文档 + 3 query）", first)
+	if first != 4 {
+		t.Fatalf("首查嵌入次数 = %d, want 4（2 文档 + 2 query）", first)
 	}
 
-	// 二次查询：只嵌 query，绝不重嵌文档 → 3 次嵌入且全部为 query 文本。
+	// 二次查询：只嵌 query，绝不重嵌文档 → 2 次嵌入且全部为 query 文本。
 	mu.Lock()
 	*recorded = nil
 	mu.Unlock()
@@ -152,8 +135,8 @@ func TestGaeaSemanticSearchNoFullEnsure(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(*recorded) != 3 {
-		t.Fatalf("二次查询应只嵌 query（3 次），实际 %d 次: %v", len(*recorded), *recorded)
+	if len(*recorded) != 2 {
+		t.Fatalf("二次查询应只嵌 query（2 次），实际 %d 次: %v", len(*recorded), *recorded)
 	}
 	for _, s := range *recorded {
 		if s != "振动锤" {
@@ -171,13 +154,9 @@ func TestGaeaSemanticSearchOnDemandEnsureAfterDataChange(t *testing.T) {
 		t.Fatalf("首查: %v", err)
 	}
 
-	// 新增一条知识（含「水泥」）
-	ks, err := knowledge.Global().Store()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ks.Save(knowledge.Entry{
-		Name: "cement-guide", Title: "混凝土配比", Category: knowledge.CatCase,
+	// 新增一条办公记忆（含「水泥」）
+	if _, err := a.hubOfficeStore().Save(memory.Memory{
+		Name: "office-cement", Title: "混凝土配比",
 		Body: "水泥用量与标号关系，配合比设计要点。",
 	}); err != nil {
 		t.Fatal(err)
@@ -191,9 +170,9 @@ func TestGaeaSemanticSearchOnDemandEnsureAfterDataChange(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	// 只应嵌入新条目正文（1 次）+ 3 个 kind 的 query = 4 次；旧文档不重嵌。
-	if len(*recorded) != 4 {
-		t.Fatalf("变更后嵌入次数 = %d, want 4（1 新文档 + 3 query）: %v", len(*recorded), *recorded)
+	// 只应嵌入新条目正文（1 次）+ 2 个 kind 的 query = 3 次；旧文档不重嵌。
+	if len(*recorded) != 3 {
+		t.Fatalf("变更后嵌入次数 = %d, want 3（1 新文档 + 2 query）: %v", len(*recorded), *recorded)
 	}
 	foundNew := false
 	for _, s := range *recorded {

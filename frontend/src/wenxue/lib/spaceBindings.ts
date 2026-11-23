@@ -467,6 +467,11 @@ export const GAEA_METHOD_FACETS = {
   SkillDistillDecide: "work",
   SkillStats: "work",
   MemoryHubOverview: "work",
+  GaeaProposalList: "work",
+  GaeaProposalOutline: "work",
+  GaeaProposalRead: "work",
+  GaeaProposalSearch: "work",
+  GaeaProposalDelete: "work",
   // 数据库存档（v4.479）：本设备聊天记录/上传文件管理，记忆中枢 work 面。
   DatabaseOverview: "work",
   UploadsList: "work",

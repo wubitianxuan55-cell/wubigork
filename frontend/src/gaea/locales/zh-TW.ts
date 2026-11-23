@@ -66,7 +66,6 @@ export const zhTW: Record<DictKey, string> = {
   "topbar.memory": "記憶",
   "topbar.newSession": "新工作階段",
   "topbar.startupError": "啟動錯誤：{msg}",
-  "topbar.knowledge": "知識庫",
   "topbar.backToFiles": "返回檔案清單",
   "topbar.collapseFilePanel": "收起檔案面板",
   "topbar.expandFilePanel": "展開檔案面板",
@@ -85,21 +84,6 @@ export const zhTW: Record<DictKey, string> = {
   "toast.exported": "已匯出 {name}",
   "toast.archiveFailed": "歸檔失敗：{msg}",
 
-  "knowledge.all": "全部",
-  "knowledge.title": "知識庫",
-  "knowledge.search": "搜尋條目…",
-  "knowledge.empty": "知識庫為空",
-  "knowledge.noMatch": "無匹配條目",
-  "knowledge.count": "共 {n} 條",
-  "knowledge.new": "新建",
-  "knowledge.save": "保存",
-  "knowledge.delete": "刪除",
-  "knowledge.phase": "階段",
-  "knowledge.tags": "標籤（逗號分隔）",
-  "knowledge.source": "來源",
-  "knowledge.author": "作者",
-  "knowledge.namePlaceholder": "標識名（僅英文）",
-  "knowledge.body": "正文（Markdown）",
 
   // 側邊欄
   // sidebar
@@ -336,7 +320,6 @@ export const zhTW: Record<DictKey, string> = {
   "tool.charOther": "{n} 字元",
   "tool.pointOne": "{n} 個數據點",
   "tool.pointOther": "{n} 個數據點",
-  "tool.kbSaved": "已存入知識庫",
   "tool.hitOne": "{n} 條命中",
   "tool.hitOther": "{n} 條命中",
 
@@ -1354,8 +1337,6 @@ export const zhTW: Record<DictKey, string> = {
   "welcome.capReportDesc": "多份素材合併為完整報告，含封面、目錄、附錄",
   "welcome.capDeck": "簡報",
   "welcome.capDeckDesc": "PPT 大綱與成稿，彙報材料一鍵生成",
-  "welcome.capKnowledge": "知識沉澱",
-  "welcome.capKnowledgeDesc": "規範、結論存入知識庫，跨工作階段重複使用",
   "welcome.templates": "任務範本",
   "welcome.more": "更多啟動方式",
   "welcome.moreHint": "任務範本 · 內建技能",

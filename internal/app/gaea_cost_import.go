@@ -15,7 +15,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/costimport"
 	"github.com/gaea/gaea/internal/gaea/costinquiry"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -78,7 +77,7 @@ func (a *App) GaeaCostImportPreview(path string) (CostImportPreview, error) {
 }
 
 // extractImportText 可注入的 PDF/文档文本提取（T7-2：测试替换避免真实 PDF/OCR 链路）。
-var extractImportText = knowledgeimport.ExtractText
+var extractImportText = func(path string) (string, error) { return extractImportTextFile(path, nil) }
 
 // maxModelInputRunes 单次送入模型的文本上限（rune）。与视觉识别路径
 // （visionAINormalize 的 6000 上限）对齐，避免本地模型上下文/超时失控。

@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout, Modal } from "antd";
 import {
-  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
+  Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
   MessageSquare, Trash2, X, Aim, Inbox,
   ClipboardList, Sparkles, Table,
 } from "./icons";
@@ -34,7 +34,6 @@ import { WorkspacePanelToggleIcon } from "../components/WorkspacePanelToggleIcon
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
-const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePane } from "./components/WorkspacePane";
 import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
@@ -153,7 +152,7 @@ export default function App() {
     }
   }, []);
   useEffect(() => { void refreshRunMode(); }, [refreshRunMode]);
-  const { histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, anyOpen, closeTopmost } = useDrawers();
+  const { histView, setHistView, capsOpen, setCapsOpen, anyOpen, closeTopmost } = useDrawers();
   // v4.73：记忆由抽屉迁入主区 tab——视图快照在 App 层维护，动作写盘后统一刷新。
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
@@ -324,8 +323,6 @@ export default function App() {
     if (chatTab === "memory") void openMemory();
   }, [chatTab, openMemory]);
 
-  const openKnowledge = useCallback(() => setKnowledgeOpen(true), [setKnowledgeOpen]);
-  const closeKnowledge = useCallback(() => setKnowledgeOpen(false), [setKnowledgeOpen]);
 
   // handleSend intercepts the slash commands that need a desktop-native action
   // before they reach the backend: "/model <ref>" rebuilds on that model,
@@ -420,7 +417,7 @@ export default function App() {
   // 全局快捷键 → app/useAppKeyboard（deps 原样）
   useAppKeyboard({
     state, closeTopmost, anyOpen, cancel, workspacePanelOpen, previewFile, toggleFocus,
-    closeFilePreview, newSessionAndReset, openHistory, openKnowledge,
+    closeFilePreview, newSessionAndReset, openHistory,
     toggleSidebar, toggleWorkspacePanel, setPaletteOpen,
   });
 
@@ -638,7 +635,6 @@ export default function App() {
       // 进度计划面板头部「完整工作台」深链接（旧 NAVIGATE 板块路由保留）。
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => { setChatTab("memory"); void openMemory(); } },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
-      { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
     ];
     // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图 tab。
     // v4.524 可选卡：未启用面板命令显式标注「（未启用）」，运行即启用并打开
@@ -715,7 +711,7 @@ export default function App() {
       { chatTab, rightTab: rightTab ?? "files" },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（模板 run 内引用），deps 原样保留
-  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath, paneEnabled, setPaneEnabled]);
+  }, [t, sidebarSessions, openMemory, openHistory, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath, paneEnabled, setPaneEnabled]);
 
   const layoutStyle = useMemo(
     () =>
@@ -831,7 +827,6 @@ export default function App() {
           onOpenSubagentThread={openSubagentThread}
           onOpenHistory={openHistory}
           onOpenCaps={() => setCapsOpen(true)}
-          onOpenKnowledge={openKnowledge}
           startResize={startSidebarResize}
           resizeWithKeyboard={resizeSidebarWithKeyboard}
           onDoubleClickResize={() => setExpandedSidebarWidth(SIDEBAR_DEFAULT_WIDTH)}
@@ -1229,10 +1224,6 @@ export default function App() {
         {capsOpen && <CapabilitiesPanel onClose={() => setCapsOpen(false)} toolCounts={toolCounts} skillCounts={skillCounts} />}
       </Suspense>
 
-
-      <Suspense fallback={null}>
-        {knowledgeOpen && <KnowledgePanel onClose={closeKnowledge} />}
-      </Suspense>
 
       <CommandPalette
         open={paletteOpen}

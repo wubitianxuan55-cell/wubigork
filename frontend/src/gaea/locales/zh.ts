@@ -65,7 +65,6 @@ export const zh: Record<DictKey, string> = {
   "topbar.memory": "记忆",
   "topbar.newSession": "新建会话",
   "topbar.startupError": "启动错误：{msg}",
-  "topbar.knowledge": "知识库",
   "topbar.backToFiles": "返回文件列表",
   "topbar.collapseFilePanel": "收起文件面板",
   "topbar.expandFilePanel": "展开文件面板",
@@ -84,21 +83,6 @@ export const zh: Record<DictKey, string> = {
   "toast.exported": "已导出 {name}",
   "toast.archiveFailed": "归档失败：{msg}",
 
-  "knowledge.all": "全部",
-  "knowledge.title": "知识库",
-  "knowledge.search": "搜索条目…",
-  "knowledge.empty": "知识库为空",
-  "knowledge.noMatch": "无匹配条目",
-  "knowledge.count": "共 {n} 条",
-  "knowledge.new": "新建",
-  "knowledge.save": "保存",
-  "knowledge.delete": "删除",
-  "knowledge.phase": "阶段",
-  "knowledge.tags": "标签（逗号分隔）",
-  "knowledge.source": "来源",
-  "knowledge.author": "作者",
-  "knowledge.namePlaceholder": "标识名（仅英文）",
-  "knowledge.body": "正文（Markdown）",
 
   // 成本库面板
 
@@ -334,7 +318,6 @@ export const zh: Record<DictKey, string> = {
   "tool.charOther": "{n} 字符",
   "tool.pointOne": "{n} 个数据点",
   "tool.pointOther": "{n} 个数据点",
-  "tool.kbSaved": "已存入知识库",
   "tool.hitOne": "{n} 条命中",
   "tool.hitOther": "{n} 条命中",
 
@@ -1350,8 +1333,6 @@ export const zh: Record<DictKey, string> = {
   "welcome.capReportDesc": "多份素材合并为完整报告，含封面、目录、附录",
   "welcome.capDeck": "演示文稿",
   "welcome.capDeckDesc": "PPT 大纲与成稿，汇报材料一键生成",
-  "welcome.capKnowledge": "知识沉淀",
-  "welcome.capKnowledgeDesc": "规范、结论存入知识库，跨会话复用",
   "welcome.templates": "任务模板",
   "welcome.more": "更多启动方式",
   "welcome.moreHint": "任务模板 · 内置技能",

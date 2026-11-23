@@ -22,7 +22,6 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -65,34 +64,9 @@ func p3Args(t *testing.T, m map[string]any) json.RawMessage {
 	return b
 }
 
-// p3ReadRetrieval 读取检索类：知识/记忆/造价三库——命中与库实况一致；未命中
+// p3ReadRetrieval 读取检索类：记忆/造价两库——命中与库实况一致；未命中
 // 如实报零不编造（谓词=检索精度与诚实缺省）。
 func p3ReadRetrieval(t *testing.T) {
-	// ── 金标例①：知识库沉淀→检索命中 ──
-	kst, err := knowledge.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	knowledge.SetStoreForTest(kst)
-	t.Cleanup(knowledge.ResetForTest)
-	ka := knowledgeAdd{}
-	if out, err := ka.Execute(context.Background(), p3Args(t, map[string]any{
-		"title": "桩基施工经验", "category": "经验总结",
-		"body": "HP300 液压振动锤在砂层进尺 8 米/台班。",
-	})); err != nil || !strings.Contains(out, "已保存") {
-		t.Fatalf("知识沉淀: %q %v", out, err)
-	}
-	ks := knowledgeSearch{}
-	if out, err := ks.Execute(context.Background(), p3Args(t, map[string]any{"query": "桩基施工经验"})); err != nil || !strings.Contains(out, "桩基施工经验") {
-		t.Fatalf("知识检索应命中库实况: %q %v", out, err)
-	}
-	// ── 缺陷例①：非法沉淀正确失败（fail-closed；检索为模糊匹配语义，
-	// 「未命中如实」以报错为否面、不报错为诚实缺省——不冒充精确率）──
-	if _, err := ka.Execute(context.Background(), p3Args(t, map[string]any{
-		"title": "", "category": "经验总结", "body": "无标题条目",
-	})); err == nil {
-		t.Fatal("空标题沉淀应正确失败")
-	}
 
 	// ── 金标例②：记忆库沉淀→检索命中（temp UserDir，不碰真实用户库；
 	// Name 走 ASCII slug——记忆 Save 校验不接受纯 CJK 名）──

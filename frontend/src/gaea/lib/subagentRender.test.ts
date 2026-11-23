@@ -13,10 +13,10 @@ describe("buildRenderItems 映射", () => {
         content: "开始检索。",
         toolCalls: [
           { id: "call_1", name: "web_search", arguments: "{\"query\":\"cr\"}" },
-          { id: "call_2", name: "knowledge_search", arguments: "{\"query\":\"修复\"}" },
+          { id: "call_2", name: "memory_search", arguments: "{\"query\":\"修复\"}" },
         ],
       },
-      { role: "tool", name: "knowledge_search", toolCallId: "call_2", content: "知识结果" },
+      { role: "tool", name: "memory_search", toolCallId: "call_2", content: "记忆结果" },
       { role: "tool", name: "web_search", toolCallId: "call_1", content: "网页结果" },
       { role: "assistant", content: "结论如下。" },
     ];
@@ -27,7 +27,7 @@ describe("buildRenderItems 映射", () => {
     const t1 = tools.find((t) => t.id === "call_1");
     expect(t1).toMatchObject({ name: "web_search", args: "{\"query\":\"cr\"}", output: "网页结果", pending: false });
     const t2 = tools.find((t) => t.id === "call_2");
-    expect(t2).toMatchObject({ name: "knowledge_search", output: "知识结果", pending: false });
+    expect(t2).toMatchObject({ name: "memory_search", output: "记忆结果", pending: false });
     // assistant live 只标最后一条（且仅运行中）
     const assistants = items.filter((i) => i.type === "assistant");
     expect(assistants.map((a) => ("live" in a ? a.live : null))).toEqual([false, false]);

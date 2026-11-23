@@ -278,7 +278,7 @@ export function GraphView(p: {
               </div>
             )}
             <div className="text-fg-faint text-[11px]">
-              来自：{selected.type === "knowledge" ? "知识库" : selected.type === "profile" ? "用户画像" : selected.type === "office" ? "办公记忆" : selected.type === "material" ? "项目资料（固定常用文件）" : "聊天记忆"}
+              来自：{selected.type === "profile" ? "用户画像" : selected.type === "office" ? "办公记忆" : selected.type === "material" ? "项目资料（固定常用文件）" : "聊天记忆"}
             </div>
           </div>
         )}

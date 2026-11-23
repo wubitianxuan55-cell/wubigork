@@ -4,7 +4,7 @@ import type { FileSemanticHit, WorkspaceSearchHit } from "./files";
 
 // 跨库统一语义检索命中（cost / knowledge / office，本地 bge-m3）。
 export interface SemanticHitView {
-  kind: "cost" | "knowledge" | "office" | "file";
+  kind: "cost" | "office" | "file";
   name: string;
   score: number;
   text: string;

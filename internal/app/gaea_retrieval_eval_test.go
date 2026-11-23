@@ -10,7 +10,6 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
@@ -96,7 +95,6 @@ func TestRetrievalEvalRunMini(t *testing.T) {
 		SetAppEmbedderForTest(nil)
 		ResetCostStoreForTest()
 		ResetOfficeStoreForTest()
-		knowledge.ResetForTest()
 	})
 
 	// mock embedder：含关键词的文本得到确定性命中向量
@@ -147,23 +145,6 @@ func TestRetrievalEvalRunMini(t *testing.T) {
 		}
 	}
 
-	// 知识库种子：3 条（OpenSQLite + SetStoreForTest 隔离真实用户库）
-	ks, err := knowledge.OpenSQLite(gdb)
-	if err != nil {
-		t.Fatal(err)
-	}
-	knowledge.SetStoreForTest(ks)
-	knowSeeds := []knowledge.Entry{
-		{Name: "vib-guide", Title: "振动锤选型要点", Category: knowledge.CatExperience, Body: "根据地质与桩型选择激振力", Status: "现行"},
-		{Name: "bid-format", Title: "投标文件格式要求", Category: knowledge.CatOther, Body: "商务标与技术标目录", Status: "现行"},
-		{Name: "pile-notes", Title: "桩基施工要点", Category: knowledge.CatCase, Body: "打桩顺序与垂直度控制", Status: "现行"},
-	}
-	for _, s := range knowSeeds {
-		if err := ks.Save(s); err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	// 办公记忆种子：1 条（SQLite 后端 name 会 slug 化，用纯 ASCII name）
 	ms := memory.SQLiteStoreFor(gdb, dir, dir)
 	SetOfficeStoreForTest(ms)
@@ -189,8 +170,8 @@ func TestRetrievalEvalRunMini(t *testing.T) {
 	items := []RetrievalEvalItem{
 		{Query: "打桩锤 台班 价格", Expected: []RetrievalEvalHit{{Kind: "cost", Name: "hp300"}}},
 		{Query: "P.O 42.5 水泥 多少钱", Expected: []RetrievalEvalHit{{Kind: "cost", Name: "cement"}, {Kind: "file", Name: "docs/水泥价格表.md"}}},
-		{Query: "振动锤 选型 要点", Expected: []RetrievalEvalHit{{Kind: "office", Name: "vib-select"}, {Kind: "knowledge", Name: "vib-guide"}}},
-		{Query: "投标文件 格式 要求", Expected: []RetrievalEvalHit{{Kind: "file", Name: "docs/投标文件模板.md"}, {Kind: "knowledge", Name: "bid-format"}}},
+		{Query: "振动锤 选型 要点", Expected: []RetrievalEvalHit{{Kind: "office", Name: "vib-select"}}},
+		{Query: "投标文件 格式 要求", Expected: []RetrievalEvalHit{{Kind: "file", Name: "docs/投标文件模板.md"}}},
 	}
 	a := &App{}
 	rep, err := a.runRetrievalEval(items)

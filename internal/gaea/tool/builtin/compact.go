@@ -28,9 +28,10 @@ var compactDesc = map[string]string{
 	"format_convert":     "文档格式转换(docx/xlsx/pdf→Markdown，含OCR扫描件回退)",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
 	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
-	"knowledge_search":   "搜索工程知识库(关键词,分类+标签过滤)",
-	"knowledge_add":      "向知识库添加条目(标题+分类+正文)",
 	"cost_search":        "搜索成本库(关键词/分类/状态,返回单价表)",
+	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;或直给sections)",
+	"proposal_search":    "检索方案库(全文+本地语义召回+精排;scope=title查标题树;可按层级/类型/年度/方案过滤)",
+	"proposal_read":      "读方案库小节(整节自动分页;query只取相关段落;scope=subtree连子节)",
 	"cost_save":          "写入/更新成本库条目(同名覆盖,含单价/单位/来源;仅用户明确要求时调用)",
 	"cost_compose":       "AI 组价:相似条目价格带推荐(P25-P75+置信度+证据链),只读不落库,用户确认后 cost_save 沉淀",
 	"screen_capture":     "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
@@ -108,10 +109,12 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"labels":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"number"}},"series":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"values":{"type":"array","items":{"type":"number"}}},"required":["values"]}},"chart_type":{"type":"string","enum":["bar","line","pie","scatter","hbar","area","donut","grouped_bar","stacked_bar"]},"title":{"type":"string"},"output":{"type":"string"}},"required":["labels"]}`),
 	"diagram_gen": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"kind":{"type":"string","enum":["framework","flow"]},"layout":{"type":"string","enum":["vertical","horizontal"]},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"label":{"type":"string"},"level":{"type":"integer"},"group":{"type":"string"}},"required":["id","label"]}},"edges":{"type":"array","items":{"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}},"required":["from","to"]}},"output":{"type":"string"}},"required":["nodes"]}`),
-	"knowledge_search": json.RawMessage(
-		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"tag":{"type":"string"}}}`),
-	"knowledge_add": json.RawMessage(
-		`{"type":"object","properties":{"title":{"type":"string"},"category":{"type":"string"},"body":{"type":"string"},"tags":{"type":"string"},"phase":{"type":"string"},"discipline":{"type":"string"},"source":{"type":"string"}},"required":["title","category","body"]}`),
+	"proposal_save": json.RawMessage(
+		`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"}}}`),
+	"proposal_search": json.RawMessage(
+		`{"type":"object","properties":{"query":{"type":"string"},"scope":{"type":"string","enum":["title"]},"level":{"type":"integer"},"project_type":{"type":"string"},"year":{"type":"string"},"proposal":{"type":"string"},"limit":{"type":"integer"}}}`),
+	"proposal_read": json.RawMessage(
+		`{"type":"object","properties":{"section_id":{"type":"integer"},"scope":{"type":"string","enum":["subtree"]},"query":{"type":"string"},"offset":{"type":"integer"},"limit":{"type":"integer"}},"required":["section_id"]}`),
 	"cost_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"status":{"type":"string"},"limit":{"type":"integer"}}}`),
 	"cost_save": json.RawMessage(

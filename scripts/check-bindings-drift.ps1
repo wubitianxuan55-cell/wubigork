@@ -79,6 +79,9 @@ if (Test-Path $legacyPath) {
     # 单模型级启停：模型中心启停钮走引擎级 stop*Engine（v4.507 删零消费 api
     # 包装时拍板 Go 绑定保留——单模型引擎停模型=停引擎，前端面收窄）。
     'StrataModelStop'
+    # 方案库三绑定（2026-11-23 立项时登记为界面挂池的预留死绑定）已于 2026-11-24
+    # 随一级板块「方案库」出册：五个绑定由 gaea/lib/bridge/proposal.ts 认领、
+    # ProposalLibraryPage 真实调用。
     # TianxuanModelStop 已随 tianxuan 引擎退役清册（2026-11-04，绑定面全删）。
   )
 

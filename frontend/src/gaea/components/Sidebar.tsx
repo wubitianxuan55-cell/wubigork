@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { List, type RowComponentProps } from "react-window";
 import { Input, Modal } from "antd";
 import {
-  Plus, Blocks, BookOpen, MessageSquare, Search,
+  Plus, Blocks, MessageSquare, Search,
   Loader2, ChevronDown, FolderGit2,
   Pin, Inbox, Rollback, X, Trash2, SquarePen,
 } from "../icons";
@@ -47,7 +47,6 @@ export interface SidebarProps {
   }) => void;
   onOpenHistory: () => void;
   onOpenCaps: () => void;
-  onOpenKnowledge: () => void;
   startResize: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   resizeWithKeyboard: (e: KeyboardEvent<HTMLButtonElement>) => void;
   onDoubleClickResize: () => void;
@@ -531,7 +530,6 @@ export function Sidebar({
   onOpenSubagentThread,
   onOpenHistory,
   onOpenCaps,
-  onOpenKnowledge,
   resizeWithKeyboard,
   startResize,
   onDoubleClickResize,
@@ -912,14 +910,6 @@ export function Sidebar({
           <div className="office-sidebar__utilities">
             <button
               className="office-sidebar__utility no-drag"
-              onClick={() => void onOpenKnowledge()}
-              title={t("topbar.knowledge")}
-            >
-              <BookOpen size={15} className="shrink-0 text-fg-faint" />
-              <span className="flex-1 min-w-0 truncate text-left">{t("topbar.knowledge")}</span>
-            </button>
-            <button
-              className="office-sidebar__utility no-drag"
               onClick={() => onOpenCaps()}
               title={t("caps.title")}
             >
@@ -1066,14 +1056,6 @@ export function Sidebar({
         {/* 折叠态底部导航图标 */}
         {collapsed && (
         <nav className="office-sidebar__collapsed-nav flex flex-col items-center mt-auto">
-          <button
-            className="office-sidebar__collapsed-action no-drag"
-            onClick={() => void onOpenKnowledge()}
-            title={t("topbar.knowledge")}
-            aria-label={t("topbar.knowledge")}
-          >
-            <BookOpen size={15} />
-          </button>
           <button
             className="office-sidebar__collapsed-action no-drag"
             onClick={() => void onOpenCaps()}

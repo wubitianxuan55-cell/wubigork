@@ -6,16 +6,14 @@ import (
 
 	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
-	gaekb "github.com/gaea/gaea/internal/gaea/knowledge"
 	gaemem "github.com/gaea/gaea/internal/gaea/memory"
 )
 
 // initBrain 装配三脑统一访问层（零迁移：适配器直接包现有存储）。
 func (a *App) initBrain() {
 	gdb := gaeadb.GetDatabase(gaeacfg.MemoryUserDir())
-	kbStore, _ := gaekb.Global().Store()
 	a.brain = &BrainStore{
-		main:  &mainBrain{profile: gaemem.NewProfileStore(gdb), kb: kbStore},
+		main:  &mainBrain{profile: gaemem.NewProfileStore(gdb)},
 		left:  &leftBrain{src: &officeFactLeftSource{store: a.hubOfficeStore()}},
 		right: &rightBrain{dataRoot: a.whisperDataRoot},
 		links: NewLinkStore(gdb),

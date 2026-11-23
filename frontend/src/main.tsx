@@ -17,6 +17,9 @@ registerPage('ImageGenPage', lazy(() => import('./pages/ImageGenPage')))
 registerPage('GaeaPage', lazy(() => import('./pages/GaeaPage')))
 registerPage('MemoryHubPage', lazy(() => import('./pages/MemoryHubPage')))
 registerPage('CostLibraryPage', lazy(() => import('./pages/CostLibraryPage')))
+// 2026-11-24 方案库板块（与造价数据库并列）：历史方案按标题 1~4 级浏览与检索，
+// 录入在办公「方案」运行模式里由模型完成。
+registerPage('ProposalLibraryPage', lazy(() => import('./pages/ProposalLibraryPage')))
 registerPage('ProgrammingPage', lazy(() => import('./pages/ProgrammingPage')))
 registerPage('PantheonPage', lazy(() => import('./pages/PantheonPage')))
 registerPage('ModelCenterPage', lazy(() => import('./pages/ModelCenterPage')))

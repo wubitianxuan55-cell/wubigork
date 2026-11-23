@@ -7,25 +7,12 @@ import (
 	"github.com/gaea/gaea/internal/whisper"
 )
 
-// MemoryB 记忆中枢与知识库绑定门面（S2-3「App 绑定面拆分」）：仅暴露记忆中枢与知识库的方法，
+// MemoryB 记忆中枢绑定门面（S2-3「App 绑定面拆分」）：仅暴露记忆中枢的方法，
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type MemoryB struct{ a *App }
 
 func (b *MemoryB) GaeaAIFeedbackDelete(id string) error { return b.a.GaeaAIFeedbackDelete(id) }
 func (b *MemoryB) GaeaAIFeedbackList() []feedback.Item { return b.a.GaeaAIFeedbackList() }
-func (b *MemoryB) GaeaKnowledgeDelete(name string) error { return b.a.GaeaKnowledgeDelete(name) }
-func (b *MemoryB) GaeaKnowledgeExport(dir string) (int, error) { return b.a.GaeaKnowledgeExport(dir) }
-func (b *MemoryB) GaeaKnowledgeFindSimilar(title string) []SimilarView { return b.a.GaeaKnowledgeFindSimilar(title) }
-func (b *MemoryB) GaeaKnowledgeGet(name string) *KnowledgeEntry { return b.a.GaeaKnowledgeGet(name) }
-func (b *MemoryB) GaeaKnowledgeHistory(name string) []KnowledgeHistoryView { return b.a.GaeaKnowledgeHistory(name) }
-func (b *MemoryB) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, error) { return b.a.GaeaKnowledgeImportAIParse(path) }
-func (b *MemoryB) GaeaKnowledgeImportApply(rows []KnowledgeEntry) (int, error) { return b.a.GaeaKnowledgeImportApply(rows) }
-func (b *MemoryB) GaeaKnowledgeImportPreview(path string) (KnowledgeImportPreview, error) { return b.a.GaeaKnowledgeImportPreview(path) }
-func (b *MemoryB) GaeaKnowledgeList() []KnowledgeSummary { return b.a.GaeaKnowledgeList() }
-func (b *MemoryB) GaeaKnowledgeMerge(targetName string, sourceNames []string) (string, error) { return b.a.GaeaKnowledgeMerge(targetName, sourceNames) }
-func (b *MemoryB) GaeaKnowledgeReview(name string, approve bool, reviewer string) error { return b.a.GaeaKnowledgeReview(name, approve, reviewer) }
-func (b *MemoryB) GaeaKnowledgeSave(e KnowledgeEntry) error { return b.a.GaeaKnowledgeSave(e) }
-func (b *MemoryB) GaeaKnowledgeSearch(query string, category string, phase string, status string) []KnowledgeSummary { return b.a.GaeaKnowledgeSearch(query, category, phase, status) }
 func (b *MemoryB) GaeaMemory() MemoryView { return b.a.GaeaMemory() }
 func (b *MemoryB) GaeaMemoryArchivedList(limit int, offset int) (MemoryArchivedPage, error) { return b.a.GaeaMemoryArchivedList(limit, offset) }
 func (b *MemoryB) GaeaMemoryBrief() bool { return b.a.GaeaMemoryBrief() }

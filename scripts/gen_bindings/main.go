@@ -47,7 +47,7 @@ var receiverTypes = map[string]bool{
 }
 
 // facadeOrder 板块顺序（生成文件与绑定顺序一致，稳定可读）。
-var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "image", "charlib", "wenxue", "pantheon"}
+var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "image", "charlib", "wenxue", "pantheon", "proposal"}
 
 // excludedBindings 绑定面排除清单（A1① 拍板，2026-10-03）：109 条零调用绑定
 // 整体摘除（绑定面 744→635；名单=check-bindings-drift.ps1 §4 knownDead 普查，
@@ -223,10 +223,12 @@ func mapGaea(n string) string {
 	case strings.HasPrefix(n, "GaeaCost"), strings.HasPrefix(n, "GaeaPrice"),
 		strings.HasPrefix(n, "GaeaWorkcost"):
 		return "cost"
-	case strings.HasPrefix(n, "GaeaKnowledge"), strings.HasPrefix(n, "GaeaMemory"),
+	case strings.HasPrefix(n, "GaeaMemory"),
 		strings.HasPrefix(n, "GaeaProfile"), strings.HasPrefix(n, "GaeaSemantic"),
 		strings.HasPrefix(n, "GaeaWhisper"):
 		return "memory"
+	case strings.HasPrefix(n, "GaeaProposal"):
+		return "proposal"
 	case strings.HasPrefix(n, "GaeaModels"), strings.HasPrefix(n, "GaeaSetModel"),
 		strings.HasPrefix(n, "GaeaModel"), strings.HasPrefix(n, "GaeaEngines"),
 		strings.HasPrefix(n, "GaeaSetEngine"):
@@ -811,7 +813,7 @@ func resultsString(fl *ast.FieldList) string {
 func facadeTitle(f string) string {
 	titles := map[string]string{
 		"core": "核心（认证/项目/设置/杂项）", "office": "办公引擎与工作区",
-		"memory": "记忆中枢与知识库", "cost": "成本库与价格源",
+		"memory": "记忆中枢", "cost": "成本库与价格源", "proposal": "方案库",
 		"model": "模型中心与 Herdsman 底座", "voice": "语音（TTS/ASR/轻语）",
 		"chat": "聊天与主脑", "image": "绘梦与媒体",
 		"charlib": "角色库", "wenxue": "文学（图文工作台）",

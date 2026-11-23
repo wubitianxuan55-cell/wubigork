@@ -34,6 +34,7 @@ import {
   GaeaPantheonIcon,
   GaeaRuntimeIcon,
   GaeaScheduleIcon,
+  GaeaProposalIcon,
 } from './boardIcons'
 
 // ─── 图标注册表：Gaea 专属图标 + 旧 manifest 名兼容别名 ────────────────────
@@ -49,6 +50,7 @@ const ICON_REGISTRY: Record<string, ComponentType> = {
   GaeaModel: GaeaModelIcon,
   GaeaCharacter: GaeaCharacterIcon,
   GaeaSchedule: GaeaScheduleIcon,
+  GaeaProposal: GaeaProposalIcon,
   GaeaRuntime: GaeaRuntimeIcon,
   WechatOutlined,
 
@@ -84,7 +86,6 @@ const SETTINGS_NAV: BoardNavChild[] = [
   { id: 'about', label: '关于' },
 ]
 const MEMORYHUB_NAV: BoardNavChild[] = [
-  { id: 'knowledge', label: '知识库' },
   { id: 'profile', label: '用户画像' }, { id: 'office', label: '办公记忆' },
   { id: 'materials', label: '项目资料' }, { id: 'whisper', label: '聊天记忆' },
   { id: 'graph', label: '记忆图谱' }, { id: 'digitallife', label: '数字生命' },
@@ -135,6 +136,15 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost', space: 'work',
   },
   {
+    // 方案库（2026-11-24）：与造价数据库并列的工位资产。历史方案按标题 1~4 级存取，
+    // 服务办公板块的「方案」运行模式（录入在方案模式里由模型完成，板块本身只管浏览
+    // 与检索）。menuOrder 与 code/pantheon 同为 6，靠稳定排序紧邻造价库之后。
+    // 与 Go builtins.go 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂。
+    id: 'proposal', label: '方案库', icon: 'GaeaProposal', page: 'ProposalLibraryPage',
+    lazy: true, keepAlive: true, layout: 'padded',
+    menuOrder: 6, inMenu: true, space: 'work',
+  },
+  {
     // 2026-11-08 用户恢复：编程回流为独立一级板块。页面只承载官方 Web 安装、
     // 隔离边界与插件适配入口，不恢复旧 DSH 进程管理绑定。
     id: 'code', label: '编程', icon: 'GaeaCode', page: 'ProgrammingPage',
@@ -144,32 +154,32 @@ export const canonicalBoards: BoardManifest[] = [
   {
     id: 'pantheon', label: '众神殿', icon: 'GaeaPantheon', page: 'PantheonPage',
     lazy: true, keepAlive: true, layout: 'full',
-    menuOrder: 6, inMenu: true, space: 'shared',
+    menuOrder: 7, inMenu: true, space: 'shared',
   },
   {
     id: 'memoryhub', label: '记忆中枢', icon: 'GaeaMemory', page: 'MemoryHubPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 7, inMenu: true, nav: { children: MEMORYHUB_NAV }, space: 'work',
+    menuOrder: 8, inMenu: true, nav: { children: MEMORYHUB_NAV }, space: 'work',
   },
   {
     id: 'modelcenter', label: '模型中心', icon: 'GaeaModel', page: 'ModelCenterPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 8, inMenu: true, space: 'shared',
+    menuOrder: 9, inMenu: true, space: 'shared',
   },
   {
     id: 'characterlib', label: '角色库', icon: 'GaeaCharacter', page: 'CharacterLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 9, inMenu: true, featureModel: 'characterlib', space: 'play',
+    menuOrder: 10, inMenu: true, featureModel: 'characterlib', space: 'play',
   },
   {
     id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 10, inMenu: false, nav: { children: SETTINGS_NAV }, space: 'shared',
+    menuOrder: 11, inMenu: false, nav: { children: SETTINGS_NAV }, space: 'shared',
   },
   {
     id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 11, inMenu: true, space: 'work', // v4.4：触点落地，进 rail + 首页左翼
+    menuOrder: 12, inMenu: true, space: 'work', // v4.4：触点落地，进 rail + 首页左翼
   },
   {
     id: 'schedule', label: '进度计划', icon: 'GaeaSchedule', page: 'SchedulePage',
@@ -178,7 +188,7 @@ export const canonicalBoards: BoardManifest[] = [
     // inMenu:false 合并语义）。办公侧承接入口保留：文件面 .gsched 摘要卡、命令面板项、
     // 右栏一级 Tab（ScheduleTool）。与 Go builtins.go 同步翻，防 normalizeManifests
     // 后端字段优先导致真机/浏览器分裂。
-    menuOrder: 12, inMenu: true, space: 'work',
+    menuOrder: 13, inMenu: true, space: 'work',
     featureModel: 'schedule',
   },
   {
@@ -186,7 +196,7 @@ export const canonicalBoards: BoardManifest[] = [
     // Strata 系引擎 /metrics 遥测 + gaea 侧最近调用记账的聚合仪表盘。
     id: 'runtime', label: '运行监测', icon: 'GaeaRuntime', page: 'RuntimePage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 14, inMenu: true, space: 'shared',
+    menuOrder: 15, inMenu: true, space: 'shared',
   },
 ]
 
@@ -292,7 +302,7 @@ export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest
   const out: BoardManifest[] = []
   for (const r of remote ?? []) {
     if (!r || typeof r.id !== 'string' || r.id === '') continue
-    // knowledge 并入记忆中枢；home 已退役。两者都不进入导航派生。
+    // knowledge 板块已退役（2026-11-23）且后端不再下发；home 已退役。两者都不进入导航派生。
     if (r.id === 'knowledge' || r.id === 'home') continue
     const base = staticById.get(r.id)
     out.push({

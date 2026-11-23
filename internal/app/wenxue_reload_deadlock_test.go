@@ -8,7 +8,6 @@ import (
 	ai "github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
@@ -29,7 +28,6 @@ func TestWenxueReloadIfInitCompletesUnderFollowUpCallback(t *testing.T) {
 	t.Cleanup(func() {
 		wenxueBrainDirOverride = prevBrain
 		// 图文脑 DB 句柄不关会让 TempDir 清理失败（unlinkat 占用）。
-		knowledge.ResetForTest()
 		db.CloseDatabase(brainDir)
 	})
 
@@ -99,7 +97,6 @@ func TestWenxueEngineInitLoaderCompletesUnderGaMu(t *testing.T) {
 	t.Cleanup(func() {
 		wenxueBrainDirOverride = prevBrain
 		// 图文脑 DB 句柄不关会让 TempDir 清理失败（unlinkat 占用）。
-		knowledge.ResetForTest()
 		db.CloseDatabase(brainDir)
 	})
 

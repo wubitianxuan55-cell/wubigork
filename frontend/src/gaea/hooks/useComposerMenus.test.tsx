@@ -70,14 +70,14 @@ describe("useComposerMenus 异步查询", () => {
   it("命令过滤在数据入口生效", async () => {
     bridgeMocks.Commands.mockResolvedValue([
       { name: "plan", kind: "builtin", description: "plan" },
-      { name: "knowledge", kind: "builtin", description: "knowledge" },
+      { name: "memory_search", kind: "builtin", description: "memory_search" },
     ]);
 
     const { result } = renderHook(() => useComposerMenus({
       text: "/",
       debouncedText: "/",
       setTextCaretEnd: vi.fn(),
-      filterCommand: (name) => name !== "knowledge",
+      filterCommand: (name) => name !== "memory_search",
     }));
 
     await waitFor(() => expect(result.current.slashMatches.map((c) => c.name)).toEqual(["plan"]));

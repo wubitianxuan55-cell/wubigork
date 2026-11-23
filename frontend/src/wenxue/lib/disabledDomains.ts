@@ -1,8 +1,8 @@
 // 文学工作台（图文）不承接办公域能力。后端引擎侧的收敛在刀1 落地
 // （internal/app/wenxue_tool_policy.go deny 名单，与本文目名单同源对齐）；
 // 前端在命令、工具卡、统计、能力面板四个可见面做一致过滤。
-const DISABLED_COMMAND_PREFIXES = ["knowledge", "schedule", "cad"] as const;
-const DISABLED_TOOL_PREFIXES = ["knowledge_", "schedule_", "cad_"] as const;
+const DISABLED_COMMAND_PREFIXES = ["schedule", "cad"] as const;
+const DISABLED_TOOL_PREFIXES = ["schedule_", "cad_"] as const;
 
 // 办公域工具（刀1 引擎侧物理卸载的同一批；fact_* 三件为首刀收口批除名
 // 2026-11-15 众神殿）：本地面板兜底不展示。与 wenxue_tool_policy.go 同源

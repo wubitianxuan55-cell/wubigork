@@ -28,6 +28,7 @@ import { buildMemory } from "./mock/memory";
 import { buildModel } from "./mock/model";
 import { buildOffice } from "./mock/office";
 import { buildPantheon } from "./mock/pantheon";
+import { buildProposal } from "./mock/proposal";
 import { buildRetrieval } from "./mock/retrieval";
 import { buildSettings } from "./mock/settings";
 import { buildVoice } from "./mock/voice";
@@ -66,5 +67,6 @@ export function makeMockApp(): AppBindings {
     buildImagehub(),
     buildImagegenTools(),
     buildPantheon(),
+    buildProposal(state),
   );
 }

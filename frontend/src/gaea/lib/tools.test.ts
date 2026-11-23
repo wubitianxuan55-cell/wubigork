@@ -304,14 +304,10 @@ describe("subjectOf 办公工具行首主体", () => {
   });
 
   it("检索类工具取查询词", () => {
-    expect(subjectOf("knowledge_search", JSON.stringify({ query: "混凝土配比" }))).toBe("混凝土配比");
+    expect(subjectOf("memory_search", JSON.stringify({ query: "混凝土配比" }))).toBe("混凝土配比");
     expect(subjectOf("memory_search", JSON.stringify({ query: "项目偏好" }))).toBe("项目偏好");
   });
 
-  it("knowledge_add 取标题，read_skill 取技能名", () => {
-    expect(subjectOf("knowledge_add", JSON.stringify({ title: "规范条目", body: "x" }))).toBe("规范条目");
-    expect(subjectOf("read_skill", JSON.stringify({ name: "weekly-report" }))).toBe("weekly-report");
-  });
 
   it("move_file 拼接 source → destination", () => {
     expect(
@@ -352,15 +348,7 @@ describe("summarize 办公工具完成态摘要", () => {
     expect(summarize("diagram_gen", JSON.stringify({ title: "x" }), "not json")).toBe("");
   });
 
-  it("knowledge_add：入库确认", () => {
-    const out = envelope("✅ 已保存知识条目\n\n标题：规范");
-    expect(summarize("knowledge_add", JSON.stringify({ title: "规范" }), out)).toBe("已存入知识库");
-  });
 
-  it("knowledge_search：按 ### 条目计数", () => {
-    const out = envelope("### 条目A\n\n正文\n\n---\n\n### 条目B\n\n正文\n\n---\n\n");
-    expect(summarize("knowledge_search", JSON.stringify({ query: "x" }), out)).toBe("2 条命中");
-  });
 
   it("memory_search：编号行计数 + more 折叠补全", () => {
     const raw = "1. ▮▮ 记忆A\n   预览\n2. ▮▮ 记忆B\n   预览\n\n... and 3 more. Narrow your query for fewer results.\n";

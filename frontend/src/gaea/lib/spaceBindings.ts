@@ -504,8 +504,6 @@ export const GAEA_METHOD_FACETS = {
   SkillDistillDraft: "work",
   SkillDistillDecide: "work",
   SkillStats: "work",
-  KnowledgeList: "work",
-  KnowledgeSearch: "work",
   MemoryHubOverview: "work",
   WenxueMemoryBrowse: "work",
   // 数据库存档（v4.479）：本设备聊天记录/上传文件管理，记忆中枢 work 面。
@@ -527,6 +525,13 @@ export const GAEA_METHOD_FACETS = {
   SetMemoryBrief: "work",
   // 晨报（做梦 2.0 主动预取）：只读 work 空间记忆，play 不渲染（双空间红线）。
   MemoryMorningBrief: "work",
+  // 方案库板块（一级板块，与造价库并列）：清单/标题树/阅读/检索/删除。工位资产；
+  // 删除经界面二次确认。录入只在办公方案模式里由模型完成，不走绑定面。
+  GaeaProposalList: "work",
+  GaeaProposalOutline: "work",
+  GaeaProposalRead: "work",
+  GaeaProposalSearch: "work",
+  GaeaProposalDelete: "work",
   CostSearch: "work",
   // v4.386 分页检索（成本库列表/表格分页 + EntryPicker top8，载荷/DOM 双降）。
   CostSearchPage: "work",
@@ -596,14 +601,6 @@ export const GAEA_METHOD_FACETS = {
   CostIndicators: "work",
   CostGraph: "work",
   RetrievalEvalRun: "work",
-  KnowledgeImportPreview: "work",
-  KnowledgeImportAIParse: "work",
-  KnowledgeImportApply: "work",
-  KnowledgeHistory: "work",
-  KnowledgeFindSimilar: "work",
-  KnowledgeExport: "work",
-  KnowledgeReview: "work",
-  KnowledgeMerge: "work",
   MemoryDuplicates: "work",
   MemoryRecall: "work",
   MemoryMerge: "work",
@@ -615,9 +612,6 @@ export const GAEA_METHOD_FACETS = {
   FileIndexRebuild: "work",
   FileSemanticSearch: "work",
   ProfileResolveConflict: "work",
-  KnowledgeGet: "work",
-  KnowledgeSave: "work",
-  KnowledgeDelete: "work",
   PickFiles: "work",
   ReadFileB64: "work",
   SaveFileAs: "work",

@@ -14,7 +14,6 @@ import (
 	ai "github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
@@ -27,7 +26,6 @@ func TestWenxueChatSessionBindingSmoke(t *testing.T) {
 	brainDir := wenxueBrainDirOverride
 	t.Cleanup(func() {
 		wenxueBrainDirOverride = prevBrain
-		knowledge.ResetForTest()
 		db.CloseDatabase(brainDir)
 	})
 

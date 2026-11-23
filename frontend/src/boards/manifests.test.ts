@@ -53,19 +53,19 @@ const BACKEND_FIXTURE = [
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
   it('菜单顺序：聊天 → … → 进度计划 → 文学 → 运行监测（共 13 项；文学 2026-11-15 接替退役小说板块的一级位）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'proposal', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
     ])
   })
 
   it('菜单文案与现状一致（含众神殿）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '聊天', '文学', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '方案库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
   it('菜单图标名与 Gaea 专属图标注册表一致', () => {
     const expected = ['GaeaChat', 'GaeaLiterature', 'GaeaDream',
-      'GaeaOffice', 'GaeaCost', 'GaeaPantheon', 'GaeaMemory', 'GaeaModel', 'GaeaCharacter', 'WechatOutlined',
+      'GaeaOffice', 'GaeaCost', 'GaeaProposal', 'GaeaPantheon', 'GaeaMemory', 'GaeaModel', 'GaeaCharacter', 'WechatOutlined',
       'GaeaSchedule', 'GaeaRuntime']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
@@ -83,10 +83,10 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 describe('getActiveMenuBoards（一级导航合一 2026-10-26：全量菜单，不再按空间分域）', () => {
   it('全量序 = 全部 inMenu 板块（menuOrder 派生；首页已删除）', () => {
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'proposal', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule', 'runtime',
     ])
     expect(getActiveMenuBoards().map((b) => b.label)).toEqual([
-      '聊天', '文学', '绘梦', '办公', '造价数据库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
+      '聊天', '文学', '绘梦', '办公', '造价数据库', '方案库', '众神殿', '记忆中枢', '模型中心', '角色库', '微信助手', '进度计划', '运行监测',
     ])
   })
 
@@ -113,7 +113,7 @@ describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () 
   // 板块（inMenu=true），白名单语义不变（注册即可导航）。
   it('注册即可导航：全部业务板块（仍含 inMenu=false 的 settings；首页已删除）', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
+      'chat', 'wenxue', 'imagegen', 'gaea', 'cost', 'proposal', 'code', 'pantheon', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule', 'runtime',
     ])
   })
 })
@@ -137,7 +137,7 @@ describe('layout / breadcrumb / default board（附 B #8/#9/#10）', () => {
     expect(getBoard('chat')?.layout).toBe('full')
     expect(getBoard('gaea')?.layout).toBe('full')
     expect(getBoard('pantheon')?.layout).toBe('full')
-    for (const id of ['imagegen', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'schedule']) {
+    for (const id of ['imagegen', 'cost', 'proposal', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'schedule']) {
       expect(getBoard(id)?.layout, id).toBe('padded')
     }
   })

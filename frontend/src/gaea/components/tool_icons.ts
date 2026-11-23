@@ -27,7 +27,7 @@ export const ICONS: Record<string, Icon> = {
   web_fetch: Globe, web_search: Globe, message: Users, chat: Users,
   // 通用
   memory_search: Brain, remember: Brain, memory_get: Brain, read_skill: BookOpen,
-  knowledge_search: Search, knowledge_add: PlusCircle, promote_session_facts: Sparkles,
+  promote_session_facts: Sparkles,
   genui_validate: CheckCircle,
   wait: Hourglass, complete_step: CheckCircle, ask: List, brainstorm: Sparkles,
 };

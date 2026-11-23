@@ -6,7 +6,7 @@ import { BACKEND_EVENTS, FRONTEND_EVENTS, OPEN_STATS_FLAG, chatStreamChannel, su
 
 describe('BACKEND_EVENTS（§4.1，23 个）', () => {
   it('共 23 个后端事件常量（2026-11-15 原罪退役 −SIN_STREAM/−SIN_BOOKSOURCE_PROGRESS；同日小说退役 −CREATE_CHAPTER_STREAM/−BOOK_IMPORT_PROGRESS/−GHOST_STREAM/−XAI_OUTPUT/−NEW_CHARACTERS_DISCOVERED）', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(24)
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(23)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {
@@ -16,8 +16,7 @@ describe('BACKEND_EVENTS（§4.1，23 个）', () => {
     expect(BACKEND_EVENTS.CHAT_STREAM).toBe('chat-stream')
     expect(BACKEND_EVENTS.TTS_STREAM).toBe('tts-stream')
     expect(BACKEND_EVENTS.CHARACTER_FILL_PROGRESS).toBe('character-fill-progress')
-    expect(BACKEND_EVENTS.KNOWLEDGE_IMPORT_PROGRESS).toBe('knowledge-import-progress')
-    expect(BACKEND_EVENTS.VOICE_STATE).toBe('voice:state')
+        expect(BACKEND_EVENTS.VOICE_STATE).toBe('voice:state')
     expect(BACKEND_EVENTS.VOICE_TRANSCRIPT).toBe('voice:transcript')
     expect(BACKEND_EVENTS.VOICE_REPLY).toBe('voice:reply')
     expect(BACKEND_EVENTS.VOICE_REPLY_DELTA).toBe('voice:reply-delta')

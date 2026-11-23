@@ -20,5 +20,6 @@ func NewBindings(a *App) []interface{} {
 		&CharlibB{a: a},
 		&WenxueB{a: a},
 		&PantheonB{a: a},
+		&ProposalB{a: a},
 	}
 }

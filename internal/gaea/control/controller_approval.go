@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -16,13 +17,66 @@ import (
 
 // --- approval bridge (agent gate → events) ---
 
-// hardAskTools 是必须逐条经用户确认的工具：写入成本库 / 记忆 / 知识库等
+// proposalSaveApprovalSubject 展示将要写入方案库的方案：标题、类型、年度，以及
+// 本次是新建、整册覆盖还是续录第几批、本批多少个标题节点、取自哪个源文件。
+func proposalSaveApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Title       string `json:"title"`
+		ProjectType string `json:"project_type"`
+		Year        string `json:"year"`
+		Mode        string `json:"mode"`
+		Overwrite   bool   `json:"overwrite"`
+		SourceFile  string `json:"source_file"`
+		Sections    []struct {
+			Level int `json:"level"`
+		} `json:"sections"`
+		Outline []struct {
+			Level int `json:"level"`
+		} `json:"outline"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return ""
+	}
+	if strings.TrimSpace(p.Title) == "" {
+		return ""
+	}
+	n := len(p.Outline)
+	if n == 0 {
+		n = len(p.Sections)
+	}
+	action := "新建"
+	switch {
+	case p.Overwrite:
+		action = "整册覆盖"
+	case strings.EqualFold(strings.TrimSpace(p.Mode), "append"):
+		action = "续录"
+	}
+	parts := []string{"写入方案库（" + action + "）：" + strings.TrimSpace(p.Title)}
+	if n > 0 {
+		parts = append(parts, fmt.Sprintf("本批 %d 节", n))
+	}
+	if s := strings.TrimSpace(p.ProjectType); s != "" {
+		parts = append(parts, "类型 "+s)
+	}
+	if s := strings.TrimSpace(p.Year); s != "" {
+		parts = append(parts, "年度 "+s)
+	}
+	if s := strings.TrimSpace(p.SourceFile); s != "" {
+		parts = append(parts, "源文件 "+filepath.Base(s))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// hardAskTools 是必须逐条经用户确认的工具：写入成本库 / 记忆 / 方案库等
 // 持久化数据，任何权限级别（含 yolo）都不自动放行，且不记忆会话放行。
 var hardAskTools = map[string]bool{
 	"cost_save":             true,
 	"remember":              true,
 	"forget":                true,
-	"knowledge_add":         true,
+	"proposal_save":         true,
 	"promote_session_facts": true,
 	"install_skill":         true,
 	// computer_key（电脑操控施工单 W4-2）：键盘可触发任意快捷键（含 Alt+F4、
@@ -43,7 +97,7 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	permLevel := g.c.permLevel
 	g.c.mu.Unlock()
 	auto := autoApprove || permLevel != "ask"
-	// 持久化写入（成本库/记忆/知识库）必须逐条经用户确认：
+	// 持久化写入（成本库/记忆/方案库）必须逐条经用户确认：
 	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
 	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
 	if g.c.hardAskSet()[tool] {
@@ -93,8 +147,8 @@ func approvalSubjectFor(tool string, args json.RawMessage) string {
 		return costSaveApprovalSubject(args)
 	case "remember":
 		return rememberApprovalSubject(args)
-	case "knowledge_add":
-		return knowledgeAddApprovalSubject(args)
+	case "proposal_save":
+		return proposalSaveApprovalSubject(args)
 	case "promote_session_facts":
 		return "把本次会话沉淀的临时事实提升为永久记忆（跨会话自动加载）"
 	case "schedule_apply":
@@ -792,39 +846,3 @@ func rememberApprovalSubject(args json.RawMessage) string {
 }
 
 // knowledgeAddApprovalSubject 展示将要写入知识库的条目。
-func knowledgeAddApprovalSubject(args json.RawMessage) string {
-	if len(args) == 0 {
-		return ""
-	}
-	var p struct {
-		Title    string `json:"title"`
-		Category string `json:"category"`
-		Body     string `json:"body"`
-		Tags     string `json:"tags"`
-		Source   string `json:"source"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return ""
-	}
-	if strings.TrimSpace(p.Title) == "" {
-		return ""
-	}
-	parts := []string{"写入知识库：" + strings.TrimSpace(p.Title)}
-	if s := strings.TrimSpace(p.Category); s != "" {
-		parts = append(parts, "分类 "+s)
-	}
-	if s := strings.TrimSpace(p.Source); s != "" {
-		parts = append(parts, "来源 "+s)
-	}
-	if s := strings.TrimSpace(p.Tags); s != "" {
-		parts = append(parts, "标签 "+s)
-	}
-	if body := strings.TrimSpace(p.Body); body != "" {
-		one := strings.SplitN(body, "\n", 2)[0]
-		if r := []rune(one); len(r) > 80 {
-			one = string(r[:80]) + "…"
-		}
-		parts = append(parts, one)
-	}
-	return strings.Join(parts, " · ")
-}

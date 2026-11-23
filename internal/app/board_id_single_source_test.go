@@ -77,7 +77,7 @@ func TestIntentFallbackPromptBoardIDsMatchManifest(t *testing.T) {
 		}
 	}
 	// 两类曾漏的板块必须在场（LLM 否则永不输出）
-	for _, id := range []string{"schedule", "knowledge"} {
+	for _, id := range []string{"schedule"} {
 		if !got[id] {
 			t.Errorf("提示词缺板块 %q（曾漏：LLM 永不输出该类导航）", id)
 		}

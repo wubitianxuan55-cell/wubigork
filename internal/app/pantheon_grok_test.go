@@ -191,7 +191,7 @@ func TestPantheonGrokT0ExactSets(t *testing.T) {
 	}
 
 	wantOffice := map[string]bool{
-		"knowledge_search": true, "memory_search": true, "fact_list": true,
+		"memory_search": true, "fact_list": true,
 		"web_search": true, "web_fetch": true, "read_skill": true,
 		"ocr": true,
 	}

@@ -19,6 +19,7 @@ import type { ImageBindings } from "./image";
 import type { CharLibBindings } from "./charlib";
 import type { CadBindings } from "./cad";
 import type { PantheonBindings } from "./pantheon";
+import type { ProposalBindings } from "./proposal";
 
 export interface AppBindings
   extends CoreBindings,
@@ -31,4 +32,5 @@ export interface AppBindings
     ImageBindings,
     CharLibBindings,
     CadBindings,
-    PantheonBindings {}
+    PantheonBindings,
+    ProposalBindings {}

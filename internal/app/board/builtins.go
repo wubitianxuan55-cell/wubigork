@@ -3,7 +3,7 @@ package board
 // builtins 注册 canonical 板块（§3.1 清单 + 决策 D7 + 众神殿）。
 //
 // canonical 集合 = §3.1 的 9 业务板块 + 成本库（cost，2026-08-19 从记忆中枢
-// 二级分类提升为一级板块）+ knowledge（决策 D7：恢复挂载为独立板块 = 3.0.0
+// 二级分类提升为一级板块）。knowledge 板块已退役（2026-11-23），见 git 史。
 // 最小 manifest 试点）+ pantheon（本机异构 Agent 议事台）。2026-11-08 用户恢复
 // “编程”独立一级入口：仅承载 DeepSeek Harness Web 安装、隔离边界与 dsh-wubi
 // 适配说明，不恢复旧进程管理绑定。
@@ -69,6 +69,19 @@ var builtinManifests = []Manifest{
 		Bindings:     []string{"CostB"},
 	},
 	{
+		// 方案库（2026-11-24）：与造价数据库并列的工位资产。历史方案按标题 1~4 级
+		// 存取，服务办公板块的「方案」运行模式（录入在方案模式里由模型完成，板块
+		// 本身只管浏览与检索）。MenuOrder 与 code/pantheon 同为 6，靠稳定排序紧邻
+		// 造价库之后。与前端 manifests.ts 同步翻，防 normalizeManifests 后端字段
+		// 优先导致真机/浏览器分裂。
+		ID: "proposal", Label: "方案库", Icon: "GaeaProposal",
+		Page: "ProposalLibraryPage", Lazy: true,
+		KeepAlive: Bool(true), Layout: "padded",
+		MenuOrder: 6, InMenu: Bool(true),
+		Space:    SpaceWork, // 工位·方案库
+		Bindings: []string{"ProposalB"},
+	},
+	{
 		ID: "code", Label: "编程", Icon: "GaeaCode",
 		Page: "ProgrammingPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
@@ -79,7 +92,7 @@ var builtinManifests = []Manifest{
 		ID: "pantheon", Label: "众神殿", Icon: "GaeaPantheon",
 		Page: "PantheonPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full",
-		MenuOrder: 6, InMenu: Bool(true),
+		MenuOrder: 7, InMenu: Bool(true),
 		Space:    SpaceShared, // 议题可来自任一空间，但材料范围由每场议事显式选择
 		Bindings: []string{"PantheonB"},
 	},
@@ -87,10 +100,9 @@ var builtinManifests = []Manifest{
 		ID: "memoryhub", Label: "记忆中枢", Icon: "GaeaMemory",
 		Page: "MemoryHubPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 7, InMenu: Bool(true),
+		MenuOrder: 8, InMenu: Bool(true),
 		Space: SpaceWork, // 工位·记忆中枢
 		Nav: &NavSpec{Children: []NavChild{
-			{ID: "knowledge", Label: "知识库"},
 			{ID: "profile", Label: "用户画像"}, {ID: "office", Label: "办公记忆"},
 			{ID: "materials", Label: "项目资料"}, {ID: "whisper", Label: "聊天记忆"},
 			{ID: "graph", Label: "记忆图谱"}, {ID: "digitallife", Label: "数字生命"},
@@ -101,7 +113,7 @@ var builtinManifests = []Manifest{
 		ID: "modelcenter", Label: "模型中心", Icon: "GaeaModel",
 		Page: "ModelCenterPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 8, InMenu: Bool(true),
+		MenuOrder: 9, InMenu: Bool(true),
 		Space:    SpaceShared, // 模型设置共用
 		Bindings: []string{"ModelB"},
 	},
@@ -109,7 +121,7 @@ var builtinManifests = []Manifest{
 		ID: "characterlib", Label: "角色库", Icon: "GaeaCharacter",
 		Page: "CharacterLibraryPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 9, InMenu: Bool(true),
+		MenuOrder: 10, InMenu: Bool(true),
 		Space:        SpacePlay, // 乐园·角色资产
 		FeatureModel: "characterlib",
 		Bindings:     []string{"CharlibB"},
@@ -118,7 +130,7 @@ var builtinManifests = []Manifest{
 		ID: "settings", Label: "设置", Icon: "SettingOutlined",
 		Page: "SettingsPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 10, InMenu: Bool(false), // 附 B #12：不进菜单，右上角按钮入口
+		MenuOrder: 11, InMenu: Bool(false), // 附 B #12：不进菜单，右上角按钮入口
 		Space: SpaceShared, // 全局设置
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "general", Label: "通用"}, {ID: "chat", Label: "聊天"},
@@ -134,17 +146,8 @@ var builtinManifests = []Manifest{
 		Page:      "WeixinPage", // v4.4 触点落地（扫码绑定 + 离线代办提醒）
 		Lazy:      true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 11, InMenu: Bool(true), // v4.4：进 rail + 首页左翼书房格
+		MenuOrder: 12, InMenu: Bool(true), // v4.4：进 rail + 首页左翼书房格
 		Space: SpaceWork, // 书房触点（微信远程任务入口，§10.3/§10.4）
-	},
-	{
-		ID: "knowledge", Label: "知识库", Icon: "BookOutlined",
-		Page: "KnowledgePage", Lazy: true, // D7：恢复挂载为独立板块（3.0.0 最小 manifest 试点；§3.1 孤儿页）
-		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 8, InMenu: Bool(true),
-		Space:        SpaceWork, // 工位·知识库（D7 独立板块）
-		FeatureModel: "knowledge",
-		Bindings:     []string{"MemoryB"}, // 知识库能力经记忆域门面（§3.1 建议）
 	},
 	{
 		ID: "schedule", Label: "进度计划", Icon: "GaeaSchedule",
@@ -154,7 +157,7 @@ var builtinManifests = []Manifest{
 		// InMenu:false 合并语义）。办公侧承接入口保留：文件面 .gsched 摘要卡、命令面板项、
 		// 右栏一级 Tab（ScheduleTool）。与前端 manifests.ts 同步翻，防 normalizeManifests
 		// 后端字段优先导致真机/浏览器分裂。
-		MenuOrder: 12, InMenu: Bool(true),
+		MenuOrder: 13, InMenu: Bool(true),
 		Space:        SpaceWork, // 工位·进度计划
 		FeatureModel: "schedule",
 	},
@@ -185,7 +188,7 @@ var builtinManifests = []Manifest{
 		ID: "runtime", Label: "运行监测", Icon: "GaeaRuntime",
 		Page: "RuntimePage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 14, InMenu: Bool(true),
+		MenuOrder: 15, InMenu: Bool(true),
 		Space:    SpaceShared, // 两空间共用（监测的是同一台机器）
 		Bindings: []string{"ModelB"},
 	},
@@ -211,10 +214,10 @@ func Builtins() []Board {
 	return out
 }
 
-// CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
-// knowledge 是 D7 独立板块，见 BuiltinManifests）。sin 已退役并整体删除
+// CanonicalIDs 返回 canonical 业务板块的 id（验收断言用）。sin 与 knowledge
+// 均已退役并整体删除
 // （2026-10-27 撤导航、2026-11-15 拍板全删：SinB 门面/功能绑定/前端同步拆除）。
 // novel 同日退役（板块+NovelB 门面+功能绑定全拆），文学板块接替其一级导航位。
 func CanonicalIDs() []string {
-	return []string{"chat", "imagegen", "gaea", "cost", "code", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "wenxue", "runtime"}
+	return []string{"chat", "imagegen", "gaea", "cost", "proposal", "code", "pantheon", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "wenxue", "runtime"}
 }

@@ -26,7 +26,7 @@ type ScoredDoc struct {
 }
 
 // MaxResults 是单次检索返回结果数的硬上限（T7-3：防全量返回）。调用方即使把
-// topK 传成全部文档数（如 knowledge.Search 传 len(candidates)），结果也不会
+// topK 传成全部文档数（调用方传 len(candidates)），结果也不会
 // 超过该值，避免大库全量返回。
 const MaxResults = 100
 

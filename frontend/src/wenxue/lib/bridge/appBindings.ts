@@ -19,6 +19,7 @@ import type { ImageBindings } from "./image";
 import type { CharLibBindings } from "./charlib";
 import type { CadBindings } from "./cad";
 import type { PantheonBindings } from "./pantheon";
+import type { ProposalBindings } from "./proposal";
 import type { WenxueExtraBindings } from "./wenxue";
 
 export interface AppBindings
@@ -33,4 +34,5 @@ export interface AppBindings
     CharLibBindings,
     CadBindings,
     PantheonBindings,
+    ProposalBindings,
     WenxueExtraBindings {}

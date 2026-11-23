@@ -63,6 +63,7 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		scheduleGet{workDir: w.Dir},
 		scheduleApply{workDir: w.Dir, roots: roots},
 		scheduleAnalyze{workDir: w.Dir},
+		proposalSaveTool{workDir: w.Dir}, // source_file 相对路径按工作区解析
 	}
 	if len(enabled) == 0 {
 		return all

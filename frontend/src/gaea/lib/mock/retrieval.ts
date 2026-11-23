@@ -33,18 +33,18 @@ interface EvalRow {
 
 // docs/retrieval-eval-set.md 的 12 条真实查询（kind:name 化）。
 const RETRIEVAL_EVAL_SET: EvalRow[] = [
-  { query: "打桩设备 台班价", expected: ["cost:HP300 高频液压振动锤", "cost:桩机台班费"], topHits: ["cost:HP300 高频液压振动锤", "cost:桩机台班费", "knowledge:桩基检测规范要点"] },
+  { query: "打桩设备 台班价", expected: ["cost:HP300 高频液压振动锤", "cost:桩机台班费"], topHits: ["cost:HP300 高频液压振动锤", "cost:桩机台班费", "office:桩基检测规范要点"] },
   { query: "P.O 42.5 水泥 价格", expected: ["cost:P.O 42.5 水泥", "file:docs/材料价格信息价.md"], topHits: ["cost:P.O 42.5 水泥", "file:docs/材料价格信息价.md", "file:docs/成本测算.xlsx"] },
-  { query: "振动锤选型要点", expected: ["knowledge:振动锤选型要点", "office:桩基施工-振动锤选型"], topHits: ["knowledge:振动锤选型要点", "file:docs/桩基施工方案.md", "knowledge:桩基检测规范要点"] },
-  { query: "投标文件格式要求", expected: ["knowledge:投标文件格式要求", "file:docs/投标文件模板.md"], topHits: ["knowledge:投标文件格式要求", "file:docs/投标文件模板.md", "office:项目-投标文件"] },
+  { query: "振动锤选型要点", expected: ["office:振动锤选型要点", "office:桩基施工-振动锤选型"], topHits: ["office:振动锤选型要点", "file:docs/桩基施工方案.md", "office:桩基检测规范要点"] },
+  { query: "投标文件格式要求", expected: ["office:投标文件格式要求", "file:docs/投标文件模板.md"], topHits: ["office:投标文件格式要求", "file:docs/投标文件模板.md", "office:项目-投标文件"] },
   { query: "挖掘机 220 台班 租赁价", expected: ["cost:挖掘机 220 台班"], topHits: ["cost:挖掘机 220 台班", "cost:桩机台班费"] },
-  { query: "三轴搅拌桩 水泥掺量 20%", expected: ["knowledge:三轴水泥搅拌桩工艺要点", "cost:桩机台班费"], topHits: ["knowledge:三轴水泥搅拌桩工艺要点", "cost:桩机台班费", "knowledge:抗浮设计要点"] },
-  { query: "地下室抗浮水位 设计要求", expected: ["office:项目-地下室抗浮水位", "knowledge:抗浮设计要点"], topHits: ["knowledge:抗浮设计要点", "file:docs/基坑设计说明.md"] },
-  { query: "桩基检测 低应变 规范", expected: ["knowledge:桩基检测规范要点"], topHits: ["knowledge:桩基检测规范要点", "knowledge:桩基施工要点"] },
+  { query: "三轴搅拌桩 水泥掺量 20%", expected: ["office:三轴水泥搅拌桩工艺要点", "cost:桩机台班费"], topHits: ["office:三轴水泥搅拌桩工艺要点", "cost:桩机台班费", "office:抗浮设计要点"] },
+  { query: "地下室抗浮水位 设计要求", expected: ["office:项目-地下室抗浮水位", "office:抗浮设计要点"], topHits: ["office:抗浮设计要点", "file:docs/基坑设计说明.md"] },
+  { query: "桩基检测 低应变 规范", expected: ["office:桩基检测规范要点"], topHits: ["office:桩基检测规范要点", "office:桩基施工要点"] },
   { query: "螺纹钢 HRB400 价格", expected: ["cost:螺纹钢 HRB400"], topHits: ["cost:螺纹钢 HRB400", "cost:螺纹钢 HRB400E", "file:docs/材料价格信息价.md"] },
   { query: "C30 泵送混凝土 单价", expected: ["cost:泵送商品混凝土 C30"], topHits: ["cost:泵送商品混凝土 C30", "cost:商品混凝土 C30（泵送）", "file:docs/材料价格信息价.md"] },
-  { query: "清单计价 综合单价 组成", expected: ["knowledge:综合单价组成"], topHits: ["knowledge:综合单价组成", "knowledge:清单计价规范要点"] },
-  { query: "土方开挖 放坡 安全要求", expected: ["knowledge:土方开挖放坡要求", "office:项目-土方开挖方案"], topHits: ["knowledge:土方开挖放坡要求", "office:项目-土方开挖方案", "file:docs/基坑支护方案.md"] },
+  { query: "清单计价 综合单价 组成", expected: ["office:综合单价组成"], topHits: ["office:综合单价组成", "office:清单计价规范要点"] },
+  { query: "土方开挖 放坡 安全要求", expected: ["office:土方开挖放坡要求", "office:项目-土方开挖方案"], topHits: ["office:土方开挖放坡要求", "office:项目-土方开挖方案", "file:docs/基坑支护方案.md"] },
 ];
 
 // evalHitMatched / evalRecall：与 Go evalHitMatched / evalRecall 同规则。
@@ -84,7 +84,7 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
           text: "HP300 高频液压振动锤（300kW） 单位台班 单价3200元 分类机械 来源市场询价",
         },
         {
-          kind: "knowledge", name: "桩基-施工要点", score: 0.71,
+          kind: "office", name: "桩基-施工要点", score: 0.71,
           text: "桩基施工要点 工程案例 振动锤选型需匹配地质条件…",
         },
       ];

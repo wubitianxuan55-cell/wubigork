@@ -15,25 +15,25 @@ import (
 )
 
 // TestFilterRegistryStripsPersistentWrites 回归：子代理注册表必须剔除
-// 持久化写入工具（cost_save/remember/forget/knowledge_add/promote_session_facts/
-// install_skill），防止子代理在 headless 审批通道上静默写入成本库/记忆/知识库/技能。
+// 持久化写入工具（cost_save/remember/forget/promote_session_facts/
+// install_skill），防止子代理在 headless 审批通道上静默写入成本库/记忆/技能。
 // T6-2.5：剔除依据是工具注册表的 PersistWrite 标记，不再是手写清单。
 func TestFilterRegistryStripsPersistentWrites(t *testing.T) {
 	reg := tool.NewRegistry()
 	forbidden := map[string]bool{
 		"cost_save": true, "remember": true, "forget": true,
-		"knowledge_add": true, "promote_session_facts": true, "install_skill": true,
+		"promote_session_facts": true, "install_skill": true,
 	}
 	for _, name := range []string{
 		"bash", "read_file", "memory_search",
-		"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill",
+		"cost_save", "remember", "forget", "promote_session_facts", "install_skill",
 	} {
 		reg.Add(fakeTool{name: name, persistWrite: forbidden[name]})
 	}
 	sub := FilterRegistry(reg, nil, SubagentMetaTools()...)
 	names := sub.Names()
 	for _, forbidden := range []string{
-		"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill",
+		"cost_save", "remember", "forget", "promote_session_facts", "install_skill",
 	} {
 		if _, ok := sub.Get(forbidden); ok {
 			t.Fatalf("子代理注册表不应包含持久化写入工具 %q（names=%v）", forbidden, names)
@@ -324,18 +324,13 @@ func TestPersistWriteSetMatchesLegacySix(t *testing.T) {
 	} else {
 		t.Fatal("cost_save 未注册为内置工具")
 	}
-	if kt, ok := tool.LookupBuiltin("knowledge_add"); ok {
-		reg.Add(kt)
-	} else {
-		t.Fatal("knowledge_add 未注册为内置工具")
-	}
 
 	got := reg.PersistWriteNames()
-	want := []string{"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill"}
+	want := []string{"cost_save", "remember", "forget", "promote_session_facts", "install_skill"}
 	sort.Strings(got)
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("持久化写工具集合 = %v, want %v（现有 6 项集合必须保持不变）", got, want)
+		t.Fatalf("持久化写工具集合 = %v, want %v（现有 5 项集合必须保持不变）", got, want)
 	}
 }
 

@@ -34,7 +34,6 @@ var pantheonGrokWorkspaceTools = []string{
 }
 
 var pantheonGrokOfficeReadTools = map[string]bool{
-	"knowledge_search": true,
 	"memory_search":    true,
 	"fact_list":        true,
 	"web_search":       true,
@@ -93,7 +92,7 @@ func pantheonGrokSystemPrompt(toolNames []string) string {
 	names := append([]string(nil), toolNames...)
 	sort.Strings(names)
 	return `你是 Gaea 众神殿的 Grok 席位，由 Gaea 办公 AgentRunner 驱动，不是裸模型对话。
-你可以使用当前注册表中的 Gaea 只读工具核验工作空间、项目文档、知识库、记忆与本地事实，需要领域规范或数据口径时用 read_skill 按需加载。只在与当前议题直接相关时调用工具，并说明证据来自哪个工具或结果。
+你可以使用当前注册表中的 Gaea 只读工具核验工作空间、项目文档、方案库、记忆与本地事实，需要领域规范或数据口径时用 read_skill 按需加载。只在与当前议题直接相关时调用工具，并说明证据来自哪个工具或结果。
 禁止写文件、改配置、安装软件、启动副作用服务或读取凭证；不要声称执行了实际未发生的工具调用。模型内部推理不属于工具轨迹。
 
 当前可用工具：` + strings.Join(names, "、")
