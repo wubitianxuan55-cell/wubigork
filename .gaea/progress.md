@@ -21,6 +21,23 @@
   829,135,537 B `17646CD7…A9353`；三 DLL 同基线。PACKAGE-INFO+SHA256SUMS
   入库（docs 提交）。未装机未 push（装机会杀壳——旧壳 62656 还开着，先关再装）。
 
+## 装机 b1591b4d 同源壳+方案档沙箱走查（2026-11-23）
+
+- **构建装机**：旧壳已自行关闭（62656 不在，9333 释放），`gaea-prev-62656.exe`
+  已删；主树 HEAD 前端 Vite 31.18s + Wails 30.503s（bindings 未跳过）→
+  `build\bin\gaea.exe` 61,722,112 B → 冒烟 **200**（PID 51260 已回收）→
+  `gaea_install.ps1` **INSTALL OK**（exe+三 DLL 同装 C:\AI\gaea-app，构建时刻
+  13:01:56，桌面 gaea.lnk 已刷新）。
+- **方案档沙箱走查**（装机版壳 + `GAEA_WALKTHROUGH=1` + `GAEA_DATA_ROOT`
+  钉 Temp 沙箱 home，CDP 9333）：运行模式菜单三态 → 选「方案」chip 显方案 →
+  新建会话引擎按新档重建；绑定面回读 `configured/active=proposal`、
+  `hide=[cad_ask+cost 四件]`、`extras=[longform/review/soil 三技能]` 全对齐
+  compose 表。ModeLine 参照句正文锚由 TestProposalRunModeKnowledgeRef 钉死
+  （沙箱无引擎不跑回合，会话日志只落 .meta，提示词正文不上日志——判定以
+  单测锚+装配面回读为准）。走查后沙箱目录清场。
+- **收尾**：正式壳已拉起（PID 10904 @ C:\AI\gaea-app\gaea.exe，装机版）。
+  本机仍未 push（ahead 40）。
+
 ## 方案模式·参照知识库接线（2026-11-23）
 
 - **需求收敛**：用户最初提「方案模式增加方案库（参照索引导入的方案）」，三问拍板
