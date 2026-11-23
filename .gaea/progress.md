@@ -1,3 +1,49 @@
+## Bloom 星河/输入玻璃跨板块统一·办公/文学/聊天根修（2026-11-23）
+
+- **反馈复现**：银河属性、330 个星尘节点和设置均正常；系统当前
+  `prefers-reduced-motion=reduce`，只有 270 个 `opacity:.4` 静态星点，
+  而流星按上游规则隐藏。用户启用 Windows“动画效果”后，办公页恢复 40 流星，
+  但文学板仍整页无星；WebView2 已实测 `prefers-reduced-motion=no-preference`。
+- **包级对照**：用 `GAEA_WALKTHROUGH` 同一沙箱、同一系统设置分别启动昨天
+  `555eda3e` 与今天 `b1591b4d` payload，强制“磨砂 + 漫天星辰”。前者的静态
+  星海可见，后者整片消失；改回 `.gaea-app-layout` 透明后，`b1591b4d` 包立即
+  恢复昨天视觉，证明不是星尘生成器或系统设置单因。
+- **上游证据**：`dsh-bloom-theme origin/main bd3e93f` 的
+  `.dsh-bloom-sparkles` 固定 `z-index:-1`，装饰只垫在内容背后；减少动态只把
+  星点改静态 `.4`，流星全部隐藏，不生成冻结流星。因此不能把星河提上层。
+- **根因**：凌晨 `b917ed6d` 的“路由表面契约”把
+  `.gaea-app-layout` 自身也列入 `--gaea-material-fill` + sheen + blur。
+  全量动效时流明亮度尚能穿透；减少动态的静态细点被整页材质与 sheen 压没。
+- **根修**：从路由材质 `:is()` 列表移除 `.gaea-app-layout`；再补一条高特异性
+  `.page-enter .gaea-app-layout.ant-layout` 非实底透明规则。原因是文学页 CSS
+  懒加载晚于全局外观文件，会重新写入 `background: var(--gaea-aurora-bg)`；
+  路由可同时保留多个板块 DOM，办公隐藏 layout 透明并不代表文学活动 layout
+  透明。页面根、工作区、面板和卡片仍按原契约使用玻璃材质。
+  星尘保持上游式 `z-index:0`（本地隔离壳内对应上游 `-1`）位于内容背后，
+  不新增任何假的星轨或强制动效。架构测试锁定 `:is()` 材质列表不得重新纳入
+  `.gaea-app-layout`，并锁定文学式懒加载后仍生效的透明规则。
+- **输入玻璃二次复现**：办公 composer 为透明填充 + shell sheen + 当前材质
+  filter；文学空会话卡被懒加载 CSS 刷成 94% 实底、输入行 96%、工具条 92%，
+  聊天 `.chat-composer` 则被刷成 `--chat-surface-raised` 实底且
+  `backdrop-filter:none`。三块视觉确实不一致。
+- **输入玻璃根修**：文学空会话 composer/input/toolbar 与聊天
+  `.chat-composer.gaea-glass-shell` 改消费 `--gaea-shell-composer-fill`、
+  `--gaea-shell-sheen`、`--gaea-shell-filter`、`--gaea-shell-edge/shadow`；
+  聚焦态统一到 accent/focus/raised。文学保留办公式 16px 输入卡，聊天保留自身
+  760px 输入岛与 18px 圆角，只统一材质，不改布局。
+- **验证**：外观/store/设置定向 **3 文件 32/32**、`tsc -b` 0、改动面 ESLint 0；
+  前端 `npm.cmd run build` 24.98s；UCRT64 Wails 31.455s（bindings 未跳过）；
+  正式路径 `/api/health` **200**。
+- **装机实拍**：`C:\AI\gaea-app\gaea.exe` SHA256
+  `F5B6368D987034DF1B0892E18BC6BBF44691893A735A240B47C14111FF42C491`，
+  build/bin 与装机位同哈希；INSTALL OK，PID 9884 启动于 14:05:20 >
+  构建 14:05:13。装机版文学页实测 `prefers-reduced-motion=no-preference`、
+  活动 `.gaea-app-layout` 背景/背景图/滤镜均为 none、`stardustZ=0`、
+  40 流星；截图确认星河与流星穿过文学工作区。办公/文学/聊天三套输入面逐项
+  计算样式对比：background/background-image/backdrop-filter/box-shadow/border
+  全部相等；当前 veil 材质实测三者均为 58% + blur24。
+- **边界**：源码改动未提交、未 push；本轮不抬产品版本。
+
 ## 树上在途件全收口·四笔提交+包 gaea-20261123-b1591b4d（2026-11-23）
 
 - **背景**：方案档接线批后用户拍板「未提交的文件一起构建提交」——77 件全盘点。

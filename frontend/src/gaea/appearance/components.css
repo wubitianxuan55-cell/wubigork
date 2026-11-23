@@ -316,6 +316,9 @@ body::after {
  * glows, but must not paint an opaque canvas over the rail/strip/composer
  * material. Page CSS is lazy-loaded, so these selectors deliberately outrank
  * single-class board rules and repeat the same material tokens everywhere.
+ * The viewport-level .gaea-app-layout stays transparent: material on that
+ * pass-through becomes an extra full-page layer above the stardust and makes
+ * the static reduced-motion field disappear.
  *
  * The contract only activates for veil/matte/liquid. Solid mode deliberately
  * keeps each board's original opaque layout.
@@ -325,6 +328,18 @@ body::after {
   background-image: none !important;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+/*
+ * Board CSS is lazy-loaded after this file. Wenxue in particular restores
+ * `background: var(--gaea-aurora-bg)` on the app layout, which covers the
+ * stardust again unless the transparent pass-through outranks that rule.
+ */
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter .gaea-app-layout.ant-layout {
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 :root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter .gaea-app-layout > .layout {
@@ -337,7 +352,6 @@ body::after {
 :root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter :is(
   .v3-panel,
   .v3-card,
-  .gaea-app-layout,
   .chat-main,
   .chat-topic-sidebar,
   .chat-inspector,
@@ -1134,6 +1148,54 @@ body::after {
 }
 
 .gaea-app-layout .office-composer-card:focus-within {
+  border-color: var(--gaea-accent-line) !important;
+  box-shadow: var(--gaea-shadow-focus), var(--gaea-shadow-raised) !important;
+}
+
+/*
+ * Wenxue's lazy-loaded UI restores an opaque office composer after the shared
+ * shell rules. Keep its empty-state composer, input row and toolbar on the same
+ * material tokens as the office board so switching boards does not change the
+ * glass treatment.
+ */
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .chat-pane.office-chat-empty .office-composer-card {
+  border-color: var(--gaea-line-soft) !important;
+  border-radius: 16px !important;
+  background-color: var(--gaea-shell-composer-fill) !important;
+  background-image: var(--gaea-shell-sheen) !important;
+  box-shadow: var(--gaea-shell-edge), var(--gaea-shell-shadow) !important;
+  backdrop-filter: var(--gaea-shell-filter) !important;
+  -webkit-backdrop-filter: var(--gaea-shell-filter) !important;
+}
+
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-chat-empty .office-composer-input-row {
+  background: var(--gaea-shell-input-fill) !important;
+}
+
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-chat-empty .office-composer-toolbar {
+  background: var(--gaea-shell-toolbar-fill) !important;
+}
+
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .chat-pane.office-chat-empty .office-composer-card:focus-within {
+  border-color: var(--gaea-accent-line) !important;
+  box-shadow: var(--gaea-shadow-focus), var(--gaea-shadow-raised) !important;
+}
+
+/*
+ * Chat's lazy-loaded workspace stylesheet owns a separate composer shape.
+ * Keep that layout, but make its input island consume the same shell material
+ * as the office composer instead of painting an opaque raised surface.
+ */
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter .chat-composer.gaea-glass-shell {
+  border-color: var(--gaea-line-soft) !important;
+  background-color: var(--gaea-shell-composer-fill) !important;
+  background-image: var(--gaea-shell-sheen) !important;
+  box-shadow: var(--gaea-shell-edge), var(--gaea-shell-shadow) !important;
+  backdrop-filter: var(--gaea-shell-filter) !important;
+  -webkit-backdrop-filter: var(--gaea-shell-filter) !important;
+}
+
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .gaea-shell-content .page-enter .chat-composer.gaea-glass-shell:focus-within {
   border-color: var(--gaea-accent-line) !important;
   box-shadow: var(--gaea-shadow-focus), var(--gaea-shadow-raised) !important;
 }

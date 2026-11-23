@@ -102,6 +102,10 @@ describe('gaea 四层外观架构', () => {
   it('所有一级板块根表面继承同一套玻璃材质契约', () => {
     const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
     const pageCss = readFileSync(join(frontendRoot, 'pages/GaeaPage.tsx'), 'utf8')
+    const routeContract = components.slice(components.indexOf('Route surface contract'))
+    const materialList = routeContract.match(
+      /:is\(([\s\S]*?)\)\s*\{\s*background-color: var\(--gaea-material-fill\)/,
+    )?.[1]
     expect(pageCss).toContain("import '../gaea/appearance/components.css'")
     expect(components).toContain('.page-enter > div')
     expect(components).toContain(':not([data-gaea-surface="solid"])')
@@ -109,6 +113,10 @@ describe('gaea 四层外观架构', () => {
     expect(components).toContain('background-color: var(--gaea-material-fill) !important')
     expect(components).toContain('background-image: var(--gaea-shell-sheen) !important')
     expect(components).toContain('backdrop-filter: var(--gaea-material-filter) !important')
+    expect(components).toContain(
+      '.page-enter .gaea-app-layout.ant-layout',
+    )
+    expect(materialList).not.toContain('.gaea-app-layout')
     for (const root of [
       '.chat-main',
       '.office-sidebar',
@@ -152,6 +160,19 @@ describe('gaea 四层外观架构', () => {
     expect(materials).toContain('--gaea-material-filter: blur(12px) saturate(1.02)')
     expect(materials).toContain(':root[data-gaea-surface="soft"]')
     expect(materials).toContain('--gaea-material-filter: blur(3px) url("#gaea-liquid-lens") saturate(1.2)')
+  })
+
+  it('文学与聊天输入面复用办公板块的 composer 材质', () => {
+    const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
+    expect(components).toContain(
+      '.wx-root .gaea-app-layout .chat-pane.office-chat-empty .office-composer-card',
+    )
+    expect(components).toContain('.chat-composer.gaea-glass-shell')
+    expect(components).toContain('background-color: var(--gaea-shell-composer-fill) !important')
+    expect(components).toContain('background-image: var(--gaea-shell-sheen) !important')
+    expect(components).toContain('backdrop-filter: var(--gaea-shell-filter) !important')
+    expect(components).toContain('background: var(--gaea-shell-input-fill) !important')
+    expect(components).toContain('background: var(--gaea-shell-toolbar-fill) !important')
   })
 
   it('表面色阶随主题分五层，面板消费同色族三种色相层', () => {
