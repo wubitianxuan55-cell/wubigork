@@ -59,6 +59,11 @@ var (
 	programmingWebPortOpenFn       = programmingWebPortOpen
 	programmingWebPIDAliveFn       = programmingWebPIDAlive
 	programmingWebReleaseTrackedFn = proc.ReleaseTracked
+	// 遗孤回收判定缝（2026-11-23 根修）：netstat/PowerShell 探针与树杀
+	// 动作均可在单测里替换。
+	programmingWebPortOwnerFn = programmingWebPortOwner
+	programmingWebIsOurPIDFn  = programmingWebIsOurWebPID
+	programmingWebKillTreeFn  = func(pid int) error { return killProcessTree(pid) }
 )
 
 type programmingWebSession struct {
@@ -115,6 +120,63 @@ func programmingWebPortOpen() bool {
 	}
 	_ = conn.Close()
 	return true
+}
+
+// waitPortReleased 阻塞等端口释放（上限 timeout；100ms 步进）。
+func waitPortReleased(timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for programmingWebPortOpenFn() && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// programmingWebPortOwner 探测 3091 监听者的 PID（netstat -ano 解析；
+// 0=未知/未找到）。只在端口冲突的冷路径调用。
+func programmingWebPortOwner() int {
+	cmd := exec.Command("netstat", "-ano", "-p", "tcp")
+	proc.HideWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	return parseNetstatListenPID(string(out), programmingWebPort)
+}
+
+// parseNetstatListenPID 从 netstat -ano 输出解析本机 IPv4 监听 port 的 PID
+// （纯函数，单测锚点；0=未找到）。
+func parseNetstatListenPID(out string, port int) int {
+	needle := fmt.Sprintf("127.0.0.1:%d", port)
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		// 形态：TCP  local  foreign  state  pid（LISTENING 行）。
+		if len(fields) >= 5 && strings.HasPrefix(fields[1], needle) && strings.EqualFold(fields[3], "LISTENING") {
+			if pid, err := strconv.Atoi(fields[4]); err == nil {
+				return pid
+			}
+		}
+	}
+	return 0
+}
+
+// programmingWebIsOurWebPID 判定 PID 是否本仓 dsh web 进程（遗孤回收判据）：
+// 命令行同时含 本根路径 + dsh web 入口 + 本端口参数。经 .bin 垫片启动的命令行
+// 是 `…\.bin\..\@deepseek-ai\dsh\lib\bin.js` 形态，故入口匹配用后缀段而非完整
+// 绝对路径；双反斜杠塌缩后比对。冷路径（仅端口被占时），PowerShell 探一次。
+func programmingWebIsOurWebPID(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	script := fmt.Sprintf(`(Get-CimInstance Win32_Process -Filter 'ProcessId=%d').CommandLine`, pid)
+	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script)
+	proc.HideWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) == "" {
+		return false
+	}
+	low := strings.ReplaceAll(strings.ToLower(string(out)), `\\`, `\`)
+	return strings.Contains(low, strings.ToLower(programmingWebRoot())+`\`) &&
+		strings.Contains(low, `@deepseek-ai\dsh\lib\bin.js`) &&
+		strings.Contains(low, fmt.Sprintf("--port %d", programmingWebPort))
 }
 
 func programmingWebPIDAlive(pid int) bool {
@@ -429,8 +491,25 @@ func (a *App) StartProgrammingWeb() error {
 		return nil
 	}
 	if programmingWebPortOpenFn() {
-		programmingWebMu.Unlock()
-		return fmt.Errorf("端口 %d 已被非 gaea 实例占用；为避免与桌面版或外部 Web 冲突，请先停止该进程", programmingWebPort)
+		// 2026-11-23 根修「窗口被占用」：内嵌模式的 node 不写会话文件，壳被
+		// 强杀（taskkill/崩溃）时经 cmd 中间层的它会活成遗孤占住端口，
+		// adopt 不了、启动报错。占用者若是本仓 dsh web 遗孤（命令行=本根
+		// 入口+本端口）→ 自动回收再启动；异进程仍诚实拒绝（附 PID）。
+		if pid := programmingWebPortOwnerFn(); pid > 0 && programmingWebIsOurPIDFn(pid) {
+			slog.Info("回收自家 DSH Web 遗孤进程", "pid", pid)
+			if err := programmingWebKillTreeFn(pid); err != nil {
+				slog.Warn("遗孤回收失败", "pid", pid, "error", err)
+			}
+			waitPortReleased(2 * time.Second)
+		}
+		if programmingWebPortOpenFn() {
+			holder := programmingWebPortOwnerFn()
+			programmingWebMu.Unlock()
+			if holder > 0 {
+				return fmt.Errorf("端口 %d 已被进程 %d 占用；为避免与桌面版或外部 Web 冲突，请先停止该进程", programmingWebPort, holder)
+			}
+			return fmt.Errorf("端口 %d 已被非 gaea 实例占用；为避免与桌面版或外部 Web 冲突，请先停止该进程", programmingWebPort)
+		}
 	}
 	programmingWebStarting = true
 	programmingWebMu.Unlock()
