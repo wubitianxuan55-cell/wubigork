@@ -1154,11 +1154,11 @@ body::after {
 
 /*
  * Wenxue's lazy-loaded UI restores an opaque office composer after the shared
- * shell rules. Keep its empty-state composer, input row and toolbar on the same
- * material tokens as the office board so switching boards does not change the
- * glass treatment.
+ * shell rules. Keep every conversation state's composer, input row and toolbar
+ * on the same material tokens as the office board so switching boards does not
+ * change the glass treatment.
  */
-:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .chat-pane.office-chat-empty .office-composer-card {
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-composer-card {
   border-color: var(--gaea-line-soft) !important;
   border-radius: 16px !important;
   background-color: var(--gaea-shell-composer-fill) !important;
@@ -1168,15 +1168,15 @@ body::after {
   -webkit-backdrop-filter: var(--gaea-shell-filter) !important;
 }
 
-:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-chat-empty .office-composer-input-row {
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-composer-input-row {
   background: var(--gaea-shell-input-fill) !important;
 }
 
-:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-chat-empty .office-composer-toolbar {
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-composer-toolbar {
   background: var(--gaea-shell-toolbar-fill) !important;
 }
 
-:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .chat-pane.office-chat-empty .office-composer-card:focus-within {
+:root[data-gaea-surface]:not([data-gaea-surface="solid"]) .wx-root .gaea-app-layout .office-composer-card:focus-within {
   border-color: var(--gaea-accent-line) !important;
   box-shadow: var(--gaea-shadow-focus), var(--gaea-shadow-raised) !important;
 }

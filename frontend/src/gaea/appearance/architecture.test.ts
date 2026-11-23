@@ -165,7 +165,7 @@ describe('gaea 四层外观架构', () => {
   it('文学与聊天输入面复用办公板块的 composer 材质', () => {
     const components = readFileSync(join(frontendRoot, 'gaea/appearance/components.css'), 'utf8')
     expect(components).toContain(
-      '.wx-root .gaea-app-layout .chat-pane.office-chat-empty .office-composer-card',
+      '.wx-root .gaea-app-layout .office-composer-card',
     )
     expect(components).toContain('.chat-composer.gaea-glass-shell')
     expect(components).toContain('background-color: var(--gaea-shell-composer-fill) !important')
