@@ -1,6 +1,25 @@
 ## 开机动画重设计落地 + 新标全局替换 + 4K 底片（2026-11-24，用户拍板「logo选B，同步替换全局图标，开机动画要4K高清」）
 
-主代理（ZCode）独立完成；**未提交、未装机**；桌面构建已完成（见下方「桌面构建」）。效果图与生成原件见 `design/boot-animation-2026-11/`。
+主代理（ZCode）独立完成；**已提交 `6ad4916d` 并打包装机**（2026-11-24 下午，见下「打包装机」）；
+早期桌面构建 exe `8FD4BE09`（主树 build/bin，15:27）已被包版覆盖。效果图与生成原件见
+`design/boot-animation-2026-11/`（已随提交入库）。
+
+- **打包装机（2026-11-24 15:40~15:53，「git打包」令）**：收口提交 `6ad4916d`（43 文件
+  +2606/−535，含 design/ 入库与 `scripts/brand_icons.py`；仓根 `probe-memory-out.jsonl`
+  探针垃圾删除）→ 干净树 `.worktrees/pkg-6ad4916d`（detached，node_modules 主树 junction）
+  → Vite 45.93s + wails `1m4.597s`（bindings 未跳过，`git diff --ignore-cr-at-eol` 漂移 0）
+  → 包 `releases/gaea-boot-20261124-6ad4916d/`（payload 四件：exe `961C6812…A3933` +
+  三 DLL 与上一包逐字节同哈希；运行包 `E1F85F15…6EF0` / 源码包 `6CEC4AE7…B9C1`，
+  6969 文件）→ 正式路径冒烟 `/api/health` 200（用户壳在跑可并存；smoke.ps1 只回收自身
+  PID）→ **INSTALL OK：装机位 `C:\AI\gaea-app\gaea.exe` = 包版 `961C6812`，活体 PID
+  48844（15:53:28 > 构建）**。
+- **本轮打包坑**：① `gaea_install.ps1` 只装主树 `build/bin`——首装误装 15:27 的旧桌面
+  构建 `8FD4BE09`（与本提交同源码但非包版），把包版 exe 复制进 `build/bin` 后重装纠正，
+  装机必须以 `sha256sum C:\AI\gaea-app\gaea.exe` 终验；② `git archive -o` 的相对路径随
+  `-C` 解析，src.zip 落到仓根，移回包目录；③ Git Bash 无 `zip`，运行包用
+  `Compress-Archive` 代替；④ 用户壳在打包期间自行退出（PID 38260，15:47 还在），
+  smoke.ps1 经核实只 `Stop-Process` 自身 PID，与本线动作无关——装机因此无「关运行中
+  实例」阻碍。余项=真机看新开机动画（语音晚起回跳疑点实证）；push 待令。
 
 - **背景**：11-19 的「两张原画直用」是折中（用户澄清：当时做不出原画效果的动画），不是偏好；
   11-04 的程序化「轨道 + 等高线」已被否。本轮用户两次纠偏：视觉素材用 gaea 自己的生图，
