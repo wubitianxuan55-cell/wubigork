@@ -42,6 +42,9 @@ import (
 // 两轮之间被空闲收割器停机，预检不限于首轮；预检失败转 error 事件，绝不
 // 静默落进 connection refused → 故障转移换引擎。
 func (a *App) WenxueSend(input string) {
+	done := beginWenxueSend()
+	defer done()
+
 	wx.mu.Lock()
 	needBoot := wx.ctrl == nil
 	wx.mu.Unlock()
@@ -78,11 +81,14 @@ func (a *App) WenxueCancel() {
 	}
 }
 
-// WenxueRunning 报告图文引擎是否正在运行。
+// WenxueRunning 报告图文回合生命周期是否在途：包含 ctrl.Send 前的引擎预检/
+// 冷启动等待。前端 watchdog 用它区分“仍在启动”与“回合事件丢失”。
 func (a *App) WenxueRunning() bool {
 	wx.mu.Lock()
-	defer wx.mu.Unlock()
-	return wx.ctrl != nil && wx.ctrl.Running()
+	sending := wx.sends > 0
+	ctrl := wx.ctrl
+	wx.mu.Unlock()
+	return sending || (ctrl != nil && ctrl.Running())
 }
 
 // WenxueApprove 以决策串答复待批工具调用。

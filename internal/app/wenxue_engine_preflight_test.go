@@ -212,6 +212,14 @@ func TestWenxueEnsureEngine_DispatchErrors(t *testing.T) {
 	if cold, err := a.wenxueEnsureEngine("xai", "grok-4.7"); err != nil || cold {
 		t.Fatalf("云端 = (cold=%v, err=%v), want (false,nil)", cold, err)
 	}
+
+	originalProbe := strataPreflightProbe
+	t.Cleanup(func() { strataPreflightProbe = originalProbe })
+	strataPreflightProbe = func() ([]string, bool) { return nil, false }
+	cold, err := a.wenxueEnsureEngine("strata", "qwen3.8-flash-next-uncensored")
+	if err == nil || cold || !strings.Contains(err.Error(), "已禁用请求内热启动") {
+		t.Fatalf("Strata 未运行 = (cold=%v, err=%v), want immediate explicit-start error", cold, err)
+	}
 }
 
 func TestWenxueLease_ProtectsEngineFromReaper(t *testing.T) {

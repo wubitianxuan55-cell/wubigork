@@ -5,7 +5,7 @@ package app
 // 三引擎各自的本地版本号与官方发布通道：
 //   - WHIRL: whirl-server.exe --version → "0.2.5.1"；官方 tsaipifong/whirl-llm
 //   - llama: llama-server.exe --version → "0.8.0-dev (build 1 …)"；官方 ggml-org/llama.cpp
-//   - Strata: engine\strata.exe --version → "0.1.56"；官方 Niko1221/Strata
+//   - Strata: engine\strata.exe --version → "0.1.66"；官方 Niko1221/Strata
 //
 // 官方侧统一走 GitHub releases/latest（免鉴权 60 次/小时，按钮触发+30 分钟
 // 内存缓存足够）。版本比较取首个点分数字段（剥 v 前缀/-dev 后缀）逐段比。
@@ -142,7 +142,7 @@ type engineUpdateResult struct {
 }
 
 // parseFirstVersion 从 --version 输出抓首个版本号（剥 v 前缀）。逐行扫描：
-// 每行先找点分号（whirl-server 0.2.5.1 / version: 0.8.0-dev / strata 0.1.56），
+// 每行先找点分号（whirl-server 0.2.5.1 / version: 0.8.0-dev / strata 0.1.66），
 // 整行无点分且带 version: 前缀时接受裸整数（llama.cpp 旧 b-number 形态）——
 // 防止 MSVC 19.44 之类构建器尾注被误抓。
 func parseFirstVersion(out string) string {

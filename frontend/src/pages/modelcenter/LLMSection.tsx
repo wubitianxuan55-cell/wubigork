@@ -116,7 +116,9 @@ export function LLMSection() {
                   const blocked = avail === 'disabled' || (!managedEngine && avail === 'disconnected')
                   const managedStarting = managedEngine && savingEngine === engine.id
                   const loading = managedStarting
-                  const loadingText = managedStarting ? '启动中…' : ''
+                  const loadingText = managedStarting
+                    ? (engine.id === 'strata' ? '预热中…' : '启动中…')
+                    : ''
                   // coding 端点套餐旧名自动切换注记（后端 alias_of，std 家族为空）
                   const aliasNote = glmAliasNote((engine.models || []).find(m => m.id === card.modelId))
                   // B 刀：模型元数据徽标（上下文/能力/价格；meta 缺失时不渲染不占位）
@@ -155,6 +157,9 @@ export function LLMSection() {
                           : avail === 'stopped'
                             ? <StatusChip key="stop" tone="warn">未启动</StatusChip>
                             : null,
+                        engine.id === 'strata' && !active
+                          ? <StatusChip key="cold-start" tone="warn">冷启动约 3 分钟</StatusChip>
+                          : null,
                         ctxText
                           ? <StatusChip key="ctx" title="上下文长度">{ctxText}</StatusChip>
                           : null,

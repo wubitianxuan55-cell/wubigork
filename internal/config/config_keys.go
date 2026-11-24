@@ -145,7 +145,8 @@ const (
 	KeyBreezeVoiceDesc = "breeze_voice_desc"
 	// tianxuan 独立引擎工作区：gaea 只引用该路径下的 scripts/serve.ps1。
 	KeyTianxuanPath = "tianxuan_path"
-	// strata 独立引擎工作区：gaea 只引用该路径下的 serve/server.py 与档位配置。
+	// strata 独立引擎工作区：gaea 引用 terminal/serve/server.py（旧 serve/server.py
+	// 兼容）与档位配置。
 	KeyStrataPath = "strata_path"
 	// whirl 引擎安装目录：gaea 只引用该路径下的 whirl-server.exe（DLL 同驻）。
 	KeyWhirlPath = "whirl_path"

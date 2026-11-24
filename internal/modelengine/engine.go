@@ -46,7 +46,7 @@ const (
 	// 全局离线模式下与其他云端引擎一致被门控）。
 	EngineCustom EngineType = "custom"
 	// EngineStrata 本地 Strata 推理引擎（Windows/Strix Halo gfx1151 路径实测）：
-	// 开源推理引擎（独立项目 C:\AI\strata\repo），暴露
+	// 开源推理引擎（独立项目 C:\AI\gaea-ENGINES\strata\repo），暴露
 	// OpenAI/Anthropic 兼容 /v1（免鉴权，任意 Key/空 Key 均可）。注意其
 	// /v1/models 的 status 字段是非标对象（{"value":"loaded"}），解码走
 	// engine_models.go 的 flexStatus 宽容层。默认端口 8091（8080 是 herdsman）。
@@ -306,8 +306,8 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Color:   "#34d399",
 		Icon:    "desktop",
 		IsLocal: true,
-		// Strata 开源推理引擎（独立项目 C:\AI\strata\repo；gaea 侧档位目录
-		// 只留 qwen3.6-35b-a3b-uncensored-q4_k_p 一档，见 app/strata_proc.go）。
+		// Strata 开源推理引擎（独立项目 C:\AI\gaea-ENGINES\strata\repo；gaea 侧
+		// 只保留 qwen3.8-flash-next-uncensored 冷启动档，见 app/strata_proc.go）。
 		// 8080 被 herdsman 占用，setup 装在 8091；免鉴权（Key 留空即不带
 		// Authorization 头）。模型清单随引擎加载状态变化，DefaultModel 留空
 		// 由刷新 /models 后取首个（TestConnection 同口径）。

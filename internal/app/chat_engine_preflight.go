@@ -13,8 +13,9 @@ import (
 // 先确保绑定引擎就绪。
 //
 // 与通用 routeModel 的关键差异：聊天一旦绑定了具体引擎/模型，进程未运行
-// 不能直接进入全局故障转移。自管 llama/Strata 由本层按需拉起；启动失败
-// 原样返回错误，让聊天界面显示“绑定模型未就绪”，而不是悄悄换成 xAI。
+// 不能直接进入全局故障转移。自管 llama 由本层按需拉起；Strata/Qwen 因冷启动
+// 太长必须先在模型中心显式预热。启动失败原样返回错误，让聊天界面显示“绑定
+// 模型未就绪”，而不是悄悄换成 xAI。
 func (a *App) resolveChatModelRoute() (engine, model, source string, err error) {
 	if a == nil || a.core == nil || a.cfg == nil {
 		return "", "", "", fmt.Errorf("聊天模型路由未初始化")
@@ -109,6 +110,11 @@ func (a *App) ensureChatBindingEngine(engineID, model string) error {
 		profile, ok := managedProfileForModel(strataProfiles, model)
 		if !ok {
 			return fmt.Errorf("模型 %s 不在 Strata 档位目录", model)
+		}
+		if strataColdStartOnly(profile.ID) {
+			if _, running := strataPreflightProbe(); !running {
+				return strataExplicitStartError(profile)
+			}
 		}
 		result := a.StrataEngineStart(profile.ID)
 		if started, _ := result["started"].(bool); started {

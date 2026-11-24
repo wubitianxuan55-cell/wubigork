@@ -43,11 +43,35 @@ type wenxueRuntime struct {
 	reloadMu sync.Mutex
 	ctrl     *control.Controller
 	wire     *gaeaEventForwarder
+	// sends 是本进程正在执行 WenxueSend 的请求数（含引擎预检/冷启动等待）。
+	// 前端 30s watchdog 会以 WenxueRunning 校准本地 running；预检期间 ctrl.Send
+	// 尚未开始、Running() 仍为 false，若不把在途发送计入，会把正在冷启动的回合
+	// 误判为结束（2026-11-24 文学板块 Strata 约 28s 后假停止）。
+	sends int
 	// followUp 子代理追问执行器（OnFollowUpReady 交给这里；语义同办公
 	// ga.followUp+followUpMu：构建回调写入与追问读取各持独立锁，不得复用
 	// mu——Build 位点回调与 mu 上的重建互斥是死锁源）。
 	followUp   gaeaAgent.SubagentFollowUpRunner
 	followUpMu sync.Mutex
+}
+
+// beginWenxueSend/endWenxueSend 标记一段发送（含最长 300s 的本地引擎冷启动
+// 预检）为在途。WenxueRunning 据此让前端 watchdog 在 turn_started 到达前
+// 保持“运行中”语义。
+func beginWenxueSend() func() {
+	wx.mu.Lock()
+	wx.sends++
+	wx.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			wx.mu.Lock()
+			if wx.sends > 0 {
+				wx.sends--
+			}
+			wx.mu.Unlock()
+		})
+	}
 }
 
 // wenxueCtrl 返回当前图文控制器（未初始化返回 nil）。

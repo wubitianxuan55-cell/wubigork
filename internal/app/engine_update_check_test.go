@@ -18,7 +18,7 @@ func TestParseFirstVersion(t *testing.T) {
 		{"whirl", "whirl-server 0.2.5.1 (WHIRL - Windows HIP Inference for RDNA LLMs)", "0.2.5.1"},
 		{"llama-dev", "version: 0.8.0-dev (build 1, commit f7c01c5)", "0.8.0"},
 		{"llama-bnum", "version: 4559 (3efa77d)\nbuilt with MSVC 19.44 for x64", "4559"},
-		{"strata", "strata 0.1.56", "0.1.56"},
+		{"strata", "strata 0.1.66", "0.1.66"},
 		{"v-prefix", "v1.2.3 release", "1.2.3"},
 		{"garbage", "no version here", ""},
 		{"empty", "", ""},
@@ -78,20 +78,20 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 	}
 
 	// 正常路径：本地落后于官方。strata 走组件版本口径（资产名抓 engine 版本，
-	// 不用 release tag 0.2.13——控制端与 engine 是两条版本序列）。
+	// 不用 release tag 0.2.20——控制端与 engine 是两条版本序列）。
 	engineVersionProbe = func(string) (string, error) {
-		return "strata 0.1.56\n", nil
+		return "strata 0.1.59\n", nil
 	}
 	engineUpdateFetchLatest = func(repo string) (string, string, string, []string, error) {
 		if repo != "Niko1221/Strata" {
 			return "", "", "", nil, fmt.Errorf("unexpected repo %q", repo)
 		}
 		assets := []string{
-			"Strata-0.2.13-windows-x64-setup.exe",
-			"strata-engine-0.1.59-windows-x86_64-hip-rdna3.tar.gz",
-			"strata-control-0.1.59-windows-x86_64.zip",
+			"Strata-0.2.20-windows-x64-setup.exe",
+			"strata-engine-0.1.66-windows-x86_64-hip-rdna3.tar.gz",
+			"strata-control-0.1.66-windows-x86_64.zip",
 		}
-		return "v0.2.13", "Strata 0.2.13", "https://github.com/Niko1221/Strata/releases/tag/v0.2.13", assets, nil
+		return "v0.2.20", "Strata 0.2.20", "https://github.com/Niko1221/Strata/releases/tag/v0.2.20", assets, nil
 	}
 	if err := os.MkdirAll(filepath.Join(a.cfg.StrataPath, "engine"), 0o755); err != nil {
 		t.Fatal(err)
@@ -101,11 +101,11 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 		t.Fatal(err)
 	}
 	res = a.EngineUpdateCheck("strata")
-	if got := res["local_version"]; got != "0.1.56" {
+	if got := res["local_version"]; got != "0.1.59" {
 		t.Fatalf("local_version = %v", got)
 	}
-	if got := res["latest_version"]; got != "0.1.59" {
-		t.Fatalf("latest_version = %v, want 0.1.59（engine 组件口径，非 tag 0.2.13）", got)
+	if got := res["latest_version"]; got != "0.1.66" {
+		t.Fatalf("latest_version = %v, want 0.1.66（engine 组件口径，非 tag 0.2.20）", got)
 	}
 	if res["has_update"] != true {
 		t.Fatalf("has_update = %v, want true", res["has_update"])
@@ -115,7 +115,7 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 	fetchCalls := 0
 	engineUpdateFetchLatest = func(string) (string, string, string, []string, error) {
 		fetchCalls++
-		return "v0.2.13", "", "", nil, nil
+		return "v0.2.20", "", "", nil, nil
 	}
 	_ = a.EngineUpdateCheck("strata")
 	_ = a.EngineUpdateCheck("strata")
@@ -129,7 +129,7 @@ func TestEngineUpdateCheck_InjectedProbes(t *testing.T) {
 		return "", "", "", nil, fmt.Errorf("HTTP 403")
 	}
 	res = a.EngineUpdateCheck("strata")
-	if res["local_version"] != "0.1.56" || res["error"] == "" {
+	if res["local_version"] != "0.1.59" || res["error"] == "" {
 		t.Fatalf("官方失败应保留本地版本并带 error: %#v", res)
 	}
 }

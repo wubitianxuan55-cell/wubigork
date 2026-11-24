@@ -59,9 +59,28 @@ func TestStrataEngineStatus_Shape(t *testing.T) {
 	if st["default_profile"] != "qwen38fn_flash" {
 		t.Fatalf("unexpected default profile: %v", st["default_profile"])
 	}
+	if st["auto_start"] != false || st["keep_resident"] != true || st["cold_start_seconds"] != strataColdStartSeconds {
+		t.Fatalf("cold-start lifecycle payload = %#v", st)
+	}
 	profiles, ok := st["profiles"].([]map[string]string)
 	if !ok || len(profiles) != len(strataProfiles) {
 		t.Fatalf("profiles payload = %#v", st["profiles"])
+	}
+}
+
+func TestStrataQwenKeepResident(t *testing.T) {
+	original := strataPreflightProbe
+	t.Cleanup(func() { strataPreflightProbe = original })
+
+	strataPreflightProbe = func() ([]string, bool) {
+		return []string{"qwen3.8-flash-next-uncensored"}, true
+	}
+	if !strataQwenKeepResident() {
+		t.Fatal("运行中的 Qwen3.8 应保持常驻")
+	}
+	strataPreflightProbe = func() ([]string, bool) { return nil, false }
+	if strataQwenKeepResident() {
+		t.Fatal("未运行的 Qwen3.8 不应被标记常驻")
 	}
 }
 
@@ -89,17 +108,31 @@ func TestStrataProjectPath_DefaultAndConfigured(t *testing.T) {
 }
 
 func TestStrataServeInvocation_ExternalProjectContract(t *testing.T) {
-	project := `C:\AI\strata\repo`
+	project := t.TempDir()
+	server := filepath.Join(project, strataServeEntryCurrent)
+	python := filepath.Join(project, strataPythonEntryCurrent)
+	if err := os.MkdirAll(filepath.Dir(server), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(python), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(server, []byte("server"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(python, []byte("python"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, profile := range []string{"qwen38fn_flash"} {
 		bin, argv, cfgPath, err := strataServeInvocation(project, profile, 8091)
 		if err != nil {
 			t.Fatalf("invocation(%s): %v", profile, err)
 		}
-		wantPython := filepath.Join(project, strataPythonEntry)
+		wantPython := python
 		if bin != wantPython {
 			t.Fatalf("launcher = %q, want %q", bin, wantPython)
 		}
-		wantServer := filepath.Join(project, strataServeEntry)
+		wantServer := server
 		if argv[0] != wantServer {
 			t.Fatalf("server arg = %q, want %q", argv[0], wantServer)
 		}
@@ -116,6 +149,31 @@ func TestStrataServeInvocation_ExternalProjectContract(t *testing.T) {
 		if !strings.HasPrefix(cfgPath, project) {
 			t.Fatalf("config outside project: %s", cfgPath)
 		}
+	}
+}
+
+func TestStrataServeInvocation_LegacyLayoutFallback(t *testing.T) {
+	project := t.TempDir()
+	server := filepath.Join(project, strataServeEntryLegacy)
+	python := filepath.Join(project, strataPythonEntryLegacy)
+	if err := os.MkdirAll(filepath.Dir(server), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(python), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(server, []byte("server"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(python, []byte("python"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin, argv, _, err := strataServeInvocation(project, "qwen38fn_flash", 8091)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bin != python || argv[0] != server {
+		t.Fatalf("legacy fallback = (%q, %q), want (%q, %q)", bin, argv[0], python, server)
 	}
 }
 

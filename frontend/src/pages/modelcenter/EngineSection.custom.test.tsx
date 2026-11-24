@@ -319,18 +319,20 @@ describe('EngineSection · 自定义引擎', () => {
 
 
 
-  it('⑦c Strata 生命周期：不再手动捆绑档位启动，只提示由功能绑定按需拉起', async () => {
+  it('⑦c Strata 生命周期：Qwen 冷启动必须显式预热并保持常驻', async () => {
     mStatusStrata.mockResolvedValue({
       running: false,
       default_profile: 'qwen38fn_flash',
+      auto_start: false,
+      cold_start_seconds: 180,
+      keep_resident: true,
       profiles: [
         { id: 'qwen38fn_flash', label: 'qwen3.8-flash-next-uncensored (UD-IQ4_XS)' },
       ],
     })
     renderSection()
     const strataCard = screen.getByText('Strata').closest('.mc-engine-card') as HTMLElement
-    // 按钮已不存在：先确认按需提示，再用 queryByRole 锁死零手动启动入口。
-    await waitFor(() => expect(within(strataCard).getByText(/按需启动 · 由功能绑定首次请求触发/)).toBeTruthy())
+    await waitFor(() => expect(within(strataCard).getByText(/冷启动约 3 分钟 · 请在语言模型列表显式启动；启动后保持常驻/)).toBeTruthy())
     expect(within(strataCard).queryByRole('button', { name: /启\s*动\s*档\s*位/ })).toBeNull()
     expect(within(strataCard).queryByLabelText('Strata档位')).toBeNull()
     expect(mStartStrata).not.toHaveBeenCalled()

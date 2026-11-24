@@ -20,9 +20,8 @@ package app
 //     只吃全局阈值会反复杀引擎导致每轮冷启动。
 //
 // 就绪等待预算沿用引擎自身口径：llama 冷启动 llamaEnsure 内部已等
-// qwen35StartWait（300s），strata/whirl 的 Start 同为 300s；本层补等的只是
-// 「他方正在拉起」的在途窗口，上限对齐 qwen35StartWait——到期时对方 ensure
-// 的自有等待必然已出结果（成功探活或自停）。
+// qwen35StartWait（300s），whirl Start 同为 300s；Strata/Qwen 因约 3 分钟
+// 专家缓存预填，已明确禁止请求内热启动，只能从模型中心显式预热后常驻。
 
 import (
 	"fmt"
@@ -133,8 +132,9 @@ func (a *App) wenxueResolveRoute() (engine, model string) {
 
 // wenxueEnsureEngine 托管本地引擎按需拉起（图文预算版）。冷启动先发
 // 「正在启动本地模型」phase（已在运行时静默）。llama 在 llamaEnsure 之上
-// 多一步在途补等；strata/whirl 的 Start 自带 300s 就绪等待，与聊天同构；
-// 云端与按需加载引擎（herdsman）沿用各自既有连接/加载链。
+// 多一步在途补等；whirl Start 自带 300s 就绪等待；Strata/Qwen 未运行则立即
+// 返回显式预热指引，不把三分钟冷启动塞进聊天请求。云端与按需加载引擎
+// （herdsman）沿用各自既有连接/加载链。
 func (a *App) wenxueEnsureEngine(engineID, model string) (bool, error) {
 	switch engineID {
 	case "llama":
@@ -172,7 +172,10 @@ func (a *App) wenxueEnsureEngine(engineID, model string) (bool, error) {
 			return false, fmt.Errorf("模型 %s 不在 Strata 档位目录", model)
 		}
 		cold := false
-		if _, running := strataProbe(); !running {
+		if _, running := strataPreflightProbe(); !running {
+			if strataColdStartOnly(profile.ID) {
+				return false, strataExplicitStartError(profile)
+			}
 			cold = true
 			a.emit(wenxueEventChannel, map[string]interface{}{"kind": "phase", "text": "正在启动本地模型"})
 		}

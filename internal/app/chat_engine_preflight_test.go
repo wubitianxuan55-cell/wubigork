@@ -115,6 +115,18 @@ func TestResolveChatModelRouteFailsInsteadOfGlobalFallbackWhenBoundEngineCannotS
 	}
 }
 
+func TestEnsureChatBindingEngine_StrataColdStartRequiresExplicitStart(t *testing.T) {
+	a := &App{core: &core{cfg: &config.Config{}}}
+	original := strataPreflightProbe
+	t.Cleanup(func() { strataPreflightProbe = original })
+	strataPreflightProbe = func() ([]string, bool) { return nil, false }
+
+	err := a.ensureChatBindingEngine("strata", "qwen3.8-flash-next-uncensored")
+	if err == nil || !strings.Contains(err.Error(), "已禁用请求内热启动") {
+		t.Fatalf("err = %v, want explicit cold-start guidance", err)
+	}
+}
+
 func TestChatPlainSystemPromptDeclaresGaeaIdentity(t *testing.T) {
 	if !strings.Contains(chatPlainSystemPrompt, "Gaea 桌面 AI 助手") {
 		t.Fatalf("chatPlainSystemPrompt 缺少 Gaea 身份: %q", chatPlainSystemPrompt)

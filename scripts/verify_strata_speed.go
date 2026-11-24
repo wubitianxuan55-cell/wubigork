@@ -30,8 +30,8 @@ import (
 
 const (
 	engineBase    = "http://127.0.0.1:8091/v1"
-	fallbackModel = "qwen3.8-flash-next-iq2_xs"
-	engineLog     = `C:\AI\strata\repo\strata-iq2_xs.log`
+	fallbackModel = "qwen3.8-flash-next-uncensored"
+	engineLog     = `C:\AI\gaea-ENGINES\strata\repo\strata-qwen38fn-flash.log`
 	runTimeout    = 10 * time.Minute
 )
 

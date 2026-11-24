@@ -386,6 +386,9 @@ export interface ManagedEngineStatusResult {
   other?: string
   stdout_log?: string
   stderr_log?: string
+  cold_start_seconds?: number
+  auto_start?: boolean
+  keep_resident?: boolean
 }
 
 export interface ManagedEngineStartResult {
@@ -438,7 +441,7 @@ export async function getStrataEngineStatus(): Promise<ManagedEngineStatusResult
   return result as ManagedEngineStatusResult
 }
 
-/** 启动 Strata 指定档位（现阶段仅 qwen38fn_flash 一档；幂等） */
+/** 显式启动 Strata Qwen3.8 档位（幂等；冷启动约 3 分钟） */
 export async function startStrataEngine(profile: string): Promise<ManagedEngineStartResult> {
   const result = await App().StrataEngineStart(profile)
   return result as ManagedEngineStartResult

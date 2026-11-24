@@ -69,6 +69,8 @@ export function LocalEngineLifecycle({ engineId, name, onRunningChange, external
   const [running, setRunning] = useState<boolean | null>(null)
   const [currentProfile, setCurrentProfile] = useState('')
   const [profiles, setProfiles] = useState<EngineProfileOption[]>(api.fallbackProfiles)
+  const [coldStartSeconds, setColdStartSeconds] = useState(engineId === 'strata' ? 180 : 0)
+  const [autoStart, setAutoStart] = useState(engineId !== 'strata')
   const [busy, setBusy] = useState(false)
   // 官方版本检查（2026-11-11 刀）：按钮触发，后端 30 分钟缓存；只告知不自动升级。
   const [updateInfo, setUpdateInfo] = useState<EngineUpdateCheckResult | null>(null)
@@ -90,6 +92,8 @@ export function LocalEngineLifecycle({ engineId, name, onRunningChange, external
         setRunningState(!!s.running)
         setCurrentProfile(s.profile ?? '')
         setProfiles(opts)
+        setColdStartSeconds(s.cold_start_seconds ?? 0)
+        setAutoStart(s.auto_start !== false)
       })
       .catch(() => {
         if (!alive) return
@@ -162,7 +166,11 @@ export function LocalEngineLifecycle({ engineId, name, onRunningChange, external
         {running ? (profileLabel ? `引擎运行中 · ${profileLabel}` : '引擎运行中') : '引擎已停止'}
       </StatusChip>
       {!running ? (
-        <span className="mc-engine-sub">按需启动 · 由功能绑定首次请求触发</span>
+        <span className="mc-engine-sub">
+          {autoStart
+            ? '按需启动 · 由功能绑定首次请求触发'
+            : `冷启动约 ${Math.max(1, Math.round(coldStartSeconds / 60))} 分钟 · 请在语言模型列表显式启动；启动后保持常驻`}
+        </span>
       ) : (
         <Popconfirm
           title={`停止${name}？`}

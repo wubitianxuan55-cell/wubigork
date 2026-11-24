@@ -2,7 +2,8 @@ package app
 
 // strata_proc.go — Strata 引擎（独立项目 C:\AI\gaea-ENGINES\strata\repo，8091）进程生命周期：
 // 状态探测 / 启动 / 停止。集成边界与天璇一致：gaea 只引用外部项目的
-// serve/server.py 与档位 JSON，不在 Go 常量里复制模型路径和引擎参数。
+// terminal/serve/server.py（0.2.16+ 布局；兼容旧 serve/server.py）与档位 JSON，
+// 不在 Go 常量里复制模型路径和引擎参数。
 // 停止走「启动器进程树 → 8091 监听 PID」两级路径，外部启动的实例也能停。
 
 import (
@@ -21,25 +22,74 @@ import (
 )
 
 const (
-	strataPort         = 8091
-	strataStartWait    = 300 * time.Second
-	strataProbeDial    = 1500 * time.Millisecond
-	strataServeEntry   = `serve\server.py`
-	strataPythonEntry  = `.venv\Scripts\python.exe`
-	strataStopWait     = 5 * time.Second
-	strataStopPollStep = 500 * time.Millisecond
+	strataPort               = 8091
+	strataStartWait          = 300 * time.Second
+	strataProbeDial          = 1500 * time.Millisecond
+	strataServeEntryCurrent  = `terminal\serve\server.py`
+	strataServeEntryLegacy   = `serve\server.py`
+	strataPythonEntryCurrent = `terminal\.venv\Scripts\python.exe`
+	strataPythonEntryLegacy  = `.venv\Scripts\python.exe`
+	strataColdStartSeconds   = 180
+	strataStopWait           = 5 * time.Second
+	strataStopPollStep       = 500 * time.Millisecond
 )
+
+// strataServeEntryPath 选择当前项目布局的 server.py。0.2.16 起控制端与
+// requirements/venv 移入 terminal/；保留旧布局探测，避免尚未升级的用户断链。
+// 两边都不存在时返回当前布局路径，让调用方按“文件缺失”如实报错。
+func strataServeEntryPath(project string) string {
+	current := filepath.Join(project, strataServeEntryCurrent)
+	if _, err := os.Stat(current); err == nil {
+		return current
+	}
+	legacy := filepath.Join(project, strataServeEntryLegacy)
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy
+	}
+	return current
+}
+
+// strataPythonPath 与 strataServeEntryPath 同口径：新布局 terminal\.venv 优先，
+// 旧根目录 .venv 兜底。
+func strataPythonPath(project string) string {
+	current := filepath.Join(project, strataPythonEntryCurrent)
+	if _, err := os.Stat(current); err == nil {
+		return current
+	}
+	legacy := filepath.Join(project, strataPythonEntryLegacy)
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy
+	}
+	return current
+}
 
 // strataProfiles 对齐 C:\AI\gaea-ENGINES\strata\repo 现有档位 JSON。
 // 8091 由 gaea 统一传入，JSON 里的 port 字段只作项目自身默认值。
-// 2026-11-04 用户拍板：现阶段只接 flash-next 档（tianxuan 遗产
-// qwen3.8-flash-next-uncensored，177B MoE Heretic 消融 UD-IQ4_XS 41 分片 +
-// mtp-rt 草稿层 + iq_pack，wrapper JSON 配方按 strata 官方 docs/AMD_HIP.md
-// flash-next HIP 档：--pack/--native shard1/--ple-gguf shard2 PLE 表/
-// --spec 4 --mtp rt/--kv int8）。35B uncensored 档删除（gguf 保留=llama 8124
-// 正在服务同一份文件；wrapper JSON 已删，复档可按 git 史重建）。
+// 2026-11-24 用户拍板：Inkling-2-Mini 删除；Strata 只保留 Qwen3.8。
+// Qwen 冷启动要预填 55.43GiB 专家缓存（实测约 175s），不适合请求内热启动：
+// 由模型中心显式启动，启动后常驻，直到用户手动停止。
 var strataProfiles = []engineProfileOption{
 	{ID: "qwen38fn_flash", Label: "qwen3.8-flash-next-uncensored (UD-IQ4_XS)", ModelID: "qwen3.8-flash-next-uncensored", Config: `strata-qwen38fn-flash.json`},
+}
+
+// strataPreflightProbe 供聊天/图文预检与空闲策略注入；生产直接探 8091。
+var strataPreflightProbe = strataProbe
+
+// strataColdStartOnly：该档无法把 2–3 分钟冷启动藏进一次聊天/写作请求。
+func strataColdStartOnly(profileID string) bool {
+	return profileID == "qwen38fn_flash"
+}
+
+// strataExplicitStartError 给请求路径即时、可操作反馈，而不是无反馈地等三分钟。
+func strataExplicitStartError(profile engineProfileOption) error {
+	return fmt.Errorf("%s 冷启动约 3 分钟，已禁用请求内热启动；请先到模型中心 → 语言模型点击“启动”，就绪后再发送", profile.Label)
+}
+
+// strataQwenKeepResident：活跃 Qwen 档不参与空闲收割。冷启动成本远高于
+// 常驻占用；引擎卡仍提供显式“停止引擎”。
+func strataQwenKeepResident() bool {
+	served, ok := strataPreflightProbe()
+	return ok && strataProfileFromModels(served) == "qwen38fn_flash"
 }
 
 // strataProjectPath 返回 Strata 独立引擎项目根目录。配置为空时回退本机固定工作区。
@@ -59,8 +109,8 @@ func strataServeInvocation(projectPath, profile string, port int) (string, []str
 	if !ok {
 		return "", nil, "", fmt.Errorf("未知 Strata 档位: %q", profile)
 	}
-	python := filepath.Join(projectPath, strataPythonEntry)
-	server := filepath.Join(projectPath, strataServeEntry)
+	python := strataPythonPath(projectPath)
+	server := strataServeEntryPath(projectPath)
 	cfgPath := filepath.Join(projectPath, spec.Config)
 	return python, []string{
 		server,
@@ -72,7 +122,8 @@ func strataServeInvocation(projectPath, profile string, port int) (string, []str
 
 func strataProfileFromModels(served []string) string {
 	for _, id := range served {
-		if strings.Contains(strings.ToLower(id), "flash") {
+		lower := strings.ToLower(id)
+		if strings.Contains(lower, "flash") {
 			return "qwen38fn_flash"
 		}
 	}
@@ -105,19 +156,22 @@ func (a *App) StrataEngineStatus() map[string]interface{} {
 	}
 	project := a.strataProjectPath()
 	return map[string]interface{}{
-		"running":         ok,
-		"port":            strataPort,
-		"profile":         profile,
-		"default_profile": "qwen38fn_flash",
-		"profiles":        engineProfileJSON(strataProfiles),
-		"project":         project,
-		"serve_script":    filepath.Join(project, strataServeEntry),
-		"served_models":   served,
+		"running":            ok,
+		"port":               strataPort,
+		"profile":            profile,
+		"default_profile":    "qwen38fn_flash",
+		"profiles":           engineProfileJSON(strataProfiles),
+		"project":            project,
+		"serve_script":       strataServeEntryPath(project),
+		"served_models":      served,
+		"cold_start_seconds": strataColdStartSeconds,
+		"auto_start":         false,
+		"keep_resident":      true,
 	}
 }
 
-// StrataEngineStart 启动 Strata 指定档位。空 profile 不隐式选择默认模型，
-// 返回 model-required；真实启动必须来自模型显式操作或功能绑定。
+// StrataEngineStart 显式启动 Strata 指定档位。空 profile 不隐式选择默认模型，
+// 返回 model-required；Qwen 冷启动只能由模型中心显式触发，聊天/图文预检不再调用。
 // 已运行→already-running；端口占用→port-occupied；就绪轮询上限 300s。
 func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 	if strings.TrimSpace(profile) == "" {
@@ -163,7 +217,7 @@ func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 			"project": project,
 		}
 	}
-	python := filepath.Join(project, strataPythonEntry)
+	python := strataPythonPath(project)
 	if _, err := os.Stat(python); err != nil {
 		return map[string]interface{}{
 			"started": false,
@@ -173,7 +227,7 @@ func (a *App) StrataEngineStart(profile string) map[string]interface{} {
 			"python":  python,
 		}
 	}
-	server := filepath.Join(project, strataServeEntry)
+	server := strataServeEntryPath(project)
 	if _, err := os.Stat(server); err != nil {
 		return map[string]interface{}{
 			"started":      false,

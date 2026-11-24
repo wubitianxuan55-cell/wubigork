@@ -2,8 +2,9 @@ package app
 
 // managed_engine_idle.go — 外部引擎空闲自动退出（model_idle_exit_minutes）。
 //
-// llama/Strata/ComfyUI 是 gaea 代启的本地模型进程（吃 UMA/VRAM 的大户）：连续
-// N 分钟无真实使用即自动停止，不占机器。判定依据是 modelengine 的活跃记账
+// llama/ComfyUI 是 gaea 代启且可快速热启动的本地进程，连续 N 分钟无真实使用
+// 即自动停止。Strata/Qwen 冷启动约 3 分钟，显式预热后保持常驻，不被本收割器
+// 停机。判定依据是 modelengine 的活跃记账
 //（TouchEngine：LLM 请求端点解析 / 引擎启动 / 识图绑定解析 / ComfyUI 任务
 // 提交）；探活刻意不记账。只收 gaea 本会话拉起的实例（registered）——外部
 // 手动启动的引擎尊重其独立性，不代管。gaea 自身退出另有 Job Object 兜底
@@ -92,8 +93,12 @@ func (a *App) managedIdleTargets() []managedIdleTarget {
 				_, ok := strataProbe()
 				return ok
 			},
-			stop:  func() { _ = a.StrataEngineStop() },
-			lease: func(now time.Time) bool { return wenxueLeaseAlive("strata", now) },
+			stop: func() { _ = a.StrataEngineStop() },
+			lease: func(now time.Time) bool {
+				// Qwen 冷启动约 3 分钟；显式预热后常驻，空闲收割只留给
+				// 其它可快速热启动的受管引擎。停止仍可走引擎卡。
+				return strataQwenKeepResident() || wenxueLeaseAlive("strata", now)
+			},
 		},
 		{
 			id:         "whirl",

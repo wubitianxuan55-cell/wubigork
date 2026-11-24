@@ -111,3 +111,29 @@ func TestWenxueChatSessionBindingSmoke(t *testing.T) {
 		t.Fatal("WenxueCommands 不应为空")
 	}
 }
+
+// TestWenxueRunning_IncludesSendPreflight 锁死 2026-11-24 假停止根因：
+// WenxueSend 在本地引擎预检/冷启动期间尚未进入 ctrl.Send，WenxueRunning 仍须
+// 报 true，不能让前端 30s watchdog 把正在启动的回合本地取消。
+func TestWenxueRunning_IncludesSendPreflight(t *testing.T) {
+	orig := wx
+	wx = &wenxueRuntime{wire: newGaeaEventForwarder()}
+	t.Cleanup(func() { wx = orig })
+
+	a := &App{}
+	if a.WenxueRunning() {
+		t.Fatal("未发送时应为 false")
+	}
+	done := beginWenxueSend()
+	if !a.WenxueRunning() {
+		t.Fatal("发送预检在途时 WenxueRunning 应为 true")
+	}
+	done()
+	if a.WenxueRunning() {
+		t.Fatal("发送结束且 ctrl 空闲时应恢复 false")
+	}
+	done() // 幂等：defer/错误路径重复调用不得把在途计数减穿
+	if got := wx.sends; got != 0 {
+		t.Fatalf("sends = %d, want 0", got)
+	}
+}
