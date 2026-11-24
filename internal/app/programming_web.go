@@ -38,7 +38,10 @@ const (
 	programmingWebPort           = 3091
 	programmingWebBaseURL        = "http://dsh.wails.localhost:3091"
 	programmingWebTrustedHost    = "dsh.wails.localhost:3091"
-	programmingWebExpected       = "0.2.2-rc.1"
+	// 2026-11-22 DSH 栈升级到 0.2.2-rc.5（dsh-wubi 适配同批跟进）；升级 DSH
+	// 运行时必须同批抬此常量——2026-11-24 实锤：只升栈不改码，八查 version=false
+	// 编程板块拒绝启动。
+	programmingWebExpected = "0.2.2-rc.5"
 	programmingWebReadyTimeout   = 30 * time.Second
 	programmingWebMaxLogTailLine = 200
 )

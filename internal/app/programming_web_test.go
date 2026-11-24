@@ -156,7 +156,8 @@ func TestProgrammingWebPreflightIsolatedInstall(t *testing.T) {
 	home := filepath.Join(root, "home")
 	agentsHome := filepath.Join(root, "home", "agents")
 	base := filepath.Join(root, "node_modules", "@deepseek-ai")
-	writeTestFile(t, filepath.Join(base, "dsh", "package.json"), `{"version":"0.2.2-rc.1"}`)
+	// 版本用期望常量拼接（不是钉字面量）——DSH 升级只抬 programmingWebExpected 一处。
+	writeTestFile(t, filepath.Join(base, "dsh", "package.json"), `{"version":"`+programmingWebExpected+`"}`)
 	writeTestFile(t, filepath.Join(base, "dsh", "lib", "bin.js"), "// cli")
 	writeTestFile(t, filepath.Join(home, "profiles", "web", "package.json"), `{"name":"dsh-profile-web"}`)
 	writeTestFile(t, filepath.Join(home, "profiles", "web", "node_modules", "dsh-wubi", "package.json"), `{"name":"dsh-wubi","version":"2.0.0"}`)
