@@ -1,12 +1,21 @@
-/* GAEA BootSplash — approved full-frame scenes.
-   The supplied reference frames are used directly. Only the automatic scene
-   transition and minimal, accessible startup controls sit above them. */
-
+/* GAEA BootSplash — generated plates + live motion.
+   The canvas draws the plates, the camera, the light and the glass mark. Only the wordmark,
+   taglines, status, progress and the startup controls are DOM, so they stay crisp at every
+   resolution. Without WebGL2 the same plates cross-fade underneath. */
 .bs-splash {
   --bs-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --bs-accent: #32e4db;
   --bs-accent-rgb: 50, 228, 219;
+  --bs-gold-rgb: 240, 194, 122;
   --bs-mono: var(--font-mono, 'Cascadia Mono', 'Consolas', monospace);
+  --bs-display: 'Segoe UI', system-ui, 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  /* Driven by BootSplash every frame. */
+  --bs-chrome: 0;
+  --bs-wm: 0;
+  --bs-trk: 1;
+  --bs-tag1: 0;
+  --bs-tag2: 0;
+  --bs-prog: 0;
 
   position: fixed;
   inset: 0;
@@ -25,168 +34,277 @@
   pointer-events: none;
 }
 
+/* index.html's blurred thumbnail is on top until the sharp plate is in: stay see-through
+   underneath it so the first frames are never an empty black flash. */
+.bs-splash.is-over-static,
+.bs-splash.is-over-static .bs-stage {
+  background: transparent;
+}
+
 .bs-splash *,
 .bs-splash *::before,
 .bs-splash *::after {
   box-sizing: border-box;
 }
 
+.bs-voice-audio {
+  display: none;
+}
+
+/* ===== layers ===== */
 .bs-stage {
   position: absolute;
   inset: 0;
   overflow: hidden;
   background: #010409;
-  transform: scale(1);
-  transition: transform 520ms var(--bs-ease);
+  container-type: size;
 }
 
-.bs-frame {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(100vw, 177.68vh);
-  aspect-ratio: 1672 / 941;
-  overflow: hidden;
-  background: #010409;
-  transform: translate(-50%, -50%);
-}
-
-.bs-splash.is-leaving .bs-stage {
-  transform: scale(1.008);
-}
-
-.bs-original-scenes,
-.bs-original-scene {
+.bs-poster {
   position: absolute;
   inset: 0;
-}
-
-.bs-original-scene {
-  opacity: 1;
-  transition: opacity 1050ms var(--bs-ease);
-  will-change: opacity;
-}
-
-.bs-original-scene--gaia {
-  opacity: 0;
-}
-
-.bs-splash[data-scene='gaia'] .bs-original-scene--earth {
-  opacity: 0;
-}
-
-.bs-splash[data-scene='gaia'] .bs-original-scene--gaia {
-  opacity: 1;
-}
-
-.bs-original-scene img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center center;
   pointer-events: none;
 }
 
-.bs-progress-live {
-  --bs-progress-plate: rgba(3, 18, 28, 0.7);
-  --bs-progress-plate-border: rgba(112, 213, 239, 0.15);
-  --bs-progress-track-bg: rgba(1, 9, 15, 0.94);
-  --bs-progress-label-bg: rgba(2, 15, 24, 0.95);
-  position: absolute;
-  top: 86.4%;
-  left: 33.5%;
-  z-index: 2;
-  width: 32.8%;
-  display: flex;
-  align-items: center;
-  gap: 1.2%;
-  color: #f2fbff;
-  font: 500 clamp(11px, 1.05vw, 17px)/1 var(--bs-mono);
-  font-variant-numeric: tabular-nums;
-  transform: translateY(-50%);
-  isolation: isolate;
+.bs-poster--gaia,
+.bs-splash[data-scene='gaia'] .bs-poster--earth {
+  opacity: 0;
+  transition: opacity 1050ms var(--bs-ease);
 }
 
-.bs-progress-live::before {
+.bs-splash[data-scene='gaia'] .bs-poster--gaia {
+  opacity: 1;
+}
+
+.bs-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.bs-splash.is-live .bs-canvas {
+  opacity: 1;
+}
+
+/* ===== HUD ===== */
+.bs-deco,
+.bs-status {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  font-family: var(--bs-display);
+  font-weight: 300;
+  pointer-events: none;
+}
+
+/* Soft scrim behind the mark and the wordmark so they read over the sunrise. */
+.bs-deco::before {
   content: '';
   position: absolute;
-  inset: -8px -30px -8px -10px;
-  z-index: -1;
-  border-radius: 9px;
-  border: 1px solid var(--bs-progress-plate-border);
-  background-color: var(--bs-progress-plate);
-  box-shadow:
-    0 8px 22px rgba(0, 4, 9, 0.34),
-    inset 0 1px 0 rgba(224, 251, 255, 0.035);
-  -webkit-backdrop-filter: blur(10px) saturate(1.15);
-  backdrop-filter: blur(10px) saturate(1.15);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
-  transition:
-    background-color 900ms var(--bs-ease),
-    border-color 900ms var(--bs-ease);
+  left: 14%;
+  right: 14%;
+  top: 4%;
+  height: 50%;
+  background: radial-gradient(ellipse 50% 50% at 50% 58%, rgba(2, 6, 14, 0.48), rgba(2, 6, 14, 0) 72%);
+  opacity: var(--bs-chrome);
 }
 
-.bs-splash[data-scene='gaia'] .bs-progress-live {
-  --bs-progress-plate: rgba(7, 23, 25, 0.64);
-  --bs-progress-plate-border: rgba(139, 228, 221, 0.16);
-  --bs-progress-track-bg: rgba(4, 16, 19, 0.93);
-  --bs-progress-label-bg: rgba(6, 20, 22, 0.95);
+.bs-lock {
+  position: absolute;
+  left: 3.1cqw;
+  top: 5.8cqh;
+  display: flex;
+  align-items: center;
+  gap: max(1.5cqh, 8px);
+  transform: translateY(-50%);
+  opacity: var(--bs-chrome);
 }
 
-.bs-progress-live-track {
+.bs-lock img {
+  display: block;
+  width: max(3.1cqh, 16px);
+  height: max(3.1cqh, 16px);
+  filter: drop-shadow(0 0 0.6cqh rgba(var(--bs-accent-rgb), 0.45));
+}
+
+.bs-lock i {
+  width: 1px;
+  height: max(2.7cqh, 14px);
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.bs-lock span {
+  font-size: max(1.5cqh, 12px);
+  letter-spacing: clamp(0.3em, 0.84cqh, 0.56em);
+  margin-right: calc(-1 * clamp(0.3em, 0.84cqh, 0.56em));
+}
+
+.bs-motto {
+  position: absolute;
+  right: 3.1cqw;
+  top: 5.8cqh;
+  font-size: max(1.28cqh, 12px);
+  letter-spacing: clamp(0.18em, 0.512cqh, 0.4em);
+  margin-right: calc(-1 * clamp(0.18em, 0.512cqh, 0.4em));
+  color: rgba(240, 250, 255, 0.92);
+  white-space: nowrap;
+  text-shadow: 0 0.2cqh 1cqh rgba(0, 0, 0, 0.55);
+  transform: translateY(-50%);
+  opacity: var(--bs-chrome);
+}
+
+/* Wordmark and tagline stack, so clamped type never collides on a short window. */
+.bs-brand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(34.1cqh, 76px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: max(0.8cqh, 4px);
+}
+
+.bs-word {
+  --bs-ls: calc(0.62em - 0.14em * (1 - var(--bs-trk)));
+  font-size: max(8.6cqh, 26px);
+  line-height: 1;
+  letter-spacing: var(--bs-ls);
+  padding-left: var(--bs-ls);
+  text-shadow:
+    0 0 2.6cqh rgba(var(--bs-accent-rgb), 0.32),
+    0 0.2cqh 1.2cqh rgba(0, 0, 0, 0.35);
+  opacity: var(--bs-wm);
+}
+
+.bs-tags {
+  position: relative;
+  width: 100%;
+  height: max(2.2cqh, 13px);
+}
+
+.bs-tag {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: max(2.2cqh, 8px);
+  white-space: nowrap;
+}
+
+.bs-tag[data-k='1'] {
+  opacity: var(--bs-tag1);
+}
+
+.bs-tag[data-k='2'] {
+  opacity: var(--bs-tag2);
+}
+
+.bs-tag i {
+  width: max(7cqh, 14px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(235, 248, 255, 0.55));
+}
+
+.bs-tag i:last-child {
+  background: linear-gradient(270deg, transparent, rgba(235, 248, 255, 0.55));
+}
+
+.bs-tag span {
+  font-size: max(1.74cqh, 12px);
+  letter-spacing: clamp(0.16em, 0.8cqh, 0.46em);
+  margin-right: calc(-1 * clamp(0.16em, 0.8cqh, 0.46em));
+  color: rgba(240, 250, 255, 0.96);
+  text-shadow: 0 0.2cqh 1cqh rgba(0, 0, 0, 0.5);
+}
+
+/* Progress is a real control: outside the decorative layer so it stays in the a11y tree. */
+.bs-prog {
+  position: absolute;
+  left: 33.9cqw;
+  top: 86.4cqh;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: max(0.9cqw, 6px);
+  width: 28.8cqw;
+  transform: translateY(-50%);
+  opacity: var(--bs-chrome);
+  pointer-events: none;
+}
+
+.bs-track {
   position: relative;
   flex: 1;
-  height: 6px;
-  overflow: visible;
-  border: 1px solid rgba(124, 213, 237, 0.2);
+  height: max(0.78cqh, 5px);
+  border: 1px solid rgba(124, 213, 237, 0.24);
   border-radius: 999px;
-  background-color: var(--bs-progress-track-bg);
-  transition: background-color 900ms var(--bs-ease);
+  background: rgba(2, 12, 19, 0.7);
+  box-shadow: 0 0.4cqh 1.6cqh rgba(0, 0, 0, 0.3);
 }
 
-.bs-progress-live-track > i {
+.bs-fill {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 100%;
+  inset: 0;
   border-radius: inherit;
   background: linear-gradient(90deg, #10c6bd, #31e6d6 64%, #75f8eb);
-  box-shadow:
-    0 0 8px rgba(var(--bs-accent-rgb), 0.6),
-    0 0 20px rgba(var(--bs-accent-rgb), 0.2);
-  transform: scaleX(var(--bs-progress, 0));
+  box-shadow: 0 0 0.9cqh rgba(var(--bs-accent-rgb), 0.6);
   transform-origin: left;
+  transform: scaleX(var(--bs-prog));
 }
 
-.bs-progress-live-track > span {
+.bs-head {
   position: absolute;
   top: 50%;
-  width: 5px;
-  height: 5px;
+  left: calc(var(--bs-prog) * 100%);
+  width: max(0.58cqh, 6px);
+  height: max(0.58cqh, 6px);
   border-radius: 50%;
   background: #d9fffb;
   box-shadow:
-    0 0 7px rgba(188, 255, 250, 0.96),
-    0 0 18px rgba(var(--bs-accent-rgb), 0.68);
+    0 0 0.7cqh rgba(188, 255, 250, 0.96),
+    0 0 1.9cqh rgba(var(--bs-accent-rgb), 0.7);
   transform: translate(-50%, -50%);
 }
 
-.bs-progress-live > strong {
-  min-width: 2.7em;
-  margin-right: -6px;
-  padding: 4px 6px;
-  border-radius: 5px;
-  background-color: var(--bs-progress-label-bg);
-  box-shadow: -8px 0 10px var(--bs-progress-label-bg);
-  transition:
-    background-color 900ms var(--bs-ease),
-    box-shadow 900ms var(--bs-ease);
-  font-weight: 500;
-  text-align: right;
-  letter-spacing: 0.01em;
+.bs-pct {
+  min-width: 2.9em;
+  color: #f2fbff;
+  font: 500 max(1.72cqh, 12px) / 1 var(--bs-mono);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0.2cqh 0.8cqh rgba(0, 0, 0, 0.6);
 }
 
+.bs-status {
+  inset: auto 0;
+  top: 90cqh;
+  font-size: max(1.72cqh, 12px);
+  letter-spacing: clamp(0.14em, 0.585cqh, 0.34em);
+  margin-right: calc(-1 * clamp(0.14em, 0.585cqh, 0.34em));
+  color: rgba(240, 248, 252, 0.9);
+  text-align: center;
+  text-shadow: 0 0.2cqh 1cqh rgba(0, 0, 0, 0.6);
+  transform: translateY(-50%);
+  opacity: var(--bs-chrome);
+}
+
+@container (max-height: 440px) {
+  .bs-prog {
+    top: calc(90cqh - 26px);
+  }
+}
+
+/* ===== startup controls ===== */
 .bs-utility {
   position: absolute;
   left: 22px;
@@ -196,14 +314,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  opacity: 0.7;
+  opacity: calc(var(--bs-chrome) * 0.72);
   pointer-events: none;
   transition: opacity 180ms ease;
 }
 
 .bs-splash:hover .bs-utility,
 .bs-utility:focus-within {
-  opacity: 1;
+  opacity: var(--bs-chrome);
 }
 
 .bs-audio,
@@ -214,12 +332,12 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 9px;
-  border: 1px solid rgba(169, 229, 247, 0.18);
-  border-radius: 5px;
-  background: rgba(1, 7, 13, 0.46);
-  color: rgba(220, 243, 250, 0.62);
-  font: 500 8px/1 var(--bs-mono);
+  padding: 0 10px;
+  border: 1px solid rgba(169, 229, 247, 0.2);
+  border-radius: 6px;
+  background: rgba(1, 7, 13, 0.56);
+  color: rgba(222, 244, 250, 0.8);
+  font: 500 11px/1 var(--bs-mono);
   letter-spacing: 0.12em;
   cursor: pointer;
   pointer-events: auto;
@@ -233,8 +351,8 @@
 .bs-audio:hover,
 .bs-skip:hover {
   color: #f5fdff;
-  border-color: rgba(169, 229, 247, 0.38);
-  background: rgba(4, 17, 27, 0.74);
+  border-color: rgba(169, 229, 247, 0.4);
+  background: rgba(4, 17, 27, 0.78);
 }
 
 .bs-audio:active,
@@ -259,11 +377,11 @@
 
 .bs-audio.is-muted,
 .bs-audio.is-unavailable {
-  color: rgba(195, 222, 232, 0.4);
+  color: rgba(195, 222, 232, 0.5);
 }
 
 .bs-audio-bars {
-  height: 9px;
+  height: 10px;
   display: inline-flex;
   align-items: flex-end;
   gap: 2px;
@@ -271,7 +389,7 @@
 
 .bs-audio-bars i {
   width: 1px;
-  height: 8px;
+  height: 9px;
   background: currentColor;
   transform-origin: bottom;
   transform: scaleY(0.4);
@@ -296,12 +414,12 @@
 }
 
 .bs-skip kbd {
-  padding: 2px 4px;
+  padding: 2px 5px;
   border: 1px solid rgba(169, 229, 247, 0.24);
   border-radius: 3px;
-  color: rgba(227, 249, 255, 0.8);
+  color: rgba(227, 249, 255, 0.84);
   background: rgba(0, 5, 10, 0.4);
-  font: 500 7px/1 var(--bs-mono);
+  font: 500 10px/1 var(--bs-mono);
 }
 
 .bs-sr-only {
@@ -317,13 +435,17 @@
 }
 
 @keyframes bs-audio-meter {
-  from { transform: scaleY(0.28); }
-  to { transform: scaleY(1); }
+  from {
+    transform: scaleY(0.28);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 @media (hover: none) {
   .bs-utility {
-    opacity: 0.52;
+    opacity: calc(var(--bs-chrome) * 0.56);
   }
 }
 
@@ -334,6 +456,7 @@
     bottom: 14px;
   }
 
+  .bs-motto,
   .bs-audio > span:last-child,
   .bs-skip > span {
     display: none;
@@ -348,8 +471,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bs-splash,
-  .bs-stage,
-  .bs-original-scene {
+  .bs-canvas,
+  .bs-poster,
+  .bs-utility,
+  .bs-audio,
+  .bs-skip {
     transition-duration: 0.01ms;
   }
 
@@ -359,11 +485,26 @@
 }
 
 .ui-reduced-motion .bs-splash,
-.ui-reduced-motion .bs-stage,
-.ui-reduced-motion .bs-original-scene {
+.ui-reduced-motion .bs-canvas,
+.ui-reduced-motion .bs-poster,
+.ui-reduced-motion .bs-utility,
+.ui-reduced-motion .bs-audio,
+.ui-reduced-motion .bs-skip {
   transition-duration: 0.01ms;
 }
 
 .ui-reduced-motion .bs-audio-bars i {
   animation: none;
+}
+
+/* Static plates ride the camera push too, so the WebGL layer takes over without a jump
+   (--bs-push / --bs-push2 are written by BootSplash every frame). */
+.bs-poster--earth {
+  transform: scale(var(--bs-push, 1));
+  transform-origin: 50% 53.5%;
+}
+
+.bs-poster--gaia {
+  transform: scale(var(--bs-push2, 1));
+  transform-origin: 50% 63.2%;
 }

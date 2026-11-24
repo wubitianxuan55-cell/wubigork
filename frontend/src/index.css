@@ -10,8 +10,9 @@
   --font-size-xl: 20px;
 }
 
-/* 用户提供的官方明暗品牌原图：不裁切、不改比例，仅按运行时主题切换。
- * multiply/screen 让白底与黑底分别融入当前表面，避免出现矩形图片底板。 */
+/* 品牌标：透明底的玻璃 G 单图，明暗主题共用（母版 build/brand/gaea-mark-2048.png，
+ * 由 scripts/brand_icons.py 生成）。画幅与字形框位沿用旧明暗原图，所以各处容器尺寸不变；
+ * 浅色主题下靠一圈淡影把玻璃上的白高光从浅底分出来。 */
 .gaea-brand-art {
   width: 100%;
   height: 100%;
@@ -20,19 +21,8 @@
   pointer-events: none;
   user-select: none;
 }
-.gaea-brand-art--light {
-  display: none;
-  mix-blend-mode: multiply;
-}
-.gaea-brand-art--dark {
-  display: block;
-  mix-blend-mode: screen;
-}
-html[data-bs-light] .gaea-brand-art--light {
-  display: block;
-}
-html[data-bs-light] .gaea-brand-art--dark {
-  display: none;
+html[data-bs-light] .gaea-brand-art {
+  filter: drop-shadow(0 1px 2px rgba(16, 42, 67, 0.22));
 }
 
 #root {

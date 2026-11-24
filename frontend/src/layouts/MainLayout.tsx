@@ -400,8 +400,7 @@ export const CommandRail: React.FC<{
       aria-label={t('shell.rail.aria')}
     >
       <div className="v3-rail-head" role="img" aria-label="gaea">
-        <img src="/gaea-brand-light.jpg" alt="" className="gaea-brand-art gaea-brand-art--light" draggable={false} />
-        <img src="/gaea-brand-dark.jpg" alt="" className="gaea-brand-art gaea-brand-art--dark" draggable={false} />
+        <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
       </div>
       <div className="v3-rail-nav" role="menubar" aria-label={t('shell.rail.nav')}>
         {boards.map((b, i) => {

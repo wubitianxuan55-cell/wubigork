@@ -47,18 +47,7 @@ const AboutPanel: React.FC = () => {
             aria-label="gaea"
             style={{ width: 56, height: 46, flexShrink: 0 }}
           >
-            <img
-              src="/gaea-brand-light.jpg"
-              alt=""
-              className="gaea-brand-art gaea-brand-art--light"
-              draggable={false}
-            />
-            <img
-              src="/gaea-brand-dark.jpg"
-              alt=""
-              className="gaea-brand-art gaea-brand-art--dark"
-              draggable={false}
-            />
+            <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

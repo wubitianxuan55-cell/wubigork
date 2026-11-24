@@ -1,3 +1,69 @@
+## 开机动画重设计落地 + 新标全局替换 + 4K 底片（2026-11-24，用户拍板「logo选B，同步替换全局图标，开机动画要4K高清」）
+
+主代理（ZCode）独立完成；**未提交、未装机**；桌面构建已完成（见下方「桌面构建」）。效果图与生成原件见 `design/boot-animation-2026-11/`。
+
+- **背景**：11-19 的「两张原画直用」是折中（用户澄清：当时做不出原画效果的动画），不是偏好；
+  11-04 的程序化「轨道 + 等高线」已被否。本轮用户两次纠偏：视觉素材用 gaea 自己的生图，
+  不手写着色器；新标用生图重出，不抠官方图。
+- **生图**（经在跑的 gaea 调试口 9333 → `GenerateMedia`，xAI `grok-imagine-image-quality`，共 4 张）：
+  两张无 Logo / 无文字的底片（星际日出、人间山谷，1280×720）+ 两个玻璃 G 候选（纯洋红底），用户选 B。
+- **4K**：底片用 4x-UltraSharp 4 倍超分后 Lanczos 到 3840×2160（ComfyUI 环境的 ROCm PyTorch +
+  spandrel 推理；权重下到 `temp/` 用完即弃，`C:\AI` 未动）；AVIF q62 两张共 1.0MB（550 + 456KB），
+  旧的两张原画 PNG 是 3.3MB。新标 2K 超分后键掉洋红底，透明母版 `build/brand/gaea-mark-2048.png`。
+- **开机动画**（`frontend/src/components/`）：`boot/bootScene.ts` 纯时间轴；`boot/bootShader.ts` +
+  `boot/bootRenderer.ts` 是 WebGL2 单三角形片元着色器（镜头推进带上下视差、1.6s 俯冲穿日出白闪、
+  辉光呼吸、星点闪烁、湖面涟漪、城市灯火、飘雾、轨道彗星、标的光扫）；`BootSplash.tsx` 重写：
+  底片 `<img>` 常驻为底层（没有 WebGL2 就是静态交叉淡变），画布就绪后淡入；字标 / 标语 / 进度 /
+  状态是 DOM。`index.html` 静态首屏改为内联 622B 模糊缩略图，底片清晰后交叉淡出。
+- **保留**：语音仪式 0 / 1.596 / 4.0s、ESC 跳过、声音开关、68→72→100 进度节奏、原画文案、三语文案键。
+- **三处时序修正**（旧实现同样存在，新动画更敏感）：① 画面时间直接取语音元素的播放位置——
+  主线程被应用挂载占住时 `playing` 事件会迟到 0.4~0.8s，旧表因此晚这么多；② 语音成为时钟后把
+  收束保护计时器按语音剩余时长重排——旧的墙上时钟兜底会在语音播到 3.3s 时就关掉画面；
+  ③ 离场时画面冻结在交接点。
+- **解码策略**：底片按窗口实际分辨率在后台线程解码（`createImageBitmap` 缩放，下限 1280）。
+  1080p 窗口不付 4K 像素且采样落在 mip 0，4K 窗口得到全部 4K 像素。
+- **全局图标**：新增 `scripts/brand_icons.py`（Pillow + numpy），从母版一键生成 favicon×3、
+  `build/appicon.png` / `.svg` / `-small.svg`、`icon.ico` 七档（≤48 用紧凑取景）、
+  `gaea-brand-icon.png`、UI 标 `gaea-brand-mark.webp`。UI 标沿用旧明暗原图的 1568×1264 画幅与字形
+  框位，所以五处容器尺寸不动；`.gaea-brand-art` 改单图，浅色主题加淡影。旧 `gaea-brand-light/dark.jpg`
+  与两张原画 PNG 退役。
+- **验证**：BootSplash 14 + bootScene 7 = 21/21；Sidebar 24/24；related（CommandRail + SettingsPage）
+  35/35；全量 vitest 518 文件 4746 例 308s 全过；`tsc -b` 0；改动面 ESLint 0；Vite build 26.8s 绿
+  （既有 Wenxue CSS 警告）；`check-docs` OK。生产包 + 无头 Edge（ANGLE / Radeon 8060S D3D11）走查：
+  1080p 正常动效全序列、4K 视口画布 3840×2160（GPU 读回 1:1 清晰）、浅色主题工作台标、1366×768
+  小窗、减弱动效路径，均无异常与控制台报错。时序实测：换景时语音在 1.60~1.61s，语音 4.00s 结束即
+  收束（画面进度 94%），WebGL 挂载后 1.0~1.4s 接管。
+- **既有问题（非本轮引入，未改）**：① `scripts/frontend-e-check.mjs` 的 E25 在 HEAD 即红——
+  `useChatStream.ts` 已没有 `app.ChatSend(` 字样（chat-demo 蒸馏线改了调用形态），守卫匹配串过时；
+  ② knip 基线本就有 33 个未使用文件 / 114 个未使用导出（多为生成的 `wailsjs/go/models.ts`），本轮
+  零新增；`WelcomePage.tsx` 本就无引用（已同步换标）。
+- **坑**：① 重排 effect 顺序后，加载底片的 effect 先于测窗 effect 执行，拿到尺寸占位值 2×2，
+  4K 底片被解码成 3×1 像素——画面全糊而单测全绿，只有真机走查发现；现在加载处自行测量并设 1280
+  下限。② 无头 Edge 默认按 `prefers-reduced-motion: reduce` 运行，走正常动效须
+  `Emulation.setEmulatedMedia`。③ file:// 页面不能把图片传给 WebGL，复现页要内联 data URI。
+  ④ `getTexParameter` / `texParameteri` 第一参是目标枚举不是贴图对象；WebGL2 没有
+  `getTexLevelParameter`。⑤ heredoc 里的反斜杠会被降级，含转义的脚本一律用写文件工具落盘。
+- **桌面构建（同日 15:26~15:28，用户令「构建桌面端」）**：构建前无 gaea / wails / go 孤儿。按构建指南：
+  前端 `npm.cmd run build` 33.32s 绿 → 仓根 `wails build -s -ldflags "-s -w" -trimpath` **1m37.091s**
+  （bindings 生成未跳过，再生后与仓库零漂移；ucrt64 gcc 前置 + `build/bin` 前置 + `CGO_ENABLED=1`
+  + `CC=C:\msys64\ucrt64\bin\gcc.exe` + 系统默认 TMP/TEMP）。产物 `build/bin/gaea.exe`
+  59,289,088 B，mtime 15:27:40 = 构建结束时刻，SHA256
+  `8FD4BE09560364BA92FCB2F33EDE24516978D8AFDC433CB03F96237DE35D9A8F`；三 DLL 同目录。产物核验：
+  exe 直接导入 `sherpa-onnx-c-api.dll`（cgo 未降级）；exe 内嵌图标与 `build/windows/icon.ico`
+  **7/7 帧逐字节一致**（对照组旧包 exe 为 0/7）；4K 底片 / 新标贴图 / favicon 按字节嵌入，旧原画
+  文件名已不存在。真机壳拉起（`GAEA_WALKTHROUGH=1`、独立桥接口、CDP 9333 抓帧）：PID 启动时间
+  晚于构建时刻，开机全序列无页面异常，冷启动（页面解析到可交互）实测 823ms，窗口 1264×761。
+- **构建后没做完的**：① **正式冒烟 `scripts\smoke.ps1` 没跑**——用户随后自己从 `build\bin` 起了
+  实例，同 profile 不宜再起第二个；该实例稳定运行 1 分半以上，但 HTTP 桥接探活没有做。
+  ② **一处疑似的真机瑕疵没查完**：真机里语音比兜底墙上时钟晚起约 1.3~1.8s，语音接管时钟的瞬间
+  画面可能被拉回起点（进度条回 0、标重新点亮）——按代码推演成立，细采样那次连到了用户实例、
+  没拿到证据。用户令「已经可以了」后停手。若复现，修法=autoplay 可用时等语音真正起播再起表，
+  且语音接管时只前seek 语音、画面不回退。③ 我经脚本拉起的那次系统报告 `prefers-reduced-motion:
+  reduce`（`SPI_GETCLIENTAANIMATION=0`，走的是无推镜的安静分支），用户自己起的实例报告的是
+  正常动效，两者没对上。
+- **待拍板**：装机（会关掉运行中的实例）；提交；进度百分比仍按时间演示，未接真实启动事件；
+  仓根旧标原图 `logo浅色.jpg` / `logo深色.jpg` 已无代码引用，删不删由用户定。
+
 ## Git 打包与推送：gaea-20261124-58be0f5e（2026-11-24 10:05~10:15，用户令「git打包推送」）
 
 - **构建**：从 `58be0f5e` 的独立干净工作树 `.worktrees/pkg-58be0f5e`（detached，node_modules 为主树

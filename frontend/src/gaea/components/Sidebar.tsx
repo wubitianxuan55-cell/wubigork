@@ -823,8 +823,7 @@ export function Sidebar({
         {/* 工作区身份：产品、当前项目与侧栏开关 */}
         <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "flex-col gap-1.5" : ""}`}>
           <span className="office-sidebar__brand-mark" aria-hidden>
-            <img src="/gaea-brand-light.jpg" alt="" className="gaea-brand-art gaea-brand-art--light" draggable={false} />
-            <img src="/gaea-brand-dark.jpg" alt="" className="gaea-brand-art gaea-brand-art--dark" draggable={false} />
+            <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
           </span>
           {!collapsed && (
             <span className="office-sidebar__brand-copy">

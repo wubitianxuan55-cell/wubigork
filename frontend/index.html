@@ -14,153 +14,45 @@
         background: #010409;
       }
 
-      #boot-splash,
-      .st-frame {
-        position: fixed;
-        z-index: 1400;
-      }
-
+      /* First paint before the bundle: a blurred thumbnail of the opening plate. BootSplash
+         fades this layer out as soon as the sharp plate is decoded, so startup goes from soft
+         to sharp instead of flashing a frozen frame. It sits above the React splash (z 1401)
+         for exactly that cross-fade. */
       #boot-splash {
+        position: fixed;
         inset: 0;
+        z-index: 1401;
         overflow: hidden;
-        background: #010409;
-      }
-
-      .st-frame {
-        top: 50%;
-        left: 50%;
-        width: min(100vw, 177.68vh);
-        aspect-ratio: 1672 / 941;
-        overflow: hidden;
-        background: #010409;
-        transform: translate(-50%, -50%);
-      }
-
-      .st-scenes,
-      .st-scene {
-        position: absolute;
-        inset: 0;
-      }
-
-      .st-scene {
-        opacity: 1;
-        transition: opacity 1050ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      .st-scene--gaia {
+        background: #010409
+          url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys/RD84QzQ5Ojf/2wBDAQoKCg0MDRoPDxo3JR8lNzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzf/wAARCAAkAEADASIAAhEBAxEB/8QAGwAAAQUBAQAAAAAAAAAAAAAAAAEDBAUGAgf/xAAnEAABAwMCBgIDAAAAAAAAAAABAAIDBAUREiEGMVFhcYETFCJBQv/EABgBAAMBAQAAAAAAAAAAAAAAAAEDBAAC/8QAHhEAAgMBAAIDAAAAAAAAAAAAAAECAzEREyESIkH/2gAMAwEAAhEDEQA/APEw1dhqVrU61ickLchoMXQjPRTIacvPJW1LZJpx+LCfSDajoYpywzpjPRJoKv6qzywHDmEKL9PTu4YRjyWAl2OkCKAu7BEgDNgpsgDW77KBMcnZdNcRyn1k+ltVRMRhuB3VzScPAkGaZjfaq2XGV39H0nmVErmkmXHtO+iwmases1tDZLZEWmaoBW74cgskZDdTXHuvF4ri/VpkkOAp0N4mgJdC848qW+ryL0U0WOvT1fiGissshw5rfCxFztdueT8U4CzlVxBNKAHuPc5Uaa6h7A0OI6rqirxr2C+x2YSayyE5MczXDyqepts8ROW58J8VjhuJT4ykdXSdchUv4MnStj+lXqOOaUSOA5oQklIgceqcMrxyKELAYusnmuHuOUIWMcFxBRrcP2hCAT//2Q==")
+          center / cover no-repeat;
         opacity: 0;
+        animation: bs-ignite 550ms ease-out 80ms forwards;
       }
 
-      #boot-splash[data-scene="gaia"] .st-scene--earth {
-        opacity: 0;
+      #boot-splash.is-handing-off {
+        animation: bs-release 300ms ease forwards;
       }
 
-      #boot-splash[data-scene="gaia"] .st-scene--gaia {
-        opacity: 1;
+      @keyframes bs-ignite {
+        to {
+          opacity: 1;
+        }
       }
 
-      .st-scene img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: center;
-      }
-
-      .st-progress {
-        --st-progress: 0.68;
-        --st-progress-plate: rgba(3, 18, 28, 0.7);
-        --st-progress-plate-border: rgba(112, 213, 239, 0.15);
-        --st-progress-track-bg: rgba(1, 9, 15, 0.94);
-        --st-progress-label-bg: rgba(2, 15, 24, 0.95);
-        position: absolute;
-        top: 86.4%;
-        left: 33.5%;
-        z-index: 2;
-        width: 32.8%;
-        display: flex;
-        align-items: center;
-        gap: 1.2%;
-        color: #f2fbff;
-        font: 500 clamp(11px, 1.05vw, 17px)/1 'Cascadia Mono', Consolas, monospace;
-        font-variant-numeric: tabular-nums;
-        transform: translateY(-50%);
-        isolation: isolate;
-      }
-
-      #boot-splash[data-scene="gaia"] .st-progress {
-        --st-progress-plate: rgba(7, 23, 25, 0.64);
-        --st-progress-plate-border: rgba(139, 228, 221, 0.16);
-        --st-progress-track-bg: rgba(4, 16, 19, 0.93);
-        --st-progress-label-bg: rgba(6, 20, 22, 0.95);
-      }
-
-      .st-progress::before {
-        content: '';
-        position: absolute;
-        inset: -8px -30px -8px -10px;
-        z-index: -1;
-        border-radius: 9px;
-        border: 1px solid var(--st-progress-plate-border);
-        background-color: var(--st-progress-plate);
-        box-shadow: 0 8px 22px rgba(0, 4, 9, 0.34), inset 0 1px 0 rgba(224, 251, 255, 0.035);
-        -webkit-backdrop-filter: blur(10px) saturate(1.15);
-        backdrop-filter: blur(10px) saturate(1.15);
-        -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
-        mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%);
-        transition: background-color 900ms cubic-bezier(0.16, 1, 0.3, 1), border-color 900ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      .st-progress-track {
-        position: relative;
-        flex: 1;
-        height: 6px;
-        border: 1px solid rgba(124, 213, 237, 0.2);
-        border-radius: 999px;
-        background-color: var(--st-progress-track-bg);
-        transition: background-color 900ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      .st-progress-track i {
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 100%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, #10c6bd, #31e6d6 64%, #75f8eb);
-        box-shadow: 0 0 8px rgba(50, 228, 219, 0.6), 0 0 20px rgba(50, 228, 219, 0.2);
-        transform: scaleX(var(--st-progress));
-        transform-origin: left;
-        transition: transform 760ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      .st-progress-track span {
-        position: absolute;
-        top: 50%;
-        left: var(--st-progress-left, 68%);
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: #d9fffb;
-        box-shadow: 0 0 7px rgba(188, 255, 250, 0.96), 0 0 18px rgba(50, 228, 219, 0.68);
-        transform: translate(-50%, -50%);
-        transition: left 760ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      .st-progress strong {
-        min-width: 2.7em;
-        margin-right: -6px;
-        padding: 4px 6px;
-        border-radius: 5px;
-        background-color: var(--st-progress-label-bg);
-        box-shadow: -8px 0 10px var(--st-progress-label-bg);
-        transition: background-color 900ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 900ms cubic-bezier(0.16, 1, 0.3, 1);
-        font-weight: 500;
-        text-align: right;
+      @keyframes bs-release {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .st-scene {
-          transition-duration: 0.01ms;
+        #boot-splash {
+          animation: none;
+          opacity: 1;
         }
       }
     </style>
@@ -181,39 +73,10 @@
           try { legacy = localStorage.getItem('gaea-dark') ?? localStorage.getItem('wubigork-dark') ?? '' } catch (e) {}
           light = legacy === '0';
         }
-        if (light) document.documentElement.setAttribute('data-bs-light', '');
+        if (light) document.documentElement.setAttribute('data-bs-light', '')
       } catch (e) { /* Dark is the safe fallback. */ }
     </script>
-    <div id="boot-splash" data-scene="earth" aria-hidden="true">
-      <div class="st-frame">
-        <div class="st-scenes">
-          <div class="st-scene st-scene--earth">
-            <img src="/boot-earthrise-original.png" alt="" draggable="false" />
-          </div>
-          <div class="st-scene st-scene--gaia">
-            <img src="/boot-gaia-original.png" alt="" draggable="false" />
-          </div>
-        </div>
-        <div class="st-progress" id="st-progress">
-          <div class="st-progress-track">
-            <i></i>
-            <span></span>
-          </div>
-          <strong>68%</strong>
-        </div>
-      </div>
-      <script>
-        window.setTimeout(function () {
-          try {
-            document.getElementById('boot-splash')?.setAttribute('data-scene', 'gaia')
-            document.getElementById('st-progress')?.style.setProperty('--st-progress', '0.72')
-            document.getElementById('st-progress')?.style.setProperty('--st-progress-left', '72%')
-            var label = document.querySelector('#st-progress strong')
-            if (label) label.textContent = '72%'
-          } catch (e) {}
-        }, 1596)
-      </script>
-    </div>
+    <div id="boot-splash" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

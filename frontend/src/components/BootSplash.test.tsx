@@ -28,6 +28,26 @@ function setReducedMotion(matches: boolean) {
   }))
 }
 
+/** Makes the jsdom audio element look like a voice that is really playing. */
+function mockPlayingVoice(container: HTMLElement, readPosition: () => number): HTMLAudioElement {
+  const voice = container.querySelector('audio')!
+  Object.defineProperty(voice, 'paused', { configurable: true, value: false })
+  Object.defineProperty(voice, 'readyState', { configurable: true, value: 4 })
+  Object.defineProperty(voice, 'duration', { configurable: true, value: 4 })
+  let position = readPosition()
+  Object.defineProperty(voice, 'currentTime', {
+    configurable: true,
+    get: () => position,
+    set: (value: number) => {
+      position = value
+    },
+  })
+  return voice
+}
+
+const progress = () => screen.getByRole('progressbar').getAttribute('aria-valuenow')
+const splash = () => screen.getByTestId('boot-splash')
+
 describe('BootSplash', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -41,23 +61,36 @@ describe('BootSplash', () => {
     vi.restoreAllMocks()
   })
 
-  it('接管静态启动屏并展示地核生成启动序列', () => {
+  it('静态首屏等底片清晰后才撤下，然后展示两幕底片、新标与品牌文案', () => {
     const staticSplash = document.createElement('div')
     staticSplash.id = 'boot-splash'
     document.body.appendChild(staticSplash)
 
-    renderSplash()
+    const { container } = renderSplash()
 
+    // The blurred first paint stays until the sharp plate is in, and the splash stays see-through underneath it.
+    expect(document.getElementById('boot-splash')).not.toBeNull()
+    expect(staticSplash.classList.contains('is-handing-off')).toBe(false)
+    expect(splash().classList.contains('is-over-static')).toBe(true)
+
+    fireEvent.load(screen.getByTestId('boot-poster-earth'))
+    expect(staticSplash.classList.contains('is-handing-off')).toBe(true)
+    expect(splash().classList.contains('is-over-static')).toBe(false)
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
     expect(document.getElementById('boot-splash')).toBeNull()
-    expect(screen.getByTestId('boot-splash')).not.toBeNull()
+
+    expect(splash()).not.toBeNull()
+    expect(screen.getByTestId('boot-poster-earth').getAttribute('src')).toBe('/boot/plate-orbit.avif')
+    expect(screen.getByTestId('boot-poster-gaia').getAttribute('src')).toBe('/boot/plate-valley.avif')
+    expect(container.querySelector('canvas')).not.toBeNull()
     expect(screen.getByRole('heading', { name: 'GAEA' })).not.toBeNull()
+    expect(screen.getByText('YOUR INTELLIGENT WORK ASSISTANT')).not.toBeNull()
+    expect(screen.getByText('EMPOWER YOUR INTELLIGENCE')).not.toBeNull()
     expect(screen.getByText('正在启动 · 连接智能世界…')).not.toBeNull()
     expect(screen.getByRole('button', { name: /跳过启动.*ESC/i })).not.toBeNull()
-    expect(document.querySelector('.bs-original-scene--earth')).not.toBeNull()
-    expect(document.querySelector('.bs-original-scene--gaia')).not.toBeNull()
-    expect(document.querySelectorAll('.bs-original-scene img')).toHaveLength(2)
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('68')
-    expect(document.querySelector('canvas')).toBeNull()
+    expect(progress()).toBe('0')
   })
 
   it('Escape 立即结束启动序列', () => {
@@ -67,35 +100,118 @@ describe('BootSplash', () => {
       fireEvent.keyDown(window, { key: 'Escape' })
     })
 
-    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
+    expect(splash().classList.contains('is-leaving')).toBe(true)
     act(() => {
       vi.advanceTimersByTime(420)
     })
     expect(screen.queryByTestId('boot-splash')).toBeNull()
   })
 
-  it('启动过程中自动从天空场景过渡到人间场景', () => {
+  it('启动过程中自动从天空场景过渡到人间场景，进度沿 68 → 72 推进', () => {
     const { container } = renderSplash()
-    const splash = screen.getByTestId('boot-splash')
-
-    expect(splash.getAttribute('data-scene')).toBe('earth')
-    expect(screen.getByText('YOUR INTELLIGENT WORK ASSISTANT')).not.toBeNull()
+    expect(splash().getAttribute('data-scene')).toBe('earth')
 
     startVoice(container)
     act(() => {
-      vi.advanceTimersByTime(1596)
+      vi.advanceTimersByTime(1100)
     })
+    expect(progress()).toBe('68')
+    expect(splash().getAttribute('data-scene')).toBe('earth')
 
-    expect(splash.getAttribute('data-scene')).toBe('gaia')
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('72')
-    expect(screen.getByText('EMPOWER YOUR INTELLIGENCE')).not.toBeNull()
+    act(() => {
+      vi.advanceTimersByTime(520)
+    })
+    expect(splash().getAttribute('data-scene')).toBe('gaia')
+    expect(progress()).toBe('70')
+
+    act(() => {
+      vi.advanceTimersByTime(684)
+    })
+    expect(progress()).toBe('72')
+  })
+
+  it('画面跟着语音自己的播放位置走：主线程再忙，换景也落在语音的第二句上', () => {
+    const { container } = renderSplash()
+    // The voice has been playing for a while before the main thread gets to run.
+    const voice = mockPlayingVoice(container, () => 1.7)
+    startVoice(container)
+    act(() => {
+      vi.advanceTimersByTime(64)
+    })
+    expect(splash().getAttribute('data-scene')).toBe('gaia')
+    expect(progress()).toBe('70')
+
+    // The voice ends: the close lines up with the last syllable, not with a late timer.
+    voice.currentTime = 4
+    act(() => {
+      fireEvent(voice, new Event('ended'))
+      vi.advanceTimersByTime(64)
+    })
+    expect(splash().classList.contains('is-leaving')).toBe(true)
+    expect(Number(progress())).toBeGreaterThanOrEqual(94)
+  })
+
+  it('语音晚于宽限线起播时，画面与收束都跟着语音走，不被兜底计时器提前截断', () => {
+    const { container } = renderSplash()
+    // The fallback timeline has been running since 450ms; its guard would close at 4750ms.
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    let position = 0.2
+    const voice = mockPlayingVoice(container, () => position)
+    startVoice(container)
+    act(() => {
+      vi.advanceTimersByTime(32)
+    })
+    // Wall time 3032ms, but the picture is where the voice is (0.2s → about a third of the
+    // 68% beat; the wall clock would already be past 75%).
+    expect(Number(progress())).toBeGreaterThan(20)
+    expect(Number(progress())).toBeLessThan(50)
+
+    // Past 4.9s of wall time: the old wall-clock guard would already have closed the splash.
+    act(() => {
+      vi.advanceTimersByTime(1900)
+    })
+    expect(splash().classList.contains('is-leaving')).toBe(false)
+
+    position = 4
+    act(() => {
+      fireEvent(voice, new Event('ended'))
+    })
+    expect(splash().classList.contains('is-leaving')).toBe(true)
+  })
+
+  it('语音的 ended 事件丢失时，保护计时器在语音播完后 300ms 内收束', () => {
+    const { container } = renderSplash()
+    mockPlayingVoice(container, () => 3.9)
+    startVoice(container)
+    act(() => {
+      vi.advanceTimersByTime(32 + 350)
+    })
+    expect(splash().classList.contains('is-leaving')).toBe(false)
+    act(() => {
+      vi.advanceTimersByTime(60)
+    })
+    expect(splash().classList.contains('is-leaving')).toBe(true)
+  })
+
+  it('语音没有自动播放时，宽限期后时间轴照常启动', () => {
+    renderSplash()
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(progress()).toBe('0')
+    act(() => {
+      vi.advanceTimersByTime(1150)
+    })
+    expect(progress()).toBe('68')
   })
 
   it('跳过按钮提供可见且可点击的退出路径', () => {
     renderSplash()
 
     fireEvent.click(screen.getByRole('button', { name: /跳过启动.*ESC/i }))
-    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
+    expect(splash().classList.contains('is-leaving')).toBe(true)
 
     act(() => {
       vi.advanceTimersByTime(420)
@@ -125,34 +241,52 @@ describe('BootSplash', () => {
     act(() => {
       vi.advanceTimersByTime(4300)
     })
-    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
+    expect(splash().classList.contains('is-leaving')).toBe(true)
+    expect(Number(progress())).toBeGreaterThanOrEqual(94)
+
+    // The bar tops up to 100 while the splash hands over to the workspace.
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+    expect(Number(progress())).toBeGreaterThan(94)
+    expect(Number(progress())).toBeLessThanOrEqual(100)
 
     act(() => {
-      vi.advanceTimersByTime(520)
+      vi.advanceTimersByTime(220)
     })
     expect(screen.queryByTestId('boot-splash')).toBeNull()
+  })
+
+  it('没有 WebGL2 时保持静态底片交叉淡变，不显示实时层', () => {
+    renderSplash()
+
+    expect(splash().classList.contains('is-live')).toBe(false)
+    expect(splash().getAttribute('data-scene')).toBe('earth')
+    expect(screen.getByTestId('boot-poster-gaia')).not.toBeNull()
   })
 
   it('reduced-motion 只关闭动画，不跳过完整启动时序', () => {
     setReducedMotion(true)
     const { container } = renderSplash()
+    expect(splash().classList.contains('is-reduced')).toBe(true)
     startVoice(container)
 
     act(() => {
       vi.advanceTimersByTime(760)
     })
     expect(screen.getByTestId('boot-splash')).not.toBeNull()
-    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(false)
+    expect(splash().classList.contains('is-leaving')).toBe(false)
 
     act(() => {
-      vi.advanceTimersByTime(836)
+      vi.advanceTimersByTime(860)
     })
     expect(screen.getByText('正在启动 · 连接智能世界…')).not.toBeNull()
+    expect(splash().getAttribute('data-scene')).toBe('gaia')
 
     act(() => {
       fireEvent(container.querySelector('audio')!, new Event('ended'))
     })
-    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
+    expect(splash().classList.contains('is-leaving')).toBe(true)
     act(() => {
       vi.advanceTimersByTime(180)
     })
@@ -178,6 +312,6 @@ describe('BootSplash', () => {
     act(() => {
       fireEvent(audio!, new Event('ended'))
     })
-    expect(screen.getByTestId('boot-splash').classList.contains('is-leaving')).toBe(true)
+    expect(splash().classList.contains('is-leaving')).toBe(true)
   })
 })

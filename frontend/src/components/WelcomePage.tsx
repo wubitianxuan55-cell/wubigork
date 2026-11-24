@@ -29,18 +29,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
         marginBottom: 24,
         overflow: 'hidden',
       }}>
-        <img
-          src="/gaea-brand-light.jpg"
-          alt=""
-          className="gaea-brand-art gaea-brand-art--light"
-          draggable={false}
-        />
-        <img
-          src="/gaea-brand-dark.jpg"
-          alt=""
-          className="gaea-brand-art gaea-brand-art--dark"
-          draggable={false}
-        />
+        <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
       </div>
       <Typography.Title level={1} style={{
         color: 'var(--md-sys-color-text)', margin: '0 0 6px', fontSize: 40,
