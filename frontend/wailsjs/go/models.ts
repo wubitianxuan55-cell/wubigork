@@ -1200,6 +1200,7 @@ export namespace app {
 	    bid_copy: string;
 	    bid_date: string;
 	    toc_entries?: ExportTocEntry[];
+	    heading_numbering?: string;
 	    output_path: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1221,6 +1222,7 @@ export namespace app {
 	        this.bid_copy = source["bid_copy"];
 	        this.bid_date = source["bid_date"];
 	        this.toc_entries = this.convertValues(source["toc_entries"], ExportTocEntry);
+	        this.heading_numbering = source["heading_numbering"];
 	        this.output_path = source["output_path"];
 	    }
 	
