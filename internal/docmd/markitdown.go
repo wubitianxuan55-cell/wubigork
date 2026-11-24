@@ -48,13 +48,24 @@ func markitdownAvailable() bool {
 // MarkItDown library. Returns an error when the toolchain is missing or the
 // conversion fails; callers fall back to the built-in parser.
 func convertViaMarkItDown(path string) (string, error) {
+	return convertViaMarkItDownArgs(path)
+}
+
+// convertViaMarkItDownKeepImages keeps embedded image data URIs in the
+// intermediate Markdown. Callers must externalize them before persisting or
+// returning the Markdown, otherwise base64 would bloat SQLite and indexes.
+func convertViaMarkItDownKeepImages(path string) (string, error) {
+	return convertViaMarkItDownArgs(path, "--keep-data-uris")
+}
+
+func convertViaMarkItDownArgs(path string, extra ...string) (string, error) {
 	if !markitdownAvailable() {
 		return "", errMarkItDownUnavailable
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), markItDownTimeout)
 	defer cancel()
 	var out, errBuf bytes.Buffer
-	cmd := markItDownCmd(ctx, path)
+	cmd := markItDownCmd(ctx, path, extra...)
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 	if err := cmd.Run(); err != nil {
@@ -67,13 +78,14 @@ func convertViaMarkItDown(path string) (string, error) {
 	return md, nil
 }
 
-func markItDownCmd(ctx context.Context, arg string) *exec.Cmd {
-	var cmd *exec.Cmd
+func markItDownCmd(ctx context.Context, arg string, extra ...string) *exec.Cmd {
+	python := "python3"
 	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(ctx, "python", "-m", "markitdown", arg)
-	} else {
-		cmd = exec.CommandContext(ctx, "python3", "-m", "markitdown", arg)
+		python = "python"
 	}
+	args := append([]string{"-m", "markitdown"}, extra...)
+	args = append(args, arg)
+	cmd := exec.CommandContext(ctx, python, args...)
 	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	return cmd
 }

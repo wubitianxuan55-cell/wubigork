@@ -1,5 +1,5 @@
 // proposal.ts — ProposalBindings（AppBindings 分域接口之一）：方案库板块的
-// 五个绑定。方法名即 Go 绑定名（无短名映射，proxy 按 Gaea 前缀直路由到
+// 六个绑定。方法名即 Go 绑定名（无短名映射，proxy 按 Gaea 前缀直路由到
 // ProposalB 门面）。签名以 Go internal/app/bindings_proposal.go 为准。
 //
 // 录入与索引只在办公方案模式里由模型经 proposal_save 完成；这里只给人看：
@@ -33,4 +33,6 @@ export interface ProposalBindings {
   ): Promise<ProposalSearchResult>;
   /** 删除方案（小节/语义索引级联清理）。 */
   GaeaProposalDelete(name: string): Promise<void>;
+  /** 把正文里的 gaea-asset://<sha256> 解析成可显示的 data URL。 */
+  GaeaProposalAssetDataURL(ref: string): Promise<string>;
 }

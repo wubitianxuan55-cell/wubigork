@@ -1,8 +1,8 @@
 # gaea 板块蓝图 · proposal 方案库「档案架」
 
 > 页面源：`ProposalLibraryPage.tsx` + `proposal-library.css`，纯逻辑在
-> `pages/proposal-library/logic.ts`。数据面：`ProposalB` 五绑定（清单 / 标题树 /
-> 阅读 / 检索 / 删除）；录入与索引不在本页，走办公「方案」运行模式里的
+> `pages/proposal-library/logic.ts`。数据面：`ProposalB` 六绑定（清单 / 标题树 /
+> 阅读 / 检索 / 删除 / 托管图片读取）；录入与索引不在本页，走办公「方案」运行模式里的
 > `proposal_save`。
 
 ## 定位
@@ -35,7 +35,8 @@
    - 中栏：标题树。首屏只展开到节（2 级及更深默认收起）；带箭头、字数；
      支持 ↑ ↓ Home End 移动读取、→ 展开、← 收起或回父节。
    - 右栏：阅读窗。标题路径面包屑、小节标题、字数、子节胶囊、Markdown 正文、
-     上一节 / 下一节。
+     托管图片、上一节 / 下一节。图片二进制存用户数据目录，正文只保留
+     `gaea-asset://<sha256>`，阅读时经绑定读回；不在数据库里塞 Base64。
 
 ## 四态
 

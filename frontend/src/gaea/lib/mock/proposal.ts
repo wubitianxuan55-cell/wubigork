@@ -12,7 +12,8 @@ import type { MakeMockState } from "./state";
 
 type ProposalMethods = Pick<
   AppBindings,
-  "GaeaProposalList" | "GaeaProposalOutline" | "GaeaProposalRead" | "GaeaProposalSearch" | "GaeaProposalDelete"
+  "GaeaProposalList" | "GaeaProposalOutline" | "GaeaProposalRead" | "GaeaProposalSearch" | "GaeaProposalDelete" |
+  "GaeaProposalAssetDataURL"
 >;
 
 interface MockSection {
@@ -182,6 +183,10 @@ export function buildProposal(state: MakeMockState): ProposalMethods {
       if (!find(name)) throw new Error(`方案 ${name} 不存在`);
       proposals = proposals.filter((p) => !(p.name === name || p.title === name));
       void nextId++;
+    },
+    async GaeaProposalAssetDataURL(ref: string) {
+      if (!ref.startsWith("gaea-asset://")) throw new Error("方案图片引用无效");
+      return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII=";
     },
   };
 }

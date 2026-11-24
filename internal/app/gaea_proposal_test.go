@@ -1,6 +1,9 @@
 package app
 
 import (
+	"encoding/base64"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -35,7 +38,68 @@ func proposalBindingEnv(t *testing.T) *App {
 	return &App{}
 }
 
-// TestProposalBindingsListOutlineReadSearchDelete 方案库板块五个绑定的端到端
+func TestProposalAssetBinding(t *testing.T) {
+	a := proposalBindingEnv(t)
+	st, err := a.hubProposalStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceDir := t.TempDir()
+	raw, err := base64.StdEncoding.DecodeString(tinyProposalPNG)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(sourceDir, "images"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "images", "scene.png"), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := st.Save(proposal.SaveInput{
+		Meta:         proposal.Proposal{Title: "图片绑定方案"},
+		AssetBaseDir: sourceDir,
+		Sections: []proposal.Section{{
+			Level: 1, Title: "第一章",
+			Body: "![现场图](images/scene.png)",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Assets != 1 {
+		t.Fatalf("Assets=%d", res.Assets)
+	}
+	tree, err := a.GaeaProposalOutline("图片绑定方案")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := a.GaeaProposalRead(tree[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := strings.Index(body.Body, proposal.AssetURIPrefix)
+	if start < 0 {
+		t.Fatalf("正文缺少资产引用: %s", body.Body)
+	}
+	ref := body.Body[start : start+len(proposal.AssetURIPrefix)+64]
+	dataURL, err := a.GaeaProposalAssetDataURL(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(dataURL, "data:image/png;base64,") {
+		t.Fatalf("data URL=%q", dataURL)
+	}
+	if err := a.GaeaProposalDelete("图片绑定方案"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.GaeaProposalAssetDataURL(ref); err == nil {
+		t.Fatal("删除方案后资产绑定应失效")
+	}
+}
+
+const tinyProposalPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII="
+
+// TestProposalBindingsListOutlineReadSearchDelete 方案库板块的端到端
 // （与界面同一条调用链）：清单带规模 → 标题树带父子 → 读节 → 检索回小节与
 // 命中摘要（本地模型不可达时如实降级）→ 删除级联。
 func TestProposalBindingsListOutlineReadSearchDelete(t *testing.T) {

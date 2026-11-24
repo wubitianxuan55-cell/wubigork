@@ -71,7 +71,7 @@ var officeCostToolNames = tool.ToolGroupMembers(tool.ToolGroupCost)
 var officeLongdocToolNames = tool.ToolGroupMembers(tool.ToolGroupLongdoc)
 
 // officeRunModeHide 返回该档 run_mode 轴需 Registry.Hide 的专用工具名单
-//（boot.Options.ToolHide 的 run_mode 分量；face/组覆盖分量走 composeToolHide）。
+// （boot.Options.ToolHide 的 run_mode 分量；face/组覆盖分量走 composeToolHide）。
 // 2026-11-21 用户拍板改排（覆盖 pan_1795224680124 初排）：CAD 并入造价档、
 // 进度并入方案档，标准档两族全关：
 //   - standard：造价族+方案族+CAD+进度全藏（通用办公不带行业/纵深面）；
@@ -161,7 +161,7 @@ const officeRunModeLineStandard = `【运行模式】标准（通用办公）。
 
 const officeRunModeLineCost = `【运行模式】造价——聚焦工程造价成本测算与图纸算量。结构化测算锚 workcost 工料机数据面：cost_project 读项目/清单/定额/资源，cost_project_apply 写入（建项目/更新费率/套定额或手填价，写前同批编码查重），cost_audit 只读机检（行级硬检+库级信息项），cost_search 查历史单价、cost_save 沉淀（用户确认门）；CAD 图纸识别走 cad_ask（图框质量闸+vision 读图）。本档未装配进度计划与长文方案专用工具（schedule_*/longdoc_*）；用户提出进度计划编制需求或几十页以上技术方案编制需求时，提示其切换到「方案」运行模式（参数面板切换档位，开启新会话生效）。`
 
-const officeRunModeLineProposal = `【运行模式】方案——聚焦长篇技术方案编制与进度计划。longdoc_manifest 维护章节清单并做确定性机检（缺章/空章/重复/悬空来源/未映射评分点/未闭合占位符/清单漂移），longdoc_build 按清单分章组装整册并经交付模板链导出（页数用 doc_render 渲染取，哈希由回执给出）。方案库里的历史方案可作参照：动笔前用 proposal_search 检索（scope=title 看同类方案的章节骨架；关键词或自然语言问法查段落），命中后用 proposal_read 读对应小节（加 query 只取相关段落），对照其章节骨架与评分点口径；引用须注明出处方案，别的项目的工程量/人员/设备等专属数据不得照搬。用户要把历史方案录进方案库时：先把原文件 format_convert 转成 Markdown，再用 proposal_save 的 outline 形态——你只列认定的标题与层级（1~4 级，父级在前逐级展开，首项 1 级），正文由工具从源文件逐字切出；长文档每批 100~200 个标题，首批之后 mode=append 续录（title 不变），最后一批 finalize=true；细则读 proposal-longform 技能。成稿经用户确认后同样用 proposal_save 录入方案库。进度计划走 schedule_get/apply/analyze（读改排程/CPM 分析，schedule-edit 技能纪律）。本档未装配造价专用工具与 CAD（cost_*/cad_ask）；用户提出工程造价成本测算/算量需求时，提示其切换到「造价」运行模式（参数面板切换档位，开启新会话生效）。`
+const officeRunModeLineProposal = `【运行模式】方案——聚焦长篇技术方案编制与进度计划。longdoc_manifest 维护章节清单并做确定性机检（缺章/空章/重复/悬空来源/未映射评分点/未闭合占位符/清单漂移），longdoc_build 按清单分章组装整册并经交付模板链导出（页数用 doc_render 渲染取，哈希由回执给出）。方案库里的历史方案可作参照：动笔前用 proposal_search 检索（scope=title 看同类方案的章节骨架；关键词或自然语言问法查段落），命中后用 proposal_read 读对应小节（加 query 只取相关段落），对照其章节骨架与评分点口径；引用须注明出处方案，别的项目的工程量/人员/设备等专属数据不得照搬。用户要把历史方案录进方案库时：先把原文件 format_convert 转成 Markdown（同时给 output 与 preserve_images=true，保留 Word/PPT 内嵌图片），再用 proposal_save 的 outline 形态——你只列认定的标题与层级（1~4 级，父级在前逐级展开，首项 1 级），正文由工具从源文件逐字切出并托管本地图片；长文档每批 100~200 个标题，首批之后 mode=append 续录（title 不变），最后一批 finalize=true；细则读 proposal-longform 技能。成稿经用户确认后同样用 proposal_save 录入方案库。进度计划走 schedule_get/apply/analyze（读改排程/CPM 分析，schedule-edit 技能纪律）。本档未装配造价专用工具与 CAD（cost_*/cad_ask）；用户提出工程造价成本测算/算量需求时，提示其切换到「造价」运行模式（参数面板切换档位，开启新会话生效）。`
 
 // normalizeOfficeRunMode 归一运行模式字符串（app 层兜底；config.OfficeRunMode
 // 已做同样归一，两处口径一致——守卫测试钉死）。

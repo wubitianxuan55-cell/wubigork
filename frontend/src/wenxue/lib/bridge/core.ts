@@ -85,7 +85,8 @@ export interface CoreBindings {
   // Steer 任务运行中插话调整：消息注入当前回合作为补充指引（不打断执行、
   // 不开新回合）；未运行时走 Submit 排队兜底。
   Steer(input: string): Promise<void>;
-  // GaeaRunning 返回办公引擎当前是否真的在跑（看门狗校准用）。
+  // GaeaRunning 在图文桥接中映射 WenxueRunning：true 包含 turn_started 前的
+  // 引擎预检/冷启动在途窗口（看门狗校准用）。
   GaeaRunning(): Promise<boolean>;
   Approve(id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort"): Promise<void>;
   // 拒绝理由 / 待追认账本 / 追认重放（T3/T11，目标为图文引擎）。

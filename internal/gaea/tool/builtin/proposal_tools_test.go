@@ -2,10 +2,12 @@ package builtin
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,9 +16,143 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/proposal"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
+
+func TestProposalSaveToolManagesRelativeImages(t *testing.T) {
+	proposalTestEnv(t)
+	dir := t.TempDir()
+	raw, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "images"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "images", "flow.png"), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	save := proposalSaveTool{workDir: dir}
+	out, err := save.Execute(context.Background(), toJSON(t, map[string]any{
+		"title": "工具图片方案",
+		"sections": []map[string]any{{
+			"level": 1, "title": "第一章", "body": "![流程图](images/flow.png)",
+		}},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg := toolMessage(t, out); !strings.Contains(msg, "图片资产**: 已托管 1 张") {
+		t.Fatalf("回执缺少资产说明:\n%s", msg)
+	}
+	st, err := proposalStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := st.Resolve("工具图片方案")
+	if err != nil || p == nil {
+		t.Fatalf("Resolve: %v %+v", err, p)
+	}
+	secs, err := st.Outline(p.ID)
+	if err != nil || len(secs) != 1 {
+		t.Fatalf("Outline: %v %+v", err, secs)
+	}
+	read, err := st.Read(secs[0].ID, proposal.ReadOpt{Limit: proposal.ReadAll})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read.Text, "gaea-asset://") {
+		t.Fatalf("工具保存后正文未改写资产引用: %s", read.Text)
+	}
+}
+
+func TestProposalImageEndToEndDocxConvertAndSave(t *testing.T) {
+	proposalTestEnv(t)
+	dir := t.TempDir()
+	const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII="
+	raw, err := base64.StdEncoding.DecodeString(png)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imagePath := filepath.Join(dir, "figure.png")
+	if err := os.WriteFile(imagePath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	docxPath := filepath.Join(dir, "source.docx")
+	script := `
+from docx import Document
+from docx.shared import Inches
+d = Document()
+d.add_heading("第一章 工艺", level=1)
+d.add_paragraph("工艺流程如下：")
+d.add_picture(r"` + imagePath + `", width=Inches(0.25))
+d.save(r"` + docxPath + `")
+`
+	if out, err := exec.Command("python", "-c", script).CombinedOutput(); err != nil {
+		t.Skipf("python-docx 不可用，跳过: %v %s", err, out)
+	}
+	mdPath := filepath.Join(dir, "exports", "source.md")
+	convertArgs := toJSON(t, map[string]any{
+		"path": docxPath, "output": mdPath, "preserve_images": true,
+	})
+	if _, err := (formatConvert{workDir: dir}).Execute(context.Background(), convertArgs); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headingLine := 0
+	for i, line := range strings.Split(string(data), "\n") {
+		if strings.Contains(line, "第一章 工艺") {
+			headingLine = i + 1
+			break
+		}
+	}
+	if headingLine == 0 {
+		t.Fatalf("转换结果缺少标题:\n%s", data)
+	}
+	out, err := (proposalSaveTool{workDir: dir}).Execute(context.Background(), toJSON(t, map[string]any{
+		"title":       "DOCX 图文端到端",
+		"source_file": filepath.ToSlash(filepath.Join("exports", "source.md")),
+		"outline": []map[string]any{{
+			"level": 1, "title": "第一章 工艺", "line": headingLine,
+		}},
+		"finalize": true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg := toolMessage(t, out); !strings.Contains(msg, "已托管 1 张") {
+		t.Fatalf("录入回执缺少图片资产:\n%s", msg)
+	}
+	st, err := proposalStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := st.Resolve("DOCX 图文端到端")
+	if err != nil || p == nil {
+		t.Fatalf("Resolve: %v %+v", err, p)
+	}
+	secs, err := st.Outline(p.ID)
+	if err != nil || len(secs) != 1 {
+		t.Fatalf("Outline: %v %+v", err, secs)
+	}
+	read, err := st.Read(secs[0].ID, proposal.ReadOpt{Limit: proposal.ReadAll})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := strings.Index(read.Text, "gaea-asset://")
+	if start < 0 {
+		t.Fatalf("正文未改写资产引用: %s", read.Text)
+	}
+	ref := read.Text[start : start+len("gaea-asset://")+64]
+	if _, err := st.AssetDataURL(ref); err != nil {
+		t.Fatalf("托管图片不可读: %v", err)
+	}
+}
 
 // proposalTestEnv 把方案库落到临时目录。注意 MemoryUserDir 走 os.UserConfigDir，
 // Windows 上读的是 %AppData%——只改 USERPROFILE 拦不住（2026-11-23 的旧测试因此

@@ -37,7 +37,7 @@ func proposalStore() (*proposal.Store, error) {
 	if gdb == nil {
 		return nil, fmt.Errorf("方案库不可用（主库未就绪）")
 	}
-	return proposal.Open(gdb)
+	return proposal.OpenWithAssets(gdb, config.MemoryUserDir())
 }
 
 // proposalSemantic 方案库混合检索的本地模型依赖：复用造价库同款客户端
@@ -75,7 +75,7 @@ type proposalSaveTool struct{ workDir string }
 
 func (proposalSaveTool) Name() string { return "proposal_save" }
 func (proposalSaveTool) Description() string {
-	return "把方案录入方案库（标题 1~4 级，由你划分层级）。两种给法：①按源文件切正文（推荐，几百页的方案用这个）：先把原文件转成 Markdown（format_convert），你只列出认定的标题与层级 outline=[{level,title,line?}]，正文由工具从源文件逐字切出，不必重打；长文档分批：每批 100~200 个标题，之后各批 mode=append 续录（title 不变），最后一批 finalize=true。②直给正文 sections=[{level,title,body}]，适合短文档或你自己写的内容。outline/sections 须按文档顺序、父级在前、逐级展开（不能跳级，第一项 1 级）；title 写标题原文（可带编号），拿不准时给 line。已有同名方案时整册覆盖须 overwrite=true。仅用户明确要求沉淀方案时调用。"
+	return "把方案录入方案库（标题 1~4 级，由你划分层级）。两种给法：①按源文件切正文（推荐，几百页的方案用这个）：先把原文件转成 Markdown（Word/PPT 用 format_convert 并设 preserve_images=true），你只列出认定的标题与层级 outline=[{level,title,line?}]，正文由工具从源文件逐字切出，不必重打；正文引用的本地图片会复制为方案托管资产并改写稳定引用。长文档分批：每批 100~200 个标题，之后各批 mode=append 续录（title 不变），最后一批 finalize=true。②直给正文 sections=[{level,title,body}]，适合短文档或你自己写的内容。outline/sections 须按文档顺序、父级在前、逐级展开（不能跳级，第一项 1 级）；title 写标题原文（可带编号），拿不准时给 line。已有同名方案时整册覆盖须 overwrite=true。仅用户明确要求沉淀方案时调用。"
 }
 func (proposalSaveTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -158,7 +158,8 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 			Year: strings.TrimSpace(p.Year), Summary: strings.TrimSpace(p.Summary),
 		},
 		Overwrite: p.Overwrite, Append: mode == "append", Finalize: p.Finalize,
-		SourceFile: strings.TrimSpace(p.SourceFile),
+		SourceFile:   strings.TrimSpace(p.SourceFile),
+		AssetBaseDir: t.workDir,
 	}
 	for _, e := range p.Outline {
 		in.Outline = append(in.Outline, proposal.OutlineEntry{Level: e.Level, Title: e.Title, Line: e.Line})
@@ -172,6 +173,7 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 			return "", err
 		}
 		in.Lines = lines
+		in.AssetBaseDir = filepath.Dir(abs)
 		if in.Meta.Source == "" {
 			in.Meta.Source = filepath.Base(abs)
 		}
@@ -257,6 +259,19 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 		b.WriteString("\n")
 	}
 	fmt.Fprintf(&b, "**语义索引**: %s\n", proposalIndexStatus(ctx, st, res.ProposalID))
+	if res.Assets > 0 {
+		fmt.Fprintf(&b, "**图片资产**: 已托管 %d 张（正文引用已改为 gaea-asset:// 稳定 ID）\n", res.Assets)
+	}
+	if len(res.MissingAssets) > 0 {
+		fmt.Fprintf(&b, "**图片未托管**（%d 处，原引用保留；修正路径或重新转换后再录入）：\n", len(res.MissingAssets))
+		for i, item := range res.MissingAssets {
+			if i >= 8 {
+				fmt.Fprintf(&b, "- …共 %d 处\n", len(res.MissingAssets))
+				break
+			}
+			b.WriteString("- " + item + "\n")
+		}
+	}
 	if long := proposalLongSections(st, res.ProposalID); long != "" {
 		fmt.Fprintf(&b, "\n**过长小节**（超过 %s，建议在其内部补下级标题后重录）：\n%s\n", fmtChars(proposalLongSectionHint), long)
 	}

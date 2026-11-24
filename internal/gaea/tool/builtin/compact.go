@@ -25,11 +25,11 @@ var compactDesc = map[string]string{
 	"complete_step":      "完成计划步骤(step/result/evidence;kind=verification|diff|files|manual,禁止纯manual)",
 	"memory_search":      "搜索记忆(关键词,kind过滤,BM25排序)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
-	"format_convert":     "文档格式转换(docx/xlsx/pdf→Markdown，含OCR扫描件回退)",
+	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;preserve_images保留DOCX/PPTX原图sidecar;含OCR扫描件回退)",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
 	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
 	"cost_search":        "搜索成本库(关键词/分类/状态,返回单价表)",
-	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;或直给sections)",
+	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections)",
 	"proposal_search":    "检索方案库(全文+本地语义召回+精排;scope=title查标题树;可按层级/类型/年度/方案过滤)",
 	"proposal_read":      "读方案库小节(整节自动分页;query只取相关段落;scope=subtree连子节)",
 	"cost_save":          "写入/更新成本库条目(同名覆盖,含单价/单位/来源;仅用户明确要求时调用)",
@@ -38,8 +38,8 @@ var compactDesc = map[string]string{
 	"vision":             "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 	"cad_ask":            "读取CAD图纸(DWG/DXF/PDF)并让视觉模型回答图纸问题(自动选质量最好图框高清渲染;PDF按页),发来图纸问内容/尺寸/数量时用",
 	"doc_render":         "把文档渲染成页PNG(只读,docx/pptx/xlsx/pdf→LibreOffice+poppler,供vision/视觉验收)",
-	"md_validate":         "md/txt/docx 编号机检(只读:题注撞号/跳号+引用↔题注对账+表格列数一致;多代理并行编制后必跑)",
-	"ai_feedback":         "提交产品反馈(遇困难/发现不足主动提,一条一事;入记忆面板AI反馈区,用户可导出md)",
+	"md_validate":        "md/txt/docx 编号机检(只读:题注撞号/跳号+引用↔题注对账+表格列数一致;多代理并行编制后必跑)",
+	"ai_feedback":        "提交产品反馈(遇困难/发现不足主动提,一条一事;入记忆面板AI反馈区,用户可导出md)",
 	"browser_navigate":   "受控Edge打开URL(仅http/https,独立临时profile,不碰用户浏览器)",
 	"browser_read":       "读取受控浏览器页面文本(全文或selector局部,可截断,frame可选iframe内)",
 	"browser_snapshot":   "列出页面可交互元素([#ref] <tag> 文本),click/type前必须先snapshot拿ref",
@@ -59,11 +59,11 @@ var compactDesc = map[string]string{
 }
 
 var compactSchema = map[string]json.RawMessage{
-			"ai_feedback": json.RawMessage(
+	"ai_feedback": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"},"category":{"type":"string","enum":["tool-friction","bug","missing-capability","workflow","other"]},"severity":{"type":"string","enum":["low","medium","high"]},"board":{"type":"string","enum":["chat","office","wenxue"]}},"required":["title","detail"]}`),
-"md_validate": json.RawMessage(
+	"md_validate": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"paths":{"type":"array","items":{"type":"string"},"description":"多文件全册模式(覆盖 path):跨章引用闭合即过,撞号跨文件检出"},"checks":{"type":"array","items":{"type":"string","enum":["numbering","orphans","table_columns"]}}},"required":["path"]}`),
-"read_file": json.RawMessage(
+	"read_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer","description":"向前分页用非负 offset；负值表示从 EOF 倒数，如 -30 读末尾 30 行窗口"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"},"section":{"type":"string","description":"md 标题选择子（编号或文本子串，如 3.2/风险评估）：整节返回，offset 非负时在节内翻页"}},"required":["path"]}`),
 	"write_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256，或 absent=仅新建"}},"required":["path","content"]}`),
@@ -104,7 +104,7 @@ var compactSchema = map[string]json.RawMessage{
 	"read_skill": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`),
 	"format_convert": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string"},"pages":{"type":"string"}},"required":["path"]}`),
+		`{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string"},"pages":{"type":"string"},"preserve_images":{"type":"boolean"}},"required":["path"]}`),
 	"chart_gen": json.RawMessage(
 		`{"type":"object","properties":{"labels":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"number"}},"series":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"values":{"type":"array","items":{"type":"number"}}},"required":["values"]}},"chart_type":{"type":"string","enum":["bar","line","pie","scatter","hbar","area","donut","grouped_bar","stacked_bar"]},"title":{"type":"string"},"output":{"type":"string"}},"required":["labels"]}`),
 	"diagram_gen": json.RawMessage(

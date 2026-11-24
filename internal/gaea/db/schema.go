@@ -905,3 +905,29 @@ CREATE TABLE IF NOT EXISTS proposal_embed_meta (
   dim   INTEGER NOT NULL DEFAULT 0
 );
 `
+
+// SchemaV37 方案库·托管图片资产（2026-11-24 用户拍板继续改造）。
+// 图片二进制不塞进正文或 SQLite：按 sha256 内容寻址落到 proposal-assets，
+// 本表只保存方案/小节归属、MIME、尺寸与图注。正文通过 gaea-asset://<sha256>
+// 稳定引用；同一小节重复引用同一图只留一行，跨方案同图共用一份磁盘文件。
+const SchemaV37 = `
+CREATE TABLE IF NOT EXISTS proposal_assets (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  proposal_id   INTEGER NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+  section_id    INTEGER NOT NULL REFERENCES proposal_sections(id) ON DELETE CASCADE,
+  sha256        TEXT NOT NULL,
+  mime          TEXT NOT NULL DEFAULT '',
+  bytes         INTEGER NOT NULL DEFAULT 0,
+  width         INTEGER NOT NULL DEFAULT 0,
+  height        INTEGER NOT NULL DEFAULT 0,
+  original_name TEXT NOT NULL DEFAULT '',
+  caption       TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_proposal_assets_section_sha
+  ON proposal_assets(section_id, sha256);
+CREATE INDEX IF NOT EXISTS idx_proposal_assets_proposal
+  ON proposal_assets(proposal_id);
+CREATE INDEX IF NOT EXISTS idx_proposal_assets_sha
+  ON proposal_assets(sha256);
+`

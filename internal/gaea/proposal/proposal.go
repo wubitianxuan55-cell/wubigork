@@ -1,11 +1,12 @@
 // Package proposal 方案库存储层（2026-11-23 用户拍板立项）：按标题层级 1~4 级
 // 存取与检索。录入与索引都在办公板块的方案模式内由模型完成（proposal_save/
 // proposal_search/proposal_read 三工具），无独立解析入口。与造价库同模式：
-// 存 Hephaestus.db（SchemaV35/V36）。
+// 存 Hephaestus.db（SchemaV35~V37）。
 //
 // 一份方案存成三层：标题树（1~4 级标题与父子关系，管定位与骨架参照）、小节
 // （某标题下逐字原样的正文，管阅读与出处）、段落（小节正文切块后的语义索引
-// 单元，管被检索命中，见 semantic.go）。
+// 单元，管被检索命中，见 semantic.go）。正文图片另走托管资产：二进制按
+// sha256 落用户数据目录，proposal_assets 记归属，正文只留稳定 asset URI。
 //
 // 录入两形态：A=模型直给各节正文（sections）；B=模型只给标题与层级（outline），
 // 正文由源文件按标题行逐字切出——几百页的方案不必让模型重打十几万字。两形态
@@ -109,7 +110,10 @@ type ProposalInfo struct {
 }
 
 // Store 方案库存储。
-type Store struct{ db *sql.DB }
+type Store struct {
+	db        *sql.DB
+	assetRoot string
+}
 
 // Open 打开方案库；gdb 为 nil 时不可用。
 func Open(gdb *sql.DB) (*Store, error) {
@@ -216,14 +220,15 @@ type OutlineEntry struct {
 
 // SaveInput 一次录入调用的全部输入。
 type SaveInput struct {
-	Meta       Proposal
-	Overwrite  bool           // 整册覆盖已存在的同名方案须显式确认
-	Append     bool           // mode=append：续录同一方案
-	Sections   []Section      // 形态 A：模型直给正文（Level/Title/Body）
-	Outline    []OutlineEntry // 形态 B：模型只给标题与层级
-	Lines      []string       // 形态 B 的源文件行（调用方读好传入；存储层不做文件 IO）
-	SourceFile string         // 形态 B 的源文件路径（落库留痕，续录核对用）
-	Finalize   bool           // 形态 B：本批是最后一批，末节正文截至文件尾
+	Meta         Proposal
+	Overwrite    bool           // 整册覆盖已存在的同名方案须显式确认
+	Append       bool           // mode=append：续录同一方案
+	Sections     []Section      // 形态 A：模型直给正文（Level/Title/Body）
+	Outline      []OutlineEntry // 形态 B：模型只给标题与层级
+	Lines        []string       // 形态 B 的源文件行（调用方读好传入；存储层不做文件 IO）
+	SourceFile   string         // 形态 B 的源文件路径（落库留痕，续录核对用）
+	AssetBaseDir string         // 正文相对图片的解析根；通常是 Markdown 源文件所在目录
+	Finalize     bool           // 形态 B：本批是最后一批，末节正文截至文件尾
 }
 
 // ExistsError 同名方案已存在且未确认覆盖。
@@ -245,18 +250,20 @@ func (e *ExistsError) Error() string {
 
 // SaveResult 录入回执数据。
 type SaveResult struct {
-	ProposalID   int64
-	Created      bool     // 本次新建
-	Replaced     bool     // 本次整册覆盖了旧内容
-	Added        int      // 本次写入的标题节点数
-	Clamped      int      // level>4 被压到 4 级的节点数
-	SkippedLines int      // 首个标题前未入库的行数（封面/目录）
-	IngestLine   int      // 已录到源文件第几行
-	TotalLines   int      // 源文件总行数（形态 A 为 0）
-	Done         bool     // 是否录入完成
-	PendingTitle string   // 未收尾时待截取正文的末节标题
-	WeakMatches  []string // 定位到「不像标题的行」的标题（模型宜核对行号）
-	Stats        Stats    // 写入后的结构统计
+	ProposalID    int64
+	Created       bool     // 本次新建
+	Replaced      bool     // 本次整册覆盖了旧内容
+	Added         int      // 本次写入的标题节点数
+	Clamped       int      // level>4 被压到 4 级的节点数
+	SkippedLines  int      // 首个标题前未入库的行数（封面/目录）
+	IngestLine    int      // 已录到源文件第几行
+	TotalLines    int      // 源文件总行数（形态 A 为 0）
+	Done          bool     // 是否录入完成
+	PendingTitle  string   // 未收尾时待截取正文的末节标题
+	WeakMatches   []string // 定位到「不像标题的行」的标题（模型宜核对行号）
+	Assets        int      // 本次托管、且正文已改写引用的图片数
+	MissingAssets []string // 正文里未能托管的图片引用（保留原写法）
+	Stats         Stats    // 写入后的结构统计
 }
 
 // Save 录入一批：整批在一个事务里，任何一项出错整批不落库（fail-closed）。
@@ -334,6 +341,7 @@ func (s *Store) Save(in SaveInput) (*SaveResult, error) {
 	}
 	pid := int64(0)
 	created, replaced := !hasExisting, false
+	var oldAssetRefs []assetDiskRef
 	if created {
 		err = tx.QueryRow(`INSERT INTO proposals(name,title,project_type,year,source,workspace,status,summary,source_file,created_at,updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
@@ -345,7 +353,14 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 		pid = existing.ID
 		if !in.Append { // 整册覆盖：旧小节、全文索引、语义块全部让位
 			replaced = len(oldSections) > 0
+			oldAssetRefs, err = assetRefsTx(tx, pid)
+			if err != nil {
+				return nil, unreadable(err)
+			}
 			if _, err := tx.Exec(`DELETE FROM proposal_fts WHERE rowid IN (SELECT id FROM proposal_sections WHERE proposal_id=?)`, pid); err != nil {
+				return nil, err
+			}
+			if _, err := tx.Exec(`DELETE FROM proposal_assets WHERE proposal_id=?`, pid); err != nil {
 				return nil, err
 			}
 			if _, err := tx.Exec(`DELETE FROM proposal_sections WHERE proposal_id=?`, pid); err != nil {
@@ -436,15 +451,20 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 
 	done, skipped, ingestLine := true, 0, 0
 	ingestHash, pendingTitle := "", ""
+	assetCount := 0
+	var missingAssets []string
 	if formB {
 		h := make([]int, len(newSecs))
 		for i := range newSecs {
 			h[i] = newSecs[i].SrcLine - 1
 		}
 		if pendingID != 0 {
-			if err := setSectionBodyTx(tx, pendingID, pid, pendingPath, joinLines(in.Lines[cursor:h[0]]), now); err != nil {
+			added, missing, err := s.setSectionBodyTx(tx, pendingID, pid, pendingPath, joinLines(in.Lines[cursor:h[0]]), in.AssetBaseDir, now)
+			if err != nil {
 				return nil, err
 			}
+			assetCount += added
+			missingAssets = append(missingAssets, missing...)
 		} else if cursor == 0 && h[0] > 0 {
 			skipped = h[0] // 封面、目录等首个标题之前的内容不入库（目录会重复全部标题，进了反而是噪声）
 		}
@@ -463,9 +483,12 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 		ingestHash = prefixHash(in.Lines, ingestLine)
 	} else if in.Append && in.Finalize && pendingID != 0 && len(in.Lines) > 0 {
 		// 只收尾：待截取的末节正文截至文件尾。
-		if err := setSectionBodyTx(tx, pendingID, pid, pendingPath, joinLines(in.Lines[cursor:]), now); err != nil {
+		added, missing, err := s.setSectionBodyTx(tx, pendingID, pid, pendingPath, joinLines(in.Lines[cursor:]), in.AssetBaseDir, now)
+		if err != nil {
 			return nil, err
 		}
+		assetCount += added
+		missingAssets = append(missingAssets, missing...)
 	}
 	if !formB {
 		// 形态 A 不用源文件游标：整册覆盖后旧游标作废；追加时原样保留。
@@ -474,11 +497,21 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 			ingestLine, ingestHash = existing.IngestLine, existing.IngestHash
 		}
 	}
+	preparedAssets := make([][]proposalAsset, len(newSecs))
 	for i := range newSecs {
+		prepared, err := s.prepareBodyAssets(newSecs[i].Body, in.AssetBaseDir)
+		if err != nil {
+			return nil, fmt.Errorf("托管小节 %q 的图片: %w", newSecs[i].Title, err)
+		}
+		newSecs[i].Body = prepared.Body
+		preparedAssets[i] = prepared.Assets
+		assetCount += len(prepared.Assets)
+		missingAssets = append(missingAssets, prepared.Missing...)
 		if n := len([]rune(newSecs[i].Body)); n > MaxBodyChars {
 			return nil, fmt.Errorf("小节 %q 正文 %d 字超过单节上限 %d 字：请在该节范围内多列一些下级标题后再录入", newSecs[i].Title, n, MaxBodyChars)
 		}
 	}
+	missingAssets = uniqueStrings(missingAssets)
 
 	// 标题路径与父节点：按 level 维护栈，续录时接续已存末节的栈。
 	var stackID [MaxLevels + 1]int64
@@ -513,6 +546,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?)`,
 		sid, _ := res.LastInsertId()
 		sec.ID = sid
 		stackID[sec.Level] = sid
+		if err := s.insertAssetsTx(tx, pid, sid, preparedAssets[i], now); err != nil {
+			return nil, fmt.Errorf("写入小节 %s 的图片资产: %w", sec.Title, err)
+		}
 		if err := insertFTS(tx, sid, sec.Title, sec.TitlePath, sec.Body, pid); err != nil {
 			return nil, fmt.Errorf("索引小节 %s: %w", sec.Title, err)
 		}
@@ -533,10 +569,11 @@ VALUES(?,?,?,?,?,?,?,?,?,?)`,
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	s.gcAssetRefs(oldAssetRefs)
 	res := &SaveResult{
 		ProposalID: pid, Created: created, Replaced: replaced, Added: len(newSecs), Clamped: clamped,
 		SkippedLines: skipped, IngestLine: ingestLine, TotalLines: len(in.Lines), Done: done, PendingTitle: pendingTitle,
-		WeakMatches: weak,
+		WeakMatches: weak, Assets: assetCount, MissingAssets: missingAssets,
 	}
 	res.Stats, err = s.Stats(pid)
 	if err != nil {
@@ -555,7 +592,21 @@ func (s *Store) Delete(name string) error {
 		return unreadable(err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	var pid int64
+	if err := tx.QueryRow(`SELECT id FROM proposals WHERE name=?`, name).Scan(&pid); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("方案 %q 不存在", name)
+		}
+		return unreadable(err)
+	}
+	oldAssetRefs, err := assetRefsTx(tx, pid)
+	if err != nil {
+		return unreadable(err)
+	}
 	if _, err := tx.Exec(`DELETE FROM proposal_fts WHERE rowid IN (SELECT s.id FROM proposal_sections s JOIN proposals p ON p.id=s.proposal_id WHERE p.name=?)`, name); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM proposal_assets WHERE proposal_id=?`, pid); err != nil {
 		return err
 	}
 	res, err := tx.Exec(`DELETE FROM proposals WHERE name=?`, name)
@@ -565,7 +616,11 @@ func (s *Store) Delete(name string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("方案 %q 不存在", name)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.gcAssetRefs(oldAssetRefs)
+	return nil
 }
 
 // ── 读取面 ─────────────────────────────────────────────────────────
@@ -1191,24 +1246,38 @@ func insertFTS(tx *sql.Tx, sid int64, title, titlePath, body string, pid int64) 
 
 // setSectionBodyTx 改写一个已存小节的正文（续录时截取上一批末节的正文），同步
 // 全文索引与语义块（该节的向量需重算）。
-func setSectionBodyTx(tx *sql.Tx, sid, pid int64, titlePath, body string, now string) error {
+func (s *Store) setSectionBodyTx(tx *sql.Tx, sid, pid int64, titlePath, body, assetBaseDir, now string) (int, []string, error) {
+	prepared, err := s.prepareBodyAssets(body, assetBaseDir)
+	if err != nil {
+		return 0, nil, err
+	}
+	body = prepared.Body
 	if _, err := tx.Exec(`UPDATE proposal_sections SET body=?, updated_at=? WHERE id=?`, body, now, sid); err != nil {
-		return err
+		return 0, nil, err
+	}
+	if _, err := tx.Exec(`DELETE FROM proposal_assets WHERE section_id=?`, sid); err != nil {
+		return 0, nil, err
+	}
+	if err := s.insertAssetsTx(tx, pid, sid, prepared.Assets, now); err != nil {
+		return 0, nil, err
 	}
 	if _, err := tx.Exec(`DELETE FROM proposal_fts WHERE rowid=?`, sid); err != nil {
-		return err
+		return 0, nil, err
 	}
 	var title string
 	if err := tx.QueryRow(`SELECT title FROM proposal_sections WHERE id=?`, sid).Scan(&title); err != nil {
-		return err
+		return 0, nil, err
 	}
 	if err := insertFTS(tx, sid, title, titlePath, body, pid); err != nil {
-		return err
+		return 0, nil, err
 	}
 	if _, err := tx.Exec(`DELETE FROM proposal_chunks WHERE section_id=?`, sid); err != nil {
-		return err
+		return 0, nil, err
 	}
-	return insertChunks(tx, pid, sid, titlePath, body, now)
+	if err := insertChunks(tx, pid, sid, titlePath, body, now); err != nil {
+		return 0, nil, err
+	}
+	return len(prepared.Assets), prepared.Missing, nil
 }
 
 func joinLines(lines []string) string { return strings.TrimSpace(strings.Join(lines, "\n")) }
@@ -1221,4 +1290,22 @@ func hasContent(lines []string) bool {
 		}
 	}
 	return false
+}
+
+func uniqueStrings(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }

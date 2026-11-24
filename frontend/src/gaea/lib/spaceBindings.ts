@@ -532,6 +532,7 @@ export const GAEA_METHOD_FACETS = {
   GaeaProposalRead: "work",
   GaeaProposalSearch: "work",
   GaeaProposalDelete: "work",
+  GaeaProposalAssetDataURL: "work",
   CostSearch: "work",
   // v4.386 分页检索（成本库列表/表格分页 + EntryPicker top8，载荷/DOM 双降）。
   CostSearchPage: "work",

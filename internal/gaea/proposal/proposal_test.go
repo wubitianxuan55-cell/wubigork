@@ -926,7 +926,7 @@ func TestUnreadableStore(t *testing.T) {
 	}
 }
 
-// TestMigrationFromV35 已在 V35 建过方案表的库，升级时 V36 的 ALTER 必须能跑通。
+// TestMigrationFromV35 已在 V35 建过方案表的库，升级时 V36/V37 必须能跑通。
 func TestMigrationFromV35(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Hephaestus.db")
@@ -944,7 +944,7 @@ func TestMigrationFromV35(t *testing.T) {
 	}
 	gdb := db.GetDatabase(dir)
 	if gdb == nil {
-		t.Fatal("V35→V36 迁移失败：GetDatabase 返回 nil")
+		t.Fatal("V35→V37 迁移失败：GetDatabase 返回 nil")
 	}
 	t.Cleanup(func() { _ = db.CloseDatabase(dir) })
 	st, err := Open(gdb)
@@ -954,7 +954,7 @@ func TestMigrationFromV35(t *testing.T) {
 	res := saveA(t, st, "升级后录入", []saveSection{{1, "第一章", "正文"}})
 	var v string
 	_ = gdb.QueryRow(`SELECT value FROM schema_meta WHERE key='user_version'`).Scan(&v)
-	if v != "36" || res.Stats.Sections != 1 {
+	if v != "37" || res.Stats.Sections != 1 {
 		t.Fatalf("user_version=%s sections=%d", v, res.Stats.Sections)
 	}
 }

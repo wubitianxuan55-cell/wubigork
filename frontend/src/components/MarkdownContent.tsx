@@ -1,5 +1,5 @@
-import { isValidElement, memo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { isValidElement, memo, useEffect, useState } from 'react'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -8,8 +8,44 @@ import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathT
 import { extractFence } from '../genui/markdownFence'
 import { ChatCodeBlock } from './ChatCodeBlock'
 import { CopyableTable } from './CopyableTable'
+import { app } from '../gaea/lib/bridge'
 
 /** Markdown 渲染（GFM：表格/删除线/任务列表等，基于 react-markdown） */
+
+const PROPOSAL_ASSET_PREFIX = 'gaea-asset://'
+
+function MarkdownImage({ src, alt, title }: { src: string; alt?: string; title?: string }) {
+  const managed = src.startsWith(PROPOSAL_ASSET_PREFIX)
+  const [resolved, setResolved] = useState(managed ? '' : src)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!managed) {
+      setResolved(src)
+      setFailed(false)
+      return
+    }
+    let live = true
+    setResolved('')
+    setFailed(false)
+    void app.GaeaProposalAssetDataURL(src)
+      .then((url) => {
+        if (live) setResolved(url)
+      })
+      .catch(() => {
+        if (live) setFailed(true)
+      })
+    return () => { live = false }
+  }, [managed, src])
+
+  if (managed && failed) {
+    return <span className="md-asset-missing">{alt || '方案图片'}不可用</span>
+  }
+  if (!resolved) {
+    return <span className="md-asset-loading" role="status">{alt || '方案图片'}加载中…</span>
+  }
+  return <img src={resolved} alt={alt ?? ''} title={title} loading="lazy" data-managed-image={managed ? 'true' : undefined} />
+}
 
 // 缺省代码渲染（v4.233：调用方未传 components 时生效——NovelSettingPage 等
 // 直用面与聊天线同款：块级代码走 ChatCodeBlock 暗色面板+hljs 高亮+复制头，
@@ -25,6 +61,9 @@ const defaultComponents: Components = {
     return <code className={className}>{children}</code>
   },
   table: ({ children }) => <CopyableTable>{children}</CopyableTable>,
+  img: ({ src, alt, title }) => (
+    <MarkdownImage src={typeof src === 'string' ? src : ''} alt={alt} title={title} />
+  ),
 }
 
 type Props = {
@@ -52,6 +91,7 @@ export const MarkdownContent = memo(function MarkdownContent({ source, className
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={components ?? defaultComponents}
+        urlTransform={(url) => url.startsWith(PROPOSAL_ASSET_PREFIX) ? url : defaultUrlTransform(url)}
       >
         {normalizeMath(source)}
       </ReactMarkdown>
@@ -113,4 +153,11 @@ export const mdStyles = `
 }
 .md-content a { color: var(--gaea-glow, #7c8cff); }
 .md-content input[type="checkbox"] { margin-right: 6px; }
+.md-content img { max-width: 100%; height: auto; border-radius: 6px; margin: 10px 0; }
+.md-content .md-asset-loading,
+.md-content .md-asset-missing {
+  display: inline-flex; align-items: center; padding: 3px 8px; margin: 6px 0;
+  border: 1px dashed rgba(128,128,128,0.35); border-radius: 6px;
+  color: var(--md-sys-color-text-secondary, rgba(255,255,255,0.65)); font-size: 11px;
+}
 `

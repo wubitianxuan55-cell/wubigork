@@ -21,7 +21,7 @@ const proposalSearchTimeout = 30 * time.Second
 
 // hubProposalStore 打开方案库（与 proposal_save/search/read 三工具同库）。
 func (a *App) hubProposalStore() (*proposal.Store, error) {
-	return proposal.Open(db.GetDatabase(config.MemoryUserDir()))
+	return proposal.OpenWithAssets(db.GetDatabase(config.MemoryUserDir()), config.MemoryUserDir())
 }
 
 // ProposalSummaryView 方案清单的一行：元数据 + 规模 + 语义索引进度。
@@ -173,4 +173,14 @@ func (a *App) GaeaProposalDelete(name string) error {
 		return err
 	}
 	return st.Delete(name)
+}
+
+// GaeaProposalAssetDataURL 把正文里的 gaea-asset://<sha256> 解析为浏览器可显示
+// 的 data URL。资产只从提案托管目录读取，不接受任意磁盘路径。
+func (a *App) GaeaProposalAssetDataURL(ref string) (string, error) {
+	st, err := a.hubProposalStore()
+	if err != nil {
+		return "", err
+	}
+	return st.AssetDataURL(ref)
 }

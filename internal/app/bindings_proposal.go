@@ -6,6 +6,7 @@ package app
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ProposalB struct{ a *App }
 
+func (b *ProposalB) GaeaProposalAssetDataURL(ref string) (string, error) { return b.a.GaeaProposalAssetDataURL(ref) }
 func (b *ProposalB) GaeaProposalDelete(name string) error { return b.a.GaeaProposalDelete(name) }
 func (b *ProposalB) GaeaProposalList() ([]ProposalSummaryView, error) { return b.a.GaeaProposalList() }
 func (b *ProposalB) GaeaProposalOutline(name string) ([]ProposalSectionView, error) { return b.a.GaeaProposalOutline(name) }

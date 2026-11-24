@@ -258,6 +258,7 @@ export const bindingNames = [
   "GaeaProfileResolveConflict",
   "GaeaProfileSave",
   "GaeaPromoteSubagent",
+  "GaeaProposalAssetDataURL",
   "GaeaProposalDelete",
   "GaeaProposalList",
   "GaeaProposalOutline",
