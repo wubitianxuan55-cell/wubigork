@@ -2,7 +2,7 @@ package control
 
 // ── 跨会话 @引用（阶段十 10.3 session-reference，dsh 021 P2-B 取道）──────
 //
-// 原案（docs/gaea-dsh-021-core-distill-2026-10.md session-reference）：跨会话
+// 原案（docs/archive/gaea-dsh-021-core-distill-2026-10.md session-reference）：跨会话
 // @提及 = host 文件发现 + 结构化引用请求 + 快照注入（label 取最新标题）。
 // gaea 落地：@会话:<关键词> → 当前工作区会话目录按标题/文件名匹配（包含式，
 // 大小写不敏感）→ 唯一命中才解析（多命中列出候选，宁缺勿误）→ 读事件日志

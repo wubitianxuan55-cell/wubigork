@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// 众神殿臂B刀④（DSH 共识案，docs/gaea-chat-probe-baseline-20261106.md）：压制
+// 众神殿臂B刀④（DSH 共识案，docs/archive/gaea-chat-probe-baseline-20261106.md）：压制
 // 文案拆分——长度节奏保留、话题禁令移除、回应用户句为义务。六条压制行全部
 // 不得再含「不开启/不要开启新话题」；psyche silent 行保留极短倾向但加接话义务。
 func TestSuppressionCopyTopicBanRemoved(t *testing.T) {

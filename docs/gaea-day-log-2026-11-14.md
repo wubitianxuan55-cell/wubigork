@@ -29,7 +29,7 @@
   最近图纸列表仍可一键重开）。dwg/dxf 不再开 pane 文件 tab 坏预览。
 - **退役/删除**：`ToolSheet.tsx` + `ToolSheet.test.tsx` 删除；行为注释同步改新
   语义（ScheduleFileCard/ToolCard/ScheduleTool/cadToolCache/CadPanel/events.ts）；
-  `docs/gaea-ai-workbench-ui-2026-10.md` 头部加 2026-11-14 修订注（§7 ToolSheet
+  `docs/archive/gaea-ai-workbench-ui-2026-10.md` 头部加 2026-11-14 修订注（§7 ToolSheet
   叙述为史档）；`.gaea/progress.md` 立档。
 
 ## 2. 测试

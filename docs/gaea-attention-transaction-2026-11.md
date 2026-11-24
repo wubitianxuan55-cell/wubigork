@@ -24,7 +24,7 @@
 - `Approve()` / `AnswerQuestion()` 只往内存 channel 写一个值，**不产生任何完成事件**——批了/拒了/超时/取消四种结局在日志里
   完全同形，`approval_request` 之后永远是空白；
 - 于是「每轮打断几次、批了几次、等多久」这类问题**无法用日志回答**。这也正是 V5 提案里
-  `docs/gaea-v5-case-os-proposal-2026-10.md:710`「≤6 次且 −50%」指标没有基线定义的原因——分母本身不存在。
+  `docs/archive/gaea-v5-case-os-proposal-2026-10.md:710`「≤6 次且 −50%」指标没有基线定义的原因——分母本身不存在。
 
 ## 二、计数口径（先定口径，再谈阈值）
 
@@ -105,7 +105,7 @@ go run ./scripts/attention_report -json                            # 机器可�
 ## 七、开放项（下一步）
 
 1. **事项维**：`case_id` / `step_id` 需要 `internal/caseos`（不存在），暂缺；在它落地前，「每事项打断数」不可报。
-2. **V5 事件账本对齐**：`docs/gaea-v5-case-os-proposal-2026-10.md:381` 的事件集只有 `approval.granted` 单事件，与本刀的成对
+2. **V5 事件账本对齐**：`docs/archive/gaea-v5-case-os-proposal-2026-10.md:381` 的事件集只有 `approval.granted` 单事件，与本刀的成对
    事务（requested/resolved）口径不同；后续要么把 V5 账本改成成对，要么在提案里显式声明两者的映射，避免两套账。
 3. **旧日志不可补**：历史 `approval_request` 没有结果侧，永远显示未解决；不要在报表里把它们算成「未响应」。新日志里
    进程被杀留下的悬空卡会在下次恢复时补 `abandoned`（见第九节），两者口径不同，报表按是否有结果事件区分。

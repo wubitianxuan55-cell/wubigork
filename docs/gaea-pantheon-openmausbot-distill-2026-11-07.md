@@ -124,7 +124,7 @@
 - 上下文/会话：server/host/{room-transcript,room-sessions,room-routing-input}.ts、server/room-context.ts
 - harness：server/harness/{registry,bus}.ts
 - 文档族：docs/{decision-model,team-sharing,presets,memory,mcp-server,voice-mode,approval-levels,proactive-routines,routine-schedules,sentinel,bot-box,tool-selection}.md
-- 我方对照：internal/pantheon/{types,manager,runner,prompts,preset,eval,seatguard}.go、docs/gaea-pantheon-v2-roadmap-2026-11-03.md（「明确不抄」红线）
+- 我方对照：internal/pantheon/{types,manager,runner,prompts,preset,eval,seatguard}.go、docs/archive/gaea-pantheon-v2-roadmap-2026-11-03.md（「明确不抄」红线）
 
 ## 9. 同构等价（不立项，v1 结论维持）
 

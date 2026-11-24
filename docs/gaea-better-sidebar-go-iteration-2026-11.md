@@ -12,7 +12,7 @@
 > W1 三选项（A/B/C）待拍板（决策备忘 `docs/gaea-w1-bottom-workbench-decision-2026-11.md`）；X1 维持产品门；发版门欠账（v4.530~543 十四版折段）考古表见 day-log 2026-11-13 §13。
 
 本文替代旧的 2026-09 滚动规划，作为后续新会话的恢复入口。旧文档
-`docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md` 只保留历史调研和早期阶段台账，
+`docs/archive/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md` 只保留历史调研和早期阶段台账，
 不再据此判断当前完成度。
 
 ## 0. 新会话先做什么

@@ -107,7 +107,7 @@ codex 的 TUI 前端是一个 crate 内分层（没有独立的 render crate）�
 | 第二批 T6 碎片契约 / T7 章节化 / T9 压缩 | F27 的"稳定区"概念 | 不同层：T6/T7 是**上下文**装配，F27 是**渲染**分区；命名需区分（`stable region` vs `context section`） |
 | T13 执行语义（双缓冲/双闸门） | F31 排队输入 + F27 提交队列 | 概念同构（pending vs transcript），实现独立，不要互引代码 |
 | `docs/gaea-deepseek-chatdemo-distill-2026-11.md`（前端 §2.4 等） | F29 markdown | 已在 gaea 落地（`remarkDisableCodeIndented`），本批只补"源表/复制/指令" |
-| `docs/gaea-contextview-upgrade-research-2026-11.md` | F28 转录视图 | 一个是上下文视图，一个是消息流，别混 |
+| `docs/archive/gaea-contextview-upgrade-research-2026-11.md` | F28 转录视图 | 一个是上下文视图，一个是消息流，别混 |
 
 ---
 

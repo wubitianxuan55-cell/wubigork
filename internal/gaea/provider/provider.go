@@ -442,7 +442,7 @@ var contextOverflowLimitPatterns = []*regexp.Regexp{
 // ContextOverflowLimit 从 provider 确认的溢出错误中提取其声明的上下文窗口。
 // IsContextOverflow 命中但正文不含可解析数字（如裸 context_length_exceeded
 // 错误码）时返回 false。这是切引擎/模型后窗口重解析的自学习实现：模型中心
-// 引擎登记表无窗口元数据（刀前核实，docs/gaea-dsh-022-distill-2026-11.md
+// 引擎登记表无窗口元数据（刀前核实，docs/archive/gaea-dsh-022-distill-2026-11.md
 // K1），provider 的溢出错误是唯一权威窗口声明源。
 func ContextOverflowLimit(err error) (int, bool) {
 	if err == nil || !IsContextOverflow(err) {

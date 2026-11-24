@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// 众神殿臂B刀②（docs/gaea-chat-probe-baseline-20261106.md §二）：短祈使/任务句
+// 众神殿臂B刀②（docs/archive/gaea-chat-probe-baseline-20261106.md §二）：短祈使/任务句
 // 豁免 EvtCold——「讲个故事」「继续」「唱歌」是办事不是冷淡；真冷淡（嗯/哦/随便）
 // 照旧判冷；问句路径不受影响。
 func TestImperativeShortMessagesNotCold(t *testing.T) {

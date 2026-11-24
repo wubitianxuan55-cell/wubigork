@@ -1,6 +1,6 @@
 // ScheduleTool.test.tsx — 进度计划工具面板（办公 ToolSheet 内容件）用例。
 //
-// 覆盖（docs/gaea-ai-workbench-ui-2026-10.md §7.4 工具化边界）：
+// 覆盖（docs/archive/gaea-ai-workbench-ui-2026-10.md §7.4 工具化边界）：
 // ①紧凑面契约：工程名 + 视图四档 Segmented + 状态栏（共 N 项/总工期/关键数）；
 // ②视图切换换渲染面（gantt↔pdm↔dcma），store 视图停在编制档（usage/monte/evm）
 //   时回落横道图而非出编制视图；③「问计划」回对话通道（onAsk 带工程名前缀）；

@@ -159,7 +159,7 @@ getComputedStyle 读 --md-sys-color-surface-container/text=#EDEAE3/#1E1C18）→
 
 ## 13. 电脑操控八刀落地（施工单 W0~W7 全清，2026-11-20 下午）
 
-> 施工单 docs/gaea-computer-use-exec-brief-2026-11.md（11-19 写）当日实施收官。
+> 施工单 docs/archive/gaea-computer-use-exec-brief-2026-11.md（11-19 写）当日实施收官。
 > 依据=asset-62（协议规格）/asset-63（代码级还原）/落地调研。一刀一提交，全默认关，
 > 关闭即回现状。装机位 exe SHA256 F0BC39E4…（干净树 75891a56 构建）冒烟 200。
 

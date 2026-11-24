@@ -1,5 +1,5 @@
 // recommendations.ts — 模型推荐位三档静态数据（阶段十 10.2）
-// 数据源：docs/gaea-competitor-survey-2026-10.md §5.3「NSFW 本地写作模型谱系」
+// 数据源：docs/archive/gaea-competitor-survey-2026-10.md §5.3「NSFW 本地写作模型谱系」
 //（2026-10 社区口碑，r/WritingWithAI / r/SillyTavernAI / r/LocalLLaMA 实测帖）。
 // 标注口径诚实：口碑栏保留 survey 原文措辞（含负面：非英语变笨/量化敏感/需越
 // 狱），不做成广告位。量化建议联动 10.1 量化共识：文风对低量化容忍度远高于知

@@ -484,7 +484,7 @@ E1 落地后，回放现有会话（`session.json` 的 `tool_result` 事件）�
 
 | 项 | 为什么不做 | 证据/边界 |
 |---|---|---|
-| **B1 Jev 式发言路由** | 红线 #2：不让模型自评 suitability 决定默认发言权；快分类器仍是“路由决定”，0.6 阈值只在上游的 53 条标注上验证过，未在我们的异构席位验证 | `docs/gaea-pantheon-v2-roadmap-2026-11-03.md` 明确不抄 #2；第一轮 B1 挂池 |
+| **B1 Jev 式发言路由** | 红线 #2：不让模型自评 suitability 决定默认发言权；快分类器仍是“路由决定”，0.6 阈值只在上游的 53 条标注上验证过，未在我们的异构席位验证 | `docs/archive/gaea-pantheon-v2-roadmap-2026-11-03.md` 明确不抄 #2；第一轮 B1 挂池 |
 | **A2b 停滞判据上线** | 统计门槛未闭合（预冻结标签、非本场双标 κ≥0.6、n≥9、N_fire≥3）；先做只会得到不可解释的告警 | 第一轮 §4/§5；不重开 |
 | **A4 神格卡可移植** | 上游 preset/team 文件是**安全 allowlist**：不带模型/文件夹/审批级别/MCP/浏览器，文件导入的技能默认关闭（组织预置才默认开启），地址中的密钥被抹掉；这是高安全面产品，不是议事机制 | `upstream docs/{presets,team-sharing}.md`；第一轮挂池 |
 | **B4 MCP 控制面** | 上游 MCP v1 明确不能批准/记住授权/删除数据/导团队/改凭证；众神殿当前 Wails 绑定已够用，没有外部客户端场景 | `upstream docs/{mcp-server}.md:8-15`；第一轮挂池 |
@@ -581,7 +581,7 @@ E1 落地后，回放现有会话（`session.json` 的 `tool_result` 事件）�
 - 信封/重复派工：`internal/pantheon/chair_envelope.go:36-90`、`:111-164`
 - 导出：`internal/pantheon/export.go:256-281`
 - 前端：`frontend/src/pages/pantheon/PantheonRecord.tsx:273-293`（席位账目）、`:1295-1302`（摘要行）
-- 前情与门控：`docs/gaea-pantheon-openmausbot-distill-2026-11-07.md`；`docs/gaea-orca-pantheon-distill-round2-2026-11.md:410`（E4 出处）；`docs/gaea-pantheon-v2-roadmap-2026-11-03.md`（红线）；`docs/gaea-pantheon-seat-hang-cache-2026-11.md`（seatguard 实弹基线）
+- 前情与门控：`docs/gaea-pantheon-openmausbot-distill-2026-11-07.md`；`docs/gaea-orca-pantheon-distill-round2-2026-11.md:410`（E4 出处）；`docs/archive/gaea-pantheon-v2-roadmap-2026-11-03.md`（红线）；`docs/gaea-pantheon-seat-hang-cache-2026-11.md`（seatguard 实弹基线）
 
 ---
 

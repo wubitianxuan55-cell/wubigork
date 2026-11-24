@@ -509,7 +509,7 @@ export function CadPanel({ onAsk }: { onAsk?: (text: string) => void }) {
     return texts.texts.filter((x) => x.sheet === sheet || x.sheet === 0);
   }, [texts, sheet]);
 
-  // §7.3 检查器（docs/gaea-ai-workbench-ui-2026-10.md）：文本清单+符号统计是
+  // §7.3 检查器（docs/archive/gaea-ai-workbench-ui-2026-10.md）：文本清单+符号统计是
   // 图纸的「依据」面，在右栏面板内联排布（原 ToolSheet 时代的外置宿主/portal
   // 机制已随 2026-11-14 回归右栏退役）。
   const inspectorNode: ReactNode = openRes ? (

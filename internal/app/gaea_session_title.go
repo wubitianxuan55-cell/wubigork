@@ -1,7 +1,7 @@
 package app
 
 // gaea_session_title.go — 会话自动命名（2026-10，dsh session-title 蒸馏取道，
-// docs/gaea-dsh-021-core-distill-2026-10.md P1-A）：首个成功回合结束后，用
+// docs/archive/gaea-dsh-021-core-distill-2026-10.md P1-A）：首个成功回合结束后，用
 // 办公本地路由（routeOfficeLocal，数据不出本机）给会话起一个短标题，写入
 // 既有 .titles.json 注册表（与 GaeaRenameSession 同点，前端列表零改动零新
 // 绑定）。上游三语义对齐：

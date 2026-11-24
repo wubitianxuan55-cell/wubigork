@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// 众神殿臂B刀③（docs/gaea-chat-probe-baseline-20261106.md）：≤15 字钳制豁免
+// 众神殿臂B刀③（docs/archive/gaea-chat-probe-baseline-20261106.md）：≤15 字钳制豁免
 // 祈使/任务句——「讲一个短故事」6 字吃 terse 谓词但 15 字装不下故事；
 // 纯寒暄短句照旧限长（DSH 共识：可以限长，不能禁止接话）。
 func TestClampExemptsImperative(t *testing.T) {

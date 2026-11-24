@@ -67,7 +67,7 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
   };
 
   const jumpToSchedule = () => {
-    // 工具化边界（docs/gaea-ai-workbench-ui-2026-10.md §7.4）：进度是动词不是
+    // 工具化边界（docs/archive/gaea-ai-workbench-ui-2026-10.md §7.4）：进度是动词不是
     // 房间——产物行「打开」不跳板块离开对话，改开右栏「进度计划」Tab（办公 App
     // 根监听 OPEN_TOOL → openToolTab("schedule")；2026-11-14 起右栏一级 Tab）；
     // 完整工作台经面板头部「完整工作台」深链接可达（旧 NAVIGATE 板块路由保留）。

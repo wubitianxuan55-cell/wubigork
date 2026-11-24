@@ -439,7 +439,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible, 
       {/* schedule_apply 回执卡常驻动作行（v4.146 刀A + 工具化 2026-10）：
           「回滚本次」（Journal 按 target 匹配最新基线快照，无记录该段不渲染）
           +「展开查看」开右栏「进度计划」Tab（2026-11-14 起右栏一级 Tab，原 ToolSheet 退役；
-          docs/gaea-ai-workbench-ui-2026-10.md §4 工具卡=工具入口之一）。 */}
+          docs/archive/gaea-ai-workbench-ui-2026-10.md §4 工具卡=工具入口之一）。 */}
       {item.name === "schedule_apply" && item.status === "done" && (
         <div className="px-3 py-1 flex items-center gap-2 border-b border-border-soft" data-testid="sched-apply-actions">
           <ScheduleApplyRollback args={item.args} />

@@ -1,4 +1,4 @@
-// cadToolCache.ts — CAD 解析结果缓存（设计 docs/gaea-ai-workbench-ui-2026-10.md
+// cadToolCache.ts — CAD 解析结果缓存（设计 docs/archive/gaea-ai-workbench-ui-2026-10.md
 // §7.3：面板卸载（tab 切走/右栏收起；原 ToolSheet 时代为关抽屉）即丢组件态，
 // 解析产物缓存在此按 path 键，重开不重跑
 // CadOpen/CadRaster/CadTexts/CadCount——「重开不重解析」的体验兑现）。

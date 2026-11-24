@@ -1,3 +1,26 @@
+## docs 索引清理：过期文档归档（2026-11-24，用户令）
+
+- **起因**：用户指 `docs/README.md` 里许多登记的文档已过期，可以清理。
+- **盘点**：索引 152 行登记里 46 行指向的文件早已在 `docs/archive/`（9~10 月归档时索引行没跟着迁走），
+  其中 42 份在归档说明里从未登记；顶层 115 份文档中 13 份只在一段散文里被顺带提到、没有表格行。
+- **处理**：
+  - 顶层 41 份用 `git mv` 移入 `docs/archive/`（不删文件）：已收官 / 未立项的规划 16 份（含 V5 提案与
+    辩论、下一代路线图、长期规划 2026-10）、已退役引擎 3 份（天璇、MoE4All）、已退役小说板块 2 份、
+    已闭环线的过程档与证据档 20 份（ZCode 蒸馏线 7、dsh 0.2.1 时代蒸馏 5、聊天实弹报告 3 等）。
+  - 每份在 `docs/archive/README.md` 登记「归档原因 / 取代者」；另补登此前无登记的 43 份。
+  - `docs/README.md` 重写为现行索引：29,541 → 7,382 字符，按「权威 → 政策约定 → 已落地设计档 →
+    在途待拍板 → 近期落地线出处 → 当日总账 → 子目录」分组，74 份顶层文档全部有表格行。
+  - 指向被移走文档的 62 处旧路径改写为 `docs/archive/…`：`.gaea/progress.md`、`todos.md`、顶层文档、
+    `design/` 一处，以及 17 个源码文件里各一行「设计出处」注释（纯路径替换，gofmt 无变化）。
+- **没改**：`CHANGELOG.md`、`releases/`、10 月代码审计目录里的 JSON 证据仍写旧路径（历史记录不改写，
+  归档说明里已注明「顶层找不到的多半在归档目录」）。
+- **没动（待用户点名）**：当日总账（流水记录，无归档先例）；众神殿 / 灵犀 / 语音 / CAD 等仍在迭代或
+  有待拍板事项的线的调研文档（索引里单列成「在途与待拍板」「近期落地线的调研与台账」两组）；子目录
+  `docs/distill/`（MuMuAINovel 蒸馏规格，小说板块已退役）与 `docs/snapshots/`（9 月目检截图），
+  索引里已标注现状。
+- **验证**：`node scripts/check-docs.mjs` OK（孤儿 0 / 悬空 0）；41 份全部被 git 识别为重命名；
+  40 个被改写文件逐词 diff 均为纯路径替换。
+
 ## 项目长期记忆清理：.gaea/AGENTS.md 回到现行事实（2026-11-24，用户令）
 
 - **起因**：用户指出「长期规划（权威，2026 定稿）」里许多已是过去式，要求梳理后清理，并明示
@@ -992,7 +1015,7 @@ DSH 蒸馏计划 01 的 UI 尾款一批收口（`c8f0e2e9`，构建装机 exe �
 
 ## DSH 子代理蒸馏首批 D1–D6 · 编队拓扑会话化+折行+折叠+aborted+单闸+独立 Stop（2026-11-18）
 
-按 `docs/gaea-dsh-distill-plan-01-2026-11.md`（dsh-v0.2.2-rc.1 对账基线，逆向证据包
+按 `docs/archive/gaea-dsh-distill-plan-01-2026-11.md`（dsh-v0.2.2-rc.1 对账基线，逆向证据包
 `C:\AI\dsh-subagent-reverse\`）首批 D1–D7 全处置，三笔提交（015730c9/665b6450/0f6897a1），未 push 未装机未构建 Wails。
 
 - **门 2 验证（开工首验，已写回计划 §4·D1）**：gaea 后端可读父子——spawn 时 ctx 已盖
@@ -3920,7 +3943,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 ## 众神殿四框架机制落地与 Git 打包 · 2026-11-03
 
 - **功能提交 `a4385d4e`（38 文件，未 push）**：按四框架专项调研完成 R1–R5。动作/目标贡献/回应契约 + 同一分歧台账；用户插话 `origin=user` 可被各席定向回应；`roundtable / targeted_challenge / red_team` preset；至共识按 DID 指纹续跑并在事件/导出留痕；红队汇总后全席独立确认，反对触发主席一次修订并保留原稿哈希；`Verdict.proposedActions` 只读行动提案，不自动执行。
-- **文件记录**：`docs/gaea-pantheon-v2-roadmap-2026-11-03.md` 增补 R3/R4/R5 落地记录；四框架专项调研状态同步；`design-system/gaea/pages/pantheon.md` 增补动作/用户插话/独立确认/行动提案契约；`docs/README.md` 维持主报告与证据附录索引；Wails models、前端 types、mock、binding signatures 已同步。
+- **文件记录**：`docs/archive/gaea-pantheon-v2-roadmap-2026-11-03.md` 增补 R3/R4/R5 落地记录；四框架专项调研状态同步；`design-system/gaea/pages/pantheon.md` 增补动作/用户插话/独立确认/行动提案契约；`docs/README.md` 维持主报告与证据附录索引；Wails models、前端 types、mock、binding signatures 已同步。
 - **验证**：`go test ./internal/pantheon/`、`go vet ./internal/pantheon/`、`internal/app` Pantheon 定向、`tsc -b`、ESLint 0 error、Pantheon+签名契约 60/60、生产构建、文档守卫、绑定漂移全过。全仓既有无关红项=`internal/gaea/tool` compact schema（task.engine/model 漂移）与 `NovelSettingPage` 单例；另全量前端曾出现 jsdom `scrollTop` 只读异常，未触碰相关文件。
 - **记忆状态**：Hindsight CLI/plugin 本机无配置目录（`~/.hindsight` 不存在），本会话也未暴露 `hindsight_ingest_document` MCP 工具；已按仓库既有长期记忆机制写入 `.gaea/AGENTS.md` 与本文件，作为当前权威记录。若后续安装 Hindsight，应以标题「众神殿四框架机制落地 2026-11-03」补录。
 - **下一步**：R6 协议对照评测，需要 20–30 个真实议题和固定 Harness/模型/权限基线；在评测前不把红队确认设为默认，也不把行动提案交给执行器。
@@ -3938,7 +3961,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
   8. **并行开场**（a58b21e3 用户拍板）：独立开场第 1 轮 goroutine per seat+agentCalls 会话×席位双键多槽+落盘序=完成序；区间重叠证明法测试。
   9. **zcode 空结果真根修**（b4e2c116）：**runStream 只取 cappedBuffer.buf(head) 丢弃 11-02 加的 tail 环留**——大仓流撞 4MB cap 时收尾事件全在被丢尾部（live dump：旁路 2616 字正文在手 parse=0→修后 2933 字全文）；cap→16MB。
   10. **议事质量五刀**（2490602a，实弹 pan_1793681319746 病例驱动——先被骂没看案例）：插话段条件注入（治四席复读回归）/主席轮间小结实权/共识三行制遗留台账/汇总提炼式/转述纪律+质量阶梯。
-  11. **V2 规划落档**（6656b8fd）：docs/gaea-pantheon-v2-roadmap-2026-11-03.md（九轮讨论全文提炼：P0 真相单源化→P1 收口改造→P2 协议形态）+**终止草稿刀**（bf0d1dbd：finishCancelled 落 resultPath，未收口草稿标注）。
+  11. **V2 规划落档**（6656b8fd）：docs/archive/gaea-pantheon-v2-roadmap-2026-11-03.md（九轮讨论全文提炼：P0 真相单源化→P1 收口改造→P2 协议形态）+**终止草稿刀**（bf0d1dbd：finishCancelled 落 resultPath，未收口草稿标注）。
   12. **V2 P0 真相单源化四刀**（76b05d11）：五入口 liveSessionLocked 同源+插话 drain 交付/ResolveGate 双守卫防双活循环/seatRoundCoverage 事件投影进 Gaps+Partial/startSeatRoundLocked 轮边界具名动作（席位跨轮解冻，58 条拒绝警告洪水根除）。
   13. **V2 P1 停机判据+翻转举证**（c3b6eb18）：Contribution.Residual 抽「剩余分歧」行+停机门增判（自报一致+保留实质分歧不得停机，grok r2 洞根修，旧测试固化病翻转）+no→yes 翻转审计无证据句柄→从众嫌疑留痕。
   14. **V2 P1 分歧台账**（be219425）：Issue 全生命周期=剩余分歧行自动开条（同席去重）→resolved 带撤回轮次/结案 dissent 永久入档；open 贯穿注入 prompt+汇总按条交代去向+导出台账段。
@@ -3952,7 +3975,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 
 ## dsh 子代理蒸馏收官 · 2026-11-02
 
-- **四档调研+六批执行，刀池全销项（已 commit 未 push）**——调研四档入库（96a2c9da：`docs/gaea-dsh-022-distill-2026-11.md` 0.2.1-alpha.2→0.2.2-alpha.2 增量〔57 篇升级指南〕/`docs/gaea-dsh-subagent-deep-distill-2026-11.md` 机制级深挖〔src 6360 行全量+G 系补遗〕/`docs/gaea-dsh-subagent-ui-distill-2026-11.md` UI-UX 补课/README 登记）。执行批四刀（5bb83fe6）：SA-D 被拒操作反重试+SA-E 续跑措辞分叉（均落 task CompactDescription）+UA-2 子代理活动词 21 键参数优先级（toolCallId 配对、结果头兜底）+UA-1 子代理头部墙钟历时芯片（tab 合并链带时间戳+含等待诚实标注）；SA-A/C 盘点销号（output_schema 已等价实现/取消判据缺失）。K1 窗口自学习（17954451）：`provider.ContextOverflowLimit` 三正则从溢出错误正文提取真实窗口+救援前采纳（只缩不涨）——引擎登记表无窗口元数据的变体落地，K2/K3/K4 刀前核实销号。P2 收官（d2c812b2）：send_message 子→父中期回报（steerFromSubagent 署名信封归因分离+送达回执非答案+发消息不结束任务+WithRunner 派发盖章）/task 按调用模型路由（`[agent] subagent_routes` 授权清单，空=只许父路由，未授权 fail-loud 点名可用路由；provOverride 优先级=按调用路由>boot 子代理模型>父）/session-reference 销号（已由 10.3 落地 refs_session.go，池口径过时）。验证=`go build ./...`+vet 0+agent/boot/config/app/provider 五包测试+vite SubagentThread 18/18+tsc 全前端零错+eslint 0。绑定面零变更。未 push。
+- **四档调研+六批执行，刀池全销项（已 commit 未 push）**——调研四档入库（96a2c9da：`docs/archive/gaea-dsh-022-distill-2026-11.md` 0.2.1-alpha.2→0.2.2-alpha.2 增量〔57 篇升级指南〕/`docs/archive/gaea-dsh-subagent-deep-distill-2026-11.md` 机制级深挖〔src 6360 行全量+G 系补遗〕/`docs/archive/gaea-dsh-subagent-ui-distill-2026-11.md` UI-UX 补课/README 登记）。执行批四刀（5bb83fe6）：SA-D 被拒操作反重试+SA-E 续跑措辞分叉（均落 task CompactDescription）+UA-2 子代理活动词 21 键参数优先级（toolCallId 配对、结果头兜底）+UA-1 子代理头部墙钟历时芯片（tab 合并链带时间戳+含等待诚实标注）；SA-A/C 盘点销号（output_schema 已等价实现/取消判据缺失）。K1 窗口自学习（17954451）：`provider.ContextOverflowLimit` 三正则从溢出错误正文提取真实窗口+救援前采纳（只缩不涨）——引擎登记表无窗口元数据的变体落地，K2/K3/K4 刀前核实销号。P2 收官（d2c812b2）：send_message 子→父中期回报（steerFromSubagent 署名信封归因分离+送达回执非答案+发消息不结束任务+WithRunner 派发盖章）/task 按调用模型路由（`[agent] subagent_routes` 授权清单，空=只许父路由，未授权 fail-loud 点名可用路由；provOverride 优先级=按调用路由>boot 子代理模型>父）/session-reference 销号（已由 10.3 落地 refs_session.go，池口径过时）。验证=`go build ./...`+vet 0+agent/boot/config/app/provider 五包测试+vite SubagentThread 18/18+tsc 全前端零错+eslint 0。绑定面零变更。未 push。
 
 ## 注意力事务 · 2026-11-02
 
@@ -4017,7 +4040,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 
 ## 众神殿 MVP：本机异构 Agent 议事一级板块 · 2026-10-29
 
-- 用户拍板「V5 论证先放一边，先把众神殿实现」。按 `docs/gaea-pantheon-market-research-2026-10-29.md` 落首版：一级板块 `pantheon`（shared，菜单序 6）+ 首页胶囊 + 9 个 `PantheonB` 绑定。
+- 用户拍板「V5 论证先放一边，先把众神殿实现」。按 `docs/archive/gaea-pantheon-market-research-2026-10-29.md` 落首版：一级板块 `pantheon`（shared，菜单序 6）+ 首页胶囊 + 9 个 `PantheonB` 绑定。
 - 后端 `internal/pantheon`：独立陈词 → 匿名互评 → 定向质询 → 首席裁决；JSON 原子持久化、实时事件、单席失败隔离、取消、Markdown 议事录。Codex 用只读沙箱；ZCode 用 plan 模式并注入其原生 provider 配置文件路径；DSH 走随附 headless CLI + `DSH_PERMISSION_MODE=read-only`，Windows 取消用 `taskkill /T /F` 清进程树。
 - 前端：三步工作台（议题列表/议事台/卷宗检查器）、设坛材料与参与者选择、阶段轨道、实时流、裁决/分歧/风险、用户签注、历史打开、复制/导出/删除。另含浏览器 mock 完整演示与 5 例页面单测。
 - 真机探针：Codex/ZCode/DSH 均以最小 `READY` prompt 跑通；DSH 需要当前 Gaea 工作目录以沿用自身凭据层，Gaea 不读取/复制密钥。
@@ -4058,7 +4081,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 
 ## Reasonix 2.x 蒸馏重开线：调研立档+安全两刀（A6/A7）· 2026-10-24
 
-- 用户指令「蒸馏reasinox，我们已经落后太多」——前档 docs/archive/gaea-reasonix-v138-distill-2026-09.md（v1.38 四弹 16 刀后留池全销号收官）已过时：**studio 分支 2.0.0→2.50.0 共 59 版，PR 号 #10613→#14337（≈3700 号增量）**。四路并行深潜（会话与上下文引擎/权限安全/子代理补漏/架构地图）+ gaea 盘底（防提已有）→ **docs/gaea-reasonix-2x-distill-2026-10.md** 立档：A 档七刀（usage anchor 压力校准/压缩内容级保留〔用户原话预算〕/压缩验收经济学〔≤50% 上限+closedPrefixEnd〕/中断交接块/write_paths 预检不相交/complete_subtask 完成裁决/递归删除 guard+诚实拒绝）+ B/C 档 + 否定结论（MCP/扩展 Runtime/远程网关/计费/compositions/OS 沙箱/Coordinator）+ 辨伪（cache_shape/file observations/pinned 注入 gaea 已有）。
+- 用户指令「蒸馏reasinox，我们已经落后太多」——前档 docs/archive/gaea-reasonix-v138-distill-2026-09.md（v1.38 四弹 16 刀后留池全销号收官）已过时：**studio 分支 2.0.0→2.50.0 共 59 版，PR 号 #10613→#14337（≈3700 号增量）**。四路并行深潜（会话与上下文引擎/权限安全/子代理补漏/架构地图）+ gaea 盘底（防提已有）→ **docs/archive/gaea-reasonix-2x-distill-2026-10.md** 立档：A 档七刀（usage anchor 压力校准/压缩内容级保留〔用户原话预算〕/压缩验收经济学〔≤50% 上限+closedPrefixEnd〕/中断交接块/write_paths 预检不相交/complete_subtask 完成裁决/递归删除 guard+诚实拒绝）+ B/C 档 + 否定结论（MCP/扩展 Runtime/远程网关/计费/compositions/OS 沙箱/Coordinator）+ 辨伪（cache_shape/file observations/pinned 注入 gaea 已有）。
 - **首批实弹两刀（拍板序第 1 批=安全）**：
   - **A6 递归删除硬拒绝**（internal/gaea/tool/builtin/bash_delete.go+测试）：灾难面（文件系统/卷根、home 及祖先、工作目录及祖先）任何形态硬拒绝；PowerShell 词法（Remove-Item/ri/rm/del -Recurse 缩写旗标）；find -delete 与 find|xargs rm 管道形态；变量/glob 字面性不足 fail-closed。**刻意偏差留档**：上游连「工作区外」也拒（有审批阶梯可路由给人），gaea bash 无审批 UX、temp 清理是合法实弹流，只拦灾难面。**坑三连**：①Windows filepath.Clean("C:") 补点成 "C:."——卷根判定必须打在原始词上；②Windows Clean 把 / 规范化成 \，POSIX 形态分类必须先于一切 Clean（MSYS 盘符挂载 /c/foo→C:\foo 单独翻译；/home/... 落 Git 安装根下=非用户数据灾难面放行）；③sameOrAncestor 的 Rel 方向——Rel(dir,p) 把「p 在保护区子树外」误判成祖先，正确方向=Rel(p,dir) 无 ".." 前缀（且 xargs 段 rm 无路径参数，递归旗标即判）。
   - **A7 诚实拒绝升级**（tool/access.go）：读/写拒绝消息列出**具体允许根清单**（≤8 个配置序+超出计数省略；空集合明说 none configured）——模型看到根才能自我纠正；解析失败（提存在性）与越界（不提）两种错误语义分立；只读根不混进可写根清单。
@@ -4107,7 +4130,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 
 ## 网文 skill 蒸馏 N1~N3：选题扫榜全栈 + 契约四问申报 + 内核去味扩充 · 2026-10-24
 
-- 起因：宣传图「写小说一整套 Skill」调研（报告 docs/gaea-novel-skill-distill-survey-2026-10.md）——十个名字实出自四仓（oh-story-claudecode 合集 + chinese-novelist-skill + novel-creator-skill + webnovel-writer〔GPL 只重推导〕）；novel-deslop/novel-agents/novel-review 早在 v4.282 起蒸馏自同源，真空白=选题扫榜与拆书编排。用户拍板「不要技能，直接蒸馏进代码」。
+- 起因：宣传图「写小说一整套 Skill」调研（报告 docs/archive/gaea-novel-skill-distill-survey-2026-10.md）——十个名字实出自四仓（oh-story-claudecode 合集 + chinese-novelist-skill + novel-creator-skill + webnovel-writer〔GPL 只重推导〕）；novel-deslop/novel-agents/novel-review 早在 v4.282 起蒸馏自同源，真空白=选题扫榜与拆书编排。用户拍板「不要技能，直接蒸馏进代码」。
 - **N3 选题扫榜全栈**：prompts/novel-scan.json（八维市场观察+选题 12 字段+可行性量化门槛+来源诚实标注）+ internal/app/novel_scan_handler.go（粘贴解析→LLM→**确定性封顶**：同方向样本<15〔刺猬猫 10〕或趋势未知→高封中，只降不升，封顶原因写回 feasibility_reason；报告只读不落盘=建议制）+ NovelScanAnalyze 绑定（NovelB 123/全 676：spaceBindings play 认领→bindingNames 手工同步→legacy/signatures 再生）+ CreateNovelModal「扫榜找灵感」折叠区（平台选择/粘贴/可行性徽标报告卡/**采用题材**映射 GENRE_OPTIONS 回填）。爬榜通路明确不做（D 档：ToS 灰）。
 - **N2 prompts 纪律**：create-chapter 增契约四问（结果必须挣来/不预支底牌/旧期待付息+新期待具体）+新增物申报（具名新角色/新伏笔/新承诺必须入变更声明；需作者拍板的走向不写正文、【待拍板】列摘要行）+章末升华禁令；chapter-plan 增主线配额（主线推进/关系升级/核心秘密三类取一，非收官章不终局）+钩子章内铺垫纪律。
 - **N1 内核去味扩充**（纯确定性零 LLM）：words.json blacklist 19→38（通用反应/论述公文腔/空泛定性/自动过渡信号，只计分不替换，宁漏勿误不变）+patterns.json 新族 trailerEndings（**章末窗口 240 rune 位置敏感**，S3 advisory 封顶 1；解释腔标记 +3）+patterns.go 规则 12+classifyTasteLayer 升华→narrative。
@@ -5062,7 +5085,7 @@ misspell=Excel 函数名）+tsc/vitest 303 绿；exe dfd1db30 冒烟 200 装机 
 - 整文件死 88 文件 9,920 行净删（基线 590→196），deadcode -test 方法论三教训（type 依赖/app 反射盲区/依赖闭包剥壳）落档；12f77401。
 ## 非版本刀：whisper 域死代码调研档（2026-09-25，拍板池）
 
-- deadcode -test 基线：590 不可达 func/147 文件/估 6-8k 行，ackem 蒸馏标记 267 处；五簇分解与三方案（整域/只删 A 簇/维持保留）落 docs/gaea-whisper-deadcode-survey-20260925.md，待拍板。
+- deadcode -test 基线：590 不可达 func/147 文件/估 6-8k 行，ackem 蒸馏标记 267 处；五簇分解与三方案（整域/只删 A 簇/维持保留）落 docs/archive/gaea-whisper-deadcode-survey-20260925.md，待拍板。
 ## 最新发布：v4.410.0（2026-09-25）「sin 评分入口 v1（快路径）+ 评分流式辨伪关账」
 
 - **刀型**：观察池末两项收官——等待体验/一致性线程观察池全部关账。纯前端，绑定面 717 零变更。规格 进度计划/gaea-sin-score-entry-20260925.md。

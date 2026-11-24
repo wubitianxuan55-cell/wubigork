@@ -1,7 +1,7 @@
 # 众神殿多智能体议事框架调研：MALLM / Agent Council / ARTEMIS / AgentTeams
 
 > 日期：2026-11-03
-> 状态：调研完成；已并入 `docs/gaea-pantheon-v2-roadmap-2026-11-03.md`。
+> 状态：调研完成；已并入 `docs/archive/gaea-pantheon-v2-roadmap-2026-11-03.md`。
 > 本文件保留上游源码证据、机制细节与边界，不单独决定施工优先级；施工顺序以整合报告
 > 的 R1-R6 为准。
 > 范围：围绕“讨论、质疑、收敛、评审，以及讨论后推进任务”的机制蒸馏。
@@ -534,7 +534,7 @@ Manager 不穿透团队，只和 Team Leader 通信；Team Leader 负责内部�
 - `internal/pantheon/types.go`
 - `frontend/src/pages/pantheon/PantheonComposer.tsx`
 - `frontend/src/pages/pantheon/PantheonRecord.tsx`
-- `docs/gaea-pantheon-market-research-2026-10-29.md`
+- `docs/archive/gaea-pantheon-market-research-2026-10-29.md`
 - `docs/gaea-orca-pantheon-distill-2026-11.md`
 - `docs/gaea-orca-pantheon-distill-round2-2026-11.md`
 

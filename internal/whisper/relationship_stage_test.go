@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// 众神殿臂B刀①（docs/gaea-chat-probe-baseline-20261106.md）：Stage 晋级机制
+// 众神殿臂B刀①（docs/archive/gaea-chat-probe-baseline-20261106.md）：Stage 晋级机制
 // 修复——中性轮（闲聊/提问）计为正向延续，Stranger 可在 StageWarmupTurns 后
 // 晋级 Familiar；冷淡/伤人照旧清零；慢热门槛不放宽。
 

@@ -128,7 +128,7 @@ status+save_task/读屏挂未来重评），M5 解冻待排刀。
 ## 网络搜索刀1（众神殿共识落地，晚间）
 
 - 依据：众神殿 `pan_1793872913023`（议题「网络搜索能力弱」，3 轮四席全签三刀刀谱）；
-  论证台账 docs/gaea-web-search-pantheon-digest-20261105.md，实施计划
+  论证台账 docs/archive/gaea-web-search-pantheon-digest-20261105.md，实施计划
   进度计划/gaea-web-search-optimization-20261105.md。
 - 刀1 落地：统一检索核 RunSearch/SearchAttempt/ClassifySearchState（builtin/websearch_core.go，
   策略滤空≠ALL_FAILED 拆分；办公 Execute 输出契约零变化）+聊天 adapter

@@ -1,7 +1,7 @@
 // ScheduleTool — 进度计划工具面板（右栏「进度计划」一级 Tab 的内容件；原为
 // 办公 ToolSheet 内容件，2026-11-14 回归右栏）。
 //
-// 边界（docs/gaea-ai-workbench-ui-2026-10.md §7.4）：进度计划不是工作台，是
+// 边界（docs/archive/gaea-ai-workbench-ui-2026-10.md §7.4）：进度计划不是工作台，是
 // 办公对话里调用的工具——工具栏 + 甘特/网络图 + 质量体检 + 任务检查器（what-if
 // 复用）+ 状态栏 +「问这个计划」回对话通道。与 SchedulePage 共享同一
 // useScheduleStore（initScheduleSync 模块级幂等，同一计划文件、防抖自动保存、

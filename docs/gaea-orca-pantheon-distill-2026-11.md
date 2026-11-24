@@ -481,7 +481,7 @@ Orca 的机制是否值得长期保留，不看“功能像不像 Orca”，而�
 - Prompt 与只读边界：`internal/pantheon/prompts.go`
 - Adapter 与逐席 RunMode：`internal/pantheon/agents.go`
 - 页面契约：`design-system/gaea/pages/pantheon.md`
-- 既有市场判断：`docs/gaea-pantheon-market-research-2026-10-29.md`
+- 既有市场判断：`docs/archive/gaea-pantheon-market-research-2026-10-29.md`
 
 ## 10. 最终判断
 

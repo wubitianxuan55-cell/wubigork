@@ -1,6 +1,6 @@
 # gaea Day Log · 2026-11-12 · 办公板块上下文界面升级换代（dsh-context 0.83.x 全量复刻）
 
-> 调研→拍板→动刀全链一天收官。调研报告 docs/gaea-contextview-upgrade-research-2026-11.md。
+> 调研→拍板→动刀全链一天收官。调研报告 docs/archive/gaea-contextview-upgrade-research-2026-11.md。
 > 版本 v4.542.0，装机四次全冒烟。代码主体在 feat/context-upgrade 分支，**收官批刀11-15(ea21dac9..d2494ab8)后已随 d20dec1d 常规合并入 main(ff-only 因双侧 cherry-pick 并存不可行；8 处同源冲突解毕，详见 §9 收官批)**。
 
 ## 1. 批次结构（三波 + 收尾）
@@ -93,7 +93,7 @@
   同上包，双冒烟 200，装机 PID 35480>构建 14:40:33)。
 - **上游事实源**：本机 DSH 包+上游 0.83.1 lib/client.js 内嵌字典 734 键全提取
   (docs/dsh-context-locale-zh-upstream.txt)；收官记录
-  docs/gaea-contextview-complete-parity-2026-11.md；拍板池清空(余项=入口可见性/
+  docs/archive/gaea-contextview-complete-parity-2026-11.md；拍板池清空(余项=入口可见性/
   deltaBase 产品结构差异非缺口)。
 - **合并收口 d20dec1d**：办公对话输出线休眠在制(最后改动 11-11 22:18)保全至
   office-conversation-redesign-wip 分支，主树清场；8 处同源冲突解毕(ctx_realcheck

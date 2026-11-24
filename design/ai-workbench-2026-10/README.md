@@ -1,6 +1,6 @@
 # gaea AI 工作台 · 高保真原型（2026-10）
 
-> 设计说明见 [docs/gaea-ai-workbench-ui-2026-10.md](../../docs/gaea-ai-workbench-ui-2026-10.md)。
+> 设计说明见 [docs/archive/gaea-ai-workbench-ui-2026-10.md](../../docs/archive/gaea-ai-workbench-ui-2026-10.md)。
 > 本目录是**独立静态原型**，不接业务代码、不改生产前端；用于先对齐「办公是唯一工作台，CAD/进度只是工具」的信息架构。
 
 ## 打开

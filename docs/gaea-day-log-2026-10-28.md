@@ -14,8 +14,8 @@
 
 ## 详细记录位置
 
-- 走查+瘦身边疆：docs/gaea-board-slim-reorg-2026-10.md（「真机走查」「续刀」两节）
-- 检查器随工具：docs/gaea-ai-workbench-ui-2026-10.md §14
+- 走查+瘦身边疆：docs/archive/gaea-board-slim-reorg-2026-10.md（「真机走查」「续刀」两节）
+- 检查器随工具：docs/archive/gaea-ai-workbench-ui-2026-10.md §14
 - CAD 读图两刀：docs/gaea-cad-tool-master-plan-2026-10.md（「agent 工具 cad_ask」追记）
 
 ## 余池（全部待用户拍板/实弹，无自主可动项）

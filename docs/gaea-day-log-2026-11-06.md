@@ -1,8 +1,8 @@
 # 当日总账（2026-11-06 凌晨）：聊天板块核心优化第一批+实弹基线+臂B定案
 
 > 追记：本日实际推进三批——①四卫生切片（见下）②实弹基线对照（13b65f37 tag vs
-> 16b52dda，docs/gaea-chat-probe-baseline-20261106.md）③臂B 四刀+实弹验证
-> （docs/gaea-chat-probe-armb-20261106.md）。两轮实弹全部 8124 qwen35（与 herdsman
+> 16b52dda，docs/archive/gaea-chat-probe-baseline-20261106.md）③臂B 四刀+实弹验证
+> （docs/archive/gaea-chat-probe-armb-20261106.md）。两轮实弹全部 8124 qwen35（与 herdsman
 > 槽位同一份 GGUF）+TempDir 隔离+搜索腿罐头，挂具 GAEA_PROBE=1 门控。
 
 ## 追加提交索引（臂B，5 笔）
@@ -141,7 +141,7 @@ e4dc8da8 收尾记档）。工作树干净，baseline tag `chat-persona-baseline
 :407 前加 contractHits/msg0Hash 观测）。实弹 A 臂（8124 qwen35）：A0 中性六项
 PASS / A1 修前基线丢「雨」意象 FAIL / A2+合同 PASS，四负样本零误触，A3 不触发，
 判分 sampleEcho 勘误（3 字行误计已修+离线重算）。报告
-docs/gaea-chat-probe-delivery-contract-20261106.md；主计划追记 §四。待用户：
+docs/archive/gaea-chat-probe-delivery-contract-20261106.md；主计划追记 §四。待用户：
 人格 1-5 人工单评+真机 bokke 实弹验证。
 
 ## 再追加：bokke 复现探针+v4.534.0 装机（2026-11-06 午后二段）

@@ -67,7 +67,7 @@ type Character struct {
 	// 字段——通用角色库不固化关系，只落本书 characters.json。AI 可随机生成
 	// （范围：全部/剩余全部/个人），并注入章节生成的角色名册。
 	ProtagonistRelation string `json:"protagonist_relation,omitempty"`
-	// ── 注入配置（阶段八 8.1，docs/gaea-longterm-plan-2026-10.md）──
+	// ── 注入配置（阶段八 8.1，docs/archive/gaea-longterm-plan-2026-10.md）──
 	// 项目级字段（角色库不承载，同步/AI 补全链路按 v4.454 同款回带）。
 	// InjectMode 四态："" 默认=检测注入（本章计划/大纲/剧情要求文本命中名字或
 	// 别名才升全量档案行）；"always"=恒注入；"muted"=检测不注入（命中也不升档，
