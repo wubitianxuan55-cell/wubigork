@@ -78,15 +78,14 @@ export function GaeaDreamIcon(props: BoardIconProps) {
   )
 }
 
-/** 办公：叠放文档与工作流节点，替换泛化的扳手。 */
+/** 办公：显示器、支架与主机塔的经典台式机组合。 */
 export function GaeaOfficeIcon(props: BoardIconProps) {
   return (
     <IconFrame {...props}>
-      <path d="M5 6.5v13.25h10.5" />
-      <path d="M7.5 4h7.25L19 8.25v11.25H7.5z" />
-      <path d="M14.75 4v4.25H19" />
-      <path d="M10.25 11h6.25M10.25 14h4.75M10.25 17h2.5" />
-      <circle cx="4.5" cy="5.5" r="1.15" fill="currentColor" stroke="none" />
+      <rect x="3.5" y="4.25" width="13" height="9.25" rx="1.5" />
+      <path d="M10 13.5v3.75M7.5 17.25h5" />
+      <rect x="17.5" y="5.75" width="3.25" height="12.5" rx=".75" />
+      <path d="M18.55 8.25h1.15M18.55 10.25h1.15M18.55 12.25h1.15" />
     </IconFrame>
   )
 }
@@ -183,14 +182,16 @@ export function GaeaRuntimeIcon(props: BoardIconProps) {
   )
 }
 
-/** 方案库：成册方案的书脊与逐级缩进的标题层级（章 → 节 → 目）。 */
+/** 方案库：分层档案抽屉与检索镜，表达“归档成库 + 按需查找”。
+ *  刻意不与办公共用“单页文档 + 横线”轮廓，主栏 20px 下仍先读到柜体。 */
 export function GaeaProposalIcon(props: BoardIconProps) {
   return (
     <IconFrame {...props}>
-      <path d="M6.75 3.75h10.5A1.25 1.25 0 0 1 18.5 5v14a1.25 1.25 0 0 1-1.25 1.25h-10.5z" />
-      <path d="M6.75 3.75A1.75 1.75 0 0 0 5 5.5v13a1.75 1.75 0 0 0 1.75 1.75" />
-      <path d="M9 8h6.5M11.5 11.5h4M11.5 15h4" />
-      <path d="M9 11v4.75" />
+      <rect x="3.75" y="4.25" width="12.25" height="15.5" rx="2.1" />
+      <path d="M3.75 8.5h12.25M3.75 12.75h12.25" />
+      <path d="M7.5 6.5h4.75M7.5 10.75h4.75M7.5 15h4.75" />
+      <circle cx="16.7" cy="15.5" r="3.2" />
+      <path d="m18.9 17.75 2.15 2.15" />
     </IconFrame>
   )
 }

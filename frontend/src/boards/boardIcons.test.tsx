@@ -11,6 +11,7 @@ import {
   GaeaModelIcon,
   GaeaOfficeIcon,
   GaeaPantheonIcon,
+  GaeaProposalIcon,
   GaeaRuntimeIcon,
   GaeaScheduleIcon,
 } from './boardIcons'
@@ -25,6 +26,7 @@ const icons = [
   GaeaPantheonIcon,
   GaeaMemoryIcon,
   GaeaModelIcon,
+  GaeaProposalIcon,
   GaeaCharacterIcon,
   GaeaScheduleIcon,
   GaeaRuntimeIcon,
