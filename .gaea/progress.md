@@ -7547,3 +7547,17 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - payload 正式路径冒烟 200（PID 18184）。SHA256：exe 6E8FB1DF…；ORT 与历届一致；
   **sherpa 两 DLL=v2.0.2 新哈希首次进发布件**；zip 86DBD681…/src.zip 48E50ABE… 留盘不入库；
   装机位 0BCAACE7…（同码不同时间戳同源核验 ✓，PID 72764）。worktree 已回收。
+
+## 2026-11-24 打包记录——gaea-20261124-2e129cc（交付链三线+图片托管+图标+Qwen 冷启动，全量收口）
+
+- 五笔业务提交：6c4f242d（一级导航图标辨识度）+ f4fc4ba1（方案库图片托管 SchemaV37+gaea-asset:// 闭环）
+  + b0d4147c（Inkling 退役+Qwen3.8 冷启动生命周期）+ e0c322c9（交付链三线：docx 编号联动/登记格式
+  模板/交付文件夹口径）+ 2e129cc0（本记录笔）。主树构建 npm 39.8s + wails 58.3s；干净工作树
+  .tmp/gaea-pkg-2e129cc 打包（pnpm 47.2s + npm 28.1s + wails），三 DLL 预拷进 worktree build/bin
+  防 System32 ORT 劫持。worktree 已回收。
+- 冒烟：releases\gaea-20261124-2e129cc\payload 正式路径 /api/health 200（PID 44828 已回收）。
+- SHA256：exe BE4C6751AA3CA26A…；ORT 68D0D5F5…；sherpa-c 408F9AB6…；sherpa-cxx DBAC55CE…；
+  zip 593BE0D2…/src.zip 6C400E38… 留盘不入库。
+- 装机：payload 同源装机（gaea_install.ps1 -SourceDir=payload），INSTALL OK，装机 exe
+  BE4C6751AA3CA26A… = 包 exe 同源 ✓，构建时刻 2026-11-24 21:45:33。
+- 同批登记：昆顶格式模板已落两工作区（D:/新工作/南岸、2630合并沧州 .gaea/templates/docx/技术标-昆顶.json）。
