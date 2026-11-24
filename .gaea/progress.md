@@ -1,4 +1,19 @@
-## 方案库实弹反馈批 + PDF 经本机 WPS 转换（2026-11-24 晚，未提交）
+## 造价数据库推倒重建：三级浏览面 + 维护归造价模式（2026-11-25，提交 4adec93a + 包 gaea-cost-db-20261125-4adec93a）
+
+用户拍板（原话要点）：「参考方案库的模式，造价数据库也退役自己的导入和解析等入口，将导入、解析、维护这些交给办公板块的造价模式，造价数据库保留导出、删除等基本功能」；追问范围时追加「整个造价库可以推翻重新架构，不用在上面修修改改浪费时间。我只需要看到清单，定额，工料机的三级造价数据可以服务于造价模式」。计划经 AskUserQuestion 四问拍板（留库页维护入口=无 / 导出=四类列表 Excel / 对标表=下线），ExitPlanMode 批准后执行。
+
+- **板块重建**：`CostLibraryPage` 重写 + `pages/cost-library/` 五件（TierRail / Tables / Details / HealthDrawer / Overlays）+ `logic.ts` 纯函数层。三级浏览面：左栏三级切换+上下文（项目/专业/类别）、中栏列表（检索、批量删除、下钻 chip）、右栏详情按需展开（综合单价分析按挂接定额分组 / 含量行分析表 / 工料机价格卡+调价历史+被谁引用），引用链可回跳；四态分明、keepAlive 切回静默重读（`useBoardActive('cost')`）；列表列渐进披露（`cl-pri-1/2` 容器查询收列，详情里有）。删除只留单条/批量+确认卡，后端拒绝（仍被引用）原因留在卡上；导出菜单走 `GaeaCostLibraryExport` 四类列表 xlsx（拒绝覆盖）；体检=只读 `CostHealthScan` 抽屉可跳行。旧 8 模块 26 组件+18 测试整删（−3110 行测试）：导入入口×3、资料条目全家（导入/AI 解析/视觉识别/分类管理）、批量调价/资源化/自生成/去重弹窗、费率编辑、挂接定额、概览、造价参考（分位数对标下线——读已退役 costproject 表真实库 0 行恒空）、图谱、对标查漏页、备份卡、价格源/仓库/询价库界面。
+- **维护归造价模式**：新工具 `cost_library`（`office_cost_library_tools.go`，PersistWrite+hardAsk 确认卡、`dry_run` 豁免弹卡）：`import_project`（五表工作簿，演练给规模/告警/同名项目）、`save_quota/delete_quota`（含量行整组替换且每行必须引用在库工料机；强删先 DetachQuotaEverywhere）、`save_resource/delete_resource/set_price`（按 id/code 定位、先定目标再合并字段防价格清零、改编码拒绝）、`bulk_price`、`delete_items/delete_project`、`seed/flywheel/dedupe/health`。注册面七处同批（gaea_handler 装配 / toolgroups cost 组 / spacetags / registrymap+工具地图文档 / wenxue 拒装 / 审批 hardAsk+摘要+`costLibraryArgsNoWrite`）。
+- **cost_project_apply 三缺陷根修**（入口撤收后它成唯一写路径）：①改已有行清 `list_price`→已有行未传字段保原值；②`quota_codes` 只进回显不落库→`SaveBillItemLinks` 整体替换 `gf_bill_quota_links`+主定额列同步，回执点名被解除挂接数；③`update_rates` 按零覆盖→入参全指针化只改传入字段。回归钉 `TestCostProjectApplySaveItemsKeepsSnapshotAndLinks`。
+- **引用面与护栏**（`workcost/usage.go`）：`QuotaUsage/ResourceUsage/QuotaReferenced/DetachQuotaEverywhere/ResourceReferenceCounts/SaveBillItemLinks`+`FindBillItem`（聚合挂接码）；绑定 `GaeaWorkcostQuotaDelete` 加引用拒删、新 `GaeaWorkcostResourceUsage`。
+- **绑定面 727→668**：普查脚本证实旧界面消失后 CostB 72 绑定只余 15 个有界面消费，59 个（57 CostB+语义索引 2）进生成器 `excludedBindings`（方法体保留，复活=除名重跑）；`CostBindings` 接口/mock 收到 15 个；`types/cost.ts` 清 56 个孤儿类型（−608 行）；绑定漂移守卫绿。
+- **提示词/技能**：造价档 ModeLine、身份提示词（新增「造价库维护」节）、cost-estimation-playbook 同步（板块只读、dry_run 先行、force 删语义、整体替换带原挂接）；锚测试 `TestCostLibraryPromptAnchors`。工具数 7→8。子导航两端（manifests.ts COST_NAV / board builtins.go Nav）同步为三级并修正既有漂移。master plan 顶部加 2026-11-25 推倒重建节；`.gaea/AGENTS.md` 加「库页只读约定」+绑定面现值 668。
+- **方案库实弹反馈批同树收口**（2026-11-24 晚另一会话遗留未提交，与本批六处注册面文件交织，按「九批合一」先例合并一笔提交）：proposal_update/delete/export 三维护工具、proposal_save status+dry_run、乱码 PDF 走本机 WPS wpscli pdf2word（docmd/wps.go）、genui 最小示例单源、检索缓存提示自解释、方案库板块切回静默重读。
+- **验证**：Go app 全量+workcost/tool/control/board 绿；前端 tsc 0 错、vitest 全量 4639 例绿、eslint/knip 无新增欠账；绑定漂移守卫绿（668）。真实库副本走查（GAEA_WALKTHROUGH 沙箱壳+Hephaestus.db 副本，走查后已清场）：项目 7/清单 329/定额 295/工料机 1788 与库内一致，7 项目及各自条数全对，清单行详情（原表单价 ¥15,660.48 对现算 ¥15,649.8、含量行 10 行）正常。**未走查**（被打包令截断）：导出/体检抽屉/删除路径的真机走查、造价模式实弹回合、布局修复后的复验。
+- **打包装机**：干净工作树 `.worktrees/pkg-4adec93a`（junction node_modules）构建 Vite 73s+Wails 67s（bindings 未跳过）；包 `releases/gaea-cost-db-20261125-4adec93a/`（payload 四件+双 zip+PACKAGE-INFO.md+SHA256SUMS.txt；exe `4260836CC011…`，DLL 同基线）；payload 冒烟 200；`gaea_install.ps1 -SourceDir payload` INSTALL OK，装机位哈希=包哈希。版本不抬号；未 push。
+- 坑：①走查沙箱 `GAEA_WALKTHROUGH=1` 会把 APPDATA 整体重定向到 `%TEMP%\gaea-walkthrough\appdata`——想让它读真实库副本，库要放进沙箱 APPDATA 而非自设 GAEA_DATA_ROOT；②walkthrough 版 cost 布局初版在 1264px 视口下右栏空态占位挤压列表（1280px 表仅 528px 可视）→按需详情栏+列收起修复；③前端页面测试不能用 jest-dom 匹配器（仓库未装），断言走自写 textContent 帮手；④mock 契约测试（X1-11）逮 `CostLibraryExport` mock 形参 0 vs 门面 5——新增绑定 mock 必须按门面签名声明形参。
+
+## 方案库实弹反馈批 + PDF 经本机 WPS 转换（2026-11-24 晚，已随 4adec93a 收口提交）
 
 用户录入两份方案后方案库界面只显示一份；办公模型另出 7 条使用问题汇总
 （`D:\新工作\沿江一公里\南岸\01_编制工作区\gaea软件使用问题与改进建议_20261124.md`）。
