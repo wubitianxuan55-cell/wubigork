@@ -346,57 +346,55 @@ func utf16Len(s string) int {
 	return len(utf16.Encode([]rune(s)))
 }
 
+// requiredFields 每个组件的必填字段（以 frontend/src/genui/spec.ts 为准）。表里出现的
+// 每个类型都必须在 examples.go 登记最小可用示例（TestHandbookExamplesInSync 把关）。
+var requiredFields = map[string][]string{
+	"text":      {"content"},
+	"row":       {"items"},
+	"col":       {"items"},
+	"grid":      {"items"},
+	"card":      {"items"},
+	"accordion": {"items"},
+	// spec.ts/guard.ts：tabs 由 tabs:[{label,items}] 承载，顶层没有 items。
+	"tabs":     {"tabs"},
+	"stat":     {"label", "value"},
+	"badge":    {"label"},
+	"progress": {"value"},
+	"keyvalue": {"pairs"},
+	"table":    {"columns", "rows"},
+	"timeline": {"items"},
+	"callout":  {"content"},
+	"steps":    {"steps"},
+	"avatar":   {"name"},
+	"copy":     {"text"},
+	"chart":    {"data"},
+	"code":     {"code"},
+	"json":     {"value"},
+	"diff":     {"diffs"},
+	"button":   {"label"},
+	"checkbox": {"label"},
+	"switch":   {"label"},
+	"select":   {"options"},
+	"radio":    {"options"},
+	"quiz":     {"question", "options"},
+}
+
 func (v *validator) checkRequired(path, typ string, obj map[string]any) {
-	need := func(key string) {
+	// 把缺的必填字段收齐再报，并在末尾附该组件的最小可用示例——模型照着改即可，
+	// 不必再靠试错发现哪个字段必填（2026-11-24 实弹：callout 缺 content）。
+	var missing []string
+	for _, key := range requiredFields[typ] {
 		if _, ok := obj[key]; !ok {
-			v.add(path, fmt.Sprintf("%s 缺少必填字段 %s", typ, key))
+			missing = append(missing, key)
 		}
 	}
-	switch typ {
-	case "text":
-		need("content")
-	case "row", "col", "grid", "card", "accordion":
-		need("items")
-	case "tabs":
-		// spec.ts/guard.ts：tabs 由 tabs:[{label,items}] 承载，顶层没有 items。
-		need("tabs")
-	case "stat":
-		need("label")
-		need("value")
-	case "badge":
-		need("label")
-	case "progress":
-		need("value")
-	case "keyvalue":
-		need("pairs")
-	case "table":
-		need("columns")
-		need("rows")
-	case "timeline":
-		need("items")
-	case "callout":
-		need("content")
-	case "steps":
-		need("steps")
-	case "avatar":
-		need("name")
-	case "copy":
-		need("text")
-	case "chart":
-		need("data")
-	case "code":
-		need("code")
-	case "json":
-		need("value")
-	case "diff":
-		need("diffs")
-	case "button", "checkbox", "switch":
-		need("label")
-	case "select", "radio":
-		need("options")
-	case "quiz":
-		need("question")
-		need("options")
+	for _, key := range missing {
+		v.add(path, fmt.Sprintf("%s 缺少必填字段 %s", typ, key))
+	}
+	if len(missing) > 0 {
+		if ex := MinimalExample(typ); ex != "" {
+			v.add(path, fmt.Sprintf("%s 最小可用示例：%s", typ, ex))
+		}
 	}
 	if cols, ok := obj["cols"]; ok && typ == "grid" {
 		if n, ok2 := cols.(float64); !ok2 || n < 1 || n > maxGridCols {

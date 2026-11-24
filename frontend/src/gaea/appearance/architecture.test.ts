@@ -121,7 +121,7 @@ describe('gaea 四层外观架构', () => {
       '.chat-main',
       '.office-sidebar',
       '.ig-result-canvas',
-      '.cost-database-main',
+      '.cl-detail-col',
       '.pantheon-rail',
       '.atlas-ambience',
       '.wx-main',

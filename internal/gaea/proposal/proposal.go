@@ -113,6 +113,7 @@ type ProposalInfo struct {
 type Store struct {
 	db        *sql.DB
 	assetRoot string
+	noWrite   bool // 演练模式（SaveInput.DryRun）：图片文件不落盘，事务最后回滚
 }
 
 // Open 打开方案库；gdb 为 nil 时不可用。
@@ -229,6 +230,7 @@ type SaveInput struct {
 	SourceFile   string         // 形态 B 的源文件路径（落库留痕，续录核对用）
 	AssetBaseDir string         // 正文相对图片的解析根；通常是 Markdown 源文件所在目录
 	Finalize     bool           // 形态 B：本批是最后一批，末节正文截至文件尾
+	DryRun       bool           // 演练：整批校验、定位、切正文照做，但库与图片文件都不写
 }
 
 // ExistsError 同名方案已存在且未确认覆盖。
@@ -264,6 +266,7 @@ type SaveResult struct {
 	Assets        int      // 本次托管、且正文已改写引用的图片数
 	MissingAssets []string // 正文里未能托管的图片引用（保留原写法）
 	Stats         Stats    // 写入后的结构统计
+	DryRun        bool     // 本次是演练：未写库（Stats 为「假如写入」的统计）
 }
 
 // Save 录入一批：整批在一个事务里，任何一项出错整批不落库（fail-closed）。
@@ -289,6 +292,11 @@ func (s *Store) Save(in SaveInput) (*SaveResult, error) {
 	name := strings.TrimSpace(in.Meta.Name)
 	if name == "" {
 		name = title // 方案名=标题：唯一键直接用标题，不经 slug 截断（长标题同前缀会撞名）
+	}
+	if in.DryRun { // 演练：后续所有经 s 的写入都带着「不落图片文件」标记
+		dry := *s
+		dry.noWrite = true
+		s = &dry
 	}
 	srcFile := strings.TrimSpace(in.SourceFile)
 	if srcFile == "" {
@@ -566,6 +574,19 @@ VALUES(?,?,?,?,?,?,?,?,?,?)`,
 		status, ingestLine, ingestHash, now, pid); err != nil {
 		return nil, err
 	}
+	if in.DryRun {
+		// 演练到此为止：校验、定位、切正文、算层级都已走完，库与图片都不落。
+		// 统计必须在回滚之前、在同一事务里读——读的才是「假如写入」的结构。
+		stats, _ := statsOf(tx, pid)
+		_ = tx.Rollback()
+		res := &SaveResult{
+			ProposalID: pid, Created: created, Replaced: replaced, Added: len(newSecs), Clamped: clamped,
+			SkippedLines: skipped, IngestLine: ingestLine, TotalLines: len(in.Lines), Done: done, PendingTitle: pendingTitle,
+			WeakMatches: weak, Assets: assetCount, MissingAssets: missingAssets, DryRun: true,
+		}
+		res.Stats = stats
+		return res, nil
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -672,15 +693,24 @@ func (s *Store) Stats(pid int64) (Stats, error) {
 	if err := s.available(); err != nil {
 		return Stats{}, err
 	}
+	return statsOf(s.db, pid)
+}
+
+// rowQuerier 是 *sql.DB 与 *sql.Tx 的公共面：事务内外同一份统计实现（演练在回滚前读）。
+type rowQuerier interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+func statsOf(q rowQuerier, pid int64) (Stats, error) {
 	var st Stats
-	err := s.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(LENGTH(body)),0),
+	err := q.QueryRow(`SELECT COUNT(*), COALESCE(SUM(LENGTH(body)),0),
   COALESCE(SUM(level=1),0), COALESCE(SUM(level=2),0), COALESCE(SUM(level=3),0), COALESCE(SUM(level=4),0)
 FROM proposal_sections WHERE proposal_id=?`, pid).Scan(&st.Sections, &st.Chars,
 		&st.LevelCounts[1], &st.LevelCounts[2], &st.LevelCounts[3], &st.LevelCounts[4])
 	if err != nil {
 		return st, unreadable(err)
 	}
-	_ = s.db.QueryRow(`SELECT title, LENGTH(body) FROM proposal_sections WHERE proposal_id=? ORDER BY LENGTH(body) DESC, seq LIMIT 1`, pid).
+	_ = q.QueryRow(`SELECT title, LENGTH(body) FROM proposal_sections WHERE proposal_id=? ORDER BY LENGTH(body) DESC, seq LIMIT 1`, pid).
 		Scan(&st.LongestTitle, &st.LongestChars)
 	return st, nil
 }

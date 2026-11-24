@@ -346,24 +346,24 @@ func (t costProjectApplyTool) Name() string       { return "cost_project_apply" 
 func (t costProjectApplyTool) ReadOnly() bool     { return false }
 func (t costProjectApplyTool) PersistWrite() bool { return true }
 func (t costProjectApplyTool) Description() string {
-	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取）、update_rates 更新项目费率、save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。沉淀回成本库走 cost_save（用户确认门），本工具不写成本库。"
+	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取）、update_rates 更新项目费率（只改传入的字段）、save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。quota_code 与 quota_codes 合起来就是该行的全部定额挂接（整体替换）：只改名称等字段时，把原挂接原样带回。本工具只增不删；删除、导入工作簿、改定额与工料机走 cost_library。沉淀回成本库走 cost_save（用户确认门）。"
 }
 func (t costProjectApplyTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["create_project","update_rates","save_items"],"description":"create_project=建项目；update_rates=更新项目费率；save_items=批量写清单行（幂等：同批+库内同编码走更新）"},
+  "action":{"type":"string","enum":["create_project","update_rates","save_items"],"description":"create_project=建项目；update_rates=更新项目费率（未传的费率保持原值）；save_items=批量写清单行（幂等：同批+库内同编码走更新）"},
   "name":{"type":"string","description":"项目名（create_project 必填，同名=更新封面）"},
   "file_name":{"type":"string","description":"源工作簿名（可选）"},
   "source":{"type":"string","description":"数据来源说明（可选）"},
   "location":{"type":"string","description":"地区（可选）"},
   "duration":{"type":"string","description":"工期（可选）"},
   "pricing":{"type":"string","description":"计价方式（可选）"},
-  "management_rate":{"type":"number","description":"企业管理费率（0=不计取）"},
-  "regulatory_rate":{"type":"number","description":"规费费率（0=不计取）"},
-  "profit_rate":{"type":"number","description":"利润费率（0=不计取）"},
-  "tax_rate":{"type":"number","description":"增值税费率（0=不计取）"},
+  "management_rate":{"type":"number","description":"企业管理费率（create_project 未传=0 不计取）"},
+  "regulatory_rate":{"type":"number","description":"规费费率"},
+  "profit_rate":{"type":"number","description":"利润费率"},
+  "tax_rate":{"type":"number","description":"增值税费率"},
   "profit_includes_regulatory":{"type":"boolean","description":"利润取费基数是否含规费"},
   "control_price":{"type":"number","description":"控制价（可选）"},
   "project_id":{"type":"integer","description":"项目 id（update_rates/save_items 必填）"},
@@ -374,44 +374,119 @@ func (t costProjectApplyTool) Schema() json.RawMessage {
     "division":{"type":"string","description":"分部（可选）"},
     "quantity":{"type":"number","description":"工程量（必须>0）"},
     "quantity_expr":{"type":"string","description":"工程量计算式（留痕，可选）"},
-    "quota_code":{"type":"string","description":"主定额编码（手填行留空）"},
-    "quota_codes":{"type":"array","items":{"type":"string"},"description":"组合定额编码列表（可选，1:N 挂接）"},
+    "quota_code":{"type":"string","description":"主定额编码（与 quota_codes 合起来=该行全部挂接，整体替换；手填行留空）"},
+    "quota_codes":{"type":"array","items":{"type":"string"},"description":"其余定额编码（1:N 挂接；与 quota_code 同一批落库）"},
     "feature":{"type":"string","description":"工序特征（可选）"},
-    "price_override":{"type":"number","description":"手填单价（套定额行留 0=按定额现算）"}
+    "price_override":{"type":"number","description":"手填单价（套定额行留 0=按定额现算）"},
+    "list_price":{"type":"number","description":"原表综合单价快照（可选；不传=已有行保持原值，新行为 0）"}
   }}}
 }
 }`)
 }
 
-func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
-	var p struct {
-		Action                   string  `json:"action"`
-		Name                     string  `json:"name"`
-		FileName                 string  `json:"file_name"`
-		Source                   string  `json:"source"`
-		Location                 string  `json:"location"`
-		Duration                 string  `json:"duration"`
-		Pricing                  string  `json:"pricing"`
-		ManagementRate           float64 `json:"management_rate"`
-		RegulatoryRate           float64 `json:"regulatory_rate"`
-		ProfitRate               float64 `json:"profit_rate"`
-		TaxRate                  float64 `json:"tax_rate"`
-		ProfitIncludesRegulatory bool    `json:"profit_includes_regulatory"`
-		ControlPrice             float64 `json:"control_price"`
-		ProjectID                int64   `json:"project_id"`
-		Items                    []struct {
-			Code          string   `json:"code"`
-			Title         string   `json:"title"`
-			Unit          string   `json:"unit"`
-			Division      string   `json:"division"`
-			Quantity      float64  `json:"quantity"`
-			QuantityExpr  string   `json:"quantity_expr"`
-			QuotaCode     string   `json:"quota_code"`
-			QuotaCodes    []string `json:"quota_codes"`
-			Feature       string   `json:"feature"`
-			PriceOverride float64  `json:"price_override"`
-		} `json:"items"`
+// costProjectApplyArgs cost_project_apply 的入参。费率与挂接字段用指针：区分
+// 「没传」与「传了 0 / 空串」——update_rates 没传的费率保持原值（2026-11-25 修：
+// 此前按 0 覆盖，改一个费率会把其余三个清零）；save_items 没传挂接字段=不动
+// 该行的定额挂接。
+type costProjectApplyArgs struct {
+	Action                   string                 `json:"action"`
+	Name                     string                 `json:"name"`
+	FileName                 string                 `json:"file_name"`
+	Source                   string                 `json:"source"`
+	Location                 string                 `json:"location"`
+	Duration                 string                 `json:"duration"`
+	Pricing                  string                 `json:"pricing"`
+	ManagementRate           *float64               `json:"management_rate"`
+	RegulatoryRate           *float64               `json:"regulatory_rate"`
+	ProfitRate               *float64               `json:"profit_rate"`
+	TaxRate                  *float64               `json:"tax_rate"`
+	ProfitIncludesRegulatory *bool                  `json:"profit_includes_regulatory"`
+	ControlPrice             *float64               `json:"control_price"`
+	ProjectID                int64                  `json:"project_id"`
+	Items                    []costProjectApplyItem `json:"items"`
+}
+
+type costProjectApplyItem struct {
+	Code          string   `json:"code"`
+	Title         string   `json:"title"`
+	Unit          string   `json:"unit"`
+	Division      string   `json:"division"`
+	Quantity      float64  `json:"quantity"`
+	QuantityExpr  string   `json:"quantity_expr"`
+	QuotaCode     *string  `json:"quota_code"`
+	QuotaCodes    []string `json:"quota_codes"`
+	Feature       string   `json:"feature"`
+	PriceOverride float64  `json:"price_override"`
+	ListPrice     *float64 `json:"list_price"`
+}
+
+// anyRate 是否至少传了一个费率（partial 传参合法：没传的按 0=不计取）。
+func (p costProjectApplyArgs) anyRate() bool {
+	return p.ManagementRate != nil || p.RegulatoryRate != nil || p.ProfitRate != nil || p.TaxRate != nil
+}
+
+// rateValues 四费率取值，未传的按 0（显式不计取）。
+func (p costProjectApplyArgs) rateValues() workcost.RateSet {
+	return workcost.RateSet{
+		ManagementRate: p.floatOr(p.ManagementRate, 0), RegulatoryRate: p.floatOr(p.RegulatoryRate, 0),
+		ProfitRate: p.floatOr(p.ProfitRate, 0), TaxRate: p.floatOr(p.TaxRate, 0),
 	}
+}
+
+func (p costProjectApplyArgs) boolOr(v *bool, def bool) bool {
+	if v != nil {
+		return *v
+	}
+	return def
+}
+
+func (p costProjectApplyArgs) floatOr(v *float64, def float64) float64 {
+	if v != nil {
+		return *v
+	}
+	return def
+}
+
+// linksGiven 该行是否提交了定额挂接字段（提交了=整体替换该行的挂接集合）。
+func (it costProjectApplyItem) linksGiven() bool { return it.QuotaCode != nil || it.QuotaCodes != nil }
+
+// linkInputs 挂接集合（主定额在前，其余保序；空码与重复码剔除）。
+func (it costProjectApplyItem) linkInputs() []workcost.BillQuotaLinkInput {
+	var out []workcost.BillQuotaLinkInput
+	seen := map[string]bool{}
+	add := func(c string) {
+		c = strings.TrimSpace(c)
+		if c == "" || seen[c] {
+			return
+		}
+		seen[c] = true
+		out = append(out, workcost.BillQuotaLinkInput{QuotaCode: c})
+	}
+	if it.QuotaCode != nil {
+		add(*it.QuotaCode)
+	}
+	for _, c := range it.QuotaCodes {
+		add(c)
+	}
+	return out
+}
+
+// findBillProject 按 id 找项目封面（含费率）；不存在返回 nil。
+func findBillProject(s *workcost.Store, id int64) *workcost.BillProject {
+	projects, err := s.BillProjects()
+	if err != nil {
+		return nil
+	}
+	for i := range projects {
+		if projects[i].ID == id {
+			return &projects[i]
+		}
+	}
+	return nil
+}
+
+func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
+	var p costProjectApplyArgs
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("cost_project_apply 参数解析失败: %w", err)
 	}
@@ -424,11 +499,21 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 		if strings.TrimSpace(p.Name) == "" {
 			return "", fmt.Errorf("create_project 需要 name")
 		}
-		rates := workcost.RateSet{
-			ManagementRate: p.ManagementRate, RegulatoryRate: p.RegulatoryRate,
-			ProfitRate: p.ProfitRate, TaxRate: p.TaxRate,
+		rates := &workcost.RateSet{}
+		if p.anyRate() {
+			full := p.rateValues()
+			rates = &full
+		} else if projects, err := s.BillProjects(); err == nil {
+			// 一个费率都没传：新建项目落显式全零（0=不计取，不猜默认值）；同名项目
+			// 走封面更新时不动它已存的费率。
+			for i := range projects {
+				if projects[i].Name == strings.TrimSpace(p.Name) {
+					rates = nil
+					break
+				}
+			}
 		}
-		id, err := s.UpsertBillProject(p.Name, p.FileName, p.Source, p.Location, p.Duration, p.Pricing, &rates, p.ProfitIncludesRegulatory, p.ControlPrice)
+		id, err := s.UpsertBillProject(p.Name, p.FileName, p.Source, p.Location, p.Duration, p.Pricing, rates, p.boolOr(p.ProfitIncludesRegulatory, false), p.floatOr(p.ControlPrice, 0))
 		if err != nil {
 			return "", err
 		}
@@ -437,14 +522,37 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 		if p.ProjectID <= 0 {
 			return "", fmt.Errorf("update_rates 需要 project_id")
 		}
-		rates := workcost.RateSet{
-			ManagementRate: p.ManagementRate, RegulatoryRate: p.RegulatoryRate,
-			ProfitRate: p.ProfitRate, TaxRate: p.TaxRate,
+		if !p.anyRate() && p.ProfitIncludesRegulatory == nil && p.ControlPrice == nil {
+			return "", fmt.Errorf("update_rates 需要至少一个费率字段（management_rate/regulatory_rate/profit_rate/tax_rate/profit_includes_regulatory/control_price）")
 		}
-		if err := s.UpdateBillProjectRates(p.ProjectID, rates, p.ProfitIncludesRegulatory, p.ControlPrice); err != nil {
+		proj := findBillProject(s, p.ProjectID)
+		if proj == nil {
+			return "", fmt.Errorf("项目 #%d 不存在（cost_project action=projects 可查）", p.ProjectID)
+		}
+		// 只改传入的字段，其余保持原值。
+		rates := workcost.RateSet{
+			ManagementRate: proj.ManagementRate, RegulatoryRate: proj.RegulatoryRate,
+			ProfitRate: proj.ProfitRate, TaxRate: proj.TaxRate,
+		}
+		if p.ManagementRate != nil {
+			rates.ManagementRate = *p.ManagementRate
+		}
+		if p.RegulatoryRate != nil {
+			rates.RegulatoryRate = *p.RegulatoryRate
+		}
+		if p.ProfitRate != nil {
+			rates.ProfitRate = *p.ProfitRate
+		}
+		if p.TaxRate != nil {
+			rates.TaxRate = *p.TaxRate
+		}
+		if err := s.UpdateBillProjectRates(p.ProjectID, rates,
+			p.boolOr(p.ProfitIncludesRegulatory, proj.ProfitIncludesRegulatory),
+			p.floatOr(p.ControlPrice, proj.ControlPrice)); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("项目 #%d 费率已更新（0=显式不计取）。", p.ProjectID), nil
+		return fmt.Sprintf("项目 #%d 费率已更新：管=%g 规=%g 利=%g 税=%g（0=显式不计取；未传的字段保持原值）。",
+			p.ProjectID, rates.ManagementRate, rates.RegulatoryRate, rates.ProfitRate, rates.TaxRate), nil
 	case "save_items":
 		if p.ProjectID <= 0 {
 			return "", fmt.Errorf("save_items 需要 project_id（先用 action=create_project 建项目）")
@@ -477,17 +585,8 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			if it.Quantity <= 0 {
 				return "", fmt.Errorf("第 %d 行工程量必须>0。整批未写入", i+1)
 			}
-			codes := append([]string(nil), it.QuotaCodes...)
-			if it.QuotaCode != "" {
-				codes = append([]string{it.QuotaCode}, codes...)
-			}
-			dup := map[string]bool{}
-			for _, c := range codes {
-				c = strings.TrimSpace(c)
-				if c == "" || dup[c] {
-					continue
-				}
-				dup[c] = true
+			for _, in := range it.linkInputs() {
+				c := in.QuotaCode
 				if _, err := s.GetQuota(c); err != nil && !workcostNotFound(err) {
 					return "", fmt.Errorf("第 %d 行定额 %s 校验失败: %w（整批未写入）", i+1, c, err)
 				} else if workcostNotFound(err) {
@@ -495,26 +594,73 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 				}
 			}
 		}
-		saved := 0
-		for _, it := range p.Items {
+		saved, droppedLinks := 0, 0
+		for i, it := range p.Items {
+			code := strings.TrimSpace(it.Code)
 			item := workcost.BillItem{
-				ProjectID: p.ProjectID, Code: strings.TrimSpace(it.Code),
+				ProjectID: p.ProjectID, Code: code,
 				Title: strings.TrimSpace(it.Title), Unit: strings.TrimSpace(it.Unit),
 				Division: it.Division, Quantity: it.Quantity, QuantityExpr: it.QuantityExpr,
-				QuotaCode: strings.TrimSpace(it.QuotaCode), Feature: it.Feature,
+				Feature:       it.Feature,
 				PriceOverride: it.PriceOverride,
 			}
-			if len(it.QuotaCodes) > 0 {
-				item.QuotaCodes = it.QuotaCodes
-			} else {
-				item.QuotaCodes = []string{} // 构造即非 nil（JSON null 崩前端）
+			// 已有行：没传的字段保持原值——原表单价快照（2026-11-25 修：此前整行
+			// 重写会把 list_price 清零）与没提交挂接字段时的主定额。
+			var existing *workcost.BillItem
+			if code != "" {
+				got, err := s.FindBillItem(p.ProjectID, code)
+				if err != nil {
+					return "", fmt.Errorf("第 %d 行查重失败: %w（整批未写入）", i+1, err)
+				}
+				existing = got
 			}
-			if _, err := s.SaveBillItem(item); err != nil {
+			if existing != nil {
+				item.ListPrice = existing.ListPrice
+				item.QuotaCode = existing.QuotaCode
+			}
+			if it.ListPrice != nil {
+				item.ListPrice = *it.ListPrice
+			}
+			links := it.linkInputs()
+			if it.linksGiven() {
+				// 提交了挂接字段=整体替换；主定额列先写集合首项，落库后同步引用表。
+				item.QuotaCode = ""
+				if len(links) > 0 {
+					item.QuotaCode = links[0].QuotaCode
+				}
+			}
+			item.QuotaCodes = []string{} // 构造即非 nil（JSON null 崩前端）
+			savedItem, err := s.SaveBillItem(item)
+			if err != nil {
 				return "", fmt.Errorf("第 %d 行写入失败（前面行已落库，修复该行后重新提交同批即可按编码幂等更新）: %w", saved+1, err)
+			}
+			if it.linksGiven() {
+				// 原有挂接里不在新集合中的=被解除。回执点名：模型只带回主定额时，
+				// 1:N 的其余挂接会在这里静默丢掉。
+				if existing != nil {
+					keep := map[string]bool{}
+					for _, in := range links {
+						keep[in.QuotaCode] = true
+					}
+					if old, lerr := s.BillQuotaLinks(existing.ID); lerr == nil {
+						for _, l := range old {
+							if !keep[l.QuotaCode] {
+								droppedLinks++
+							}
+						}
+					}
+				}
+				if _, err := s.SaveBillItemLinks(savedItem.ID, links); err != nil {
+					return "", fmt.Errorf("第 %d 行定额挂接写入失败（清单行已落库，修正后重发该行即可）: %w", i+1, err)
+				}
 			}
 			saved++
 		}
-		return fmt.Sprintf("项目 #%d 清单已写入 %d/%d 行（写前校验：编码唯一/工程量>0/定额存在）。用 cost_audit 跑机检后再交付。", p.ProjectID, saved, len(p.Items)), nil
+		receipt := fmt.Sprintf("项目 #%d 清单已写入 %d/%d 行（写前校验：编码唯一/工程量>0/定额存在）。用 cost_audit 跑机检后再交付。", p.ProjectID, saved, len(p.Items))
+		if droppedLinks > 0 {
+			receipt += fmt.Sprintf("\n注意：本次按整体替换解除了 %d 条原有定额挂接（不在提交的 quota_code/quota_codes 里）。若非本意，把原挂接补回后重发对应行。", droppedLinks)
+		}
+		return receipt, nil
 	default:
 		return "", fmt.Errorf("未知 action %q（create_project/update_rates/save_items）", p.Action)
 	}

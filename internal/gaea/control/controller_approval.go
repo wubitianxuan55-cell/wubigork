@@ -29,6 +29,7 @@ func proposalSaveApprovalSubject(args json.RawMessage) string {
 		Year        string `json:"year"`
 		Mode        string `json:"mode"`
 		Overwrite   bool   `json:"overwrite"`
+		DryRun      bool   `json:"dry_run"`
 		SourceFile  string `json:"source_file"`
 		Sections    []struct {
 			Level int `json:"level"`
@@ -49,6 +50,8 @@ func proposalSaveApprovalSubject(args json.RawMessage) string {
 	}
 	action := "新建"
 	switch {
+	case p.DryRun:
+		action = "演练，不写库"
 	case p.Overwrite:
 		action = "整册覆盖"
 	case strings.EqualFold(strings.TrimSpace(p.Mode), "append"):
@@ -70,13 +73,96 @@ func proposalSaveApprovalSubject(args json.RawMessage) string {
 	return strings.Join(parts, " · ")
 }
 
+// proposalUpdateApprovalSubject 展示将要修改的方案与改哪一类：元数据（列出改成的标题）
+// 还是某一小节（旧标题 → 新标题 / 整节替换正文）。
+func proposalUpdateApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Proposal     string  `json:"proposal"`
+		Title        string  `json:"title"`
+		ProjectType  string  `json:"project_type"`
+		Year         string  `json:"year"`
+		Summary      string  `json:"summary"`
+		Workspace    string  `json:"workspace"`
+		SectionID    int64   `json:"section_id"`
+		SectionTitle *string `json:"section_title"`
+		Body         *string `json:"body"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.Proposal) == "" {
+		return ""
+	}
+	parts := []string{"修改方案库方案：" + strings.TrimSpace(p.Proposal)}
+	if t := strings.TrimSpace(p.Title); t != "" {
+		parts = append(parts, "改标题为「"+t+"」")
+	}
+	var fields []string
+	for _, f := range []struct{ name, val string }{
+		{"类型", p.ProjectType}, {"年度", p.Year}, {"摘要", p.Summary}, {"工作区", p.Workspace},
+	} {
+		if strings.TrimSpace(f.val) != "" {
+			fields = append(fields, f.name)
+		}
+	}
+	if len(fields) > 0 {
+		parts = append(parts, "改"+strings.Join(fields, "/"))
+	}
+	if p.SectionID > 0 {
+		what := fmt.Sprintf("修正小节 #%d", p.SectionID)
+		if p.SectionTitle != nil {
+			what += "标题→「" + strings.TrimSpace(*p.SectionTitle) + "」"
+		}
+		if p.Body != nil {
+			what += "整节替换正文"
+		}
+		parts = append(parts, what)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// proposalDeleteApprovalSubject 展示将要删除的方案。
+func proposalDeleteApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Proposal string `json:"proposal"`
+		Reason   string `json:"reason"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.Proposal) == "" {
+		return ""
+	}
+	s := "从方案库删除（不可恢复）：" + strings.TrimSpace(p.Proposal)
+	if r := strings.TrimSpace(p.Reason); r != "" {
+		s += " · 理由：" + r
+	}
+	return s
+}
+
+// proposalArgsDryRun 方案库演练调用（dry_run=true）：只校验不写库，不必走逐条确认。
+func proposalArgsDryRun(args json.RawMessage) bool {
+	var p struct {
+		DryRun  bool   `json:"dry_run"`
+		Action  string `json:"action"`
+		Outline []any  `json:"outline"`
+	}
+	return json.Unmarshal(args, &p) == nil && p.DryRun && strings.TrimSpace(p.Action) == ""
+}
+
 // hardAskTools 是必须逐条经用户确认的工具：写入成本库 / 记忆 / 方案库等
 // 持久化数据，任何权限级别（含 yolo）都不自动放行，且不记忆会话放行。
 var hardAskTools = map[string]bool{
-	"cost_save":             true,
+	"cost_save": true,
+	// cost_library（2026-11-25 造价数据库推倒重建）：导入工作簿/删定额/删工料机/
+	// 批量调价/去重合并——删除与批量覆盖类逐条确认；演练与只读动作见
+	// costLibraryArgsNoWrite（不弹卡）。
+	"cost_library":          true,
 	"remember":              true,
 	"forget":                true,
 	"proposal_save":         true,
+	"proposal_update":       true,
+	"proposal_delete":       true,
 	"promote_session_facts": true,
 	"install_skill":         true,
 	// computer_key（电脑操控施工单 W4-2）：键盘可触发任意快捷键（含 Alt+F4、
@@ -97,6 +183,17 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	permLevel := g.c.permLevel
 	g.c.mu.Unlock()
 	auto := autoApprove || permLevel != "ask"
+	// 方案库演练（dry_run=true）只校验、不写库：不弹确认卡，照常记进自动放行账本。
+	if tool == "proposal_save" && proposalArgsDryRun(args) {
+		g.c.emitAutoApproval(tool, subject, event.ApprovalSourceGate, event.AutoDecidedAuto)
+		return true, false, "", nil
+	}
+	// 造价库演练与只读动作（dry_run=true / health / 未点名词干的 flywheel 预览）：
+	// 只校验、匹配、统计，不写库——同样不弹确认卡，照常记进自动放行账本。
+	if tool == "cost_library" && costLibraryArgsNoWrite(args) {
+		g.c.emitAutoApproval(tool, subject, event.ApprovalSourceGate, event.AutoDecidedAuto)
+		return true, false, "", nil
+	}
 	// 持久化写入（成本库/记忆/方案库）必须逐条经用户确认：
 	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
 	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
@@ -145,10 +242,16 @@ func approvalSubjectFor(tool string, args json.RawMessage) string {
 	switch tool {
 	case "cost_save":
 		return costSaveApprovalSubject(args)
+	case "cost_library":
+		return costLibraryApprovalSubject(args)
 	case "remember":
 		return rememberApprovalSubject(args)
 	case "proposal_save":
 		return proposalSaveApprovalSubject(args)
+	case "proposal_update":
+		return proposalUpdateApprovalSubject(args)
+	case "proposal_delete":
+		return proposalDeleteApprovalSubject(args)
 	case "promote_session_facts":
 		return "把本次会话沉淀的临时事实提升为永久记忆（跨会话自动加载）"
 	case "schedule_apply":
@@ -802,6 +905,154 @@ func costSaveApprovalSubject(args json.RawMessage) string {
 	}
 	if s := strings.TrimSpace(p.Status); s != "" {
 		parts = append(parts, "状态 "+s)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// costLibraryArgsNoWrite 造价库的演练与只读调用：dry_run=true，或 action=health，
+// 或 flywheel 没点名词干（只出预览）。这些调用不写库，不必走逐条确认。参数
+// 解析不了按「会写」处理（fail-closed）。
+func costLibraryArgsNoWrite(args json.RawMessage) bool {
+	var p struct {
+		DryRun bool     `json:"dry_run"`
+		Action string   `json:"action"`
+		Stems  []string `json:"stems"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return false
+	}
+	if p.DryRun {
+		return true
+	}
+	switch strings.TrimSpace(p.Action) {
+	case "health":
+		return true
+	case "flywheel":
+		return len(p.Stems) == 0
+	}
+	return false
+}
+
+// costLibraryApprovalSubject 把 cost_library 的参数整理成可读的确认摘要：
+// 动作 + 对象 + 规模，让审批卡一眼看出要导入/删除/改价的是什么。
+func costLibraryApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Action       string   `json:"action"`
+		Force        bool     `json:"force"`
+		Path         string   `json:"path"`
+		ProjectID    int64    `json:"project_id"`
+		ItemIDs      []int64  `json:"item_ids"`
+		Codes        []string `json:"codes"`
+		IDs          []int64  `json:"ids"`
+		ResourceID   int64    `json:"resource_id"`
+		ResourceCode string   `json:"resource_code"`
+		Price        *float64 `json:"price"`
+		Stems        []string `json:"stems"`
+		KeepID       int64    `json:"keep_id"`
+		MergeIDs     []int64  `json:"merge_ids"`
+		Rows         []struct {
+			Title string  `json:"title"`
+			Price float64 `json:"price"`
+		} `json:"rows"`
+		Quota struct {
+			Code  string `json:"code"`
+			Title string `json:"title"`
+		} `json:"quota"`
+		Resource struct {
+			ID           int64    `json:"id"`
+			Code         string   `json:"code"`
+			Title        string   `json:"title"`
+			CurrentPrice *float64 `json:"current_price"`
+			BasePrice    *float64 `json:"base_price"`
+		} `json:"resource"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return ""
+	}
+	var label string
+	switch p.Action {
+	case "import_project":
+		label = "导入五表工作簿"
+	case "save_quota":
+		label = "保存定额"
+	case "delete_quota":
+		label = "删除定额"
+	case "save_resource":
+		label = "保存工料机"
+	case "delete_resource":
+		label = "删除工料机"
+	case "set_price":
+		label = "工料机调价"
+	case "bulk_price":
+		label = "批量调价"
+	case "delete_items":
+		label = "删除清单行"
+	case "delete_project":
+		label = "删除项目"
+	case "seed":
+		label = "资料条目资源化"
+	case "flywheel":
+		label = "自生成企业定额"
+	case "dedupe":
+		label = "工料机去重"
+	default:
+		return permission.Subject(args)
+	}
+	parts := []string{"造价库：" + label}
+	switch p.Action {
+	case "import_project":
+		if s := strings.TrimSpace(p.Path); s != "" {
+			parts = append(parts, filepath.Base(s))
+		}
+	case "save_quota", "delete_quota":
+		if s := strings.TrimSpace(p.Quota.Code); s != "" {
+			parts = append(parts, s)
+		}
+		if s := strings.TrimSpace(p.Quota.Title); s != "" {
+			parts = append(parts, "「"+s+"」")
+		}
+		parts = append(parts, fmt.Sprintf("%d 条", len(p.Codes)))
+	case "save_resource":
+		switch {
+		case p.Resource.Title != "":
+			parts = append(parts, "「"+strings.TrimSpace(p.Resource.Title)+"」")
+		case p.Resource.Code != "":
+			parts = append(parts, p.Resource.Code)
+		}
+		if p.Resource.CurrentPrice != nil {
+			parts = append(parts, fmt.Sprintf("现行价 ¥%.2f", *p.Resource.CurrentPrice))
+		} else if p.Resource.BasePrice != nil {
+			parts = append(parts, fmt.Sprintf("基准价 ¥%.2f", *p.Resource.BasePrice))
+		}
+	case "delete_resource":
+		if n := len(p.IDs) + len(p.Codes); n > 0 {
+			parts = append(parts, fmt.Sprintf("%d 条", n))
+		}
+	case "set_price":
+		if p.ResourceCode != "" {
+			parts = append(parts, p.ResourceCode)
+		} else if p.ResourceID > 0 {
+			parts = append(parts, fmt.Sprintf("#%d", p.ResourceID))
+		}
+		if p.Price != nil {
+			parts = append(parts, fmt.Sprintf("→ ¥%.2f", *p.Price))
+		}
+	case "bulk_price":
+		parts = append(parts, fmt.Sprintf("%d 行", len(p.Rows)))
+	case "delete_items":
+		parts = append(parts, fmt.Sprintf("项目 #%d 的 %d 行", p.ProjectID, len(p.ItemIDs)))
+	case "delete_project":
+		parts = append(parts, fmt.Sprintf("项目 #%d（清单与独占定额一并删除）", p.ProjectID))
+	case "flywheel":
+		parts = append(parts, fmt.Sprintf("%d 个簇", len(p.Stems)))
+	case "dedupe":
+		parts = append(parts, fmt.Sprintf("保留 #%d，合并 %d 条", p.KeepID, len(p.MergeIDs)))
+	}
+	if p.Force {
+		parts = append(parts, "连带解除引用")
 	}
 	return strings.Join(parts, " · ")
 }

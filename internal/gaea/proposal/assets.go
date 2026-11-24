@@ -312,6 +312,9 @@ func (s *Store) storeImageTarget(target, baseDir, caption string) (proposalAsset
 }
 
 func (s *Store) writeAssetFile(hash, mime string, raw []byte) error {
+	if s.noWrite { // 演练模式：只校验引用能解析，文件不落盘
+		return nil
+	}
 	path := s.assetPath(hash, mime)
 	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Size() == int64(len(raw)) {
 		existing, readErr := os.ReadFile(path)

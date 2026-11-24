@@ -26,46 +26,49 @@ const SpaceShared = "shared"
 // 键为模型可见工具名（MCP 工具为 "mcp__<server>__<tool>" 动态名，不入表）。
 var spaceTags = map[string]string{
 	// ── work：办公/编辑/检索系 ──────────────────────────────────
-	"bash":             spaces.SpaceWork,
-	"bash_output":      spaces.SpaceWork,
-	"kill_shell":       spaces.SpaceWork,
-	"wait":             spaces.SpaceWork,
-	"read_file":        spaces.SpaceWork,
-	"write_file":       spaces.SpaceWork,
-	"edit_file":        spaces.SpaceWork,
-	"edit_lines":       spaces.SpaceWork,
-	"multi_edit":       spaces.SpaceWork,
-	"move_file":        spaces.SpaceWork,
-	"replace":          spaces.SpaceWork,
-	"ls":               spaces.SpaceWork,
-	"grep":             spaces.SpaceWork,
-	"web_fetch":        spaces.SpaceWork,
-	"web_search":       spaces.SpaceWork,
-	"format_convert":   spaces.SpaceWork,
-	"chart_gen":        spaces.SpaceWork,
-	"diagram_gen":      spaces.SpaceWork,
-	"diagram":          spaces.SpaceWork,
-	"screen_capture":   spaces.SpaceWork,
-	"vision":           spaces.SpaceWork,
-	"doc_render":       spaces.SpaceWork, // F2 只读渲染（办公文档视觉验收）
-	"md_validate":      spaces.SpaceWork, // 编号机检（多代理并行编制撞号/跳号实测，工具自声明同口径）
-	"quarantine_list":  spaces.SpaceWork, // 隔离账本查询（P1-12 建议④；工具自声明同口径）
-	"ai_feedback":      SpaceShared, // AI 反馈（2026-11-20）：三板块通用，自声明同口径
-	"cad_ask":          spaces.SpaceWork, // CAD 图纸识读（只读；DWG/DXF/PDF→视觉问答）
-	"ocr":              spaces.SpaceWork,
-	"cost_search":      spaces.SpaceWork,
-	"proposal_save":    spaces.SpaceWork,
-	"proposal_search":  spaces.SpaceWork,
-	"proposal_read":    spaces.SpaceWork,
-	"cost_save":        spaces.SpaceWork,
-	"cost_compose":     spaces.SpaceWork,
-	"cost_indicators":  spaces.SpaceWork,
-	"semantic_search":  spaces.SpaceWork,
-	"routine_llm":      spaces.SpaceWork,
-	"translate_text":   spaces.SpaceWork,
-	"fact_add":         spaces.SpaceWork,
-	"fact_list":        spaces.SpaceWork,
-	"fact_clear":       spaces.SpaceWork,
+	"bash":            spaces.SpaceWork,
+	"bash_output":     spaces.SpaceWork,
+	"kill_shell":      spaces.SpaceWork,
+	"wait":            spaces.SpaceWork,
+	"read_file":       spaces.SpaceWork,
+	"write_file":      spaces.SpaceWork,
+	"edit_file":       spaces.SpaceWork,
+	"edit_lines":      spaces.SpaceWork,
+	"multi_edit":      spaces.SpaceWork,
+	"move_file":       spaces.SpaceWork,
+	"replace":         spaces.SpaceWork,
+	"ls":              spaces.SpaceWork,
+	"grep":            spaces.SpaceWork,
+	"web_fetch":       spaces.SpaceWork,
+	"web_search":      spaces.SpaceWork,
+	"format_convert":  spaces.SpaceWork,
+	"chart_gen":       spaces.SpaceWork,
+	"diagram_gen":     spaces.SpaceWork,
+	"diagram":         spaces.SpaceWork,
+	"screen_capture":  spaces.SpaceWork,
+	"vision":          spaces.SpaceWork,
+	"doc_render":      spaces.SpaceWork, // F2 只读渲染（办公文档视觉验收）
+	"md_validate":     spaces.SpaceWork, // 编号机检（多代理并行编制撞号/跳号实测，工具自声明同口径）
+	"quarantine_list": spaces.SpaceWork, // 隔离账本查询（P1-12 建议④；工具自声明同口径）
+	"ai_feedback":     SpaceShared,      // AI 反馈（2026-11-20）：三板块通用，自声明同口径
+	"cad_ask":         spaces.SpaceWork, // CAD 图纸识读（只读；DWG/DXF/PDF→视觉问答）
+	"ocr":             spaces.SpaceWork,
+	"cost_search":     spaces.SpaceWork,
+	"proposal_save":   spaces.SpaceWork,
+	"proposal_search": spaces.SpaceWork,
+	"proposal_read":   spaces.SpaceWork,
+	"proposal_update": spaces.SpaceWork,
+	"proposal_delete": spaces.SpaceWork,
+	"proposal_export": spaces.SpaceWork,
+	"cost_save":       spaces.SpaceWork,
+	"cost_compose":    spaces.SpaceWork,
+	"cost_indicators": spaces.SpaceWork,
+	"semantic_search": spaces.SpaceWork,
+	"routine_llm":     spaces.SpaceWork,
+	"translate_text":  spaces.SpaceWork,
+	"fact_add":        spaces.SpaceWork,
+	"fact_list":       spaces.SpaceWork,
+	"fact_clear":      spaces.SpaceWork,
 	// office 五工具+office_batch（app 层 gaeaExtraTools 装配）：办公域=work。
 	// 2026-11-10 空间契约漂移刀入表——此前两处皆缺，靠 fail-open 缺省 shared
 	// 混进 play 空间，与 RegistryMap 契约行（work）相悖（守卫钉在
@@ -99,9 +102,11 @@ var spaceTags = map[string]string{
 	"cost_project":       spaces.SpaceWork,
 	"cost_project_apply": spaces.SpaceWork,
 	"cost_audit":         spaces.SpaceWork,
-	"longdoc_manifest":   spaces.SpaceWork,
-	"longdoc_build":      spaces.SpaceWork,
-	"longdoc_verify":     spaces.SpaceWork,
+	// 造价库维护（2026-11-25 造价数据库推倒重建：导入/解析/维护归造价模式）。
+	"cost_library":     spaces.SpaceWork,
+	"longdoc_manifest": spaces.SpaceWork,
+	"longdoc_build":    spaces.SpaceWork,
+	"longdoc_verify":   spaces.SpaceWork,
 	// browser_*×11 与 sidebar_open：类型自带 SpaceTag() 自声明 work（browser_tools.go /
 	// sidebar_open.go），本表行是与自声明一致的背书（2026-11-10 漂移刀前误记
 	// shared=影子行说谎，守卫 TestSpaceTagsAgreeWithRegistryMap 钉死两处一致）。

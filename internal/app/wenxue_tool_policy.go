@@ -28,10 +28,12 @@ var wenxueDeniedTools = []string{
 	// CAD / 造价
 	"cad_ask",
 	"cost_search", "cost_save", "cost_compose", "cost_indicators",
+	"cost_library", // 造价库维护（造价模式专属，2026-11-25）
 	// 跨库语义检索（specialist 面）
 	"semantic_search",
-	// 方案库三件（方案模式专属）
+	// 方案库六件（方案模式专属）
 	"proposal_save", "proposal_search", "proposal_read",
+	"proposal_update", "proposal_delete", "proposal_export",
 	// 进度计划三件（shared 装配，图文不装）
 	"schedule_get", "schedule_apply", "schedule_analyze",
 	// 图表/图面/文档渲染/格式转换/截屏（小说创作无消费面）

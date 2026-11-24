@@ -59,10 +59,16 @@ func convertViaMarkItDownKeepImages(path string) (string, error) {
 }
 
 func convertViaMarkItDownArgs(path string, extra ...string) (string, error) {
+	return convertViaMarkItDownTimed(path, markItDownTimeout, extra...)
+}
+
+// convertViaMarkItDownTimed 是 convertViaMarkItDownArgs 的可调超时形态。经 WPS 转出的
+// PDF docx 带上百张图（233 页报告 3MB 实测 32 秒），默认 60 秒对更大的文档不够。
+func convertViaMarkItDownTimed(path string, timeout time.Duration, extra ...string) (string, error) {
 	if !markitdownAvailable() {
 		return "", errMarkItDownUnavailable
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), markItDownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var out, errBuf bytes.Buffer
 	cmd := markItDownCmd(ctx, path, extra...)

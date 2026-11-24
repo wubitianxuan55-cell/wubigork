@@ -33,16 +33,47 @@
 6. 秘密禁令：绝不索取/生成密码、API Key、Token、恢复码；不要放 password 输入。
 7. 深色主题由应用接管，不要写死颜色。
 
-## 交互组件写法
+## 必填字段与最小可用示例（缺必填字段组件渲染不出；表里没列的字段都可省）
 
-- button: {"type":"button","label":"刷新","tone":"primary","action":"refresh"}
-- input: {"type":"input","label":"城市","action":"city","id":"city"}（回车提交；带 id 的值会进 submit 的 fields）
-- select: {"type":"select","label":"范围","options":["本周","本月"],"selected":0,"action":"range"}
-- radio 组（本地判卷）：每题一个
-  {"type":"radio","options":["北京","上海"],"group":"q1","answer":"北京","explanation":"首都是北京"}，
-  末尾放 {"type":"submit","label":"交卷","groups":["q1"],"resetAction":"redo"}
-- quiz: {"type":"quiz","question":"…","options":[{"label":"A","correct":true,"feedback":"对"}]}——点选即判，可重试
-- tabs/accordion/card/grid 可嵌套容器承载以上内容。
+genui_validate 报「缺少必填字段」时会附上对应组件的最小示例；报错开头的
+「参数错误」是调用方式不对（spec 没传/不是 JSON），「规格错误」才是 spec 内容要改。
+
+| type | 必填 | 最小可用示例 |
+|---|---|---|
+| text | content | {"type":"text","content":"一句话"} |
+| callout | content | {"type":"callout","title":"可选标题","content":"一句话","tone":"info"} |
+| row / col | items | {"type":"row","items":[{"type":"text","content":"左"},{"type":"text","content":"右"}]}　{"type":"col","items":[{"type":"text","content":"上"},{"type":"text","content":"下"}]} |
+| grid | items（cols 建议给） | {"type":"grid","cols":2,"items":[{"type":"text","content":"左"},{"type":"text","content":"右"}]} |
+| card / accordion | items | {"type":"card","title":"可选标题","items":[{"type":"text","content":"内容"}]}　{"type":"accordion","items":[{"title":"标题","items":[]}]} |
+| tabs | tabs:[{label,items}] | {"type":"tabs","tabs":[{"label":"页签","items":[]}]} |
+| divider / spacer | 无 | {"type":"divider"}　{"type":"spacer"} |
+| stat | label, value | {"type":"stat","label":"营收","value":"¥128,430","delta":"+12.4%"} |
+| badge | label | {"type":"badge","label":"进行中","tone":"success"} |
+| progress | value | {"type":"progress","label":"完成率","value":62} |
+| keyvalue | pairs:[{key,value}] | {"type":"keyvalue","pairs":[{"key":"工期","value":"90天"}]} |
+| list | 无（items 给内容） | {"type":"list","items":["一项","两项"]} |
+| table | columns, rows | {"type":"table","columns":["名称","数量"],"rows":[["降水井","12"]]} |
+| timeline | items:[{title,…}] | {"type":"timeline","items":[{"title":"开工","time":"3月"}]} |
+| steps | steps:[{title,…}] | {"type":"steps","current":1,"steps":[{"title":"勘察"},{"title":"设计"}]} |
+| avatar | name | {"type":"avatar","name":"张工"} |
+| copy | text | {"type":"copy","label":"复制","text":"要复制的文本"} |
+| chart | data:[{label,value}] | {"type":"chart","kind":"bars","data":[{"label":"1月","value":98}]} |
+| code | code | {"type":"code","lang":"python","code":"print(1)"} |
+| json | value | {"type":"json","value":{"a":1}} |
+| diff | diffs:[{path,newText}] | {"type":"diff","diffs":[{"path":"a.md","oldText":"旧","newText":"新"}]} |
+| button | label（无 action 渲染为禁用） | {"type":"button","label":"刷新","tone":"primary","action":"refresh"} |
+| input | 无 | {"type":"input","label":"城市","action":"city","id":"city"} |
+| select | options | {"type":"select","label":"范围","options":["本周","本月"],"selected":0,"action":"range"} |
+| checkbox / switch | label | {"type":"checkbox","label":"含税","checked":false,"action":"tax"}　{"type":"switch","label":"自动保存","checked":true,"action":"autosave"} |
+| radio | options | {"type":"radio","options":["北京","上海"],"group":"q1","answer":"北京","explanation":"首都是北京"} |
+| slider | 无 | {"type":"slider","label":"置信度","min":0,"max":100,"value":70,"action":"conf"} |
+| textarea | 无 | {"type":"textarea","label":"备注","rows":4,"action":"note","id":"note"} |
+| submit | 无 | {"type":"submit","label":"交卷","groups":["q1"],"resetAction":"redo"} |
+| quiz | question, options | {"type":"quiz","question":"首都是？","options":[{"label":"北京","correct":true,"feedback":"对"},{"label":"上海"}]} |
+
+交互约定：input 回车提交，带 id 的值会进 submit 的 fields；radio 组每题一个
+（group 相同），末尾放一个 submit（groups 列出题组，resetAction=重做）——判卷在本地
+完成；quiz 点选即判、可重试；tabs/accordion/card/grid 是容器，可嵌套承载以上内容。
 
 ## 办公面板（仅 office 工作空间）
 

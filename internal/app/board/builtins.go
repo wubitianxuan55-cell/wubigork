@@ -59,11 +59,9 @@ var builtinManifests = []Manifest{
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 5, InMenu: Bool(true),
 		Space: SpaceWork, // 工位·造价领域包
+		// 2026-11-25 推倒重建：三级造价数据 清单 → 定额 → 工料机（与前端 COST_NAV 同步）。
 		Nav: &NavSpec{Children: []NavChild{
-			{ID: "overview", Label: "概览"}, {ID: "entries", Label: "成本条目"},
-			{ID: "projects", Label: "测算项目"}, {ID: "indicators", Label: "造价参考"},
-			{ID: "notes", Label: "复盘笔记"},
-			{ID: "sources", Label: "价格源"}, {ID: "repository", Label: "价格仓库"},
+			{ID: "bill", Label: "清单"}, {ID: "quotas", Label: "定额"}, {ID: "resources", Label: "工料机"},
 		}},
 		FeatureModel: "cost",
 		Bindings:     []string{"CostB"},

@@ -56,10 +56,6 @@ export function GaeaProfileResolveConflict(arg1:string,arg2:string):Promise<void
 
 export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
 
-export function GaeaSemanticIndexBackfill():Promise<Record<string, any>>;
-
-export function GaeaSemanticIndexStatus():Promise<app.SemanticIndexStatus>;
-
 export function GaeaSemanticSearch(arg1:string):Promise<Array<app.SemanticHitView>>;
 
 export function GaeaWhisperAnchorReplay(arg1:string):Promise<app.WhisperAnchorReplayView>;

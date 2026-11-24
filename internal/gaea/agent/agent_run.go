@@ -462,7 +462,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 					a.dedupHashes = make(map[string]bool)
 				}
 				if a.dedupHashes[dk] {
-					results[i] = "[cached — byte-identical result for the same " + call.Name + " call earlier in this turn]"
+					results[i] = cachedResultMarker(call.Name, results[i])
 					resultImages[i] = nil // 缓存命中只回提示文本，旧截图不再随行（防过期帧回灌）
 				} else {
 					a.dedupHashes[dk] = true

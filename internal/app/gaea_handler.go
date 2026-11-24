@@ -1079,6 +1079,9 @@ func extraToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 		costProjectTool{a: a},
 		costProjectApplyTool{a: a},
 		costAuditTool{a: a},
+		// 造价库维护（2026-11-25 造价数据库推倒重建）：导入五表工作簿、定额与
+		// 工料机增删改调价、批量调价、删除——造价模式的唯一库维护入口。
+		costLibraryTool{a: a},
 		longdocManifestTool{a: a},
 		longdocBuildTool{a: a},
 		longdocVerifyTool{a: a},

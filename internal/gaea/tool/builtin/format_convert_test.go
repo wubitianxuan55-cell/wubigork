@@ -140,3 +140,46 @@ func writeMinimalDocx(t *testing.T) string {
 	}
 	return path
 }
+
+// TestFormatConvertNoOutputStripsDataImages 不给 output 时图片没法随文本交付：
+// 回执里不能带 data URI（几百页的 PDF 经 WPS 转换有上百张图，原样回是几 MB 的
+// base64），并说明怎么要图片。
+func TestFormatConvertNoOutputStripsDataImages(t *testing.T) {
+	const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII="
+	dir := t.TempDir()
+	imagePath := filepath.Join(dir, "figure.png")
+	raw, err := base64.StdEncoding.DecodeString(png)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(imagePath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	docx := filepath.Join(dir, "with-image.docx")
+	script := `
+from docx import Document
+from docx.shared import Inches
+d = Document()
+d.add_heading("第一章 工艺", level=1)
+d.add_paragraph("工艺流程图如下：")
+d.add_picture(r"` + imagePath + `", width=Inches(0.25))
+d.save(r"` + docx + `")
+`
+	if out, err := exec.Command("python", "-c", script).CombinedOutput(); err != nil {
+		t.Skipf("python-docx 不可用，跳过: %v %s", err, out)
+	}
+	args, err := json.Marshal(map[string]any{"path": docx})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := (formatConvert{}).Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Contains(res, "data:image/") {
+		t.Fatalf("不落盘时不得把 data URI 回给模型: %.600s", res)
+	}
+	if !strings.Contains(res, "工艺流程图如下") || !strings.Contains(res, "内嵌图片 1 张未随文本返回") {
+		t.Fatalf("正文应保留并说明图片去向: %.600s", res)
+	}
+}

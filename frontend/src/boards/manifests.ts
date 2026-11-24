@@ -90,11 +90,12 @@ const MEMORYHUB_NAV: BoardNavChild[] = [
   { id: 'materials', label: '项目资料' }, { id: 'whisper', label: '聊天记忆' },
   { id: 'graph', label: '记忆图谱' }, { id: 'digitallife', label: '数字生命' },
 ]
+// 造价数据库（2026-11-25 推倒重建）：三级造价数据 清单 → 定额 → 工料机。
+// 与 Go board/builtins.go 的 cost Nav 同步，防 normalizeManifests 后端字段优先导致分裂。
 const COST_NAV: BoardNavChild[] = [
-  { id: 'overview', label: '概览' },
-  { id: 'entries', label: '成本条目' },
-  { id: 'sources', label: '价格源' },
-  { id: 'repository', label: '价格仓库' },
+  { id: 'bill', label: '清单' },
+  { id: 'quotas', label: '定额' },
+  { id: 'resources', label: '工料机' },
 ]
 
 /**

@@ -1,631 +1,747 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+// CostLibraryPage — 一级板块「造价数据库」（2026-11-25 推倒重建）。
+//
+// 定位：三级造价数据的浏览面——清单 → 定额 → 工料机。导入、解析、维护全部在
+// 办公板块的「造价」运行模式里由模型完成（cost_library / cost_project_apply）；
+// 这里只给人看，外加导出与删除。与方案库同一模式：库页只读，改库经产品。
+//
+// 布局：左栏三级切换与上下文（项目 / 专业 / 类别）→ 中栏列表（筛选、批量删除、
+// 下钻入口）→ 右栏详情（综合单价分析、含量行分析表、价格卡与调价历史），三级
+// 之间可以来回下钻。四态分明：加载 / 空库（三步引导）/ 无匹配 / 读取失败。
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  CheckCircle, ChevronRight, CloudUpload, Coins, FileSpreadsheet, Gauge, Layers, ListTree,
-  Search, TrendingUp,
+  AlertCircle, Coins, Copy, FolderOpen, Inbox, Loader2, RefreshCw, Search, Shield, Trash2, X,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
-import { CostLibraryView } from "../gaea/components/CostLibraryView";
-import { PriceSourcesPanel } from "../gaea/components/memoryhub/PriceSourcesPanel";
-import { PriceSourcesRepository } from "../gaea/components/memoryhub/PriceSourcesRepository";
-import { CostInquiryPanel } from "../gaea/components/memoryhub/CostInquiryPanel";
-import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
-import { WorkcostResourceView } from "../gaea/components/memoryhub/WorkcostResourceView";
-import { CostHealthView } from "../gaea/components/memoryhub/CostHealthView";
-import { CostAuditView } from "../gaea/components/memoryhub/CostAuditView";
-import { WorkcostComposeView } from "../gaea/components/memoryhub/WorkcostComposeView";
-import { WorkcostBillView } from "../gaea/components/memoryhub/WorkcostBillView";
-import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
-import { CostBackupCard } from "../gaea/components/memoryhub/CostBackupCard";
+import { copyToClipboard } from "../gaea/lib/clipboard";
+import { useBoardActive } from "../lib/boardActive";
+import type { WorkcostBillProject, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
+import { BillDetail, DetailState, QuotaDetail, ResourceDetail } from "./cost-library/Details";
+import { HealthDrawer, type HealthJump } from "./cost-library/HealthDrawer";
+import { DeleteDialog, ExportMenu, type DeleteRequest, type ExportItem } from "./cost-library/Overlays";
+import { BillTable, QuotaTable, ResourceTable } from "./cost-library/Tables";
+import { TierBar, TierRail, type TierCounts } from "./cost-library/TierRail";
+import {
+  RESOURCE_KINDS, SAMPLE_PROMPTS, TIERS, capRows, emptyBillFilters, emptyQuotaFilters, emptyResourceFilters, divisionsOf, filterBill, filterQuotas, filterResources,
+  fmtRate, kindCounts, linkedQuotas, parseSelKey, quotaUsageIndex, selKey, specialtiesOf,
+  type BillFilters, type BillRow, type QuotaFilters, type ResourceFilters, type SelKey, type Tier,
+} from "./cost-library/logic";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
-import "../gaea/components/memoryhub/hub.css";
 import "./cost-database.css";
 
-/**
- * CostLibraryPage — 「造价数据库」一级板块（v4.459 全新设计：工料法成本数据库）。
- *
- * 用户定调（2026-10-07）：「工料机是基本数据，综合单价分析表靠工料机和消耗定额
- * 核算出来」+「对造价数据库进行全新设计，该删除就删除」。造价数据库的主人
- * 是**清单测算**——五表模版（费用汇总/综合单价/工料机价格）的软件形态：
- *
- *   清单（首屏：分部分项工程量清单 + 项目费率，v4.460 定调「数据库不是
- *   计算器」——录入费率/清单/模版，不做加总）→ 单价分析（定额 × 资源价）→
- *   资源库（工料机主数据 + 调价）→ 价格数据（信息价飞轮 + 资料条目）→
- *   造价参考（分位对标）→ 概览（工料法仪表盘 / 关联图谱）。
- *
- * 退役（UI 删除；Go 绑定与数据表全保留，旧数据零损失）：
- * - 「测算项目」：v4.150 时代的旧五算项目体系，与清单测算工作台重叠，模块退役；
- * - 「复盘笔记」：独立模块退役（办公域已有记忆/笔记体系）；
- * - 旧「成本条目」（价格手册形态）降为「价格数据 → 资料条目」段——检索/导入/
- *   AI 解析全保留，它仍是资源库与询价的沉淀池，只是不再是板块主角。
- */
-type CostModule = "bill" | "compose" | "resources" | "health" | "audit" | "prices" | "refs" | "overview";
-type OverviewView = "data" | "graph";
-type PriceView = "sources" | "repository" | "inquiry" | "entries";
+type Phase = "loading" | "ready" | "failed";
+type ExportKind = "bill" | "quota" | "resource" | "entry";
+type LibraryRow = BillRow | WorkcostQuota | WorkcostResource;
 
-const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
-  { key: "bill", label: "清单库", icon: <ListTree size={14} />, hint: "所有项目累计的分部分项清单 · 明细/库项归并双视图" },
-  { key: "compose", label: "企业定额库", icon: <FileSpreadsheet size={14} />, hint: "企业定额积累 · 单价分析（只含人材机）· 导入/导出五表" },
-  { key: "resources", label: "工料机库", icon: <Layers size={14} />, hint: "工料机主数据 · 现行价/基准价 · 与信息价联动 · 调价历史" },
-  { key: "health", label: "数据健康", icon: <CheckCircle size={14} />, hint: "零价 · 缺价 · 悬挂引用 · 重复防护 · 编码混用" },
-  { key: "audit", label: "对标查漏", icon: <Search size={14} />, hint: "跨项目对标：清单缺项 + 同名定额缺组成（逐条溯源 · 宁缺勿误）" },
-  { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库 · 资料条目" },
-  { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "项目案例（导入项目文件）+ 资料条目分位数对标——与分部分项清单是两套数据" },
-  { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "工料法规模 · 资料库速览 · 关联图谱" },
+const ROW_CAP = 400;
+const NARROW_WIDTH = 980;
+const EXPORT_LABEL: Record<ExportKind, string> = { bill: "清单", quota: "定额", resource: "工料机", entry: "资料条目" };
+const TIER_LABEL: Record<Tier, string> = { bill: "清单", quota: "定额", resource: "工料机" };
+const EXPORT_ITEMS: ExportItem[] = [
+  { key: "bill", label: "清单（当前筛选）", hint: "项目、编码、名称、特征、挂接定额、原表单价、现算单价" },
+  { key: "quota", label: "定额（当前筛选）", hint: "定额主表 + 含量明细附表" },
+  { key: "resource", label: "工料机（当前筛选）", hint: "主数据与取用价、被定额引用次数" },
+  { key: "entry", label: "资料条目（全部）", hint: "资料条目没有界面了，这里是唯一的导出口" },
 ];
 
-const MODULE_GROUPS: { key: string; label: string; modules: CostModule[] }[] = [
-  { key: "authoring", label: "编制", modules: ["bill", "compose", "resources"] },
-  { key: "governance", label: "治理", modules: ["health", "audit", "prices"] },
-  { key: "analysis", label: "研判", modules: ["refs", "overview"] },
-];
-
-const PRICE_VIEWS: { key: PriceView; label: string }[] = [
-  { key: "sources", label: "价格源" },
-  { key: "repository", label: "价格仓库" },
-  { key: "inquiry", label: "询价库" },
-  { key: "entries", label: "资料条目" },
-];
-
-// 概览统计（工料法口径）：三层规模 + 资料库/价格源速览。
-interface CostOverviewStats {
-  resourceTotal: number;
-  labor: number;
-  material: number;
-  machine: number;
-  outsourced: number;
-  quotaTotal: number;
-  entryTotal: number;
-  sourceTotal: number;
+/** 一次读取的三级数据快照（含现算参考价）。 */
+interface Snapshot {
+  projects: WorkcostBillProject[];
+  rows: BillRow[];
+  quotas: WorkcostQuota[];
+  resources: WorkcostResource[];
+  refPrices: Record<string, number>;
+  /** 哪些来源读失败——读失败不是空库，界面要点名。 */
+  failedSources: string[];
 }
 
-const EMPTY_STATS: CostOverviewStats = {
-  resourceTotal: 0,
-  labor: 0,
-  material: 0,
-  machine: 0,
-  outsourced: 0,
-  quotaTotal: 0,
-  entryTotal: 0,
-  sourceTotal: 0,
-};
+const EMPTY_SNAPSHOT: Snapshot = { projects: [], rows: [], quotas: [], resources: [], refPrices: {}, failedSources: [] };
 
-/** 段切换控件（价格数据四段 / 概览双视图共用样式）。 */
-function SegChip({
-  active,
-  onClick,
-  children,
-  tab = false,
-}: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
-  tab?: boolean
-}) {
+function message(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+function openOfficeBoard(): void {
+  window.dispatchEvent(new CustomEvent("navigate", { detail: { page: "gaea" } }));
+}
+
+/** 行的选择键：清单用行 id，定额 / 工料机用编码。 */
+function rowKeyOf(tier: Tier, row: LibraryRow): SelKey {
+  return tier === "bill" ? selKey("bill", (row as BillRow).id) : selKey(tier, (row as WorkcostQuota | WorkcostResource).code);
+}
+
+// 逐条执行删除并收集失败原因（顺序执行：一次只碰一行，失败不影响其余行）。
+async function runDeletes(tasks: { label: string; run: () => Promise<unknown> }[]): Promise<{ ok: number; failed: string[] }> {
+  const failed: string[] = [];
+  let ok = 0;
+  for (const task of tasks) {
+    try {
+      await task.run();
+      ok++;
+    } catch (e) {
+      failed.push(`${task.label}：${message(e)}`);
+    }
+  }
+  return { ok, failed };
+}
+
+function StatePanel({ icon, title, error, action }: { icon: "loading" | "failed"; title: string; error?: string; action?: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      role={tab ? "tab" : undefined}
-      aria-selected={tab ? active : undefined}
-      aria-pressed={tab ? undefined : active}
-      aria-controls={tab ? "cost-price-panel" : undefined}
-      tabIndex={tab ? (active ? 0 : -1) : undefined}
-      className={`cost-seg-chip${active ? " is-active" : ""}`}
-      onKeyDown={tab ? (event) => {
-        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
-        const tabs = Array.from(
-          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
-        )
-        if (tabs.length < 2) return
-        event.preventDefault()
-        const current = tabs.indexOf(event.currentTarget)
-        const next = event.key === "Home"
-          ? 0
-          : event.key === "End"
-            ? tabs.length - 1
-            : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length
-        tabs[next]?.focus()
-        tabs[next]?.click()
-      } : undefined}
-    >
-      {children}
-    </button>
+    <div className="cl-state-panel" role={icon === "loading" ? "status" : "alert"} data-testid={`cost-${icon}`}>
+      {icon === "loading" && <Loader2 size={20} className="cl-spin" aria-hidden />}
+      {icon === "failed" && <AlertCircle size={20} aria-hidden />}
+      <span className="cl-state-title">{title}</span>
+      {error && <span>{error}；这不是空库。</span>}
+      {action && <div className="cl-state-action">{action}</div>}
+    </div>
+  );
+}
+
+/** 空库：三步引导去造价模式录入，附可复制的示例提示词。 */
+function EmptyLibrary({ copyState, onCopy }: { copyState: "idle" | "done" | "failed"; onCopy: (tier: Tier) => void }) {
+  return (
+    <div className="cl-empty" data-testid="cost-empty">
+      <div className="cl-empty-inner">
+        <div className="cl-empty-mark" aria-hidden><Coins size={22} /></div>
+        <h2 className="cl-empty-title">造价库还是空的</h2>
+        <p className="cl-empty-lead">
+          三级造价数据——清单、定额、工料机——在办公板块的「造价」运行模式里录入和维护；
+          这里用来看、下钻、导出和删除。
+        </p>
+        <ol className="cl-steps">
+          <li className="cl-step">
+            <span className="cl-step-index">01</span>
+            <div>
+              <div className="cl-step-title">在办公板块切到「造价」运行模式</div>
+              <div className="cl-step-desc">输入框旁的模式钮里选档位，开启新会话生效。</div>
+            </div>
+          </li>
+          <li className="cl-step">
+            <span className="cl-step-index">02</span>
+            <div>
+              <div className="cl-step-title">让 AI 把数据录进来</div>
+              <div className="cl-step-desc">五表工作簿一条提示词即可整份导入；每次写入都需要你确认。</div>
+              {(Object.keys(SAMPLE_PROMPTS) as Tier[]).map((t) => (
+                <div key={t} className="cl-prompt">
+                  <code>{SAMPLE_PROMPTS[t]}</code>
+                  <button type="button" className="cl-btn cl-btn-ghost" aria-label={`复制${TIER_LABEL[t]}示例提示词`} onClick={() => onCopy(t)}>
+                    <Copy size={13} aria-hidden />{copyState === "done" ? "已复制" : copyState === "failed" ? "复制失败" : "复制"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </li>
+          <li className="cl-step">
+            <span className="cl-step-index">03</span>
+            <div>
+              <div className="cl-step-title">回到这里浏览与导出</div>
+              <div className="cl-step-desc">清单点进去看综合单价，定额点进去看含量行，工料机点进去看价格与调价历史。</div>
+            </div>
+          </li>
+        </ol>
+        <div className="cl-empty-actions">
+          <button type="button" className="cl-btn cl-btn-primary" onClick={openOfficeBoard}>
+            <FolderOpen size={14} aria-hidden />去办公板块
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 选中项目时的封面卡（只读）：封面信息 + 四费率 + 整体删除。 */
+function ProjectCard({ project, onDeleted }: { project: WorkcostBillProject; onDeleted: (p: WorkcostBillProject) => void }) {
+  const facts: [string, string][] = [
+    ["源工作簿", project.fileName], ["地区", project.location], ["工期", project.duration], ["计价口径", project.pricing],
+  ].filter(([, v]) => v) as [string, string][];
+  return (
+    <article className="cl-detail" data-testid="cost-project-card">
+      <header className="cl-detail-head">
+        <div className="cl-kicker">项目案例 · {project.itemCount} 条清单</div>
+        <h2 className="cl-detail-title">{project.name}</h2>
+        {facts.length > 0 && (
+          <dl className="cl-facts">
+            {facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd title={v}>{v}</dd></div>)}
+          </dl>
+        )}
+      </header>
+      <section className="cl-block">
+        <div className="cl-block-head"><span className="cl-block-label">取费（录入数据，0=不计取）</span></div>
+        <dl className="cl-price-facts">
+          <div><dt>企业管理费</dt><dd>{fmtRate(project.managementRate)}</dd></div>
+          <div><dt>规费</dt><dd>{fmtRate(project.regulatoryRate)}</dd></div>
+          <div><dt>利润</dt><dd>{fmtRate(project.profitRate)}</dd></div>
+          <div><dt>增值税</dt><dd>{fmtRate(project.taxRate)}</dd></div>
+        </dl>
+        {project.controlPrice > 0 && <p className="cl-note">控制价 {project.controlPrice.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} 元</p>}
+        <p className="cl-note">点左侧清单行看综合单价分析；改费率走造价模式的 cost_project_apply update_rates。</p>
+        <button type="button" className="cl-btn cl-btn-danger-ghost" onClick={() => onDeleted(project)}>
+          <Trash2 size={12} aria-hidden />删除这个项目
+        </button>
+      </section>
+    </article>
   );
 }
 
 function CostLibraryPage() {
-  // v4.459：默认落点=费用汇总（清单测算工作台首屏）。
-  const [module, setModule] = useState<CostModule>("bill");
-  const [overviewView, setOverviewView] = useState<OverviewView>("data");
-  const [priceView, setPriceView] = useState<PriceView>("sources");
-  const [stats, setStats] = useState<CostOverviewStats>(EMPTY_STATS);
-  const [loading, setLoading] = useState(true);
-  // 全源读取失败不装成「空库引导」——失败是读不到库，不是库是空的。
-  const [statsFailed, setStatsFailed] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const loadSeq = useRef(0);
 
-  // 概览统计只在进入概览时拉取（工作台是主路径，不为它付首屏请求）。
-  const loadStats = useCallback(async () => {
-    setLoading(true);
-    setStatsFailed(false);
-    try {
-      const [resources, quotas, entries, sources] = await Promise.all([
-        app.WorkcostResourceList("", "").catch(() => null),
-        app.WorkcostQuotaList("", "").catch(() => null),
-        app.CostSearch("", "", "").catch(() => null),
-        app.PriceSources().catch(() => null),
-      ]);
-      if (resources === null && quotas === null && entries === null && sources === null) {
-        setStats(EMPTY_STATS);
-        setStatsFailed(true);
-        return;
-      }
-      const res = resources ?? [];
-      const byKind = (k: string) => res.filter((r) => r.kind === k).length;
-      setStats({
-        resourceTotal: res.length,
-        labor: byKind("人工"),
-        material: byKind("材料"),
-        machine: byKind("机械"),
-        outsourced: byKind("外委"),
-        quotaTotal: (quotas ?? []).length,
-        entryTotal: (entries ?? []).length,
-        sourceTotal: (sources ?? []).length,
-      });
-    } catch {
-      setStats(EMPTY_STATS);
-      setStatsFailed(true);
-    } finally {
-      setLoading(false);
-    }
+  const [narrow, setNarrow] = useState(false);
+  const [pane, setPane] = useState<"list" | "detail">("list");
+
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [loadError, setLoadError] = useState("");
+  const [snap, setSnap] = useState<Snapshot>(EMPTY_SNAPSHOT);
+
+  const [tier, setTier] = useState<Tier>("bill");
+  const [selected, setSelected] = useState<SelKey | null>(null);
+  const [checked, setChecked] = useState<Set<SelKey>>(new Set());
+  const [cap, setCap] = useState(ROW_CAP);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [billF, setBillF] = useState<BillFilters>(emptyBillFilters);
+  const [quotaF, setQuotaF] = useState<QuotaFilters>(emptyQuotaFilters);
+  const [resourceF, setResourceF] = useState<ResourceFilters>(emptyResourceFilters);
+
+  const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
+  const [healthOpen, setHealthOpen] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportNote, setExportNote] = useState<{ text: string; isError: boolean } | null>(null);
+  const [notice, setNotice] = useState("");
+  const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
+
+  // 窄窗（三栏放不下）改单栏：三级切换横排，列表与详情用页签切换。按容器宽度判定。
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const apply = () => {
+      const w = el.getBoundingClientRect().width;
+      setNarrow(w > 0 && w <= NARROW_WIDTH);
+    };
+    apply();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (module === "overview") void loadStats();
-  }, [module, loadStats]);
+  // silent=true：切回板块时的后台重读——不清空正在看的内容，失败也保留旧快照。
+  const load = useCallback(async (silent = false) => {
+    const seq = ++loadSeq.current;
+    if (!silent) setPhase("loading");
+    setLoadError("");
+    const [pRes, qRes, rRes] = await Promise.allSettled([
+      app.WorkcostBillProjects(), app.WorkcostQuotaList("", ""), app.WorkcostResourceList("", ""),
+    ]);
+    if (seq !== loadSeq.current) return;
+    const failedSources: string[] = [];
+    const value = <T,>(r: PromiseSettledResult<T> | undefined, name: string, fallback: T): T => {
+      if (r && r.status === "fulfilled") return (r.value ?? fallback) as T;
+      failedSources.push(name);
+      return fallback;
+    };
+    const projects = value(pRes, "项目", [] as WorkcostBillProject[]);
+    const quotas = value(qRes, "定额", [] as WorkcostQuota[]);
+    const resources = value(rRes, "工料机", [] as WorkcostResource[]);
+    if (failedSources.length === 3) {
+      const reason = [pRes, qRes, rRes].find((r) => r?.status === "rejected");
+      setLoadError(reason && reason.status === "rejected" ? message(reason.reason) : "数据库暂时读不到");
+      if (!silent) setPhase("failed");
+      return;
+    }
+    let rows: BillRow[] = [];
+    try {
+      const batches = await Promise.all(
+        projects.map(async (p) => ((await app.WorkcostBillItems(p.id)) ?? []).map((it) => ({ ...it, projectName: p.name }))),
+      );
+      rows = batches.flat();
+    } catch {
+      failedSources.push("清单行");
+    }
+    if (seq !== loadSeq.current) return;
+    const codes = [...new Set([
+      ...quotas.map((q) => q.code),
+      ...rows.flatMap((it) => linkedQuotas(it)),
+    ])];
+    let refPrices: Record<string, number> = {};
+    if (codes.length > 0) {
+      try {
+        // 现算参考价失败不拦列表——单价列回退占位，但要点名。
+        const many = (await app.WorkcostQuotaComposeMany(codes)) ?? {};
+        for (const [code, c] of Object.entries(many)) refPrices[code] = c.compositePrice;
+      } catch {
+        refPrices = {};
+        failedSources.push("现算单价");
+      }
+    }
+    if (seq !== loadSeq.current) return;
+    setSnap({ projects, rows, quotas, resources, refPrices, failedSources });
+    setPhase("ready");
+  }, []);
 
-  const activeModule = MODULES.find((item) => item.key === module) ?? MODULES[0];
+  useEffect(() => { void load(); }, [load]);
+
+  // 本板块 keepAlive 常驻：去造价模式录完数据再切回来，组件不会重挂，挂载时
+  // 那一次读取就成了旧快照。板块由隐藏转回可见时静默重读（方案库同款修法）。
+  const boardActive = useBoardActive("cost");
+  const awayRef = useRef(false);
+  useEffect(() => {
+    if (!boardActive) {
+      awayRef.current = true;
+      return;
+    }
+    if (!awayRef.current) return;
+    awayRef.current = false;
+    void load(true);
+  }, [boardActive, load]);
+
+  // ── 派生：引用索引、筛选项、当前级的可见行 ──
+  const usageIndex = useMemo(() => quotaUsageIndex(snap.rows), [snap.rows]);
+  const usageCount = useMemo(() => new Map<string, number>([...usageIndex].map(([code, list]) => [code, list.length])), [usageIndex]);
+  const divisions = useMemo(() => divisionsOf(snap.rows), [snap.rows]);
+  const specialties = useMemo(() => specialtiesOf(snap.quotas), [snap.quotas]);
+  const kinds = useMemo(() => {
+    const counts = kindCounts(snap.resources);
+    return RESOURCE_KINDS.filter((k) => (counts[k] ?? 0) > 0).map((k) => ({ kind: k, count: counts[k] ?? 0 }));
+  }, [snap.resources]);
+
+  const billRows = useMemo(() => filterBill(snap.rows, billF), [snap.rows, billF]);
+  const quotaRows = useMemo(() => filterQuotas(snap.quotas, quotaF), [snap.quotas, quotaF]);
+  const resourceRows = useMemo(() => filterResources(snap.resources, resourceF), [snap.resources, resourceF]);
+  const matched: LibraryRow[] = tier === "bill" ? billRows : tier === "quota" ? quotaRows : resourceRows;
+  const totalOfTier = tier === "bill" ? snap.rows.length : tier === "quota" ? snap.quotas.length : snap.resources.length;
+  const view = useMemo(() => capRows(matched, cap), [matched, cap]);
+
+  // 切级或改筛选回到首批行数；切级清空勾选（勾选只在当前级内有意义）。
+  useEffect(() => { setCap(ROW_CAP); setChecked(new Set()); }, [tier]);
+  useEffect(() => { setCap(ROW_CAP); }, [billF, quotaF, resourceF]);
+
+  const counts: TierCounts = { bill: snap.rows.length, quota: snap.quotas.length, resource: snap.resources.length };
+  const currentProject = snap.projects.find((p) => p.id === billF.projectId) ?? null;
+  const libraryEmpty = phase === "ready" && counts.bill === 0 && counts.quota === 0 && counts.resource === 0;
+  const keyword = tier === "bill" ? billF.keyword : tier === "quota" ? quotaF.keyword : resourceF.keyword;
+  const tierMeta = TIERS.find((t) => t.key === tier) ?? TIERS[0];
+
+  // 选择键对应的行还在不在（重读后别处被删，就不能让它继续挂在界面上）。
+  const keyAlive = useCallback((key: SelKey): boolean => {
+    const p = parseSelKey(key);
+    if (!p) return false;
+    if (p.tier === "bill") return snap.rows.some((r) => String(r.id) === p.id);
+    if (p.tier === "quota") return snap.quotas.some((q) => q.code === p.id);
+    return snap.resources.some((r) => r.code === p.id);
+  }, [snap]);
+  useEffect(() => {
+    if (selected && !keyAlive(selected)) setSelected(null);
+    if (checked.size > 0) {
+      const next = new Set([...checked].filter(keyAlive));
+      if (next.size !== checked.size) setChecked(next);
+    }
+  }, [snap, selected, checked, keyAlive]);
+
+  // 当前行滚进列表视野（下钻跳转后能看见它）。
+  useEffect(() => {
+    if (!selected || (narrow && pane !== "list")) return;
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-row-key="${selected.replace(/"/g, '\\"')}"]`);
+    el?.scrollIntoView?.({ block: "nearest" });
+  }, [selected, tier, pane, narrow, view.hidden]);
+
+  // ── 三级下钻 ──
+  const changeTier = (next: Tier) => {
+    setTier(next);
+    const parsed = selected ? parseSelKey(selected) : null;
+    if (parsed && parsed.tier !== next) setSelected(null);
+    setPane("list");
+  };
+
+  // 跳到某一级的某一行：该级筛选清空，保证目标行在列表里可见。
+  const jump = (next: Tier, key: SelKey) => {
+    if (next === "bill") setBillF(emptyBillFilters);
+    if (next === "quota") setQuotaF(emptyQuotaFilters);
+    if (next === "resource") setResourceF(emptyResourceFilters);
+    setTier(next);
+    setSelected(key);
+    setPane("detail");
+  };
+  const openBill = (row: BillRow) => jump("bill", selKey("bill", row.id));
+  const openQuota = (code: string) => jump("quota", selKey("quota", code));
+  const openResource = (code: string) => jump("resource", selKey("resource", code));
+  const onHealthJump = (j: HealthJump) => {
+    setHealthOpen(false);
+    jump(j.tier, selKey(j.tier, j.code));
+  };
+
+  // ── 勾选与删除 ──
+  const toggle = (key: SelKey, next: boolean) => setChecked((prev) => {
+    const n = new Set(prev);
+    if (next) n.add(key);
+    else n.delete(key);
+    return n;
+  });
+  const toggleAll = (next: boolean) => setChecked((prev) => {
+    const n = new Set(prev);
+    for (const row of matched) {
+      const key = rowKeyOf(tier, row);
+      if (next) n.add(key);
+      else n.delete(key);
+    }
+    return n;
+  });
+  const checkedKeys = [...checked].filter((k) => k.startsWith(`${tier}:`)).sort();
+  const checkedIds = new Set(checkedKeys.map((k) => k.slice(k.indexOf(":") + 1)));
+  const checkedBills = snap.rows.filter((r) => checkedIds.has(String(r.id)));
+  const checkedQuotas = snap.quotas.filter((q) => checkedIds.has(q.code));
+  const checkedResources = snap.resources.filter((r) => checkedIds.has(r.code));
+
+  const deleteBillRows = (rows: BillRow[]) => setDeleteRequest({
+    title: "删除清单项",
+    lines: [
+      `将删除 ${rows.length} 条清单项：${rows.slice(0, 3).map((r) => `「${r.title}」`).join("、")}${rows.length > 3 ? " 等" : ""}`,
+      "定额挂接随行清理；项目封面与其余清单项不受影响。不可恢复。",
+    ],
+    confirmLabel: `删除 ${rows.length} 条`,
+    run: () => runDeletes(rows.map((r) => ({ label: `${r.code} ${r.title}`, run: () => app.WorkcostBillItemDelete(r.id) }))),
+  });
+  const deleteQuotaRows = (rows: WorkcostQuota[]) => setDeleteRequest({
+    title: "删除定额",
+    lines: [
+      `将删除 ${rows.length} 条消耗定额：${rows.slice(0, 3).map((q) => `「${q.title}」`).join("、")}${rows.length > 3 ? " 等" : ""}（含全部含量行）。`,
+      "仍被清单项引用的定额会被拒绝，不留悬空引用；要删先在造价模式解除挂接。不可恢复。",
+    ],
+    confirmLabel: `删除 ${rows.length} 条`,
+    run: () => runDeletes(rows.map((q) => ({ label: `${q.code} ${q.title}`, run: () => app.WorkcostQuotaDelete(q.code) }))),
+  });
+  const deleteResourceRows = (rows: WorkcostResource[]) => setDeleteRequest({
+    title: "删除工料机",
+    lines: [
+      `将删除 ${rows.length} 条工料机：${rows.slice(0, 3).map((r) => `「${r.title}」`).join("、")}${rows.length > 3 ? " 等" : ""}。`,
+      "仍被定额含量行引用的工料机会被拒绝；删除后调价历史一并清除。不可恢复。",
+    ],
+    confirmLabel: `删除 ${rows.length} 条`,
+    run: () => runDeletes(rows.map((r) => ({ label: `${r.code} ${r.title}`, run: () => app.WorkcostResourceDelete(r.id, false) }))),
+  });
+  const deleteProject = (p: WorkcostBillProject) => setDeleteRequest({
+    title: "删除项目",
+    lines: [
+      `将删除项目「${p.name}」的封面与全部 ${p.itemCount} 条分部分项清单。`,
+      "本项目独占的定额一并删除；其他项目仍在引用的定额与全部工料机保留。不可恢复。",
+    ],
+    confirmLabel: "删除项目",
+    run: async () => {
+      try {
+        await app.WorkcostBillProjectDelete(p.id);
+        return { ok: 1, failed: [] as string[] };
+      } catch (e) {
+        return { ok: 0, failed: [message(e)] };
+      }
+    },
+  });
+  const deleteChecked = () => {
+    if (tier === "bill") deleteBillRows(checkedBills);
+    else if (tier === "quota") deleteQuotaRows(checkedQuotas);
+    else deleteResourceRows(checkedResources);
+  };
+
+  const showNotice = (text: string) => {
+    setNotice(text);
+    window.setTimeout(() => setNotice(""), 4000);
+  };
+
+  // ── 导出 ──
+  const runExport = async (rawKey: string) => {
+    const kind = rawKey as ExportKind;
+    setExportBusy(true);
+    try {
+      const dir = await app.PickDirectory();
+      if (!dir) return; // 取消选目录不是错误：不清上一次的导出结果
+      const n = new Date();
+      const p2 = (v: number) => String(v).padStart(2, "0");
+      const stamp = `${n.getFullYear()}${p2(n.getMonth() + 1)}${p2(n.getDate())}-${p2(n.getHours())}${p2(n.getMinutes())}${p2(n.getSeconds())}`;
+      const out = `${dir.replace(/[\\/]+$/, "")}/造价库-${EXPORT_LABEL[kind]}-${stamp}.xlsx`;
+      const projectId = kind === "bill" ? billF.projectId : 0;
+      const kw = kind === "bill" ? billF.keyword : kind === "quota" ? quotaF.keyword : kind === "resource" ? resourceF.keyword : "";
+      const extra = kind === "bill" ? billF.division : kind === "quota" ? quotaF.specialty : kind === "resource" ? resourceF.kind : "";
+      const written = await app.CostLibraryExport(kind, projectId, kw, extra, out);
+      setExportNote({ text: `已导出：${written}`, isError: false });
+    } catch (e) {
+      setExportNote({ text: `导出失败：${message(e)}`, isError: true });
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const copyPrompt = async (t: Tier) => {
+    // 复制走仓内单源：成功才显示「已复制」，失败如实提示。
+    setCopyState(await copyToClipboard(SAMPLE_PROMPTS[t]) ? "done" : "failed");
+    window.setTimeout(() => setCopyState("idle"), 1600);
+  };
+
+  const setKeyword = (kw: string) => {
+    if (tier === "bill") setBillF((f) => ({ ...f, keyword: kw }));
+    else if (tier === "quota") setQuotaF((f) => ({ ...f, keyword: kw }));
+    else setResourceF((f) => ({ ...f, keyword: kw }));
+  };
+  const clearFilters = () => {
+    if (tier === "bill") setBillF(emptyBillFilters);
+    else if (tier === "quota") setQuotaF(emptyQuotaFilters);
+    else setResourceF(emptyResourceFilters);
+  };
+  const hasFilter = tier === "bill"
+    ? billF.projectId !== 0 || !!billF.division || !!billF.keyword
+    : tier === "quota" ? !!quotaF.specialty || !!quotaF.keyword : !!resourceF.kind || !!resourceF.keyword;
+
+  // ── 右栏详情：按选择键落到对应级 ──
+  const parsedSel = selected ? parseSelKey(selected) : null;
+  const selectedBill = parsedSel?.tier === "bill" ? (snap.rows.find((r) => String(r.id) === parsedSel.id) ?? null) : null;
+  const selectedQuota = parsedSel?.tier === "quota" ? (snap.quotas.find((q) => q.code === parsedSel.id) ?? null) : null;
+  const selectedResource = parsedSel?.tier === "resource" ? (snap.resources.find((r) => r.code === parsedSel.id) ?? null) : null;
+  const activeKey = selected && parsedSel?.tier === tier ? selected : null;
+  // 宽窗下右栏按需展开：选中了行，或清单级正看着某个项目的封面卡。
+  const detailActive = !!selected || (tier === "bill" && !!currentProject);
+
+  const listPane = (
+    <>
+      <div className="cl-col-head">
+        <span className="cl-col-head-title">{tierMeta.label}</span>
+        <span className="cl-count" data-testid="cost-list-count">
+          {matched.length !== totalOfTier ? `匹配 ${matched.length} / ${totalOfTier}` : `${totalOfTier} 条`}
+        </span>
+        {narrow && <span className="cl-spacer" />}
+      </div>
+      <div className="cl-list-tools">
+        {tier === "bill" && (
+          <>
+            <div className="cl-seg" role="group" aria-label="清单视图">
+              <button type="button" aria-pressed={!billF.grouped} onClick={() => setBillF({ ...billF, grouped: false })}>按明细</button>
+              <button type="button" aria-pressed={billF.grouped} onClick={() => setBillF({ ...billF, grouped: true })}>按库项归并</button>
+            </div>
+            {divisions.length > 0 && (
+              <select className="cl-select" aria-label="筛选分部" value={billF.division}
+                onChange={(e) => setBillF({ ...billF, division: e.target.value })}>
+                <option value="">全部分部</option>
+                {divisions.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            )}
+          </>
+        )}
+        <span className="cl-spacer" />
+        {checkedKeys.length > 0 && (
+          <button type="button" className="cl-btn cl-btn-danger-ghost" data-testid="cost-delete-checked" onClick={deleteChecked}>
+            <Trash2 size={12} aria-hidden />删除所选 {checkedKeys.length}
+          </button>
+        )}
+      </div>
+      <div className="cl-list">
+        {matched.length === 0 ? (
+          <div className="cl-state" data-testid="cost-tier-empty">
+            <Inbox size={18} aria-hidden />
+            <span className="cl-state-title">{totalOfTier === 0 ? `${tierMeta.label}库还是空的` : "没有匹配的行"}</span>
+            {totalOfTier === 0 ? (
+              <>
+                <span>在造价模式里录入后会出现在这里。</span>
+                <div className="cl-state-action">
+                  <button type="button" className="cl-btn" onClick={openOfficeBoard}><FolderOpen size={13} aria-hidden />去办公板块</button>
+                </div>
+              </>
+            ) : hasFilter ? (
+              <div className="cl-state-action">
+                <button type="button" className="cl-btn" onClick={clearFilters}>清除筛选</button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            {tier === "bill" && (
+              <BillTable rows={view.shown as BillRow[]} grouped={billF.grouped} showProject={billF.projectId === 0}
+                refPrices={snap.refPrices} checked={checked} active={activeKey} expanded={expandedGroups}
+                onToggleGroup={(key) => setExpandedGroups((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(key)) n.delete(key);
+                  else n.add(key);
+                  return n;
+                })}
+                onToggle={toggle} onToggleAll={toggleAll} onOpen={openBill} onOpenQuota={openQuota}
+                onDelete={(row) => deleteBillRows([row])} />
+            )}
+            {tier === "quota" && (
+              <QuotaTable rows={view.shown as WorkcostQuota[]} usage={usageCount}
+                refPrices={snap.refPrices} checked={checked} active={activeKey}
+                onToggle={toggle} onToggleAll={toggleAll} onOpen={(q) => jump("quota", selKey("quota", q.code))}
+                onDelete={(q) => deleteQuotaRows([q])} />
+            )}
+            {tier === "resource" && (
+              <ResourceTable rows={view.shown as WorkcostResource[]} checked={checked} active={activeKey}
+                onToggle={toggle} onToggleAll={toggleAll} onOpen={(r) => jump("resource", selKey("resource", r.code))}
+                onDelete={(r) => deleteResourceRows([r])} />
+            )}
+            {view.hidden > 0 && (
+              <div className="cl-more">
+                <button type="button" className="cl-btn" onClick={() => setCap(cap + ROW_CAP)}>
+                  再显示 {Math.min(ROW_CAP, view.hidden)} 条（余 {view.hidden} 条）
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  const detailPane = (
+    <>
+      <div className="cl-col-head">
+        <span className="cl-col-head-title">详情</span>
+        {narrow && (
+          <button type="button" className="cl-btn cl-btn-ghost" onClick={() => setPane("list")}>返回列表</button>
+        )}
+      </div>
+      <div className="cl-detail-scroll">
+        {selectedBill ? (
+          <BillDetail item={selectedBill} refPrices={snap.refPrices} onOpenQuota={openQuota} onOpenResource={openResource} />
+        ) : selectedQuota ? (
+          <QuotaDetail quota={selectedQuota} usage={usageIndex.get(selectedQuota.code) ?? []} onOpenBill={openBill} onOpenResource={openResource} />
+        ) : selectedResource ? (
+          <ResourceDetail resource={selectedResource} onOpenQuota={openQuota} />
+        ) : tier === "bill" && currentProject ? (
+          <ProjectCard project={currentProject} onDeleted={deleteProject} />
+        ) : (
+          <DetailState phase="idle" />
+        )}
+      </div>
+    </>
+  );
+
+  const contextOptions = tier === "bill"
+    ? [{ value: "0", label: "全部项目" }, ...snap.projects.map((p) => ({ value: String(p.id), label: `${p.name}（${p.itemCount}）` }))]
+    : tier === "quota"
+      ? [{ value: "", label: "全部专业" }, ...specialties.map((s) => ({ value: s, label: s }))]
+      : [{ value: "", label: "全部类别" }, ...kinds.map((k) => ({ value: k.kind, label: `${k.kind}（${k.count}）` }))];
+  const contextValue = tier === "bill" ? String(billF.projectId) : tier === "quota" ? quotaF.specialty : resourceF.kind;
+  const onContext = (v: string) => {
+    if (tier === "bill") setBillF({ ...billF, projectId: Number(v), division: "" });
+    else if (tier === "quota") setQuotaF({ ...quotaF, specialty: v });
+    else setResourceF({ ...resourceF, kind: v });
+  };
 
   return (
-    <div className="cost-database h-full flex flex-col min-h-0">
-      <a className="cost-skip-link" href="#cost-database-workspace">跳到造价工作区</a>
+    <div ref={rootRef} className="cost-library" data-narrow={narrow ? "true" : "false"} data-testid="cost-library">
+      <a className="cl-skip-link" href="#cost-library-workspace">跳到造价库工作区</a>
 
-      <header className="cost-masthead">
-        <div className="cost-masthead-brand">
-          <span className="cost-masthead-mark" aria-hidden>
-            <Coins size={18} />
-          </span>
-          <div className="cost-masthead-copy">
-            <div className="cost-masthead-kicker">
-              <span>COST LEDGER</span>
-              <span className="cost-local-state"><span aria-hidden />本机资产</span>
-            </div>
-            <div className="cost-masthead-title-row">
-              <h1>造价数据库</h1>
-              <span>工料法成本工作台</span>
-            </div>
+      <header className="cl-masthead">
+        <div className="cl-brand">
+          <span className="cl-mark" aria-hidden><Coins size={18} /></span>
+          <div>
+            <div className="cl-kicker">COST LIBRARY</div>
+            <div className="cl-title">造价数据库</div>
+            <div className="cl-sub">清单 → 定额 → 工料机 · 三级造价数据</div>
           </div>
         </div>
-
-        <div className="cost-active-context" aria-live="polite">
-          <span>NOW / 当前工作面</span>
-          <strong>{activeModule.label}</strong>
-          <p>{activeModule.hint}</p>
-        </div>
-
-        <div
-          className="cost-formula"
-          aria-label="计价路径：清单项挂接企业定额，定额消耗量乘工料机价格形成综合单价"
-        >
-          <span><b>01</b>清单项</span>
-          <i aria-hidden>挂</i>
-          <span><b>02</b>企业定额</span>
-          <i aria-hidden>×</i>
-          <span><b>03</b>工料机价</span>
-          <em aria-hidden>→</em>
-          <strong>综合单价</strong>
+        {phase === "ready" && !libraryEmpty && (
+          <div className="cl-search" role="search">
+            <div className="cl-search-box">
+              <Search size={14} aria-hidden />
+              <input
+                aria-label={`搜索${tierMeta.label}`}
+                placeholder={tierMeta.searchPlaceholder}
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+              />
+              {keyword && (
+                <button type="button" className="cl-icon-btn" aria-label="清空搜索词" onClick={() => setKeyword("")}>
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="cl-actions">
+          {phase === "ready" && !libraryEmpty && (
+            <>
+              <button type="button" className="cl-btn" title="只读扫描五类数据健康发现" onClick={() => setHealthOpen(true)}>
+                <Shield size={13} aria-hidden />体检
+              </button>
+              <ExportMenu
+                items={EXPORT_ITEMS}
+                onPick={(key) => void runExport(key)}
+                busy={exportBusy}
+                // 导出进行中先收起上一次的结果，避免旧路径被当成这次的。
+                note={exportBusy ? "" : exportNote?.text ?? ""}
+                isError={!!exportNote?.isError}
+              />
+            </>
+          )}
+          <button type="button" className="cl-btn" aria-label="刷新造价库" title="刷新" disabled={phase === "loading"}
+            onClick={() => void load()}>
+            <RefreshCw size={13} aria-hidden />
+          </button>
         </div>
       </header>
 
-      <nav className="cost-module-nav" aria-label="造价数据库模块">
-        {MODULE_GROUPS.map((group) => (
-          <div className="cost-nav-group" key={group.key} role="group" aria-label={group.label}>
-            <span className="cost-nav-group-label" aria-hidden>{group.label}</span>
-            <div className="cost-nav-group-buttons">
-              {MODULES.filter((item) => group.modules.includes(item.key)).map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setModule(m.key)}
-                  title={m.hint}
-                  aria-label={m.label}
-                  aria-current={module === m.key ? "page" : undefined}
-                  aria-controls="cost-database-workspace"
-                  className="cost-module-tab"
-                >
-                  <span className="cost-module-tab-index" aria-hidden>
-                    {String(MODULES.findIndex((item) => item.key === m.key) + 1).padStart(2, "0")}
-                  </span>
-                  {m.icon}
-                  <span>{m.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-        <div className="cost-nav-utility">
-          {module === "overview" ? (
-            <>
-              <SegChip active={overviewView === "data"} onClick={() => setOverviewView("data")}>数据概览</SegChip>
-              <SegChip active={overviewView === "graph"} onClick={() => setOverviewView("graph")}>关联图谱</SegChip>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="cost-back-link"
-              onClick={() => { setModule("overview"); setOverviewView("data"); }}
-              title="回到概览"
-            >
-              回到概览
-            </button>
-          )}
-        </div>
-      </nav>
-
-      <section
-        id="cost-database-workspace"
-        className="cost-database-main flex-1 min-h-0"
-        aria-label={`${activeModule.label}工作区`}
-        tabIndex={-1}
-      >
-        {module === "bill" && <WorkcostBillView onOpenImport={() => setModule("refs")} />}
-        {module === "compose" && <WorkcostComposeView />}
-        {module === "resources" && <WorkcostResourceView />}
-        {module === "health" && <CostHealthView />}
-        {module === "audit" && <CostAuditView />}
-        {module === "refs" && <CostIndicatorsView />}
-        {module === "prices" && (
-          <div className="h-full flex flex-col min-h-0">
-            <div
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-border-soft/50"
-              role="tablist"
-              aria-label="价格数据子视图"
-              aria-orientation="horizontal"
-            >
-              {PRICE_VIEWS.map((v) => (
-                <SegChip tab key={v.key} active={priceView === v.key} onClick={() => setPriceView(v.key)}>{v.label}</SegChip>
-              ))}
-              <span className="ml-auto text-fg-faint text-[10.5px] hidden md:inline">
-                信息价喂资源现行价 · 询价沉淀 · 旧价格手册归档为「资料条目」
-              </span>
-            </div>
-            <div
-              id="cost-price-panel"
-              className="flex-1 min-h-0"
-              role="tabpanel"
-              aria-label={PRICE_VIEWS.find((item) => item.key === priceView)?.label}
-              tabIndex={0}
-            >
-              {priceView === "sources" && <PriceSourcesPanel />}
-              {priceView === "repository" && <PriceSourcesRepository />}
-              {priceView === "inquiry" && <CostInquiryPanel />}
-              {priceView === "entries" && <CostLibraryView />}
-            </div>
-          </div>
-        )}
-        {module === "overview" && overviewView === "graph" && <CostGraphView />}
-        {module === "overview" && overviewView === "data" && (
-          <div className="cost-overview h-full overflow-y-auto">
-            {loading ? (
-              <OverviewSkeleton />
-            ) : statsFailed ? (
-              <div className="cost-error-panel v3-panel" data-testid="cost-stats-failed">
-                <div className="text-[13px] text-fg">造价库读取失败</div>
-                <div className="text-[11.5px] text-fg-faint">数据库暂时读不到，请重试；若持续失败请查看日志</div>
-                <button
-                  type="button"
-                  onClick={() => void loadStats()}
-                  className="cost-primary-button"
-                >
-                  重试
-                </button>
-              </div>
-            ) : stats.resourceTotal === 0 && stats.quotaTotal === 0 ? (
-              <GettingStarted
-                onImportProject={() => setModule("compose")}
-                onResources={() => setModule("resources")}
-                onSources={() => setModule("prices")}
-              />
-            ) : (
-              <>
-                {/* 工料法三层 hero + 下一步 */}
-                <div className="cost-overview-top grid grid-cols-1 xl:grid-cols-3">
-                  <section className="cost-overview-hero v3-panel xl:col-span-2">
-                    <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
-                    <div className="relative flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <div className="text-[10.5px] tracking-wider text-fg-faint">工料法数据库</div>
-                        <div className="mt-1.5 flex items-baseline gap-2">
-                          <span className="cost-overview-total">
-                            {stats.resourceTotal}
-                          </span>
-                          <span className="cost-overview-total-caption">条工料机资源 · {stats.quotaTotal} 条消耗定额</span>
-                        </div>
-                        <div className="mt-2.5 flex items-center gap-1.5 flex-wrap text-[11px] text-fg-faint">
-                          <span className="cost-metric-chip">
-                            <Layers size={10} /> 资源 {stats.resourceTotal}
-                          </span>
-                          <span className="cost-metric-chip">
-                            <ListTree size={10} /> 定额 {stats.quotaTotal}
-                          </span>
-                          <span className="cost-metric-chip">
-                            <Coins size={10} /> 资料条目 {stats.entryTotal}
-                          </span>
-                          <span className="cost-metric-chip">
-                            <CloudUpload size={10} /> 价格源 {stats.sourceTotal}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10.5px] tracking-wider text-fg-faint">资源构成</div>
-                        <div className="mt-1.5 text-[11.5px] text-fg-faint tabular-nums">
-                          <span className="cost-kind-key is-labor">人工 {stats.labor}</span>
-                          <span className="cost-kind-key is-material">材料 {stats.material}</span>
-                          <span className="cost-kind-key is-machine">机械 {stats.machine}</span>
-                          <span className="cost-kind-key is-outsourced">外委 {stats.outsourced}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <KindBar
-                      labor={stats.labor}
-                      material={stats.material}
-                      machine={stats.machine}
-                      outsourced={stats.outsourced}
-                      className="relative mt-4"
-                    />
-                    <p className="relative mt-3 text-[10.5px] text-fg-faint leading-relaxed">
-                      综合单价 = Σ(消耗量 × 资源价)，只含人材机；管理费/利润/规费/税金在费用汇总的项目合计层单列。
-                      资源一调价，引用它的全部综合单价同步重算。
-                    </p>
-                  </section>
-
-                  {/* 下一步引导：按库里最缺的一环指路 */}
-                  <section className="cost-overview-next v3-panel">
-                    <span className="text-[12.5px] font-semibold text-fg">下一步</span>
-                    {stats.quotaTotal === 0 ? (
-                      <>
-                        <div className="mt-3 text-[12px] text-fg">还差消耗定额</div>
-                        <p className="mt-1.5 text-[11px] text-fg-faint leading-relaxed">
-                          资源已就位（{stats.resourceTotal} 条），但还没有消耗定额——
-                          没有定额就无法核算综合单价。导入一份五表成本测算工作簿，
-                          工料机价格与综合单价两表会一次落成资源与定额。
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setModule("compose")}
-                          className="cost-inline-link mt-auto"
-                        >
-                          去导入项目表 <ChevronRight size={12} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="mt-3 text-[12px] text-fg">清单数据就绪</div>
-                        <p className="mt-1.5 text-[11px] text-fg-faint leading-relaxed">
-                          资源 {stats.resourceTotal} 条、定额 {stats.quotaTotal} 条都在位。
-                          清单挂定额×工程量，费率随项目录入——导出五表工作簿（活公式）即得完整费用汇总。
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setModule("bill")}
-                          className="cost-inline-link mt-auto"
-                        >
-                          查看分部分项清单 <ChevronRight size={12} />
-                        </button>
-                      </>
-                    )}
-                  </section>
-                </div>
-
-                {/* 快捷入口 */}
-                <div className="cost-overview-bottom grid grid-cols-1 xl:grid-cols-3">
-                  <section className="cost-quick-panel v3-panel xl:col-span-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-fg text-[12.5px] font-semibold">快捷入口</span>
-                      <span className="text-[10.5px] text-fg-faint">按工作流排序</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <QuickAction
-                        label="分部分项清单"
-                        hint="清单项目 · 工程量 · 费率录入"
-                        icon={<ListTree size={14} className="text-accent" />}
-                        onClick={() => setModule("bill")}
-                      />
-                      <QuickAction
-                        label="导入项目表"
-                        hint="五表工作簿 → 资源+定额"
-                        icon={<FileSpreadsheet size={14} className="text-sky-400" />}
-                        onClick={() => setModule("compose")}
-                      />
-                      <QuickAction
-                        label="资源库"
-                        hint="工料机主数据 · 调价"
-                        icon={<Layers size={14} className="text-emerald-400" />}
-                        onClick={() => setModule("resources")}
-                      />
-                      <QuickAction
-                        label="资料条目"
-                        hint={`旧价格手册 · ${stats.entryTotal} 条沉淀`}
-                        icon={<Coins size={14} className="text-amber-400" />}
-                        onClick={() => { setModule("prices"); setPriceView("entries"); }}
-                      />
-                    </div>
-                  </section>
-                  <section className="cost-note-panel v3-panel">
-                    <span className="text-fg text-[12.5px] font-semibold">口径备忘</span>
-                    <ul className="mt-2 space-y-1.5 text-[11px] text-fg-faint leading-relaxed list-disc pl-4">
-                      <li>综合单价只含人材机，取费在费用汇总合计层跑一次</li>
-                      <li>利润基数含不含规费按项目口径选（两份实测产物各不同）</li>
-                      <li>零含量行是合法占位，不计费不告警</li>
-                      <li>外委独立行类，三费归集并入材料</li>
-                    </ul>
-                  </section>
-                </div>
-
-                {/* 数据备份：一键全库快照（用户 2026-10-07 定调「不需要导出5表，但需要数据备份」） */}
-                <CostBackupCard />
-              </>
+      <div className="cl-status" aria-live="polite" data-testid="cost-status">
+        {phase === "ready" && (
+          <>
+            <span>项目 <strong>{snap.projects.length}</strong></span>
+            <span>清单 <strong>{snap.rows.length}</strong></span>
+            <span>定额 <strong>{snap.quotas.length}</strong></span>
+            <span>工料机 <strong>{snap.resources.length}</strong></span>
+            {snap.failedSources.length > 0 && (
+              <span className="cl-status-warn" role="alert">{snap.failedSources.join("、")}读取失败，对应内容可能不完整</span>
             )}
-          </div>
+            {loadError && <span className="cl-status-warn" role="alert">刷新失败：{loadError}（显示的是上次读到的内容）</span>}
+            {notice && <span data-testid="cost-notice">{notice}</span>}
+          </>
         )}
-      </section>
-    </div>
-  );
-}
+      </div>
 
-// ── 四类构成条（人工/材料/机械/外委）────────────────────────────
-function KindBar({
-  labor,
-  material,
-  machine,
-  outsourced,
-  className = "",
-}: {
-  labor: number;
-  material: number;
-  machine: number;
-  outsourced: number;
-  className?: string;
-}) {
-  const total = labor + material + machine + outsourced;
-  if (total <= 0) {
-    return <div className={`text-[10.5px] text-fg-faint ${className}`}>暂无资源构成数据</div>;
-  }
-  const seg = (v: number, cls: string, label: string) =>
-    v > 0 ? (
-      <div
-        className={`cost-kind-segment ${cls}`}
-        style={{ width: `${Math.max(2, (v / total) * 100)}%` }}
-        title={`${label} ${v} 条`}
+      {phase === "loading" && <StatePanel icon="loading" title="正在读取造价库…" />}
+      {phase === "failed" && (
+        <StatePanel icon="failed" title="造价库读取失败" error={loadError}
+          action={<button type="button" className="cl-btn" onClick={() => void load()}><RefreshCw size={13} aria-hidden />重试</button>} />
+      )}
+      {libraryEmpty && <EmptyLibrary copyState={copyState} onCopy={(t) => void copyPrompt(t)} />}
+
+      {phase === "ready" && !libraryEmpty && (
+        <section
+          id="cost-library-workspace"
+          className="cl-body"
+          aria-label="造价库工作区"
+          tabIndex={-1}
+          // 详情按需展开：宽窗下没有选中行、也没有项目封面卡可看时，右栏不占位。
+          data-detail={detailActive ? "shown" : "none"}
+        >
+          {narrow && (
+            <div className="cl-bar-row">
+              <TierBar tier={tier} counts={counts} onTier={changeTier} contextOptions={contextOptions}
+                contextValue={contextValue} onContext={onContext}
+                contextLabel={tier === "bill" ? "筛选项目" : tier === "quota" ? "筛选专业" : "筛选类别"} />
+              <div className="cl-seg" role="tablist" aria-label="造价库视图">
+                <button type="button" role="tab" aria-selected={pane === "list"} onClick={() => setPane("list")}>列表</button>
+                <button type="button" role="tab" aria-selected={pane === "detail"} onClick={() => setPane("detail")}>详情</button>
+              </div>
+            </div>
+          )}
+          {!narrow && (
+            <nav className="cl-col cl-rail-col">
+              <TierRail
+                tier={tier} counts={counts} onTier={changeTier}
+                projects={snap.projects} billFilters={billF} onProject={(id) => setBillF({ ...billF, projectId: id, division: "" })}
+                onDeleteProject={deleteProject}
+                specialties={specialties} quotaFilters={quotaF} onSpecialty={(specialty) => setQuotaF({ ...quotaF, specialty })}
+                kinds={kinds} resourceFilters={resourceF} onKind={(kind) => setResourceF({ ...resourceF, kind })}
+              />
+            </nav>
+          )}
+          <div className="cl-col cl-list-col" ref={listRef} hidden={narrow && pane !== "list"}>{listPane}</div>
+          <div className="cl-col cl-detail-col" hidden={narrow ? pane !== "detail" : !detailActive}>{detailPane}</div>
+        </section>
+      )}
+
+      <HealthDrawer open={healthOpen} onClose={() => setHealthOpen(false)} onJump={onHealthJump} />
+      <DeleteDialog
+        request={deleteRequest}
+        onClose={() => setDeleteRequest(null)}
+        onDone={(summary) => { showNotice(summary); void load(true); }}
       />
-    ) : null;
-  return (
-    <div
-      className={`cost-kind-bar ${className}`}
-      role="img"
-      aria-label={`资源构成：人工 ${labor}，材料 ${material}，机械 ${machine}，外委 ${outsourced}`}
-    >
-      {seg(labor, "is-labor", "人工")}
-      {seg(material, "is-material", "材料")}
-      {seg(machine, "is-machine", "机械")}
-      {seg(outsourced, "is-outsourced", "外委")}
-    </div>
-  );
-}
-
-function QuickAction({ label, hint, icon, onClick }: { label: string; hint: string; icon: ReactNode; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="cost-quick-action v3-card is-interactive">
-      <span className="cost-quick-action-icon">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-fg text-[12px] font-medium leading-tight">{label}</span>
-        <span className="block text-fg-faint text-[10.5px] truncate mt-0.5">{hint}</span>
-      </span>
-      <ChevronRight size={12} className="text-fg-faint shrink-0" />
-    </button>
-  );
-}
-
-// ── 空库引导（资源与定额都是 0）──────────────────────────────────
-function GettingStarted({
-  onImportProject,
-  onResources,
-  onSources,
-}: {
-  onImportProject: () => void;
-  onResources: () => void;
-  onSources: () => void;
-}) {
-  return (
-    <div className="cost-getting-started">
-      <div className="cost-getting-started-inner">
-        <div className="text-center mb-5">
-          <div className="cost-getting-started-mark">
-            <Coins size={22} />
-          </div>
-          <h2 className="mt-3 text-[16px] font-semibold text-fg tracking-tight">工料法成本数据库还是空的</h2>
-          <p className="mt-1 text-[12px] text-fg-faint">
-            综合单价靠「工料机 × 消耗定额」核算出来——先让基本数据就位
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <StepCard
-            step="01"
-            title="导入项目表"
-            desc="选一份五表成本测算工作簿，封面、清单、费率、资源、定额一次录入数据库"
-            icon={<FileSpreadsheet size={16} className="text-sky-400" />}
-            onClick={onImportProject}
-            cta="去单价分析"
-          />
-          <StepCard
-            step="02"
-            title="维护资源库"
-            desc="手工新增工料机资源，或把旧资料条目一键资源化归类入库"
-            icon={<Layers size={16} className="text-emerald-400" />}
-            onClick={onResources}
-            cta="去资源库"
-          />
-          <StepCard
-            step="03"
-            title="订阅价格源"
-            desc="接入固定网站信息价，定时抓取推进资源现行价"
-            icon={<CloudUpload size={16} className="text-amber-400" />}
-            onClick={onSources}
-            cta="去配置"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StepCard({
-  step,
-  title,
-  desc,
-  icon,
-  onClick,
-  cta,
-}: {
-  step: string;
-  title: string;
-  desc: string;
-  icon: ReactNode;
-  onClick: () => void;
-  cta: string;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="cost-step-card v3-card is-interactive">
-      <span className="cost-step-card-index">{step}</span>
-      <span className="cost-step-card-icon">{icon}</span>
-      <span className="mt-2.5 text-fg text-[13px] font-semibold">{title}</span>
-      <span className="mt-1 text-[11px] text-fg-faint leading-relaxed flex-1">{desc}</span>
-      <span className="mt-3 text-[11.5px] text-accent inline-flex items-center gap-1">
-        {cta} <ChevronRight size={11} />
-      </span>
-    </button>
-  );
-}
-
-// ── 骨架屏（与概览布局同构）────────────────────────────────────────
-function OverviewSkeleton() {
-  return (
-    <div className="cost-overview-skeleton" aria-label="正在读取造价库概览">
-      <div className="cost-overview-top grid grid-cols-1 xl:grid-cols-3">
-        <div className="v3-panel xl:col-span-2 h-40" />
-        <div className="v3-panel h-40" />
-      </div>
-      <div className="v3-panel h-40" />
     </div>
   );
 }

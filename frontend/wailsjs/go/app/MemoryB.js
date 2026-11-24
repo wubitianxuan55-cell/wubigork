@@ -106,14 +106,6 @@ export function GaeaProfileSave(arg1) {
   return window['go']['app']['MemoryB']['GaeaProfileSave'](arg1);
 }
 
-export function GaeaSemanticIndexBackfill() {
-  return window['go']['app']['MemoryB']['GaeaSemanticIndexBackfill']();
-}
-
-export function GaeaSemanticIndexStatus() {
-  return window['go']['app']['MemoryB']['GaeaSemanticIndexStatus']();
-}
-
 export function GaeaSemanticSearch(arg1) {
   return window['go']['app']['MemoryB']['GaeaSemanticSearch'](arg1);
 }

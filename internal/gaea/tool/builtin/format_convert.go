@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -21,7 +22,7 @@ type formatConvert struct{ workDir string }
 func (formatConvert) Name() string { return "format_convert" }
 
 func (formatConvert) Description() string {
-	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注；pdf→md 提取文本（含 OCR 扫描件回退）。preserve_images=true 时保留 DOCX/PPTX 内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。按文档大小数秒到数十秒；不消耗主模型 token。"
+	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注；pdf→md 提取文本（含 OCR 扫描件回退；文字层是子集字体编码的中文 PDF——Word/WPS 导出的多属此类——本机装有 WPS Office 时自动改走 WPS 转换，表格成真表格、图片保留）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。按文档大小数秒到数分钟（经 WPS 时 233 页约 1 分半）；不消耗主模型 token。"
 }
 
 func (formatConvert) Schema() json.RawMessage {
@@ -97,6 +98,10 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 			return "", codedError("FORMAT_UNSUPPORTED", "%v", err)
 		case errors.Is(err, os.ErrNotExist) || os.IsNotExist(err):
 			return "", codedError("FORMAT_SOURCE_MISSING", "源文件不存在: %s（%v）", p.Path, err)
+		case strings.Contains(err.Error(), "文字层无法解码"):
+			// 自写提取只认得到乱码（子集字体缺字体映射），本机 WPS 与 OCR 都没接住：
+			// 如实报失败，不把乱码落盘（2026-11-24 实弹：233 页报告转出 17 万替换字符却报成功）。
+			return "", codedError("FORMAT_TEXT_UNDECODABLE", "%v", err)
 		default:
 			return "", codedError("FORMAT_CONVERT_FAILED", "%v", err)
 		}
@@ -128,13 +133,26 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		if err := os.WriteFile(p.Output, []byte(md), 0o644); err != nil {
 			return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "写入输出文件失败: %v", err)
 		}
-		detail := fmt.Sprintf("已转换并保存为 %s（%d 字符）", p.Output, len(md))
-		if images > 0 {
-			detail += fmt.Sprintf("；保留图片 %d 张到 %s", images, assetDir)
-		} else if p.PreserveImages && strings.EqualFold(filepath.Ext(p.Path), ".pdf") {
-			detail += "；PDF 图片未单独抽取（如需保留原图，请把原 PDF 一并交存）"
+		// 回执带结构计数：调用方一眼判断产物可用（乱码/空转换的特征是三项全 0）。
+		st := docmd.CountStructure(md)
+		detail := fmt.Sprintf("已转换并保存为 %s（%d 字）", p.Output, utf8.RuneCountInString(md))
+		detail += fmt.Sprintf("；标题 %d / 表格 %d / 图片 %d", st.Headings, st.Tables, st.Images)
+		switch {
+		case images > 0 && p.PreserveImages:
+			detail += fmt.Sprintf("（保留图片 %d 张到 %s）", images, assetDir)
+		case images > 0:
+			detail += "（图片以 data URI 内嵌在 Markdown 里；要落成图片文件请设 preserve_images=true）"
+		case p.PreserveImages && strings.EqualFold(filepath.Ext(p.Path), ".pdf"):
+			detail += "（未抽取到图片：该 PDF 没有内嵌图，或本机没有 WPS、只做了纯文本提取）"
 		}
 		return tool.WrapText(detail), nil
+	}
+	// 不落盘时图片没法交付：去掉 data URI 再回（几百页的 PDF 经 WPS 转换带 108 张图，
+	// 原样回给模型是几 MB 的 base64），并在回执里说明怎么要图片。
+	if strings.Contains(md, "data:image/") {
+		n := strings.Count(md, "](data:image/")
+		md = strings.TrimSpace(docmd.StripDataImages(md)) +
+			fmt.Sprintf("\n\n---\n*内嵌图片 %d 张未随文本返回；需要图片请给 output 与 preserve_images=true 落成文件*", n)
 	}
 	return tool.WrapText(md), nil
 }

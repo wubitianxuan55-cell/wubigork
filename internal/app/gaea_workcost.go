@@ -117,6 +117,16 @@ func (a *App) GaeaWorkcostResourcePrices(id int64) []workcost.ResourcePrice {
 	return nonNilSlice(list)
 }
 
+// GaeaWorkcostResourceUsage 某工料机被哪些定额含量行引用（三级下钻的回链：
+// 从定额点到工料机之后，看这条工料机被谁用）。构造即非 nil。
+func (a *App) GaeaWorkcostResourceUsage(code string) []workcost.UsageRef {
+	refs, err := a.hubWorkcostStore().ResourceUsage(code)
+	if err != nil {
+		return []workcost.UsageRef{}
+	}
+	return nonNilSlice(refs)
+}
+
 // ── 消耗定额库 ──────────────────────────────────────────────────────
 
 // GaeaWorkcostQuotaSave 新建/更新消耗定额（含工料机含量行，整组替换）。
@@ -144,9 +154,15 @@ func (a *App) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost
 	return nonNilSlice(list)
 }
 
-// GaeaWorkcostQuotaDelete 删除定额及其含量行。
+// GaeaWorkcostQuotaDelete 删除定额及其含量行。仍被清单项引用时拒绝——造价
+// 数据库板块是只读浏览面，不留悬空引用；确要连带解除引用走造价模式的
+// cost_library delete_quota（force=true，逐条确认）。
 func (a *App) GaeaWorkcostQuotaDelete(code string) error {
-	return a.hubWorkcostStore().DeleteQuota(code)
+	s := a.hubWorkcostStore()
+	if n, err := s.QuotaReferenced(code); err == nil && n > 0 {
+		return fmt.Errorf("该定额仍被 %d 条清单项引用，不能删除——先在造价模式解除挂接", n)
+	}
+	return s.DeleteQuota(code)
 }
 
 // GaeaWorkcostQuotaCompose 按定额核算综合单价（**只含人材机**，不含管理费/

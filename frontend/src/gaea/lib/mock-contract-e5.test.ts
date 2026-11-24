@@ -1,5 +1,6 @@
 // 阶段 5「进料与质量」契约层 mock 冒烟测试：锁定 E5 新增绑定方法的行为，
-// 供 E2 组件（PDF/图片成本导入、比价）与统一搜索入口联调时参考。
+// 供 E2 组件（统一搜索入口）联调时参考。PDF/图片成本导入与比价两例已随
+// 造价数据库推倒重建（2026-11-25）退役——两个绑定退出绑定面。
 // T6-10.4 起 RetrievalEvalRun 改为契约校验：断言与 Go 侧
 // internal/app/gaea_retrieval_eval.go + docs/retrieval-eval-set.md 一致的结构与
 // 数值锚点（total=12、threshold=0.8、passed 与 recallAt10 关系、perQuery 形状），
@@ -9,30 +10,6 @@ import { describe, expect, it } from "vitest";
 import { app } from "./bridge";
 
 describe("E5 契约层 mock（进料与质量）", () => {
-  it("CostImportVisionPreview 返回 source=pdf_text 的候选行", async () => {
-    const pv = await app.CostImportVisionPreview("C:/tmp/报价单.pdf");
-    // 字段对齐 Go gaea_cost_import_vision.go（source=pdf_text / image；aiUsed 标记）
-    expect(pv.source).toBe("pdf_text");
-    expect(pv.aiUsed).toBe(true);
-    expect(pv.rows.length).toBeGreaterThanOrEqual(2);
-    expect(pv.rows[0].name).toBe("rebar");
-  });
-
-  it("CostCompare 返回多源比价明细（现价/历史/抓取）", async () => {
-    const rows = await app.CostCompare("rebar");
-    // kind 枚举对齐 Go CostCompareRow（current/history/fetch）
-    expect(rows.length).toBeGreaterThanOrEqual(2);
-    expect(rows[0].kind).toBe("current");
-    expect(rows.some((r) => r.kind === "fetch")).toBe(true);
-    expect(rows.some((r) => r.kind === "history")).toBe(true);
-    rows.forEach((r) => {
-      expect(["current", "history", "fetch"]).toContain(r.kind);
-      expect(typeof r.price).toBe("number");
-      expect(typeof r.diffPct).toBe("number");
-      expect(typeof r.source).toBe("string");
-    });
-  });
-
   it("UnifiedSearch 一次返回关键词 + 语义两组，scope + topN 生效", async () => {
     // S1.2-C：签名变为 (query, scope, topN)；scope="work" 走 work 分区演示命中。
     const v = await app.UnifiedSearch("打桩", 20, "work");

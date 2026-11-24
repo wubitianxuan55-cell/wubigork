@@ -34,6 +34,7 @@
 | `cost_audit` | builtin-domain | work | read | none | 硬检可复算（库读口同源）；信息项不混 HardCount |
 | `cost_compose` | builtin-domain | work | produce | none | 组价结果与定额飞轮口径一致 |
 | `cost_indicators` | builtin-domain | work | read | none | 指标与 SchemaV34 快照一致 |
+| `cost_library` | builtin-domain | work | write | none | PersistWrite：三级库写入可查；被引用对象默认拒删；dry_run 不写库 |
 | `cost_project` | builtin-domain | work | read | none | 读回与 workcost 库一致 |
 | `cost_project_apply` | builtin-domain | work | write | none | PersistWrite：workcost 写入可查，同批编码唯一写前闸 |
 | `cost_save` | builtin-domain | work | write | none | PersistWrite：库写入可查 |
@@ -84,9 +85,12 @@
 | `office_status` | extra-app | work | read | none | dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配） |
 | `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
 | `promote_session_facts` | build-internal | shared | write | none | PersistWrite：事实晋升可查 |
+| `proposal_delete` | builtin-domain | work | write | none | PersistWrite：删除后节点/语义块/全文索引不可再查；仅用户明确要求时调用 |
+| `proposal_export` | builtin-domain | work | write | none | 导出文件按标题层级还原，托管图片落成文件；输出落点在工作区 |
 | `proposal_read` | builtin-domain | work | read | none | 整节/命中段落与库一致，分页可续读 |
 | `proposal_save` | builtin-domain | work | write | none | PersistWrite：方案库写入可查；父级在前逐级展开，正文与源文件逐字一致，本地图片复制为托管资产并改写稳定引用，同名覆盖须显式确认 |
 | `proposal_search` | builtin-domain | work | read | none | 召回与库一致；全文管精确词，语义路走本地 embedding，本地 reranker 精排 |
+| `proposal_update` | builtin-domain | work | write | none | PersistWrite：改动可查——改小节标题连带子树路径，全文索引同步，语义向量重算 |
 | `quarantine_list` | builtin-workspace | work | read | none | 账本批次按 stamp 去重与同 stamp 最后一条一致；行数≠批次数 |
 | `read_file` | builtin-workspace | work | read | none | 内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny |
 | `read_skill` | builtin-domain | shared | read | none | 返回技能正文 |

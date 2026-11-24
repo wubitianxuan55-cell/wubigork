@@ -25,13 +25,16 @@ var compactDesc = map[string]string{
 	"complete_step":      "完成计划步骤(step/result/evidence;kind=verification|diff|files|manual,禁止纯manual)",
 	"memory_search":      "搜索记忆(关键词,kind过滤,BM25排序)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
-	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;preserve_images保留DOCX/PPTX原图sidecar;含OCR扫描件回退)",
+	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;preserve_images保留内嵌图片sidecar;扫描件OCR回退;子集字体乱码的PDF自动经本机WPS;回执带标题/表格/图片计数)",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
 	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
 	"cost_search":        "搜索成本库(关键词/分类/状态,返回单价表)",
-	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections)",
+	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections;action=status查进度;dry_run演练不写库)",
 	"proposal_search":    "检索方案库(全文+本地语义召回+精排;scope=title查标题树;可按层级/类型/年度/方案过滤)",
 	"proposal_read":      "读方案库小节(整节自动分页;query只取相关段落;scope=subtree连子节)",
+	"proposal_update":    "改方案库方案(标题/类型/年度/摘要;或section_id+section_title/body增量修正某一节)",
+	"proposal_delete":    "删方案库方案(节点与语义索引一并清除,不可恢复;仅用户明确要求时)",
+	"proposal_export":    "方案库方案导出为Markdown(按标题层级;托管图片落到同名-assets目录)",
 	"cost_save":          "写入/更新成本库条目(同名覆盖,含单价/单位/来源;仅用户明确要求时调用)",
 	"cost_compose":       "AI 组价:相似条目价格带推荐(P25-P75+置信度+证据链),只读不落库,用户确认后 cost_save 沉淀",
 	"screen_capture":     "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
@@ -110,11 +113,17 @@ var compactSchema = map[string]json.RawMessage{
 	"diagram_gen": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"kind":{"type":"string","enum":["framework","flow"]},"layout":{"type":"string","enum":["vertical","horizontal"]},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"label":{"type":"string"},"level":{"type":"integer"},"group":{"type":"string"}},"required":["id","label"]}},"edges":{"type":"array","items":{"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}},"required":["from","to"]}},"output":{"type":"string"}},"required":["nodes"]}`),
 	"proposal_save": json.RawMessage(
-		`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"}}}`),
+		`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"},"action":{"type":"string","enum":["status"]},"dry_run":{"type":"boolean"}}}`),
 	"proposal_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"scope":{"type":"string","enum":["title"]},"level":{"type":"integer"},"project_type":{"type":"string"},"year":{"type":"string"},"proposal":{"type":"string"},"limit":{"type":"integer"}}}`),
 	"proposal_read": json.RawMessage(
 		`{"type":"object","properties":{"section_id":{"type":"integer"},"scope":{"type":"string","enum":["subtree"]},"query":{"type":"string"},"offset":{"type":"integer"},"limit":{"type":"integer"}},"required":["section_id"]}`),
+	"proposal_update": json.RawMessage(
+		`{"type":"object","properties":{"proposal":{"type":"string"},"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"workspace":{"type":"string"},"section_id":{"type":"integer"},"section_title":{"type":"string"},"body":{"type":"string"}},"required":["proposal"]}`),
+	"proposal_delete": json.RawMessage(
+		`{"type":"object","properties":{"proposal":{"type":"string"},"reason":{"type":"string"}},"required":["proposal"]}`),
+	"proposal_export": json.RawMessage(
+		`{"type":"object","properties":{"proposal":{"type":"string"},"output":{"type":"string"}},"required":["proposal","output"]}`),
 	"cost_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"status":{"type":"string"},"limit":{"type":"integer"}}}`),
 	"cost_save": json.RawMessage(

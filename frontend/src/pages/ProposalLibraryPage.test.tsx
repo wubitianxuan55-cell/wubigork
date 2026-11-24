@@ -2,9 +2,9 @@
 // 覆盖：①清单加载后自动选中首份方案、标题树首屏只展开到节、阅读窗落在首个节点
 // ②点击节点读取该节、展开折叠节点 ③检索调用绑定并高亮命中词、点击命中跳转
 // ④无命中/检索失败 ⑤空库三步引导与去办公板块 ⑥清单读取失败不伪装成空库
-// ⑦删除需确认 ⑧窄窗页签切换。桥接只 mock 页面消费的五个 GaeaProposal* 方法。
+// ⑦删除需确认 ⑧窄窗页签切换 ⑨板块常驻保活下切回即静默重读清单、手动刷新、所选方案消失后的改选。桥接只 mock 页面消费的五个 GaeaProposal* 方法。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ProposalHit, ProposalSearchResult, ProposalSectionBody, ProposalSectionNode, ProposalSummary } from '../gaea/lib/types/proposal'
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
+import { notifyBoardActive, resetBoardActive } from '../lib/boardActive'
 import ProposalLibraryPage from './ProposalLibraryPage'
 
 const p1: ProposalSummary = {
@@ -223,6 +224,74 @@ describe('ProposalLibraryPage 空库与失败态', () => {
     expect(await screen.findByText('标题树读取失败')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /重试/ }))
     await screen.findByRole('tree')
+  })
+})
+
+describe('ProposalLibraryPage 清单刷新（板块常驻保活）', () => {
+  it('切去别的板块再切回来：静默重读清单，新录入的方案出现在清单里', async () => {
+    mocks.GaeaProposalList.mockResolvedValueOnce([p1])
+    await renderReady()
+    expect(screen.getByTestId('proposal-search-status').textContent).toContain('共 1 份方案')
+    mocks.GaeaProposalList.mockResolvedValue([p1, p2])
+    try {
+      // 壳层声明当前可见板块（lib/boardActive）：本板块 → 别处 → 回到本板块
+      // 每次切换后让 React 提交一帧（真实壳层里切走与切回之间隔着整段停留时间）
+      await act(async () => { notifyBoardActive('proposal') })
+      expect(mocks.GaeaProposalList).toHaveBeenCalledTimes(1)
+      await act(async () => { notifyBoardActive('gaea') })
+      await act(async () => { notifyBoardActive('proposal') })
+      await waitFor(() => expect(mocks.GaeaProposalList).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(screen.getByTestId('proposal-search-status').textContent).toContain('共 2 份方案'))
+      expect(within(screen.getByTestId('proposal-list')).getByText('调查报告 乙')).toBeTruthy()
+      // 重读期间不清空清单：当前选中项与阅读窗原样保留
+      expect(mocks.GaeaProposalOutline).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('proposal-reader').textContent).toContain('管井降水')
+    } finally {
+      resetBoardActive()
+    }
+  })
+
+  it('停留在本板块时不重复读取；手动刷新按钮可重读清单', async () => {
+    await renderReady()
+    expect(mocks.GaeaProposalList).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '刷新方案清单' }))
+    await waitFor(() => expect(mocks.GaeaProposalList).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId('proposal-list')).toBeTruthy()
+  })
+
+  it('切回时重读失败：保留旧清单并如实标出「刷新失败」，不伪装成空库', async () => {
+    await renderReady()
+    try {
+      await act(async () => { notifyBoardActive('gaea') })
+      mocks.GaeaProposalList.mockRejectedValueOnce(new Error('database is locked'))
+      await act(async () => { notifyBoardActive('proposal') })
+      await waitFor(() => expect(mocks.GaeaProposalList).toHaveBeenCalledTimes(2))
+      expect(await screen.findByText('刷新失败')).toBeTruthy()
+      expect(screen.getByTestId('proposal-list')).toBeTruthy()
+      expect(screen.queryByText('方案库读取失败')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: '刷新方案清单' }))
+      await waitFor(() => expect(screen.queryByText('刷新失败')).toBeNull())
+    } finally {
+      resetBoardActive()
+    }
+  })
+
+  it('选中的方案已不在库里（别处被删）：刷新后改选第一份，不挂着消失的方案', async () => {
+    mocks.GaeaProposalList.mockResolvedValueOnce([p1, p2])
+    await renderReady()
+    fireEvent.click(within(screen.getByTestId('proposal-list')).getByRole('button', { name: /^调查报告 乙/ }))
+    await waitFor(() => expect(mocks.GaeaProposalOutline).toHaveBeenCalledWith('n2'))
+    mocks.GaeaProposalList.mockResolvedValue([p1])
+    try {
+      await act(async () => { notifyBoardActive('gaea') })
+      await act(async () => { notifyBoardActive('proposal') })
+      await waitFor(() => expect(mocks.GaeaProposalList).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(screen.queryByText('调查报告 乙')).toBeNull())
+      expect(screen.getByTestId('proposal-reader').textContent).toContain('管井降水')
+      expect(within(screen.getByTestId('proposal-list')).queryByText('调查报告 乙')).toBeNull()
+    } finally {
+      resetBoardActive()
+    }
   })
 })
 

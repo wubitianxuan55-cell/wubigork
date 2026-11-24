@@ -1,3 +1,44 @@
+## 方案库实弹反馈批 + PDF 经本机 WPS 转换（2026-11-24 晚，未提交）
+
+用户录入两份方案后方案库界面只显示一份；办公模型另出 7 条使用问题汇总
+（`D:\新工作\沿江一公里\南岸\01_编制工作区\gaea软件使用问题与改进建议_20261124.md`）。
+用户令「需要一起修复」「你自己定，我只要结果」，并定向「PDF 使用本机 WPS 的格式转换」
+（已明示走 WPS 云端可以：本人是会员，WPS 打开本来就会上云）。
+
+- **前端只显示一份**：汇总里的「界面按 workspace 分组」不成立（库里两份都在、
+  workspace 一致、`List()` 返回两行、前端无此过滤）。真因=板块 keepAlive 常驻，清单
+  只在首次挂载读一次。落刀=`useBoardActive('proposal')` 隐藏转可见时静默重读、
+  清单头部刷新按钮、所选方案消失后改选第一份（`ProposalLibraryPage`，18 例绿）。
+- **PDF 乱码却报成功**：`docmd` 自写提取无字体映射层，子集字体字形号被当 UTF-16
+  硬解（233 页报告复现：汉字只剩 1589 个、17,156 个替换字符；页对象在对象流里，
+  页数读成 1）。落刀=`internal/docmd/wps.go`：乱码质检门（hard/soft）→ 本机 WPS
+  `wpscli pdf2word` → docx → markitdown → 合并跨页断表（同列数 + 表头重复）；只有
+  乱码的才上 WPS；进程内缓存按内容指纹。实测同一份报告：233 页、汉字逐字 100% 命中、
+  104 张表（165 并 61）、108 张图，全程约 90 秒。hard 乱码且 WPS 不在 → OCR → 再失败
+  报 `FORMAT_TEXT_UNDECODABLE`（以前把乱码当正文返回）。`format_convert` 回执改按
+  字数计并附「标题/表格/图片」计数。详见 `docs` 外记忆 gaea-pdf-via-wps-conversion。
+  - `wpscli pdf2md` 在本机 4 次调用全部 success + 0 字节，不可用，故走 pdf2word。
+- **维护接口**（问题 3）：新增 `proposal_update`（元数据 / `section_id` 增量修正，子树
+  路径与索引同步）、`proposal_delete`、`proposal_export`；存储层 `proposal/maintain.go`。
+  注册面七处同批（compact/spacetags/registrymap+文档/审批/图文拒装/方案模式技能）。
+- **录入进度**（问题 5）：`proposal_save action=status`、`dry_run`（事务回滚、图片不落
+  盘、不弹确认）；回执加「落点：工作区 + 库内总数」（问题 2）；清单加「目录」列。
+- **检索缓存**（问题 6）：去重键含结果哈希，命中即结果确实没变；提示语改为自解释并
+  带结果开头（`agent_run_cache.go`）。
+- **genui**（问题 7）：最小示例单源表 `genui/examples.go`（35 个 type 均过校验）；
+  报缺字段附示例；`genui_validate` 报错分「参数错误（调用方式）」/「规格错误」；
+  手册加必填字段表，`TestHandbookExamplesInSync` 把关。
+- **验证**：非 app 的 internal 全量 127 包绿（仅 `TestBuildUocr2LlamaServerCmd` 红，
+  干净 HEAD 同红=既有）；`tsc -b` 0 错；真实报告端到端复跑通过；`internal/app` 全量 165.8s 绿。
+- **构建装机（11-24 23:57）**：前端 `npm run build` 72s + `wails build -s` 1m12s
+  （bindings 未跳过，无再生 diff）；exe SHA256 `F1C768BF…C089`；build/bin 隔离
+  profile 冒烟 200，`gaea_install.ps1` INSTALL OK（装机位同哈希），装机位冒烟 200。
+  用户当时的壳（PID 47708）由用户自行关闭；旧 exe 留作 `build/bin/gaea.exe.prev-2150`。
+- **未做/余项**：WPS 结果未落磁盘缓存（重启后重转）；续页不带重复表头的断表仍不合并；
+  WPS 产物无标题样式，方案库仍靠模型定级；跨页表格在纯文本路径（无 WPS）下不处理。
+- **库现状**：正式库只剩 id 4、5 两份；此前保留的夹具「包3技术标 第三版」已不在库里
+  （非本批所删，未核实来源）。
+
 ## 一级导航图标辨识度修正（2026-11-24）
 
 用户反馈方案库一级图标与办公板块太像；首版笔记本方向被否决后，明确要求办公直接用

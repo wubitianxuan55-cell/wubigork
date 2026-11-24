@@ -50,6 +50,7 @@ var toolGroupMembers = map[ToolGroupName][]string{
 	ToolGroupCost: {
 		"cost_search", "cost_save", "cost_compose", "cost_indicators",
 		"cost_project", "cost_project_apply", "cost_audit",
+		"cost_library", // 造价库维护（2026-11-25 造价数据库推倒重建：导入/解析/维护归造价模式）
 	},
 	ToolGroupLongdoc: {"longdoc_manifest", "longdoc_build", "longdoc_verify"},
 	ToolGroupMedia:   {"image_gen", "chart_gen", "diagram", "diagram_gen"},

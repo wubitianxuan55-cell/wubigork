@@ -1,234 +1,371 @@
-// CostLibraryPage.test.tsx — 「造价数据库」全新设计（v4.459 工料法 IA）测试。
-// 覆盖：①默认落点=费用汇总工作台 ②导航 6 模块齐全有序（测算项目/复盘笔记
-// 退役、成本条目降为价格数据的「资料条目」段）③模块切换渲染对应视图
-// ④价格数据四段 ⑤概览工料法仪表盘（资源/定额/资料库规模+四类构成）
-// ⑥定额为 0 时的下一步引导 ⑦概览双视图 ⑧空库三步引导 ⑨读取失败态
-// ⑩回到概览。
-// 子视图以桩模块替换（各自有独立测试），桥接仅 mock 页面级消费的 app.* 方法。
-
+// CostLibraryPage.test.tsx — 一级板块「造价数据库」页面测试（2026-11-25 推倒重建）。
+// 覆盖：①三级行计数与默认清单列表 ②点行看综合单价分析 → 定额码下钻到定额 →
+// 含量行下钻到工料机 → 引用清单回链 ③左栏项目筛选与项目封面卡 ④搜索与无匹配
+// 清除筛选 ⑤归并视图 ⑥删除：取消不删、确认删并重读、后端拒绝（仍被引用）时
+// 原因留在卡上 ⑦导出：选目录后按当前筛选调绑定并显示路径 ⑧体检抽屉列出发现并
+// 可跳转 ⑨板块常驻保活下切回即静默重读 ⑩三级全读失败不伪装成空库、重试恢复
+// ⑪空库三步引导与去办公板块。桥接只 mock 页面消费的绑定。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { WorkcostBillProject, WorkcostCompose, WorkcostQuota, WorkcostResource } from '../gaea/lib/types'
 
 const mocks = vi.hoisted(() => ({
-  WorkcostResourceList: vi.fn(),
+  WorkcostBillProjects: vi.fn(),
+  WorkcostBillItems: vi.fn(),
   WorkcostQuotaList: vi.fn(),
-  CostSearch: vi.fn(),
-  PriceSources: vi.fn(),
+  WorkcostQuotaGet: vi.fn(),
+  WorkcostQuotaCompose: vi.fn(),
+  WorkcostQuotaComposeMany: vi.fn(),
+  WorkcostQuotaDelete: vi.fn(),
+  WorkcostResourceList: vi.fn(),
+  WorkcostResourcePrices: vi.fn(),
+  WorkcostResourceUsage: vi.fn(),
+  WorkcostResourceDelete: vi.fn(),
+  WorkcostBillItemDelete: vi.fn(),
+  WorkcostBillProjectDelete: vi.fn(),
+  CostHealthScan: vi.fn(),
+  CostLibraryExport: vi.fn(),
+  PickDirectory: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
+vi.mock('../gaea/lib/clipboard', () => ({ copyToClipboard: vi.fn().mockResolvedValue('plain') }))
 
-// 子视图桩：IA 测试只关心「切换到某模块渲染对应视图」，各视图内部有自己的测试。
-vi.mock('../gaea/components/memoryhub/WorkcostBillView', () => ({
-  WorkcostBillView: () => <div>清单视图桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/WorkcostComposeView', () => ({
-  WorkcostComposeView: () => <div>单价分析视图桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/WorkcostResourceView', () => ({
-  WorkcostResourceView: () => <div>资源库视图桩</div>,
-}))
-vi.mock('../gaea/components/CostLibraryView', () => ({
-  CostLibraryView: () => <div>资料条目视图桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/CostIndicatorsView', () => ({
-  CostIndicatorsView: () => <div>造价参考视图桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/CostGraphView', () => ({
-  CostGraphView: () => <div>关联图谱视图桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/PriceSourcesPanel', () => ({
-  PriceSourcesPanel: () => <div>价格源面板桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/PriceSourcesRepository', () => ({
-  PriceSourcesRepository: () => <div>价格仓库面板桩</div>,
-}))
-vi.mock('../gaea/components/memoryhub/CostInquiryPanel', () => ({
-  CostInquiryPanel: () => <div>询价库面板桩</div>,
-}))
-
+import { notifyBoardActive, resetBoardActive } from '../lib/boardActive'
 import CostLibraryPage from './CostLibraryPage'
 
-const LOAD = { timeout: 5000 }
+const p1: WorkcostBillProject = {
+  id: 1, name: '旺平矿业修复', fileName: '旺平成本测算表.xlsx', source: '', location: '乐山', duration: '180 天',
+  pricing: '综合单价只含人材机', managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
+  profitIncludesRegulatory: false, controlPrice: 0, itemCount: 2,
+}
+const p2: WorkcostBillProject = { ...p1, id: 2, name: '什邡地块治理', itemCount: 1, location: '德阳' }
 
-// 工料法三层 mock 数据：资源 5 条（人工 1/材料 2/机械 1/外委 1）+ 定额 2 条。
-const RESOURCES = [
-  { id: 1, code: 'L001', kind: '人工', title: '普通工', unit: '工日', currentPrice: 300, basePrice: 300 },
-  { id: 2, code: 'M001', kind: '材料', title: 'C20商品混凝土', unit: 'm³', currentPrice: 345, basePrice: 345 },
-  { id: 3, code: 'M002', kind: '材料', title: '级配碎石', unit: 'm³', currentPrice: 78, basePrice: 78 },
-  { id: 4, code: 'E001', kind: '机械', title: '挖掘机1.0m³台班', unit: '台班', currentPrice: 1773.3, basePrice: 1773.3 },
-  { id: 5, code: 'O001', kind: '外委', title: '水泥窑协同处置', unit: 't', currentPrice: 260, basePrice: 260 },
-]
-const QUOTAS = [
-  { id: 1, code: 'WP01', title: '施工便道', specialty: '土壤修复', chapter: 'A临建', unit: 'm' },
-  { id: 2, code: 'WP02', title: '场地平整', specialty: '土壤修复', chapter: 'A临建', unit: 'm²' },
-]
-const ENTRIES = [
-  { name: 'steel-h', title: 'H 型钢', category: '钢材', unit: '吨', price: 5200, status: '现行' },
-  { name: 'draft-p', title: '钻孔桩（草稿）', category: '桩基', unit: 'm', price: 0, status: '草稿' },
-]
+const row11 = { id: 11, projectId: 1, projectName: p1.name, code: 'WP01', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 850, quantityExpr: '长850×宽1', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 420, sort: 1, quotaCodes: ['WP01'] }
+const row12 = { id: 12, projectId: 1, projectName: p1.name, code: 'M001', title: '外委检测', unit: '项', division: 'D外运处置', quantity: 1, quantityExpr: '', quotaCode: '', feature: '', priceOverride: 5000, sort: 2, quotaCodes: [] }
+const row13 = { id: 13, projectId: 2, projectName: p2.name, code: 'WP01', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 300, quantityExpr: '', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 430, sort: 1, quotaCodes: ['WP01'] }
 
-function mockFull() {
-  mocks.WorkcostResourceList.mockResolvedValue(RESOURCES)
-  mocks.WorkcostQuotaList.mockResolvedValue(QUOTAS)
-  mocks.CostSearch.mockResolvedValue(ENTRIES)
-  mocks.PriceSources.mockResolvedValue([{ id: 's1', name: '重庆造价信息网' }])
+const quotaWP01: WorkcostQuota = {
+  id: 1, code: 'WP01', origCode: 'WP-1', title: '施工便道', specialty: '土壤修复', chapter: 'A临建', unit: 'm',
+  categoryPath: '综合单价/A临建', baseLabor: 0, baseMaterial: 0, baseMachine: 0, source: '项目导入：旺平成本测算表.xlsx',
+  region: '', priceDate: '', note: '', status: '现行',
+  items: [
+    { id: 1, quotaCode: 'WP01', resourceCode: 'C20', kind: '材料', title: 'C20商品混凝土', spec: '泵送到场', unit: 'm³', quantity: 0.45, resourcePrice: 0, lossRate: 0, note: '', sort: 0 },
+    { id: 2, quotaCode: 'WP01', resourceCode: 'L01', kind: '人工', title: '普通工', spec: '', unit: '工日', quantity: 0.03, resourcePrice: 0, lossRate: 0, note: '', sort: 1 },
+  ],
+}
+const quotaFree: WorkcostQuota = { ...quotaWP01, id: 2, code: 'ENT-01', origCode: '', title: '企业定额（未引用）', items: [] }
+
+const composeWP01: WorkcostCompose = {
+  laborFee: 9, materialFee: 162, machineFee: 0, outsourcedFee: 0, otherFee: 0, subtotal: 171, compositePrice: 171,
+  zeroLines: 0, warnings: [],
+  lines: [
+    { kind: '材料', title: 'C20商品混凝土', unit: 'm³', quantity: 0.45, price: 360, lossRate: 0, amount: 162, sharePct: 94.7 },
+    { kind: '人工', title: '普通工', unit: '工日', quantity: 0.03, price: 300, lossRate: 0, amount: 9, sharePct: 5.3 },
+  ],
 }
 
-async function renderPage() {
-  const view = render(<CostLibraryPage />)
-  // 默认落点=费用汇总工作台（不再等待概览数据——概览按需拉取）。
-  await waitFor(() => expect(screen.getByText('清单视图桩')).toBeTruthy(), LOAD)
-  return view
+const c20: WorkcostResource = {
+  id: 101, code: 'C20', kind: '材料', title: 'C20商品混凝土', spec: '泵送到场', unit: 'm³', basePrice: 345, currentPrice: 360,
+  categoryPath: '材料/混凝土', source: '成本库', supplier: '', region: '乐山', priceDate: '2026年第7期', priceType: '到场价',
+  validUntil: '', lossRate: 0, note: '', tags: [], status: '现行',
+}
+const l01: WorkcostResource = { ...c20, id: 102, code: 'L01', kind: '人工', title: '普通工', spec: '', unit: '工日', basePrice: 300, currentPrice: 0 }
+const zero: WorkcostResource = { ...c20, id: 103, code: 'Z01', title: '待询价材料', spec: '', unit: 't', basePrice: 0, currentPrice: 0 }
+
+// 仓库未装 jest-dom 匹配器：文本断言统一走 textContent 归一后的包含判断。
+function textOf(el: HTMLElement | null | undefined): string {
+  return (el?.textContent ?? '').replace(/\s+/g, ' ')
+}
+function expectText(el: HTMLElement | null | undefined, part: string): void {
+  expect(textOf(el)).toContain(part)
+}
+function expectAriaSelected(el: HTMLElement | null): void {
+  expect(el?.getAttribute('aria-selected')).toBe('true')
 }
 
-async function renderOverview() {
-  const view = await renderPage()
-  fireEvent.click(screen.getByTitle('工料法规模 · 资料库速览 · 关联图谱'))
-  await waitFor(() => expect(screen.getByText('快捷入口')).toBeTruthy(), LOAD)
-  return view
+async function renderReady() {
+  const utils = render(<CostLibraryPage />)
+  await screen.findByTestId('cost-bill-rows')
+  return utils
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockFull()
+  resetBoardActive()
+  mocks.WorkcostBillProjects.mockResolvedValue([{ ...p1 }, { ...p2 }])
+  mocks.WorkcostBillItems.mockImplementation(async (projectId: number) =>
+    projectId === 1 ? [{ ...row11 }, { ...row12 }] : [{ ...row13 }])
+  mocks.WorkcostQuotaList.mockResolvedValue([{ ...quotaWP01, items: undefined, usageCount: 2 }, { ...quotaFree, items: undefined, usageCount: 0 }])
+  mocks.WorkcostQuotaGet.mockImplementation(async (code: string) => (code === 'WP01' ? quotaWP01 : { ...quotaFree }))
+  mocks.WorkcostQuotaCompose.mockImplementation(async (code: string) => (code === 'WP01' ? composeWP01 : { ...composeWP01, lines: [], subtotal: 0, compositePrice: 0 }))
+  mocks.WorkcostQuotaComposeMany.mockResolvedValue({ WP01: composeWP01 })
+  mocks.WorkcostResourceList.mockResolvedValue([{ ...c20 }, { ...l01 }, { ...zero }])
+  mocks.WorkcostResourcePrices.mockResolvedValue([
+    { id: 2, resourceId: 101, price: 360, period: '2026年第11期', region: '乐山', priceType: '到场价', source: '造价模式调价', fetchedAt: '2026-11-20T08:00:00Z', note: '' },
+    { id: 1, resourceId: 101, price: 345, period: '2026年第7期', region: '乐山', priceType: '到场价', source: '项目导入', fetchedAt: '2026-10-07T08:00:00Z', note: '' },
+  ])
+  mocks.WorkcostResourceUsage.mockImplementation(async (code: string) =>
+    code === 'C20' ? [{ id: 1, code: 'WP01', title: '施工便道', unit: 'm', quantity: 0.45 }] : [])
+  mocks.WorkcostBillItemDelete.mockResolvedValue(undefined)
+  mocks.WorkcostQuotaDelete.mockResolvedValue(undefined)
+  mocks.WorkcostResourceDelete.mockResolvedValue(undefined)
+  mocks.WorkcostBillProjectDelete.mockResolvedValue(1)
+  mocks.CostHealthScan.mockResolvedValue({
+    zeroPrice: [{ id: 103, code: 'Z01', title: '待询价材料', kind: '材料', unit: 't', detail: '现行价与基准价均为 0' }],
+    quotaNoPrice: [], brokenRef: [], duplicates: [], codeMismatch: [], totalFindings: 1,
+  })
+  mocks.CostLibraryExport.mockImplementation(async (_k: string, _p: number, _q: string, _e: string, out: string) => out)
+  mocks.PickDirectory.mockResolvedValue('D:\\新工作\\导出')
 })
 
-describe('CostLibraryPage 造价数据库全新设计（v4.459 工料法 IA）', () => {
-  it('默认落点=分部分项清单（录入数据面），不再是概览', async () => {
-    await renderPage()
-    expect(screen.getByText('清单视图桩')).toBeTruthy()
-    expect(screen.queryByText('数据概览')).toBeNull()
+describe('造价数据库 · 三级浏览面', () => {
+  it('读入三级数据：状态行给出规模，默认落在清单列表，详情空态', async () => {
+    await renderReady()
+    const status = screen.getByTestId('cost-status')
+    expectText(status, '项目')
+    expectText(status, '清单')
+    expectText(status, '定额')
+    expectText(status, '工料机')
+    expectAriaSelected(screen.getByTestId('cost-tier-bill'))
+    // 累计清单：两个项目的行都在，带项目列。
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(4) // 表头 + 3 行
+    expect(screen.getAllByText('什邡地块治理').length).toBeGreaterThanOrEqual(1) // 左栏项目 + 表格项目列
+    expect(screen.getAllByText('¥171').length).toBe(2) // 两个项目各一行现算单价（参考价）
+    expect(screen.getByText('手填')).toBeTruthy() // 未套定额的手填行
   })
 
-  it('导航 8 模块齐全有序（v4.500 加对标查漏）；测算项目/复盘笔记退役，成本条目降为价格数据段', async () => {
-    await renderPage()
-    const nav = screen.getByRole('navigation', { name: '造价数据库模块' })
-    const labels = ['清单库', '企业定额库', '工料机库', '数据健康', '对标查漏', '价格数据', '造价参考', '概览']
-    let cursor = -1
-    for (const label of labels) {
-      const btns = Array.from(nav.querySelectorAll('button'))
-      const idx = btns.findIndex((b, i) => i > cursor && b.textContent?.includes(label))
-      expect(idx, `导航缺少 ${label}`).toBeGreaterThan(cursor)
-      cursor = idx
-    }
-    // 带 hint title 的按钮 = 8 个顶级模块 + 常驻「回到概览」（默认落在费用汇总）。
-    expect(nav.querySelectorAll('button[title]').length).toBe(9)
-    // 退役模块不再是顶级入口（数据与 Go 绑定保留，仅 UI 退役）。
-    expect(nav.textContent).not.toContain('测算项目')
-    expect(nav.textContent).not.toContain('复盘笔记')
-    expect(nav.textContent).not.toContain('成本条目')
-    expect(nav.textContent).not.toContain('价格仓库')
-    expect(nav.textContent).not.toContain('询价')
+  it('下钻：清单项综合单价分析 → 定额码 → 定额含量行 → 工料机价格卡；引用清单可回链', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    expectText(bill, '原表单价')
+    expect((await within(bill).findAllByText('¥162')).length).toBeGreaterThan(0) // 0.45 × 360
+    expect(mocks.WorkcostQuotaGet).toHaveBeenCalledWith('WP01')
+
+    // 定额码下钻：切到定额级并选中该定额。
+    fireEvent.click(within(bill).getByRole('button', { name: '下钻到定额 WP01' }))
+    const quota = await screen.findByTestId('cost-detail-quota')
+    expectAriaSelected(screen.getByTestId('cost-tier-quota'))
+    expectText(quota, '施工便道')
+    expectText(quota, '原码 WP-1')
+    expectText(quota, '被 2 条清单项引用')
+    expect(mocks.WorkcostQuotaCompose).toHaveBeenCalledWith('WP01', null)
+
+    // 含量行下钻到工料机。
+    fireEvent.click(within(quota).getByRole('button', { name: '下钻到工料机 C20商品混凝土' }))
+    const res = await screen.findByTestId('cost-detail-resource')
+    expectAriaSelected(screen.getByTestId('cost-tier-resource'))
+    expectText(res, '核算取用价')
+    expectText(res, '¥360')
+    expectText(res, '¥345') // 基准价
+    expect(await within(res).findByText('2026年第11期')).toBeTruthy()
+    expectText(within(res).getByTestId('cost-resource-usage'), 'WP01')
+
+    // 回链：工料机的引用方 → 定额 → 引用它的清单项。
+    fireEvent.click(within(res).getByRole('button', { name: /施工便道.*WP01/ }))
+    const quota2 = await screen.findByTestId('cost-detail-quota')
+    const usage = await within(quota2).findByTestId('cost-quota-usage')
+    const items = within(usage).getAllByRole('button')
+    expect(items).toHaveLength(2)
+    fireEvent.click(items[1]!)
+    const bill2 = await screen.findByTestId('cost-detail-bill')
+    expectAriaSelected(screen.getByTestId('cost-tier-bill'))
+    expectText(bill2, '什邡地块治理')
   })
 
-  it('模块切换：费用汇总/单价分析/资源库/造价参考各渲染对应视图', async () => {
-    await renderPage()
-    for (const [hint, marker] of [
-      ['所有项目累计的分部分项清单 · 明细/库项归并双视图', '清单视图桩'],
-      ['企业定额积累 · 单价分析（只含人材机）· 导入/导出五表', '单价分析视图桩'],
-      ['工料机主数据 · 现行价/基准价 · 与信息价联动 · 调价历史', '资源库视图桩'],
-      ['项目案例（导入项目文件）+ 资料条目分位数对标——与分部分项清单是两套数据', '造价参考视图桩'],
-    ] as const) {
-      fireEvent.click(screen.getByTitle(hint))
-      expect(await screen.findByText(marker, {}, LOAD)).toBeTruthy()
-    }
+  it('左栏项目筛选：只看该项目的清单，详情显示项目封面卡（只读费率）', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '什邡地块治理1' }))
+    await waitFor(() => expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(2))
+    expectText(screen.getByTestId('cost-list-count'), '匹配 1 / 3') // 该项目 1 条，占累计 3 条
+    const card = screen.getByTestId('cost-project-card')
+    expectText(card, '什邡地块治理')
+    expectText(card, '10%')
+    expectText(card, '7%')
   })
 
-  it('价格数据四段：默认价格源，资料条目（旧成本条目）降为第四段', async () => {
-    await renderPage()
-    fireEvent.click(screen.getByTitle('价格源 · 价格仓库 · 询价库 · 资料条目'))
-    const seg = screen.getByRole('tablist', { name: '价格数据子视图' })
-    expect(seg.textContent).toContain('价格源')
-    expect(seg.textContent).toContain('价格仓库')
-    expect(seg.textContent).toContain('询价库')
-    expect(seg.textContent).toContain('资料条目')
-    expect(await screen.findByText('价格源面板桩', {}, LOAD)).toBeTruthy()
-
-    fireEvent.click(within(seg).getByRole('tab', { name: '资料条目' }))
-    expect(screen.getByText('资料条目视图桩')).toBeTruthy()
-    fireEvent.click(within(seg).getByRole('tab', { name: '询价库' }))
-    expect(screen.getByText('询价库面板桩')).toBeTruthy()
-    fireEvent.click(within(seg).getByRole('tab', { name: '价格仓库' }))
-    expect(screen.getByText('价格仓库面板桩')).toBeTruthy()
+  it('搜索过滤当前级；无匹配时给出清除筛选', async () => {
+    await renderReady()
+    const search = screen.getByRole('textbox', { name: '搜索清单' })
+    fireEvent.change(search, { target: { value: '外委' } })
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(2)
+    fireEvent.change(search, { target: { value: '查无此项' } })
+    const empty = screen.getByTestId('cost-tier-empty')
+    expectText(empty, '没有匹配的行')
+    fireEvent.click(within(empty).getByRole('button', { name: '清除筛选' }))
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(4)
   })
 
-  it('价格数据标签支持方向键切换并同步选中态', async () => {
-    await renderPage()
-    fireEvent.click(screen.getByTitle('价格源 · 价格仓库 · 询价库 · 资料条目'))
-    const tablist = screen.getByRole('tablist', { name: '价格数据子视图' })
-    const sources = within(tablist).getByRole('tab', { name: '价格源' })
-    expect(sources.getAttribute('aria-selected')).toBe('true')
-    sources.focus()
-    fireEvent.keyDown(sources, { key: 'ArrowRight' })
-    const repository = within(tablist).getByRole('tab', { name: '价格仓库' })
-    expect(repository.getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(repository)
-    expect(await screen.findByText('价格仓库面板桩', {}, LOAD)).toBeTruthy()
+  it('归并视图：同名同特征同单位聚成库项，展开见各项目的成员行', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '按库项归并' }))
+    const grouped = screen.getByTestId('cost-bill-grouped')
+    expectText(grouped, '被 2 个项目使用')
+    expect(within(grouped).queryByText('什邡地块治理')).toBeNull() // 收起时列表里只见库项（左栏项目名不算）
+    fireEvent.click(within(grouped).getByRole('button', { name: /施工便道/ }))
+    expectText(grouped, '什邡地块治理')
+    expectText(grouped, '¥430') // 什邡行的原表单价
+  })
+})
+
+describe('造价数据库 · 删除', () => {
+  it('取消不删；确认后逐条删除并静默重读', async () => {
+    await renderReady()
+    const row = screen.getByText('外委检测').closest('tr')!
+    fireEvent.click(within(row).getByRole('checkbox', { name: '选择 外委检测' }))
+    fireEvent.click(screen.getByTestId('cost-delete-checked'))
+    const dialog = await screen.findByRole('dialog')
+    expectText(dialog, '删除清单项')
+    expectText(dialog, '「外委检测」')
+    fireEvent.click(within(dialog).getByRole('button', { name: /取\s*消/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mocks.WorkcostBillItemDelete).not.toHaveBeenCalled()
+
+    // 取消后勾选保留，直接再发起。
+    fireEvent.click(screen.getByTestId('cost-delete-checked'))
+    const dialog2 = await screen.findByRole('dialog')
+    const before = mocks.WorkcostBillProjects.mock.calls.length
+    fireEvent.click(within(dialog2).getByRole('button', { name: '删除 1 条' }))
+    await waitFor(() => expect(mocks.WorkcostBillItemDelete).toHaveBeenCalledWith(12))
+    // 确认后静默重读（不回加载态）。
+    await waitFor(() => expect(mocks.WorkcostBillProjects.mock.calls.length).toBeGreaterThan(before))
+    expect(screen.queryByTestId('cost-loading')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
-  it('概览=工料法仪表盘：三层规模、四类构成与资料库速览', async () => {
-    await renderOverview()
-    expect(screen.getByText('5')).toBeTruthy() // 资源总数（hero 大数字）
-    expect(screen.getAllByText(/工料机资源/).length).toBeGreaterThan(0)
-    expect(screen.getByText('条工料机资源 · 2 条消耗定额')).toBeTruthy()
-    expect(screen.getByText('资料条目 2')).toBeTruthy()
-    expect(screen.getByText('价格源 1')).toBeTruthy()
-    // 四类构成在 hero 右侧速览。
-    expect(screen.getByText('人工 1')).toBeTruthy()
-    expect(screen.getByText('材料 2')).toBeTruthy()
-    expect(screen.getByText('机械 1')).toBeTruthy()
-    expect(screen.getByText('外委 1')).toBeTruthy()
-    // 定额就绪态指路清单测算。
-    expect(screen.getByText('清单数据就绪')).toBeTruthy()
+  it('后端拒绝（定额仍被清单引用）：原因留在确认卡上，不假装成功', async () => {
+    await renderReady()
+    mocks.WorkcostQuotaDelete.mockRejectedValue(new Error('该定额仍被 2 条清单项引用，不能删除'))
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.click(screen.getByRole('button', { name: '删除定额「施工便道」' }))
+    const dialog = await screen.findByRole('dialog')
+    expectText(dialog, '仍被清单项引用的定额会被拒绝')
+    fireEvent.click(within(dialog).getByRole('button', { name: '删除 1 条' }))
+    expectText(await within(dialog).findByTestId('cost-delete-error'), '仍被 2 条清单项引用')
+    expectText(screen.getByTestId('cost-quota-rows'), '施工便道') // 行还在
   })
 
-  it('概览引导：有资源但定额为 0 时，指路「去导入项目表」', async () => {
-    mocks.WorkcostQuotaList.mockResolvedValue([])
-    const view = await renderPage()
-    fireEvent.click(screen.getByTitle('工料法规模 · 资料库速览 · 关联图谱'))
-    await waitFor(() => expect(screen.getByText('还差消耗定额')).toBeTruthy(), LOAD)
-    fireEvent.click(screen.getByText('去导入项目表'))
-    expect(await screen.findByText('单价分析视图桩', {}, LOAD)).toBeTruthy()
-    expect(view).toBeTruthy()
+  it('整体删除项目：确认卡写明规模与后果，确认后调用并重读', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '删除项目 什邡地块治理' }))
+    const dialog = await screen.findByRole('dialog')
+    expectText(dialog, '全部 1 条分部分项清单')
+    fireEvent.click(within(dialog).getByRole('button', { name: '删除项目' }))
+    await waitFor(() => expect(mocks.WorkcostBillProjectDelete).toHaveBeenCalledWith(2))
+  })
+})
+
+describe('造价数据库 · 导出与体检', () => {
+  it('导出：选目录后按当前筛选调绑定，回显写出路径；取消选目录不算失败', async () => {
+    await renderReady()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '导出' })) })
+    const menu = await waitFor(() => {
+      const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu')).at(-1)
+      if (!el) throw new Error('导出菜单未打开')
+      return el
+    })
+    const items = Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).map((i) => i.textContent?.trim())
+    expect(items).toEqual(['清单（当前筛选）', '定额（当前筛选）', '工料机（当前筛选）', '资料条目（全部）'])
+    fireEvent.click(Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).at(-1)!)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
+    const [kind, projectId, keyword, extra, out] = mocks.CostLibraryExport.mock.calls[0]!
+    expect([kind, projectId, keyword, extra]).toEqual(['entry', 0, '', ''])
+    expect(out.startsWith('D:\\新工作\\导出/造价库-资料条目-')).toBe(true)
+    expect(out.endsWith('.xlsx')).toBe(true)
+    expectText(await screen.findByTestId('cost-export-note'), '已导出')
+
+    // 取消选目录：不调导出，也不报错。
+    mocks.PickDirectory.mockResolvedValueOnce('')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '导出' })) })
+    await waitFor(() => expect(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden)').length).toBeGreaterThan(0))
+    fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(0)!)
+    await waitFor(() => expect(mocks.PickDirectory).toHaveBeenCalledTimes(2))
+    expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1)
+    expectText(screen.getByTestId('cost-export-note'), '已导出')
   })
 
-  it('概览双视图：关联图谱切换可见，数据概览切回', async () => {
-    await renderOverview()
-    fireEvent.click(screen.getByRole('button', { name: '关联图谱' }))
-    expect(screen.getByText('关联图谱视图桩')).toBeTruthy()
-    expect(screen.queryByText('快捷入口')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '数据概览' }))
-    expect(await screen.findByText('快捷入口', {}, LOAD)).toBeTruthy()
-    expect(screen.queryByText('关联图谱视图桩')).toBeNull()
+  it('导出按当前筛选传参：清单带项目与分部，定额带专业', async () => {
+    await renderReady()
+    mocks.PickDirectory.mockResolvedValue('D:/导出')
+    fireEvent.change(screen.getByRole('combobox', { name: '筛选分部' }), { target: { value: 'A临建' } })
+    mocks.CostLibraryExport.mockRejectedValueOnce(new Error('磁盘已满'))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '导出' })) })
+    await waitFor(() => expect(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item').length).toBeGreaterThan(0))
+    fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(0)!)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
+    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 4)).toEqual(['bill', 0, '', 'A临建'])
+    expectText(screen.getByTestId('cost-export-note'), '导出失败：磁盘已满')
   })
 
-  it('空库三步引导：导入项目表 → 维护资源库 → 订阅价格源', async () => {
-    mocks.WorkcostResourceList.mockResolvedValue([])
-    mocks.WorkcostQuotaList.mockResolvedValue([])
-    render(<CostLibraryPage />)
-    fireEvent.click(screen.getByTitle('工料法规模 · 资料库速览 · 关联图谱'))
-    expect(await screen.findByText('工料法成本数据库还是空的', {}, LOAD)).toBeTruthy()
-    expect(screen.getByText('去单价分析')).toBeTruthy()
-    expect(screen.getByText('去资源库')).toBeTruthy()
-    expect(screen.getByText('去配置')).toBeTruthy()
+  it('体检抽屉：列出发现，点条目跳到对应行', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '体检' }))
+    const report = await screen.findByTestId('cost-health-report')
+    expectText(report, '共 1 项发现')
+    expectText(screen.getByTestId('cost-health-zeroPrice'), '待询价材料')
+    fireEvent.click(within(screen.getByTestId('cost-health-zeroPrice')).getByRole('button', { name: /待询价材料/ }))
+    const res = await screen.findByTestId('cost-detail-resource')
+    expectAriaSelected(screen.getByTestId('cost-tier-resource'))
+    expectText(res, '核算取用价')
+    expectText(res, '现行价与基准价均为 0')
+  })
+})
+
+describe('造价数据库 · 常驻与四态', () => {
+  it('板块 keepAlive：切走再切回时静默重读（不清空正在看的内容）', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    await screen.findByTestId('cost-detail-bill')
+    const before = mocks.WorkcostBillProjects.mock.calls.length
+    expect(mocks.WorkcostBillProjects).toHaveBeenCalledTimes(before)
+    await act(async () => { notifyBoardActive('gaea') })
+    expect(mocks.WorkcostBillProjects).toHaveBeenCalledTimes(before)
+    await act(async () => { notifyBoardActive('cost') })
+    await waitFor(() => expect(mocks.WorkcostBillProjects.mock.calls.length).toBe(before + 1))
+    expect(screen.getByTestId('cost-detail-bill')).toBeTruthy()
+    expect(screen.queryByTestId('cost-loading')).toBeNull()
   })
 
-  it('全源读取失败显形为失败态（不装成空库引导）', async () => {
-    mocks.WorkcostResourceList.mockRejectedValue(new Error('database is locked'))
+  it('三级全部读失败：显示读取失败与重试，不伪装成空库', async () => {
+    mocks.WorkcostBillProjects.mockRejectedValue(new Error('database is locked'))
     mocks.WorkcostQuotaList.mockRejectedValue(new Error('database is locked'))
-    mocks.CostSearch.mockRejectedValue(new Error('database is locked'))
-    mocks.PriceSources.mockRejectedValue(new Error('database is locked'))
+    mocks.WorkcostResourceList.mockRejectedValue(new Error('database is locked'))
     render(<CostLibraryPage />)
-    fireEvent.click(screen.getByTitle('工料法规模 · 资料库速览 · 关联图谱'))
-    const alert = await screen.findByTestId('cost-stats-failed', {}, LOAD)
-    expect(alert.textContent).toContain('读取失败')
-    expect(screen.getByText('重试')).toBeTruthy()
+    const failed = await screen.findByTestId('cost-failed')
+    expectText(failed, '造价库读取失败')
+    expectText(failed, 'database is locked')
+    expect(screen.queryByTestId('cost-empty')).toBeNull()
+    mocks.WorkcostBillProjects.mockResolvedValue([{ ...p1 }, { ...p2 }])
+    mocks.WorkcostQuotaList.mockResolvedValue([{ ...quotaWP01 }])
+    mocks.WorkcostResourceList.mockResolvedValue([{ ...c20 }])
+    fireEvent.click(within(failed).getByRole('button', { name: /重试/ }))
+    expect(await screen.findByTestId('cost-bill-rows')).toBeTruthy()
   })
 
-  it('非概览模块显示回到概览，点击回数据概览', async () => {
-    await renderPage()
-    fireEvent.click(screen.getByTitle(/项目案例（导入项目文件）/))
-    fireEvent.click(screen.getByTitle('回到概览'))
-    expect(await screen.findByText('快捷入口', {}, LOAD)).toBeTruthy()
+  it('部分来源读失败：列表照常，状态行点名哪一路失败', async () => {
+    mocks.WorkcostQuotaList.mockRejectedValue(new Error('定额表读失败'))
+    await renderReady()
+    expectText(screen.getByTestId('cost-status'), '定额读取失败')
+    expect(screen.getByTestId('cost-bill-rows')).toBeTruthy()
+  })
+
+  it('空库：三步引导、可复制的示例提示词、去办公板块', async () => {
+    mocks.WorkcostBillProjects.mockResolvedValue([])
+    mocks.WorkcostBillItems.mockResolvedValue([])
+    mocks.WorkcostQuotaList.mockResolvedValue([])
+    mocks.WorkcostResourceList.mockResolvedValue([])
+    mocks.WorkcostQuotaComposeMany.mockResolvedValue({})
+    render(<CostLibraryPage />)
+    const empty = await screen.findByTestId('cost-empty')
+    expectText(empty, '造价库还是空的')
+    expectText(empty, '在办公板块切到「造价」运行模式')
+    expectText(empty, '导入造价库')
+    expect(screen.queryByRole('searchbox')).toBeNull()
+    const nav = vi.fn()
+    window.addEventListener('navigate', nav)
+    fireEvent.click(within(empty).getByRole('button', { name: /去办公板块/ }))
+    expect(nav).toHaveBeenCalledTimes(1)
+    window.removeEventListener('navigate', nav)
   })
 })

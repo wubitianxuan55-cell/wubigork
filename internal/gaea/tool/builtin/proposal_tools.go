@@ -75,7 +75,7 @@ type proposalSaveTool struct{ workDir string }
 
 func (proposalSaveTool) Name() string { return "proposal_save" }
 func (proposalSaveTool) Description() string {
-	return "把方案录入方案库（标题 1~4 级，由你划分层级）。两种给法：①按源文件切正文（推荐，几百页的方案用这个）：先把原文件转成 Markdown（Word/PPT 用 format_convert 并设 preserve_images=true），你只列出认定的标题与层级 outline=[{level,title,line?}]，正文由工具从源文件逐字切出，不必重打；正文引用的本地图片会复制为方案托管资产并改写稳定引用。长文档分批：每批 100~200 个标题，之后各批 mode=append 续录（title 不变），最后一批 finalize=true。②直给正文 sections=[{level,title,body}]，适合短文档或你自己写的内容。outline/sections 须按文档顺序、父级在前、逐级展开（不能跳级，第一项 1 级）；title 写标题原文（可带编号），拿不准时给 line。已有同名方案时整册覆盖须 overwrite=true。仅用户明确要求沉淀方案时调用。"
+	return "把方案录入方案库（标题 1~4 级，由你划分层级）。两种给法：①按源文件切正文（推荐，几百页的方案用这个）：先把原文件转成 Markdown（Word/PPT/PDF 用 format_convert 并设 preserve_images=true），你只列出认定的标题与层级 outline=[{level,title,line?}]，正文由工具从源文件逐字切出，不必重打；正文引用的本地图片会复制为方案托管资产并改写稳定引用。长文档分批：每批 100~200 个标题，之后各批 mode=append 续录（title 不变），最后一批 finalize=true。②直给正文 sections=[{level,title,body}]，适合短文档或你自己写的内容。outline/sections 须按文档顺序、父级在前、逐级展开（不能跳级，第一项 1 级）；title 写标题原文（可带编号），拿不准时给 line。已有同名方案时整册覆盖须 overwrite=true。分批录入中断后用 action=status（配合 title）查已录到第几行、下一批从哪里接；dry_run=true 先演练一批（校验与定位照做、不写库）。回执给出落点（工作区）与库内方案总数。仅用户明确要求沉淀方案时调用。"
 }
 func (proposalSaveTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -98,16 +98,18 @@ func (proposalSaveTool) Schema() json.RawMessage {
     "title":{"type":"string","description":"标题"},
     "body":{"type":"string","description":"该节正文（Markdown）"}
   },"required":["level","title","body"]}},
-  "finalize":{"type":"boolean","description":"源文件形态：本批是最后一批，末节正文截至文件尾"}
+  "finalize":{"type":"boolean","description":"源文件形态：本批是最后一批，末节正文截至文件尾"},
+  "action":{"type":"string","enum":["status"],"description":"只查录入进度，不写库（配合 title）：已录到源文件第几行、末几个标题、下一批从哪里接"},
+  "dry_run":{"type":"boolean","description":"演练：整批校验、标题定位、切正文照做，但不写库；确认无误后去掉它正式录入"}
 }}`)
 }
 func (proposalSaveTool) ReadOnly() bool     { return false }
 func (proposalSaveTool) PersistWrite() bool { return true }
 func (proposalSaveTool) CompactDescription() string {
-	return "方案入库(标题1~4级;outline按源文件切正文,可append分批;或直给sections)"
+	return "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections;action=status查进度;dry_run演练不写库)"
 }
 func (proposalSaveTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"},"action":{"type":"string","enum":["status"]},"dry_run":{"type":"boolean"}}}`)
 }
 
 const (
@@ -140,10 +142,23 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 			Title string `json:"title"`
 			Body  string `json:"body"`
 		} `json:"sections"`
-		Finalize bool `json:"finalize"`
+		Finalize bool   `json:"finalize"`
+		Action   string `json:"action"`
+		DryRun   bool   `json:"dry_run"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)
+	}
+	// 只读的进度查询走同一个工具（不另设工具占提示词位）：分批续录被打断后，模型据此
+	// 知道「已录到第几行、下一批从哪个标题接」，不必靶回执末尾的行号人工推算。
+	if action := strings.ToLower(strings.TrimSpace(p.Action)); action != "" {
+		if action != "status" {
+			return "", fmt.Errorf("action 只支持 status（查录入进度，不写库），收到 %q", p.Action)
+		}
+		if p.DryRun || p.Mode != "" || len(p.Outline) > 0 || len(p.Sections) > 0 {
+			return "", errors.New("action=status 只查进度，不能同时带录入内容（outline/sections/mode/dry_run）")
+		}
+		return tool.WrapText(proposalIngestStatus(t.workDir, strings.TrimSpace(p.Title))), nil
 	}
 	mode := strings.ToLower(strings.TrimSpace(p.Mode))
 	switch mode {
@@ -160,6 +175,7 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 		Overwrite: p.Overwrite, Append: mode == "append", Finalize: p.Finalize,
 		SourceFile:   strings.TrimSpace(p.SourceFile),
 		AssetBaseDir: t.workDir,
+		DryRun:       p.DryRun,
 	}
 	for _, e := range p.Outline {
 		in.Outline = append(in.Outline, proposal.OutlineEntry{Level: e.Level, Title: e.Title, Line: e.Line})
@@ -240,17 +256,38 @@ func proposalSourceLines(workDir, path string) (abs string, lines []string, err 
 func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.SaveInput, res *proposal.SaveResult) string {
 	title := strings.TrimSpace(in.Meta.Title)
 	var b strings.Builder
-	if res.Done {
+	switch {
+	case res.DryRun && res.Done:
+		fmt.Fprintf(&b, "🔍 演练通过（未写库）：%s\n\n", title)
+	case res.DryRun:
+		fmt.Fprintf(&b, "🔍 演练通过（未写库；末节正文待收尾）：%s\n\n", title)
+	case res.Done:
 		fmt.Fprintf(&b, "✅ 已录入方案库：%s\n\n", title)
-	} else {
+	default:
 		fmt.Fprintf(&b, "✅ 已录入方案库（录入中，末节正文待收尾）：%s\n\n", title)
 	}
 	if in.Meta.ProjectType != "" || in.Meta.Year != "" {
 		fmt.Fprintf(&b, "**类型/年度**: %s / %s\n", orDash(in.Meta.ProjectType), orDash(in.Meta.Year))
 	}
+	// 落点写进回执（2026-11-24 实弹：方案归进哪个目录只字未提，界面上「少了一份」
+	// 却无从查起）。库总量一并给出，录入后一眼对得上数。
+	if list, err := st.List(); err == nil {
+		n := len(list)
+		landing := proposalLanding(st, in)
+		if res.DryRun && res.Created {
+			fmt.Fprintf(&b, "**落点**: %s；方案库现有 %d 份（正式写入后 %d 份）\n", landing, n, n+1)
+		} else {
+			fmt.Fprintf(&b, "**落点**: %s；方案库共 %d 份\n", landing, n)
+		}
+	}
 	stt := res.Stats
-	fmt.Fprintf(&b, "**本批**: 新增 %d 个标题节点（压到 4 级 %d 个）；累计 %d 个节点、%s（1 级 %d / 2 级 %d / 3 级 %d / 4 级 %d）\n",
-		res.Added, res.Clamped, stt.Sections, fmtChars(stt.Chars), stt.LevelCounts[1], stt.LevelCounts[2], stt.LevelCounts[3], stt.LevelCounts[4])
+	if res.DryRun {
+		fmt.Fprintf(&b, "**本批（演练）**: 将新增 %d 个标题节点（压到 4 级 %d 个）；写入后共 %d 个节点、%s（1 级 %d / 2 级 %d / 3 级 %d / 4 级 %d）\n",
+			res.Added, res.Clamped, stt.Sections, fmtChars(stt.Chars), stt.LevelCounts[1], stt.LevelCounts[2], stt.LevelCounts[3], stt.LevelCounts[4])
+	} else {
+		fmt.Fprintf(&b, "**本批**: 新增 %d 个标题节点（压到 4 级 %d 个）；累计 %d 个节点、%s（1 级 %d / 2 级 %d / 3 级 %d / 4 级 %d）\n",
+			res.Added, res.Clamped, stt.Sections, fmtChars(stt.Chars), stt.LevelCounts[1], stt.LevelCounts[2], stt.LevelCounts[3], stt.LevelCounts[4])
+	}
 	if res.TotalLines > 0 {
 		fmt.Fprintf(&b, "**源文件**: %s（共 %d 行，已录到第 %d 行）", in.SourceFile, res.TotalLines, res.IngestLine)
 		if res.SkippedLines > 0 {
@@ -258,7 +295,11 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 		}
 		b.WriteString("\n")
 	}
-	fmt.Fprintf(&b, "**语义索引**: %s\n", proposalIndexStatus(ctx, st, res.ProposalID))
+	if res.DryRun {
+		b.WriteString("**语义索引**: 演练不写库、不建索引\n")
+	} else {
+		fmt.Fprintf(&b, "**语义索引**: %s\n", proposalIndexStatus(ctx, st, res.ProposalID))
+	}
 	if res.Assets > 0 {
 		fmt.Fprintf(&b, "**图片资产**: 已托管 %d 张（正文引用已改为 gaea-asset:// 稳定 ID）\n", res.Assets)
 	}
@@ -287,6 +328,8 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 	}
 	b.WriteString("\n")
 	switch {
+	case res.DryRun:
+		b.WriteString("下一步：确认无误后去掉 dry_run=true 正式录入这一批（写入前会请你确认）。\n")
 	case !res.Done:
 		fmt.Fprintf(&b, "下一步：继续 mode=append 传下一批 outline（title 保持 %q）；全部传完用 mode=append + finalize=true 收尾。\n", title)
 	case res.Replaced:
@@ -294,6 +337,72 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 	default:
 		b.WriteString("用 proposal_search 抽查几个关键词核对结构；写新方案时按标题树参照骨架、按段落取材。\n")
 	}
+	return b.String()
+}
+
+// proposalLanding 回执里的落点：已入库的取库里记的工作区（续录时沿用原值），演练新方案
+// 取本次给的；都没有就写「未注明」。工作区只是归档信息，不参与分组与检索。
+func proposalLanding(st *proposal.Store, in proposal.SaveInput) string {
+	ws := strings.TrimSpace(in.Meta.Workspace)
+	if p, err := st.Resolve(strings.TrimSpace(in.Meta.Title)); err == nil && p != nil {
+		ws = strings.TrimSpace(p.Workspace)
+	}
+	return "工作区 " + orDash(ws)
+}
+
+// proposalIngestStatus 分批续录的进度（proposal_save action=status）：已录到源文件第
+// 几行、末几个标题、下一批从哪里接。
+func proposalIngestStatus(workDir, title string) string {
+	if title == "" {
+		return "action=status 需要同时给 title（方案标题）。"
+	}
+	st, err := proposalStore()
+	if err != nil {
+		return err.Error()
+	}
+	p, err := st.Resolve(title)
+	if err != nil {
+		return fmt.Sprintf("%s: %v", proposal.ErrStoreUnreadable, err)
+	}
+	if p == nil {
+		return fmt.Sprintf("方案库里没有《%s》。不填参数调用 proposal_search 可看方案清单。", title)
+	}
+	secs, err := st.Outline(p.ID)
+	if err != nil {
+		return fmt.Sprintf("%s: %v", proposal.ErrStoreUnreadable, err)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "## 《%s》录入状态\n\n", p.Title)
+	if p.Status != proposal.StatusIngesting {
+		fmt.Fprintf(&b, "**状态**: 现行——已录入完成，%d 个标题节点。\n", len(secs))
+		b.WriteString("要改结构请整册重录（mode=replace + overwrite=true）；只改个别标题或某一节正文用 proposal_update。\n")
+		return b.String()
+	}
+	b.WriteString("**状态**: 录入中——最后一批的末节正文还没截取，全部录完前这份方案在库里不算完整。\n")
+	if p.SourceFile != "" {
+		if abs, lines, err := proposalSourceLines(workDir, p.SourceFile); err == nil {
+			fmt.Fprintf(&b, "**源文件**: %s（共 %d 行，已录到第 %d 行）\n", abs, len(lines), p.IngestLine)
+		} else {
+			fmt.Fprintf(&b, "**源文件**: %s（现在读不到：%v）\n", p.SourceFile, err)
+		}
+	}
+	fmt.Fprintf(&b, "**已录**: %d 个标题节点", len(secs))
+	if n := len(secs); n > 0 {
+		from := n - 3
+		if from < 0 {
+			from = 0
+		}
+		fmt.Fprintf(&b, "；末 %d 个：", n-from)
+		for i := from; i < n; i++ {
+			if i > from {
+				b.WriteString("、")
+			}
+			fmt.Fprintf(&b, "%d 级「%s」（第 %d 行）", secs[i].Level, secs[i].Title, secs[i].SrcLine)
+		}
+	}
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "**下一步**: 从源文件第 %d 行之后接着录——mode=append、title 保持 %q，传下一批 outline（首个标题须在第 %d 行之后）；全部传完用 mode=append + finalize=true 收尾。拿不准下一批怎么切，可先加 dry_run=true 演练。\n",
+		p.IngestLine+1, p.Title, p.IngestLine)
 	return b.String()
 }
 
@@ -455,18 +564,27 @@ func proposalOverview(st *proposal.Store) (string, error) {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "## 方案库概览（%d 份）\n\n", len(list))
-	b.WriteString("| 标题 | 类型 | 年度 | 状态 | 标题节点 | 字数 | 语义索引 | 来源 |\n|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("| 标题 | 类型 | 年度 | 状态 | 标题节点 | 字数 | 语义索引 | 目录 | 来源 |\n|---|---|---|---|---|---|---|---|---|\n")
 	for _, it := range list {
 		idx := "—"
 		if it.IndexTotal > 0 {
 			idx = fmt.Sprintf("%d/%d", it.IndexDone, it.IndexTotal)
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d | %s | %s | %s |\n",
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d | %s | %s | %s | %s |\n",
 			cell(it.Title), cell(orDash(it.ProjectType)), cell(orDash(it.Year)), it.Status,
-			it.Sections, fmtChars(it.Chars), idx, cell(orDash(it.Source)))
+			it.Sections, fmtChars(it.Chars), idx, cell(proposalDirName(it.Workspace)), cell(orDash(it.Source)))
 	}
-	b.WriteString("\n用 query 检索；给 proposal（标题）看它的标题树。")
+	b.WriteString("\n目录=来源工作区的末级目录名（只是归档信息，不参与分组与检索）。用 query 检索；给 proposal（标题）看它的标题树。")
 	return b.String(), nil
+}
+
+// proposalDirName 工作区路径的末级目录名（清单里只放这一段，完整路径在 proposal_update 的回执里）。
+func proposalDirName(ws string) string {
+	ws = strings.TrimSpace(strings.TrimRight(strings.ReplaceAll(ws, "/", "\\"), "\\"))
+	if ws == "" {
+		return "—"
+	}
+	return filepath.Base(ws)
 }
 
 // proposalOutlineText 某方案的标题树（level 1~4 时只列该级）。

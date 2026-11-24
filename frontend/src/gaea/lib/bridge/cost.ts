@@ -1,222 +1,52 @@
-// cost.ts — CostBindings（AppBindings 分域接口之一，Go CostB 门面）：
-// 成本库/价格源/组价/询价飞轮/五算对比/造价参考与复盘笔记域。
-
-/** 资源价批量调价一行（Go workcost.BulkPriceRow 镜像）。 */
-/** 跳过行（人可读原因）。 */
-export interface CostBulkPriceSkip {
-  row: number
-  title: string
-  reason: string
-}
-
-/** 预览的一条匹配（资源现状速览）。 */
-export interface CostBulkPriceMatch {
-  row: number
-  resourceId: number
-  code: string
-  title: string
-  spec?: string
-  unit?: string
-  oldPrice: number
-  newPrice: number
-  period?: string
-  region?: string
-  note?: string
-  resourceKind?: string
-}
-
-/** 批量调价预览报告。 */
-export interface CostBulkPricePreview {
-  total: number
-  matched: CostBulkPriceMatch[]
-  skipped: CostBulkPriceSkip[]
-  rowErrors: CostBulkPriceSkip[]
-}
-
-/** 批量调价应用回执。 */
-export interface CostBulkPriceResult {
-  updated: number
-  skipped: CostBulkPriceSkip[]
-  total: number
-  applied: CostBulkPriceMatch[]
-}
-
+// cost.ts — CostBindings（AppBindings 分域接口之一，Go CostB 门面）。
+//
+// 2026-11-25 造价数据库推倒重建后的口径：板块只剩三级浏览面（清单 / 定额 /
+// 工料机），这里只声明它真实消费的 15 个绑定——读三级数据、现算综合单价、
+// 删除、导出、体检。旧板块的导入 / 解析 / 编辑 / 价格源 / 询价 / 资料条目界面
+// 已下线，对应绑定走生成器 excludedBindings 退出绑定面（Go 方法体保留），
+// 写库一律在办公「造价」运行模式经 cost_library / cost_project_apply 完成。
+//
+// 口径：综合单价 = Σ(消耗量×资源价)，**只含人材机**；管理费/利润/税只在项目
+// 合计层跑一次。外委独立行类但并入材料桶。
 import type {
-  CostSummary,
-  CostAdjustSuggestion,
-  CostCategory,
-  CostCompareRow,
-  CostComposeRecord,
-  CostComposeView,
-  CostEntry,
-  CostImportPreview,
-  CostIndicator,
-  CostInquiryRecord,
-  CostInquiryScanFinding,
-  CostProjectSummary,
-  CostSearchPageResult,
-  PriceApplyResult,
-  PriceFetchRecord,
-  PriceHistory,
-  PriceSource,
   SemanticHitView,
-  SemanticIndexStatus,
-  TaskView,
-  WorkcostApplyProjectResult,
   WorkcostBillItem,
-  WorkcostBillQuotaLink,
   WorkcostBillProject,
   WorkcostCompose,
   WorkcostComposeOverride,
-  WorkcostFeeResult,
-  WorkcostProjectBundle,
   WorkcostQuota,
-  WorkcostAuditReport,
-  WorkcostQuotaFlywheelPreview,
-  WorkcostQuotaFlywheelResult,
-  WorkcostRateSet,
-  WorkcostRecomposeResult,
   WorkcostResource,
   WorkcostResourcePrice,
-  WorkcostSeedPreview,
-  WorkcostSeedResult,
+  WorkcostUsageRef,
 } from "../types";
 
 export interface CostBindings {
-  // ── 成本库 ──
-  CostSearch(query: string, category: string, status: string): Promise<CostSummary[]>;
-  // CostSearchPage 分页检索（v4.386）：全量管线排序后切片，total=过滤后总数。
-  // sortKey："" 管线序 | title | price | updatedAt；sortDir：1 升 / -1 降。
-  // limit 钳制 [1,200]（<=0 → 100），offset 负数归零。
-  CostSearchPage(
-    query: string,
-    category: string,
-    status: string,
-    sortKey: string,
-    sortDir: number,
-    limit: number,
-    offset: number,
-  ): Promise<CostSearchPageResult>;
-  CostGet(name: string): Promise<CostEntry | null>;
-  CostSave(e: CostEntry): Promise<void>;
-  CostDelete(name: string): Promise<void>;
-  // CostBulkPricePreview 解析资源价批量调价 Excel 并预览匹配结果（三期 3.4，
-  // 宁缺勿误：跳过行带人可读原因）。
-  CostBulkPricePreview(xlsxBase64: string): Promise<CostBulkPricePreview>;
-  // CostBulkPriceApply 作者确认后批量应用（整批事务：写调价历史+推现行价）。
-  CostBulkPriceApply(xlsxBase64: string): Promise<CostBulkPriceResult>;
-  // CostQuotaFlywheelPreview 扫描跨项目定额含量分歧（orig_code 簇），提出
-  // 企业定额候选（11.6；宁缺勿误：不成立簇带人可读原因）。
-  CostQuotaFlywheelPreview(): Promise<WorkcostQuotaFlywheelPreview>;
-  // CostQuotaFlywheelApply 作者点名聚类词干后落 ENT-* 企业定额（含量=各变体
-  // 中位数；只覆写自有命名空间，重生成=飞轮进化）。
-  CostQuotaFlywheelApply(origCodes: string[]): Promise<WorkcostQuotaFlywheelResult>;
-  // CostAuditScan 跨项目对标查漏（11.3）：确定性引擎（宁缺勿误闸）+逐条溯源
-  // 引用；bill_gap 针对被审项目（0=跳过），quota_gap 全语料逐同名组。
-  CostAuditScan(projectID: number): Promise<WorkcostAuditReport>;
-  // CostHealthScan 数据健康五类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用）。
+  // ── 造价数据库（三级浏览面）──
+  // CostHealthScan 数据健康五类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用），只读。
   CostHealthScan(): Promise<Record<string, unknown>>;
-  // CostDedupeResources 资源去重（keep 保留，merges 合并+引用重定向）。
-  CostDedupeResources(keepId: number, mergeIds: number[]): Promise<Record<string, unknown>>;
-  // CostImportPreview 解析 xlsx/csv 报价单/测算表为可确认的成本条目。
-  CostImportPreview(path: string): Promise<CostImportPreview>;
-  // CostImportAIParse 用办公功能模型把表格行归一化为成本条目（AI 解析）。
-  CostImportAIParse(path: string): Promise<CostImportPreview>;
-  // CostImportApply 批量写入确认后的成本条目，返回成功条数。
-  // v4.6：inquirySource 非空（如 "OCR报价"）时，报价单行自动幂等写入询价库
-  // （PDF/图片报价单飞轮反向接线）。
-  CostImportApply(rows: CostEntry[], inquirySource?: string): Promise<number>;
-  // CostImportVisionPreview 解析 PDF（文字型/扫描件 OCR）/图片报价单为可确认的
-  // 成本条目；preview.source 标注识别来源（pdf_text / pdf_scan / image）。
-  CostImportVisionPreview(path: string): Promise<CostImportPreview>;
-  // 多级分类：分类树（含计数）、新建/改名、删除（有子节点或条目时拒绝）。
-  CostCategories(): Promise<CostCategory[]>;
-  CostCategorySave(parentId: number, name: string, sort: number, id: number): Promise<number>;
-  CostCategoryDelete(id: number): Promise<void>;
-  // ── 价格源（定时抓取价格更新）──
-  PriceSources(): Promise<PriceSource[]>;
-  PriceSourceSave(src: PriceSource): Promise<void>;
-  PriceSourceDelete(id: string): Promise<void>;
-  // PriceFetch 立即抓取价格源（异步任务，T5-1）：提交任务入队立即返回任务
-  // 视图，进度/完成经 gaea-task 事件推送；完成后读 PriceFetches 取 pending 记录。
-  PriceFetch(id: string): Promise<TaskView>;
-  // PriceFetchAll 一键抓取全部启用的价格源（异步任务），逐源进度事件推送，
-  // 失败明细在任务结果/消息里。
-  PriceFetchAll(): Promise<TaskView>;
-  PriceFetches(): Promise<PriceFetchRecord[]>;
-  // PriceFetchApply 确认发布抓取结果（按标题选择）；syncResources=true 时
-  // 对预匹配到工料机资源的候选同步推进现行价（写调价历史）。
-  PriceFetchApply(fetchId: string, titles: string[], syncResources: boolean): Promise<PriceApplyResult>;
-  PriceFetchIgnore(fetchId: string): Promise<void>;
-  // PriceHistory 返回某成本条目的价格历史（新→旧）。
-  PriceHistory(name: string): Promise<PriceHistory[]>;
-  // SemanticSearch 跨库统一语义检索（成本/知识/办公记忆，本地 bge-m3）。
-  // SemanticIndexStatus 语义索引覆盖状态（成本条目总数/已覆盖/模型可用性）。
-  SemanticIndexStatus(): Promise<SemanticIndexStatus>;
-  // SemanticIndexBackfill 显式补齐：缺失或正文变化才重嵌（幂等）。
-  SemanticIndexBackfill(): Promise<{ total: number; updated: number; indexed: number; missing: number }>;
-  SemanticSearch(query: string): Promise<SemanticHitView[]>;
-  // CostCompare 返回某成本条目的多来源比价明细（现价/历史/价格源抓取候选）。
-  CostCompare(name: string): Promise<CostCompareRow[]>;
-  // ── 测算项目与沉淀闭环（我的项目/工程量清单/版本留痕 → 沉淀回成本库）──
-  CostProjectList(): Promise<CostProjectSummary[]>;
-  // ── 造价参考与复盘笔记（案例指标 + 经验沉淀）──
-  // CostIndicators 造价参考指标：group=title（按科目）| category（按一级分类）。
-  CostIndicators(group: string): Promise<CostIndicator[]>;
-  // CostAttribution 归因对标（v4.6.1）：项目明细 vs 参考指标带宽，产出
-  // 差幅等级/贡献金额/主因 TopDrivers（参考池排除本项目）。
-  // CostGraph 成本知识图谱（v4.8）：scope=tree 分类聚合总览（默认）| entry 条目
-  // 展开（focus=分类路径或项目 ID）；limit=节点上限（<=0 或 >600 归一 600）。
-  // 返回 JSON 串（CostGraphView），由前端 JSON.parse（与 CostImportApply 等先例
-  // 不同：该视图含大量节点/边，走字符串通道避免绑定层结构映射开销）。
-  CostGraph(scope: string, focus: string, limit: number): Promise<string>;
-  // ── v4.2 造价 AI 化：AI 组价 + 询价飞轮 + 五算对比 ──
-  // CostCompose AI 组价：清单描述 → 相似检索（关键词+语义）→ 价格带推荐 +
-  // 证据链 + LLM 人材机拆解；band=null 表示成本库无相似条目。无确认不落库。
-  CostCompose(desc: string, unit: string): Promise<CostComposeView>;
-  // CostComposeApply 确认组价建议并回写成本库（UPSERT），返回条目 name。
-  CostComposeApply(v: CostComposeView): Promise<string>;
-  // CostComposeRecords 组价确认记录回看（v4.158 复核闭环）：entryName 非空 =
-  // 该条目全部记录（createdAt 倒序）；空串 = 全库最近 20 条。snapshot 为确认
-  // 组价时的完整视图（含 band/recommendedPrice/components/evidence/checks）。
-  CostComposeRecords(entryName: string): Promise<CostComposeRecord[]>;
-  // ── 询价飞轮（四源归一数据点：信息价/OCR报价/供应商比价/手动询价）──
-  // CostInquiryScan 库级异常扫描（只读）：离散/跳变/过期未标记/陈旧四类发现。
-  CostInquiryScan(): Promise<CostInquiryScanFinding[]>;
-  CostInquirySave(r: CostInquiryRecord): Promise<number>;
-  CostInquiryList(query: string, limit: number): Promise<CostInquiryRecord[]>;
-  CostInquiryDelete(id: number): Promise<void>;
-  // CostInquiryExpiring 到期预警：valid_until <= today+days 的数据点。
-  CostInquiryExpiring(days: number): Promise<CostInquiryRecord[]>;
-  // CostInquiryAdjust 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
-  CostInquiryAdjust(): Promise<CostAdjustSuggestion[]>;
-  // ── 五算对比（估/概/预/结/决）──
-  // ── 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）──
-  // 口径：综合单价 = Σ(消耗量×资源价)，**只含人材机**；管理费/利润/税只在
-  // 项目合计层跑一次（WorkcostProjectFees）。外委独立行类但并入材料桶。
-  WorkcostResourceSave(r: WorkcostResource): Promise<WorkcostResource>;
-  // WorkcostResourceGet 按 id 读资源；不存在返回 null。
-  WorkcostResourceGet(id: number): Promise<WorkcostResource | null>;
-  // WorkcostResourceList 资源列表（kind/keyword 可空 = 不过滤）。
+  // CostLibraryExport 列表导出 xlsx：kind=bill 清单｜quota 定额（主表+含量明细附表）｜
+  // resource 工料机｜entry 资料条目。筛选与板块列表同口径（projectId 仅清单、keyword、
+  // extra=分部/专业/类别），outPath 为目标 .xlsx 完整路径（已存在则拒绝覆盖）。返回写出路径。
+  CostLibraryExport(
+    kind: string,
+    projectId: number,
+    keyword: string,
+    extra: string,
+    outPath: string,
+  ): Promise<string>;
+  // WorkcostResourceList 工料机列表（kind/keyword 可空 = 不过滤）。
   WorkcostResourceList(kind: string, keyword: string): Promise<WorkcostResource[]>;
   // WorkcostResourceDelete force=false 时拒绝删除仍被定额引用的资源。
   WorkcostResourceDelete(id: number, force: boolean): Promise<void>;
-  // WorkcostResourceSetPrice 登记调价（写历史 + 推进现行价）——信息价一涨，
-  // 引用该资源的综合单价在下次核算时同步重算。
-  WorkcostResourceSetPrice(
-    id: number,
-    price: number,
-    period: string,
-    region: string,
-    priceType: string,
-    source: string,
-    note: string,
-  ): Promise<WorkcostResource>;
+  // WorkcostResourcePrices 某资源的调价历史（新→旧）。
   WorkcostResourcePrices(id: number): Promise<WorkcostResourcePrice[]>;
-  // WorkcostQuotaSave 新建/更新消耗定额（含工料机含量行，整组替换）。
-  WorkcostQuotaSave(q: WorkcostQuota): Promise<WorkcostQuota>;
+  // WorkcostResourceUsage 某工料机被哪些定额含量行引用（三级下钻的回链）。
+  WorkcostResourceUsage(code: string): Promise<WorkcostUsageRef[]>;
+  // WorkcostQuotaGet 按编码读定额（含含量行）；不存在返回 null。
   WorkcostQuotaGet(code: string): Promise<WorkcostQuota | null>;
+  // WorkcostQuotaList 定额列表（specialty/keyword 可空 = 不过滤；不含含量行）。
   WorkcostQuotaList(specialty: string, keyword: string): Promise<WorkcostQuota[]>;
+  // WorkcostQuotaDelete 删除定额及含量行；仍被清单项引用时拒绝（不留悬空引用）。
   WorkcostQuotaDelete(code: string): Promise<void>;
   // WorkcostQuotaCompose 按定额核算综合单价（只含人材机）。overrides 支持项目级
   // 覆盖含量/单价（key=资源编码；负值表示不覆盖该项）。
@@ -224,84 +54,19 @@ export interface CostBindings {
     code: string,
     overrides: Record<string, WorkcostComposeOverride> | null,
   ): Promise<WorkcostCompose>;
-  // WorkcostQuotaComposeMany 批量核算（清单库参考价列专用）：一次资源索引复用，
+  // WorkcostQuotaComposeMany 批量核算（清单参考价列专用）：一次资源索引复用，
   // key=定额编码；不存在的编码不在结果里。
   WorkcostQuotaComposeMany(codes: string[]): Promise<Record<string, WorkcostCompose>>;
-  // WorkcostProjectFees 项目合计层取费：直接费 → 企管/利润/规费 → 税前合计 →
-  // 增值税 → 含税总造价（含招标控制价对照）。
-  // profitIncludesRegulatory 决定利润基数是否含规费（百锦路=false，市政道路=true）。
-  WorkcostProjectFees(
-    directFee: number,
-    rates: WorkcostRateSet,
-    profitIncludesRegulatory: boolean,
-    measures: number,
-    contingency: number,
-    controlPrice: number,
-  ): Promise<WorkcostFeeResult>;
-  // WorkcostSeedPreview 存量成本条目 → 资源库的干跑预览（不写库）。
-  WorkcostSeedPreview(includeComposite: boolean): Promise<WorkcostSeedPreview>;
-  // WorkcostSeedApply 应用资源化（幂等：同身份资源走更新）。
-  WorkcostSeedApply(includeComposite: boolean): Promise<WorkcostSeedResult>;
-  // WorkcostRecompose 把带工料机组成的成本条目 price 重算为核算结果并置
-  // price_derived=1（无组成的纯资源条目不参与）。
-  // ── 分部分项清单（录入数据，不做加总）──
   // WorkcostBillProjects 清单项目列表（含封面、费率与清单项数）。
   WorkcostBillProjects(): Promise<WorkcostBillProject[]>;
-  // WorkcostBillItems 某项目的分部分项清单。
+  // WorkcostBillItems 某项目的分部分项清单（quotaCodes 为挂接定额码聚合）。
   WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]>;
-  // WorkcostBillItemSave 新增/更新一条清单项（同项目同编码走更新；code 空
-  // 自动生成 M 序号）。工程量与引用定额都是录入数据——合价导出时由 Excel 算。
-  WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem>;
-  // WorkcostBillItemDelete 删除一条清单项（1:N 定额挂接引用随行清理）。
+  // WorkcostBillItemDelete 删除一条清单项（定额挂接引用随行清理）。
   WorkcostBillItemDelete(id: number): Promise<void>;
-  // WorkcostBillProjectRatesSave 保存项目费率（录入数据）。
-  WorkcostBillProjectRatesSave(
-    id: number,
-    rates: WorkcostRateSet,
-    profitIncludesRegulatory: boolean,
-    controlPrice: number,
-  ): Promise<void>;
-  // WorkcostBillProjectDelete 整体删除导入的项目（封面+清单+独占定额；
-  // 共享定额与资源保留）。返回删除的独占定额数。
+  // WorkcostBillProjectDelete 整体删除项目（封面+清单+独占定额；共享定额与
+  // 资源保留）。返回删除的独占定额数。
   WorkcostBillProjectDelete(id: number): Promise<number>;
-  // WorkcostBillQuotaLinks 清单项挂接的定额引用（1:N 组合，SchemaV30）。
-  WorkcostBillQuotaLinks(billItemId: number): Promise<WorkcostBillQuotaLink[]>;
-  // WorkcostBillQuotaAttach 挂接定额（同清单同定额幂等更新；quantity≤0=跟随清单工程量）。
-  WorkcostBillQuotaAttach(billItemId: number, quotaCode: string, quantity: number): Promise<WorkcostBillQuotaLink>;
-  // WorkcostBillQuotaDetach 解挂一条定额引用。
-  WorkcostBillQuotaDetach(billItemId: number, linkId: number): Promise<void>;
-  WorkcostRecompose(): Promise<WorkcostRecomposeResult>;
-  // WorkcostProjectParse 解析五表项目工作簿（只解析不落库）。
-  WorkcostProjectParse(path: string): Promise<WorkcostProjectBundle>;
-  // WorkcostProjectApply 把解析结果落库（工料机价格→资源库，综合单价表→定额库）。
-  WorkcostProjectApply(path: string): Promise<WorkcostApplyProjectResult>;
-  // WorkcostProjectExport 重新导出为五表模版工作簿（活公式），返回输出路径。
-  WorkcostProjectExport(
-    srcPath: string,
-    outPath: string,
-    project: string,
-    location: string,
-    duration: string,
-  ): Promise<string>;
-  // WorkcostProjectExportToWorkspace 导出到工作区 .gaea/exports（文件名带时间戳），
-  // 返回写出路径——前端无文件系统能力，由后端按工作区约定落盘。
-  WorkcostProjectExportToWorkspace(srcPath: string, fileName: string): Promise<string>;
-}
 
-/**
- * costReadErrorText — CostSearchPage.Error（Go GA6-09）在前端的提示条文案。
- *
- * 契约：`GaeaCostSearchPage` 读取成本库失败时 `Error` 为「<scope>读取失败（<原因>），
- * 结果可能不完整」类文案，`Items/Total` 仍是已读到的部分；成功路径 Error 空
- * （omitempty）。消费端必须把非空 Error 显形为「读取失败 + 可重试」，绝不当作
- * 「无匹配条目」——已读到的部分照常渲染，只是标注结果可能不完整。
- *
- * 去重前缀的原因：Go 侧文案自带「读取失败」字样，若前端再无脑加前缀会出现
- * 「读取失败：读取失败（…）」。此处保证返回文案**恒含**「读取失败」且不重复。
- * 空串/空白视为无错误（返回空串，调用方按无提示条处理）。
- */
-export function costReadErrorText(err: string | undefined | null): string {
-  const msg = String(err ?? "").trim();
-  if (!msg) return "";
-  return msg.includes("读取失败") ? msg : `读取失败：${msg}`;
+  // ── 语义检索（Go 侧 GaeaSemanticSearch）：声明挂在造价分域，检索链统一消费 ──
+  SemanticSearch(query: string): Promise<SemanticHitView[]>;
 }

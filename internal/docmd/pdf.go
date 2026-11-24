@@ -11,6 +11,7 @@ import (
 	"compress/zlib"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -28,6 +29,13 @@ func pdfToMarkdown(path string, pages string) (string, error) {
 // 分页 OCR，避免整本超大 PDF 一次渲染/识别）。返回 markdown、总页数、是否被
 // 上限截断、错误。progress 在逐页 OCR 时回调 (done, total)。
 func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, total int)) (string, int, bool, error) {
+	return pdfToMarkdownLimitImages(path, pages, maxPages, progress, false)
+}
+
+// pdfToMarkdownLimitImages 是 pdfToMarkdownLimit 的完整形态。keepImages：文字层经本机
+// WPS 转换（见 wps.go）时保留 data URI 图片——format_convert 的 preserve_images 用；
+// false 时去掉，检索索引、摘要等纯文本消费方不该吃 base64。
+func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(done, total int), keepImages bool) (string, int, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", 0, false, err
@@ -45,6 +53,15 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 	// 页数单一判定点（IN3-11）：口径=页对象声明计数，取值面=原始字节（历史对外
 	// 口径，保持行为）；文本流视图的同一计数由该函数一并比对并诚实告警。
 	totalPages := pdfTotalPages(raw, content)
+	// 页对象在压缩对象流（/ObjStm）里的 PDF（Word 2016 起导出的默认形态）在原始字节里
+	// 数不到页。只数对象流里的页对象——正文文字流里出现 /Type /Page 字样的伪命中不算
+	// （见 pdf_pages_consistency_test 的反方向探针），补进总页数，页范围与截断保护才有
+	// 依据（2026-11-24 实弹：233 页的风险评估报告被数成 1 页）。
+	objStmPages := countObjStmPages(decoded)
+	if n := countPDFPages(raw) + objStmPages; n > totalPages {
+		totalPages = n
+	}
+	pagesHidden := objStmPages > 0 // 页归属关系自写提取拿不到
 
 	// 页数上限保护：把 pages 规格收敛到 maxPages 内（空规格 → 1-maxPages），
 	// 超限部分不再进入正文；OCR 路径用同一规格只渲染需要的页。
@@ -85,7 +102,27 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 	if stampNoiseText(result) {
 		result = ""
 	}
-	if result == "" {
+	// 文字层乱码闸：自写提取没有字体映射这一层，子集字体的字形号会被硬解成乱码
+	// （整本孟加拉文/天城文，见 wps.go）。检出的改走本机 WPS；指定了页范围而页对象又在
+	// 压缩对象流里的，自写提取分不清哪段文字属于哪一页，也交给 WPS。
+	hard := false
+	if result != "" {
+		var soft bool
+		hard, soft = pdfTextGarbled(result)
+		if hard || soft || (pages != "" && pagesHidden) {
+			if md, ok := wpsRescuePDF(path, pages, maxPages, &effSpec, &totalPages, &truncated); ok {
+				if !keepImages {
+					md = stripDataImages(md)
+				}
+				return md, totalPages, truncated, nil
+			}
+		}
+	}
+	if hard {
+		// 确定乱码：不能当正文返回，往下落 OCR / 如实报错。extractRawText 读的也是同一层
+		// 坏文字，不是另一条路，不试。
+		result = ""
+	} else if result == "" {
 		result = extractRawText(data)
 	}
 	if result == "" {
@@ -99,11 +136,48 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 			return ocrPDFRange(path, effSpec, first, last, totalPages, progress)
 		})
 		if ocrErr != nil {
+			if hard {
+				// 如实报错：以前这里会把乱码当正文返回（"做错了却报成功"）。
+				return "", totalPages, truncated, fmt.Errorf("PDF 文字层无法解码（子集字体缺字体映射，提取结果是乱码；本机 WPS 不可用或转换失败），OCR 回退也失败: %w", ocrErr)
+			}
 			return "", totalPages, false, ocrErr
 		}
 		return md, totalPages, truncated, nil
 	}
 	return result, totalPages, truncated, nil
+}
+
+// wpsRescuePDF 把 PDF 交给本机 WPS 转成 Markdown（带 data URI 图片）。返回 false 表示
+// WPS 不可用或转换失败——原因写日志，调用方走原有兜底。页数以 WPS 本地引擎读到的为准
+// （自写计数在压缩对象流的 PDF 上失真），页范围上限与截断标记随之重算后再转换，
+// 回报的 truncated 才与产物一致。
+func wpsRescuePDF(path, pages string, maxPages int, effSpec *string, totalPages *int, truncated *bool) (string, bool) {
+	if !wpsPDFEnabled() {
+		return "", false
+	}
+	cli := wpsCLILookup()
+	if cli == "" {
+		slog.Debug("docmd: PDF 文字层不可靠，且本机未找到 WPS wpscli", "path", path)
+		return "", false
+	}
+	known := 0 // WPS 读到的页数（0=没读到）
+	if n := wpsPageCount(cli, path); n > 0 {
+		known = n
+		if n != *totalPages {
+			eff, trunc, err := capPageSpec(pages, maxPages, n)
+			if err != nil {
+				slog.Debug("docmd: 按真实页数重算页范围失败", "path", path, "pages", n, "err", err.Error())
+				return "", false
+			}
+			*totalPages, *effSpec, *truncated = n, eff, trunc
+		}
+	}
+	md, err := wpsPDFMarkdownFn(cli, path, *effSpec, known)
+	if err != nil {
+		slog.Warn("docmd: PDF 文字层不可靠，WPS 转换失败", "path", path, "err", err.Error())
+		return "", false
+	}
+	return md, true
 }
 
 // stampNoiseText 判定 BT/ET 提取结果是否只是页码戳/序号类噪声：每行去空白后

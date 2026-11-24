@@ -37,8 +37,14 @@ func ConvertPreservingImages(path, pages string, maxPages int) (md string, total
 		}
 		return md, 0, false, countImageDataURIs(md), nil
 	default:
-		md, total, truncated, err = ConvertLimit(path, pages, maxPages)
-		return md, total, truncated, 0, err
+		if ext != ".pdf" {
+			md, total, truncated, err = ConvertLimit(path, pages, maxPages)
+			return md, total, truncated, 0, err
+		}
+		// PDF：文字层乱码时经本机 WPS 转换（wps.go），图片以 data URI 留在 Markdown 里，
+		// 由调用方 ExternalizeDataImages 落盘；自写提取路径不产图片，计数为 0。
+		md, total, truncated, err = pdfToMarkdownLimitImages(path, pages, maxPages, nil, true)
+		return md, total, truncated, countImageDataURIs(md), err
 	}
 }
 

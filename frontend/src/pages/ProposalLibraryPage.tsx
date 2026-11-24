@@ -14,6 +14,7 @@ import {
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import { copyToClipboard } from "../gaea/lib/clipboard";
+import { useBoardActive } from "../lib/boardActive";
 import type {
   ProposalHit, ProposalSectionBody, ProposalSectionNode, ProposalSummary,
 } from "../gaea/lib/types/proposal";
@@ -130,8 +131,10 @@ export default function ProposalLibraryPage() {
     return () => ro.disconnect();
   }, []);
 
-  const loadList = useCallback(async () => {
-    setListPhase("loading");
+  // silent=true：切回板块时的后台重读——不清空正在看的清单（不闪「正在读取」），
+  // 失败也保留旧快照，只记下错误由清单头部的重试入口带出。
+  const loadList = useCallback(async (silent = false) => {
+    if (!silent) setListPhase("loading");
     setListError("");
     try {
       const list = (await app.GaeaProposalList()) ?? [];
@@ -139,7 +142,7 @@ export default function ProposalLibraryPage() {
       setListPhase("ready");
     } catch (e) {
       setListError(message(e));
-      setListPhase("failed");
+      if (!silent) setListPhase("failed");
     }
   }, []);
 
@@ -198,12 +201,42 @@ export default function ProposalLibraryPage() {
 
   useEffect(() => { void loadList(); }, [loadList]);
 
+  // 本板块 keepAlive 常驻：切去办公板块录完新方案再切回来，组件不会重挂，挂载时
+  // 那一次读取的清单就成了旧快照（2026-11-24 实弹：录了两份只看得到一份，检索却
+  // 两份都能命中）。板块由隐藏转回可见时静默重读；首次挂载那次不算「切回」。
+  const boardActive = useBoardActive("proposal");
+  const awayRef = useRef(false);
+  useEffect(() => {
+    if (!boardActive) {
+      awayRef.current = true;
+      return;
+    }
+    if (!awayRef.current) return;
+    awayRef.current = false;
+    void loadList(true);
+  }, [boardActive, loadList]);
+
   // 清单就绪而没有选中项（首次进入、删除后）→ 选中第一份。
   useEffect(() => {
     if (listPhase !== "ready" || selectedName) return;
     const first = proposals[0];
     if (first) void selectProposal(first.name);
   }, [listPhase, proposals, selectedName, selectProposal]);
+
+  // 选中的方案不在清单里了（别处被删，或整册重录换了标题）：清掉它的标题树与
+  // 阅读窗，交给上面的规则重新选中第一份——不让已消失的方案挂在界面上。
+  useEffect(() => {
+    if (listPhase !== "ready" || !selectedName) return;
+    if (proposals.some((p) => p.name === selectedName)) return;
+    outlineSeq.current++;
+    readSeq.current++;
+    setSelectedName(null);
+    setOutline([]);
+    setCurrentId(null);
+    setSection(null);
+    setReadPhase("idle");
+    setOutlinePhase("idle");
+  }, [listPhase, proposals, selectedName]);
 
   // 当前节点滚进标题树视野。
   useEffect(() => {
@@ -534,6 +567,20 @@ export default function ProposalLibraryPage() {
                 <div className="pl-col-head">
                   <span className="pl-col-head-title">方案清单</span>
                   <span>{listPhase === "ready" ? proposals.length : ""}</span>
+                  {listPhase === "ready" && listError && (
+                    <span className="pl-status-note" role="alert" title={listError}>刷新失败</span>
+                  )}
+                  {listPhase === "ready" && (
+                    <button
+                      type="button"
+                      className="pl-icon-btn"
+                      aria-label="刷新方案清单"
+                      title={listError ? `刷新失败：${listError}（点击重试）` : "刷新方案清单"}
+                      onClick={() => void loadList()}
+                    >
+                      <RefreshCw size={13} />
+                    </button>
+                  )}
                 </div>
                 {listPhase === "loading" && <StateNote icon="loading" title="正在读取方案库…" />}
                 {listPhase === "failed" && (

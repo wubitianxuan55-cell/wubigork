@@ -100,6 +100,11 @@
 - **仍在册的排除项**：GoalCard 系（v3.6.0 撤下，使用率低维护面大）勿再提。
 - **已被推翻的旧边界**（不要再当约束引用）：「不做算量」（现有 cad-takeoff）、「MCP 不进规划」
   （现有 MCP 服务管理）、「编程板块=DSH 独立窗口不融合」（编程板块已作为一级板块回流）。
+- **库页只读约定**（方案库 2026-11-23、造价数据库 2026-11-25 用户拍板推倒重建）：库类一级板块只管看
+  （浏览 / 检索 / 下钻 / 删除 / 导出），录入、解析、维护一律在办公板块对应运行模式里由模型经工具完成。
+  造价库=三级数据（清单 → 定额 → 工料机），写入口只有 `cost_library`（导入五表工作簿、定额与工料机增删改
+  调价、批量与删除先 dry_run 再逐条确认）与 `cost_project_apply`；不要往板块加导入或编辑按钮。
+  旧的价格源 / 询价 / 资料条目 / 对标 / 图谱界面已下线，数据与 Go 方法体保留（59 个绑定在生成器排除清单）。
 - **复用既有工具**（瘦身审计沉淀的编码约定）：新下载走 saveExportBlob、新选取走 pickFile、
   新 slug 用 strutil.TitleSlug、新解码用 b64ToBytes、NAVIGATE 用 manifest id；新域先问「能否是文档」。
 - **文档纪律**：`docs/` 的旧调研与已落地计划归档在 `docs/archive/`（见其 README），不把其结论当现状引用。
@@ -124,7 +129,7 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - **绑定面（v2.17.0 起）**：App 不再直接绑定 Wails；导出方法拆 12 个板块门面
   （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/ImageB/CharlibB/PantheonB/WenxueB/ProposalB，
   纯委托零逻辑改动）。改绑定面方法后用 `go run ./scripts/gen_bindings` 重新生成 +
-  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 725（2026-11-24），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
+  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 668（2026-11-25，造价库重建退役 59），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
   api/bridge.ts 的 window.go.app.App 兼容代理；旧 wailsjs 导入走 src/wailsjsCompat 重导出；
   wails build 会重生成 wailsjs/go/app/<门面>.js
 - 单模型架构：一个 executor 完成规划与执行，无独立规划器；任务/技能子代理走 `task` / `run_skill`

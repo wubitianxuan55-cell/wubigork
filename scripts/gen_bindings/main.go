@@ -66,6 +66,32 @@ var excludedBindings = map[string]bool{
 	"GaeaCostAttribution": true, "GaeaCostList": true,
 	// （GaeaWorkcostBillItemSave/Delete 已于 2026-10-28 复活除名：清单库行级
 	// 编辑/删除 UI 落地，方法体本就保留，见 internal/app/gaea_workcost.go。）
+	// 造价数据库推倒重建（2026-11-25）：板块只剩三级浏览面（清单 / 定额 / 工料机），
+	// 旧板块的导入 / 解析 / 编辑 / 价格源 / 询价 / 资料条目 / 对标 / 图谱界面全部下线，
+	// 它们消费的 57 个 CostB 绑定随之零界面调用；旧资料条目视图「语义索引补齐」钮的
+	// 2 个语义索引绑定同批，共 59 个。写库入口归办公「造价」运行模式（cost_library /
+	// cost_project_apply，走 store 不走绑定）。方法体全保留——Go 测试与 agent 工具仍用
+	// 得到；复活=除名重跑生成器。
+	"GaeaCostAuditScan": true, "GaeaCostBulkPriceApply": true, "GaeaCostBulkPricePreview": true,
+	"GaeaCostCategories": true, "GaeaCostCategoryDelete": true, "GaeaCostCategorySave": true,
+	"GaeaCostCompare": true, "GaeaCostCompose": true, "GaeaCostComposeApply": true,
+	"GaeaCostComposeRecords": true, "GaeaCostDedupeResources": true, "GaeaCostDelete": true,
+	"GaeaCostGet": true, "GaeaCostGraph": true, "GaeaCostImportAIParse": true,
+	"GaeaCostImportApply": true, "GaeaCostImportPreview": true, "GaeaCostImportVisionPreview": true,
+	"GaeaCostIndicators": true, "GaeaCostInquiryAdjust": true, "GaeaCostInquiryDelete": true,
+	"GaeaCostInquiryExpiring": true, "GaeaCostInquiryList": true, "GaeaCostInquirySave": true,
+	"GaeaCostInquiryScan": true, "GaeaCostProjectList": true, "GaeaCostQuotaFlywheelApply": true,
+	"GaeaCostQuotaFlywheelPreview": true, "GaeaCostSave": true, "GaeaCostSearch": true,
+	"GaeaCostSearchPage": true, "GaeaPriceFetch": true, "GaeaPriceFetchAll": true,
+	"GaeaPriceFetchApply": true, "GaeaPriceFetchIgnore": true, "GaeaPriceFetches": true,
+	"GaeaPriceHistory": true, "GaeaPriceSourceDelete": true, "GaeaPriceSourceSave": true,
+	"GaeaPriceSources": true, "GaeaSemanticIndexBackfill": true, "GaeaSemanticIndexStatus": true,
+	"GaeaWorkcostBillItemSave": true, "GaeaWorkcostBillProjectRatesSave": true, "GaeaWorkcostBillQuotaAttach": true,
+	"GaeaWorkcostBillQuotaDetach": true, "GaeaWorkcostBillQuotaLinks": true, "GaeaWorkcostProjectApply": true,
+	"GaeaWorkcostProjectExport": true, "GaeaWorkcostProjectExportToWorkspace": true, "GaeaWorkcostProjectFees": true,
+	"GaeaWorkcostProjectParse": true, "GaeaWorkcostQuotaSave": true, "GaeaWorkcostRecompose": true,
+	"GaeaWorkcostResourceGet": true, "GaeaWorkcostResourceSave": true, "GaeaWorkcostResourceSetPrice": true,
+	"GaeaWorkcostSeedApply": true, "GaeaWorkcostSeedPreview": true,
 	"AddOutlineNode": true, "AnalyzeStyle": true, "BrainCrossRefs": true,
 	"BrainWrite": true, "BrainstormBranches": true, "BuildBacklinkIndex": true,
 	"BuildContextBudget": true, "BuildRichContext": true, "ChatCharacter": true,

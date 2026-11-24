@@ -175,6 +175,32 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 	return item, nil
 }
 
+// FindBillItem 按项目与编码找清单项；不存在返回 nil（编码为空恒返回 nil——
+// 空编码走 SaveBillItem 自动编号，本来就是新行）。
+func (s *Store) FindBillItem(projectID int64, code string) (*BillItem, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	code = strings.TrimSpace(code)
+	if projectID <= 0 || code == "" {
+		return nil, nil
+	}
+	var it BillItem
+	err := s.db.QueryRow(`SELECT id, project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort
+FROM gf_bill_items WHERE project_id=? AND code=?`, projectID, code).
+		Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
+			&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.ListPrice, &it.Sort)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	// 与 BillItems 同口径聚合挂接码（引用表为准，单值列兜底），构造即非 nil。
+	it.QuotaCodes = s.quotaLinksByItems([]int64{it.ID}, map[int64]string{it.ID: it.QuotaCode})[it.ID]
+	return &it, nil
+}
+
 // nextBillCode 手填行自动编号（项目内 M 序号，跳过已用号）。
 func (s *Store) nextBillCode(projectID int64) (int, error) {
 	rows, err := s.db.Query(`SELECT code FROM gf_bill_items WHERE project_id=? AND code LIKE 'M%'`, projectID)
