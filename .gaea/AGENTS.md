@@ -73,7 +73,10 @@
   真构建仍按「构建入口」走 ucrt64。
 - 方案库（一级板块，`internal/gaea/proposal` + `ProposalB`）：历史方案按标题 1~4 级存取，
   录入只在办公「方案」运行模式里由模型经 `proposal_save` 完成；检索复用本地 embedding /
-  reranker 客户端，不另造检索工具。设计拍板与坑见 `.gaea/progress.md` 2026-11-24 条。
+  reranker 客户端，不另造检索工具。正文图片由 `proposal_assets` + `proposal-assets/`
+  内容寻址托管，正文只存 `gaea-asset://<sha256>`；DOCX/PPTX 导入用
+  `format_convert preserve_images=true` 抽 sidecar。设计拍板与坑见 `.gaea/progress.md`
+  2026-11-24 条。
   正式库里的方案「包3技术标 第三版」（3 节短文）是用户 2026-11-24 拍板保留的
   测试夹具，供后续优化做测试，**勿删**。
 - 角色库剧照默认跟随绘梦（ImageBackend/ImageModel），可在模型中心单独绑定
@@ -121,7 +124,7 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - **绑定面（v2.17.0 起）**：App 不再直接绑定 Wails；导出方法拆 12 个板块门面
   （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/ImageB/CharlibB/PantheonB/WenxueB/ProposalB，
   纯委托零逻辑改动）。改绑定面方法后用 `go run ./scripts/gen_bindings` 重新生成 +
-  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 724（2026-11-24），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
+  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 725（2026-11-24），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
   api/bridge.ts 的 window.go.app.App 兼容代理；旧 wailsjs 导入走 src/wailsjsCompat 重导出；
   wails build 会重生成 wailsjs/go/app/<门面>.js
 - 单模型架构：一个 executor 完成规划与执行，无独立规划器；任务/技能子代理走 `task` / `run_skill`
@@ -135,6 +138,10 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
   gaea 的视觉/检索/OCR/解析/生图等依赖它，升级可能破坏契约——用 App.HerdsmanProbe 启动探测。
   gaea 另自管几个外部引擎：llama（35B 对话）、WHIRL（8126）、Strata、Breeze-TTS-2、ComfyUI；
   CosyVoice2 / Ollama / OpenCode Zen / 天璇（tianxuan）/ VoxCPM2 已退役
+- **Strata 生命周期（2026-11-24 用户拍板）**：只保留 Qwen3.8；冷启动约 3 分钟，
+  **禁止聊天/图文请求内自动拉起**，必须从模型中心 → 语言模型显式“启动/预热”。
+  启动成功后保持常驻，不走 5 分钟空闲收割；由用户手动停止。Inkling-2-Mini
+  模型与 shape engine 已删除，`C:\AI\re\strata-0.2.20` 只保留小体积测试证据。
 
 ## 执行纪律：子代理按需使用（2026-09-03 立，2026-11-14 用户撤销强制并发）
 

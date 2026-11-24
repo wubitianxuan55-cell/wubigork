@@ -1,5 +1,17 @@
 # 任务进度
 
+| ✅ | **方案库图片托管改造**（2026-11-24，桌面构建完成未装机）：SchemaV37 `proposal_assets` + `%APPDATA%\gaea\proposal-assets` sha256 内容寻址；`proposal_save` 自动复制本地图/外置 data URI并改写 `gaea-asset://`；`format_convert preserve_images=true` 支持 DOCX/PPTX sidecar；ProposalB 增资产读取绑定（724→725）；阅读端 data URL 解析、跨方案去重与最后引用回收完成。DOCX 转换→录入端到端、Go 定向/vet、前端定向/tsc/ESLint、docs 守卫绿；npm 26.48s + Wails 47.153s（bindings 未跳过），exe `582BB3BA…AD2780`，smoke 200；当前构建含工作树其他未提交改动。PDF 图片与 EMF/WMF/SVG 挂池 |
+
+| ✅ | **Inkling 删除 + Qwen3.8 冷启动改造**（2026-11-24）：Inkling 档位/模型/shape engine 全部移除，19.2GB 运行资产送入回收站；Qwen 请求内热启动禁用，必须从模型中心语言模型页显式“预热启动”，启动后不再被 5 分钟空闲收割，仅在手动停止时退出；状态写明冷启动约 3 分钟。Go 预检/常驻测试绿、Vitest 17/17、Vite 27.42s、Wails 47.161s、冒烟 200、INSTALL OK（PID 54304，exe `6AB13428…`） |
+
+| ✅ | **Inkling-2-Mini SQ-20 接入与实测**（2026-11-24）：官方权重/ Vision SHA256 校验一致；`strata-inkling 0.1.66` HIP strix 组件安装；32K + DSpark + Vision 配置生成，tokenizer 收进模型目录；gaea 增 `inkling2mini_sq20` 档位与模型 ID `inkling-2-mini-sq-20`；冷启动约 10s；五档 24.3/27.3/25.9/21.3/27.1 tok/s，长提示 TTFT 3.936s，并发两路 54.4/60.6、聚合 45.9；官方 selfcheck PASS，15 项能力套件 14/15（工具闭环、15,189-token 长上下文、视觉均过；唯一失败=“校验码”安全拒答，中性多轮词通过）；测试绿、Vite 37.99s、Wails 1m21.766s、冒烟 200、INSTALL OK（PID 27848，exe `73336E68…`）；证据归档 `C:\AI\re\strata-0.2.20\`；余项=用户真机体感 |
+
+| ✅ | **Inkling SQ-20 vs Qwen3.8 同题能力对比**（2026-11-24）：Qwen 关思考 14/15、36.3s；Qwen 开思考（token×4）14/15、63.5s；Inkling 14/15、40.8s。13 项共同通过（中文指令/算术/常识/逻辑/JSON/写作/注入抵抗/代码/算法/中性多轮/工具闭环/长上下文等）；Qwen 强在敏感名多轮召回与工具速度，Inkling 强在精确 OCR 与约 10s 冷启动；Qwen 开思考本套题不增通关。报告在 `C:\AI\re\strata-0.2.20\data\capabilities-*.json` |
+
+| ✅ | **文学 Qwen3.8 冷启动 30s 假停止根修**（2026-11-24）：根因=文学前端 30s watchdog 在 `WenxueSend→预检→StrataEngineStart` 期间读到 `WenxueRunning=false`，仅复位界面不改后端；真实 8091 仍继续冷启动并成功回复。修复=在途发送计数纳入 WenxueRunning，覆盖 turn_started 前预检窗口，后端 300s 上限不变；回归测试绿、Vite 39.58s、Wails 45.451s、冒烟 200、INSTALL OK（PID 53476，exe `CC5B615C…`） |
+
+| ✅ | **Strata 官方最新版 + Qwen3.8 实测**（2026-11-24）：v0.2.13/engine 0.1.59 → v0.2.20/engine 0.1.66 hip-rdna3（资产 SHA256 `568B97FD…3977B`）；适配官方 `terminal/` 布局并保留旧布局兜底，venv/Pillow 更新，wrapper 路径修正并显式 `--mmap-experts`；8060S gfx1151 selftest OK；Qwen3.8 32K 上下文四档全 PASS，冷态 30.5~47.0 tok/s，热态 32.6~50.5，并发两路 58.4/60.9；定向测试/vet 绿、Vite 41.57s、Wails 29.825s、健康 200、INSTALL OK（PID 34164，exe `1EC6E192…`）；余项=用户真机聊天体感 |
+
 | ✅ | **方案库功能体系完善 + Git 打包装机**（2026-11-24）：存储层 SchemaV36（源文件锚点录入/分批续录/语义块表）+ 全文×语义×本地精排检索 + 三工具重写 + ProposalB 五绑定（722→724）+ 一级板块「方案库」三栏界面（紧随造价库，后续板块序号 +1）+ 方案模式提示词/技能同步；真实技术标试点（241 标题/954 块/24s 向量化/检索 0.5~1.3s）+ 真实程序 HTTP 桥绑定核对；Go 131 包绿、前端 4734 例本次相关全绿、tsc/ESLint/vet 0、漂移 OK@724；工作树收口两笔 `9b5b8724`（文学反馈批，另一会话遗留）+`ddce2d4a`（知识库退役+方案库）；干净树 Vite 35.04s+Wails 1m5.28s（bindings 未跳过，内容漂移 0）、payload 冒烟 200；包 `releases/gaea-proposal-library-20261124-ddce2d4a/`（六项 SHA256 已记录）；INSTALL OK（PID 32336，exe `71205F07…`）；记录 `07258861`，11-24 07:50 已推 origin |
 
 | ✅ | **Git 打包与推送 `gaea-20261124-58be0f5e`**（2026-11-24）：干净树 Vite 38.48s+Wails 71s（bindings 未跳过，内容漂移 0）、正式 payload 冒烟 200；exe 与上一包 `ddce2d4a` 逐字节相同（增量全是记录 / 文档 / 注释，无功能变化），未重装；`77291f35..58be0f5e` 已推 origin；包 `releases/gaea-20261124-58be0f5e/`，详见 PACKAGE-INFO |

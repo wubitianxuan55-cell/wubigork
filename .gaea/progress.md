@@ -1,3 +1,162 @@
+## 一级导航图标辨识度修正（2026-11-24）
+
+用户反馈方案库一级图标与办公板块太像；首版笔记本方向被否决后，明确要求办公直接用
+台式机图标。
+
+- **办公**：原“叠页文档 + 横线”改为显示器、支架与主机塔组合，主栏 20px 直接读作
+  台式机。
+- **方案库**：原“单册方案 + 标题线”改为分层档案抽屉 + 检索镜，表达“归档成库 +
+  按需查找”，与办公的设备轮廓完全分开。
+- **验证**：boardIcons / manifests / CommandRail 定向 73 例绿；`tsc -b` 与改动面
+  ESLint 绿。仅前端源码修改，未构建、未装机。
+
+## 方案库图片托管改造（2026-11-24，桌面构建完成，未装机）
+
+用户拍板方案库应保存方案图片后，完成“文件托管 + 数据库索引 + 稳定引用”闭环。
+
+- **SchemaV37**：新增 `proposal_assets`，按方案/小节归属记录 sha256、MIME、字节数、
+  宽高、原文件名、图注；二进制落 `%APPDATA%\gaea\proposal-assets/objects/`，正文只存
+  `gaea-asset://<sha256>`。同图跨小节/跨方案共用磁盘文件，删除时只在最后一个引用消失后回收。
+- **录入**：`proposal_save` 自动识别 Markdown 图片，复制来源目录内本地图/解出完整
+  data URI，并改写正文；缺图不静默通过，回执列出未托管项。已含 asset URI 的正文重录可
+  从托管目录恢复元数据。FTS/语义块只见图注与稳定 URI，不索引 Base64。
+- **文档导入**：`format_convert` 新增 `preserve_images=true`（必须同时给 output）；
+  DOCX/PPTX 经 MarkItDown `--keep-data-uris` 保留内嵌图，外置到同名 `-assets` 目录并改
+  相对引用。PDF 仍只抽文字，不默认把整页渲染成图。
+- **阅读端**：新增 ProposalB 第六绑定 `GaeaProposalAssetDataURL`；MarkdownContent 识别
+  `gaea-asset://`，经绑定读回 data URL。资源失败显示占位，不伪装成成功。
+- **验证**：提案资产单测含落盘/回读/覆盖/跨方案共享/删除回收；DOCX 带图
+  `format_convert → proposal_save` 端到端绿；ProposalB 绑定、前端 Markdown/方案库/
+  mock 契约、tsc、改动面 ESLint、Go vet 与 docs 守卫绿；Vite 生产构建 34.25s
+  （既有 CSS/chunk warning）。绑定面 724→725。
+- **桌面构建**：按构建指南先 `npm.cmd run build`（26.48s），再以 `build/bin` +
+  ucrt64 PATH、`CGO_ENABLED=1`、`CC=C:\msys64\ucrt64\bin\gcc.exe` 执行裸
+  `wails build -s -ldflags "-s -w" -trimpath`；bindings 未跳过，47.153s 成功。
+  `build\bin\gaea.exe` 59,361,280 B，SHA256 `582BB3BA…AD2780`；正式路径 smoke
+  `/api/health` 200。当前构建含主工作树其他未提交改动；未打包、未装机。
+- **边界**：仅收 PNG/JPEG/GIF/WebP、单图 20 MB；PDF 内嵌图与 DOCX 的 EMF/WMF/SVG
+  尚未抽取。已入库的旧文字方案无法从现有库恢复当时丢失的原图，需回源重录。
+
+## Inkling 删除 + Qwen3.8 冷启动生命周期改造（2026-11-24）
+
+用户拍板「第一删除 Inkling，第二 Qwen3.8 启动太慢，不适合热启动，要修改」。
+
+- **Inkling 删除**：代码档位、模型 ID、前端兜底与启动配置全部移除；原运行资产
+  `C:\AI\models\inkling-2-mini`（19.1GB）、Strata shape engine（141.8MB）与
+  tokenizer pack（9.4MB）已从原路径移除。直接永久删除被执行策略拦截，资产已送入
+  Windows 回收站；清空回收站可释放约 19.2GB。`C:\AI\re\strata-0.2.20` 保留约
+  50KB 能力/测速证据并明确标注“运行时已删”。
+- **Qwen 冷启动策略**：新增 `strataColdStartOnly`；聊天 `ensureChatBindingEngine`
+  与图文 `wenxueEnsureEngine` 未探测到 8091 时不再等待 3 分钟拉起，立即返回
+  “请先到模型中心 → 语言模型点击启动”。显式启动仍走 `StrataModelStart`，
+  300s 就绪上限不变。
+- **常驻策略**：`StrataEngineStatus` 返回 `auto_start=false`、
+  `cold_start_seconds=180`、`keep_resident=true`；空闲收割器检测到 Qwen3.8
+  运行时跳过收割（其它 llama/WHIRL/ComfyUI 规则不变）。引擎卡提示“冷启动约
+  3 分钟、显式启动、启动后常驻”，语言模型卡按钮显示“预热中…”，并标记
+  “冷启动约 3 分钟”。
+- **验证/装机**：新增 cold-start 预检与 keep-resident 测试；`TestStrata*`、
+  聊天/图文定向测试绿，Vitest 17/17；Vite 27.42s；Wails 47.161s（bindings
+  未跳过）；冒烟 200；INSTALL OK，PID 54304，exe SHA256
+  `6AB1342865DA…F207FA`。装机 exe 已确认不再含 `inkling2mini_sq20` 档位字符串。
+
+## Inkling-2-Mini SQ-20 接入与实测（2026-11-24）
+
+用户提供手动下载的官方权重后，主代理完成校验、运行配置、gaea 档位接入、测速、构建和装机。
+
+- **权重/组件校验**：SQ-20 `19,346,685,952 B`，SHA256
+  `0BBFD523…F7E1B97`；Vision `636,526,592 B`，SHA256 `6589EFF4…6FC677`，
+  均与官方 pin 一致。`strata-inkling 0.1.66` Windows HIP `strix` 组件已安装
+  （`gfx1151`，官方包 SHA256 `b771d9fb970ac2cf9f7a2807dbb6df3a3277745aef09c91a2713d4cc8f445f0b`）。
+  官方 setup 生成 32K、DSpark、Vision 配置；tokenizer 收进模型目录
+  `C:\AI\models\inkling-2-mini\inkling-2-mini\tokenizer`，不再依赖旧
+  `C:\AI\strata\Strata-data` 散点路径。
+- **运行确认**：`strata-inkling --info` 报 `arch=inkling2_loop format=strata
+  build=SQ-20 layers=24 visits=48 hidden=2304 vocab=200058 experts=128
+  drafter=dspark images=1 parallel=64`；8091 冷启动约 10s，`/v1/models`
+  返回 `inkling-2-mini-sq-20` loaded。
+- **gaea 接入**：`strataProfiles` 增 `inkling2mini_sq20`，配置
+  `terminal\strata-inkling-2-mini-sq-20.json`，模型 ID
+  `inkling-2-mini-sq-20`；状态识别、前端兜底档位和模型目录同步。Qwen 仍为
+  默认展示档，Inkling 从模型中心显式启动。
+- **测速（与 Qwen 同一 `verify_engine_compare.go` 口径）**：
+  五档 24.3 / 27.3 / 25.9 / 21.3 / 27.1 tok/s；长提示词 3,121 prompt tokens、
+  TTFT 3.936s；并发 x2 两路 54.4 / 60.6 tok/s，脚本聚合 45.9 tok/s。
+  Inkling 单路吞吐低于 Qwen，但 DSpark 与连续批处理在 x2 下更稳。
+- **能力测试**：官方 `--selfcheck --verify-hash` PASS；可复跑 15 项确定性套件
+  **14/15 PASS**（40.8s）：中文逐字指令/算术/常识/多步逻辑/JSON 抽取/中文创作
+  约束/注入抵抗/Python 语法/区间合并/中性多轮召回/工具调用+结果闭环/
+  15,189-token 长上下文中段召回/视觉 OCR+形状颜色均过。唯一失败为把普通标记
+  命名为“校验码”后的安全拒答；同一上下文改用“海盐派-73”可召回，判定为
+  安全对齐行为而非上下文能力缺失。工具调用为 `get_weather({"city":"上海"})`
+  → tool result → `18°C/晴`；视觉读出 `GAEA-42`、红色圆形、蓝色三角形。
+- **Qwen3.8 同题对比**：Qwen 关思考 14/15、36.3s；开思考（max_tokens×4）
+  14/15、63.5s；Inkling 14/15、40.8s。三者除两个差异项外全部同过：
+  Qwen 能在历史中召回“校验码”，Inkling 安全拒答；Inkling 视觉完整读出
+  `GAEA-42`，Qwen 两次均丢连字符成 `GAEA42`（形状/颜色正确）。Qwen 开思考
+  对本套题无新增通关，只增加 27.2s 总延时；工具闭环 Qwen 关思考约 2.0s，
+  Inkling 约 5.5s。中文创作 Qwen 2.9s/Inkling 4.5s，15K 长上下文
+  Qwen 18.2s/Inkling 19.7s。
+- **验证/装机**：`TestStrata*` 绿；Vite 37.99s；Wails 1m21.766s（bindings
+  未跳过）；build/bin 冒烟 `/api/health` 200；INSTALL OK，活体 PID 27848，
+  exe SHA256 `73336E686332…0212`。测速服务已停，应用保持运行。
+- **证据**：`C:\AI\re\strata-0.2.20\` 增 Inkling server 日志、组件清单和
+  测速/能力 JSON（Qwen 开/关思考双份）与 `scripts\capability_suite.py`；
+  大模型只记运行路径与 SHA256。
+
+## 文学板块 Qwen3.8 冷启动 30s 假停止修复（2026-11-24）
+
+用户反馈「其它模型正常，只有 Strata/Qwen3.8 到约 28s 就停止；是不是有时间限制」。
+
+- **根因**：不是引擎超时。文学控制器前端每 30s 执行一次 `GaeaRunning()` watchdog，
+  该短名映射 `WenxueRunning()`；旧实现只返回 `ctrl != nil && ctrl.Running()`。
+  Qwen3.8 冷启动要等待 Strata 预填 55.43GiB 专家缓存（实测约 2–3 分钟），此时
+  `WenxueSend` 仍在 `wenxuePreflight → StrataEngineStart` 内，尚未执行
+  `ctrl.Send`，于是首个 watchdog tick 读到 false，`localCancel` 把界面运行态
+  复位。真实 Python/strata.exe 与回合都继续运行，最终请求仍成功生成回复。
+  其它模型在 30s 内已 ready，所以没有触发；不是模型白名单或 30s 启动上限。
+- **修复**：`wenxueRuntime` 增在途发送计数；`WenxueSend` 从进入即 `beginWenxueSend`
+  并用幂等 `defer done()` 释放；`WenxueRunning` 现在 `sends>0 || ctrl.Running()`，
+  覆盖 `turn_started` 之前的引擎预检/冷启动窗口。后端真实启动上限仍是 300s。
+- **验证/装机**：新增 `TestWenxueRunning_IncludesSendPreflight`，连同
+  `TestWenxuePreflight*` 定向测试绿；前端生产构建 39.58s；Wails
+  `-s -ldflags "-s -w" -trimpath` 45.451s（bindings 未跳过）；`build/bin` 冒烟
+  `/api/health` 200；INSTALL OK，活体 PID 53476，exe SHA256 `CC5B615C5BEC…`。
+
+## Strata v0.2.20 + engine 0.1.66 升级与 Qwen3.8 实测（2026-11-24）
+
+用户令「Strata 更新到官方最新版并测试 Qwen3.8 速度」，主代理独立完成。
+
+- **上游与换装**：本地从 `v0.2.13`（engine 0.1.59）升到官方 `v0.2.20`
+  （commit `a34979fc94f3`），Windows HIP `rdna3` 组件 `0.1.66`；资产
+  `strata-engine-0.1.66-windows-x86_64-hip-rdna3.tar.gz` 为 220,395,581 B，
+  SHA256 `568B97FD55AC1309C38F2CCE00597F5B327C7989FC32FE7B49D9F9772883977B`
+  与 GitHub 发布页逐字一致。旧 engine 保留为 `engine-0.1.59.bak/`；官方包、启动日志与
+  结构化测速 JSON 已归档到 `C:\AI\re\strata-0.2.20\`（见其 README），仓库不放数据。
+- **布局迁移**：0.2.16 起官方把控制端移到 `terminal/serve/server.py`、venv 移到
+  `terminal/.venv`。`strata_proc.go` 改为当前布局优先、旧 `serve/server.py` 兜底；
+  启动、状态返回与测试同步。`terminal/requirements.txt` 已应用到 venv（Python 3.13，
+  Pillow 12.3→13.0），`pip check` 无冲突。Qwen3.8 wrapper 的绝对路径改到新根，
+  并把当前 64GB 系统内存装不下 55.44GiB expert arena 的真实条件显式写成
+  `--mmap-experts`（引擎日志此前已自动回退到同一路径）。
+- **运行确认**：`strata-device --list-devices/--selftest` 通过——AMD Radeon 8060S、
+  `gfx1151`、107.6GiB、selftest OK；Qwen3.8-Flash-Next Uncensored 以 32K 上下文、
+  int8 KV、MTP 打开，模型 `/v1/models` 报 loaded；日志确认
+  `hipBLASLt tuning enabled (32 rows, gfx1151, version 100500)`。
+- **测速（gaea 聊天页同口径：completion ÷ 首 delta→流结束）**：
+  首轮 `verify_strata_speed.go` 四档全 PASS——短答关思考 37.2、长答关思考 30.5、
+  思考缺省开 36.7、长提示词 47.0 tok/s，长提示词冷 TTFT 3.529s。
+  同引擎热态复测 `verify_engine_compare.go` 五档为 34.4 / 32.6 / 43.5 / 50.5 /
+  38.1 tok/s，热 TTFT 204~266ms；并发 x2 两路 58.4 / 60.9 tok/s，聚合 39.6。
+  引擎日志旁证短答 35.4→36.7 tok/s、思考档 42.3 tok/s、长提示词 48.6 tok/s。
+  当前运行是文件专家 mmap 路径，不等同于官方“专家全驻 RAM”的机器条件。
+- **构建与装机**：定向 `TestStrata*`、`TestEngineUpdateCheck*`、`go vet
+  ./internal/app` 绿；前端生产构建 41.57s；首次 Wails 因 bindings 子进程缺 DLL
+  退出 `0xc0000135`，按指南把 `build/bin` 前置后同一裸
+  `wails build -s -ldflags "-s -w" -trimpath` 29.825s 成功（bindings 未跳过）。
+  `build/bin/gaea.exe` 冒烟 `/api/health` 200；`gaea_install.ps1 -Launch` INSTALL OK，
+  装机 PID 34164，exe SHA256 `1EC6E192ED44…6267`，与构建产物一致。
+
 ## 开机动画重设计落地 + 新标全局替换 + 4K 底片（2026-11-24，用户拍板「logo选B，同步替换全局图标，开机动画要4K高清」）
 
 主代理（ZCode）独立完成；**已提交 `6ad4916d` 并打包装机**（2026-11-24 下午，见下「打包装机」）；
