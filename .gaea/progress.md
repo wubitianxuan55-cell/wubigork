@@ -1,3 +1,18 @@
+## Git 打包与推送：gaea-20261124-58be0f5e（2026-11-24 10:05~10:15，用户令「git打包推送」）
+
+- **构建**：从 `58be0f5e` 的独立干净工作树 `.worktrees/pkg-58be0f5e`（detached，node_modules 为主树
+  junction）构建：Vite 38.48s + Wails 1m11.086s（bindings 未跳过，再生 28 个 wailsjs 文件，内容漂移 0）；
+  系统默认 `TMP/TEMP`、`CGO_ENABLED=1`、ucrt64 gcc、PATH 前置主树 `build/bin`。构建前无 wails/go 孤儿。
+- **交付**：`releases/gaea-20261124-58be0f5e/`（payload 四件正式路径冒烟 200，PID 33468 已回收，
+  前后进程清单均只有装机壳 PID 32336；PACKAGE-INFO + SHA256SUMS 入库，ZIP / 源码包留盘）。
+  exe `71205F07…B6309D`，运行包 `A0BA7358…`，源码包 `41AB5722…`（6551 文件）。
+- **可复现性**：exe 与上一交付包 `ddce2d4a` 逐字节相同——四笔增量（`07258861` / `77291f35` /
+  `158ed9f7` / `58be0f5e`）全是记录、文档清理与 17 行注释里的文档路径，没有功能变化。
+  装机位 `C:\AI\gaea-app\gaea.exe` 就是这份二进制，**未重新装机**。
+- **验证口径**：本次未跑全量测试（源码改动仅为注释，编译产物与已验证的上一包相同）；本次 Wails
+  构建含 cgo 成功。
+- **推送**：`77291f35..58be0f5e` 已推 origin；包记录提交随后推送。
+
 ## docs 索引清理：过期文档归档（2026-11-24，用户令）
 
 - **起因**：用户指 `docs/README.md` 里许多登记的文档已过期，可以清理。
