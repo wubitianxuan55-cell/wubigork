@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 )
 
 // withWxDeliverableSeams 临时替换产物查找 seam（测毕恢复）。
@@ -60,10 +61,18 @@ func seedSessionWithDeliverable(t *testing.T, deliverable string) string {
 func TestExecSendLatestFile_RegistryHit(t *testing.T) {
 	a := newChatServiceTestApp(t)
 	root := t.TempDir()
-	// 两个产物：登记表按 updatedAt 倒序，最新登记的是 second.txt（同 ts 按
-	// path 字典序稳定性不参与——ts 显式错开）。
-	first := filepath.Join(root, "first.txt")
-	second := filepath.Join(root, "second.txt")
+	// 登记路径按工作区相对解析（交付/xxx）——工作区指向夹具根。
+	oldCfg := ga.cfg
+	ga.cfg = &gaeaConfig.Config{Workspace: root}
+	defer func() { ga.cfg = oldCfg }()
+	// 两个产物（交付文件夹口径，2026-11-24）：登记表按 updatedAt 倒序，最新
+	// 登记的是 second.txt（同 ts 按 path 字典序稳定性不参与——ts 显式错开）。
+	delivDir := filepath.Join(root, "交付")
+	if err := os.MkdirAll(delivDir, 0o755); err != nil {
+		t.Fatalf("建交付文件夹: %v", err)
+	}
+	first := filepath.Join(delivDir, "first.txt")
+	second := filepath.Join(delivDir, "second.txt")
 	for _, p := range []string{first, second} {
 		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
 			t.Fatalf("写产物: %v", err)
@@ -82,7 +91,7 @@ func TestExecSendLatestFile_RegistryHit(t *testing.T) {
 		})
 		return append(b, '\n')
 	}
-	lines = append(lines, mk(first, 1000), mk(second, 2000))
+	lines = append(lines, mk("交付/first.txt", 1000), mk("交付/second.txt", 2000))
 	if err := os.WriteFile(filepath.Join(dir, "s-1.gaea-log.jsonl"), bytes.Join(lines, nil), 0o644); err != nil {
 		t.Fatalf("写事件日志: %v", err)
 	}

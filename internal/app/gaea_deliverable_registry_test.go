@@ -24,12 +24,12 @@ func writeDeliverableFixture(t *testing.T) string {
 	}
 	lines := []string{
 		logLine(1, 100, "turn_started", map[string]any{}),
-		logLine(2, 110, "tool_dispatch", map[string]any{"id": "t1", "name": "write_file", "args": `{"path":"docs/报告.docx","content":"v1"}`}),
-		logLine(3, 120, "tool_dispatch", map[string]any{"id": "t2", "name": "edit_file", "args": `{"path":"docs/报告.docx","old_string":"a"}`}),
+		logLine(2, 110, "tool_dispatch", map[string]any{"id": "t1", "name": "write_file", "args": `{"path":"交付/报告.docx","content":"v1"}`}),
+		logLine(3, 120, "tool_dispatch", map[string]any{"id": "t2", "name": "edit_file", "args": `{"path":"交付/报告.docx","old_string":"a"}`}),
 		logLine(4, 130, "turn_done", map[string]any{}),
 		logLine(5, 200, "turn_started", map[string]any{}),
-		logLine(6, 210, "tool_dispatch", map[string]any{"id": "t3", "name": "move_file", "args": `{"source":"docs/draft.md","destination":"docs/报告.docx"}`}),
-		logLine(7, 220, "tool_dispatch", map[string]any{"id": "t4", "name": "chart_gen", "args": `{"output":"charts/成本.png"}`}),
+		logLine(6, 210, "tool_dispatch", map[string]any{"id": "t3", "name": "move_file", "args": `{"source":"交付/draft.md","destination":"交付/报告.docx"}`}),
+		logLine(7, 220, "tool_dispatch", map[string]any{"id": "t4", "name": "chart_gen", "args": `{"output":"交付/成本.png"}`}),
 		logLine(8, 230, "turn_done", map[string]any{}),
 	}
 	logPath := filepath.Join(sessionDir, "s1.gaea-log.jsonl")
@@ -68,13 +68,13 @@ func TestGaeaDeliverableRegistry(t *testing.T) {
 	if len(v.Entries) != 2 {
 		t.Fatalf("entries = %d, want 2: %+v", len(v.Entries), v.Entries)
 	}
-	// updatedAt 倒序：charts/成本.png（220）在前
+	// updatedAt 倒序：交付/成本.png（220）在前
 	first, second := v.Entries[0], v.Entries[1]
-	if first.Path != "charts/成本.png" || first.Tool != "chart_gen" || first.Turn != 2 || first.UpdatedAt != 220 || first.Touches != 1 {
+	if first.Path != "交付/成本.png" || first.Tool != "chart_gen" || first.Turn != 2 || first.UpdatedAt != 220 || first.Touches != 1 {
 		t.Fatalf("entries[0] 异常：%+v", first)
 	}
 	// 报告.docx：写→编辑→移动 三次触碰，保留最近一次（move_file，turn 2）
-	if second.Path != "docs/报告.docx" || second.Tool != "move_file" || second.Turn != 2 || second.UpdatedAt != 210 || second.Touches != 3 {
+	if second.Path != "交付/报告.docx" || second.Tool != "move_file" || second.Turn != 2 || second.UpdatedAt != 210 || second.Touches != 3 {
 		t.Fatalf("entries[1] 异常：%+v", second)
 	}
 }

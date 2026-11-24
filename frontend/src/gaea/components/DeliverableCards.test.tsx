@@ -54,42 +54,40 @@ describe("DeliverableCards 交付文件卡片", () => {
     render(
       wrap(
         <DeliverableCards
-          text="已生成：exports/成本测算.xlsx，方案见 .gaea/exports/方案.docx，图表 exports/趋势.png。再次提到 exports/成本测算.xlsx。"
+          text="已生成：交付/成本测算.xlsx，方案见 草稿/方案.docx，图表 交付/趋势.png。再次提到 交付/成本测算.xlsx。"
         />,
       ),
     );
     const cards = screen.getAllByRole("button", { name: /成本测算\.xlsx|方案\.docx|趋势\.png/ });
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(2); // 草稿/方案.docx 非交付文件夹 → 不出卡
 
     fireEvent.click(screen.getByRole("button", { name: /成本测算\.xlsx/ }));
-    expect(usePreviewStore.getState().previewFile).toBe("exports/成本测算.xlsx");
+    expect(usePreviewStore.getState().previewFile).toBe("交付/成本测算.xlsx");
   });
 
   it("代码文件不算交付物，纯文本无文件时不渲染", () => {
-    const { container } = render(wrap(<DeliverableCards text="已生成 exports/main.ts，无其他交付" />));
+    const { container } = render(wrap(<DeliverableCards text="已生成 交付/main.ts，无其他交付" />));
     expect(container.querySelectorAll("button")).toHaveLength(0);
   });
 
   it("灵犀成果卡：2 列网格容器 + 按类型着色的后缀徽标，路径保留在可访问名称", () => {
     const { container } = render(
       wrap(
-        <DeliverableCards text="已生成：exports/成本测算.xlsx，方案见 .gaea/exports/方案.docx，图表 exports/趋势.png。" />,
+        <DeliverableCards text="已生成：交付/成本测算.xlsx，方案见 草稿/方案.docx，图表 交付/趋势.png。" />,
       ),
     );
     const cards = container.querySelectorAll<HTMLElement>(".office-file-card");
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(2); // 草稿/方案.docx 非交付文件夹 → 不出卡
     expect(container.querySelector(".office-deliverables__grid")).toBeTruthy();
     expect(cards[0].getAttribute("data-kind")).toBe("excel");
     expect(cards[0].querySelector(".office-file-card__badge")?.textContent).toBe("XLSX");
-    expect(cards[1].getAttribute("data-kind")).toBe("word");
-    expect(cards[1].querySelector(".office-file-card__badge")?.textContent).toBe("DOCX");
-    expect(cards[2].getAttribute("data-kind")).toBe("image");
-    expect(screen.getByRole("button", { name: /成本测算\.xlsx — exports\/成本测算\.xlsx/ })).toBeTruthy();
+    expect(cards[1].getAttribute("data-kind")).toBe("image");
+    expect(screen.getByRole("button", { name: /成本测算\.xlsx — 交付\/成本测算\.xlsx/ })).toBeTruthy();
   });
 
   it("预览内编辑过的文件显示「已更新」徽标", () => {
-    useUpdatedFilesStore.setState({ updatedAt: { "exports/成本测算.xlsx": Date.now() } });
-    render(wrap(<DeliverableCards text="已生成：exports/成本测算.xlsx" />));
+    useUpdatedFilesStore.setState({ updatedAt: { "交付/成本测算.xlsx": Date.now() } });
+    render(wrap(<DeliverableCards text="已生成：交付/成本测算.xlsx" />));
     expect(screen.getByText("已更新")).toBeTruthy();
     useUpdatedFilesStore.setState({ updatedAt: {} });
   });
@@ -102,16 +100,16 @@ describe("DeliverableCards 交付文件卡片", () => {
           available: true,
           total: 3,
           entries: [
-            entryOf({ path: "reports/漏提的方案.docx", turn: 2, updatedAt: 300 }), // 本轮（turnNo=1 → Turn 2）
-            entryOf({ path: "exports/上一轮.md", turn: 1, updatedAt: 200 }), // 前一轮：不并入
-            entryOf({ path: "exports/图表.png", turn: 2, updatedAt: 250 }), // 正文已提及：去重
+            entryOf({ path: "交付/漏提的方案.docx", turn: 2, updatedAt: 300 }), // 本轮（turnNo=1 → Turn 2）
+            entryOf({ path: "交付/上一轮.md", turn: 1, updatedAt: 200 }), // 前一轮：不并入
+            entryOf({ path: "交付/图表.png", turn: 2, updatedAt: 250 }), // 正文已提及：去重
           ],
         }),
       // 缺失态探测：两个文件都在（mock 忽略目录参数），不出「未生成」徽标
       ListDir: () => Promise.resolve([dirEntry("漏提的方案.docx"), dirEntry("图表.png")]),
     });
     const view = render(
-      wrap(<DeliverableCards text="已生成：exports/图表.png，详见 exports/成本测算.xlsx。" turnNo={1} />),
+      wrap(<DeliverableCards text="已生成：交付/图表.png，详见 交付/成本测算.xlsx。" turnNo={1} />),
     );
     // 漏提文件补出卡片；前一轮/正文已提及的不重复出现
     await screen.findByText("漏提的方案.docx");
@@ -136,8 +134,8 @@ describe("DeliverableCards 交付文件卡片", () => {
           available: true,
           total: 2,
           entries: [
-            entryOf({ path: "reports/已提及的方案.docx", turn: 2, updatedAt: 300 }),
-            entryOf({ path: "reports/漏提的数据.xlsx", turn: 2, updatedAt: 310 }),
+            entryOf({ path: "交付/已提及的方案.docx", turn: 2, updatedAt: 300 }),
+            entryOf({ path: "交付/漏提的数据.xlsx", turn: 2, updatedAt: 310 }),
           ],
         }),
       ListDir: () => Promise.resolve([dirEntry("漏提的数据.xlsx")]),
@@ -145,9 +143,9 @@ describe("DeliverableCards 交付文件卡片", () => {
     const view = render(
       wrap(
         <DeliverableCards
-          text="本轮生成：reports/漏提的数据.xlsx"
+          text="本轮生成：交付/漏提的数据.xlsx"
           turnNo={1}
-          omitPaths={new Set([deliverablePathKey("REPORTS/已提及的方案.DOCX")])}
+          omitPaths={new Set([deliverablePathKey("交付/已提及的方案.DOCX")])}
         />,
       ),
     );
@@ -164,8 +162,8 @@ describe("DeliverableCards 交付文件卡片", () => {
           available: true,
           total: 2,
           entries: [
-            entryOf({ path: "reports/写失败的.docx", turn: 1 }),
-            entryOf({ path: "reports/写成了的.docx", turn: 1, updatedAt: 200 }),
+            entryOf({ path: "交付/写失败的.docx", turn: 1 }),
+            entryOf({ path: "交付/写成了的.docx", turn: 1, updatedAt: 200 }),
           ],
         }),
       ListDir: () => Promise.resolve([dirEntry("写成了的.docx"), dirEntry("子目录")]),

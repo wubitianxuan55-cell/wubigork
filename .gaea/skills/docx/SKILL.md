@@ -71,13 +71,31 @@ python scripts/create_docx.py 报告.md 报告.docx --cover --toc --header "页�
 python scripts/create_docx.py 技术标.md 技术标.docx --template 标书 --cover --toc \
   --subtitle "CQS26C02978 包3" --author "某某环境科技有限公司" --bid-copy 正本
 
-# 静态目录（页码由两遍法回填：先占位出档→渲染实测→--toc-spec 回填重建；
-# longdoc_build 已内建该流程，直接用时才需要自管两遍）
+# 目录（TOC 域带实测缓存：页码由两遍法回填进域缓存——打开即准确页码，
+# WPS/Word 里 F9 或打印预览时全联动重排；longdoc_build 已内建该流程）
 python scripts/create_docx.py 技术标.md 技术标.docx --toc --toc-spec toc.json  # [{text,level,page}]
 
 # JSON spec（细粒度控制：图片/自定义表格/页边距）
 python scripts/create_docx.py spec.json 报告.docx --spec
 ```
+
+**标题/图表/目录联动（2026-11-24 内建，源 md 照写字面编号即可）**：导出时标题字面编号前缀
+（第1章/1.1/一、…）自动剥离，Heading 1/2/3 挂样式层多级列表（WPS 里插删章节编号自动重排，
+书名条目在册不编号）；题注行「图3-1 题名」转 SEQ 域+书签、正文「见图3-1」转 REF 域（域值重算
+后图表同章重排）；`--toc-spec` 目录渲染成 **TOC 域+实测缓存**——打开即见准确页码，F9/打印
+预览全联动重排。整册大标题=与 `--title` 同文的首个一级标题。例外：`--template 公文` 与
+`--heading-numbering off`（文学成册）保持字面编号（不剥离、不挂联动）。机检对账面
+（longdoc_verify 章标题在册、目录量页）已带裸题名兜底，md 字面前缀与引擎编号异写
+（第一章 vs 第1章）也能对上。
+
+**登记格式模板（格式一次登记，次次复用）**：用户给格式样例 docx 时，先
+`python scripts/make_template.py 样例.docx <名>.json --name 模板名 --base 标书`
+抽骨架（抽取：页面/边距/正文字号/Heading 1~3 字体字号色/另起页/标题编号 lvlText/
+页眉页脚文本；抽完人工核对一遍再登记），落到 gaea 工作区 `.gaea/templates/docx/<名>.json`
+即全局生效——`--template <名>`（Go 侧解析：工作区优先于 `scripts/format_templates/` 种子，
+种子自带 `标书-环境工程` 与 `技术方案-通用`）。schema：base 继承内置面，headings 按 1~3 级
+给 font/size/bold/color/pageBreakBefore/spaceBefore/spaceAfter，numbering=false 字面 |
+["第%1章",…] 自定层级 | 缺省继承 base。之后方案/标书生成都传模板名，不做逐次手调。
 
 生成后必须验证：脚本回读段落/表格数量；再用 `python -c "from docx import Document; ..."` 抽查标题与表格内容。
 

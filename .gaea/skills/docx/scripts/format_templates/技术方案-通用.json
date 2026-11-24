@@ -1,0 +1,19 @@
+{
+  "name": "技术方案-通用",
+  "base": "通用",
+  "description": "技术方案通用口径：宋体正文、深蓝标题（黑一级/宋体次级）、标题编号联动（第%1章/1.1/1.1.1）、图表编号 SEQ 域联动、标准封面。不投标、只出方案时用。",
+  "font": "宋体",
+  "fontSize": 12,
+  "lineSpacing": 1.5,
+  "pageSize": "A4",
+  "marginsCm": [2.54, 2.54, 3.17, 3.17],
+  "headings": {
+    "1": { "font": "黑体", "size": 16, "bold": true, "color": "1F3864", "spaceBefore": 12, "spaceAfter": 6 },
+    "2": { "font": "宋体", "size": 14, "bold": true, "color": "1F3864", "spaceBefore": 12, "spaceAfter": 6 },
+    "3": { "font": "宋体", "size": 12.5, "bold": true, "color": "1F3864", "spaceBefore": 8, "spaceAfter": 6 }
+  },
+  "numbering": ["第%1章", "%1.%2", "%1.%2.%3"],
+  "tableFill": "D5E8F0",
+  "headerBorder": false,
+  "coverStyle": "standard"
+}

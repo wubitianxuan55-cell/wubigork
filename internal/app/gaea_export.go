@@ -38,6 +38,10 @@ type ExportDeliverableInput struct {
 	// TocEntries 静态目录条目（P0-2 建议③）：非空时代替 TOC 域渲染静态目录
 	// （页码由 longdoc_build 两遍法回填）；md/pptx/xlsx 忽略。
 	TocEntries []ExportTocEntry `json:"toc_entries,omitempty"`
+	// HeadingNumbering 标题/图表编号联动开关（2026-11-24）：""=auto（docx 模板
+	// 缺省，公文=字面）；"off"=全字面（文学成册——「序章」这类无编号章名被挂
+	// 「第1章」是内容损伤）；"on"=强制标准三层编号。透传 create_docx.py。
+	HeadingNumbering string `json:"heading_numbering,omitempty"`
 	// OutputPath 声明写路径（工作区相对路径；P1a 结构化声明入口，2026-11-09
 	// 众神殿裁决 action-3）：agent 侧 office_generate 必填，验收=声明路径与
 	// 实际落点逐字节一致。空=历史默认（ExportsDir+时间戳命名），UI 绑定契约
@@ -60,7 +64,11 @@ type ExportTocEntry struct {
 	Page  string `json:"page"`
 }
 
-var headingRe = regexp.MustCompile(`^#{1,3}\s+(.*)$`)
+// headingRe 从 markdown 抽首个标题行（交付名与 --title 源）。(?m) 必须带：
+// Go 的 $ 无多行标志只匹配全文末尾，多行 markdown 的首个标题永远落不进
+// 单行锚——2026-11-24 编号联动改造中暴露的存量 bug（title 恒=「gaea 交付物」
+// 兜底，连带封面题名/缺省交付名全错）。
+var headingRe = regexp.MustCompile(`(?m)^#{1,3}\s+(.+)$`)
 
 // GaeaExportDeliverable 统一交付出口：事实底座/对话成果的受控 Markdown →
 // docx / pptx / xlsx / md / pdf，一稿多用、多形态一致。
@@ -77,15 +85,12 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 	if in.Template == "" {
 		in.Template = "通用"
 	}
-	switch in.Template {
-	case "通用", "公文", "报告", "合同", "标书":
-	default:
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（通用/公文/报告/合同/标书）", in.Template)
+	if !docxTemplateAllowed(in.Template) {
+		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（内置：通用/公文/报告/合同/标书；或已登记格式模板名——工作区 .gaea/templates/docx/<名>.json，make_template.py 登记）", in.Template)
 	}
 
 	title := strings.TrimSpace(in.Title)
-	if title == "" {
-		if m := headingRe.FindStringSubmatch(in.Markdown); m != nil {
+	if title == "" {		if m := headingRe.FindStringSubmatch(in.Markdown); m != nil {
 			title = strings.TrimSpace(m[1])
 		} else {
 			title = "gaea 交付物"
@@ -158,6 +163,41 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 		Format: format,
 		Size:   info.Size(),
 	}, nil
+}
+
+// resolveDocxTemplateIn 登记格式模板解析（2026-11-24 方案格式模板线）：同名
+// 模板 工作区 .gaea/templates/docx/ 优先（项目自有格式），其次技能自带
+// format_templates/（随仓分发的种子模板），都不在=空（走内置五模板名）。
+// base 抽出便于测试。
+func resolveDocxTemplateIn(base, name string) string {
+	n := strings.TrimSpace(name)
+	if n == "" {
+		return ""
+	}
+	rel := []string{filepath.Join(".gaea", "templates", "docx", n+".json"),
+		filepath.Join(".gaea", "templates", "docx", n),
+		filepath.Join(".gaea", "skills", "docx", "scripts", "format_templates", n+".json"),
+		filepath.Join(".gaea", "skills", "docx", "scripts", "format_templates", n)}
+	for _, r := range rel {
+		c := filepath.Join(base, r)
+		if info, err := os.Stat(c); err == nil && !info.IsDir() {
+			return c
+		}
+	}
+	return ""
+}
+
+func resolveDocxTemplate(name string) string {
+	return resolveDocxTemplateIn(gaeaCwd(), name)
+}
+
+// docxTemplateAllowed 内置五模板名或已登记格式模板（工作区/技能 format_templates）。
+func docxTemplateAllowed(name string) bool {
+	switch name {
+	case "通用", "公文", "报告", "合同", "标书":
+		return true
+	}
+	return resolveDocxTemplate(name) != ""
 }
 
 // exportDocx 经 create_docx.py（python-docx）从 Markdown 排版 Word。
@@ -233,7 +273,16 @@ func exportDocx(in ExportDeliverableInput, title, outPath string) error {
 		defer func() { _ = os.Remove(tocPath) }()
 		args = append(args, "--toc-spec", tocPath)
 	}
-	args = append(args, "--template", in.Template)
+	// 登记格式模板（工作区/技能 format_templates 命中）→ --template-file；
+	// 未命中 → 内置五模板名。
+	if tf := resolveDocxTemplate(in.Template); tf != "" {
+		args = append(args, "--template-file", tf)
+	} else {
+		args = append(args, "--template", in.Template)
+	}
+	if hn := strings.TrimSpace(in.HeadingNumbering); hn != "" {
+		args = append(args, "--heading-numbering", hn)
+	}
 	if err := runPython(args, 120); err != nil {
 		return fmt.Errorf("Word 导出失败: %w", err)
 	}

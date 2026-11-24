@@ -113,8 +113,8 @@ func TestWenxueBookBuildStaticTocE2E(t *testing.T) {
 	if strings.Contains(out, "TOC 域回落") {
 		t.Skipf("pdftotext 不可用，回落域目录（回执如实标注）：%s", out)
 	}
-	if !strings.Contains(out, "目录=静态页码（2 章渲染实测") {
-		t.Fatalf("回执应标注静态目录：%s", out)
+	if !strings.Contains(out, "目录=TOC 域+实测缓存（2 章渲染实测回填") {
+		t.Fatalf("回执应标注域化目录：%s", out)
 	}
 	if !strings.Contains(out, "sha256=") {
 		t.Fatalf("回执应含 sha256：%s", out)

@@ -206,6 +206,9 @@ func wenxueBookBuildTool(a *App) *wenxueTool {
 			if in.Template == "" {
 				in.Template = "通用"
 			}
+			// 文学成册保持字面编号（2026-11-24 编号联动开关）：小说「序章/楔子」
+			// 这类无编号章名不能被自动挂「第1章」，md 写什么 docx 就是什么。
+			in.HeadingNumbering = "off"
 			tocNote := ""
 			if p.TOC && format == "docx" {
 				entries := make([]ExportTocEntry, 0, len(chapters))
@@ -220,7 +223,7 @@ func wenxueBookBuildTool(a *App) *wenxueTool {
 					tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
 				default:
 					in.TocEntries = measured
-					tocNote = fmt.Sprintf("；目录=静态页码（%d 章渲染实测，LibreOffice 口径；Word 打印可能 ±1~2 页）", len(measured))
+					tocNote = fmt.Sprintf("；目录=TOC 域+实测缓存（%d 章渲染实测回填；打开即准确页码，WPS/Word 里 F9 或打印预览全联动重排；LibreOffice 口径 Word 打印可能 ±1~2 页）", len(measured))
 				}
 			}
 			res, err := a.WenxueExportDeliverable(in)

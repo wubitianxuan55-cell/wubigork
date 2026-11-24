@@ -144,3 +144,42 @@ func TestGaeaExportDeliverable_DocxPptxSmoke(t *testing.T) {
 		zr.Close()
 	}
 }
+
+// 登记格式模板解析（2026-11-24 方案格式模板线）：工作区 .gaea/templates/docx/
+// 优先于技能 format_templates/ 种子；内置五模板名不落盘 → 空（走内置面）。
+func TestResolveDocxTemplateOrder(t *testing.T) {
+	base := t.TempDir()
+	ws := filepath.Join(base, ".gaea", "templates", "docx")
+	ft := filepath.Join(base, ".gaea", "skills", "docx", "scripts", "format_templates")
+	if err := os.MkdirAll(ws, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(ft, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "甲模板.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ft, "种子模板.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveDocxTemplateIn(base, "甲模板"); !strings.Contains(filepath.ToSlash(got), ".gaea/templates/docx/甲模板.json") {
+		t.Errorf("工作区模板应优先命中: %q", got)
+	}
+	if got := resolveDocxTemplateIn(base, "种子模板"); !strings.Contains(filepath.ToSlash(got), "format_templates/种子模板.json") {
+		t.Errorf("技能种子应次选命中: %q", got)
+	}
+	if got := resolveDocxTemplateIn(base, "标书"); got != "" {
+		t.Errorf("内置模板名不落盘，应回空走内置面: %q", got)
+	}
+	if got := resolveDocxTemplateIn(base, ""); got != "" {
+		t.Errorf("空名应回空: %q", got)
+	}
+	// 工作区同名覆盖技能种子。
+	if err := os.WriteFile(filepath.Join(ws, "种子模板.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveDocxTemplateIn(base, "种子模板"); !strings.Contains(filepath.ToSlash(got), ".gaea/templates/docx/种子模板.json") {
+		t.Errorf("同名应工作区覆盖: %q", got)
+	}
+}

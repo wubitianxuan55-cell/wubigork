@@ -60,12 +60,12 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 			name: "office_save 的 doc 键登记（dsh-office COM 档波3.5 盲区修复）",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),
-				dDispatch(2, 110, "office_open", `{"path":"交互文件/季度总结.docx"}`), // open 非 writer 不登记
-				dDispatch(3, 120, "office_save", `{"doc":"交互文件/季度总结.docx","app":"word"}`),
-				dDispatch(4, 130, "office_edit", `{"doc":"交互文件/季度总结.docx","ops":[]}`), // edit 不落盘不登记
+				dDispatch(2, 110, "office_open", `{"path":"交付/季度总结.docx"}`), // open 非 writer 不登记
+				dDispatch(3, 120, "office_save", `{"doc":"交付/季度总结.docx","app":"word"}`),
+				dDispatch(4, 130, "office_edit", `{"doc":"交付/季度总结.docx","ops":[]}`), // edit 不落盘不登记
 			},
 			want: []DeliverableEntry{
-				{Path: "交互文件/季度总结.docx", Tool: "office_save", Turn: 1, UpdatedAt: 120, Touches: 1},
+				{Path: "交付/季度总结.docx", Tool: "office_save", Turn: 1, UpdatedAt: 120, Touches: 1},
 			},
 			total: 1,
 		},
@@ -73,12 +73,12 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 			name: "write+edit 去重保留最近，touches 累计",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),
-				dDispatch(2, 110, "write_file", `{"path":"docs/报告.docx","content":"v1"}`),
-				dDispatch(3, 120, "edit_file", `{"path":"docs/报告.docx","old_string":"a","new_string":"b"}`),
-				dDispatch(4, 130, "read_file", `{"path":"docs/报告.docx"}`), // 只读不登记
+				dDispatch(2, 110, "write_file", `{"path":"交付/报告.docx","content":"v1"}`),
+				dDispatch(3, 120, "edit_file", `{"path":"交付/报告.docx","old_string":"a","new_string":"b"}`),
+				dDispatch(4, 130, "read_file", `{"path":"交付/报告.docx"}`), // 只读不登记
 			},
 			want: []DeliverableEntry{
-				{Path: "docs/报告.docx", Tool: "edit_file", Turn: 1, UpdatedAt: 120, Touches: 2},
+				{Path: "交付/报告.docx", Tool: "edit_file", Turn: 1, UpdatedAt: 120, Touches: 2},
 			},
 			total: 1,
 		},
@@ -86,14 +86,14 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 			name: "updatedAt 倒序 + turn 归属 + 多路径",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),
-				dDispatch(2, 110, "write_file", `{"path":"docs/旧.md"}`),
+				dDispatch(2, 110, "write_file", `{"path":"交付/旧.md"}`),
 				dEntry(3, 120, "turn_done", map[string]any{}),
 				dEntry(4, 200, "turn_started", map[string]any{}),
-				dDispatch(5, 210, "write_file", `{"path":"docs/新.md"}`),
+				dDispatch(5, 210, "write_file", `{"path":"交付/新.md"}`),
 			},
 			want: []DeliverableEntry{
-				{Path: "docs/新.md", Tool: "write_file", Turn: 2, UpdatedAt: 210, Touches: 1},
-				{Path: "docs/旧.md", Tool: "write_file", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/新.md", Tool: "write_file", Turn: 2, UpdatedAt: 210, Touches: 1},
+				{Path: "交付/旧.md", Tool: "write_file", Turn: 1, UpdatedAt: 110, Touches: 1},
 			},
 			total: 2,
 		},
@@ -101,10 +101,10 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 			name: "move_file 只计 destination（源不是交付物）",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),
-				dDispatch(2, 110, "move_file", `{"source":"docs/draft.md","destination":"docs/终稿.md"}`),
+				dDispatch(2, 110, "move_file", `{"source":"交付/draft.md","destination":"交付/终稿.md"}`),
 			},
 			want: []DeliverableEntry{
-				{Path: "docs/终稿.md", Tool: "move_file", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/终稿.md", Tool: "move_file", Turn: 1, UpdatedAt: 110, Touches: 1},
 			},
 			total: 1,
 		},
@@ -112,14 +112,14 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 			name: "生成/导出类工具（v4.24 新纳入，前端白名单此前漏登）",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),
-				dDispatch(2, 110, "format_convert", `{"path":"docs/方案.docx","output":"docs/方案.md"}`),
-				dDispatch(3, 120, "chart_gen", `{"output":"charts/成本.png"}`),
-				dDispatch(4, 130, "diagram_gen", `{"output":"charts/拓扑.png"}`),
+				dDispatch(2, 110, "format_convert", `{"path":"交付/方案.docx","output":"交付/方案.md"}`),
+				dDispatch(3, 120, "chart_gen", `{"output":"交付/成本.png"}`),
+				dDispatch(4, 130, "diagram_gen", `{"output":"交付/拓扑.png"}`),
 			},
 			want: []DeliverableEntry{
-				{Path: "charts/拓扑.png", Tool: "diagram_gen", Turn: 1, UpdatedAt: 130, Touches: 1},
-				{Path: "charts/成本.png", Tool: "chart_gen", Turn: 1, UpdatedAt: 120, Touches: 1},
-				{Path: "docs/方案.md", Tool: "format_convert", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/拓扑.png", Tool: "diagram_gen", Turn: 1, UpdatedAt: 130, Touches: 1},
+				{Path: "交付/成本.png", Tool: "chart_gen", Turn: 1, UpdatedAt: 120, Touches: 1},
+				{Path: "交付/方案.md", Tool: "format_convert", Turn: 1, UpdatedAt: 110, Touches: 1},
 			},
 			total: 3,
 		},
@@ -137,12 +137,12 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 			name: "paths 数组 + edits 片段 + 覆盖键去重",
 			entries: []session.LogEntry{
 				dEntry(1, 100, "turn_started", map[string]any{}),
-				dDispatch(2, 110, "multi_edit", `{"edits":[{"path":"a.md"},{"file_path":"b.md"},{"path":"a.md"}],"paths":["c.md"]}`),
+				dDispatch(2, 110, "multi_edit", `{"edits":[{"path":"交付/a.md"},{"file_path":"交付/b.md"},{"path":"交付/a.md"}],"paths":["交付/c.md"]}`),
 			},
 			want: []DeliverableEntry{
-				{Path: "a.md", Tool: "multi_edit", Turn: 1, UpdatedAt: 110, Touches: 1},
-				{Path: "b.md", Tool: "multi_edit", Turn: 1, UpdatedAt: 110, Touches: 1},
-				{Path: "c.md", Tool: "multi_edit", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/a.md", Tool: "multi_edit", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/b.md", Tool: "multi_edit", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/c.md", Tool: "multi_edit", Turn: 1, UpdatedAt: 110, Touches: 1},
 			},
 			total: 3,
 		},
@@ -153,14 +153,33 @@ func TestFoldDeliverablesGolden(t *testing.T) {
 				dEntry(2, 110, "assistant_message", map[string]any{
 					"text": "已写入。",
 					"tool_calls": []map[string]any{
-						{"id": "c1", "name": "write_file", "args": `{"path":"out/周报.docx"}`},
+						{"id": "c1", "name": "write_file", "args": `{"path":"交付/周报.docx"}`},
 					},
 				}),
 			},
 			want: []DeliverableEntry{
-				{Path: "out/周报.docx", Tool: "write_file", Turn: 1, UpdatedAt: 110, Touches: 1},
+				{Path: "交付/周报.docx", Tool: "write_file", Turn: 1, UpdatedAt: 110, Touches: 1},
 			},
 			total: 1,
+		},
+		{
+			name: "交付文件夹过滤（2026-11-24 用户拍板）：非交付文件夹/绝对/隐藏/相对跳转不登记，其下可再分层",
+			entries: []session.LogEntry{
+				dEntry(1, 100, "turn_started", map[string]any{}),
+				dDispatch(2, 110, "write_file", `{"path":"_draft/共享事实卡.md"}`),
+				dDispatch(3, 120, "write_file", `{"path":".gaea/exports/方案.docx"}`),
+				dDispatch(4, 130, "write_file", `{"path":"D:/新工作/南岸/方案.docx"}`),
+				dDispatch(5, 140, "write_file", `{"path":"../外部.md"}`),
+				dDispatch(6, 145, "write_file", `{"path":"包3技术标.docx"}`),
+				dDispatch(7, 150, "write_file", `{"path":"交付/包3技术标.docx"}`),
+				dDispatch(8, 155, "chart_gen", `{"output":"交付/南岸/箱体图.png"}`),
+				dDispatch(9, 160, "write_file", `{"path":"交付"}`),
+			},
+			want: []DeliverableEntry{
+				{Path: "交付/南岸/箱体图.png", Tool: "chart_gen", Turn: 1, UpdatedAt: 155, Touches: 1},
+				{Path: "交付/包3技术标.docx", Tool: "write_file", Turn: 1, UpdatedAt: 150, Touches: 1},
+			},
+			total: 2,
 		},
 		{
 			name: "partial 派发不登记（参数尚未完整）",
@@ -205,7 +224,7 @@ func TestFoldDeliverablesCap200(t *testing.T) {
 	entries := []session.LogEntry{dEntry(1, 100, "turn_started", map[string]any{})}
 	seq := int64(2)
 	for i := 0; i < 260; i++ {
-		entries = append(entries, dDispatch(seq, 100+int64(i), "write_file", `{"path":"p/`+itoa(i)+`.md"}`))
+		entries = append(entries, dDispatch(seq, 100+int64(i), "write_file", `{"path":"交付/文件`+itoa(i)+`.md"}`))
 		seq++
 	}
 	reg := FoldDeliverables(entries)
@@ -215,11 +234,11 @@ func TestFoldDeliverablesCap200(t *testing.T) {
 	if len(reg.Entries) != maxDeliverables {
 		t.Fatalf("entries = %d, want %d", len(reg.Entries), maxDeliverables)
 	}
-	// 倒序：最旧的 p/0.md 应被截掉，最旧的保留条目是 p/60.md（ts=160）
-	if reg.Entries[maxDeliverables-1].Path != "p/60.md" {
-		t.Fatalf("最旧保留条目 = %s, want p/60.md", reg.Entries[maxDeliverables-1].Path)
+	// 倒序：最旧的 交付/文件0.md 应被截掉，最旧的保留条目是 p/60.md（ts=160）
+	if reg.Entries[maxDeliverables-1].Path != "交付/文件60.md" {
+		t.Fatalf("最旧保留条目 = %s, want 交付/文件60.md", reg.Entries[maxDeliverables-1].Path)
 	}
-	if reg.Entries[0].Path != "p/259.md" {
-		t.Fatalf("最新条目 = %s, want p/259.md", reg.Entries[0].Path)
+	if reg.Entries[0].Path != "交付/文件259.md" {
+		t.Fatalf("最新条目 = %s, want 交付/文件259.md", reg.Entries[0].Path)
 	}
 }

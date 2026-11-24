@@ -750,10 +750,8 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 	if in.Template == "" {
 		in.Template = "通用"
 	}
-	switch in.Template {
-	case "通用", "公文", "报告", "合同", "标书":
-	default:
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（通用/公文/报告/合同/标书）", in.Template)
+	if !docxTemplateAllowed(in.Template) {
+		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（内置：通用/公文/报告/合同/标书；或已登记格式模板名——工作区 .gaea/templates/docx/<名>.json）", in.Template)
 	}
 
 	title := strings.TrimSpace(in.Title)

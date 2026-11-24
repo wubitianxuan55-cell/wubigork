@@ -86,7 +86,7 @@ const officeProposalLongformBody = `# 长篇技术方案编制工作流（方案
 
 ### 录入（用户要求把历史方案存进库时）
 
-1. **转 Markdown**：原文件先用 format_convert 转成 .md（Word 的标题层级与表格会保留）；扫描件先过 OCR。转换只做一次——分批录入靠行号定位，中途重转会错位。
+1. **转 Markdown**：原文件先用 format_convert 转成 .md，并同时给 output 与 preserve_images=true（Word/PPT 的标题、表格与内嵌图片会保留到同名 -assets 目录）；扫描件先过 OCR。转换只做一次——分批录入靠行号定位，中途重转会错位。
 2. **认标题、定层级**：读 Markdown 的标题行（grep 井号开头的行并带行号），按文档自己的结构定级——章 1 级、节 2 级、目 3~4 级；文档自身的大标题不必列入。文件自带标题太少时（一章两三万字、没有任何下级标题），先照原结构录，回执会列出过长的小节，再只在那些小节内部按「（一）」「1.1」这类编号段落补下级标题后重录。
 3. **分批录入**：proposal_save（title、project_type、year、source_file、outline=[{level,title,line?}]）。每批 100~200 个标题，按文档顺序、父级在前逐级展开，首项 1 级；首批之后 mode=append 续录（title 不变），最后一批加 finalize=true。正文不用你写——工具按标题行从源文件逐字切出，数字和表格原样保留。目录页里重复出现的标题不会被误认。
 4. **看回执**：核对「累计节点数/字数」「过长小节」「标题定位待核对」。定位到正文句的条目，用 line 指明标题所在行号后重发该批；源文件在录入期间被改过会被拒绝续录。每次写入都需要用户确认，这是既定纪律。
@@ -116,7 +116,10 @@ const officeProposalLongformBody = `# 长篇技术方案编制工作流（方案
 ## 导出安全与交付边界
 
 - 改交付文件名/形态：用 longdoc_build 指定目标 output_path 重出——bash mv/cp 交付文件会被发布边界拦截并隔离到 .gaea/publish-quarantine/，等于把交付件搬走。
-- **模板与目录（longdoc_build 内建，勿再自写后处理脚本）**：缺省模板=标书（宋体正文/黑体黑标题/章另起页/页眉下框线；封面五要素 subtitle=包号/author=投标人/bid_copy/bid_date）；toc=true 自动静态目录两遍法（占位出档→渲染实测页码回填重建），不再需要自写「字体替换/补页眉/目录页码回填」三套脚本，也不留要 Ctrl+A→F9 的域目录。
+- **交付落点纪律（2026-11-24 用户拍板）**：交付面板只收录工作区根下「交付/」文件夹里的文件——最终交付物 output_path 一律声明到 交付/（如 交付/包3技术标_第六版.docx，其下可再分层如 交付/南岸/）；草稿/章节/中间过程放别的子文件夹（_draft/、章节/ 等），不进面板不刷交付卡；.gaea/exports 缺省落点不进交付面，正式交付必须显式声明 交付/ 路径。
+- **模板与目录（longdoc_build 内建，勿再自写后处理脚本）**：缺省模板=标书（宋体正文/黑体黑标题/章另起页/页眉下框线；封面五要素 subtitle=包号/author=投标人/bid_copy/bid_date）；toc=true 自动两遍法目录（占位出档→渲染实测页码→回填进 **TOC 域缓存**：打开文档即见准确条目与页码，WPS/Word 里 F9 或打印预览时目录全联动重排——条目/编号/页码随章节结构自动重算），不再需要自写「字体替换/补页眉/目录页码回填」三套脚本。
+- **编号联动（2026-11-24，导出层内建）**：标题编号/图表编号/目录在 docx 里是 WPS/Word 原生联动形态——标题=样式层多级列表（WPS 里插删章节自动重排），题注=SEQ 域+书签、正文引用=REF 域（域值重算后图表重排），目录=TOC 域+实测缓存（F9 全联动重排）。源 md 仍写「第1章」「1.1」「图3-1」字面编号（清单机检/proposal_save/引用对账全按 md 字面），导出时自动剥前缀转联动编号，**不要**在导出前手删 md 编号。公文模板例外：GB/T 9704 口径保持字面编号不联动。
+- **格式模板（写方案先用模板，不再每次调格式）**：格式参数一次登记成 JSON——用户提供格式样例 docx 时先跑「python .gaea/skills/docx/scripts/make_template.py 样例.docx <名>.json」抽骨架（人工核对一遍）或手写（schema 见 create_docx.py 顶部「格式模板」注释），落工作区 .gaea/templates/docx/<名>.json 即生效；此后该客户/该类方案 longdoc_build/office_generate 的 template 直接传模板名，字体/标题层级/编号/页眉框线/封面形态全部按模板出，不做逐次手调。技能自带两份种子：「标书-环境工程」（技术标交付口径）与「技术方案-通用」（深蓝标题通用方案）。
 - 页数两套口径同时登记进大纲：**单册页数**（各章导出后 doc_render 取，编制规划用）与**整册页数**（组装后取，对外表述用）；两者差额（组装封面/目录/章间空页）是正常现象，对外只报整册口径并注明渲染器（Word 与 LibreOffice 渲染页数不同，静态目录页码=LibreOffice 实测口径，Word 打印可能 ±1~2 页）。
 - COM 链（office_edit/office_save 直接改 Word 时）：office_save 默认**不再隐式 fill_gaps**（补空改分页会搅目录页码）；确需补空顺序=office_edit fill_gaps → update_fields → office_save，顺序不可反。style_format 改样式只改样式表——正文 run 手工设过的颜色/字号仍覆盖样式，用 office_edit clear_char_format {style} 批量清除后再核。
 

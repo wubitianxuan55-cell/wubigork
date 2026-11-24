@@ -93,7 +93,7 @@ func (t officeGenerateTool) Schema() json.RawMessage {
     "format":{"type":"string","enum":["docx","pptx","xlsx","md","pdf"],"description":"交付格式"},
     "output_path":{"type":"string","description":"声明写路径（工作区相对路径，如 报告/季度总结.docx）；扩展名须与 format 一致"},
     "title":{"type":"string","description":"文档标题（缺省取 Markdown 首个标题）"},
-    "template":{"type":"string","enum":["通用","公文","报告","合同","标书"],"description":"docx 模板，缺省 通用；标书=宋体正文/黑体黑标题/章另起页/页眉下框线（中文标书口径，封面五要素 subtitle/author/bid_copy/bid_date 可传）"},
+    "template":{"type":"string","description":"docx 模板：内置名 通用|公文|报告|合同|标书（缺省 通用；标书=宋体正文/黑体黑标题/章另起页/页眉下框线中文标书口径，封面五要素 subtitle/author/bid_copy/bid_date 可传），或登记格式模板名（工作区 .gaea/templates/docx/<名>.json 优先，其次技能 format_templates/）"},
     "cover":{"type":"boolean","description":"docx 生成封面"},
     "toc":{"type":"boolean","description":"docx 生成目录"},
     "header":{"type":"string","description":"docx 页眉"},

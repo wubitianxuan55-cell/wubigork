@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/wspath"
@@ -499,7 +500,7 @@ func (t longdocBuildTool) Schema() json.RawMessage {
   "manifest":{"type":"string","description":"清单文件路径（longdoc_manifest 维护）"},
   "format":{"type":"string","enum":["docx","pdf","md"],"description":"交付格式"},
   "output_path":{"type":"string","description":"声明写路径（工作区相对路径）；扩展名须与 format 一致"},
-  "template":{"type":"string","enum":["通用","公文","报告","合同","标书"],"description":"docx 模板，缺省 标书（中文标书口径：宋体/黑标题/章另起页）"},
+  "template":{"type":"string","description":"docx 模板：内置名 通用|公文|报告|合同|标书（缺省 标书：宋体/黑标题/章另起页），或登记格式模板名（工作区 .gaea/templates/docx/<名>.json 优先，其次技能 format_templates/；make_template.py 从格式样例登记）"},
   "cover":{"type":"boolean","description":"生成封面"},
   "toc":{"type":"boolean","description":"生成目录（长文默认建议开）"},
   "subtitle":{"type":"string","description":"标书封面包号（如 第 3 包）"},
@@ -644,7 +645,7 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 				tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
 			default:
 				in.TocEntries = measured
-				tocNote = fmt.Sprintf("；目录=静态页码（%d 条渲染实测，LibreOffice 口径；Word 打印可能 ±1~2 页）", len(measured))
+				tocNote = fmt.Sprintf("；目录=TOC 域+实测缓存（%d 条渲染实测回填；打开即准确页码，WPS/Word 里 F9 或打印预览全联动重排；LibreOffice 口径 Word 打印可能 ±1~2 页）", len(measured))
 			}
 		}
 	}
@@ -720,6 +721,12 @@ func (a *App) longdocMeasureTocPages(in ExportDeliverableInput) ([]ExportTocEntr
 	return measureTocEntries(in, a.GaeaExportDeliverable, longdocResolvePath)
 }
 
+// 量页 PDF 腿 seam（2026-11-24 裸题名兜底回归钉用；生产=docmd 真链）。
+var (
+	longdocConvertToPdf = docmd.ConvertToPdfFile
+	longdocPDFPageTexts = docmd.PDFPageTexts
+)
+
 // measureTocEntries 量页核心（板间共用）：按占位目录出 pass-1 docx → soffice 转
 // PDF → pdftotext 逐页文本 → 每条目标题定位首个含它的页（空白全剥的归一口径，
 // PDF 内换行/字距不影响匹配）。匹配不到的条目页码保持「—」（如实可见，不猜）。
@@ -742,10 +749,10 @@ func measureTocEntries(in ExportDeliverableInput,
 	tmpPath := tmp.Name()
 	_ = tmp.Close()
 	defer func() { _ = os.Remove(tmpPath) }()
-	if err := docmd.ConvertToPdfFile(abs, tmpPath); err != nil {
+	if err := longdocConvertToPdf(abs, tmpPath); err != nil {
 		return nil, err
 	}
-	pages, err := docmd.PDFPageTexts(tmpPath)
+	pages, err := longdocPDFPageTexts(tmpPath)
 	if err != nil {
 		return nil, err
 	}
@@ -759,10 +766,25 @@ func measureTocEntries(in ExportDeliverableInput,
 		if key == "" {
 			continue
 		}
+		matched := false
 		for pi, np := range normPages {
 			if strings.Contains(np, key) {
 				entries[i].Page = fmt.Sprintf("%d", pi+1)
+				matched = true
 				break
+			}
+		}
+		// 编号联动兜底（2026-11-24）：docx 标题编号改样式层多级列表后，渲染
+		// 文本里的编号由引擎生成，md 字面前缀异写（第一章 vs 第1章）即字面
+		// key 不中——退裸题名再试，题名是编号无关的稳定锚。
+		if !matched {
+			if bare := longdocNormForMatch(longdocStripHeadingNumber(entries[i].Text)); bare != "" && bare != key {
+				for pi, np := range normPages {
+					if strings.Contains(np, bare) {
+						entries[i].Page = fmt.Sprintf("%d", pi+1)
+						break
+					}
+				}
 			}
 		}
 	}
@@ -781,6 +803,64 @@ func longdocNormForMatch(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// longdocHeadingPrefixRes 标题字面编号前缀（2026-11-24 编号联动：docx 标题
+// 编号改样式层多级列表后，渲染文本里的编号由引擎生成，可能与 md 字面前缀
+// 异写——对账用裸题名兜底。与 create_docx.py HEADING_PREFIX_RES 同源镜像，
+// 两处同批改）。裸数字空格层（「1 概述」）不走正则：Go RE2 无先行断言，
+// 与 python 侧同款「剥后看首字」过滤（见 longdocBareNumKeep）。
+var longdocHeadingPrefixRes = []*regexp.Regexp{
+	regexp.MustCompile(`^第\s*[0-9０-９一二三四五六七八九十百]+\s*[章篇部]\s*`),
+	regexp.MustCompile(`^[0-9０-９]+(?:\s*[.、]\s*[0-9０-９]+)+\s+`),
+	regexp.MustCompile(`^[0-9０-９]+(?:\s*[.、]\s*[0-9０-９]+)*[、]\s*`),
+	regexp.MustCompile(`^[（(]\s*[0-9０-９一二三四五六七八九十]+\s*[)）]\s*`),
+	regexp.MustCompile(`^[一二三四五六七八九十百]+\s*[、.]\s*`),
+}
+
+var longdocBareNumRe = regexp.MustCompile(`^[0-9０-９]{1,3}\s+`)
+
+// longdocBareNumKeep 裸数字后接这些字=日期/序次语义（「2026 年度」「12 月进度」），
+// 不剥——数字开头的非编号标题。
+var longdocBareNumKeep = func() map[rune]bool {
+	m := map[rune]bool{}
+	for _, r := range "年月日号度第周" {
+		m[r] = true
+	}
+	return m
+}()
+
+// longdocStripHeadingNumber 剥标题字面编号前缀（最多两轮，吃「第1章 1.1」），
+// 只留纯题名。对账专用：markdown 源文件本身不动。
+func longdocStripHeadingNumber(s string) string {
+	for i := 0; i < 2; i++ {
+		t := s
+		matched := false
+		for _, rx := range longdocHeadingPrefixRes {
+			if loc := rx.FindStringIndex(t); loc != nil {
+				t = t[loc[1]:]
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			if loc := longdocBareNumRe.FindStringIndex(t); loc != nil {
+				rest := t[loc[1]:]
+				if rest != "" {
+					r, _ := utf8.DecodeRuneInString(rest)
+					if !longdocBareNumKeep[r] {
+						t = rest
+						matched = true
+					}
+				}
+			}
+		}
+		if !matched {
+			break
+		}
+		s = t
+	}
+	return strings.TrimSpace(s)
 }
 
 // longdocQuotaSummary 配额面（2026-11-21 反馈 P2-9：check 八类机检不比对字数

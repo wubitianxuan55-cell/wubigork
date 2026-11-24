@@ -7,6 +7,7 @@ import {
   backendTurnOf,
   deliverablePathKey,
   ensureTurnRegistry,
+  inDeliverableFolder,
   invalidateTurnCaches,
   mergeDeliverableCards,
   missingRegistryKeys,
@@ -82,37 +83,59 @@ describe("registryEntriesForTurn 按轮筛选", () => {
 describe("mergeDeliverableCards 合并与去重", () => {
   it("正文卡在前（出现顺序），登记-only 卡在后追加，turn 不匹配的不并入", () => {
     const entries: DeliverableEntry[] = [
-      entry({ path: "reports/漏提.xlsx", turn: 2, updatedAt: 300 }), // 本轮（turnNo=1）
-      entry({ path: "reports/上一轮.md", turn: 1, updatedAt: 200 }), // 前一轮
-      entry({ path: "exports/图表.png", turn: 2, updatedAt: 250 }), // 本轮
+      entry({ path: "交付/漏提.xlsx", turn: 2, updatedAt: 300 }), // 本轮（turnNo=1）
+      entry({ path: "交付/上一轮.md", turn: 1, updatedAt: 200 }), // 前一轮
+      entry({ path: "交付/图表.png", turn: 2, updatedAt: 250 }), // 本轮
     ];
-    const merged = mergeDeliverableCards(["exports/成本.xlsx", "exports/图表.png"], entries, 1);
+    const merged = mergeDeliverableCards(["交付/成本.xlsx", "交付/图表.png"], entries, 1);
     expect(merged).toEqual([
-      { path: "exports/成本.xlsx", from: "text" },
-      { path: "exports/图表.png", from: "text" }, // 正文已提及 → 不再出登记卡
-      { path: "reports/漏提.xlsx", from: "registry" }, // 登记-only 追加在后
+      { path: "交付/成本.xlsx", from: "text" },
+      { path: "交付/图表.png", from: "text" }, // 正文已提及 → 不再出登记卡
+      { path: "交付/漏提.xlsx", from: "registry" }, // 登记-only 追加在后
     ]);
   });
 
   it("正文与登记路径按归一化键去重（反斜杠/大小写差异不算新文件）", () => {
-    const entries: DeliverableEntry[] = [entry({ path: "Exports\\成本测算.XLSX", turn: 1 })];
-    const merged = mergeDeliverableCards(["exports/成本测算.xlsx"], entries, 0);
-    expect(merged).toEqual([{ path: "exports/成本测算.xlsx", from: "text" }]);
-    expect(deliverablePathKey("Exports\\成本测算.XLSX")).toBe("exports/成本测算.xlsx");
+    const entries: DeliverableEntry[] = [entry({ path: "交付\\成本测算.XLSX", turn: 1 })];
+    const merged = mergeDeliverableCards(["交付/成本测算.xlsx"], entries, 0);
+    expect(merged).toEqual([{ path: "交付/成本测算.xlsx", from: "text" }]);
+    expect(deliverablePathKey("交付\\成本测算.XLSX")).toBe("交付/成本测算.xlsx");
   });
 
   it("正文无提及 + 登记表本轮有条目 → 只剩登记卡（启发式漏登补齐的场景）", () => {
-    const entries: DeliverableEntry[] = [entry({ path: "out/周报.docx", turn: 3 })];
+    const entries: DeliverableEntry[] = [entry({ path: "交付/周报.docx", turn: 3 })];
     expect(mergeDeliverableCards([], entries, 2)).toEqual([
-      { path: "out/周报.docx", from: "registry" },
+      { path: "交付/周报.docx", from: "registry" },
     ]);
   });
 
   it("turnNo 缺省 → 无论登记表有什么都只返回正文卡", () => {
-    const entries: DeliverableEntry[] = [entry({ path: "a.md", turn: 1 })];
-    expect(mergeDeliverableCards(["b.md"], entries, undefined)).toEqual([
-      { path: "b.md", from: "text" },
+    const entries: DeliverableEntry[] = [entry({ path: "交付/a.md", turn: 1 })];
+    expect(mergeDeliverableCards(["交付/b.md"], entries, undefined)).toEqual([
+      { path: "交付/b.md", from: "text" },
     ]);
+  });
+});
+
+describe("交付文件夹过滤（2026-11-24 用户拍板）", () => {
+  it("只收 交付/ 首段路径：其下可再分层；根目录/其他子文件夹/绝对/隐藏/相对跳转一律不收", () => {
+    const entries: DeliverableEntry[] = [
+      entry({ path: "交付/南岸/包3技术标.docx", turn: 1 }), // 其下再分层 → 收
+      entry({ path: "交付\\box\\图纸.png", turn: 1 }), // 反斜杠归一后首段=交付 → 收
+      entry({ path: "包3技术标.docx", turn: 1 }), // 根目录裸文件 → 不收
+      entry({ path: "_draft/共享事实卡.md", turn: 1 }), // 草稿子文件夹 → 不收
+      entry({ path: ".gaea/exports/方案.docx", turn: 1 }), // 隐藏分区 → 不收
+      entry({ path: "D:/新工作/南岸/方案.docx", turn: 1 }), // 绝对路径 → 不收
+      entry({ path: "../外部.md", turn: 1 }), // 相对跳转 → 不收
+      entry({ path: "交付", turn: 1 }), // 文件夹本身 → 不收
+    ];
+    const merged = mergeDeliverableCards([], entries, 0);
+    expect(merged.map((c) => c.path)).toEqual(["交付/南岸/包3技术标.docx", "交付\\box\\图纸.png"]);
+    // 正文提及的草稿/根目录路径同样不进卡（turnNo=5 与登记轮不匹配，只回正文卡）
+    const merged2 = mergeDeliverableCards(["交付/终稿.docx", "_draft/ch1.md", "根级.docx"], entries, 5);
+    expect(merged2.map((c) => c.path)).toEqual(["交付/终稿.docx"]);
+    expect(inDeliverableFolder("交付/x.docx")).toBe(true);
+    expect(inDeliverableFolder("交付")).toBe(false);
   });
 });
 

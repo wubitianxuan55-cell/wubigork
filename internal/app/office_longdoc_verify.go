@@ -855,7 +855,14 @@ func (t longdocVerifyTool) runBook(p *ldvParams) (string, error) {
 			continue
 		}
 		if !strings.Contains(docText, title) {
-			r.fail("章标题未出现在整册正文：%s（%s）", title, filepath.Base(abs))
+			// 编号联动（2026-11-24）：docx 标题编号改样式层多级列表后，标题
+			// 文字不再携带字面编号——字面全文不中时按裸题名对账。
+			bare := longdocStripHeadingNumber(title)
+			if bare == "" || !strings.Contains(docText, bare) {
+				r.fail("章标题未出现在整册正文：%s（%s）", title, filepath.Base(abs))
+			} else {
+				r.line("[2] 章标题在册：%s（字面编号已由多级编号引擎取代，按裸题名对账）", bare)
+			}
 		} else {
 			r.line("[2] 章标题在册：%s", title)
 		}

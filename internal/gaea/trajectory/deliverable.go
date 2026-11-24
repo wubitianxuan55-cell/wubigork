@@ -3,6 +3,7 @@ package trajectory
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -39,6 +40,9 @@ type DeliverableRegistry struct {
 //   - 只登记 evidence.IsDeliverableTool 的工具（写类 8 种 + 生成/导出类 3 种）；
 //   - 路径从工具调用参数权威提取（evidence.ExtractDeliverablePaths，与证据链
 //     extractPaths / agent extractFilePath 同源对齐，不另造一套）；
+//   - 只收**交付文件夹**（工作区根下「交付/」，2026-11-24 用户拍板：交付面板
+//     防爆炸）——草稿/过程文件在别的子文件夹（_draft/、章节/、.gaea/exports
+//     等）不进登记，绝对路径与隐藏/相对跳转同样不收；交付物请声明 交付/ 落点；
 //   - 按 path 去重保留最近一次（tool/turn/updatedAt 刷新，touches 累计）；
 //   - 登记时机 = 工具派发（dispatch）：写盘中的产物立刻可见（前端轮询实时）；
 //     失败调用不回剔——登记的是「尝试落盘」的产物路径，文件是否存在由预览/
@@ -54,6 +58,23 @@ func FoldDeliverables(entries []session.LogEntry) DeliverableRegistry {
 		out.Entries = []DeliverableEntry{}
 	}
 	return out
+}
+
+// DeliverableFolder 交付文件夹（工作区根下）：登记表唯一收录目录（2026-11-24
+// 用户拍板）——最终交付物落这里，草稿/过程文件放别的子文件夹不进交付面板。
+// 与前端 deliverablesTurn.ts 的 DELIVERABLE_FOLDER 同源镜像，两处同批改。
+const DeliverableFolder = "交付"
+
+// inDeliverableFolder 工作区交付文件夹判定：路径首段必须是交付文件夹，其下
+// 允许再分层（交付/南岸/xxx.docx 合收）。绝对路径（盘符/前导斜杠）、相对
+// 跳转、隐藏目录、交付文件夹本身一律不算。
+func inDeliverableFolder(path string) bool {
+	p := strings.ReplaceAll(strings.TrimSpace(path), "\\", "/")
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, ":") || strings.HasPrefix(p, ".") {
+		return false
+	}
+	segs := strings.SplitN(p, "/", 2)
+	return len(segs) == 2 && segs[0] == DeliverableFolder && segs[1] != ""
 }
 
 type deliverableFolding struct {
@@ -103,6 +124,9 @@ func (f *deliverableFolding) record(tool, args string, ts int64) {
 		return
 	}
 	for _, path := range evidence.ExtractDeliverablePaths(tool, json.RawMessage(args)) {
+		if !inDeliverableFolder(path) {
+			continue
+		}
 		if rec, ok := f.byPath[path]; ok {
 			rec.Tool = tool
 			rec.Turn = f.turn

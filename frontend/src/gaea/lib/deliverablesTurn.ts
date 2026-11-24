@@ -63,8 +63,23 @@ export interface DeliverableCardItem {
   from: "text" | "registry";
 }
 
+// 交付文件夹（2026-11-24 用户拍板）：交付卡只收工作区根下「交付/」里的文件
+// ——草稿/过程文件在别的子文件夹不进卡面。与 Go 侧 trajectory.DeliverableFolder
+// 同源镜像，两处同批改。
+export const DELIVERABLE_FOLDER = "交付";
+
+// 交付文件夹判定：首段=交付文件夹即收（其下可再分层，交付/南岸/x.docx 合收）；
+// 绝对路径（盘符/前导斜杠）、相对跳转、隐藏目录、文件夹本身不算。
+export function inDeliverableFolder(path: string): boolean {
+  const p = path.replace(/\\/g, "/").trim();
+  if (!p || p.startsWith("/") || p.includes(":") || p.startsWith(".")) return false;
+  const i = p.indexOf("/");
+  return i > 0 && p.slice(0, i) === DELIVERABLE_FOLDER && p.slice(i + 1) !== "";
+}
+
 // 合并：正文卡在前（deliverableMentions 的出现顺序），登记-only 卡按登记序
-// 在后追加；按归一化路径键去重（正文已提及的路径不再出登记卡）。
+// 在后追加；按归一化路径键去重（正文已提及的路径不再出登记卡）。两路都先过
+// 交付文件夹过滤——正文提及草稿路径也不再出卡。
 export function mergeDeliverableCards(
   textPaths: string[],
   entries: DeliverableEntry[] | null | undefined,
@@ -73,12 +88,14 @@ export function mergeDeliverableCards(
   const out: DeliverableCardItem[] = [];
   const seen = new Set<string>();
   for (const p of textPaths) {
+    if (!inDeliverableFolder(p)) continue;
     const key = deliverablePathKey(p);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ path: p, from: "text" });
   }
   for (const e of registryEntriesForTurn(entries, turnNo)) {
+    if (!inDeliverableFolder(e.path)) continue;
     const key = deliverablePathKey(e.path);
     if (seen.has(key)) continue;
     seen.add(key);
