@@ -7561,3 +7561,14 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - 装机：payload 同源装机（gaea_install.ps1 -SourceDir=payload），INSTALL OK，装机 exe
   BE4C6751AA3CA26A… = 包 exe 同源 ✓，构建时刻 2026-11-24 21:45:33。
 - 同批登记：昆顶格式模板已落两工作区（D:/新工作/南岸、2630合并沧州 .gaea/templates/docx/技术标-昆顶.json）。
+
+## 2026-11-24 修复——编程板块无法启动（gaea-20261124-5def04b0）
+
+- 实锤：11-22 DSH 栈升 rc.5 时 gaea 侧 programmingWebExpected 仍钉 rc.1，八查
+  version=false 恒拒绝启动（用户 20:02/20:03 两次 OpenProgrammingWebExternalError，
+  其余七查全 true）。
+- 修=期望常量抬 0.2.2-rc.5（5def04b0）+ 预检测试夹具改引常量（此后升 DSH 只抬一处）。
+  定向测试绿；主树 wails 52s；干净工作树打包 pnpm 31.5s+npm 31.0s+wails 52.2s；
+  payload 冒烟 200（PID 53160 回收）；装机 payload 同源 INSTALL OK（exe
+  0A4B616FA091F94E…，构建时刻 21:53:08）。zip 9360EBE3…/src.zip 1BC9BD77… 留盘。
+- 待用户验证：壳拉起 → 编程板块点启动（3091 已清场，DSH rc.5 应就绪）。
