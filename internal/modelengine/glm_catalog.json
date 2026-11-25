@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated": "2026-09-19",
+  "updated": "2026-11-25",
   "models": [
     {"id": "glm-5.3", "context_length": 1000000, "max_output": 128000, "caps": ["tools", "reasoning"], "points_in": 6.9, "points_cached": 1.7, "points_out": 24, "points_peak": 3},
     {"id": "glm-5.2", "context_length": 200000, "max_output": 128000, "caps": ["tools", "reasoning"]},
@@ -47,6 +47,7 @@
     {"id": "glm-realtime", "caps": ["vision", "tools", "search"]},
     {"id": "glm-realtime-flash", "price_in": 0.18, "currency": "CNY", "unit": "minute"},
     {"id": "glm-realtime-air", "price_in": 0.3, "currency": "CNY", "unit": "minute"},
-    {"id": "glm-5.3-flashx", "context_length": 1000000, "max_output": 128000, "caps": ["vision", "tools", "reasoning"], "price_in": 2, "price_out": 7, "currency": "CNY", "price_note": "更快更流畅的 GLM-5.3-Flash（200 tokens/s）；缓存命中 0.57 元/M、缓存存储限时免费；GLM Coding Plan 暂未开放（2026-09-19 官方核实）"}
+    {"id": "glm-5.3-flashx", "context_length": 1000000, "max_output": 128000, "caps": ["vision", "tools", "reasoning"], "price_in": 2, "price_out": 7, "currency": "CNY", "price_note": "更快更流畅的 GLM-5.3-Flash（200 tokens/s）；缓存命中 0.57 元/M、缓存存储限时免费；GLM Coding Plan 暂未开放（2026-09-19 官方核实）"},
+    {"id": "glm-5.4", "context_length": 512000, "max_output": 128000, "caps": ["vision", "tools", "reasoning"], "price_note": "模型支持 1M 上下文；官方建议客户端上下文窗口设为 512000 tokens，本条按建议值设置。输入支持文本/图像/视频/文件；已向 GLM Coding Plan 全量用户开放，按量付费 API 待官方开放（2026-11-25 官方核实）", "points_in": 4.6, "points_cached": 1.1, "points_out": 16, "points_peak": 1}
   ]
 }

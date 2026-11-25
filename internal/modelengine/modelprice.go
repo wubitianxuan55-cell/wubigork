@@ -70,6 +70,7 @@ var modelPricing = []struct {
 	{"glm-5.2", modelPrice{1.4, 4.4, "USD", ""}},
 	{"glm-5.1", modelPrice{1.4, 4.4, "USD", ""}},
 	{"glm-5-turbo", modelPrice{0, 0, "", ""}}, // 官方定价页未列出：置空挡住 glm-5 前缀
+	{"glm-5.4", modelPrice{0, 0, "", ""}},     // 按量付费 API 待官方开放（2026-11-25 核实）：置空挡住 glm-5 前缀
 	{"glm-5", modelPrice{1, 3.2, "USD", ""}},
 	{"glm-4.7-flashx", modelPrice{0.07, 0.4, "USD", ""}},
 	{"glm-4.7-flash", modelPrice{0, 0, "CNY", ""}},  // 官方免费档
