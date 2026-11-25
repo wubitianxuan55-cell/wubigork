@@ -126,6 +126,65 @@ func measureOfficeFace(t *testing.T, mode string) toolFaceView {
 	return view
 }
 
+// officeFaceBudgetEntry 一档的工具面预算。
+type officeFaceBudgetEntry struct {
+	Tools int // 件数上限：加工具必须有意识地抬这里
+	Chars int // 字符上限（描述+schema，rune 计）：留了余量给文案微调
+}
+
+// officeFaceBudget 三档预算定数（2026-11-25 办公工具梳理二批收口时实测：
+// standard 58 件 / 16404 字符、cost 66 件 / 27824 字符、proposal 70 件 /
+// 20863 字符）。余量口径：件数=实测值（加一件就得改这里，改之前先回答「它
+// 能不能并进已有工具」）；字符=实测值上取整到 250 的倍数再留一档（文案微调
+// 不必动预算，但塞不进一整段新描述）。工具面回胖没有守卫就会悄悄发生——
+// 造价档曾到 92 件 / 4.7 万字符。
+var officeFaceBudget = map[string]officeFaceBudgetEntry{
+	OfficeRunModeStandard: {Tools: 58, Chars: 16750},
+	OfficeRunModeCost:     {Tools: 66, Chars: 28250},
+	OfficeRunModeProposal: {Tools: 70, Chars: 21250},
+}
+
+// officeFaceRetired 已从模型工具面下线、不得回潮的名字（办公工具梳理两批）。
+// 回潮途径=有人把旧名字重新注册进 gaeaExtraTools / boot 直注册面。
+var officeFaceRetired = []string{
+	// 首批（799e9ba8）
+	"cost_compose", "multi_edit", "edit_lines", "replace", "dag_plan",
+	// 二批：slash_command 并入 run_skill；docx_accept 并入 docx_apply；
+	// office_macro 退役（COM 档按本机条件装配，注册面一并钉）。
+	"slash_command", "docx_accept", "office_macro",
+}
+
+// TestOfficeToolFaceBudget 防回胖守卫：三档模型实见的工具面不得超预算，
+// 已下线的工具名不得重新出现在注册面。
+func TestOfficeToolFaceBudget(t *testing.T) {
+	for _, mode := range officeFaceModes {
+		v := measureOfficeFace(t, mode)
+		budget, ok := officeFaceBudget[mode]
+		if !ok {
+			t.Fatalf("%s 没有预算定数", mode)
+		}
+		t.Logf("%s: %d 件 / %d 字符（描述 %d；预算 %d 件 / %d 字符）",
+			mode, v.Tools, v.TotalChars, v.DescChars, budget.Tools, budget.Chars)
+		if v.Tools > budget.Tools {
+			t.Errorf("%s 工具面 %d 件，超预算 %d 件——新工具先问能不能并进已有工具；确需新增再抬预算并写明理由",
+				mode, v.Tools, budget.Tools)
+		}
+		if v.TotalChars > budget.Chars {
+			t.Errorf("%s 工具面 %d 字符，超预算 %d——工具描述是模型每轮都付的常驻面，长说明改随回执发放",
+				mode, v.TotalChars, budget.Chars)
+		}
+		seen := map[string]bool{}
+		for _, r := range v.Rows {
+			seen[r.Name] = true
+		}
+		for _, name := range officeFaceRetired {
+			if seen[name] {
+				t.Errorf("%s：已下线的工具 %s 回到了模型工具面", mode, name)
+			}
+		}
+	}
+}
+
 // TestOfficeToolFaceDump 按需导出：GAEA_TOOLDUMP_OUT=<输出 json 路径> 时写三档
 // 逐工具尺寸；未设置即跳过（零成本）。
 func TestOfficeToolFaceDump(t *testing.T) {

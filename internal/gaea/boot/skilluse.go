@@ -17,6 +17,12 @@ type skillUseCountTool struct {
 
 var _ tool.Tool = (*skillUseCountTool)(nil)
 
+// skillUseClassifier 由 run_skill 内层实现（2026-11-25 办公工具梳理二批 B2：
+// 项目命令并入 run_skill 后，命令展开与取清单都不是技能调用，不计入）。
+type skillUseClassifier interface {
+	CountsAsSkillUse(raw string) bool
+}
+
 func (t *skillUseCountTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		Name string `json:"name"`
@@ -26,7 +32,11 @@ func (t *skillUseCountTool) Execute(ctx context.Context, args json.RawMessage) (
 		name = in.Name
 	}
 	out, err := t.Tool.Execute(ctx, args)
-	if name != "" {
+	count := name != ""
+	if c, ok := t.Tool.(skillUseClassifier); ok {
+		count = c.CountsAsSkillUse(name)
+	}
+	if count {
 		t.onUse(name, err == nil)
 	}
 	return out, err

@@ -600,11 +600,17 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 无 Asker 时诚实拒绝（执行闸必须人来开，不仿 ask 的自选降级）。
 	addGated(reg, opts.ToolFilter, agent.NewExitPlanModeTool())
 
+	// Custom slash commands (.gaea/commands + user dir). Best-effort: a malformed
+	// file is skipped, and a load error never blocks the session.
+	// 基于工作区根（opts.Cwd）发现命令，与技能/记忆保持一致：桌面端切换
+	// 工作空间后，模板与自定义命令跟随新工作区（进程目录不再影响发现）。
+	cmds, _ := command.Load(config.CommandDirsAt(cwd)...)
+
 	// Skill tools: run_skill / install_skill are the ONLY skill entry points —
 	// 子代理入口收敛为 task + run_skill 两级（v4.61 用户拍板，对标 Codex 的
 	// 「父代理发一条任务消息」）。此前为 format-convert/chart-builder/
 	// doc-assemble 注册的顶层包装工具已删除；它们仍是 runAs=subagent 技能，
-	// 经 run_skill（或 slash_command）按名调用。explore/research/review/
+	// 经 run_skill 按名调用。explore/research/review/
 	// security_review 同样不作为独立工具面：仅保留 spawn 模板前缀（同类
 	// run_skill 技能共享 L4 前缀缓存）与每技能模型覆盖。run_skill 子代理
 	// 复用同一 runner —— 隔离循环 + 技能正文 + 按技能白名单的工具集（减去
@@ -674,9 +680,15 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	} else {
 		runSkill = skill.NewRunSkillTool(skillStore, skillRunner)
 	}
+	// 2026-11-25 办公工具梳理二批 B2：项目斜杠命令并入 run_skill（slash_command
+	// 工具下线）。命令与技能同用名字解析、技能优先；命令只展开提示词文本。
+	// 必须挂在统计装饰器之前——装饰器问内层 CountsAsSkillUse，命令展开不计
+	// 技能用量。
+	runSkill = skill.WithRunSkillCommands(runSkill, runSkillCommandEntries(cmds))
 	if opts.OnSkillUse != nil {
 		// 7.2-2 判据②：run_skill 执行结果计入调用统计（args.name 解析失败
-		// 不计——宁少勿扰）。装饰器只包 Execute，其余方法原样转发。
+		// 不计——宁少勿扰；项目命令展开也不计——那是命令不是技能）。装饰器
+		// 只包 Execute，其余方法原样转发。
 		runSkill = &skillUseCountTool{Tool: runSkill, onUse: opts.OnSkillUse}
 	}
 	addGated(reg, opts.ToolFilter, runSkill)
@@ -818,35 +830,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 失败留账下次重试）。每进程每工作区一次；启动关键路径不做整树遍历。
 	sweepQuarantineOnce(cwd)
 
-	// Custom slash commands (.gaea/commands + user dir). Best-effort: a malformed
-	// file is skipped, and a load error never blocks the session.
-	// 基于工作区根（opts.Cwd）发现命令，与技能/记忆保持一致：桌面端切换
-	// 工作空间后，模板与自定义命令跟随新工作区（进程目录不再影响发现）。
-	cmds, _ := command.Load(config.CommandDirsAt(cwd)...)
-
-	// Expose the loaded slash commands (skills + custom commands) to the model via
-	// the slash_command tool, so it can invoke a project playbook by name the way a
-	// user types "/name". Skills are added first, then commands, so a command wins
-	// a name clash — matching the prompt's command-over-skill precedence.
-	var slashEntries []command.SlashEntry
-	for _, sk := range skills {
-		sk := sk
-		slashEntries = append(slashEntries, command.SlashEntry{
-			Name:        sk.Name,
-			Description: sk.Description,
-		})
-	}
-
-	for _, cmd := range cmds {
-		cmd := cmd
-		slashEntries = append(slashEntries, command.SlashEntry{
-			Name:        cmd.Name,
-			Description: cmd.Description,
-			ArgHint:     cmd.ArgHint,
-			Render:      func(args []string) string { return cmd.Render(args) },
-		})
-	}
-	addGated(reg, opts.ToolFilter, command.NewSlashCommandTool(slashEntries))
+	// 自定义斜杠命令 2026-11-25 办公工具梳理二批 B2 起并入 run_skill：命令在
+	// run_skill 构造之前加载（见 skillUseCountTool 装配点），slash_command 工具
+	// 下线；技能本身照旧只经 run_skill 按名调用（此前 slash_command 给技能名
+	// 不带 Render，实际会空指针，本刀一并消除）。cmds 仍交给控制器处理用户
+	// 在输入框里敲的 "/name"（命令 > 技能的优先级不变）。
 
 	// 前端注入的工具（如桌面端 image_gen）追加到注册表。S1.3-B：按装配空间
 	// 物理过滤（work=办公/编辑/检索域、play=生图/轻语/小说/角色域、shared
@@ -1117,12 +1105,31 @@ func toolAllowed(filter func(name string) bool, name string) bool {
 // addGated 按板块装配闸注册模型面工具（2026-11-16 图文瘦身刀）。
 // ToolFilter 此前只过 addBuiltins/plugins/ExtraTools 三处，boot 直注册的会话
 // 级元工具（task/ask/记忆族/子代理管理族/request_permission/exit_plan_mode/
-// summarize_file/slash_command 等）绕过板块名单——本 helper 把闸扩到全部模型
-// 面注册点：filter 空=全放行（办公逐字节现状），非空时名单内物理不装。
+// summarize_file 等）绕过板块名单——本 helper 把闸扩到全部模型面注册点：
+// filter 空=全放行（办公逐字节现状），非空时名单内物理不装。
 func addGated(reg *tool.Registry, filter func(name string) bool, t tool.Tool) {
 	if t != nil && toolAllowed(filter, t.Name()) {
 		reg.Add(t)
 	}
+}
+
+// runSkillCommandEntries 把加载到的自定义命令映射成 run_skill 可按名调用的
+// 条目（2026-11-25 办公工具梳理二批 B2）。
+func runSkillCommandEntries(cmds []command.Command) []skill.CommandEntry {
+	if len(cmds) == 0 {
+		return nil
+	}
+	out := make([]skill.CommandEntry, 0, len(cmds))
+	for _, cmd := range cmds {
+		cmd := cmd
+		out = append(out, skill.CommandEntry{
+			Name:        cmd.Name,
+			Description: cmd.Description,
+			ArgHint:     cmd.ArgHint,
+			Render:      func(args []string) string { return cmd.Render(args) },
+		})
+	}
+	return out
 }
 
 // addBuiltins adds enabled built-in tools to reg. An empty list means all of

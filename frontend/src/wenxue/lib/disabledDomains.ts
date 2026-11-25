@@ -9,10 +9,10 @@ const DISABLED_TOOL_PREFIXES = ["schedule_", "cad_"] as const;
 // 对齐，改名单两处同批。
 const DISABLED_TOOL_NAMES = [
   "office_generate", "office_batch",
-  "docx_apply", "docx_accept", "pptx_apply",
+  "docx_apply", "pptx_apply",
   "xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
-  "office_open", "office_status", "office_read", "office_edit", "office_render",
-  "office_save", "office_close", "office_help", "office_macro", "office_selection",
+  "office_open", "office_read", "office_edit", "office_render",
+  "office_save", "office_close", "office_selection",
   "cad_ask", "cost_search", "cost_save", "cost_indicators",
   "chart_gen", "diagram_gen", "diagram", "doc_render", "format_convert",
   "screen_capture", "semantic_search",

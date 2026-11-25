@@ -41,8 +41,19 @@ func NewRequestPermissionTool() *RequestPermissionTool { return &RequestPermissi
 
 func (*RequestPermissionTool) Name() string { return "request_permission" }
 
+// Description 是模型每轮都付的常驻面（2026-11-25 办公工具梳理批 A2：69 个真实
+// 会话里仅 4 次调用，却曾是三档最大的单项 1188 字符）。只留「调用前必须知道」
+// 的规矩：何时用、规则形态、reason 必填且原样上卡、批准=规则不是绕过、被拒
+// 别重试、不得替用户申请破坏性操作。各决策的后续动作（重发原调用 / 换路径 /
+// 收尾说明）由 Execute 的回执逐形态给出；发布边界另由 PublishGuard 提示词块
+// 单源陈述（publishguard.go），不在此重复。
 func (*RequestPermissionTool) Description() string {
-	return "Request a permission escalation when you need a capability the permission policy does not currently grant — e.g. you hit a \"denied by permission policy\" block, or the next step needs a tool/subject you know will be declined. Ask the user to grant a rule (\"Tool\" for the whole tool, or \"Tool(subject-glob)\" for a narrow subject such as one command prefix or one path). The request surfaces as an approval card showing the rule and your reason; the user may deny, allow once/for this session, or always-allow. The grant is a RULE for future calls — the real tool call still goes through the normal permission gate afterwards. Rules: `reason` is mandatory and shown to the user verbatim, so make it concrete (what you need to run and why the task needs it). If the request is denied, do not repeat the same request — switch to an approach that needs no extra permission. Never request permissions for destructive operations the user has not asked for. Note: the workspace publish boundary (durable Office deliverables written via bash) is a separate gate that permission rules do not lift — route durable files through the structured tools or the move_file path instead of requesting a rule."
+	return "Request a permission rule from the user — use when a call was blocked by the permission policy, or the next step needs a tool you know will be declined. " +
+		"Rule: \"Tool\" or \"Tool(subject-glob)\" for one command prefix or path. " +
+		"`reason` is required and shown verbatim: say what you will run and why. " +
+		"A grant only adds a rule — re-issue the original call; it still passes the normal gate. " +
+		"Denied: do not ask again; use an approach that needs no extra permission, or report the blocker. " +
+		"Never request permissions for destructive operations the user has not asked for."
 }
 
 func (*RequestPermissionTool) Schema() json.RawMessage {

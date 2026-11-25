@@ -303,7 +303,7 @@ func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ..
 	// 出路指引恒显（2026-11-20 实测修正）：此前 expected 非空时本句被「声明
 	// 写路径集」替换——bash 带声明路径的拦截只见归因不见出路，实测用户绕行
 	// 多轮才找到合规入口。声明路径是归因信息，与合规出路不互斥，两句都给。
-	b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/docx_accept/pptx_apply/xlsx_apply（编辑）。")
+	b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/pptx_apply/xlsx_apply（编辑）。")
 	// 实测反馈⑤补两件：能不能取回、允许的落点是什么（此前用户试错一轮才找到
 	// 临时目录中转）。隔离件是原件（Quarantine 只 move 不改内容），取回=从
 	// 隔离目录 move 到工作区外的暂存位；非 durable 档不受本边界限制。

@@ -1109,7 +1109,7 @@ func (t costLibraryTool) template(_ *workcost.Store, p costLibraryArgs) (string,
 	buf.WriteString("- 综合单价行类只用 汇总/定额/人工/材料/机械/外委；组 = 1 汇总行 + N 定额块（块 = 1 定额行 + 明细行）；清单编码填在汇总行 B 列。\n")
 	buf.WriteString("- 公式链照样表复制（VLOOKUP 取价、SUMIF 三费、系数乘定额单价），不许用手算数值覆盖公式。\n")
 	buf.WriteString("- 封面 A2 标题改成真实项目名（导回库即项目名）；「专业/地区/计价期」标签格与值格保持成对。费率列（费用汇总 D 列）按本项目口径填。\n")
-	buf.WriteString("交付三道门（全过才算完成）：xlsx_recalc（公式零错误）→ xlsx_audit（复核）→ cost_library import_project dry_run=true（回执核对规模与口径）。\n")
+	buf.WriteString("交付两道门（全过才算完成）：xlsx_recalc（回执自带审计，写「零错误，达到交付门」才算过，不必再调 xlsx_audit）→ cost_library import_project dry_run=true（回执核对规模与口径）。\n")
 	fmt.Fprintf(&buf, "**下一步**: 按项目改内容（封面概况、清单、综合单价、费用汇总费率、工程量）；填完 import_project（path=%s，先 dry_run=true，specialty/region 给本项目口径）导回库。填法与口径见 cost-estimate 技能。", written)
 	return buf.String(), nil
 }

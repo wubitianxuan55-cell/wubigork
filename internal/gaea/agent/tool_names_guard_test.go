@@ -31,7 +31,7 @@ func TestToolNameMentionsSubsetOfRegistry(t *testing.T) {
 	// 包不能 import app，按守卫纪律显式登记真实注册名（P1a office 工具族，
 	// 2026-11-09 众神殿裁决 action-3；装配点 office_tools.go/gaea_handler.go）。
 	for _, n := range []string{
-		"office_generate", "docx_apply", "docx_accept", "pptx_apply", "xlsx_apply",
+		"office_generate", "docx_apply", "pptx_apply", "xlsx_apply",
 	} {
 		known[n] = true
 	}

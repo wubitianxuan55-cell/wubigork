@@ -94,17 +94,15 @@ func TestOfficeComRegistryShape(t *testing.T) {
 		tl       tool.Tool
 		readOnly bool
 	}
-	eight := []entry{
+	six := []entry{
 		{(officeComOpenTool{}), false},
-		{(officeComStatusTool{}), true},
 		{(officeComReadTool{}), true},
 		{(officeComEditTool{}), false},
 		{(officeComRenderTool{}), true},
 		{(officeComSaveTool{}), false},
 		{(officeComCloseTool{}), false},
-		{(officeComHelpTool{}), true},
 	}
-	for _, e := range eight {
+	for _, e := range six {
 		name := e.tl.Name()
 		if e.tl.ReadOnly() != e.readOnly {
 			t.Fatalf("%s ReadOnly=%v, want %v", name, e.tl.ReadOnly(), e.readOnly)
@@ -123,8 +121,79 @@ func TestOfficeComRegistryShape(t *testing.T) {
 		}
 	}
 	if (officeComOpenTool{}).Name() != "office_open" || (officeComEditTool{}).Name() != "office_edit" ||
-		(officeComSaveTool{}).Name() != "office_save" || (officeComHelpTool{}).Name() != "office_help" {
+		(officeComSaveTool{}).Name() != "office_save" || (officeComReadTool{}).Name() != "office_read" {
 		t.Fatal("工具名与上游协议名不一致")
+	}
+}
+
+// TestOfficeReadStatusAndHelpMerge 2026-11-25 办公工具梳理二批 B3：office_status
+// 与 office_help 并入 office_read——status:true / help:true 都不需要文档，不向
+// helper 透传开关键；显式取过清单后同会话首次 open 不再重复发放。
+func TestOfficeReadStatusAndHelpMerge(t *testing.T) {
+	ws := isolateOfficeWorkspace(t)
+	stub := &stubCaller{reply: func(cmd string, args map[string]any) (json.RawMessage, error) {
+		switch cmd {
+		case "status":
+			// call 层会给 args 补 suite 等信封键；只钉「并入的两个开关没透传过来」。
+			for _, k := range []string{"status", "help", "doc", "app"} {
+				if _, ok := args[k]; ok {
+					return nil, fmt.Errorf("status 不应透传 %s: %v", k, args)
+				}
+			}
+			return stubJSON([]comhelper.AppStatus{{App: "word"}}), nil
+		case "open":
+			return stubJSON(docInfoStub("attached", ws)), nil
+		}
+		return nil, fmt.Errorf("unexpected cmd %s", cmd)
+	}}
+	resetOfficeComForTest(stub)
+	ctx := context.Background()
+	read := officeComReadTool{}
+
+	// status:true：不依赖任何已打开文档（current 为空也成立）。
+	out, err := read.ExecuteWithContext(ctx, tool.ToolContext{SessionID: "s1"}, json.RawMessage(`{"status":true}`))
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if strings.TrimSpace(out) == "" {
+		t.Fatal("status 回执为空")
+	}
+	if stub.count("status") != 1 {
+		t.Fatalf("status 应调 helper 一次，实际 %d", stub.count("status"))
+	}
+	// help:true：不调 helper，返回清单；记入「已发放」。
+	out, err = read.ExecuteWithContext(ctx, tool.ToolContext{SessionID: "s1"}, json.RawMessage(`{"help":true,"app":"excel"}`))
+	if err != nil {
+		t.Fatalf("help: %v", err)
+	}
+	if !strings.Contains(out, "operations for office_edit") {
+		t.Fatalf("help 应回执操作清单: %.200s", out)
+	}
+	if stub.count("status") != 1 || stub.count("open") != 0 {
+		t.Fatal("help 不应触碰 helper 的 status/open")
+	}
+	// 同会话首次 open（excel）：清单不再重复发放——显式取过就算发放过。
+	openOut, err := (officeComOpenTool{}).ExecuteWithContext(ctx, tool.ToolContext{SessionID: "s1"}, json.RawMessage(`{"path":"表.xlsx"}`))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if stub.count("open") != 1 {
+		t.Fatalf("open 应调 helper 一次，实际 %d", stub.count("open"))
+	}
+	if strings.Contains(openOut, "operations for office_edit") {
+		t.Fatal("显式取过 excel 清单后，同会话首次 open 不应重复发放")
+	}
+
+	// help 未给 app 且没有最近文档：给字段名，不猜应用。
+	resetOfficeComForTest(stub)
+	_, err = read.Execute(ctx, json.RawMessage(`{"help":true}`))
+	if err == nil || !strings.Contains(err.Error(), "app") {
+		t.Fatalf("help 缺 app 应报错并点名 app，实际 %v", err)
+	}
+	// 开关为 false / 缺省：不拦文档读取路径（缺省目标仍由 target 报「先调 office_open」）。
+	_, err = read.Execute(ctx, json.RawMessage(`{"status":false,"help":false}`))
+	if err == nil || !strings.Contains(err.Error(), "office_open") {
+		t.Fatalf("关着的开关不应改变读取路径，实际 %v", err)
 	}
 }
 
@@ -384,7 +453,7 @@ func TestOfficeComBusyPassesThrough(t *testing.T) {
 		return nil, &comhelper.ComError{Code: "BUSY", Message: "The Office app is busy: try again in a moment."}
 	}}
 	resetOfficeComForTest(stub)
-	_, err := (officeComStatusTool{}).Execute(context.Background(), json.RawMessage(`{}`))
+	_, err := (officeComReadTool{}).Execute(context.Background(), json.RawMessage(`{"status":true}`))
 	if !comhelper.IsBusy(err) {
 		t.Fatalf("BUSY 应透传: %v", err)
 	}
@@ -522,7 +591,6 @@ func TestOfficeParseErrorsCarryToolName(t *testing.T) {
 		{"office_save", func() error { _, err := (officeComSaveTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
 		{"office_close", func() error { _, err := (officeComCloseTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
 		{"office_selection", func() error { _, err := (officeComSelectionTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
-		{"office_macro", func() error { _, err := (officeMacroTool{}).Execute(ctx, json.RawMessage(`{bad`)); return err }},
 	}
 	for _, tc := range cases {
 		err := tc.run()
@@ -551,7 +619,7 @@ func TestOfficeComWrapErrSemantics(t *testing.T) {
 	if comhelper.Code(nf) != "NOT_FOUND" {
 		t.Fatalf("包装后 Code 判定必须仍成立: %v", nf)
 	}
-	if !strings.Contains(nf.Error(), "office_status") {
+	if !strings.Contains(nf.Error(), "office_read status:true") {
 		t.Fatalf("NOT_FOUND 错误缺查清单指令: %v", nf)
 	}
 

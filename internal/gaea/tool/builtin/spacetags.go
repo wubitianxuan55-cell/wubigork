@@ -71,22 +71,19 @@ var spaceTags = map[string]string{
 	// app/registrymap_extra_test.go，缺表再犯即红）。
 	"office_generate": spaces.SpaceWork,
 	"docx_apply":      spaces.SpaceWork,
-	"docx_accept":     spaces.SpaceWork,
 	"pptx_apply":      spaces.SpaceWork,
 	"xlsx_apply":      spaces.SpaceWork,
 	"xlsx_profile":    spaces.SpaceWork,
 	"office_batch":    spaces.SpaceWork,
-	// dsh-office COM 实时协同档八件（app 层 gaeaExtraTools 条件装配，
+	// dsh-office COM 实时协同档七件（app 层 gaeaExtraTools 条件装配，
 	// 2026-11-13 蒸馏波1）：办公域=work；无 Office/WPS 的机器整族不注册。
+	// office_status/office_help 2026-11-25 并入 office_read，office_macro 退役。
 	"office_open":      spaces.SpaceWork,
-	"office_status":    spaces.SpaceWork,
 	"office_read":      spaces.SpaceWork,
 	"office_edit":      spaces.SpaceWork,
 	"office_render":    spaces.SpaceWork,
 	"office_save":      spaces.SpaceWork,
 	"office_close":     spaces.SpaceWork,
-	"office_help":      spaces.SpaceWork,
-	"office_macro":     spaces.SpaceWork,
 	"office_selection": spaces.SpaceWork,
 	// 灵犀 P1-2 质量门禁两件（app 层 gaeaExtraTools 装配，2026-11-13）：
 	// recalc 写（缓存值回写）audit 只读，均办公域=work。
@@ -147,7 +144,6 @@ var spaceTags = map[string]string{
 	"run_skill":        SpaceShared,
 	"read_skill":       SpaceShared,
 	"install_skill":    SpaceShared,
-	"slash_command":    SpaceShared,
 	"summarize_file":   SpaceShared,
 	"todo_write":       SpaceShared,
 }

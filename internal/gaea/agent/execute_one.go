@@ -458,7 +458,8 @@ func isBackgroundTaskCall(args string) bool {
 //   - edit_file/multi_edit/edit_lines 走 fileutil.AtomicWrite / ooxml 同款
 //     ——rename 收尾，失败即目标未动 → none；
 //   - write_file 自 D4 起同走 atomicWriteEncoded（半写债收口）→ none；
-//   - docx_apply/docx_accept/pptx_apply 走 ooxml.WriteAtomic（rename 收尾），
+//   - docx_apply/pptx_apply 走 ooxml.WriteAtomic（rename 收尾；docx_accept
+//     2026-11-25 起是 docx_apply 的 accept:true 写法，同一落盘路径），
 //     xlsx_apply 走 xlsxedit.saveAtomic（同目录临时文件+RenameWithRetry，
 //     2026-11-19 A 案）——同为 rename 收尾，失败即目标未动 → none
 //     （xlsx_apply 的预览失败已降级不报错；占用 A/B 实测 clean-fail）；
@@ -468,7 +469,7 @@ func isBackgroundTaskCall(args string) bool {
 func defaultEffectForTool(name string) string {
 	switch name {
 	case "edit_file", "write_file",
-		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
+		"docx_apply", "pptx_apply", "xlsx_apply":
 		return tool.EffectNone
 	case "bash", "move_file":
 		return tool.EffectUnknown

@@ -122,13 +122,12 @@ func TestOfficeGenerateWritePathsResolves(t *testing.T) {
 
 func TestOfficeApplyToolsWritePathsAndShape(t *testing.T) {
 	ws := isolateOfficeWorkspace(t)
-	four := []tool.Tool{
+	three := []tool.Tool{
 		officeDocxApplyTool{},
-		officeDocxAcceptTool{},
 		officePptxApplyTool{},
 		officeXlsxApplyTool{},
 	}
-	for _, tl := range four {
+	for _, tl := range three {
 		if tl.ReadOnly() {
 			t.Fatalf("%s 写工具不得自报只读", tl.Name())
 		}
@@ -150,10 +149,71 @@ func TestOfficeApplyToolsWritePathsAndShape(t *testing.T) {
 			t.Fatalf("%s 越界路径应拒绝", tl.Name())
 		}
 	}
-	// docx_accept 仅 accept=true：schema 无 accept 参数（拒绝路径留 UI，裁决口径）。
-	schema := string(officeDocxAcceptTool{}.Schema())
-	if strings.Contains(schema, `"accept"`) {
-		t.Fatalf("docx_accept schema 不得暴露 accept 参数: %s", schema)
+}
+
+// TestDocxApplyAcceptMerge 2026-11-25 办公工具梳理二批 B4：docx_accept 并入
+// docx_apply——schema 只必填 path、暴露 accept 布尔（拒绝路径仍留 UI，不暴露
+// reject）；两种写法的参数配对在运行期校验，错配给字段名。
+func TestDocxApplyAcceptMerge(t *testing.T) {
+	isolateOfficeWorkspace(t)
+	var schema struct {
+		Required   []string                   `json:"required"`
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	raw := officeDocxApplyTool{}.Schema()
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("docx_apply schema 非法 JSON: %v", err)
+	}
+	if len(schema.Required) != 1 || schema.Required[0] != "path" {
+		t.Fatalf("docx_apply required 应只有 path（accept 写法不带替换对），实际 %v", schema.Required)
+	}
+	for _, k := range []string{"path", "selected_text", "replacement", "accept"} {
+		if _, ok := schema.Properties[k]; !ok {
+			t.Fatalf("docx_apply schema 缺属性 %q: %s", k, raw)
+		}
+	}
+	if _, ok := schema.Properties["reject"]; ok {
+		t.Fatalf("docx_apply schema 不得暴露 reject（拒绝修订留 UI，裁决口径）: %s", raw)
+	}
+
+	tl := officeDocxApplyTool{a: &App{}}
+	cases := []struct {
+		name string
+		args string
+		want string
+	}{
+		{"accept 与替换对混给", `{"path":"a.docx","accept":true,"selected_text":"x","replacement":"y"}`, "accept:true"},
+		{"只给 selected_text", `{"path":"a.docx","selected_text":"x"}`, "replacement"},
+		{"只给 replacement", `{"path":"a.docx","replacement":"y"}`, "selected_text"},
+		{"accept 与 replacement 混给", `{"path":"a.docx","accept":true,"replacement":"y"}`, "accept:true"},
+	}
+	for _, tc := range cases {
+		_, err := tl.Execute(t.Context(), json.RawMessage(tc.args))
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%s: err=%v, want 含 %q", tc.name, err, tc.want)
+		}
+	}
+	// 两条合法写法都应越过参数校验、走到文件层（目标缺失 fail-loud，而不是配对报错）。
+	for _, args := range []string{
+		`{"path":"不存在.docx","accept":true}`,
+		`{"path":"不存在.docx","selected_text":"a","replacement":""}`,
+	} {
+		_, err := tl.Execute(t.Context(), json.RawMessage(args))
+		if err == nil || strings.Contains(err.Error(), "docx_apply:") {
+			t.Fatalf("%s: 应到达文件层并 fail-loud，实际 err=%v", args, err)
+		}
+	}
+}
+
+// TestExtraToolsRetiredNamesAbsent 已下线的工具名不得回到 app 装配面（含按本机
+// 条件装配的 COM 档——工具面体检测量的是 lean 档、整组被藏，钉不到这里）。
+func TestExtraToolsRetiredNamesAbsent(t *testing.T) {
+	for _, tl := range gaeaExtraTools(&App{}) {
+		switch tl.Name() {
+		case "docx_accept", "office_macro", "office_status", "office_help",
+			"cost_compose", "multi_edit", "edit_lines", "replace", "dag_plan":
+			t.Errorf("已下线的工具 %s 回到了 gaeaExtraTools", tl.Name())
+		}
 	}
 }
 

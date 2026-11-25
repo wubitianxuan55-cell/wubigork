@@ -218,11 +218,11 @@ describe("officeLiveReduce：office_save / office_close", () => {
 });
 
 describe("officeLiveReduce：心跳 / 过期 / 非 office 工具", () => {
-  it("office_read/status/render/help：纯心跳（保留 activeDoc/step）", () => {
+  it("office_read/render/selection：纯心跳（保留 activeDoc/step）", () => {
     const open = officeLiveReduce(initialOfficeLiveState, {
       tool: "office_open", args: JSON.stringify({ path: "a.xlsx" }), status: "done", now: T0,
     });
-    for (const tool of ["office_read", "office_status", "office_render", "office_help"]) {
+    for (const tool of ["office_read", "office_render", "office_selection"]) {
       const next = officeLiveReduce(open, { tool, args: "{}", status: "done", now: T0 + 10 });
       expect(next.activeDoc).toBe("a.xlsx");
       expect(next.updatedAt).toBe(T0 + 10);

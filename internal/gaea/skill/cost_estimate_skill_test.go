@@ -29,7 +29,8 @@ func TestCostEstimateSkill_CoversKeyClauses(t *testing.T) {
 	clauses := []string{
 		"样表",             // 版式真源=样表（2026-11-25 删渲染器拍板）
 		"导入契约",           // 什么不能破
-		"三道门",            // recalc/audit/dry_run 验收
+		"两道门",            // recalc（回执自带审计）/dry_run 验收；xlsx_audit 不再是独立一道门（2026-11-25 B4）
+		"达到交付门",          // 重算回执写明结论才算过
 		"xlsx_recalc",    // 重算门
 		"import_project", // 回导入口
 		"import_open",    // 非标准资料走模型读表
@@ -45,6 +46,8 @@ func TestCostEstimateSkill_CoversKeyClauses(t *testing.T) {
 		"没填的组、没填的定额块",       // 空组自动跳过
 		"只取第一个",             // 重复挂接去重
 		"人工 / 材料 / 机械 / 外委", // 类别四类
+		"不得参考投资估算的价格",       // 用户规矩（2026-11-25 C2：自用户级 AGENTS.md 迁入技能，不再全板块常驻）
+		"管理费、利润、规费、税金不进综合单价",
 	}
 	for _, c := range clauses {
 		if !strings.Contains(sk.Body, c) {

@@ -16,7 +16,7 @@ export const ICONS: Record<string, Icon> = {
   // 规范
   ls: FolderOpen, grep: Search, check: CheckCircle,
   // 项目
-  task: ListTree, run_skill: Zap, install_skill: PlusCircle, slash_command: Zap,
+  task: ListTree, run_skill: Zap, install_skill: PlusCircle,
   interrupt_agent: Ban, subagent_list: List,
   // 图表
   stats: Table, chart: Table,

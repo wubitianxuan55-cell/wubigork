@@ -10,11 +10,11 @@ import "testing"
 func TestWenxueToolFilterDeniesOfficeFamily(t *testing.T) {
 	denied := []string{
 		// office 生成/批处理/COM 档
-		"office_generate", "office_batch", "office_open", "office_status",
+		"office_generate", "office_batch", "office_open",
 		"office_read", "office_edit", "office_render", "office_save",
-		"office_close", "office_help", "office_macro", "office_selection",
+		"office_close", "office_selection",
 		// 文档真编辑
-		"docx_apply", "docx_accept", "pptx_apply",
+		"docx_apply", "pptx_apply",
 		// xlsx 族
 		"xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
 		// 域工具
@@ -63,7 +63,7 @@ func TestWenxueToolFilterAllowsGenericBase(t *testing.T) {
 		// 会话级元工具保留面（2026-11-16 瘦身刀起过闸，名单内摘、保留面在此）
 		"task", "ask", "todo_write", "complete_step",
 		"remember", "forget", "promote_session_facts", "memory_get", "memory_search",
-		"run_skill", "read_skill", "install_skill", "slash_command",
+		"run_skill", "read_skill", "install_skill",
 		"session_search", "recall_archived", "genui_validate",
 	}
 	for _, n := range allowed {

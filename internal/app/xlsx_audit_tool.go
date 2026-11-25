@@ -29,8 +29,9 @@ func (t xlsxAuditTool) ReadOnly() bool { return true }
 
 func (t xlsxAuditTool) Description() string {
 	return "对既有 .xlsx 做交付前质量审计（只读，不改文件）：扫描公式错误值（#REF!/#DIV/0!/#VALUE!/#N/A/#NAME? 等）、" +
-		"自引用循环（A→B→A 深循环由 xlsx_recalc 的 LibreOffice 重算链报）、有公式但未重算的单元格。" +
-		"交付纪律：公式错误必须为零——xlsx_apply 应用后先 xlsx_recalc 重算，再本工具复核，零错误才算交付；" +
+		"自引用循环（A→B→A 深循环由 xlsx_recalc 的 LibreOffice 重算链报）、有公式但未重算的单元格，外加打印版面的确定性检查。" +
+		"交付纪律：公式错误必须为零——xlsx_recalc 的回执已附同款审计，重算后零错误即达交付门，不必紧接着重复调用；" +
+		"重算后又改过文件、或要复核不是自己重算的文件时用本工具。" +
 		"生成公式表时公式优先，不要用脚本算完把数值硬编码进单元格。"
 }
 
@@ -162,7 +163,44 @@ func xlsxLayoutNotes(path string) ([]string, error) {
 
 // formatAuditReport 把审计报告排版成给模型看的文本（纯函数，便于单测）。
 // 错误值优先展示（交付门的硬伤），自引用次之，未重算折叠成计数+样例。
+// xlsx_audit 独立复核口径（尾注指向「重算后复审」）。
 func formatAuditReport(rep xlsxedit.AuditReport, limit int) string {
+	return formatAuditWith(rep, limit, auditTailStandalone)
+}
+
+// formatAuditFindings 同一份主体的重算回执口径（xlsx_recalc 2026-11-25 B4：
+// 回执直接附审计结果）——尾注指向「修复后再次重算 / 全量清单用 xlsx_audit」。
+func formatAuditFindings(rep xlsxedit.AuditReport, limit int) string {
+	return formatAuditWith(rep, limit, auditTailRecalc)
+}
+
+// auditTail 是排版尾注的两种口径：主体（计数 + 逐条发现）同一份，只换结尾。
+type auditTail struct {
+	clean  string                               // 零发现时接在计数行后
+	rest   func(total, shown, limit int) string // 有未展示条目
+	cached string                               // 全部展示完、仍有未重算
+	fixed  string                               // 全部展示完、无未重算
+}
+
+var auditTailStandalone = auditTail{
+	clean: "，零错误零异常，达到交付门。\n",
+	rest: func(total, shown, limit int) string {
+		return fmt.Sprintf("…其余 %d 条未展示（limit=%d）；先修复错误值与自引用，再 xlsx_recalc 后复审。\n", total-shown, limit)
+	},
+	cached: "下一步：xlsx_recalc 重算刷新缓存值，再跑本工具复核，零错误才算交付。\n",
+	fixed:  "下一步：修复上述问题后 xlsx_recalc + 本工具复核，零错误才算交付。\n",
+}
+
+var auditTailRecalc = auditTail{
+	clean: "，零错误零异常。\n",
+	rest: func(total, shown, limit int) string {
+		return fmt.Sprintf("…其余 %d 条未展示（limit=%d）；全部清单用 xlsx_audit。\n", total-shown, limit)
+	},
+	cached: "下一步：重算后仍有未重算的单元格——确认本机 LibreOffice 重算链可用后再次重算；仍不刷新就用 xlsx_audit 看全量清单。\n",
+	fixed:  "下一步：修复上述问题后再次重算。Err:522=循环引用，Err:508=括号/配对缺失，Err:507=除零。\n",
+}
+
+func formatAuditWith(rep xlsxedit.AuditReport, limit int, tail auditTail) string {
 	if limit <= 0 {
 		limit = 40
 	}
@@ -174,7 +212,7 @@ func formatAuditReport(rep xlsxedit.AuditReport, limit int) string {
 
 	errs, refs, caches := splitFindings(rep.Findings)
 	if len(errs) == 0 && len(refs) == 0 && len(caches) == 0 {
-		b.WriteString("，零错误零异常，达到交付门。\n")
+		b.WriteString(tail.clean)
 		return b.String()
 	}
 	fmt.Fprintf(&b, "，发现 %d 条问题（错误值 %d / 自引用 %d / 未重算 %d）\n",
@@ -210,12 +248,11 @@ func formatAuditReport(rep xlsxedit.AuditReport, limit int) string {
 		budget--
 	}
 	if total := len(errs) + len(refs) + len(caches); total > shown {
-		fmt.Fprintf(&b, "…其余 %d 条未展示（limit=%d）；先修复错误值与自引用，再 xlsx_recalc 后复审。\n",
-			total-shown, limit)
+		b.WriteString(tail.rest(total, shown, limit))
 	} else if len(caches) > 0 {
-		b.WriteString("下一步：xlsx_recalc 重算刷新缓存值，再跑本工具复核，零错误才算交付。\n")
+		b.WriteString(tail.cached)
 	} else {
-		b.WriteString("下一步：修复上述问题后 xlsx_recalc + 本工具复核，零错误才算交付。\n")
+		b.WriteString(tail.fixed)
 	}
 	return b.String()
 }

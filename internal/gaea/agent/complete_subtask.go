@@ -241,7 +241,7 @@ func extractJSONStringField(args, key string) string {
 // isProduceReceipt 产出类工具（成功回执=产物落盘证据）。
 func isProduceReceipt(name string) bool {
 	switch name {
-	case "office_generate", "docx_apply", "docx_accept", "pptx_apply", "xlsx_apply",
+	case "office_generate", "docx_apply", "pptx_apply", "xlsx_apply",
 		"longdoc_build", "wenxue_book_build", "image_gen", "format_convert":
 		return true
 	}

@@ -18,13 +18,14 @@ package app
 var wenxueDeniedTools = []string{
 	// office 生成/批处理
 	"office_generate", "office_batch",
-	// office 文档真编辑
-	"docx_apply", "docx_accept", "pptx_apply",
+	// office 文档真编辑（docx_accept 2026-11-25 并入 docx_apply 的 accept:true）
+	"docx_apply", "pptx_apply",
 	// xlsx 编辑族
 	"xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
-	// office COM 档（本机有 Office/WPS 才注册的那批）
-	"office_open", "office_status", "office_read", "office_edit", "office_render",
-	"office_save", "office_close", "office_help", "office_macro", "office_selection",
+	// office COM 档（本机有 Office/WPS 才注册的那批；office_status/office_help
+	// 2026-11-25 并入 office_read 的 status/help 开关，office_macro 退役）
+	"office_open", "office_read", "office_edit", "office_render",
+	"office_save", "office_close", "office_selection",
 	// CAD / 造价
 	"cad_ask",
 	"cost_search", "cost_save", "cost_indicators",

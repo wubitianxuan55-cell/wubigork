@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -24,12 +25,27 @@ type InstalledHook func(name, path string, scope Scope)
 
 // --- run_skill ---
 
+// CommandEntry 是可经 run_skill 按名调用的项目斜杠命令（.gaea/commands 下的
+// 提示词模板）。2026-11-25 办公工具梳理二批 B2：slash_command 并入 run_skill
+// ——命令与技能同用名字解析，命令只展开提示词文本（不执行任何东西），也不计入
+// 技能调用统计。技能名优先：同名时仍按技能跑（run_skill 72 次真实调用的既有
+// 行为不变），命令只在没有同名技能时才被解析到。
+type CommandEntry struct {
+	Name        string
+	Description string
+	ArgHint     string
+	Render      func(args []string) string
+}
+
 type runSkillTool struct {
 	// resolve 按名解析完整 Skill（保 RunAs——run_skill 必须拿到完整 Skill，
 	// 不是 read_skill 那样的 Body 字符串）。names 供 unknown 错误提示名单。
 	resolve func(name string) (Skill, bool)
 	names   func() string
 	runner  SubagentRunner
+	// commands 项目斜杠命令（B2 并入）；commandNames 排序后的名单，清单输出稳定。
+	commands     map[string]CommandEntry
+	commandNames []string
 }
 
 // NewRunSkillTool builds the general skill-invocation tool. runner may be nil
@@ -79,26 +95,115 @@ func (*runSkillTool) Name() string { return "run_skill" }
 // skill runs' writes (mirrors the `task` tool).
 func (*runSkillTool) ReadOnly() bool { return false }
 
+// Description 供能力页等非模型面展示；模型实见的是 CompactDescription。
 func (*runSkillTool) Description() string {
-	return "Invoke a playbook from the Skills index. Use bare name (e.g. 'explore'), not the [🧬 subagent] tag. Subagent skills spawn isolated loop — only final answer returns, supply arguments as task. Inline skills fold body as tool result. Prefer dedicated top-level tools (explore/review/etc) when available."
+	return "Invoke a playbook from the Skills index, or a project command from .gaea/commands, by bare name (e.g. 'explore', not the [🧬 subagent] tag). Subagent skills spawn isolated loop — only final answer returns, supply arguments as task. Inline skills and commands fold their text as tool result. Prefer dedicated top-level tools (explore/review/etc) when available."
 }
 
 func (*runSkillTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "name":{"type":"string","description":"Skill identifier as it appears in the pinned Skills index (e.g. 'explore', 'review'). Case-sensitive. Just the identifier, not the [🧬 subagent] tag."},
-  "arguments":{"type":"string","description":"Free-form arguments. For inline skills: appended as an 'Arguments:' line; the skill's own instructions decide how to use them. For subagent skills: REQUIRED — becomes the entire task the subagent receives."}
+  "name":{"type":"string","description":"Skill identifier as it appears in the pinned Skills index (e.g. 'explore', 'review'), or a project command name. Case-sensitive. Just the identifier, not the [🧬 subagent] tag; a leading / is tolerated. \"list\" lists skills and commands."},
+  "arguments":{"type":"string","description":"Free-form arguments. For inline skills: appended as an 'Arguments:' line; the skill's own instructions decide how to use them. For commands: substituted into the template ($ARGUMENTS / $1..$N). For subagent skills: REQUIRED — becomes the entire task the subagent receives."}
 },
 "required":["name"]
 }`)
 }
 
 func (*runSkillTool) CompactDescription() string {
-	return "Invoke a skill by name. Subagent skills spawn isolated loop; inline skills fold body as tool result."
+	return "Invoke a skill or a project command by name (leading / and [..] tags tolerated; name=\"list\" lists them). " +
+		"Subagent skills spawn isolated loop; inline skills and commands fold their text as tool result."
 }
 func (*runSkillTool) CompactSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"},"arguments":{"type":"string"}},"required":["name"]}`)
+}
+
+// WithRunSkillCommands 给本包构造的 run_skill 挂上项目斜杠命令（B2 并入）。
+// 传入的不是 run_skill 时原样返回（不报错：装配方不必关心构造分支）。
+func WithRunSkillCommands(t tool.Tool, cmds []CommandEntry) tool.Tool {
+	rs, ok := t.(*runSkillTool)
+	if !ok || len(cmds) == 0 {
+		return t
+	}
+	if rs.commands == nil {
+		rs.commands = map[string]CommandEntry{}
+	}
+	for _, c := range cmds {
+		name := strings.TrimPrefix(strings.TrimSpace(c.Name), "/")
+		if name == "" {
+			continue
+		}
+		c.Name = name
+		rs.commands[name] = c
+	}
+	rs.commandNames = make([]string, 0, len(rs.commands))
+	for n := range rs.commands {
+		rs.commandNames = append(rs.commandNames, n)
+	}
+	sort.Strings(rs.commandNames)
+	return rs
+}
+
+// CountsAsSkillUse 报告一次调用是否该计入技能用量（调用统计装饰器据此过滤）：
+// 项目命令的展开不是技能调用，name="list" 取清单也不是——两者都不记，判据②的
+// 「技能零调用」统计不被并入进来的命令污染。
+func (t *runSkillTool) CountsAsSkillUse(raw string) bool {
+	name := runSkillNameOf(raw)
+	if name == "" || strings.EqualFold(name, "list") {
+		return false
+	}
+	_, isCmd := t.commands[name]
+	return !isCmd
+}
+
+// available 渲染 unknown 报错里的可用名单（技能 + 项目命令）。
+func (t *runSkillTool) available() string {
+	s := "skills: " + t.names()
+	if len(t.commandNames) > 0 {
+		s += "; commands: " + strings.Join(t.commandNames, ", ")
+	}
+	return s
+}
+
+// list 列出可按名调用的技能与项目命令（原 slash_command 的 list 动作；清单
+// 按需取，不再把命令名单常驻在工具描述里）。
+func (t *runSkillTool) list() string {
+	var b strings.Builder
+	b.WriteString("Callable by name via run_skill — skills: " + t.names() + "\n")
+	if len(t.commandNames) == 0 {
+		b.WriteString("Project commands: (none in this workspace)\n")
+		return b.String()
+	}
+	b.WriteString("Project commands (prompt templates from .gaea/commands; arguments go into $ARGUMENTS / $1..$N):\n")
+	for _, n := range t.commandNames {
+		e := t.commands[n]
+		line := "- /" + n
+		if e.ArgHint != "" {
+			line += " " + e.ArgHint
+		}
+		if e.Description != "" {
+			line += " — " + e.Description
+		}
+		b.WriteString(line + "\n")
+	}
+	return b.String()
+}
+
+// renderCommand 展开项目命令并把结果框成「现在照做的指令」（原 slash_command
+// 的回执口径）：命令是提示词模板，工具只返回文本，执行仍由模型在本回合完成。
+func renderCommand(c CommandEntry, args []string) string {
+	body := ""
+	if c.Render != nil {
+		body = c.Render(args)
+	}
+	return fmt.Sprintf("Expanded /%s — follow these instructions now:\n\n%s", c.Name, body)
+}
+
+// runSkillNameOf 把模型给的 name 归一成查找键：去掉首尾空白、容错首部斜杠
+// （模型常照用户输入的 "/name" 抄）与 [..] 标记，取首个以字母数字开头的词。
+func runSkillNameOf(raw string) string {
+	return cleanSkillName(strings.TrimPrefix(strings.TrimSpace(raw), "/"))
 }
 
 func (t *runSkillTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
@@ -109,15 +214,24 @@ func (t *runSkillTool) Execute(ctx context.Context, args json.RawMessage) (strin
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
-	name := cleanSkillName(p.Name)
+	name := runSkillNameOf(p.Name)
 	if name == "" {
-		return "", fmt.Errorf("run_skill requires a 'name' argument (got %q, which is just a marker/tag)", p.Name)
-	}
-	sk, ok := t.resolve(name)
-	if !ok {
-		return "", fmt.Errorf("unknown skill %q — available: %s", name, t.names())
+		return "", fmt.Errorf("run_skill requires a 'name' argument (got %q, which is just a marker/tag); name=\"list\" lists skills and project commands", p.Name)
 	}
 	rawArgs := strings.TrimSpace(p.Arguments)
+
+	// 技能优先：同名技能照旧按技能跑（并入前 run_skill 的既有行为）；没有同名
+	// 技能时才轮到项目命令，最后是 list 清单（除非真有叫 list 的技能/命令）。
+	sk, ok := t.resolve(name)
+	if !ok {
+		if cmd, isCmd := t.commands[name]; isCmd {
+			return renderCommand(cmd, strings.Fields(rawArgs)), nil
+		}
+		if strings.EqualFold(name, "list") {
+			return t.list(), nil
+		}
+		return "", fmt.Errorf("unknown skill %q (and no project command by that name) — available: %s", name, t.available())
+	}
 
 	if sk.RunAs == RunSubagent {
 		if t.runner == nil {

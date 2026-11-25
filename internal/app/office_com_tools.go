@@ -198,7 +198,7 @@ func officeComWrapErr(err error) error {
 	}
 	switch comhelper.Code(err) {
 	case "NOT_FOUND":
-		return sem("目标不存在：先用 office_status 看打开清单/确认文件名再重试，不要凭记忆猜文档名")
+		return sem("目标不存在：先用 office_read status:true 看打开清单/确认文件名再重试，不要凭记忆猜文档名")
 	case "BAD_ARGS":
 		return sem("参数不合法：对照该工具 schema 修正参数后重试一次；连续两次同类错误就停下向用户说明")
 	case "ANCHOR_MISMATCH", "STYLE_MISSING", "OFFICE_ERROR":
@@ -263,7 +263,7 @@ func (s *officeComState) officeGuide(session, kind string) string {
 	// 2026-11-20 实测：模型曾把 items 写成 [{op:...}] 嵌套被拒「op is
 	// required」——附可复制的请求形状（ops 在最外层；items 里是正文/图/表
 	// 对象，不嵌 op）。
-	return fmt.Sprintf("\n\n%s operations for office_edit (this list is given once; office_help {app: \"%s\"} gives it again):\n%s\noffice_edit 请求形状（可复制骨架）：{\"doc\":\"D:\\\\路径\\\\文件.docx\",\"ops\":[{\"op\":\"insert_paragraphs\",\"items\":[{\"text\":\"一段正文\"}]},{\"op\":\"insert_table\",\"data\":[[\"列A\",\"列B\"],[\"1\",\"2\"]],\"caption\":\"表格标题\"}]}——ops 在最外层；insert_paragraphs 的 items 里是 {text,…}/{path,…}/{data,…}（正文/图/表对象），不嵌 op；一次给多个 op 时表/图会使其后段号偏移，按文档从后往前排或分次调用。\n",
+	return fmt.Sprintf("\n\n%s operations for office_edit (this list is given once; office_read {help:true, app: \"%s\"} gives it again):\n%s\noffice_edit 请求形状（可复制骨架）：{\"doc\":\"D:\\\\路径\\\\文件.docx\",\"ops\":[{\"op\":\"insert_paragraphs\",\"items\":[{\"text\":\"一段正文\"}]},{\"op\":\"insert_table\",\"data\":[[\"列A\",\"列B\"],[\"1\",\"2\"]],\"caption\":\"表格标题\"}]}——ops 在最外层；insert_paragraphs 的 items 里是 {text,…}/{path,…}/{data,…}（正文/图/表对象），不嵌 op；一次给多个 op 时表/图会使其后段号偏移，按文档从后往前排或分次调用。\n",
 		comhelper.AppDisplayName(kind, ""), kind, guide)
 }
 
@@ -643,33 +643,9 @@ func (t officeComOpenTool) execute(ctx context.Context, session string, args jso
 	return comhelper.FormatOpened(doc) + normalizedNote + officeCom.officeGuide(session, kind), nil
 }
 
-// ── office_status ────────────────────────────────────────────────────────
-
-type officeComStatusTool struct{}
-
-func (officeComStatusTool) Name() string   { return "office_status" }
-func (officeComStatusTool) ReadOnly() bool { return true }
-func (officeComStatusTool) Description() string {
-	return "列出 Word / Excel / PowerPoint（含 WPS）现在打开了哪些文档、哪些有未保存修改、应用是否安装/运行。"
-}
-
-func (officeComStatusTool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{}}`)
-}
-
-func (t officeComStatusTool) Execute(ctx context.Context, _ json.RawMessage) (string, error) {
-	raw, err := officeCom.call(ctx, "status", nil, officeComTimeoutStatus)
-	if err != nil {
-		return "", err
-	}
-	var apps []comhelper.AppStatus
-	if err := json.Unmarshal(raw, &apps); err != nil {
-		return "", fmt.Errorf("office helper status 回执解析失败: %w", err)
-	}
-	return comhelper.FormatStatus(apps), nil
-}
-
-// ── office_read ──────────────────────────────────────────────────────────
+// office_read 2026-11-25 办公工具梳理二批 B3 起兼管两件只读杂务（原
+// office_status / office_help 并入，COM 档 10→7）：status:true 列打开清单，
+// help:true 取某应用的操作清单。两者都不需要文档，仍是只读面。
 
 type officeComReadTool struct{}
 
@@ -677,7 +653,8 @@ func (officeComReadTool) Name() string   { return "office_read" }
 func (officeComReadTool) ReadOnly() bool { return true }
 
 func (officeComReadTool) Description() string {
-	return "把打开中的文档按现状读成文本（包括用户刚改过的内容）：Word=带编号段落/标题级别/表格（含原生脚注）；Excel=工作表+区域单元格值与公式（>60 行长表自动给每列概况）；PowerPoint=每页形状（名称/类型/位置/文字）。读到的就是 Office 窗口里此刻的样子。"
+	return "把打开中的文档按现状读成文本（包括用户刚改过的内容）：Word=带编号段落/标题级别/表格（含原生脚注）；Excel=工作表+区域单元格值与公式（>60 行长表自动给每列概况）；PowerPoint=每页形状（名称/类型/位置/文字）。读到的就是 Office 窗口里此刻的样子。" +
+		"两个不读文档的用法：status:true 列出 Word / Excel / PowerPoint（含 WPS）现在打开了哪些文档、哪些有未保存修改；help:true 返回该应用（app）office_edit 的全部操作与字段。"
 }
 
 func (officeComReadTool) Schema() json.RawMessage {
@@ -694,7 +671,9 @@ func (officeComReadTool) Schema() json.RawMessage {
     "sheet":{"type":"string","description":"Excel：工作表名"},
     "range":{"type":"string","description":"Excel：A1 风格区域，如 A1:F40（缺省活动表已用区域）"},
     "profile":{"type":"boolean","description":"Excel：给出区域内每列概况（取值种类/范围/可疑项）——表太长读不全时用它"},
-    "slide":{"type":"integer","description":"PowerPoint：只读这一页"}
+    "slide":{"type":"integer","description":"PowerPoint：只读这一页"},
+    "status":{"type":"boolean","description":"true=不读文档：列出各应用打开了哪些文档、哪些有未保存修改、应用是否安装/运行"},
+    "help":{"type":"boolean","description":"true=不读文档：返回该应用 office_edit 的全部操作与字段（不确定操作名/字段时先看这个）；app 必给 word/excel/ppt"}
   }
 }`)
 }
@@ -711,8 +690,20 @@ func (t officeComReadTool) execute(ctx context.Context, session string, args jso
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("office_read 参数解析失败: %w", err)
 	}
+	// 两个并入开关先消费掉：不走文档读取，也不能透传给 helper（未知名段会被
+	// helper 的 Bag.Unread 点名拒绝）。
+	statusOn, _ := in["status"].(bool)
+	helpOn, _ := in["help"].(bool)
+	delete(in, "status")
+	delete(in, "help")
+	if statusOn {
+		return officeComStatusText(ctx)
+	}
 	doc, _ := in["doc"].(string)
 	appNameArg, _ := in["app"].(string)
+	if helpOn {
+		return officeComHelpText(session, appNameArg)
+	}
 	kind, targetDoc, err := officeCom.target(appNameArg, doc)
 	if err != nil {
 		return "", err
@@ -775,7 +766,7 @@ func (officeComEditTool) Description() string {
 		"每个 op 形如 {\"op\": 操作名, ...字段}；某一步失败即停下并报告已完成哪些。" +
 		"撤销按应用分档：Word 的一批修改在用户侧是一次 Ctrl+Z 可整体撤销（仅限当前文档与当前会话——关闭文档、退出应用后失效，不能恢复编辑前版本）；" +
 		"Excel/PPT 助手不提供整批撤销（应用自身撤销能力未核验，不要向用户保证可撤销）。" +
-		"各应用的操作清单随首次 office_open/office_read 发放，office_help 可再取——写 op 前先读清单，不要猜操作名/字段。" +
+		"各应用的操作清单随首次 office_open/office_read 发放，office_read help:true 可再取——写 op 前先读清单，不要猜操作名/字段。" +
 		"文本里的 $...$ / $$...$$ LaTeX 在 Word 会成为原生公式。这是办公文档的实时协同编辑档；无人值守批量仍用 docx_apply/xlsx_apply 等无头工具。"
 }
 
@@ -1226,7 +1217,7 @@ func (t officeComSaveTool) Execute(ctx context.Context, args json.RawMessage) (s
 		}
 		if probe != "" {
 			if fi, serr := os.Stat(probe); serr == nil && fi.Size() > 0 && fi.ModTime().After(saveStart) {
-				return fmt.Sprintf("保存调用的 helper 回执丢失（%v），但落盘探测显示 %s 已在本次调用窗口内更新（%d bytes，%s）——大概率已保存成功。用 office_render 或 office_status 复核；确认前不要重试保存（重复保存无害但会搅乱时间戳口径）。", err, probe, fi.Size(), fi.ModTime().Format("15:04:05")), nil
+				return fmt.Sprintf("保存调用的 helper 回执丢失（%v），但落盘探测显示 %s 已在本次调用窗口内更新（%d bytes，%s）——大概率已保存成功。用 office_render 或 office_read status:true 复核；确认前不要重试保存（重复保存无害但会搅乱时间戳口径）。", err, probe, fi.Size(), fi.ModTime().Format("15:04:05")), nil
 			}
 		}
 		return "", err
@@ -1453,48 +1444,46 @@ func (t officeComCloseTool) Execute(ctx context.Context, args json.RawMessage) (
 	return fmt.Sprintf("Closed %s.", name), nil
 }
 
-// ── office_help ──────────────────────────────────────────────────────────
+// ── office_read 并入的两个只读用法（status / help）────────────────────────
 
-type officeComHelpTool struct{}
-
-func (officeComHelpTool) Name() string   { return "office_help" }
-func (officeComHelpTool) ReadOnly() bool { return true }
-
-func (officeComHelpTool) Description() string {
-	return "列出某个应用（word/excel/ppt）的 office_edit 全部操作与字段：Word（文字/公式/表格/图片/引用/样式/页面设置）、Excel（单元格/格式/工作表/图表/数据清洗）、PowerPoint（页面/文字/图片/SmartArt/形状/表格）。不确定操作名或字段时先调本工具。"
-}
-
-func (officeComHelpTool) Schema() json.RawMessage {
-	return json.RawMessage(`{
-  "type":"object",
-  "required":["app"],
-  "properties":{
-    "app":{"type":"string","enum":["word","excel","ppt"],"description":"哪个应用"}
-  }
-}`)
-}
-
-func (t officeComHelpTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, args json.RawMessage) (string, error) {
-	var in struct {
-		App string `json:"app"`
-	}
-	if err := json.Unmarshal(args, &in); err != nil || in.App == "" {
-		return "", fmt.Errorf("app 必须是 word / excel / ppt")
-	}
-	kind, err := officeComAppOf(in.App, "")
+// officeComStatusText 列出三应用当前打开的文档/未保存修改/安装运行态（原
+// office_status 工具本体，2026-11-25 B3 并入 office_read 的 status:true）。
+func officeComStatusText(ctx context.Context) (string, error) {
+	raw, err := officeCom.call(ctx, "status", nil, officeComTimeoutStatus)
 	if err != nil {
 		return "", err
 	}
-	officeCom.markTold(tc.SessionID, kind)
+	var apps []comhelper.AppStatus
+	if err := json.Unmarshal(raw, &apps); err != nil {
+		return "", fmt.Errorf("office helper status 回执解析失败: %w", err)
+	}
+	return comhelper.FormatStatus(apps), nil
+}
+
+// officeComHelpText 返回某应用 office_edit 的操作清单（原 office_help 工具
+// 本体，并入 office_read 的 help:true）。显式取过清单后记入「已发放」，首次
+// open/read/edit 不再重复附同一份。
+func officeComHelpText(session, app string) (string, error) {
+	if strings.TrimSpace(app) == "" {
+		// 没给 app：沿用最近文档所属应用（与读/改缺省 doc 的口径一致）。
+		officeCom.mu.Lock()
+		app = officeCom.currentApp
+		officeCom.mu.Unlock()
+		if app == "" {
+			return "", fmt.Errorf("help:true 需要 app（word / excel / ppt）指明要看哪个应用的操作清单")
+		}
+	}
+	kind, err := officeComAppOf(app, "")
+	if err != nil {
+		return "", err
+	}
+	officeCom.markTold(session, kind)
 	guide, ok := officeGuides[kind]
 	if !ok {
 		guide = officeGuidesPptBasic // ppt：基础 ops 清单（同 officeGuide 口径）
 	}
 	return fmt.Sprintf("%s operations for office_edit:\n%s\n\nColours are \"#RRGGBB\"; align is left | center | right | justify; file paths are absolute.",
 		comhelper.AppDisplayName(kind, ""), guide), nil
-}
-func (t officeComHelpTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
-	return t.ExecuteWithContext(ctx, tool.ToolContext{}, args)
 }
 
 // ── 可用性探测（build 标签文件分实现）─────────────────────────────────────

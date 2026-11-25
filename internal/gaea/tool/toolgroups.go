@@ -42,9 +42,11 @@ var toolGroupMembers = map[ToolGroupName][]string{
 		"browser_press", "browser_read", "browser_run_js", "browser_scroll",
 		"browser_snapshot", "browser_switch_tab", "browser_tabs", "browser_type",
 	},
+	// COM 档七件（2026-11-25 办公工具梳理二批 B3：office_status/office_help 并入
+	// office_read、office_macro 退役；成员名单随注册面同批）。
 	ToolGroupCOM: {
-		"office_open", "office_status", "office_read", "office_edit", "office_render",
-		"office_save", "office_close", "office_help", "office_macro", "office_selection",
+		"office_open", "office_read", "office_edit", "office_render",
+		"office_save", "office_close", "office_selection",
 	},
 	ToolGroupComputer: {"computer_windows", "computer_state", "computer_launch", "computer_click", "computer_type", "computer_key"},
 	ToolGroupCost: {

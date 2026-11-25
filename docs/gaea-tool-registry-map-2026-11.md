@@ -42,8 +42,7 @@
 | `diagram_gen` | builtin-workspace | work | produce | agent-produce | 图片落点存在（无边树图回归钉） |
 | `discover_tools` | build-internal | shared | meta | none | A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册） |
 | `doc_render` | builtin-workspace | work | read | none | 只读渲染 PNG；覆盖率字段 P2 |
-| `docx_accept` | extra-app | work | write | office-journal | 仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2） |
-| `docx_apply` | extra-app | work | write | office-journal | 修订制写入；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2） |
+| `docx_apply` | extra-app | work | write | office-journal | 修订制写入（accept:true=接受全部修订，Journal 记录名仍为 docx_accept）；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2） |
 | `edit_file` | builtin-workspace | work | write | agent-write | 通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选 |
 | `exit_plan_mode` | build-internal | shared | interactive | none | 计划呈现与批准流转 |
 | `fact_add` | extra-app | work | write | none | PersistWrite：事实库写入可查 |
@@ -69,14 +68,11 @@
 | `office_close` | extra-app | work | write | none | dsh-office COM 档：仅关 AI 自己打开的文档（用户文档拒绝）；save:true 时 WritePaths 声明落盘路径（波1 条件装配） |
 | `office_edit` | extra-app | work | write | none | dsh-office COM 档：窗口内批量 ops 实时编辑（不落盘，保存走 office_save）；ops 上限 200；操作清单按需发放（波1 条件装配） |
 | `office_generate` | extra-app | work | produce | office-journal | 声明路径与实际落点逐字节一致；证据卡落账；通道 A=OOXML 容器头引用级（P1a+P2） |
-| `office_help` | extra-app | work | meta | none | dsh-office COM 档：office_edit 操作清单按需再取（波1 条件装配） |
-| `office_macro` | extra-app | work | write | none | 受控宏逃生舱（P0-2 A 档）：宏白名单展开成既有 office_edit ops，不给任意脚本；list 列宏、run 执行 |
 | `office_open` | extra-app | work | write | none | dsh-office COM 档：打开/新建实时文档；WritePaths=模板复制或新建落点；路径解析单点收口工作区边界（波1 条件装配） |
-| `office_read` | extra-app | work | read | none | dsh-office COM 档：打开中文档现状读取（含用户未保存修改；Word 脚注/Excel 列概况）（波1 条件装配） |
+| `office_read` | extra-app | work | read | none | dsh-office COM 档：打开中文档现状读取（含用户未保存修改；Word 脚注/Excel 列概况）；status:true=打开清单，help:true=操作清单（波1 条件装配） |
 | `office_render` | extra-app | work | read | none | dsh-office COM 档：排版 PNG 路径交付给 vision（doc_render 同款管线）；overview 拼图（波1 条件装配） |
 | `office_save` | extra-app | work | write | office-journal | dsh-office COM 档落盘：证据卡（COM 编辑无基线快照=诚实缺省）；WritePaths=path 或当前文档；Word 保存前 fill_gaps 补空（波1 条件装配） |
 | `office_selection` | extra-app | work | read | none | 选区上下文（P0-3）：读用户此刻选中的文字/区域与前后文，供划词即改 |
-| `office_status` | extra-app | work | read | none | dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配） |
 | `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
 | `proposal_delete` | builtin-domain | work | write | none | PersistWrite：删除后节点/语义块/全文索引不可再查；仅用户明确要求时调用 |
 | `proposal_export` | builtin-domain | work | write | none | 导出文件按标题层级还原，托管图片落成文件；输出落点在工作区 |
@@ -93,7 +89,7 @@
 | `remember` | build-internal | shared | write | none | PersistWrite：记忆存/删/转正可查（action=save/forget/promote） |
 | `request_permission` | build-internal | shared | interactive | none | 审批请求与裁决回传 |
 | `routine_llm` | extra-app | work | read | none | 子调用回执与 feature 绑定一致 |
-| `run_skill` | build-internal | shared | produce | none | 技能子会话产物按其工具各自登记 |
+| `run_skill` | build-internal | shared | produce | none | 技能子会话产物按其工具各自登记；项目命令只展开提示词文本不执行 |
 | `schedule_analyze` | builtin-workspace | shared | read | none | 分析结论可复算 |
 | `schedule_apply` | builtin-workspace | shared | write | agent-write | 声明路径包含校验 + 日程库变更可查 |
 | `schedule_get` | builtin-workspace | shared | read | none | 日程读取与库一致 |
@@ -102,7 +98,6 @@
 | `send_message` | build-internal | shared | meta | none | 传话按目标态路由：steer/排队/续聊 |
 | `session_search` | build-internal | shared | read | none | 检索命中与会话存档一致 |
 | `sidebar_open` | builtin-workspace | work | interactive | none | 侧栏打开对应文件（自声明 work） |
-| `slash_command` | build-internal | shared | meta | none | 斜杠命令展开与注册一致 |
 | `subagent_list` | build-internal | shared | read | none | 子代理清单与存档一致 |
 | `summarize_file` | build-internal | shared | read | none | 摘要覆盖大文件截断语义 |
 | `task` | build-internal | shared | meta | none | 子代理白名单/作用域闸（六闸刀口径） |
@@ -135,7 +130,7 @@
 | `xlsx_apply` | extra-app | work | write | office-journal | 公式重算零错误+引用级声明比对；落盘前整文件基线快照+证据卡（P1a 升 agent 工具） |
 | `xlsx_audit` | extra-app | work | read | none | 错误值/自引用/未重算扫描与库一致；只读（灵犀 P1-2 交付门） |
 | `xlsx_profile` | extra-app | work | read | none | 列概况与库一致；只读不改文件（波2 扩面） |
-| `xlsx_recalc` | extra-app | work | write | none | LibreOffice 重算写回缓存值（公式不动，派生数据刷新不落证据卡）；WritePaths=path（灵犀 P1-2） |
+| `xlsx_recalc` | extra-app | work | write | none | LibreOffice 重算写回缓存值（公式不动，派生数据刷新不落证据卡）；回执自带审计与交付门结论；WritePaths=path（灵犀 P1-2） |
 
 ## P3 四类验收谓词（非文档工具）
 

@@ -3,7 +3,7 @@ package app
 // guides.go — office_edit 各应用操作清单（上游 src/tools.ts GUIDES 的机械提取，
 // 文本逐字对齐上游；提取脚本见调研批 .tmp/extract_guides.mjs）。这些清单不进
 // 工具 schema（上下文成本纪律）：随该应用首次 open/read/edit 一次性发放，
-// office_help 可随时再取（与上游同一「按需帮助」模式）。
+// office_read {help:true, app} 可随时再取（与上游同一「按需帮助」模式）。
 
 // officeGuides[app] = 该应用的 office_edit 操作清单全文。
 var officeGuides = map[string]string{

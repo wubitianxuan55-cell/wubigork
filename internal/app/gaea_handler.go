@@ -976,9 +976,11 @@ func extraToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 		// agent 工具（docx_apply/docx_accept/pptx_apply/xlsx_apply）。全部走
 		// appendOfficeEvidence 单点 Journal；实现 WritePathResolver、不标
 		// PersistWrite（FilterRegistry 不摘，write_paths 声明面可用）。
+		// 2026-11-25 办公工具梳理二批 B4：docx_accept 不再单列工具——接受全部
+		// 修订走 docx_apply {path, accept:true}（69 个真实会话两件均零调用）；
+		// Journal 记录名仍是 docx_accept（证据卡/通道 A 复核按记录名分派不变）。
 		officeGenerateTool{a: a},
 		officeDocxApplyTool{a: a},
-		officeDocxAcceptTool{a: a},
 		officePptxApplyTool{a: a},
 		officeXlsxApplyTool{a: a},
 		// 波2 扩面：xlsx_profile 只读列概况（规划输入；改文件仍走 xlsx_apply）。
@@ -1007,21 +1009,20 @@ func extraToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 	}
 	// dsh-office COM 实时协同档（波1）：本机装了 Office/WPS 才注册，无则
 	// 整族不出现、无头管线照旧（docs/gaea-dsh-office-distill-research-2026-11.md）。
+	// 2026-11-25 办公工具梳理二批 B3：十件收成七件——office_status / office_help
+	// 并入 office_read（status:true / help:true，仍是只读面）；office_macro 退役
+	// （两个宏各等价一条 replace op，操作清单里已有同款写法；69 个真实会话
+	// 5 次调用）。
 	if officeComAvailable() {
 		tools = append(tools,
 			officeComOpenTool{},
-			officeComStatusTool{},
 			officeComReadTool{},
 			officeComEditTool{},
 			officeComRenderTool{},
 			officeComSaveTool{},
 			officeComCloseTool{},
-			officeComHelpTool{},
 			// P0-3 选区上下文：读用户此刻选中的内容 + 前后文（划词即改）。
 			officeComSelectionTool{},
-			// P0-2 受控宏逃生舱（A 档）：宏白名单展开成既有 ops，复用同一条
-			// COM 执行路径；不给任意脚本（docs/gaea-lingxi-optimize-plan-2026-11.md）。
-			officeMacroTool{},
 		)
 	}
 	return append(tools, specialistToolsWithMediaRoot(a, mediaRoot)...)

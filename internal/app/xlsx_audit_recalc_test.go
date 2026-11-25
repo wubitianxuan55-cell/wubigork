@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -120,6 +121,58 @@ func TestXlsxAuditExecuteOnFixture(t *testing.T) {
 	}
 	if !strings.Contains(out, "未重算") || !strings.Contains(out, "A3") {
 		t.Fatalf("端到端应报 A3 未重算：\n%s", out)
+	}
+}
+
+// TestFormatRecalcReceipt 2026-11-25 办公工具梳理二批 B4：重算回执自带审计
+// 段与交付门结论。结论同时看 LibreOffice 报的错误数与重算后审计发现；审计
+// 没跑成时不得下「达到交付门」的结论。
+func TestFormatRecalcReceipt(t *testing.T) {
+	clean := xlsxedit.AuditReport{Sheets: 2, TotalFormulas: 12, Findings: []xlsxedit.AuditFinding{}}
+	broken := xlsxedit.AuditReport{Sheets: 1, TotalFormulas: 5, Findings: []xlsxedit.AuditFinding{
+		{Sheet: "汇总", Cell: "B2", Kind: "error_value", Value: "#REF!", Formula: "=已删除!A1"},
+	}}
+
+	out := formatRecalcReceipt(xlsxedit.RecalcReport{TotalFormulas: 12, TotalErrors: 0}, clean, nil)
+	for _, want := range []string{"重算完成：12 个公式，0 个错误", "零错误，达到交付门"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("clean 回执缺 %q：\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "xlsx_audit 复核") {
+		t.Fatalf("clean 回执不该再催模型调 xlsx_audit（成对调用正是本刀要省的）：\n%s", out)
+	}
+
+	out = formatRecalcReceipt(
+		xlsxedit.RecalcReport{TotalFormulas: 5, TotalErrors: 1, ErrorSummary: map[string]interface{}{"Err:522": 1}},
+		broken, nil)
+	for _, want := range []string{"1 个错误", "Err:522=1", "未达交付门", "[错误值] 汇总!B2 = #REF!", "再次重算"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("门未过回执缺 %q：\n%s", want, out)
+		}
+	}
+
+	// 重算报告零错误、但审计仍有发现（未重算/自引用）→ 同样未达交付门。
+	out = formatRecalcReceipt(xlsxedit.RecalcReport{TotalFormulas: 3, TotalErrors: 0}, xlsxedit.AuditReport{
+		Sheets: 1, TotalFormulas: 3,
+		Findings: []xlsxedit.AuditFinding{{Sheet: "Sheet1", Cell: "A3", Kind: "missing_cache", Formula: "=A1+A2"}},
+	}, nil)
+	if !strings.Contains(out, "未达交付门") || !strings.Contains(out, "[未重算] Sheet1!A3") {
+		t.Fatalf("重算零错误但审计有发现应判未达交付门：\n%s", out)
+	}
+
+	// 审计没跑成：不下结论，指向 xlsx_audit。
+	out = formatRecalcReceipt(xlsxedit.RecalcReport{TotalFormulas: 3, TotalErrors: 0}, xlsxedit.AuditReport{},
+		fmt.Errorf("open 失败"))
+	if strings.Contains(out, "达到交付门") || !strings.Contains(out, "审计没跑成") || !strings.Contains(out, "xlsx_audit 复核") {
+		t.Fatalf("审计失败回执不得宣称达交付门：\n%s", out)
+	}
+
+	// 表过大只扫了一部分：如实说明是抽查，不说全量通过。
+	out = formatRecalcReceipt(xlsxedit.RecalcReport{TotalFormulas: 9, TotalErrors: 0},
+		xlsxedit.AuditReport{Truncated: true, Sheets: 1}, nil)
+	if !strings.Contains(out, "只扫描了前") || strings.Contains(out, "达到交付门") {
+		t.Fatalf("截断审计应按抽查口径陈述：\n%s", out)
 	}
 }
 

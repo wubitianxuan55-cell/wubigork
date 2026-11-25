@@ -8,11 +8,12 @@ package app
 //     （DAG write_paths 声明面可被 WriteScopePolicy 逐调用包含校验；bash 等无
 //     resolver 写工具在声明面出局=agent/task.go:138-140）；不实现 PersistWriteTool
 //     （FilterRegistry 不摘新入口，裁决验收线）。
-//   - docx_apply / docx_accept / pptx_apply / xlsx_apply：四类写升 agent 工具，
-//     薄包装 App 绑定方法——Journal 落账在 App 方法内部单点 appendOfficeEvidence，
-//     agent 工具层不重复记账（不建第四本账，裁决 issue-3 收口）。docx_accept 仅
-//     accept=true（接受修订的不可逆整理；拒绝路径=回滚语义留 UI，不暴露给 agent，
-//     裁决 Grok-R4 口径）。
+//   - docx_apply / pptx_apply / xlsx_apply：三类写升 agent 工具，薄包装 App
+//     绑定方法——Journal 落账在 App 方法内部单点 appendOfficeEvidence，
+//     agent 工具层不重复记账（不建第四本账，裁决 issue-3 收口）。docx_accept
+//     2026-11-25 并入 docx_apply（accept:true；仅接受修订的不可逆整理；拒绝
+//     路径=回滚语义留 UI，不暴露给 agent，裁决 Grok-R4 口径），Journal 记录名
+//     不变。
 //
 // 装配点=gaeaExtraTools（唯一注册表四入口之一，boot.Build reg.Add 同账）。
 
@@ -230,6 +231,10 @@ func (t officeBatchTool) Execute(_ context.Context, args json.RawMessage) (strin
 // ── 四类写：薄包装 App 绑定方法 ──────────────────────────────────────────
 
 // officeDocxApplyTool docx_apply：修订制替换（w:del+w:ins）写入既有 docx。
+//
+// 2026-11-25 办公工具梳理二批 B4：docx_accept 并入——accept:true 走「接受全部
+// 待处理修订」，此时不给 selected_text/replacement（两者成对、缺一即退回重填）。
+// Journal 记录名仍分别是 docx_apply / docx_accept（通道 A 复核按记录名分派）。
 type officeDocxApplyTool struct{ a *App }
 
 func (t officeDocxApplyTool) Name() string        { return "docx_apply" }
@@ -237,16 +242,18 @@ func (t officeDocxApplyTool) ReadOnly() bool      { return false }
 func (t officeDocxApplyTool) Description() string { return officeDocxApplyDescription }
 
 const officeDocxApplyDescription = "对既有 .docx 应用修订制文字替换（选中文本→替换文本，Word 修订可见、可拒绝可接受）。" +
-	"落盘前自动做基线快照并登记证据卡，可在交付面板复核或一键回滚。只改文字内容，不动版式。"
+	"accept:true 则接受文档里全部待处理修订（清除修订标记的不可逆整理；仅接受——拒绝/单条挑选请让用户在界面操作）。" +
+	"两种写法落盘前都自动做基线快照并登记证据卡，可在交付面板复核或一键回滚。只改文字内容，不动版式。"
 
 func (t officeDocxApplyTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
   "type":"object",
-  "required":["path","selected_text","replacement"],
+  "required":["path"],
   "properties":{
     "path":{"type":"string","description":"目标 .docx 工作区相对路径"},
-    "selected_text":{"type":"string","description":"要替换的原文（须在文档中唯一且逐字存在）"},
-    "replacement":{"type":"string","description":"替换后的新文本"}
+    "selected_text":{"type":"string","description":"要替换的原文（须在文档中唯一且逐字存在）；与 replacement 成对给出"},
+    "replacement":{"type":"string","description":"替换后的新文本"},
+    "accept":{"type":"boolean","description":"true=接受文档里全部待处理修订；此时不需要 selected_text/replacement"}
   }
 }`)
 }
@@ -257,58 +264,32 @@ func (t officeDocxApplyTool) WritePaths(args json.RawMessage) ([]string, error) 
 
 func (t officeDocxApplyTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
 	var in struct {
-		Path        string `json:"path"`
-		Selected    string `json:"selected_text"`
-		Replacement string `json:"replacement"`
+		Path     string `json:"path"`
+		Selected string `json:"selected_text"`
+		// Replacement 用指针区分「没给」与「给了空串」——空串=修订制删除原文，
+		// 是合法替换（并入前 schema 把它列为必填键，空值照常放行）。
+		Replacement *string `json:"replacement"`
+		Accept      bool    `json:"accept"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("docx_apply 参数解析失败: %w", err)
 	}
-	if strings.TrimSpace(in.Selected) == "" {
-		return "", fmt.Errorf("selected_text 为空")
+	if in.Accept {
+		if strings.TrimSpace(in.Selected) != "" || in.Replacement != nil {
+			return "", fmt.Errorf("docx_apply: accept:true 只接受全部待处理修订，不要再给 selected_text/replacement（要替换文字就不传 accept）")
+		}
+		if _, err := t.a.GaeaDocxAcceptChanges(in.Path, true); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("docx 修订已全部接受并清除标记：%s（证据卡已落账，可复核/回滚）。", in.Path), nil
 	}
-	if _, err := t.a.GaeaDocxApplyEdit(in.Path, in.Selected, in.Replacement); err != nil {
+	if strings.TrimSpace(in.Selected) == "" || in.Replacement == nil {
+		return "", fmt.Errorf("docx_apply: 替换文字须同时给 selected_text 与 replacement（原文须逐字存在；replacement 给空串=删除原文）；要接受全部待处理修订则传 accept:true")
+	}
+	if _, err := t.a.GaeaDocxApplyEdit(in.Path, in.Selected, *in.Replacement); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("docx 修订已写入 %s（修订制写入，证据卡已落账，可复核/回滚）。", in.Path), nil
-}
-
-// officeDocxAcceptTool docx_accept：接受全部待处理修订（仅 accept=true；拒绝路径
-// 是回滚语义，留 UI 不暴露）。
-type officeDocxAcceptTool struct{ a *App }
-
-func (t officeDocxAcceptTool) Name() string        { return "docx_accept" }
-func (t officeDocxAcceptTool) ReadOnly() bool      { return false }
-func (t officeDocxAcceptTool) Description() string { return officeDocxAcceptDescription }
-
-const officeDocxAcceptDescription = "接受目标 .docx 的全部待处理修订（清除修订标记的不可逆整理）。" +
-	"落盘前自动基线快照并登记证据卡，可复核可回滚。仅接受：拒绝/单条挑选请让用户在界面操作。"
-
-func (t officeDocxAcceptTool) Schema() json.RawMessage {
-	return json.RawMessage(`{
-  "type":"object",
-  "required":["path"],
-  "properties":{
-    "path":{"type":"string","description":"目标 .docx 工作区相对路径"}
-  }
-}`)
-}
-
-func (t officeDocxAcceptTool) WritePaths(args json.RawMessage) ([]string, error) {
-	return officeWritePathsFromArgs(args, "path")
-}
-
-func (t officeDocxAcceptTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
-	var in struct {
-		Path string `json:"path"`
-	}
-	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("docx_accept 参数解析失败: %w", err)
-	}
-	if _, err := t.a.GaeaDocxAcceptChanges(in.Path, true); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("docx 修订已全部接受并清除标记：%s（证据卡已落账，可复核/回滚）。", in.Path), nil
 }
 
 // officePptxApplyTool pptx_apply：页码+目标文本→替换文本（run 级 rPr 原字节继承）。
@@ -405,12 +386,10 @@ func (t officeXlsxApplyTool) Execute(_ context.Context, args json.RawMessage) (s
 
 var _ tool.Tool = officeGenerateTool{}
 var _ tool.Tool = officeDocxApplyTool{}
-var _ tool.Tool = officeDocxAcceptTool{}
 var _ tool.Tool = officePptxApplyTool{}
 var _ tool.Tool = officeXlsxApplyTool{}
 var _ tool.WritePathResolver = officeGenerateTool{}
 var _ tool.WritePathResolver = officeDocxApplyTool{}
-var _ tool.WritePathResolver = officeDocxAcceptTool{}
 var _ tool.WritePathResolver = officePptxApplyTool{}
 var _ tool.Tool = officeBatchTool{}
 var _ tool.WritePathResolver = officeBatchTool{}
