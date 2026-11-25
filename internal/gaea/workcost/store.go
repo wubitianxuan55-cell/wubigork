@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -23,7 +24,17 @@ type Store struct {
 }
 
 // Open 打开工料法存储；gdb 为 nil 时返回不可用 store。
-func Open(gdb *sql.DB) *Store { return &Store{db: gdb} }
+func Open(gdb *sql.DB) *Store {
+	s := &Store{db: gdb}
+	// 造价自有编码存量补授（幂等；无 gcode 列的旧夹具静默跳过）。失败只记日志
+	// 不阻断开库——新行授码在各自写路径上自会走 nextGCode，下次开库再补存量。
+	if gdb != nil {
+		if err := s.EnsureGCodes(); err != nil {
+			slog.Warn("cost: 造价自有编码补授失败（下次开库重试）", "error", err)
+		}
+	}
+	return s
+}
 
 // Available 报告存储是否可用。
 func (s *Store) Available() bool { return s != nil && s.db != nil }
@@ -113,12 +124,18 @@ WHERE id=?`,
 			return nil, err
 		}
 	} else {
+		// 新身份行授自有码（R + 类别1 + 分类2 + 流水4，见 gcode.go）。
+		gcode, e := s.newResourceGCode(s.db, &r)
+		if e != nil {
+			return nil, e
+		}
+		r.GCode = gcode
 		res, e := s.db.Exec(`
-INSERT INTO gf_resources(code, kind, title, spec, unit, base_price, current_price,
+INSERT INTO gf_resources(code, gcode, kind, title, spec, unit, base_price, current_price,
   category_path, source, supplier, region, price_date, price_type, valid_until,
   loss_rate, note, tags, status, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			r.Code, r.Kind, r.Title, r.Spec, r.Unit, r.BasePrice, r.CurrentPrice,
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			r.Code, r.GCode, r.Kind, r.Title, r.Spec, r.Unit, r.BasePrice, r.CurrentPrice,
 			r.CategoryPath, r.Source, r.Supplier, r.Region, r.PriceDate, r.PriceType, r.ValidUntil,
 			r.LossRate, r.Note, string(tags), r.Status, now, now)
 		if e != nil {
@@ -415,9 +432,9 @@ func (s *Store) ListResources(kind, keyword string) ([]Resource, error) {
 		args = append(args, k)
 	}
 	if kw := strings.TrimSpace(keyword); kw != "" {
-		q += ` AND (title LIKE ? OR spec LIKE ? OR code LIKE ? OR category_path LIKE ?)`
+		q += ` AND (title LIKE ? OR spec LIKE ? OR code LIKE ? OR COALESCE(gcode,'') LIKE ? OR category_path LIKE ?)`
 		like := "%" + kw + "%"
-		args = append(args, like, like, like, like)
+		args = append(args, like, like, like, like, like)
 	}
 	q += ` ORDER BY kind, title, spec`
 	rows, err := s.db.Query(q, args...)
@@ -693,11 +710,17 @@ UPDATE gf_quotas SET title=?, specialty=?, chapter=?, unit=?, category_path=?,
 			return nil, err
 		}
 	case sql.ErrNoRows:
+		// 新定额授自有码（D + 专业2 + 章节2 + 流水3，见 gcode.go）。
+		gcode, e1 := s.newQuotaGCode(ex, &q)
+		if e1 != nil {
+			return nil, e1
+		}
+		q.GCode = gcode
 		res, e2 := ex.Exec(`
-INSERT INTO gf_quotas(code, title, specialty, chapter, unit, category_path,
+INSERT INTO gf_quotas(code, gcode, title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, orig_code, derived_from, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			q.Code, q.Title, q.Specialty, q.Chapter, q.Unit, q.CategoryPath,
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			q.Code, q.GCode, q.Title, q.Specialty, q.Chapter, q.Unit, q.CategoryPath,
 			q.BaseLabor, q.BaseMaterial, q.BaseMachine, q.Source, q.Region, q.PriceDate,
 			q.Note, q.Status, q.OrigCode, q.DerivedFrom, now, now)
 		if e2 != nil {
@@ -763,12 +786,12 @@ func (s *Store) GetQuota(code string) (*Quota, error) {
 	code = strings.TrimSpace(code)
 	var q Quota
 	err := s.db.QueryRow(`
-SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
+SELECT id, code, COALESCE(gcode,''), COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
   COALESCE(derived_from,''),
   (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
 FROM gf_quotas WHERE code=?`, code).Scan(
-		&q.ID, &q.Code, &q.OrigCode, &q.Title, &q.Specialty, &q.Chapter, &q.Unit, &q.CategoryPath,
+		&q.ID, &q.Code, &q.GCode, &q.OrigCode, &q.Title, &q.Specialty, &q.Chapter, &q.Unit, &q.CategoryPath,
 		&q.BaseLabor, &q.BaseMaterial, &q.BaseMachine, &q.Source, &q.Region, &q.PriceDate,
 		&q.Note, &q.Status, &q.CreatedAt, &q.UpdatedAt, &q.DerivedFrom, &q.UsageCount)
 	if err != nil {
@@ -813,7 +836,7 @@ func (s *Store) ListQuotas(specialty, keyword string) ([]Quota, error) {
 		return nil, err
 	}
 	q := `
-SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
+SELECT id, code, COALESCE(gcode,''), COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
   COALESCE(derived_from,''),
   (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
@@ -824,9 +847,9 @@ FROM gf_quotas WHERE 1=1`
 		args = append(args, sp)
 	}
 	if kw := strings.TrimSpace(keyword); kw != "" {
-		q += ` AND (title LIKE ? OR code LIKE ? OR chapter LIKE ?)`
+		q += ` AND (title LIKE ? OR code LIKE ? OR COALESCE(gcode,'') LIKE ? OR chapter LIKE ?)`
 		like := "%" + kw + "%"
-		args = append(args, like, like, like)
+		args = append(args, like, like, like, like)
 	}
 	q += ` ORDER BY specialty, chapter, code`
 	rows, err := s.db.Query(q, args...)
@@ -837,7 +860,7 @@ FROM gf_quotas WHERE 1=1`
 	var out []Quota
 	for rows.Next() {
 		var it Quota
-		if e := rows.Scan(&it.ID, &it.Code, &it.OrigCode, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
+		if e := rows.Scan(&it.ID, &it.Code, &it.GCode, &it.OrigCode, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
 			&it.CategoryPath, &it.BaseLabor, &it.BaseMaterial, &it.BaseMachine, &it.Source,
 			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt, &it.DerivedFrom, &it.UsageCount); e != nil {
 			continue
@@ -1028,7 +1051,7 @@ func NormalizeKind(k string) string { return normalizeKind(k) }
 
 // resourceCols 资源表查询列（Get/List 共用，避免两处列序漂移）。
 const resourceCols = `
-SELECT id, code, kind, title, spec, unit, base_price, current_price, category_path,
+SELECT id, code, COALESCE(gcode,''), kind, title, spec, unit, base_price, current_price, category_path,
   source, supplier, region, price_date, price_type, valid_until, loss_rate, note, tags, status,
   created_at, updated_at
 FROM gf_resources`
@@ -1041,7 +1064,7 @@ type scanner interface {
 func scanResource(sc scanner) (*Resource, error) {
 	var r Resource
 	var tags string
-	if err := sc.Scan(&r.ID, &r.Code, &r.Kind, &r.Title, &r.Spec, &r.Unit,
+	if err := sc.Scan(&r.ID, &r.Code, &r.GCode, &r.Kind, &r.Title, &r.Spec, &r.Unit,
 		&r.BasePrice, &r.CurrentPrice, &r.CategoryPath, &r.Source, &r.Supplier,
 		&r.Region, &r.PriceDate, &r.PriceType, &r.ValidUntil, &r.LossRate,
 		&r.Note, &tags, &r.Status, &r.CreatedAt, &r.UpdatedAt); err != nil {

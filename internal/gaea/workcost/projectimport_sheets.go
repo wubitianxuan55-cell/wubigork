@@ -99,7 +99,7 @@ func parseCover(f *excelize.File, sheet string, b *ProjectBundle) {
 				if t == "" {
 					continue
 				}
-				if strings.HasPrefix(t, "五表模版") ||
+				if strings.HasPrefix(t, "五表模版") || strings.HasPrefix(t, "六表模版") ||
 					(strings.Contains(t, "综合单价") && strings.Contains(t, "=")) {
 					b.Pricing = t
 					break
@@ -181,6 +181,7 @@ func parseResourceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	}
 	header := rowValues(f, sheet, hdr, maxProbeCols)
 	cCode := colIndex(header, false, "编码")
+	cGCode := colIndex(header, false, "自有码")
 	cKind := colIndex(header, false, "类别", "分类")
 	cTitle := colIndex(header, false, "名称")
 	cSpec := colIndex(header, false, "规格")
@@ -203,6 +204,7 @@ func parseResourceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 		cell, _ := excelize.CoordinatesToCellName(cPrice, r)
 		res := ProjectResource{
 			Code:         strings.TrimSpace(code),
+			GCode:        strings.TrimSpace(cellAt(f, sheet, r, cGCode)),
 			Kind:         normalizeKind(cellAt(f, sheet, r, cKind)),
 			Title:        strings.TrimSpace(title),
 			Spec:         strings.TrimSpace(cellAt(f, sheet, r, cSpec)),
@@ -265,6 +267,11 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	}
 	cPrice := colIndex(header, false, "单价")
 	cAmount := colIndex(header, false, "合价", "人材机合价")
+	// 三级行组（测算模版 2026-11-25）可选列：「定额」行携带定额码/名称/工程量
+	// 系数；缺列=旧 1:1 形态（全部明细并一条定额）。
+	cQuotaCode := colIndex(header, false, "定额编码")
+	cQuotaTitle := colIndex(header, false, "定额名称")
+	cFactor := colIndex(header, false, "系数")
 
 	if cKind == 0 {
 		b.Warnings = append(b.Warnings, "综合单价表缺「行类」列，无法区分汇总/明细行")
@@ -273,12 +280,63 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 
 	maxRow := sheetMaxRow(f, sheet, 600)
 	seenItems := map[string]bool{}
+	// 清单编码向下携带：模版里用户只在汇总行填一次码，定额/明细行留空时继承
+	// 上一行（导出文件每行都带码，继承值=本行值，两种形态一致）。
+	lastItemCode := ""
+	currentQuota := "" // 当前定额块（明细行归属；遇到汇总行清空）
 	for r := hdr + 1; r <= maxRow; r++ {
 		kind := strings.TrimSpace(cellAt(f, sheet, r, cKind))
 		itemCode := strings.TrimSpace(cellAt(f, sheet, r, cItemCode))
 		itemTitle := strings.TrimSpace(cellAt(f, sheet, r, cItemTitle))
 		if kind == "" && itemCode == "" && itemTitle == "" {
 			continue
+		}
+		if itemCode == "" && kind != "汇总" {
+			itemCode = lastItemCode
+			if itemTitle == "" {
+				itemTitle = strings.TrimSpace(cellAt(f, sheet, r, cItemTitle))
+			}
+		}
+		if itemCode != "" {
+			lastItemCode = itemCode
+		}
+		if kind == "定额" {
+			// 定额块行：开/换当前定额块；其后明细行挂到它身上。
+			qCode, qTitle := "", ""
+			if cQuotaCode > 0 {
+				qCode = strings.TrimSpace(cellAt(f, sheet, r, cQuotaCode))
+			}
+			if cQuotaTitle > 0 {
+				qTitle = strings.TrimSpace(cellAt(f, sheet, r, cQuotaTitle))
+			}
+			if qCode == "" {
+				currentQuota = "" // 缺码的块不收明细：其后的明细行不得错挂到上一个块
+				if qTitle == "" {
+					continue // 模版里没用到的预置定额块（码/名称都没填）：静默跳过
+				}
+				b.Skipped = append(b.Skipped, SkippedRow{Sheet: sheet, Row: r,
+					Reason: fmt.Sprintf("定额行「%s」缺定额编码（清单 %s）", qTitle, itemCode)})
+				continue
+			}
+			// 定额计量单位读「单位」列（定额行的单位可与清单不同，如清单 m³、
+			// 定额 100m³）；没给时回退「消耗单位」列。
+			qUnit := strings.TrimSpace(cellAt(f, sheet, r, cItemUnit))
+			if qUnit == "" && cUnitQ > 0 {
+				qUnit = strings.TrimSpace(cellAt(f, sheet, r, cUnitQ))
+			}
+			factor := 0.0
+			if cFactor > 0 {
+				cellF, _ := excelize.CoordinatesToCellName(cFactor, r)
+				factor = cellValue(f, sheet, cellF)
+			}
+			b.QuotaBlocks = append(b.QuotaBlocks, ProjectQuotaBlock{
+				ItemCode: itemCode, Code: qCode, Title: qTitle, Unit: qUnit, Factor: factor,
+			})
+			currentQuota = qCode
+			continue
+		}
+		if kind == "汇总" {
+			currentQuota = "" // 新清单组：定额块清空
 		}
 		if kind == "汇总" || kind == "" {
 			// 汇总行 = 清单项（综合单价的载体）。工程量在费用汇总里，此处收身份
@@ -338,88 +396,94 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 			Price:         cellValue(f, sheet, cellPrice),
 			PriceFormula:  formulaOf(f, sheet, cellPrice),
 			Amount:        cellValue(f, sheet, cellAmount),
+			QuotaCode:     currentQuota, // 三级行组：归属当前定额块（空=旧 1:1 形态）
 		}
 		b.Lines = append(b.Lines, line)
 	}
 }
 
-// ── 费用汇总 ────────────────────────────────────────────────────────
+// ── 清单（六表模版） ────────────────────────────────────────────────
 
-// parseSummarySheet 解析费用汇总：上半清单（工程量/分部）与下半取费参数。
-func parseSummarySheet(f *excelize.File, sheet string, b *ProjectBundle) {
+// parseBillSheet 解析清单表（六表模版 2026-11-25）：纯清单行（编码/名称/单位/
+// 分部/特征/工程量/综合单价快照），无取费区——比老五表从费用汇总上半段里抠清单
+// 干净得多。综合单价表先解析过，这里按编码合并（补工程量/分部/特征；综合单价表
+// 没列到的项补进来，标记待补消耗量）。
+func parseBillSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	hdr := findHeaderRow(f, sheet, maxProbeCols, 8, "项目名称", "工程量")
-	if hdr != 0 {
-		header := rowValues(f, sheet, hdr, maxProbeCols)
-		cDiv := colIndex(header, false, "分部")
-		cCode := colIndex(header, false, "编码")
-		cTitle := colIndex(header, false, "项目名称")
-		cFeature := colIndex(header, false, "工序特征", "项目特征")
-		cUnit := colIndex(header, false, "单位")
-		cQty := colIndex(header, false, "工程量")
-		// 综合单价列（部分工作簿单价在费用汇总而非综合单价表——作快照的兜底来源）。
-		cUP := colIndex(header, false, "综合单价")
+	if hdr == 0 {
+		b.Warnings = append(b.Warnings, "清单表未识别到表头，工程量未导入")
+		return
+	}
+	header := rowValues(f, sheet, hdr, maxProbeCols)
+	cDiv := colIndex(header, false, "分部")
+	cCode := colIndex(header, false, "编码")
+	cTitle := colIndex(header, false, "项目名称")
+	cFeature := colIndex(header, false, "工序特征", "项目特征")
+	cUnit := colIndex(header, false, "单位")
+	cQty := colIndex(header, false, "工程量")
+	cUP := colIndex(header, false, "综合单价")
 
-		byCode := map[string]*ProjectItem{}
-		for i := range b.Items {
-			byCode[b.Items[i].Code] = &b.Items[i]
+	byCode := map[string]*ProjectItem{}
+	for i := range b.Items {
+		byCode[b.Items[i].Code] = &b.Items[i]
+	}
+	maxRow := sheetMaxRow(f, sheet, 400)
+	for r := hdr + 1; r <= maxRow; r++ {
+		title := strings.TrimSpace(cellAt(f, sheet, r, cTitle))
+		code := strings.TrimSpace(cellAt(f, sheet, r, cCode))
+		if code == "" && title == "" {
+			continue
 		}
-		maxRow := sheetMaxRow(f, sheet, 400)
-		for r := hdr + 1; r <= maxRow; r++ {
-			title := strings.TrimSpace(cellAt(f, sheet, r, cTitle))
-			code := strings.TrimSpace(cellAt(f, sheet, r, cCode))
-			if code == "" && title == "" {
-				continue
+		// 「小计/合计」行不是清单项（与综合单价表同规则跳过）。
+		if strings.Contains(title, "小计") || strings.Contains(title, "合计") ||
+			strings.Contains(code, "小计") || strings.Contains(code, "合计") {
+			continue
+		}
+		div := strings.TrimSpace(cellAt(f, sheet, r, cDiv))
+		cellQty, _ := excelize.CoordinatesToCellName(cQty, r)
+		qtyExpr := formulaOf(f, sheet, cellQty)
+		qty := cellValue(f, sheet, cellQty)
+		if it, ok := byCode[code]; ok && code != "" {
+			it.Division = div
+			it.Feature = strings.TrimSpace(cellAt(f, sheet, r, cFeature))
+			if it.Unit == "" {
+				it.Unit = strings.TrimSpace(cellAt(f, sheet, r, cUnit))
 			}
-			// 下半段取费区以「费用名称」类文本起始，跳出清单区。
-			if strings.Contains(title, "直接费合计") || strings.Contains(title, "费用名称") {
-				break
+			it.Quantity = qty
+			it.QuantityExpr = qtyExpr
+			if cUP > 0 && it.ListPrice <= 0 {
+				cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
+				it.ListPrice = cellValue(f, sheet, cellUP)
+				it.ListPriceExpr = formulaOf(f, sheet, cellUP)
 			}
-			// 「小计/合计」行不是清单项（其编码列常直接写中文标题），
-			// 与综合单价表同规则跳过——否则产出孤儿定额。
-			if strings.Contains(title, "小计") || strings.Contains(title, "合计") ||
-				strings.Contains(code, "小计") || strings.Contains(code, "合计") {
-				continue
+			it.CategoryPath = "综合单价/" + firstNonEmpty(div, it.Title)
+			continue
+		}
+		if code != "" {
+			it := ProjectItem{
+				Code: code, Title: title, Unit: strings.TrimSpace(cellAt(f, sheet, r, cUnit)),
+				Division: div, Feature: strings.TrimSpace(cellAt(f, sheet, r, cFeature)),
+				Quantity: qty, QuantityExpr: qtyExpr,
+				CategoryPath: "综合单价/" + firstNonEmpty(div, title),
 			}
-			div := strings.TrimSpace(cellAt(f, sheet, r, cDiv))
-			cellQty, _ := excelize.CoordinatesToCellName(cQty, r)
-			qtyExpr := formulaOf(f, sheet, cellQty)
-			qty := cellValue(f, sheet, cellQty)
-			if it, ok := byCode[code]; ok && code != "" {
-				it.Division = div
-				it.Feature = strings.TrimSpace(cellAt(f, sheet, r, cFeature))
-				if it.Unit == "" {
-					it.Unit = strings.TrimSpace(cellAt(f, sheet, r, cUnit))
-				}
-				it.Quantity = qty
-				it.QuantityExpr = qtyExpr
-				// 综合单价表没给价的，费用汇总列兜底（同口径快照）。
-				if cUP > 0 && it.ListPrice <= 0 {
-					cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
-					it.ListPrice = cellValue(f, sheet, cellUP)
-					it.ListPriceExpr = formulaOf(f, sheet, cellUP)
-				}
-				it.CategoryPath = "综合单价/" + firstNonEmpty(div, it.Title)
-				continue
+			if cUP > 0 {
+				cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
+				it.ListPrice = cellValue(f, sheet, cellUP)
+				it.ListPriceExpr = formulaOf(f, sheet, cellUP)
 			}
-			// 综合单价表没列到的清单项，按费用汇总补齐（但标记为待补消耗量）。
-			if code != "" {
-				it := ProjectItem{
-					Code: code, Title: title, Unit: strings.TrimSpace(cellAt(f, sheet, r, cUnit)),
-					Division: div, Feature: strings.TrimSpace(cellAt(f, sheet, r, cFeature)),
-					Quantity: qty, QuantityExpr: qtyExpr,
-					CategoryPath: "综合单价/" + firstNonEmpty(div, title),
-				}
-				if cUP > 0 {
-					cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
-					it.ListPrice = cellValue(f, sheet, cellUP)
-					it.ListPriceExpr = formulaOf(f, sheet, cellUP)
-				}
-				b.Items = append(b.Items, it)
-				b.Warnings = append(b.Warnings, fmt.Sprintf(
-					"清单项 %s（%s）在综合单价表无汇总行——消耗量待补", code, title))
-			}
+			b.Items = append(b.Items, it)
+			b.Warnings = append(b.Warnings, fmt.Sprintf(
+				"清单项 %s（%s）在综合单价表无汇总行——消耗量待补", code, title))
 		}
 	}
+}
+
+// ── 费用汇总 ────────────────────────────────────────────────────────
+
+// parseSummarySheet 解析费用汇总表：只有清单累计后的工程费 + 取费链（六表模版
+// 2026-11-25 用户拍板「费用汇总拆成 清单表+费用汇总表；旧版用模型解析，不用兼
+// 容」）。清单行一律来自「清单」表（parseBillSheet），本表只走取费段。
+func parseSummarySheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	parseFeeSection(f, sheet, b)
 }
 
@@ -743,14 +807,4 @@ func sheetMaxRow(f *excelize.File, sheet string, limit int) int {
 		return limit
 	}
 	return n
-}
-
-// firstNonEmpty 返回首个非空值。
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if strings.TrimSpace(v) != "" {
-			return strings.TrimSpace(v)
-		}
-	}
-	return ""
 }

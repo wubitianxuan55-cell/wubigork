@@ -930,6 +930,9 @@ func costLibraryArgsNoWrite(args json.RawMessage) bool {
 	switch strings.TrimSpace(p.Action) {
 	case "health", "dims":
 		return true
+	case "template":
+		// 生成测算模版：只读库、只在工作区 exports 新增一个文件，不写库。
+		return true
 	case "flywheel":
 		return len(p.Stems) == 0
 	case "dict":
@@ -1011,7 +1014,9 @@ func costLibraryApprovalSubject(args json.RawMessage) string {
 	var label string
 	switch p.Action {
 	case "import_project":
-		label = "导入五表工作簿"
+		label = "导入测算工作簿（六表）"
+	case "template":
+		label = "生成测算模版"
 	case "save_quota":
 		label = "保存定额"
 	case "delete_quota":

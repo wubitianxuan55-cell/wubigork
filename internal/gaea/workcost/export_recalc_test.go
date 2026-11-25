@@ -61,26 +61,27 @@ func TestExportRecalcNumericGoldSample(t *testing.T) {
 	}
 	defer func() { _ = f.Close() }()
 
-	// ① 综合单价表第一项汇总行 P 列 = 人材机合价。
+	// ① 综合单价表第一项汇总行 S 列 = 人材机合价（六表模版 19 列，综合单价在 S）。
 	//    旺平第一项 WP01 测量放线 = 技术工 20 工日×350 + 普通工 20 工日×300 = 13000。
 	const summaryRow = headerRowUnitPrice + 1
-	got := readNum(t, f, SheetUnitPriceName, "P"+itoa(summaryRow))
+	got := readNum(t, f, SheetUnitPriceName, "S"+itoa(summaryRow))
 	const wantFirstItem = 13000.0
 	if diff := got - wantFirstItem; diff > 0.02 || diff < -0.02 {
 		t.Errorf("第一项综合单价 = %.2f, want %.2f（人工可复核金样）", got, wantFirstItem)
 	}
 
-	// ② 费用汇总：直接费合计 = Σ 各清单项合价（两条独立路径必须一致）。
+	// ② 费用汇总：直接费合计 = Σ 清单表各行合价（两条独立路径必须一致）。
+	//    清单行在「清单」表（六表模版），合价在 I 列。
 	directRow := findRowByLabel(t, f, SheetSummaryName, "人材机直接费合计")
 	if directRow == 0 {
 		t.Fatal("未找到直接费合计行")
 	}
 	direct := readNum(t, f, SheetSummaryName, "E"+itoa(directRow))
 	itemSum := 0.0
-	for i := headerRowSummary + 1; i < directRow; i++ {
+	for i := headerRowSummary + 1; i <= headerRowSummary+len(b.Items); i++ {
 		// I 列是公式（=G*H），必须取**缓存值**——cellAt 走 cellText 会拿到
 		// "=G4*H4"，parseNum 失败，itemSum 恒为 0（首版就这么漏的）。
-		v, err := f.GetCellValue(SheetSummaryName, "I"+itoa(i))
+		v, err := f.GetCellValue(SheetBillName, "I"+itoa(i))
 		if err != nil || v == "" {
 			continue
 		}

@@ -29,6 +29,7 @@ import (
 // Sheet 名常量（模版固定命名；容错见 sheetByName）。
 const (
 	sheetCover      = "封面"
+	sheetBill       = "清单"
 	sheetSummary    = "费用汇总"
 	sheetUnitPrice  = "综合单价"
 	sheetResourcePr = "工料机价格"
@@ -37,6 +38,7 @@ const (
 
 // 备选 sheet 名（什邡工程量表名为「工程量核算」，清单表名为「清单测算」）。
 var sheetAliases = map[string][]string{
+	sheetBill:       {"清单", "分部分项清单"},
 	sheetSummary:    {"费用汇总", "清单测算"},
 	sheetQuantity:   {"工程量计算", "工程量核算"},
 	sheetUnitPrice:  {"综合单价"},
@@ -46,6 +48,7 @@ var sheetAliases = map[string][]string{
 // ProjectResource 解析出的工料机资源（工料机价格表一行）。
 type ProjectResource struct {
 	Code         string  `json:"code"`
+	GCode        string  `json:"gcode"` // 库内自有码（六表模版携带；回导对行用）
 	Kind         string  `json:"kind"`
 	Title        string  `json:"title"`
 	Spec         string  `json:"spec"`
@@ -70,6 +73,9 @@ type ProjectConsumption struct {
 	Price         float64 `json:"price"`
 	PriceFormula  string  `json:"priceFormula"`
 	Amount        float64 `json:"amount"`
+	// QuotaCode 三级行组（2026-11-25 测算模版）：本明细行归属的定额码。空=旧
+	// 1:1 形态（整份工作簿的全部明细并一条定额，定额码=清单码）。
+	QuotaCode string `json:"quotaCode"`
 }
 
 // ProjectItem 解析出的清单项（综合单价表汇总行 + 费用汇总的工程量）。
@@ -86,6 +92,17 @@ type ProjectItem struct {
 	ListPrice     float64 `json:"listPrice"`
 	ListPriceExpr string  `json:"listPriceExpr"` // 综合单价计算式原文（公式无缓存值时告警用）
 	CategoryPath  string  `json:"categoryPath"`  // 综合单价/分部
+}
+
+// ProjectQuotaBlock 三级行组里的一个定额块：清单项下挂的一条定额（编码/名称/
+// 工程量系数）。回导时按 ResolveQuota 逐块解析（撞码消歧同款），1:N 挂接落
+// gf_bill_quota_links；系数 0=跟随清单工程量（与挂接面语义一致）。
+type ProjectQuotaBlock struct {
+	ItemCode string  `json:"itemCode"` // 所属清单编码
+	Code     string  `json:"code"`     // 定额编码（工作簿原码，解析端消歧）
+	Title    string  `json:"title"`    // 定额名称（空=沿用清单标题/库内既有）
+	Unit     string  `json:"unit"`     // 定额计量单位（空=跟随清单单位）
+	Factor   float64 `json:"factor"`   // 工程量系数（每清单单位含多少定额单位；0=跟随）
 }
 
 // ProjectFeeParams 解析出的取费参数（费用汇总下半段）。
@@ -117,20 +134,24 @@ type SkippedRow struct {
 
 // ProjectBundle 一份项目工作簿的完整解析结果（待用户确认后落库）。
 type ProjectBundle struct {
-	Path       string               `json:"path"`
-	FileName   string               `json:"fileName"`
-	Project    string               `json:"project"`
-	Location   string               `json:"location"`
-	Duration   string               `json:"duration"`
-	Pricing    string               `json:"pricing"` // 封面的组价口径自述
-	Resources  []ProjectResource    `json:"resources"`
-	Items      []ProjectItem        `json:"items"`
-	Lines      []ProjectConsumption `json:"lines"`
-	Fee        ProjectFeeParams     `json:"fee"`
-	Quantities []ProjectQuantity    `json:"quantities"`
-	Skipped    []SkippedRow         `json:"skipped"`
-	Warnings   []string             `json:"warnings"`
-	Sheets     []string             `json:"sheets"`
+	Path      string               `json:"path"`
+	FileName  string               `json:"fileName"`
+	Project   string               `json:"project"`
+	Location  string               `json:"location"`
+	Duration  string               `json:"duration"`
+	Pricing   string               `json:"pricing"` // 封面的组价口径自述
+	Resources []ProjectResource    `json:"resources"`
+	Items     []ProjectItem        `json:"items"`
+	Lines     []ProjectConsumption `json:"lines"`
+	// QuotaBlocks 三级行组（测算模版「清单→定额→工料机」）：每个定额块=清单下
+	// 挂的一条定额（编码/名称/工程量系数）。空=旧 1:1 形态；apply 逐块 ResolveQuota
+	// 落定额并把 1:N 挂接写进 gf_bill_quota_links（库的一等模型）。
+	QuotaBlocks []ProjectQuotaBlock `json:"quotaBlocks"`
+	Fee         ProjectFeeParams    `json:"fee"`
+	Quantities  []ProjectQuantity   `json:"quantities"`
+	Skipped     []SkippedRow        `json:"skipped"`
+	Warnings    []string            `json:"warnings"`
+	Sheets      []string            `json:"sheets"`
 	// 导入口径——规范值，由调用方给（规矩见 rules.go）；文件里没有就不猜，空=待整理：
 	// Specialty 项目默认专业（字典值），本次新建的定额专业随它；Region 项目所在
 	// 地区（字典值），工料机按它分行；Period 计价期（YYYY-MM），工料机价格事实的期。
@@ -140,26 +161,28 @@ type ProjectBundle struct {
 	Period    string `json:"period"`
 }
 
-// DetectedFiveSheet 报告该工作簿是否为新五表模版（供导入入口分流）。
-func DetectedFiveSheet(sheets []string) bool {
-	hasResource, hasUnitPrice := false, false
+// DetectedSixSheet 报告该工作簿是否为测算工作簿（六表模版，供导入入口分流）：
+// 「清单」「综合单价」「工料机价格」三张表同时在。
+//
+// 2026-11-25 起费用汇总拆成 清单表 + 费用汇总表，旧五表（清单在费用汇总上半段）
+// **不再兼容**——用户拍板旧版资料走模型读表导入。判据必须带上「清单」表：旧五表
+// 若被放进来，清单工程量会整批丢失而解析不报错（带病入库比不入更糟）。
+func DetectedSixSheet(sheets []string) bool {
+	has := map[string]bool{}
 	for _, s := range sheets {
 		n := strings.TrimSpace(s)
-		for _, a := range sheetAliases[sheetResourcePr] {
-			if n == a {
-				hasResource = true
-			}
-		}
-		for _, a := range sheetAliases[sheetUnitPrice] {
-			if n == a {
-				hasUnitPrice = true
+		for _, canonical := range []string{sheetBill, sheetUnitPrice, sheetResourcePr} {
+			for _, a := range sheetAliases[canonical] {
+				if n == a {
+					has[canonical] = true
+				}
 			}
 		}
 	}
-	return hasResource && hasUnitPrice
+	return has[sheetBill] && has[sheetUnitPrice] && has[sheetResourcePr]
 }
 
-// ParseProjectWorkbook 解析一份五表项目工作簿。
+// ParseProjectWorkbook 解析一份测算工作簿（六表模版）。
 func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
 	if err != nil {
@@ -180,9 +203,9 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 		Skipped:    []SkippedRow{},
 		Warnings:   []string{},
 	}
-	if !DetectedFiveSheet(b.Sheets) {
-		return nil, fmt.Errorf("不是五表模版（需要「%s」与「%s」两张表），实得表：%v",
-			sheetResourcePr, sheetUnitPrice, b.Sheets)
+	if !DetectedSixSheet(b.Sheets) {
+		return nil, fmt.Errorf("不是测算工作簿（六表模版需要「%s」「%s」「%s」三张表），实得表：%v——旧版五表或别的格式的资料请走模型读表导入（import_open → import_add → import_check → import_commit）",
+			sheetBill, sheetUnitPrice, sheetResourcePr, b.Sheets)
 	}
 
 	if sn := sheetByName(f, sheetCover); sn != "" {
@@ -193,6 +216,10 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 	}
 	if sn := sheetByName(f, sheetUnitPrice); sn != "" {
 		parseUnitPriceSheet(f, sn, b)
+	}
+	// 六表模版（2026-11-25 用户拍板）：清单单独成表，费用汇总只有累计后的取费链。
+	if sn := sheetByName(f, sheetBill); sn != "" {
+		parseBillSheet(f, sn, b)
 	}
 	if sn := sheetByName(f, sheetSummary); sn != "" {
 		parseSummarySheet(f, sn, b)
@@ -370,23 +397,42 @@ func rowIsMergedUniform(vals []string) bool {
 	return n >= 2
 }
 
-// findHeaderRow 在前 limit 行内查找包含全部 keys 的行（返回 1-based 行号，0=未找到）。
+// findHeaderRow 在前 limit 行内查找表头行（返回 1-based 行号，0=未找到）。
+// 判据见 headerRowHasKeys：各关键词落在不同的列上，且该行不止一格有字。
 func findHeaderRow(f *excelize.File, sheet string, maxCol, limit int, keys ...string) int {
 	for r := 1; r <= limit; r++ {
-		vals := rowValues(f, sheet, r, maxCol)
-		joined := strings.Join(vals, "|")
-		ok := true
-		for _, k := range keys {
-			if !strings.Contains(joined, k) {
-				ok = false
-				break
-			}
-		}
-		if ok {
+		if headerRowHasKeys(rowValues(f, sheet, r, maxCol), keys) {
 			return r
 		}
 	}
 	return 0
+}
+
+// headerRowHasKeys 表头行判据：每个关键词落在**不同的列**上，且该行不止一格有字。
+//
+// 不能按整行拼接匹配：模版与实测工作簿常在表头上方放一行填表说明，「汇总行只填
+// 清单编码…明细行填行类…」这类话把几个表头词写进同一格，整行匹配会把说明行
+// 认成表头，所有列随之错位到第 1 列——清单项数碰巧还对，定额块与明细全丢
+// （2026-11-25 测算模版往返用例抓到）。
+func headerRowHasKeys(vals, keys []string) bool {
+	nonEmpty := 0
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			nonEmpty++
+		}
+	}
+	if nonEmpty < 2 {
+		return false
+	}
+	used := map[int]bool{}
+	for _, k := range keys {
+		col := colIndex(vals, false, k)
+		if col == 0 || used[col] {
+			return false
+		}
+		used[col] = true
+	}
+	return true
 }
 
 // colIndex 在表头行里定位列（1-based；0=未找到）。按 keys 依次匹配，

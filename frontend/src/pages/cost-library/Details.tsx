@@ -153,6 +153,7 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource }: {
         <h2 className="cl-detail-title">{item.title}</h2>
         <div className="cl-meta">
           <span className="cl-code">{item.code}</span>
+          {item.gcode && <span className="cl-tag" data-testid="cost-bill-gcode" title="库内自有码（Q+专业+分部+流水；与外部码一一对应）">G {item.gcode}</span>}
           {item.unit && <span>单位 {item.unit}</span>}
           {item.quantity > 0 && <span>工程量 {fmtQty(item.quantity)}</span>}
           {item.division && <span>分部 {item.division}</span>}
@@ -251,6 +252,7 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource }: {
         <h2 className="cl-detail-title">{quota.title}</h2>
         <div className="cl-meta">
           <span className="cl-code">{quota.code}</span>
+          {quota.gcode && <span className="cl-tag" data-testid="cost-quota-gcode" title="库内自有码（D+专业+章节+流水；与外部码一一对应）">G {quota.gcode}</span>}
           {quota.origCode && quota.origCode !== quota.code && <span title="工作簿原始编码">原码 {quota.origCode}</span>}
           {quota.unit && <span>计量单位 {quota.unit}</span>}
           {quota.chapter
@@ -353,7 +355,8 @@ export function ResourceDetail({ resource, onOpenQuota }: { resource: WorkcostRe
           {resource.priceDate ? ` · ${fmtPeriod(resource.priceDate)}` : ""}
         </div>
         <h2 className="cl-detail-title">{resource.title}</h2>
-        <div className="cl-meta"><KindBadge kind={resource.kind} /><span className="cl-code">{resource.code}</span></div>
+        <div className="cl-meta"><KindBadge kind={resource.kind} /><span className="cl-code">{resource.code}</span>
+          {resource.gcode && <span className="cl-tag" data-testid="cost-resource-gcode" title="库内自有码（R+类别+分类+流水；与来源码一一对应）">G {resource.gcode}</span>}</div>
       </header>
       <section className="cl-price-card">
         <div className={`cl-price-main${price <= 0 ? " is-zero" : ""}`}>

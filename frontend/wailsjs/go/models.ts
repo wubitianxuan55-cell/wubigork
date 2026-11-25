@@ -9653,6 +9653,7 @@ export namespace workcost {
 	    id: number;
 	    projectId: number;
 	    code: string;
+	    gcode: string;
 	    title: string;
 	    unit: string;
 	    division: string;
@@ -9676,6 +9677,7 @@ export namespace workcost {
 	        this.id = source["id"];
 	        this.projectId = source["projectId"];
 	        this.code = source["code"];
+	        this.gcode = source["gcode"];
 	        this.title = source["title"];
 	        this.unit = source["unit"];
 	        this.division = source["division"];
@@ -10016,6 +10018,7 @@ export namespace workcost {
 	export class Quota {
 	    id: number;
 	    code: string;
+	    gcode: string;
 	    origCode: string;
 	    title: string;
 	    specialty: string;
@@ -10044,6 +10047,7 @@ export namespace workcost {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.code = source["code"];
+	        this.gcode = source["gcode"];
 	        this.origCode = source["origCode"];
 	        this.title = source["title"];
 	        this.specialty = source["specialty"];
@@ -10087,6 +10091,7 @@ export namespace workcost {
 	export class Resource {
 	    id: number;
 	    code: string;
+	    gcode: string;
 	    kind: string;
 	    title: string;
 	    spec: string;
@@ -10115,6 +10120,7 @@ export namespace workcost {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.code = source["code"];
+	        this.gcode = source["gcode"];
 	        this.kind = source["kind"];
 	        this.title = source["title"];
 	        this.spec = source["spec"];

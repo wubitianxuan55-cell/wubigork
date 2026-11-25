@@ -42,6 +42,14 @@ func builtinSkills() []Skill {
 			RunAs:       RunInline,
 		},
 		{
+			Name:        "cost-estimate",
+			Description: "造价成本测算（六表工料法）的口径与填法：要生成、填写或读懂六表测算工作簿，把测算簿导回造价库，或用户要做成本测算、组价测算、报价测算时必读——六张表各放什么、综合单价三级行组（清单→定额→工料机）与系数、综合单价只含人材机、取费链、import_project 回导规矩与实测易错点。",
+			Body:        costEstimateBody,
+			Scope:       ScopeBuiltin,
+			Path:        "(builtin)",
+			RunAs:       RunInline,
+		},
+		{
 			Name:        "office-edit",
 			Description: "办公文件编辑纪律总纲：创建/修改 xlsx、docx、pptx、markdown 思维导图大纲或 .gbase.json 多维表视图前必读——先读后写、写后回读验证、宁拒不误改、逐 run 编辑防丢格式、.gbase.json 列名口径与 JSON 自检、soffice 渲染取证与 Error [FORMAT_*] 错误码路由。",
 			Body: `你正在创建或修改用户的办公文件。本技能是办公编辑纪律总纲：xlsx / docx / pptx 二进制文件一律用 bash + python 库处理；markdown 大纲（思维导图）与 .gbase.json（多维表视图）用 read_file / write_file / edit_file 处理。开工前先通读本技能，写完后按验证闭环收尾。

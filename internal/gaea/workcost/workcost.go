@@ -64,8 +64,11 @@ const (
 // CurrentPrice（现行价优先）。各期价格是 gf_resource_prices 里的价格事实，
 // PriceDate 是现行价所属的期。
 type Resource struct {
-	ID           int64    `json:"id"`
-	Code         string   `json:"code"`
+	ID   int64  `json:"id"`
+	Code string `json:"code"`
+	// GCode 库内自有码（R+类别+分类+流水，SchemaV39；见 gcode.go）。与 Code
+	// 并显：Code 是来源码/助记码（映射列），GCode 是库内主身份。
+	GCode        string   `json:"gcode"`
 	Kind         string   `json:"kind"`
 	Title        string   `json:"title"`
 	Spec         string   `json:"spec"`
@@ -117,6 +120,9 @@ type ResourcePrice struct {
 type Quota struct {
 	ID   int64  `json:"id"`
 	Code string `json:"code"`
+	// GCode 库内自有码（D+专业+章节+流水，SchemaV39；见 gcode.go）。Code/OrigCode
+	// 是外部标准码（映射列），检索两码都吃。
+	GCode string `json:"gcode"`
 	// OrigCode 工作簿里的原始清单编码（编码统一可能改写 Code，溯源靠它）。
 	OrigCode string `json:"origCode"`
 	Title    string `json:"title"`

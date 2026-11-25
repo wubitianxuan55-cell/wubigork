@@ -212,13 +212,17 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 		idx[saved.Code] = *saved
 	}
 
-	// ② 消耗行按清单项分组（资源码一律落到库内规范编码上）。
-	grouped := map[string][]QuotaItem{}
+	// ② 消耗行按（清单项, 定额块）分组（资源码一律落到库内规范编码上）。
+	type qkey struct{ item, quota string }
+	grouped := map[qkey][]QuotaItem{}
 	order := []string{}
+	seenItem := map[string]bool{}
 	itemTitle := map[string]string{}
 	itemUnit := map[string]string{}
 	for _, l := range b.Lines {
-		if _, seen := grouped[l.ItemCode]; !seen {
+		k := qkey{l.ItemCode, strings.TrimSpace(l.QuotaCode)}
+		if !seenItem[l.ItemCode] {
+			seenItem[l.ItemCode] = true
 			order = append(order, l.ItemCode)
 		}
 		rc := canonical(strings.TrimSpace(l.ResourceCode))
@@ -240,13 +244,13 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 			res.Errors = append(res.Errors,
 				fmt.Sprintf("消耗行引用了未定义的资源编码 %s（清单项 %s），按零价核算", l.ResourceCode, l.ItemCode))
 		}
-		grouped[l.ItemCode] = append(grouped[l.ItemCode], it)
+		grouped[k] = append(grouped[k], it)
 		itemTitle[l.ItemCode] = l.ItemTitle
 		itemUnit[l.ItemCode] = l.ItemUnit
 	}
 
 	// ③ 定额：以解析出的清单项为骨架（保证即使无消耗行的项也留下痕迹），
-	// 再并入只在消耗行里出现的编码。
+	// 再并入只在消耗行/定额块里出现的编码。
 	items := append([]ProjectItem(nil), b.Items...)
 	known := map[string]bool{}
 	for _, it := range items {
@@ -258,99 +262,139 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 			known[code] = true
 		}
 	}
+	// 三级行组：定额块所属清单必须存在（用户只在汇总行填码，块随行携带码）。
+	for _, blk := range b.QuotaBlocks {
+		if !known[blk.ItemCode] {
+			res.Errors = append(res.Errors, fmt.Sprintf("定额块 %s 挂在不存在的清单项 %s 上，已跳过", blk.Code, blk.ItemCode))
+		}
+	}
 
-	// 定额编码解析：原码 → 全局唯一定额编码。清单层的 quota_code 引用解析码。
+	// 每个清单项的定额块：三级行组按块走；旧 1:1 形态合成单块（码=清单码）。
+	// lineKey 是该块消耗行在 grouped 里的分组键——显式块的行自带定额码，合成块
+	// 的行不带（空串）。查错键=定额丢全部含量行（2026-11-25 实测踩到）。
+	type applyBlock struct {
+		ProjectQuotaBlock
+		lineKey string
+	}
+	blocksByItem := map[string][]applyBlock{}
+	seenBlock := map[string]bool{}
+	for _, blk := range b.QuotaBlocks {
+		if blk.Code == "" || !known[blk.ItemCode] {
+			continue
+		}
+		// 同一清单重复挂同一条定额：只留首个（挂接表按 清单+定额 唯一，重复块
+		// 只会让含量行重复落、合价翻倍）。
+		dupKey := blk.ItemCode + "\x00" + strings.TrimSpace(blk.Code)
+		if seenBlock[dupKey] {
+			res.Errors = append(res.Errors, fmt.Sprintf("清单项 %s 重复挂了定额 %s，只取第一个", blk.ItemCode, blk.Code))
+			continue
+		}
+		seenBlock[dupKey] = true
+		blocksByItem[blk.ItemCode] = append(blocksByItem[blk.ItemCode],
+			applyBlock{ProjectQuotaBlock: blk, lineKey: strings.TrimSpace(blk.Code)})
+	}
+
+	// 定额编码解析：原码 → 全局唯一定额编码。清单层的 quota_code 引用主定额
+	// （第一块）的解析码；挂接全量走 billLinks（1:N，块系数随行）。
 	resolved := map[string]string{}
+	billLinks := map[string][]ProjectQuotaBlock{}
 	src := fmt.Sprintf("项目导入：%s", b.FileName)
 	for _, it := range items {
-		origCode := QuotaCodeForItem(it)
-		if origCode == "" {
-			res.Errors = append(res.Errors, fmt.Sprintf("清单项「%s」无法生成定额编码，已跳过", it.Title))
-			continue
-		}
-		title := strings.TrimSpace(it.Title)
-		if title == "" {
-			title = itemTitle[it.Code]
-		}
-		unit := strings.TrimSpace(it.Unit)
-		if unit == "" {
-			unit = itemUnit[it.Code]
-		}
-		rr, err := s.ResolveQuota(origCode, title, unit, it.Feature, src, specialty)
-		if err != nil {
-			res.Errors = append(res.Errors, fmt.Sprintf("定额编码解析失败 %s（%s）: %v", origCode, title, err))
-			continue
-		}
-		resolved[it.Code] = rr.Code
-		if rr.Reuse {
-			res.QuotaUpd++
-		} else {
-			res.QuotaNew++
-		}
-		if rr.Derived != "" {
-			res.QuotaDerived++
-		}
-		var existing *Quota
-		if rr.Reuse {
-			var err error
-			if existing, err = s.GetQuota(rr.Code); err != nil {
-				existing = nil
+		blocks := blocksByItem[it.Code]
+		if len(blocks) == 0 {
+			origCode := QuotaCodeForItem(it)
+			if origCode == "" {
+				res.Errors = append(res.Errors, fmt.Sprintf("清单项「%s」无法生成定额编码，已跳过", it.Title))
+				continue
 			}
+			blocks = []applyBlock{{ProjectQuotaBlock: ProjectQuotaBlock{ItemCode: it.Code, Code: origCode}}}
 		}
-		q := Quota{
-			Code:         rr.Code,
-			OrigCode:     origCode,
-			Title:        title,
-			Specialty:    specialty,
-			Unit:         unit,
-			CategoryPath: firstNonEmpty(it.CategoryPath, "综合单价/"+title),
-			Source:       src,
-			Note:         it.Feature,
-			DerivedFrom:  rr.Derived,
-			Items:        grouped[it.Code],
-		}
-		if existing != nil {
-			// 专业随来源定：同项目重导入时项目专业改了，它的定额跟着改；尚未标注
-			// 专业的既有定额被复用时顺手标上。其余情况专业不动（定额专业固定）。
-			if specialty != "" && existing.Specialty != specialty &&
-				(existing.Source == src || existing.Specialty == "") {
-				if err := s.setQuotaSpecialty(rr.Code, specialty); err == nil {
-					existing.Specialty = specialty
+		for bi, blk := range blocks {
+			origCode := blk.Code
+			title := firstNonEmpty(blk.Title, strings.TrimSpace(it.Title), itemTitle[it.Code])
+			unit := firstNonEmpty(blk.Unit, strings.TrimSpace(it.Unit), itemUnit[it.Code])
+			rr, err := s.ResolveQuota(origCode, title, unit, it.Feature, src, specialty)
+			if err != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("定额编码解析失败 %s（%s）: %v", origCode, title, err))
+				continue
+			}
+			if bi == 0 {
+				resolved[it.Code] = rr.Code
+			}
+			billLinks[it.Code] = append(billLinks[it.Code], ProjectQuotaBlock{
+				ItemCode: it.Code, Code: rr.Code, Factor: blk.Factor,
+			})
+			if rr.Reuse {
+				res.QuotaUpd++
+			} else {
+				res.QuotaNew++
+			}
+			if rr.Derived != "" {
+				res.QuotaDerived++
+			}
+			var existing *Quota
+			if rr.Reuse {
+				var err error
+				if existing, err = s.GetQuota(rr.Code); err != nil {
+					existing = nil
 				}
 			}
-			// 既有定额的头字段不因这次导入没带而被清空。
-			q.Specialty = firstNonEmpty(specialty, existing.Specialty)
-			q.Chapter = existing.Chapter
-			q.DerivedFrom = firstNonEmpty(rr.Derived, existing.DerivedFrom)
-			if existing.OrigCode != "" {
-				q.OrigCode = existing.OrigCode
+			q := Quota{
+				Code:         rr.Code,
+				OrigCode:     origCode,
+				Title:        title,
+				Specialty:    specialty,
+				Unit:         unit,
+				CategoryPath: firstNonEmpty(it.CategoryPath, "综合单价/"+title),
+				Source:       src,
+				Note:         it.Feature,
+				DerivedFrom:  rr.Derived,
+				Items:        grouped[qkey{it.Code, blk.lineKey}],
 			}
-			switch {
-			case !rr.SameSource && len(existing.Items) > 0:
-				// 同专业同内容复用（别的项目）：既有定额是本专业的标准，已有
-				// 消耗行**保持不动**（不因新项目的同名项覆盖标准）；空定额则
-				// 采用本项目的消耗行补齐。
-				continue
-			case len(q.Items) == 0:
-				// 同项目重导入但本次工作簿没给消耗行：保留既有消耗行，不清空。
-				q.Items = existing.Items
+			if existing != nil {
+				// 专业随来源定：同项目重导入时项目专业改了，它的定额跟着改；尚未标注
+				// 专业的既有定额被复用时顺手标上。其余情况专业不动（定额专业固定）。
+				if specialty != "" && existing.Specialty != specialty &&
+					(existing.Source == src || existing.Specialty == "") {
+					if err := s.setQuotaSpecialty(rr.Code, specialty); err == nil {
+						existing.Specialty = specialty
+					}
+				}
+				// 既有定额的头字段不因这次导入没带而被清空。
+				q.Specialty = firstNonEmpty(specialty, existing.Specialty)
+				q.Chapter = existing.Chapter
+				q.DerivedFrom = firstNonEmpty(rr.Derived, existing.DerivedFrom)
+				if existing.OrigCode != "" {
+					q.OrigCode = existing.OrigCode
+				}
+				switch {
+				case !rr.SameSource && len(existing.Items) > 0:
+					// 同专业同内容复用（别的项目）：既有定额是本专业的标准，已有
+					// 消耗行**保持不动**（不因新项目的同名项覆盖标准）；空定额则
+					// 采用本项目的消耗行补齐。
+					continue
+				case len(q.Items) == 0:
+					// 同项目重导入但本次工作簿没给消耗行：保留既有消耗行，不清空。
+					q.Items = existing.Items
+				}
 			}
-		}
-		if _, err := s.SaveQuota(q, idx); err != nil {
-			res.Errors = append(res.Errors, fmt.Sprintf("定额 %s（%s）落库失败: %v", rr.Code, title, err))
+			if _, err := s.SaveQuota(q, idx); err != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("定额 %s（%s）落库失败: %v", rr.Code, title, err))
+			}
 		}
 	}
 
 	// ④ 清单层落库（SchemaV28）：分部分项清单（编码/名称/单位/**工程量**）
 	// 是工程实体的一等数据——此前只活在 xlsx 里，费用汇总面板只能空手试算。
 	// 工程量优先取综合单价表的 Items.Quantity，为 0 时回退工程量计算表。
-	s.applyBillItems(b, items, resolved, &res)
+	s.applyBillItems(b, items, resolved, billLinks, &res)
 	return res
 }
 
 // applyBillItems 落项目封面+费率+分部分项清单（幂等：同项目同编码走更新）。
 // 费率来自模版「费用汇总」取费区（录入数据落库，不做任何加总）。
-func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved map[string]string, res *ApplyProjectResult) {
+func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved map[string]string,
+	billLinks map[string][]ProjectQuotaBlock, res *ApplyProjectResult) {
 	projectName := strings.TrimSpace(b.Project)
 	if projectName == "" {
 		projectName = strings.TrimSuffix(b.FileName, ".xlsx")
@@ -406,11 +450,15 @@ func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved m
 			continue
 		}
 		// 1:N 引用表双写（SchemaV30）：单值 quota_code 仍是主定额锚点，link 表
-		// 是引用事实全量——挂接编辑/多定额组合以此为准。quantity=清单工程量
-		// （各定额自身工程量后续在挂接面调整）。
-		if saved.QuotaCode != "" {
-			if _, err := s.AttachBillQuotaLink(saved.ID, saved.QuotaCode, saved.Quantity); err != nil {
-				res.Errors = append(res.Errors, fmt.Sprintf("清单项 %s 挂接定额 %s 失败: %v", it.Code, saved.QuotaCode, err))
+		// 是引用事实全量——挂接编辑/多定额组合以此为准。quantity=清单工程量×
+		// 块系数（三级行组；系数 0=跟随清单工程量，与挂接面语义一致）。
+		for _, lk := range billLinks[it.Code] {
+			qty := saved.Quantity
+			if lk.Factor > 0 && saved.Quantity > 0 {
+				qty = saved.Quantity * lk.Factor
+			}
+			if _, err := s.AttachBillQuotaLink(saved.ID, lk.Code, qty); err != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("清单项 %s 挂接定额 %s 失败: %v", it.Code, lk.Code, err))
 			}
 		}
 	}

@@ -48,6 +48,8 @@ func TestCostLibraryArgsNoWrite(t *testing.T) {
 		{"丢弃导入不写库", map[string]any{"action": "import_discard", "import_id": "imp-1"}, true},
 		{"提交导入演练", map[string]any{"action": "import_commit", "import_id": "imp-1", "dry_run": true}, true},
 		{"提交导入正式=写库", map[string]any{"action": "import_commit", "import_id": "imp-1"}, false},
+		// 生成测算模版（六表，2026-11-25）：只读库、只在工作区新增一个文件，不写库。
+		{"生成测算模版不写库", map[string]any{"action": "template", "template": map[string]any{"specialty": "市政", "region": "重庆中心城区"}}, true},
 	}
 	for _, tc := range cases {
 		b, _ := json.Marshal(tc.args)
@@ -66,7 +68,7 @@ func TestCostLibraryApprovalSubject(t *testing.T) {
 		b, _ := json.Marshal(args)
 		return costLibraryApprovalSubject(b)
 	}
-	if s := subject(map[string]any{"action": "import_project", "path": `D:\新工作\南岸\包3成本测算表.xlsx`}); !strings.Contains(s, "导入五表工作簿") || !strings.Contains(s, "包3成本测算表.xlsx") {
+	if s := subject(map[string]any{"action": "import_project", "path": `D:\新工作\南岸\包3成本测算表.xlsx`}); !strings.Contains(s, "导入测算工作簿（六表）") || !strings.Contains(s, "包3成本测算表.xlsx") {
 		t.Fatalf("导入摘要应含动作与文件名，得到 %q", s)
 	}
 	if s := subject(map[string]any{"action": "delete_quota", "codes": []string{"A", "B"}, "force": true}); !strings.Contains(s, "删除定额") || !strings.Contains(s, "2 条") || !strings.Contains(s, "连带解除引用") {

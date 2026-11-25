@@ -45,12 +45,12 @@ const p2: WorkcostBillProject = { ...p1, id: 2, name: '什邡地块治理', item
 /** 导出入参：与页面同一份「零值=不过滤」的筛选结构体。 */
 const EMPTY_FILTER = { projectId: 0, keyword: '', specialty: '', division: '', chapter: '', kind: '', category: '', region: '', period: '' }
 
-const row11 = { id: 11, projectId: 1, projectName: p1.name, code: 'WP01', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 850, quantityExpr: '长850×宽1', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 420, sort: 1, quotaCodes: ['WP01'] }
+const row11 = { id: 11, projectId: 1, projectName: p1.name, code: 'WP01', gcode: 'Q0001001', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 850, quantityExpr: '长850×宽1', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 420, sort: 1, quotaCodes: ['WP01'] }
 const row12 = { id: 12, projectId: 1, projectName: p1.name, code: 'M001', title: '外委检测', unit: '项', division: 'D外运处置', quantity: 1, quantityExpr: '', quotaCode: '', feature: '', priceOverride: 5000, sort: 2, quotaCodes: [] }
-const row13 = { id: 13, projectId: 2, projectName: p2.name, code: 'WP01', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 300, quantityExpr: '', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 430, sort: 1, quotaCodes: ['WP01'] }
+const row13 = { id: 13, projectId: 2, projectName: p2.name, code: 'WP01', gcode: 'Q0001002', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 300, quantityExpr: '', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 430, sort: 1, quotaCodes: ['WP01'] }
 
 const quotaWP01: WorkcostQuota = {
-  id: 1, code: 'WP01', origCode: 'WP-1', title: '施工便道', specialty: '土壤修复', chapter: 'A临建', unit: 'm',
+  id: 1, code: 'WP01', gcode: 'D0101001', origCode: 'WP-1', title: '施工便道', specialty: '土壤修复', chapter: 'A临建', unit: 'm',
   categoryPath: '综合单价/A临建', baseLabor: 0, baseMaterial: 0, baseMachine: 0, source: '项目导入：旺平成本测算表.xlsx',
   region: '', priceDate: '', note: '', status: '现行',
   items: [
@@ -70,7 +70,7 @@ const composeWP01: WorkcostCompose = {
 }
 
 const c20: WorkcostResource = {
-  id: 101, code: 'C20', kind: '材料', title: 'C20商品混凝土', spec: '泵送到场', unit: 'm³', basePrice: 345, currentPrice: 360,
+  id: 101, code: 'C20', gcode: 'RC010001', kind: '材料', title: 'C20商品混凝土', spec: '泵送到场', unit: 'm³', basePrice: 345, currentPrice: 360,
   categoryPath: '材料/混凝土', source: '成本库', supplier: '', region: '乐山', priceDate: '2026年第7期', priceType: '到场价',
   validUntil: '', lossRate: 0, note: '', tags: [], status: '现行',
 }
@@ -144,6 +144,7 @@ describe('造价数据库 · 三级浏览面', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
     const bill = await screen.findByTestId('cost-detail-bill')
     expectText(bill, '原表单价')
+    expectText(bill, 'G Q0001001') // 库内自有码与来源码并显（SchemaV39）
     expect((await within(bill).findAllByText('¥162')).length).toBeGreaterThan(0) // 0.45 × 360
     expect(mocks.WorkcostQuotaGet).toHaveBeenCalledWith('WP01')
 
@@ -153,6 +154,7 @@ describe('造价数据库 · 三级浏览面', () => {
     expectAriaSelected(screen.getByTestId('cost-tier-quota'))
     expectText(quota, '施工便道')
     expectText(quota, '原码 WP-1')
+    expectText(quota, 'G D0101001')
     expectText(quota, '被 2 条清单项引用')
     expect(mocks.WorkcostQuotaCompose).toHaveBeenCalledWith('WP01', null)
 
@@ -161,6 +163,7 @@ describe('造价数据库 · 三级浏览面', () => {
     const res = await screen.findByTestId('cost-detail-resource')
     expectAriaSelected(screen.getByTestId('cost-tier-resource'))
     expectText(res, '核算取用价')
+    expectText(res, 'G RC010001')
     expectText(res, '¥360')
     expectText(res, '¥345') // 基准价
     expect(await within(res).findByText('2026年第11期')).toBeTruthy()
@@ -313,7 +316,7 @@ describe('造价数据库 · 导出与体检', () => {
       return el
     })
     const items = Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).map((i) => i.textContent?.trim())
-    expect(items).toEqual(['清单（当前筛选）', '定额（当前筛选）', '工料机（当前筛选）', '资料条目（全部）'])
+    expect(items).toEqual(['测算模版（按库预填）', '清单（当前筛选）', '定额（当前筛选）', '工料机（当前筛选）', '资料条目（全部）'])
     fireEvent.click(Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).at(-1)!)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
     const [kind, filter, out] = mocks.CostLibraryExport.mock.calls[0]!
@@ -339,7 +342,7 @@ describe('造价数据库 · 导出与体检', () => {
     mocks.CostLibraryExport.mockRejectedValueOnce(new Error('磁盘已满'))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '导出' })) })
     await waitFor(() => expect(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item').length).toBeGreaterThan(0))
-    fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(0)!)
+    fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(1)!)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
     expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['bill', { ...EMPTY_FILTER, division: 'A临建' }])
     expectText(screen.getByTestId('cost-export-note'), '导出失败：磁盘已满')
@@ -539,7 +542,7 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     fireEvent.change(screen.getByTestId('cost-select-period'), { target: { value: '2026-06' } })
     expect(textOf(screen.getByTestId('cost-crumb'))).toContain('2026年6月')
     expect(textOf(screen.getByTestId('cost-crumb'))).not.toContain('2026-06')
-    await pickExport(2) // 工料机（当前筛选）
+    await pickExport(3) // 工料机（当前筛选）；第 0 位是测算模版
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
     expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, kind: '__outside__', period: '2026-06' }])
   })
@@ -576,16 +579,35 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     mocks.PickDirectory.mockResolvedValue('D:/导出')
     await renderReady()
     fireEvent.click(railBtn('cost-rail-bill-specialties', /未标注专业/))
-    await pickExport(0)
+    await pickExport(1)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
     expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['bill', { ...EMPTY_FILTER, specialty: '__none__' }])
 
     fireEvent.click(screen.getByTestId('cost-tier-resource'))
     await screen.findByTestId('cost-resource-rows')
     fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '乐山' } })
-    await pickExport(2)
+    await pickExport(3)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(2))
     expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, region: '乐山' }])
+  })
+
+  it('导出测算模版：kind=template，口径取当前专业与工料机级筛选，「未标注 / 类别待整理」哨兵不当口径', async () => {
+    mocks.PickDirectory.mockResolvedValue('D:/导出')
+    await renderReady()
+    // 清单级：专业未筛选 → 模版专业口径为空。
+    await pickExport(0)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
+    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['template', EMPTY_FILTER])
+
+    // 工料机级：地区成为模版口径；「类别待整理」这一桶对模版=没给类别。
+    fireEvent.click(screen.getByTestId('cost-tier-resource'))
+    await screen.findByTestId('cost-resource-rows')
+    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '乐山' } })
+    fireEvent.click(within(screen.getByTestId('cost-rail-kinds')).getAllByRole('button', { name: /^材料/ })[0]!)
+    await pickExport(0)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(2))
+    expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['template', { ...EMPTY_FILTER, kind: '材料', region: '乐山' }])
+    expect(String(mocks.CostLibraryExport.mock.calls[1]![2]).startsWith('D:/导出/造价库-测算模版-')).toBe(true)
   })
 
   it('体检多一类「不合规矩的数据」：字典外的取值点名，工料机的可跳转', async () => {

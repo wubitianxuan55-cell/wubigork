@@ -37,14 +37,15 @@ import "../gaea/tailwind.css";
 import "./cost-database.css";
 
 type Phase = "loading" | "ready" | "failed";
-type ExportKind = "bill" | "quota" | "resource" | "entry";
+type ExportKind = "template" | "bill" | "quota" | "resource" | "entry";
 type LibraryRow = BillRow | WorkcostQuota | WorkcostResource;
 
 const ROW_CAP = 400;
 const NARROW_WIDTH = 980;
-const EXPORT_LABEL: Record<ExportKind, string> = { bill: "清单", quota: "定额", resource: "工料机", entry: "资料条目" };
+const EXPORT_LABEL: Record<ExportKind, string> = { template: "测算模版", bill: "清单", quota: "定额", resource: "工料机", entry: "资料条目" };
 const TIER_LABEL: Record<Tier, string> = { bill: "清单", quota: "定额", resource: "工料机" };
 const EXPORT_ITEMS: ExportItem[] = [
+  { key: "template", label: "测算模版（按库预填）", hint: "六表空白测算表：工料机价格按当前专业/地区/期预填、费率预填最近项目口径；填完可在造价模式导回库" },
   { key: "bill", label: "清单（当前筛选）", hint: "项目、编码、名称、特征、挂接定额、原表单价、现算单价" },
   { key: "quota", label: "定额（当前筛选）", hint: "定额主表 + 含量明细附表" },
   { key: "resource", label: "工料机（当前筛选）", hint: "主数据与取用价、被定额引用次数" },
@@ -517,7 +518,13 @@ function CostLibraryPage() {
       const out = `${dir.replace(/[\\/]+$/, "")}/造价库-${EXPORT_LABEL[kind]}-${stamp}.xlsx`;
       // 导出跟随当前筛选：filter 结构体承载全部筛选口径（与列表同口径，NONE 哨兵=只要未标注的行）。
       const none = { projectId: 0, keyword: "", specialty: "", division: "", chapter: "", kind: "", category: "", region: "", period: "" };
-      const filter: WorkcostLibraryFilter = kind === "bill"
+      // 测算模版的口径：专业取当前级的专业筛选，地区/期/类别/分类取工料机级筛选
+      // （「未标注」哨兵后端当没给——模版没有「只要未标注」这种用法）。
+      const scope = (v: string) => (v === NONE || v === OUTSIDE ? "" : v);
+      const filter: WorkcostLibraryFilter = kind === "template"
+        ? { ...none, specialty: scope(tier === "bill" ? billF.specialty : quotaF.specialty), kind: scope(resourceF.kind),
+            category: scope(resourceF.category), region: scope(resourceF.region), period: scope(resourceF.period) }
+        : kind === "bill"
         ? { ...none, projectId: billF.projectId, keyword: billF.keyword, specialty: billF.specialty, division: billF.division }
         : kind === "quota"
           ? { ...none, keyword: quotaF.keyword, specialty: quotaF.specialty, chapter: quotaF.chapter }

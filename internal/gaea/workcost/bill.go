@@ -49,9 +49,12 @@ type BillProject struct {
 // PriceOverride > 0 = 手填单价优先（外委包干类，或对定额价的项目级调整）。
 // 合价刻意不入列：读时用当前价重算。
 type BillItem struct {
-	ID            int64   `json:"id"`
-	ProjectID     int64   `json:"projectId"`
-	Code          string  `json:"code"` // 清单编码（WP01/BJ01…；手填行自动 M 序号）
+	ID        int64  `json:"id"`
+	ProjectID int64  `json:"projectId"`
+	Code      string `json:"code"` // 清单编码（WP01/BJ01…；手填行自动 M 序号）
+	// GCode 库内自有码（Q+专业+分部+流水，SchemaV39；见 gcode.go）。Code 是
+	// 来源码（映射列），检索两码都吃。
+	GCode         string  `json:"gcode"`
 	Title         string  `json:"title"`
 	Unit          string  `json:"unit"`
 	Division      string  `json:"division"`      // 分部（A临建/B支护降水…）
@@ -168,14 +171,14 @@ WHERE id=?`, specialty, region, period, time.Now().Format(time.RFC3339), id)
 // billItemCols 清单行查询列（FindBillItem / BillItems 共用，避免两处列序漂移）。
 // 专业读取时已归一：行自身为空则取项目默认专业。
 const billItemCols = `
-SELECT i.id, i.project_id, i.code, i.title, i.unit, i.division, i.quantity, i.quantity_expr, i.quota_code,
+SELECT i.id, i.project_id, i.code, COALESCE(i.gcode,''), i.title, i.unit, i.division, i.quantity, i.quantity_expr, i.quota_code,
   i.feature, i.price_override, i.list_price, i.sort,
   COALESCE(NULLIF(i.specialty,''), NULLIF(p.specialty,''), '')
 FROM gf_bill_items i JOIN gf_projects p ON p.id=i.project_id`
 
 func scanBillItem(sc scanner) (*BillItem, error) {
 	var it BillItem
-	if err := sc.Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
+	if err := sc.Scan(&it.ID, &it.ProjectID, &it.Code, &it.GCode, &it.Title, &it.Unit, &it.Division,
 		&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.ListPrice, &it.Sort,
 		&it.Specialty); err != nil {
 		return nil, err
@@ -242,8 +245,14 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 			item.Sort = maxSort + 1
 		}
 	}
-	res, err := s.db.Exec(`INSERT INTO gf_bill_items (project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort, specialty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		item.ProjectID, item.Code, item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort, item.Specialty)
+	// 新清单行授自有码（Q + 专业2 + 分部2 + 流水3，见 gcode.go）。
+	gcode, err := s.newBillGCode(s.db, &item)
+	if err != nil {
+		return item, err
+	}
+	item.GCode = gcode
+	res, err := s.db.Exec(`INSERT INTO gf_bill_items (project_id, code, gcode, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort, specialty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		item.ProjectID, item.Code, item.GCode, item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort, item.Specialty)
 	if err != nil {
 		return item, err
 	}

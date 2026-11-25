@@ -192,13 +192,17 @@ func TestParseProjectWorkbookRejectsNonFiveSheet(t *testing.T) {
 	}
 }
 
-// TestDetectedFiveSheet 五表识别只认「工料机价格 + 综合单价」同时存在。
-func TestDetectedFiveSheet(t *testing.T) {
-	if !DetectedFiveSheet([]string{"封面", "费用汇总", "综合单价", "工料机价格", "工程量计算"}) {
-		t.Error("标准五表应被识别")
+// TestDetectedSixSheet 测算工作簿的判据：「清单 + 综合单价 + 工料机价格」三张表同时在。
+// 旧五表（清单在费用汇总上半段）不算——用户拍板旧版不兼容，判据松了清单工程量会整批丢。
+func TestDetectedSixSheet(t *testing.T) {
+	if !DetectedSixSheet([]string{"封面", "清单", "费用汇总", "综合单价", "工料机价格", "工程量计算"}) {
+		t.Fatal("六表模版应被认出")
 	}
-	if DetectedFiveSheet([]string{"封面", "费用汇总"}) {
-		t.Error("缺工料机价格/综合单价不应被识别为五表")
+	if DetectedSixSheet([]string{"封面", "费用汇总", "综合单价", "工料机价格", "工程量计算"}) {
+		t.Fatal("旧五表（没有「清单」表）不应再被当成测算工作簿")
+	}
+	if DetectedSixSheet([]string{"封面", "清单", "费用汇总"}) {
+		t.Fatal("只有清单表不算")
 	}
 }
 

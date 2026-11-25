@@ -29,22 +29,27 @@ var costExportKinds = map[string]string{
 // GaeaCostLibraryExport 把造价库的一类清单导出为 xlsx，返回写出的路径。
 //
 // kind：bill=分部分项清单｜quota=消耗定额（主表+含量明细附表）｜resource=工料机｜
-// entry=资料条目。filter 与板块列表的当前筛选同口径（见 workcost.LibraryFilter；
-// 未给的字段=不过滤）。outPath 是目标 .xlsx 的完整路径；已存在则拒绝覆盖。
+// entry=资料条目｜template=成本测算模版。filter 与板块列表的当前筛选同口径（见
+// workcost.LibraryFilter；未给的字段=不过滤）。outPath 是目标 .xlsx 的完整路径；
+// 已存在则拒绝覆盖。
+//
+// kind=template 生成六表测算模版（封面/清单/费用汇总/综合单价/工料机价格/工程量
+// 计算；综合单价是「清单→定额→工料机」三级行组），此时 filter 的 专业/地区/期数/
+// 类别/分类 是模版口径：封面写明专业·地区·计价期，工料机价格表按口径从库预填
+// 现行价（带自有码），费率预填库内最近项目的取费口径。填好的模版走 import_project
+// 原样回流。
 func (a *App) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, outPath string) (string, error) {
+	out, err := costOutPath(outPath)
+	if err != nil {
+		return "", err
+	}
+	outPath = out
+	if kind == "template" {
+		return a.costExportTemplate(filter, outPath)
+	}
 	sheet, ok := costExportKinds[kind]
 	if !ok {
-		return "", fmt.Errorf("不支持的导出类型 %q（bill/quota/resource/entry）", kind)
-	}
-	outPath = strings.TrimSpace(outPath)
-	if outPath == "" {
-		return "", fmt.Errorf("需要输出路径")
-	}
-	if !strings.EqualFold(filepath.Ext(outPath), ".xlsx") {
-		outPath += ".xlsx"
-	}
-	if _, err := os.Stat(outPath); err == nil {
-		return "", fmt.Errorf("文件已存在，换一个文件名：%s", outPath)
+		return "", fmt.Errorf("不支持的导出类型 %q（bill/quota/resource/entry/template）", kind)
 	}
 	filter.Keyword = strings.ToLower(strings.TrimSpace(filter.Keyword))
 
@@ -56,33 +61,139 @@ func (a *App) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, 
 	var (
 		headers []string
 		rows    [][]any
-		err     error
+		werr    error
 	)
 	switch kind {
 	case "bill":
-		headers, rows, err = a.costExportBill(filter)
+		headers, rows, werr = a.costExportBill(filter)
 	case "quota":
-		headers, rows, err = a.costExportQuota(filter, f)
+		headers, rows, werr = a.costExportQuota(filter, f)
 	case "resource":
-		headers, rows, err = a.costExportResource(filter)
+		headers, rows, werr = a.costExportResource(filter)
 	default:
-		headers, rows, err = a.costExportEntry(filter.Keyword)
+		headers, rows, werr = a.costExportEntry(filter.Keyword)
 	}
-	if err != nil {
-		return "", err
+	if werr != nil {
+		return "", werr
 	}
 	if err := costExportSheet(f, sheet, headers, rows); err != nil {
 		return "", fmt.Errorf("写出「%s」失败: %w", sheet, err)
 	}
-	if dir := filepath.Dir(outPath); dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", fmt.Errorf("创建导出目录失败: %w", err)
-		}
-	}
-	if err := f.SaveAs(outPath); err != nil {
-		return "", fmt.Errorf("保存工作簿失败: %w", err)
+	if err := costWriteFile(outPath, func(path string) error { return f.SaveAs(path) }); err != nil {
+		return "", err
 	}
 	return filepath.ToSlash(outPath), nil
+}
+
+// costOutPath 目标路径规整：非空、补 .xlsx 扩展名、已存在则拒绝覆盖。
+func costOutPath(outPath string) (string, error) {
+	outPath = strings.TrimSpace(outPath)
+	if outPath == "" {
+		return "", fmt.Errorf("需要输出路径")
+	}
+	if !strings.EqualFold(filepath.Ext(outPath), ".xlsx") {
+		outPath += ".xlsx"
+	}
+	if _, err := os.Stat(outPath); err == nil {
+		return "", fmt.Errorf("文件已存在，换一个文件名：%s", outPath)
+	}
+	return outPath, nil
+}
+
+// costWriteFile 建目录并让 save 落盘（各导出口共用）。
+func costWriteFile(outPath string, save func(path string) error) error {
+	if dir := filepath.Dir(outPath); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("创建导出目录失败: %w", err)
+		}
+	}
+	if err := save(outPath); err != nil {
+		return fmt.Errorf("保存工作簿失败: %w", err)
+	}
+	return nil
+}
+
+// costTemplateMaxResources 模版预填工料机的上限（防极端大库把模版撑爆）。
+const costTemplateMaxResources = 5000
+
+// costExportTemplate 按库生成成本测算模版：专业/地区/期数取 filter（「未标注」
+// 哨兵对模版没有意义，当没给），工料机按 工料机级筛选口径（类别/分类/地区/期数）
+// 从库预填，类别不在四类之内的存量行不预填（多为错记的说明行）。
+func (a *App) costExportTemplate(f workcost.LibraryFilter, outPath string) (string, error) {
+	opt, err := a.costTemplateOptions(f)
+	if err != nil {
+		return "", err
+	}
+	data, err := workcost.ExportProjectTemplate(opt)
+	if err != nil {
+		return "", fmt.Errorf("生成测算模版失败: %w", err)
+	}
+	if err := os.WriteFile(outPath, data, 0o644); err != nil {
+		return "", fmt.Errorf("写出测算模版失败: %w", err)
+	}
+	return filepath.ToSlash(outPath), nil
+}
+
+// costTemplateOptions 按筛选口径从库组装模版选项（口径三件、预填工料机、预填费率
+// 与其出处）。板块导出与 cost_library action=template 共用——回执里的预填条数、
+// 费率出处都从这里来。
+func (a *App) costTemplateOptions(f workcost.LibraryFilter) (workcost.TemplateOptions, error) {
+	s := a.hubWorkcostStore()
+	if !s.Available() {
+		return workcost.TemplateOptions{}, fmt.Errorf("工料机造价库不可用")
+	}
+	plain := func(v string) string {
+		v = strings.TrimSpace(v)
+		if v == workcost.FilterNone || v == workcost.FilterOutside {
+			return ""
+		}
+		return v
+	}
+	opt := workcost.TemplateOptions{
+		Specialty: plain(f.Specialty),
+		Region:    plain(f.Region),
+		Period:    plain(f.Period),
+	}
+
+	kind, region, period, category := plain(f.Kind), plain(f.Region), plain(f.Period), plain(f.Category)
+	list, err := s.ListResources(kind, "")
+	if err != nil {
+		return workcost.TemplateOptions{}, err
+	}
+	for _, r := range list {
+		// 分类是路径：选上级分类连带下级。
+		if category != "" && r.CategoryPath != category && !strings.HasPrefix(r.CategoryPath, category+"/") {
+			continue
+		}
+		if !workcost.IsKnownKind(r.Kind) {
+			continue
+		}
+		if !costExportPick(region, r.Region) || !costExportPick(period, r.PriceDate) {
+			continue
+		}
+		opt.Resources = append(opt.Resources, r)
+		if len(opt.Resources) >= costTemplateMaxResources {
+			break
+		}
+	}
+
+	// 费率：预填库内最近一个带费率项目的取费口径（企业自己的习惯口径），封面注明
+	// 出处；库里没有项目则用默认口径。
+	opt.Fee, opt.FeeSource = a.costTemplateFee(s)
+	return opt, nil
+}
+
+// costTemplateFee 模版预填的取费口径与出处说明。
+func (a *App) costTemplateFee(s *workcost.Store) (workcost.RateSet, string) {
+	if projects, err := s.BillProjects(); err == nil {
+		for _, p := range projects { // 最新在前
+			rs := workcost.RateSet{ManagementRate: p.ManagementRate, RegulatoryRate: p.RegulatoryRate, ProfitRate: p.ProfitRate, TaxRate: p.TaxRate}
+			if rs != (workcost.RateSet{}) {
+				return rs, fmt.Sprintf("取自库内最近项目「%s」的取费口径，按本项目实际口径改费用汇总的费率列", p.Name)
+			}
+		}
+	}
+	return workcost.DefaultRateSet(), "默认口径（企管 10% / 规费 2% / 利润 7% / 增值税 9%），库内还没有带费率的项目——按本项目实际口径改费用汇总的费率列"
 }
 
 // costExportMatch 关键词包含（已小写）；空关键词恒命中。
@@ -147,7 +258,7 @@ func (a *App) costExportBill(f workcost.LibraryFilter) ([]string, [][]any, error
 			if !costExportPick(f.Division, it.Division) || !costExportPick(f.Specialty, it.Specialty) {
 				continue
 			}
-			if !costExportMatch(f.Keyword, it.Title, it.Code, it.Feature, it.QuotaCode, strings.Join(it.QuotaCodes, " ")) {
+			if !costExportMatch(f.Keyword, it.Title, it.Code, it.GCode, it.Feature, it.QuotaCode, strings.Join(it.QuotaCodes, " ")) {
 				continue
 			}
 			picked = append(picked, row{project: p, item: it})
@@ -167,7 +278,7 @@ func (a *App) costExportBill(f workcost.LibraryFilter) ([]string, [][]any, error
 	if err != nil {
 		return nil, nil, err
 	}
-	headers := []string{"项目", "专业", "编码", "名称", "项目特征", "单位", "分部", "工程量", "工程量计算式",
+	headers := []string{"项目", "专业", "编码", "自有码", "名称", "项目特征", "单位", "分部", "工程量", "工程量计算式",
 		"挂接定额", "手填单价（元）", "原表单价（元）", "现算单价（元·人材机）"}
 	rows := make([][]any, 0, len(picked))
 	for _, r := range picked {
@@ -178,7 +289,7 @@ func (a *App) costExportBill(f workcost.LibraryFilter) ([]string, [][]any, error
 			}
 		}
 		rows = append(rows, []any{
-			r.project.Name, r.item.Specialty, r.item.Code, r.item.Title, r.item.Feature, r.item.Unit, r.item.Division,
+			r.project.Name, r.item.Specialty, r.item.Code, r.item.GCode, r.item.Title, r.item.Feature, r.item.Unit, r.item.Division,
 			r.item.Quantity, r.item.QuantityExpr, strings.Join(r.item.QuotaCodes, "+"),
 			costExportPrice(r.item.PriceOverride), costExportPrice(r.item.ListPrice), costExportPrice(unit),
 		})
@@ -206,7 +317,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 		if !costExportPick(f.Specialty, q.Specialty) || !costExportPick(f.Chapter, q.Chapter) {
 			continue
 		}
-		if !costExportMatch(f.Keyword, q.Title, q.Code, q.OrigCode, q.Chapter) {
+		if !costExportMatch(f.Keyword, q.Title, q.Code, q.GCode, q.OrigCode, q.Chapter) {
 			continue
 		}
 		picked = append(picked, q)
@@ -226,7 +337,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 			usage[q.Code] = len(refs)
 		}
 	}
-	headers := []string{"定额编码", "原码", "名称", "单位", "专业", "章节", "借鉴来源", "来源", "含量行数", "被清单引用", "现算综合单价（元·人材机）"}
+	headers := []string{"定额编码", "自有码", "原码", "名称", "单位", "专业", "章节", "借鉴来源", "来源", "含量行数", "被清单引用", "现算综合单价（元·人材机）"}
 	rows := make([][]any, 0, len(picked))
 	detail := make([][]any, 0)
 	for _, q := range picked {
@@ -238,7 +349,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 		if cp := composes[q.Code]; cp != nil {
 			unit = cp.CompositePrice
 		}
-		rows = append(rows, []any{q.Code, q.OrigCode, q.Title, q.Unit, q.Specialty, q.Chapter, q.DerivedFrom, q.Source,
+		rows = append(rows, []any{q.Code, q.GCode, q.OrigCode, q.Title, q.Unit, q.Specialty, q.Chapter, q.DerivedFrom, q.Source,
 			len(full.Items), usage[q.Code], costExportPrice(unit)})
 		for _, it := range full.Items {
 			price := 0.0
@@ -255,7 +366,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 			if it.Quantity > 0 && price > 0 {
 				amount = it.Quantity * price * (1 + it.LossRate)
 			}
-			detail = append(detail, []any{q.Code, q.Title, it.Kind, it.ResourceCode, it.Title, it.Spec, it.Unit,
+			detail = append(detail, []any{q.Code, q.GCode, q.Title, it.Kind, it.ResourceCode, it.Title, it.Spec, it.Unit,
 				costExportPrice(it.Quantity), loss, costExportPrice(price), costExportPrice(amount)})
 		}
 	}
@@ -263,7 +374,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 	if _, err := file.NewSheet(detailSheet); err != nil {
 		return nil, nil, err
 	}
-	detailHeaders := []string{"定额编码", "定额名称", "行类", "资源编码", "资源名称", "规格", "单位", "含量", "损耗率", "取用价（元）", "金额（元）"}
+	detailHeaders := []string{"定额编码", "自有码", "定额名称", "行类", "资源编码", "资源名称", "规格", "单位", "含量", "损耗率", "取用价（元）", "金额（元）"}
 	if err := costExportSheet(file, detailSheet, detailHeaders, detail); err != nil {
 		return nil, nil, fmt.Errorf("写出「%s」失败: %w", detailSheet, err)
 	}
@@ -285,7 +396,7 @@ func (a *App) costExportResource(f workcost.LibraryFilter) ([]string, [][]any, e
 		return nil, nil, err
 	}
 	counts, _ := s.ResourceReferenceCounts()
-	headers := []string{"编码", "类别", "名称", "规格", "单位", "现行价（元）", "基准价（元）", "取用价（元）", "损耗率",
+	headers := []string{"编码", "自有码", "类别", "名称", "规格", "单位", "现行价（元）", "基准价（元）", "取用价（元）", "损耗率",
 		"分类", "来源", "供应商", "地区", "价格期数", "价格口径", "有效期至", "状态", "备注", "被定额引用"}
 	rows := make([][]any, 0, len(list))
 	for _, r := range list {
@@ -307,14 +418,14 @@ func (a *App) costExportResource(f workcost.LibraryFilter) ([]string, [][]any, e
 		if !costExportPick(f.Region, r.Region) || !costExportPick(f.Period, r.PriceDate) {
 			continue
 		}
-		if !costExportMatch(f.Keyword, r.Title, r.Code, r.Spec, r.CategoryPath) {
+		if !costExportMatch(f.Keyword, r.Title, r.Code, r.GCode, r.Spec, r.CategoryPath) {
 			continue
 		}
 		loss := ""
 		if r.LossRate > 0 {
 			loss = fmt.Sprintf("%.1f%%", r.LossRate*100)
 		}
-		rows = append(rows, []any{r.Code, r.Kind, r.Title, r.Spec, r.Unit,
+		rows = append(rows, []any{r.Code, r.GCode, r.Kind, r.Title, r.Spec, r.Unit,
 			costExportPrice(r.CurrentPrice), costExportPrice(r.BasePrice), costExportPrice(r.EffectivePrice()), loss,
 			r.CategoryPath, r.Source, r.Supplier, r.Region, r.PriceDate, r.PriceType, r.ValidUntil, r.Status, r.Note,
 			counts[r.Code]})

@@ -45,9 +45,14 @@ let mockBillSeq = 1;
 // ensureWorkcostSeed 首次访问时播种演示数据（幂等）。
 function ensureWorkcostSeed(): void {
   if (mockResources.length > 0) return;
+  const kindSeg: Record<string, string> = { "人工": "R", "材料": "C", "机械": "J", "外委": "W" };
+  const gseq: Record<string, number> = {};
   const add = (code: string, kind: WorkcostKind, title: string, spec: string, unit: string, price: number, source: string): void => {
+    const slot = kindSeg[kind] ?? "X";
+    gseq[slot] = (gseq[slot] ?? 0) + 1;
     mockResources.push({
-      id: mockResourceSeq++, code, kind, title, spec, unit,
+      id: mockResourceSeq++, code, gcode: `R${slot}01${String(gseq[slot]).padStart(4, "0")}`,
+      kind, title, spec, unit,
       basePrice: price, currentPrice: price, categoryPath: `工料机/${kind}`,
       source, supplier: "", region: "乐山", priceDate: "2026-07", priceType: "到场价",
       validUntil: "", lossRate: 0, note: "", tags: [], status: "现行",
@@ -65,9 +70,9 @@ function ensureWorkcostSeed(): void {
     createdAt: "2026-10-07T10:00:00Z", updatedAt: "2026-10-07T10:00:00Z",
   }];
   mockBillItems = [
-    { id: mockBillSeq++, projectId: 1, code: "WP01", title: "施工便道（铺筑压实）", unit: "m", division: "A临建", quantity: 850, quantityExpr: "长850×宽1", quotaCode: "WP01", feature: "泥结碎石", priceOverride: 0, listPrice: 420, sort: 1, quotaCodes: ["WP01"] },
-    { id: mockBillSeq++, projectId: 1, code: "WP02", title: "场地平整", unit: "m²", division: "A临建", quantity: 12000, quantityExpr: "", quotaCode: "WP02", feature: "", priceOverride: 0, sort: 2, quotaCodes: ["WP02"] },
-    { id: mockBillSeq++, projectId: 1, code: "M001", title: "外委检测（手填）", unit: "项", division: "D外运处置", quantity: 1, quantityExpr: "", quotaCode: "", feature: "", priceOverride: 5000, sort: 3, quotaCodes: [] },
+    { id: mockBillSeq++, projectId: 1, code: "WP01", gcode: "Q0001001", title: "施工便道（铺筑压实）", unit: "m", division: "A临建", quantity: 850, quantityExpr: "长850×宽1", quotaCode: "WP01", feature: "泥结碎石", priceOverride: 0, listPrice: 420, sort: 1, quotaCodes: ["WP01"] },
+    { id: mockBillSeq++, projectId: 1, code: "WP02", gcode: "Q0001002", title: "场地平整", unit: "m²", division: "A临建", quantity: 12000, quantityExpr: "", quotaCode: "WP02", feature: "", priceOverride: 0, sort: 2, quotaCodes: ["WP02"] },
+    { id: mockBillSeq++, projectId: 1, code: "M001", gcode: "Q0002001", title: "外委检测（手填）", unit: "项", division: "D外运处置", quantity: 1, quantityExpr: "", quotaCode: "", feature: "", priceOverride: 5000, sort: 3, quotaCodes: [] },
   ];
   add("LDR", "机械", "装载机50型台班", "折旧700+柴油×70L+司机", "台班", 1445.9, "台班公式");
   add("C20", "材料", "C20商品混凝土", "泵送到场", "m³", 345, "商品混凝土C30减20");
@@ -88,7 +93,7 @@ function ensureWorkcostSeed(): void {
     };
   };
   const quota = (id: number, code: string, title: string, chapter: string, unit: string, note: string, items: WorkcostQuotaItem[]): WorkcostQuota => ({
-    id, code, title, specialty: "土壤修复", chapter, unit,
+    id, code, gcode: `D01${String(id).padStart(2, "0")}${String(id).padStart(3, "0")}`, title, specialty: "土壤修复", chapter, unit,
     categoryPath: `综合单价/${chapter}`, baseLabor: 0, baseMaterial: 0, baseMachine: 0,
     source: "项目导入（演示）", region: "", priceDate: "", note, status: "现行", items,
   });

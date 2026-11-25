@@ -1002,3 +1002,23 @@ WHERE period GLOB '[0-9][0-9][0-9][0-9]年[0-9]*月'
   AND substr(period,1,2) IN ('19','20')
   AND CAST(substr(period,6,length(period)-6) AS INTEGER) BETWEEN 1 AND 12;
 `
+
+// SchemaV39 造价自有编码（2026-11-25 用户拍板「造价编码自己设计一套，与现在的
+// 体系对应」）：三表各加 gcode 列承载库内自有码（清单 Q / 定额 D / 工料机 R 三族，
+// 段位=族+专业2+分部·章节·分类2+流水），码是身份不是分类——发出永不复用、归类
+// 后不变。外部码原列原样保留（国标清单码/定额码仍是检索对象），两码在详情、
+// 检索、导出里并显。存量补授与新行授码走 workcost.EnsureGCodes（水位表防删行
+// 复号，见 gcode.go）；唯一索引用部分索引（WHERE gcode<>”）放行待授码的空值。
+// gf_gcode_seq 是授码水位表：每个码前缀记「已发到的流水号」，删行不回退。
+const SchemaV39 = `
+ALTER TABLE gf_quotas ADD COLUMN gcode TEXT NOT NULL DEFAULT '';
+ALTER TABLE gf_bill_items ADD COLUMN gcode TEXT NOT NULL DEFAULT '';
+ALTER TABLE gf_resources ADD COLUMN gcode TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_quotas_gcode ON gf_quotas(gcode) WHERE gcode <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bill_items_gcode ON gf_bill_items(gcode) WHERE gcode <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_resources_gcode ON gf_resources(gcode) WHERE gcode <> '';
+CREATE TABLE IF NOT EXISTS gf_gcode_seq (
+  prefix TEXT PRIMARY KEY,
+  last   INTEGER NOT NULL DEFAULT 0
+);
+`
