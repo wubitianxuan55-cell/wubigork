@@ -1,12 +1,17 @@
-// CostLibraryPage — 一级板块「造价数据库」（2026-11-25 推倒重建）。
+// CostLibraryPage — 一级板块「造价数据库」（2026-11-25 推倒重建；同日库定规矩）。
 //
 // 定位：三级造价数据的浏览面——清单 → 定额 → 工料机。导入、解析、维护全部在
 // 办公板块的「造价」运行模式里由模型完成（cost_library / cost_project_apply）；
 // 这里只给人看，外加导出与删除。与方案库同一模式：库页只读，改库经产品。
 //
-// 布局：左栏三级切换与上下文（项目 / 专业 / 类别）→ 中栏列表（筛选、批量删除、
-// 下钻入口）→ 右栏详情（综合单价分析、含量行分析表、价格卡与调价历史），三级
-// 之间可以来回下钻。四态分明：加载 / 空库（三步引导）/ 无匹配 / 读取失败。
+// 维度：清单与定额按专业分（定额在专业内按章节），工料机按种类（类别 → 分类）、
+// 地区、期数分。规范值只认库里的取值；没标注的归「未标注」一桶，状态行的「待整理」
+// 指路去造价模式归类。
+//
+// 布局：左栏三级切换与两级上下文（专业 → 项目 / 专业 → 章节 / 类别 → 分类）→
+// 中栏列表（筛选、当前位置、批量删除、下钻入口）→ 右栏详情（综合单价分析与
+// 消耗量、含量行分析表、价格卡与各期价格），三级之间可以来回下钻。
+// 四态分明：加载 / 空库（三步引导）/ 无匹配 / 读取失败。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle, Coins, Copy, FolderOpen, Inbox, Loader2, RefreshCw, Search, Shield, Trash2, X,
@@ -14,16 +19,18 @@ import {
 import { app } from "../gaea/lib/bridge";
 import { copyToClipboard } from "../gaea/lib/clipboard";
 import { useBoardActive } from "../lib/boardActive";
-import type { WorkcostBillProject, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
+import type { WorkcostBillProject, WorkcostLibraryFilter, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
 import { BillDetail, DetailState, QuotaDetail, ResourceDetail } from "./cost-library/Details";
 import { HealthDrawer, type HealthJump } from "./cost-library/HealthDrawer";
 import { DeleteDialog, ExportMenu, type DeleteRequest, type ExportItem } from "./cost-library/Overlays";
 import { BillTable, QuotaTable, ResourceTable } from "./cost-library/Tables";
 import { TierBar, TierRail, type TierCounts } from "./cost-library/TierRail";
 import {
-  RESOURCE_KINDS, SAMPLE_PROMPTS, TIERS, capRows, emptyBillFilters, emptyQuotaFilters, emptyResourceFilters, divisionsOf, filterBill, filterQuotas, filterResources,
-  fmtRate, kindCounts, linkedQuotas, parseSelKey, quotaUsageIndex, selKey, specialtiesOf,
-  type BillFilters, type BillRow, type QuotaFilters, type ResourceFilters, type SelKey, type Tier,
+  NONE, OUTSIDE, PENDING_PROMPT, SAMPLE_PROMPTS, TIERS, capRows, categoryTreeOf, chaptersOf, billSpecialties, dimLabel,
+  emptyBillFilters, emptyQuotaFilters, emptyResourceFilters, divisionsOf, facetMatch, filterBill, filterQuotas, filterResources,
+  fmtPeriod, fmtRate, kindLabel, kindsOf, linkedQuotas, parseSelKey, pendingOf, pendingSummary, periodsOf, quotaUsageIndex, regionsOf,
+  selKey, specialtiesOf,
+  type BillFilters, type BillRow, type CategoryNode, type Facet, type QuotaFilters, type ResourceFilters, type SelKey, type Tier,
 } from "./cost-library/logic";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
@@ -63,6 +70,31 @@ function message(e: unknown): string {
 
 function openOfficeBoard(): void {
   window.dispatchEvent(new CustomEvent("navigate", { detail: { page: "gaea" } }));
+}
+
+/** 维度取值的下拉：「全部」+ 各取值（带条数）；NONE 显示成「未标注」。 */
+function FacetSelect({ label, allLabel, value, facets, onChange, emptyLabel, format, testid }: {
+  label: string;
+  allLabel: string;
+  value: string;
+  facets: Facet[];
+  onChange: (next: string) => void;
+  emptyLabel: string;
+  /** 取值的显示写法（默认原样；期数用 fmtPeriod 显示成年月，与列表同一口径）。 */
+  format?: (name: string) => string;
+  testid?: string;
+}) {
+  // 没有可筛的（一个取值都没有）且当前也没在筛：不出这个下拉。
+  if (facets.length === 0 && !value) return null;
+  const show = (name: string) => (format ? format(name) : dimLabel(name, emptyLabel));
+  return (
+    <select className="cl-select" aria-label={label} data-testid={testid} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{allLabel}</option>
+      {facets.map((f) => (
+        <option key={f.name} value={f.name}>{show(f.name)}（{f.count}）</option>
+      ))}
+    </select>
+  );
 }
 
 /** 行的选择键：清单用行 id，定额 / 工料机用编码。 */
@@ -120,7 +152,7 @@ function EmptyLibrary({ copyState, onCopy }: { copyState: "idle" | "done" | "fai
             <span className="cl-step-index">02</span>
             <div>
               <div className="cl-step-title">让 AI 把数据录进来</div>
-              <div className="cl-step-desc">五表工作簿一条提示词即可整份导入；每次写入都需要你确认。</div>
+              <div className="cl-step-desc">造价资料格式不限：AI 读资料、整理后提交，勾稽核对由你确认后落库。</div>
               {(Object.keys(SAMPLE_PROMPTS) as Tier[]).map((t) => (
                 <div key={t} className="cl-prompt">
                   <code>{SAMPLE_PROMPTS[t]}</code>
@@ -149,10 +181,13 @@ function EmptyLibrary({ copyState, onCopy }: { copyState: "idle" | "done" | "fai
   );
 }
 
-/** 选中项目时的封面卡（只读）：封面信息 + 四费率 + 整体删除。 */
+/** 选中项目时的封面卡（只读）：封面信息 + 口径（专业 / 地区 / 计价期）+ 四费率 + 整体删除。 */
 function ProjectCard({ project, onDeleted }: { project: WorkcostBillProject; onDeleted: (p: WorkcostBillProject) => void }) {
+  // 口径是库里的规范值（空=还没标注，在造价模式用 cost_library classify 归类）。
   const facts: [string, string][] = [
-    ["源工作簿", project.fileName], ["地区", project.location], ["工期", project.duration], ["计价口径", project.pricing],
+    ["专业", project.specialty || "未标注"], ["地区", project.region || "未标注"],
+    ["计价期", project.pricePeriod ? fmtPeriod(project.pricePeriod) : "未标注"],
+    ["封面地址", project.location], ["源资料", project.fileName], ["工期", project.duration], ["计价口径", project.pricing],
   ].filter(([, v]) => v) as [string, string][];
   return (
     <article className="cl-detail" data-testid="cost-project-card">
@@ -299,12 +334,24 @@ function CostLibraryPage() {
   // ── 派生：引用索引、筛选项、当前级的可见行 ──
   const usageIndex = useMemo(() => quotaUsageIndex(snap.rows), [snap.rows]);
   const usageCount = useMemo(() => new Map<string, number>([...usageIndex].map(([code, list]) => [code, list.length])), [usageIndex]);
-  const divisions = useMemo(() => divisionsOf(snap.rows), [snap.rows]);
+  const divisions = useMemo(() => divisionsOf(filterBill(snap.rows, { ...billF, division: "", keyword: "", grouped: false })), [snap.rows, billF]);
+  // 维度（库定规矩）：规范值只认库里的取值，空值归「未标注」一桶。
   const specialties = useMemo(() => specialtiesOf(snap.quotas), [snap.quotas]);
-  const kinds = useMemo(() => {
-    const counts = kindCounts(snap.resources);
-    return RESOURCE_KINDS.filter((k) => (counts[k] ?? 0) > 0).map((k) => ({ kind: k, count: counts[k] ?? 0 }));
-  }, [snap.resources]);
+  const billSpecFacets = useMemo(() => billSpecialties(snap.rows, { projectId: 0, division: billF.division }), [snap.rows, billF.division]);
+  // 当前专业下有清单行的项目——左栏的项目列表随专业变。
+  const specProjects = useMemo(() => {
+    if (!billF.specialty) return snap.projects;
+    const ids = new Set(snap.rows.filter((it) => facetMatch(billF.specialty, it.specialty)).map((it) => it.projectId));
+    return snap.projects.filter((p) => ids.has(p.id));
+  }, [snap.projects, snap.rows, billF.specialty]);
+  // 章节只在专业内有意义：没选专业时不出章节这一级。
+  const chapters = useMemo(() => (quotaF.specialty ? chaptersOf(snap.quotas, quotaF.specialty) : []), [snap.quotas, quotaF.specialty]);
+  // 四类里有行的按固定顺序；四类外有行时末尾加一桶「类别待整理」（存量里类别不合规矩的行）。
+  const kinds = useMemo(() => kindsOf(snap.resources), [snap.resources]);
+  const resourceCategories = useMemo(() => categoryTreeOf(snap.resources, resourceF.kind), [snap.resources, resourceF.kind]);
+  const resourceRegions = useMemo(() => regionsOf(snap.resources), [snap.resources]);
+  const resourcePeriods = useMemo(() => periodsOf(snap.resources), [snap.resources]);
+  const pending = useMemo(() => pendingOf(snap.rows, snap.quotas, snap.resources), [snap.rows, snap.quotas, snap.resources]);
 
   const billRows = useMemo(() => filterBill(snap.rows, billF), [snap.rows, billF]);
   const quotaRows = useMemo(() => filterQuotas(snap.quotas, quotaF), [snap.quotas, quotaF]);
@@ -354,11 +401,21 @@ function CostLibraryPage() {
     setPane("list");
   };
 
-  // 跳到某一级的某一行：该级筛选清空，保证目标行在列表里可见。
+  // 跳到某一级的某一行。目标行过不了该级当前筛选时才清空筛选（保证它在列表里可见，
+  // 跨级下钻、体检跳转都是这种情况）；它本来就在列表里时保留筛选——同级点一行看详情，
+  // 人刚筛到这儿，不能把上下文冲掉。
   const jump = (next: Tier, key: SelKey) => {
-    if (next === "bill") setBillF(emptyBillFilters);
-    if (next === "quota") setQuotaF(emptyQuotaFilters);
-    if (next === "resource") setResourceF(emptyResourceFilters);
+    const id = parseSelKey(key)?.id;
+    if (next === "bill") {
+      const row = snap.rows.find((r) => String(r.id) === id);
+      if (!row || filterBill([row], billF).length === 0) setBillF(emptyBillFilters);
+    } else if (next === "quota") {
+      const quota = snap.quotas.find((q) => q.code === id);
+      if (!quota || filterQuotas([quota], quotaF).length === 0) setQuotaF(emptyQuotaFilters);
+    } else {
+      const resource = snap.resources.find((r) => r.code === id);
+      if (!resource || filterResources([resource], resourceF).length === 0) setResourceF(emptyResourceFilters);
+    }
     setTier(next);
     setSelected(key);
     setPane("detail");
@@ -458,10 +515,16 @@ function CostLibraryPage() {
       const p2 = (v: number) => String(v).padStart(2, "0");
       const stamp = `${n.getFullYear()}${p2(n.getMonth() + 1)}${p2(n.getDate())}-${p2(n.getHours())}${p2(n.getMinutes())}${p2(n.getSeconds())}`;
       const out = `${dir.replace(/[\\/]+$/, "")}/造价库-${EXPORT_LABEL[kind]}-${stamp}.xlsx`;
-      const projectId = kind === "bill" ? billF.projectId : 0;
-      const kw = kind === "bill" ? billF.keyword : kind === "quota" ? quotaF.keyword : kind === "resource" ? resourceF.keyword : "";
-      const extra = kind === "bill" ? billF.division : kind === "quota" ? quotaF.specialty : kind === "resource" ? resourceF.kind : "";
-      const written = await app.CostLibraryExport(kind, projectId, kw, extra, out);
+      // 导出跟随当前筛选：filter 结构体承载全部筛选口径（与列表同口径，NONE 哨兵=只要未标注的行）。
+      const none = { projectId: 0, keyword: "", specialty: "", division: "", chapter: "", kind: "", category: "", region: "", period: "" };
+      const filter: WorkcostLibraryFilter = kind === "bill"
+        ? { ...none, projectId: billF.projectId, keyword: billF.keyword, specialty: billF.specialty, division: billF.division }
+        : kind === "quota"
+          ? { ...none, keyword: quotaF.keyword, specialty: quotaF.specialty, chapter: quotaF.chapter }
+          : kind === "resource"
+            ? { ...none, keyword: resourceF.keyword, kind: resourceF.kind, category: resourceF.category, region: resourceF.region, period: resourceF.period }
+            : none;
+      const written = await app.CostLibraryExport(kind, filter, out);
       setExportNote({ text: `已导出：${written}`, isError: false });
     } catch (e) {
       setExportNote({ text: `导出失败：${message(e)}`, isError: true });
@@ -487,8 +550,37 @@ function CostLibraryPage() {
     else setResourceF(emptyResourceFilters);
   };
   const hasFilter = tier === "bill"
-    ? billF.projectId !== 0 || !!billF.division || !!billF.keyword
-    : tier === "quota" ? !!quotaF.specialty || !!quotaF.keyword : !!resourceF.kind || !!resourceF.keyword;
+    ? billF.projectId !== 0 || !!billF.division || !!billF.specialty || !!billF.keyword
+    : tier === "quota"
+      ? !!quotaF.specialty || !!quotaF.chapter || !!quotaF.keyword
+      : !!resourceF.kind || !!resourceF.category || !!resourceF.region || !!resourceF.period || !!resourceF.keyword;
+
+  // 当前位置：下钻到三层以上时让人知道自己在哪（专业 › 项目 › 分部）。
+  // 分类路径已含类别名（材料/混凝土/泵送），前一级已显示类别，这里只列类别以下的各段。
+  const categoryCrumbs = (() => {
+    const c = resourceF.category;
+    if (!c) return [] as string[];
+    if (c === NONE) return ["未细分"];
+    if (c === resourceF.kind || c.startsWith(`${resourceF.kind}/`)) return c.slice(resourceF.kind.length).split("/").filter(Boolean);
+    return [c];
+  })();
+  const crumbs = tier === "bill"
+    ? [billF.specialty ? dimLabel(billF.specialty) : "", currentProject?.name ?? "", billF.division].filter(Boolean)
+    : tier === "quota"
+      ? [quotaF.specialty ? dimLabel(quotaF.specialty) : "", quotaF.chapter ? dimLabel(quotaF.chapter, "未归章节") : ""].filter(Boolean)
+      : [
+        resourceF.kind === OUTSIDE ? kindLabel(OUTSIDE) : resourceF.kind, ...categoryCrumbs,
+        resourceF.region ? dimLabel(resourceF.region) : "",
+        resourceF.period ? (resourceF.period === NONE ? "无期" : fmtPeriod(resourceF.period)) : "",
+      ].filter(Boolean);
+
+  // 「待整理」：文件不一定带专业 / 地区 / 分类，由造价模式的模型归类。点一下复制提示词。
+  const copyPending = async () => {
+    setCopyState(await copyToClipboard(PENDING_PROMPT) ? "done" : "failed");
+    window.setTimeout(() => setCopyState("idle"), 1600);
+  };
+  // 选专业 = 换一个专业看：回到全部项目（原项目在这个专业下可能没有行）。
+  const setBillSpecialty = (specialty: string) => setBillF({ ...billF, specialty, projectId: 0, division: "" });
 
   // ── 右栏详情：按选择键落到对应级 ──
   const parsedSel = selected ? parseSelKey(selected) : null;
@@ -503,6 +595,13 @@ function CostLibraryPage() {
     <>
       <div className="cl-col-head">
         <span className="cl-col-head-title">{tierMeta.label}</span>
+        {crumbs.length > 0 && (
+          <nav className="cl-crumb" aria-label="当前位置" data-testid="cost-crumb">
+            {crumbs.map((c, i) => (
+              <span key={`${i}:${c}`} className="cl-crumb-item">{i > 0 && <span className="cl-crumb-sep" aria-hidden>›</span>}{c}</span>
+            ))}
+          </nav>
+        )}
         <span className="cl-count" data-testid="cost-list-count">
           {matched.length !== totalOfTier ? `匹配 ${matched.length} / ${totalOfTier}` : `${totalOfTier} 条`}
         </span>
@@ -522,6 +621,15 @@ function CostLibraryPage() {
                 {divisions.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             )}
+          </>
+        )}
+        {tier === "resource" && (
+          <>
+            <FacetSelect label="筛选地区" allLabel="全部地区" value={resourceF.region} facets={resourceRegions} emptyLabel="未标注"
+              testid="cost-select-region" onChange={(v) => setResourceF({ ...resourceF, region: v })} />
+            <FacetSelect label="筛选期数" allLabel="全部期" value={resourceF.period} facets={resourcePeriods} emptyLabel="无期"
+              format={(name) => (name === NONE ? "无期" : fmtPeriod(name))}
+              testid="cost-select-period" onChange={(v) => setResourceF({ ...resourceF, period: v })} />
           </>
         )}
         <span className="cl-spacer" />
@@ -611,16 +719,40 @@ function CostLibraryPage() {
     </>
   );
 
+  // 窄窗放不下左栏：两级上下文各一个下拉（清单：专业 → 项目；定额：专业 → 章节；
+  // 工料机：类别 → 分类）。
+  const facetOptions = (facets: Facet[], emptyLabel: string) =>
+    facets.map((f) => ({ value: f.name, label: `${dimLabel(f.name, emptyLabel)}（${f.count}）` }));
+  const flattenCategories = (nodes: CategoryNode[], depth = 0): { value: string; label: string }[] =>
+    nodes.flatMap((n) => [{ value: n.path, label: `${"　".repeat(depth)}${n.label}（${n.count}）` }, ...flattenCategories(n.children, depth + 1)]);
   const contextOptions = tier === "bill"
-    ? [{ value: "0", label: "全部项目" }, ...snap.projects.map((p) => ({ value: String(p.id), label: `${p.name}（${p.itemCount}）` }))]
+    ? [{ value: "", label: "全部专业" }, ...facetOptions(billSpecFacets, "未标注专业")]
     : tier === "quota"
-      ? [{ value: "", label: "全部专业" }, ...specialties.map((s) => ({ value: s, label: s }))]
-      : [{ value: "", label: "全部类别" }, ...kinds.map((k) => ({ value: k.kind, label: `${k.kind}（${k.count}）` }))];
-  const contextValue = tier === "bill" ? String(billF.projectId) : tier === "quota" ? quotaF.specialty : resourceF.kind;
+      ? [{ value: "", label: "全部专业" }, ...facetOptions(specialties, "未标注专业")]
+      : [{ value: "", label: "全部类别" }, ...kinds.map((k) => ({ value: k.kind, label: `${kindLabel(k.kind)}（${k.count}）` }))];
+  const contextValue = tier === "bill" ? billF.specialty : tier === "quota" ? quotaF.specialty : resourceF.kind;
   const onContext = (v: string) => {
-    if (tier === "bill") setBillF({ ...billF, projectId: Number(v), division: "" });
-    else if (tier === "quota") setQuotaF({ ...quotaF, specialty: v });
-    else setResourceF({ ...resourceF, kind: v });
+    if (tier === "bill") setBillSpecialty(v);
+    else if (tier === "quota") setQuotaF({ ...quotaF, specialty: v, chapter: "" });
+    else setResourceF({ ...resourceF, kind: v, category: "" });
+  };
+  // 第二级只在选了第一级后出现（章节在专业内、分类在类别内才有意义；「类别待整理」下面没有分类）；清单的项目级恒在。
+  const firstChosen = tier === "quota" ? quotaF.specialty : resourceF.kind;
+  const secondChosen = tier === "bill" || (!!firstChosen && firstChosen !== OUTSIDE);
+  const secondOptions = tier === "bill"
+    ? [{ value: "0", label: "全部项目" }, ...specProjects.map((p) => ({ value: String(p.id), label: `${p.name}（${p.itemCount}）` }))]
+    : tier === "quota"
+      ? [{ value: "", label: "全部章节" }, ...facetOptions(chapters, "未归章节")]
+      : [
+        { value: "", label: "全部分类" },
+        ...(resourceCategories.uncategorized > 0 ? [{ value: NONE, label: `未细分（${resourceCategories.uncategorized}）` }] : []),
+        ...flattenCategories(resourceCategories.tree),
+      ];
+  const secondValue = tier === "bill" ? String(billF.projectId) : tier === "quota" ? quotaF.chapter : resourceF.category;
+  const onSecond = (v: string) => {
+    if (tier === "bill") setBillF((f) => ({ ...f, projectId: Number(v), division: "" }));
+    else if (tier === "quota") setQuotaF((f) => ({ ...f, chapter: v }));
+    else setResourceF((f) => ({ ...f, category: v }));
   };
 
   return (
@@ -657,7 +789,7 @@ function CostLibraryPage() {
         <div className="cl-actions">
           {phase === "ready" && !libraryEmpty && (
             <>
-              <button type="button" className="cl-btn" title="只读扫描五类数据健康发现" onClick={() => setHealthOpen(true)}>
+              <button type="button" className="cl-btn" title="只读扫描数据健康发现（含不合规矩的数据）" onClick={() => setHealthOpen(true)}>
                 <Shield size={13} aria-hidden />体检
               </button>
               <ExportMenu
@@ -684,6 +816,17 @@ function CostLibraryPage() {
             <span>清单 <strong>{snap.rows.length}</strong></span>
             <span>定额 <strong>{snap.quotas.length}</strong></span>
             <span>工料机 <strong>{snap.resources.length}</strong></span>
+            {pending.total > 0 && (
+              <button
+                type="button"
+                className="cl-pending"
+                data-testid="cost-pending"
+                title={`${pendingSummary(pending)}。点击复制整理提示词——到办公板块的「造价」运行模式粘贴发送，由模型归类、你确认后落库`}
+                onClick={() => void copyPending()}
+              >
+                {copyState === "done" ? "已复制提示词" : copyState === "failed" ? "复制失败" : `待整理 ${pending.total}`}
+              </button>
+            )}
             {snap.failedSources.length > 0 && (
               <span className="cl-status-warn" role="alert">{snap.failedSources.join("、")}读取失败，对应内容可能不完整</span>
             )}
@@ -713,7 +856,9 @@ function CostLibraryPage() {
             <div className="cl-bar-row">
               <TierBar tier={tier} counts={counts} onTier={changeTier} contextOptions={contextOptions}
                 contextValue={contextValue} onContext={onContext}
-                contextLabel={tier === "bill" ? "筛选项目" : tier === "quota" ? "筛选专业" : "筛选类别"} />
+                contextLabel={tier === "bill" || tier === "quota" ? "筛选专业" : "筛选类别"}
+                secondOptions={secondChosen ? secondOptions : undefined} secondValue={secondValue} onSecond={onSecond}
+                secondLabel={tier === "bill" ? "筛选项目" : tier === "quota" ? "筛选章节" : "筛选分类"} />
               <div className="cl-seg" role="tablist" aria-label="造价库视图">
                 <button type="button" role="tab" aria-selected={pane === "list"} onClick={() => setPane("list")}>列表</button>
                 <button type="button" role="tab" aria-selected={pane === "detail"} onClick={() => setPane("detail")}>详情</button>
@@ -724,10 +869,16 @@ function CostLibraryPage() {
             <nav className="cl-col cl-rail-col">
               <TierRail
                 tier={tier} counts={counts} onTier={changeTier}
-                projects={snap.projects} billFilters={billF} onProject={(id) => setBillF({ ...billF, projectId: id, division: "" })}
+                projects={specProjects} billFilters={billF}
+                billSpecialties={billSpecFacets} onBillSpecialty={setBillSpecialty}
+                onProject={(id) => setBillF({ ...billF, projectId: id, division: "" })}
                 onDeleteProject={deleteProject}
-                specialties={specialties} quotaFilters={quotaF} onSpecialty={(specialty) => setQuotaF({ ...quotaF, specialty })}
-                kinds={kinds} resourceFilters={resourceF} onKind={(kind) => setResourceF({ ...resourceF, kind })}
+                specialties={specialties} chapters={chapters} quotaFilters={quotaF}
+                onSpecialty={(specialty) => setQuotaF({ ...quotaF, specialty, chapter: "" })}
+                onChapter={(chapter) => setQuotaF({ ...quotaF, chapter })}
+                kinds={kinds} categories={resourceCategories} resourceFilters={resourceF}
+                onKind={(kind) => setResourceF({ ...resourceF, kind, category: "" })}
+                onCategory={(category) => setResourceF({ ...resourceF, category })}
               />
             </nav>
           )}

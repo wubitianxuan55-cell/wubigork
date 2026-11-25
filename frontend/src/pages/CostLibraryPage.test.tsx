@@ -31,14 +31,19 @@ vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 vi.mock('../gaea/lib/clipboard', () => ({ copyToClipboard: vi.fn().mockResolvedValue('plain') }))
 
 import { notifyBoardActive, resetBoardActive } from '../lib/boardActive'
+import { copyToClipboard } from '../gaea/lib/clipboard'
+import { PENDING_PROMPT } from './cost-library/logic'
 import CostLibraryPage from './CostLibraryPage'
 
 const p1: WorkcostBillProject = {
   id: 1, name: '旺平矿业修复', fileName: '旺平成本测算表.xlsx', source: '', location: '乐山', duration: '180 天',
-  pricing: '综合单价只含人材机', managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
+  pricing: '综合单价只含人材机', specialty: '土壤修复', region: '', pricePeriod: '', managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
   profitIncludesRegulatory: false, controlPrice: 0, itemCount: 2,
 }
 const p2: WorkcostBillProject = { ...p1, id: 2, name: '什邡地块治理', itemCount: 1, location: '德阳' }
+
+/** 导出入参：与页面同一份「零值=不过滤」的筛选结构体。 */
+const EMPTY_FILTER = { projectId: 0, keyword: '', specialty: '', division: '', chapter: '', kind: '', category: '', region: '', period: '' }
 
 const row11 = { id: 11, projectId: 1, projectName: p1.name, code: 'WP01', title: '施工便道（铺筑压实）', unit: 'm', division: 'A临建', quantity: 850, quantityExpr: '长850×宽1', quotaCode: 'WP01', feature: '泥结碎石', priceOverride: 0, listPrice: 420, sort: 1, quotaCodes: ['WP01'] }
 const row12 = { id: 12, projectId: 1, projectName: p1.name, code: 'M001', title: '外委检测', unit: '项', division: 'D外运处置', quantity: 1, quantityExpr: '', quotaCode: '', feature: '', priceOverride: 5000, sort: 2, quotaCodes: [] }
@@ -114,7 +119,7 @@ beforeEach(() => {
     zeroPrice: [{ id: 103, code: 'Z01', title: '待询价材料', kind: '材料', unit: 't', detail: '现行价与基准价均为 0' }],
     quotaNoPrice: [], brokenRef: [], duplicates: [], codeMismatch: [], totalFindings: 1,
   })
-  mocks.CostLibraryExport.mockImplementation(async (_k: string, _p: number, _q: string, _e: string, out: string) => out)
+  mocks.CostLibraryExport.mockImplementation(async (_k: string, _f: unknown, out: string) => out)
   mocks.PickDirectory.mockResolvedValue('D:\\新工作\\导出')
 })
 
@@ -171,6 +176,48 @@ describe('造价数据库 · 三级浏览面', () => {
     const bill2 = await screen.findByTestId('cost-detail-bill')
     expectAriaSelected(screen.getByTestId('cost-tier-bill'))
     expectText(bill2, '什邡地块治理')
+  })
+
+  it('同级点一行看详情：这一行在当前筛选结果里，筛选与当前位置都保留', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '什邡地块治理1' }))
+    await waitFor(() => expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' }))
+    const bill = await screen.findByTestId('cost-detail-bill')
+    expectText(bill, '什邡地块治理')
+    // 筛选没被冲掉：还是只看什邡的 1 条，当前位置还在。
+    expectText(screen.getByTestId('cost-list-count'), '匹配 1 / 3')
+    expectText(screen.getByTestId('cost-crumb'), '什邡地块治理')
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(2)
+  })
+
+  it('跨级跳转：目标行过不了那一级的当前筛选时才清空，保证它在列表里可见', async () => {
+    await renderReady()
+    // 先在定额级留一个会把目标筛掉的关键词。
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '企业' } })
+    expect(within(screen.getByTestId('cost-quota-rows')).getAllByRole('row')).toHaveLength(2) // 表头 + 企业定额
+    // 回清单级，从详情点定额码下钻：WP01 被「企业」筛掉 → 清空筛选，WP01 出现在列表里。
+    fireEvent.click(screen.getByTestId('cost-tier-bill'))
+    await screen.findByTestId('cost-bill-rows')
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByRole('button', { name: '下钻到定额 WP01' }))
+    const quota = await screen.findByTestId('cost-detail-quota')
+    expectText(quota, '施工便道')
+    expect((screen.getByRole('textbox', { name: '搜索定额' }) as HTMLInputElement).value).toBe('')
+    expect(within(screen.getByTestId('cost-quota-rows')).getAllByRole('row')).toHaveLength(3) // 表头 + 2 条定额
+    // 目标本就过筛时不清：定额级搜「便道」，再从清单详情下钻到 WP01。
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '便道' } })
+    fireEvent.click(screen.getByTestId('cost-tier-bill'))
+    await screen.findByTestId('cost-bill-rows')
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(screen.getByTestId('cost-detail-bill')).getByRole('button', { name: '下钻到定额 WP01' }))
+    await screen.findByTestId('cost-detail-quota')
+    expect((screen.getByRole('textbox', { name: '搜索定额' }) as HTMLInputElement).value).toBe('便道')
+    expect(within(screen.getByTestId('cost-quota-rows')).getAllByRole('row')).toHaveLength(2) // 表头 + WP01
   })
 
   it('左栏项目筛选：只看该项目的清单，详情显示项目封面卡（只读费率）', async () => {
@@ -269,8 +316,8 @@ describe('造价数据库 · 导出与体检', () => {
     expect(items).toEqual(['清单（当前筛选）', '定额（当前筛选）', '工料机（当前筛选）', '资料条目（全部）'])
     fireEvent.click(Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).at(-1)!)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
-    const [kind, projectId, keyword, extra, out] = mocks.CostLibraryExport.mock.calls[0]!
-    expect([kind, projectId, keyword, extra]).toEqual(['entry', 0, '', ''])
+    const [kind, filter, out] = mocks.CostLibraryExport.mock.calls[0]!
+    expect([kind, filter]).toEqual(['entry', EMPTY_FILTER])
     expect(out.startsWith('D:\\新工作\\导出/造价库-资料条目-')).toBe(true)
     expect(out.endsWith('.xlsx')).toBe(true)
     expectText(await screen.findByTestId('cost-export-note'), '已导出')
@@ -294,7 +341,7 @@ describe('造价数据库 · 导出与体检', () => {
     await waitFor(() => expect(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item').length).toBeGreaterThan(0))
     fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(0)!)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
-    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 4)).toEqual(['bill', 0, '', 'A临建'])
+    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['bill', { ...EMPTY_FILTER, division: 'A临建' }])
     expectText(screen.getByTestId('cost-export-note'), '导出失败：磁盘已满')
   })
 
@@ -360,12 +407,205 @@ describe('造价数据库 · 常驻与四态', () => {
     const empty = await screen.findByTestId('cost-empty')
     expectText(empty, '造价库还是空的')
     expectText(empty, '在办公板块切到「造价」运行模式')
-    expectText(empty, '导入造价库')
+    expectText(empty, '录入造价库')
+    expectText(empty, '造价资料格式不限')
     expect(screen.queryByRole('searchbox')).toBeNull()
     const nav = vi.fn()
     window.addEventListener('navigate', nav)
     fireEvent.click(within(empty).getByRole('button', { name: /去办公板块/ }))
     expect(nav).toHaveBeenCalledTimes(1)
     window.removeEventListener('navigate', nav)
+  })
+})
+
+describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）', () => {
+  function railBtn(testid: string, name: RegExp): HTMLElement {
+    return within(screen.getByTestId(testid)).getByRole('button', { name })
+  }
+  function rowsOf(testid: string): number {
+    return within(screen.getByTestId(testid)).getAllByRole('row').length
+  }
+  async function pickExport(index: number): Promise<void> {
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '导出' })) })
+    await waitFor(() => expect(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item').length).toBeGreaterThan(0))
+    fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(index)!)
+  }
+
+  it('清单按专业：左栏专业 → 项目随专业变，「未标注」单列一桶，当前位置显示专业', async () => {
+    mocks.WorkcostBillItems.mockImplementation(async (projectId: number) => projectId === 1
+      ? [{ ...row11, specialty: '土壤修复' }, { ...row12 }]
+      : [{ ...row13, specialty: '市政' }])
+    await renderReady()
+    expectText(screen.getByTestId('cost-rail-bill-specialties'), '未标注专业')
+    expectText(screen.getByTestId('cost-bill-rows'), '工程量') // 列表有专业与工程量列
+    fireEvent.click(railBtn('cost-rail-bill-specialties', /^市政/))
+    await waitFor(() => expect(rowsOf('cost-bill-rows')).toBe(2))
+    expectText(screen.getByTestId('cost-list-count'), '匹配 1 / 3')
+    expectText(screen.getByTestId('cost-crumb'), '市政')
+    // 项目列表随专业变：这个专业只有什邡的行。
+    const projects = screen.getByTestId('cost-rail-projects')
+    expect(within(projects).queryByText('旺平矿业修复')).toBeNull()
+    fireEvent.click(within(projects).getByRole('button', { name: /^什邡地块治理/ }))
+    expect(textOf(screen.getByTestId('cost-crumb'))).toContain('什邡')
+    // 先选了项目再换专业：回到全部项目，不会被卡在空列表里。
+    fireEvent.click(railBtn('cost-rail-bill-specialties', /^土壤修复/))
+    expect(textOf(screen.getByTestId('cost-crumb'))).not.toContain('什邡')
+    expect(within(screen.getByTestId('cost-rail-projects')).getByText('旺平矿业修复')).toBeTruthy()
+    fireEvent.click(railBtn('cost-rail-bill-specialties', /未标注专业/))
+    expectText(screen.getByTestId('cost-list-count'), '匹配 1 / 3')
+  })
+
+  it('定额：先选专业才出章节这一级；章节在专业内筛选，换专业时章节筛选跟着清', async () => {
+    const sz: WorkcostQuota = { ...quotaWP01, id: 3, code: 'SZ01', origCode: '', title: '沥青路面', specialty: '市政', chapter: '道路工程' }
+    const unlabeled: WorkcostQuota = { ...quotaWP01, id: 4, code: 'Q9', origCode: '', title: '没标专业的定额', specialty: '', chapter: '' }
+    mocks.WorkcostQuotaList.mockResolvedValue([
+      { ...quotaWP01, items: undefined, usageCount: 2 }, { ...quotaFree, items: undefined, chapter: '', usageCount: 0 },
+      { ...sz, items: undefined }, { ...unlabeled, items: undefined },
+    ])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    expect(screen.queryByTestId('cost-rail-quota-chapters')).toBeNull() // 没选专业：不出章节
+    expect(rowsOf('cost-quota-rows')).toBe(5) // 表头 + 4
+    expectText(screen.getByTestId('cost-quota-rows'), '章节') // 列表有章节列
+    fireEvent.click(railBtn('cost-rail-quota-specialties', /^土壤修复/))
+    const chapters = await screen.findByTestId('cost-rail-quota-chapters')
+    expectText(chapters, 'A临建')
+    expectText(chapters, '未归章节')
+    expect(rowsOf('cost-quota-rows')).toBe(3) // 表头 + 土壤修复的 2 条
+    fireEvent.click(railBtn('cost-rail-quota-chapters', /^A临建/))
+    expect(rowsOf('cost-quota-rows')).toBe(2)
+    expectText(screen.getByTestId('cost-crumb'), 'A临建')
+    fireEvent.click(railBtn('cost-rail-quota-specialties', /^市政/))
+    expect(textOf(screen.getByTestId('cost-crumb'))).not.toContain('A临建')
+    expectText(screen.getByTestId('cost-rail-quota-chapters'), '道路工程')
+    expect(rowsOf('cost-quota-rows')).toBe(2) // 市政的 1 条（章节筛选已清）
+  })
+
+  it('工料机：类别 → 分类（选上级连带下级）；工具条按地区、期数筛选；列表有地区与期两列', async () => {
+    const cq: WorkcostResource = { ...c20, id: 104, code: 'C30', title: 'C30商品混凝土', spec: '泵送', categoryPath: '材料/混凝土/泵送', region: '重庆中心城区', priceDate: '2025-12' }
+    const bare: WorkcostResource = { ...c20, id: 105, code: 'SAND', title: '中砂', spec: '', categoryPath: '', region: '', priceDate: '' }
+    mocks.WorkcostResourceList.mockResolvedValue([
+      { ...c20, region: '成都市区', priceDate: '2026-06' }, { ...l01, region: '', priceDate: '', categoryPath: '' }, { ...cq }, { ...bare },
+    ])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-resource'))
+    await screen.findByTestId('cost-resource-rows')
+    expect(rowsOf('cost-resource-rows')).toBe(5) // 表头 + 4
+    expectText(screen.getByTestId('cost-resource-rows'), '成都市区')
+    expectText(screen.getByTestId('cost-resource-rows'), '2026年6月') // 库里存 YYYY-MM，界面显示年月
+    const options = (testid: string) => Array.from(screen.getByTestId(testid).querySelectorAll('option')).map((o) => o.textContent)
+    expect(options('cost-select-region')).toEqual(['全部地区', '成都市区（1）', '重庆中心城区（1）', '未标注（2）'])
+    expect(options('cost-select-period')).toEqual(['全部期', '2026年6月（1）', '2025年12月（1）', '无期（2）'])
+    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '重庆中心城区' } })
+    expect(rowsOf('cost-resource-rows')).toBe(2)
+    expectText(screen.getByTestId('cost-crumb'), '重庆中心城区')
+    fireEvent.change(screen.getByTestId('cost-select-period'), { target: { value: '__none__' } })
+    expect(screen.getByTestId('cost-tier-empty')).toBeTruthy() // 重庆那条有期：加上「无期」就无匹配
+    fireEvent.click(within(screen.getByTestId('cost-tier-empty')).getByRole('button', { name: '清除筛选' }))
+    expect(rowsOf('cost-resource-rows')).toBe(5)
+    expect(screen.queryByTestId('cost-rail-categories')).toBeNull() // 没选类别：不出分类
+    fireEvent.click(railBtn('cost-rail-kinds', /^材料/))
+    const cats = await screen.findByTestId('cost-rail-categories')
+    expectText(cats, '未细分')
+    expect(rowsOf('cost-resource-rows')).toBe(4) // 表头 + 3 条材料
+    fireEvent.click(within(cats).getAllByRole('button', { name: /^混凝土/ })[0]!)
+    expect(rowsOf('cost-resource-rows')).toBe(3) // 选上级连带下级：C20 与 C30
+    fireEvent.click(within(cats).getByRole('button', { name: /^泵送/ }))
+    expect(rowsOf('cost-resource-rows')).toBe(2)
+    expect(textOf(screen.getByTestId('cost-crumb'))).toContain('材料›混凝土›泵送')
+    expectText(screen.getByTestId('cost-resource-rows'), '2025年12月')
+  })
+
+  it('类别待整理：类别不在四类之内的工料机在左栏单列一桶，能筛出来，导出同口径；当前位置里的期数显示成年月', async () => {
+    const note: WorkcostResource = {
+      ...c20, id: 106, code: 'NOTE-1', kind: '一段备注：地磅设备摊销为估价', title: '错记成工料机的说明行', spec: '', unit: '项',
+      categoryPath: '', region: '重庆中心城区', priceDate: '2026-06',
+    }
+    mocks.WorkcostResourceList.mockResolvedValue([{ ...c20 }, { ...note }])
+    mocks.PickDirectory.mockResolvedValue('D:/导出')
+    await renderReady()
+    expectText(screen.getByTestId('cost-pending'), '待整理 5') // 三条清单无专业 + 这一条类别待整理 + 它还没细分
+    expect(screen.getByTestId('cost-pending').getAttribute('title')).toContain('工料机类别待整理 1')
+    fireEvent.click(screen.getByTestId('cost-tier-resource'))
+    await screen.findByTestId('cost-resource-rows')
+    expect(rowsOf('cost-resource-rows')).toBe(3) // 表头 + 2
+    expect(within(screen.getByTestId('cost-rail-kinds')).queryByRole('button', { name: /^人工/ })).toBeNull()
+    fireEvent.click(railBtn('cost-rail-kinds', /^类别待整理/))
+    expect(rowsOf('cost-resource-rows')).toBe(2) // 只剩那条
+    expectText(screen.getByTestId('cost-resource-rows'), '错记成工料机的说明行')
+    expectText(screen.getByTestId('cost-crumb'), '类别待整理')
+    expect(screen.queryByTestId('cost-rail-categories')).toBeNull() // 这一桶下面没有分类一级
+    fireEvent.change(screen.getByTestId('cost-select-period'), { target: { value: '2026-06' } })
+    expect(textOf(screen.getByTestId('cost-crumb'))).toContain('2026年6月')
+    expect(textOf(screen.getByTestId('cost-crumb'))).not.toContain('2026-06')
+    await pickExport(2) // 工料机（当前筛选）
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
+    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, kind: '__outside__', period: '2026-06' }])
+  })
+
+  it('待整理：状态行给出未归类的条数与分项，点一下复制整理提示词', async () => {
+    await renderReady()
+    const pending = screen.getByTestId('cost-pending')
+    expectText(pending, '待整理 3') // 三条清单行都还没标专业
+    expect(pending.getAttribute('title')).toContain('清单无专业 3')
+    fireEvent.click(pending)
+    await waitFor(() => expect(copyToClipboard).toHaveBeenCalledWith(PENDING_PROMPT))
+    expectText(pending, '已复制提示词')
+  })
+
+  it('清单详情：标注专业；每条定额的消耗量 = 该定额工程量 × 含量；挂了外专业定额要点名', async () => {
+    mocks.WorkcostBillItems.mockImplementation(async (projectId: number) => projectId === 1
+      ? [{ ...row11, specialty: '土壤修复', linkQuantities: { WP01: 100 } }]
+      : [{ ...row13, specialty: '土壤修复' }])
+    const other: WorkcostQuota = { ...quotaWP01, specialty: '市政' }
+    mocks.WorkcostQuotaList.mockResolvedValue([{ ...other, items: undefined, usageCount: 1 }, { ...quotaFree, items: undefined, usageCount: 0 }])
+    mocks.WorkcostQuotaGet.mockResolvedValue(other)
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    expectText(within(bill).getByTestId('cost-bill-specialty'), '土壤修复')
+    expectText(within(bill).getByTestId('cost-bill-cross-specialty'), '外专业 · 市政')
+    expectText(within(bill).getByTestId('cost-bill-cross-note'), '1 条定额属于别的专业')
+    // 定额工程量取挂接明细的 100（不是清单工程量 850）：0.45×100、0.03×100。
+    expect(within(bill).getAllByTestId('cost-consumption').map((c) => textOf(c))).toEqual(['45 m³', '3 工日'])
+    expectText(bill, '消耗量')
+  })
+
+  it('导出带上维度筛选：未标注哨兵、地区、期数原样传给后端', async () => {
+    mocks.PickDirectory.mockResolvedValue('D:/导出')
+    await renderReady()
+    fireEvent.click(railBtn('cost-rail-bill-specialties', /未标注专业/))
+    await pickExport(0)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
+    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['bill', { ...EMPTY_FILTER, specialty: '__none__' }])
+
+    fireEvent.click(screen.getByTestId('cost-tier-resource'))
+    await screen.findByTestId('cost-resource-rows')
+    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '乐山' } })
+    await pickExport(2)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(2))
+    expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, region: '乐山' }])
+  })
+
+  it('体检多一类「不合规矩的数据」：字典外的取值点名，工料机的可跳转', async () => {
+    mocks.CostHealthScan.mockResolvedValue({
+      zeroPrice: [], quotaNoPrice: [], brokenRef: [], duplicates: [], codeMismatch: [], totalFindings: 2,
+      ruleIssues: [
+        { tier: 'resource', id: 103, code: 'Z01', title: '待询价材料', field: 'region', value: '不在字典的地区', fix: 'x' },
+        { tier: 'bill', id: 11, code: 'WP01', title: '施工便道', field: 'specialty', value: '不在字典的专业' },
+      ],
+    })
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '体检' }))
+    const report = await screen.findByTestId('cost-health-report')
+    expectText(report, '共 2 项发现')
+    const section = screen.getByTestId('cost-health-ruleIssues')
+    expectText(section, '工料机 Z01「待询价材料」的地区是「不在字典的地区」')
+    expectText(section, '清单 WP01「施工便道」的专业是「不在字典的专业」')
+    expect(within(section).getAllByRole('button')).toHaveLength(1) // 清单那一行在体检里没有可跳的入口
+    fireEvent.click(within(section).getByRole('button', { name: /Z01/ }))
+    await screen.findByTestId('cost-detail-resource')
+    expectAriaSelected(screen.getByTestId('cost-tier-resource'))
   })
 })

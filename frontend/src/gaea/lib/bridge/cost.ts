@@ -14,6 +14,7 @@ import type {
   WorkcostBillProject,
   WorkcostCompose,
   WorkcostComposeOverride,
+  WorkcostLibraryFilter,
   WorkcostQuota,
   WorkcostResource,
   WorkcostResourcePrice,
@@ -22,16 +23,16 @@ import type {
 
 export interface CostBindings {
   // ── 造价数据库（三级浏览面）──
-  // CostHealthScan 数据健康五类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用），只读。
+  // CostHealthScan 数据健康六类扫描（零价/缺价子目/悬挂引用/重复防护/编码混用/
+  // 不合规矩的数据），只读。
   CostHealthScan(): Promise<Record<string, unknown>>;
   // CostLibraryExport 列表导出 xlsx：kind=bill 清单｜quota 定额（主表+含量明细附表）｜
-  // resource 工料机｜entry 资料条目。筛选与板块列表同口径（projectId 仅清单、keyword、
-  // extra=分部/专业/类别），outPath 为目标 .xlsx 完整路径（已存在则拒绝覆盖）。返回写出路径。
+  // resource 工料机｜entry 资料条目。filter 与板块列表的当前筛选同口径（专业/分部/
+  // 章节/类别/分类/地区/期数，见 WorkcostLibraryFilter），outPath 为目标 .xlsx 完整
+  // 路径（已存在则拒绝覆盖）。返回写出路径。
   CostLibraryExport(
     kind: string,
-    projectId: number,
-    keyword: string,
-    extra: string,
+    filter: WorkcostLibraryFilter,
     outPath: string,
   ): Promise<string>;
   // WorkcostResourceList 工料机列表（kind/keyword 可空 = 不过滤）。

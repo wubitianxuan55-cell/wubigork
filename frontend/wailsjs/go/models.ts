@@ -9663,7 +9663,9 @@ export namespace workcost {
 	    priceOverride: number;
 	    listPrice: number;
 	    sort: number;
+	    specialty: string;
 	    quotaCodes: string[];
+	    linkQuantities: Record<string, number>;
 	
 	    static createFrom(source: any = {}) {
 	        return new BillItem(source);
@@ -9684,7 +9686,9 @@ export namespace workcost {
 	        this.priceOverride = source["priceOverride"];
 	        this.listPrice = source["listPrice"];
 	        this.sort = source["sort"];
+	        this.specialty = source["specialty"];
 	        this.quotaCodes = source["quotaCodes"];
+	        this.linkQuantities = source["linkQuantities"];
 	    }
 	}
 	export class BillProject {
@@ -9695,6 +9699,9 @@ export namespace workcost {
 	    location: string;
 	    duration: string;
 	    pricing: string;
+	    specialty: string;
+	    region: string;
+	    pricePeriod: string;
 	    managementRate: number;
 	    regulatoryRate: number;
 	    profitRate: number;
@@ -9718,6 +9725,9 @@ export namespace workcost {
 	        this.location = source["location"];
 	        this.duration = source["duration"];
 	        this.pricing = source["pricing"];
+	        this.specialty = source["specialty"];
+	        this.region = source["region"];
+	        this.pricePeriod = source["pricePeriod"];
 	        this.managementRate = source["managementRate"];
 	        this.regulatoryRate = source["regulatoryRate"];
 	        this.profitRate = source["profitRate"];
@@ -9875,12 +9885,37 @@ export namespace workcost {
 	    }
 	}
 	
+	export class RuleIssue {
+	    tier: string;
+	    id: number;
+	    code: string;
+	    title: string;
+	    field: string;
+	    value: string;
+	    fix: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuleIssue(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tier = source["tier"];
+	        this.id = source["id"];
+	        this.code = source["code"];
+	        this.title = source["title"];
+	        this.field = source["field"];
+	        this.value = source["value"];
+	        this.fix = source["fix"];
+	    }
+	}
 	export class HealthReport {
 	    zeroPrice: HealthFinding[];
 	    quotaNoPrice: HealthFinding[];
 	    brokenRef: HealthFinding[];
 	    duplicates: DuplicateGroup[];
 	    codeMismatch: CodeMismatchGroup[];
+	    ruleIssues: RuleIssue[];
 	    totalFindings: number;
 	
 	    static createFrom(source: any = {}) {
@@ -9894,6 +9929,7 @@ export namespace workcost {
 	        this.brokenRef = this.convertValues(source["brokenRef"], HealthFinding);
 	        this.duplicates = this.convertValues(source["duplicates"], DuplicateGroup);
 	        this.codeMismatch = this.convertValues(source["codeMismatch"], CodeMismatchGroup);
+	        this.ruleIssues = this.convertValues(source["ruleIssues"], RuleIssue);
 	        this.totalFindings = source["totalFindings"];
 	    }
 	
@@ -9914,6 +9950,34 @@ export namespace workcost {
 		    }
 		    return a;
 		}
+	}
+	export class LibraryFilter {
+	    projectId: number;
+	    keyword: string;
+	    specialty: string;
+	    division: string;
+	    chapter: string;
+	    kind: string;
+	    category: string;
+	    region: string;
+	    period: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LibraryFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectId = source["projectId"];
+	        this.keyword = source["keyword"];
+	        this.specialty = source["specialty"];
+	        this.division = source["division"];
+	        this.chapter = source["chapter"];
+	        this.kind = source["kind"];
+	        this.category = source["category"];
+	        this.region = source["region"];
+	        this.period = source["period"];
+	    }
 	}
 	export class QuotaItem {
 	    id: number;
@@ -9956,6 +10020,7 @@ export namespace workcost {
 	    title: string;
 	    specialty: string;
 	    chapter: string;
+	    derivedFrom: string;
 	    unit: string;
 	    categoryPath: string;
 	    baseLabor: number;
@@ -9983,6 +10048,7 @@ export namespace workcost {
 	        this.title = source["title"];
 	        this.specialty = source["specialty"];
 	        this.chapter = source["chapter"];
+	        this.derivedFrom = source["derivedFrom"];
 	        this.unit = source["unit"];
 	        this.categoryPath = source["categoryPath"];
 	        this.baseLabor = source["baseLabor"];
@@ -10098,6 +10164,7 @@ export namespace workcost {
 	        this.note = source["note"];
 	    }
 	}
+	
 	export class UsageRef {
 	    id: number;
 	    code: string;

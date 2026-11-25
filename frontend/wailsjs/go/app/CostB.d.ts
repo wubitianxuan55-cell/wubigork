@@ -4,7 +4,7 @@ import {workcost} from '../models';
 
 export function GaeaCostHealthScan():Promise<workcost.HealthReport>;
 
-export function GaeaCostLibraryExport(arg1:string,arg2:number,arg3:string,arg4:string,arg5:string):Promise<string>;
+export function GaeaCostLibraryExport(arg1:string,arg2:workcost.LibraryFilter,arg3:string):Promise<string>;
 
 export function GaeaWorkcostBillItemDelete(arg1:number):Promise<void>;
 

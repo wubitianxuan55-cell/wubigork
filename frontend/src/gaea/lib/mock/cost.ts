@@ -16,6 +16,7 @@ import type {
   WorkcostComposeLineView,
   WorkcostComposeOverride,
   WorkcostKind,
+  WorkcostLibraryFilter,
   WorkcostQuota,
   WorkcostQuotaItem,
   WorkcostResource,
@@ -48,7 +49,7 @@ function ensureWorkcostSeed(): void {
     mockResources.push({
       id: mockResourceSeq++, code, kind, title, spec, unit,
       basePrice: price, currentPrice: price, categoryPath: `工料机/${kind}`,
-      source, supplier: "", region: "乐山", priceDate: "2026年第7期", priceType: "到场价",
+      source, supplier: "", region: "乐山", priceDate: "2026-07", priceType: "到场价",
       validUntil: "", lossRate: 0, note: "", tags: [], status: "现行",
     });
   };
@@ -60,7 +61,7 @@ function ensureWorkcostSeed(): void {
     id: 1, name: "旺平矿业修复（演示）", fileName: "旺平矿业修复项目成本测算表.xlsx",
     source: "", location: "乐山", duration: "180 天", pricing: "综合单价只含人材机，管理费/利润/税金不进综合单价",
     managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
-    profitIncludesRegulatory: false, controlPrice: 0, itemCount: 2,
+    profitIncludesRegulatory: false, controlPrice: 0, specialty: "土壤修复", region: "乐山", pricePeriod: "2026-07", itemCount: 2,
     createdAt: "2026-10-07T10:00:00Z", updatedAt: "2026-10-07T10:00:00Z",
   }];
   mockBillItems = [
@@ -79,8 +80,10 @@ function ensureWorkcostSeed(): void {
   const byCode = (c: string): WorkcostResource | undefined => mockResources.find((r) => r.code === c);
   const item = (code: string, qty: number): WorkcostQuotaItem => {
     const r = byCode(code);
+    // 演示数据的类别都在四类之内（读侧类型放宽是为了存量行，见 WorkcostKindRead）。
+    const kind = (r?.kind ?? "材料") as WorkcostKind;
     return {
-      quotaCode: "", resourceCode: code, kind: r?.kind ?? "材料",
+      quotaCode: "", resourceCode: code, kind,
       title: r?.title ?? code, unit: r?.unit ?? "", quantity: qty, resourcePrice: 0, lossRate: 0,
     };
   };
@@ -159,7 +162,7 @@ export function buildCost(_s: MakeMockState): CostMethods {
       return { zeroPrice, quotaNoPrice: [], brokenRef: [], duplicates: [], codeMismatch: [], totalFindings: zeroPrice.length };
     },
     async CostLibraryExport(
-      _kind: string, _projectId: number, _keyword: string, _extra: string, _outPath: string,
+      _kind: string, _filter: WorkcostLibraryFilter, _outPath: string,
     ): Promise<string> {
       // 浏览器 dev 态没有文件系统：诚实拒，不假装导出成功（桌面端由 Go 侧写 xlsx）。
       throw new Error("浏览器 dev 态不支持导出 xlsx，请在桌面端使用");

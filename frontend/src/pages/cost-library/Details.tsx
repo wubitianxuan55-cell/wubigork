@@ -1,6 +1,7 @@
-// Details — 右栏详情：清单项的综合单价分析（按挂接定额分组）、定额的含量行
-// 分析表、工料机的价格卡与调价历史。数据现算（点开才取），每一级都给出下一级
-// 与上一级的入口：清单 ⇄ 定额 ⇄ 工料机。只读，不提供改库入口。
+// Details — 右栏详情：清单项的综合单价分析（按挂接定额分组，带「消耗量 = 工程量 ×
+// 含量」）、定额的含量行分析表与引用它的清单、工料机的价格卡（地区 · 期）与价格表。
+// 数据现算（点开才取），每一级都给出下一级与上一级的入口：清单 ⇄ 定额 ⇄ 工料机。
+// 只读，不提供改库入口。
 import { useEffect, useState, type ReactNode } from "react";
 import { AlertCircle, Loader2 } from "../../gaea/icons";
 import { app } from "../../gaea/lib/bridge";
@@ -8,7 +9,10 @@ import type {
   WorkcostCompose, WorkcostQuota, WorkcostQuotaItem, WorkcostResource,
   WorkcostResourcePrice, WorkcostUsageRef,
 } from "../../gaea/lib/types";
-import { effectivePrice, fmtMoney, fmtQty, fmtRate, linkedQuotas, unitPriceOf, type BillRow } from "./logic";
+import {
+  alignItems, consumptionOf, dimLabel, effectivePrice, fmtMoney, fmtPeriod, fmtQty, fmtRate, isCrossSpecialty,
+  linkedQuotas, periodKey, quotaFactor, unitPriceOf, type BillRow,
+} from "./logic";
 import { KindBadge } from "./Tables";
 
 type Phase = "idle" | "loading" | "ready" | "failed";
@@ -27,25 +31,33 @@ export function DetailState({ phase, error, children }: { phase: Phase; error?: 
 }
 
 /** 综合单价分析表的一行：含量 × 单价 = 金额；带上资源编码才能下钻到工料机。 */
-function AnalysisTable({ compose, items, onOpenResource }: {
+function AnalysisTable({ compose, items, factor, onOpenResource }: {
   compose: WorkcostCompose;
   items: WorkcostQuotaItem[];
+  /** 该定额在这条清单上的工程量；给了才显示「消耗量」列（清单项下）。 */
+  factor?: number;
   onOpenResource: (code: string) => void;
 }) {
   const lines = compose.lines ?? [];
-  const aligned = items.length === lines.length;
+  const aligned = alignItems(lines, items);
+  const withUse = factor !== undefined;
   if (lines.length === 0) {
     return <p className="cl-note">该定额没有工料机消耗行——综合单价为 0。补含量行走造价模式的 cost_library save_quota。</p>;
   }
   return (
-    <div className="cl-analysis">
+    <div className="cl-analysis" data-testid={withUse ? "cost-bill-analysis" : "cost-quota-analysis"}>
       <table className="cl-table cl-table-inner">
         <thead>
-          <tr><th>行类</th><th>资源</th><th>单位</th><th className="cl-num">含量</th><th className="cl-num">单价</th><th className="cl-num">金额</th><th className="cl-num">占比</th></tr>
+          <tr>
+            <th>行类</th><th>资源</th><th>单位</th><th className="cl-num">含量</th>
+            {withUse && <th className="cl-num">消耗量</th>}
+            <th className="cl-num">单价</th><th className="cl-num">金额</th><th className="cl-num">占比</th>
+          </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => {
-            const code = aligned ? items[i]?.resourceCode : "";
+            const code = aligned[i]?.resourceCode ?? "";
+            const use = withUse ? consumptionOf(factor, l.quantity) : null;
             return (
               <tr key={i}>
                 <td><KindBadge kind={l.kind} /></td>
@@ -57,6 +69,11 @@ function AnalysisTable({ compose, items, onOpenResource }: {
                 </td>
                 <td>{l.unit || "—"}</td>
                 <td className="cl-num">{fmtQty(l.quantity)}</td>
+                {withUse && (
+                  <td className="cl-num" data-testid="cost-consumption" title="消耗量 = 该定额在这条清单上的工程量 × 定额含量">
+                    {use === null ? <span className="cl-dim">—</span> : `${fmtQty(use)}${l.unit ? ` ${l.unit}` : ""}`}
+                  </td>
+                )}
                 <td className="cl-num">{l.price > 0 ? fmtMoney(l.price) : <span className="cl-warn-text" title="资源无价，该项不计入合计">缺价</span>}</td>
                 <td className="cl-num">{fmtMoney(l.amount)}</td>
                 <td className="cl-num cl-dim">{l.sharePct > 0 ? `${l.sharePct.toFixed(1)}%` : "—"}</td>
@@ -67,7 +84,7 @@ function AnalysisTable({ compose, items, onOpenResource }: {
         <tfoot>
           <tr className="cl-tfoot-fees">
             <td colSpan={3}>三费</td>
-            <td colSpan={4} className="cl-fee-line">
+            <td colSpan={withUse ? 5 : 4} className="cl-fee-line">
               <span>人工 <b className="is-labor">{fmtMoney(compose.laborFee)}</b></span>
               <span>材料 <b className="is-material">{fmtMoney(compose.materialFee)}</b></span>
               <span>机械 <b className="is-machine">{fmtMoney(compose.machineFee)}</b></span>
@@ -75,7 +92,7 @@ function AnalysisTable({ compose, items, onOpenResource }: {
             </td>
           </tr>
           <tr className="cl-tfoot-total">
-            <td colSpan={5}>综合单价（人材机，不含管理费 / 利润 / 税金）</td>
+            <td colSpan={withUse ? 6 : 5}>综合单价（人材机，不含管理费 / 利润 / 税金）</td>
             <td colSpan={2} className="cl-num">{fmtMoney(compose.compositePrice)}</td>
           </tr>
         </tfoot>
@@ -127,6 +144,8 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource }: {
     return () => { alive = false; };
   }, [item]);
 
+  const cross = blocks.filter((b) => b.quota && isCrossSpecialty(item.specialty ?? "", b.quota.specialty)).length;
+
   return (
     <article className="cl-detail" data-testid="cost-detail-bill">
       <header className="cl-detail-head">
@@ -137,6 +156,9 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource }: {
           {item.unit && <span>单位 {item.unit}</span>}
           {item.quantity > 0 && <span>工程量 {fmtQty(item.quantity)}</span>}
           {item.division && <span>分部 {item.division}</span>}
+          {item.specialty
+            ? <span data-testid="cost-bill-specialty">专业 {item.specialty}</span>
+            : <span className="cl-dim" title="还没标注专业——在造价模式用 cost_library classify 归类">专业 未标注</span>}
         </div>
         {item.feature && <p className="cl-detail-feature" title={item.quantityExpr ? `${item.feature}｜计算式：${item.quantityExpr}` : undefined}>{item.feature}</p>}
         <dl className="cl-price-row">
@@ -148,23 +170,40 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource }: {
         {blocks.length === 0 ? (
           <p className="cl-note">这条清单项没有挂接定额（手填项）。挂接定额在造价模式里做：cost_project_apply save_items 重发该行并带上 quota_code。</p>
         ) : (
-          blocks.map((b) => (
-            <section key={b.code} className="cl-block" data-testid="cost-bill-quota-block">
-              <div className="cl-block-head">
-                <span className="cl-block-label">定额</span>
-                <button type="button" className="cl-chip" title={`下钻到定额 ${b.code}`}
-                  aria-label={`下钻到定额 ${b.code}`} onClick={() => onOpenQuota(b.code)}>{b.code}</button>
-                <span className="cl-block-title">{b.quota?.title ?? ""}</span>
-                {b.quota?.origCode && b.quota.origCode !== b.quota.code && (
-                  <span className="cl-tag" title="工作簿原始编码">原码 {b.quota.origCode}</span>
-                )}
-              </div>
-              {b.compose ? <AnalysisTable compose={b.compose} items={b.quota?.items ?? []} onOpenResource={onOpenResource} /> : <p className="cl-warn-text">现算失败：{b.error}</p>}
-            </section>
-          ))
+          blocks.map((b) => {
+            const crossSpec = b.quota && isCrossSpecialty(item.specialty ?? "", b.quota.specialty) ? b.quota.specialty : "";
+            return (
+              <section key={b.code} className="cl-block" data-testid="cost-bill-quota-block">
+                <div className="cl-block-head">
+                  <span className="cl-block-label">定额</span>
+                  <button type="button" className="cl-chip" title={`下钻到定额 ${b.code}`}
+                    aria-label={`下钻到定额 ${b.code}`} onClick={() => onOpenQuota(b.code)}>{b.code}</button>
+                  <span className="cl-block-title">{b.quota?.title ?? ""}</span>
+                  {b.quota?.origCode && b.quota.origCode !== b.quota.code && (
+                    <span className="cl-tag" title="工作簿原始编码">原码 {b.quota.origCode}</span>
+                  )}
+                  {b.quota?.derivedFrom && (
+                    <span className="cl-tag is-derived" title="借鉴生成的溯源：本专业没有可用定额，以外专业定额为底生成">{b.quota.derivedFrom}</span>
+                  )}
+                  {crossSpec && (
+                    <span className="cl-tag is-cross" data-testid="cost-bill-cross-specialty"
+                      title="清单套定额同专业优先：这条定额是别的专业的。要本专业的，用 cost_library borrow_quota 借鉴生成后再挂接">
+                      外专业 · {crossSpec}
+                    </span>
+                  )}
+                </div>
+                {b.compose ? <AnalysisTable compose={b.compose} items={b.quota?.items ?? []} factor={quotaFactor(item, b.code)} onOpenResource={onOpenResource} /> : <p className="cl-warn-text">现算失败：{b.error}</p>}
+              </section>
+            );
+          })
         )}
       </DetailState>
-      <p className="cl-foot-note">按当前资源价现算（参考口径）；清单合价 = Σ(定额工程量 × 定额单价)，取费在项目合计层。</p>
+      {cross > 0 && (
+        <p className="cl-warn-text" data-testid="cost-bill-cross-note">
+          {cross} 条定额属于别的专业。清单套定额同专业优先——在造价模式用 cost_library borrow_quota 以外专业定额为底生成本专业的，再把这条清单改挂过去。
+        </p>
+      )}
+      <p className="cl-foot-note">按当前资源价现算（参考口径）；消耗量 = 该定额在这条清单上的工程量 × 定额含量；取费在项目合计层。</p>
     </article>
   );
 }
@@ -203,40 +242,59 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource }: {
     return () => { alive = false; };
   }, [quota.code]);
 
+  const cross = usage.filter((it) => isCrossSpecialty(it.specialty ?? "", quota.specialty)).length;
+
   return (
     <article className="cl-detail" data-testid="cost-detail-quota">
       <header className="cl-detail-head">
-        <div className="cl-kicker">定额{quota.specialty ? ` · ${quota.specialty}` : ""}</div>
+        <div className="cl-kicker">定额 · {dimLabel(quota.specialty)}专业</div>
         <h2 className="cl-detail-title">{quota.title}</h2>
         <div className="cl-meta">
           <span className="cl-code">{quota.code}</span>
           {quota.origCode && quota.origCode !== quota.code && <span title="工作簿原始编码">原码 {quota.origCode}</span>}
           {quota.unit && <span>计量单位 {quota.unit}</span>}
-          {quota.chapter && <span>章节 {quota.chapter}</span>}
+          {quota.chapter
+            ? <span>章节 {quota.chapter}</span>
+            : <span className="cl-dim" title="还没归章节——在造价模式用 cost_library classify 归类">章节 未归</span>}
           <span>被 {usage.length} 条清单项引用</span>
         </div>
+        {quota.derivedFrom && (
+          <p className="cl-note">
+            <span className="cl-tag is-derived" title="借鉴生成的溯源：本专业没有可用定额，以外专业定额为底生成">{quota.derivedFrom}</span>
+            {" "}含量行照搬自源定额，按本项目特征核对后再用。
+          </p>
+        )}
       </header>
       <DetailState phase={phase} error={error}>
         {full && compose && <AnalysisTable compose={compose} items={full.items ?? []} onOpenResource={onOpenResource} />}
       </DetailState>
       <section className="cl-block">
-        <div className="cl-block-head"><span className="cl-block-label">引用它的清单项</span><span className="cl-dim">{usage.length} 条</span></div>
+        <div className="cl-block-head"><span className="cl-block-label">引用它的清单项</span><span className="cl-dim">{usage.length} 条{cross > 0 ? ` · ${cross} 条是别的专业的清单` : ""}</span></div>
         {usage.length === 0 ? (
           <p className="cl-note">还没有清单项套用这条定额。</p>
         ) : (
           <ul className="cl-usage" data-testid="cost-quota-usage">
-            {usage.map((it) => (
-              <li key={it.id}>
-                <button type="button" className="cl-usage-item" title={`查看清单项「${it.title}」`} onClick={() => onOpenBill(it)}>
-                  <span className="cl-usage-title">{it.title}</span>
-                  <span className="cl-meta"><span className="cl-code">{it.code}</span><span>{it.projectName}</span>{it.quantity > 0 && <span>量 {fmtQty(it.quantity)}</span>}</span>
-                </button>
-              </li>
-            ))}
+            {usage.map((it) => {
+              const crossSpec = isCrossSpecialty(it.specialty ?? "", quota.specialty);
+              return (
+                <li key={it.id}>
+                  <button type="button" className="cl-usage-item" title={`查看清单项「${it.title}」`} onClick={() => onOpenBill(it)}>
+                    <span className="cl-usage-title">{it.title}</span>
+                    <span className="cl-meta">
+                      <span className="cl-code">{it.code}</span><span>{it.projectName}</span>
+                      {it.quantity > 0 && <span>量 {fmtQty(it.quantity)}</span>}
+                      {it.specialty
+                        ? <span className={crossSpec ? "cl-warn-text" : ""}>{crossSpec ? "外专业清单 · " : ""}{it.specialty}</span>
+                        : <span className="cl-dim">专业 未标注</span>}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
-      <p className="cl-foot-note">含量行是每单位的消耗标准；资源一调价，引用它的综合单价下次读取即重算。</p>
+      <p className="cl-foot-note">含量行是每单位的消耗标准；资源一调价，引用它的综合单价下次读取即重算。定额专业固定——同样一件事各专业各有定额。</p>
     </article>
   );
 }
@@ -272,20 +330,34 @@ export function ResourceDetail({ resource, onOpenQuota }: { resource: WorkcostRe
   const facts: [string, string][] = [
     ["规格", resource.spec], ["单位", resource.unit], ["损耗率", resource.lossRate > 0 ? fmtRate(resource.lossRate) : ""],
     ["分类", resource.categoryPath], ["来源", resource.source], ["供应商", resource.supplier],
-    ["地区", resource.region], ["价格期数", resource.priceDate], ["价格口径", resource.priceType],
+    ["地区", resource.region], ["价格期数", resource.priceDate ? fmtPeriod(resource.priceDate) : ""], ["价格口径", resource.priceType],
     ["有效期至", resource.validUntil], ["状态", resource.status === "现行" ? "" : resource.status],
   ].filter(([, v]) => v) as [string, string][];
+  // 工料机按地区分行，时间是该行下的各期价格：地区、期、分类还没标注的如实点名。
+  const missing = [
+    !resource.region && "地区", !resource.priceDate && "期数", !resource.categoryPath && "分类",
+  ].filter(Boolean) as string[];
+  // 价格表新→旧（按期）；认不出期数的排最后。
+  const priced = [...history].sort((a, b) => {
+    if (!a.period) return 1;
+    if (!b.period) return -1;
+    return periodKey(b.period) - periodKey(a.period);
+  });
 
   return (
     <article className="cl-detail" data-testid="cost-detail-resource">
       <header className="cl-detail-head">
-        <div className="cl-kicker">工料机</div>
+        <div className="cl-kicker">
+          {"工料机"}
+          {resource.region ? ` · ${resource.region}` : ""}
+          {resource.priceDate ? ` · ${fmtPeriod(resource.priceDate)}` : ""}
+        </div>
         <h2 className="cl-detail-title">{resource.title}</h2>
         <div className="cl-meta"><KindBadge kind={resource.kind} /><span className="cl-code">{resource.code}</span></div>
       </header>
       <section className="cl-price-card">
         <div className={`cl-price-main${price <= 0 ? " is-zero" : ""}`}>
-          <span className="cl-price-label">核算取用价</span>
+          <span className="cl-price-label">核算取用价{resource.region || resource.priceDate ? "（现行价）" : ""}</span>
           <span className="cl-price-value">{fmtMoney(price > 0 ? price : null)}</span>
           {resource.unit && <span className="cl-price-unit">/ {resource.unit}</span>}
         </div>
@@ -299,6 +371,11 @@ export function ResourceDetail({ resource, onOpenQuota }: { resource: WorkcostRe
           <dl className="cl-facts">
             {facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd title={v}>{v}</dd></div>)}
           </dl>
+        )}
+        {missing.length > 0 && (
+          <p className="cl-note" data-testid="cost-resource-pending">
+            待整理：{missing.join("、")}尚未标注——在造价模式用 cost_library classify 归类。
+          </p>
         )}
         {resource.note && <p className="cl-note">{resource.note}</p>}
       </section>
@@ -321,22 +398,28 @@ export function ResourceDetail({ resource, onOpenQuota }: { resource: WorkcostRe
           )}
         </section>
         <section className="cl-block">
-          <div className="cl-block-head"><span className="cl-block-label">调价历史</span><span className="cl-dim">{history.length} 条</span></div>
+          <div className="cl-block-head"><span className="cl-block-label">各期价格</span><span className="cl-dim">{history.length} 条</span></div>
           {history.length === 0 ? (
-            <p className="cl-note">还没有调价记录——价格来自初始录入。</p>
+            <p className="cl-note">还没有价格记录——现行价来自初始录入。</p>
           ) : (
-            <ul className="cl-history" data-testid="cost-price-history">
-              {history.map((h) => (
-                <li key={h.id}>
-                  <span className="cl-history-price">{fmtMoney(h.price)}</span>
-                  {h.period && <span>{h.period}</span>}
-                  {h.region && <span className="cl-dim">{h.region}</span>}
-                  {h.priceType && <span className="cl-tag">{h.priceType}</span>}
-                  {h.note && <span className="cl-dim cl-truncate" title={h.note}>{h.note}</span>}
-                  <span className="cl-history-time">{h.fetchedAt?.slice(0, 10) ?? ""}</span>
-                </li>
-              ))}
-            </ul>
+            <table className="cl-table cl-table-inner cl-price-table" data-testid="cost-price-history">
+              <thead>
+                <tr><th>期</th><th>地区</th><th className="cl-num">价格</th><th>口径</th><th>来源</th></tr>
+              </thead>
+              <tbody>
+                {priced.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.period ? fmtPeriod(h.period) : <span className="cl-dim">未记期</span>}</td>
+                    <td>{h.region || <span className="cl-dim">未记地区</span>}</td>
+                    <td className="cl-num cl-strong">{fmtMoney(h.price)}</td>
+                    <td>{h.priceType || "—"}</td>
+                    <td title={`${h.source || ""}${h.fetchedAt ? ` · ${h.fetchedAt.slice(0, 10)}` : ""}${h.note ? ` · ${h.note}` : ""}`}>
+                      {h.source || (h.fetchedAt ? h.fetchedAt.slice(0, 10) : "—")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </section>
       </DetailState>

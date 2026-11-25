@@ -312,6 +312,25 @@
   color: var(--warn);
 }
 
+/* 状态行的「待整理 N」入口：点一下复制整理提示词（到办公板块的造价模式粘贴发送） */
+.cl-pending {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 36%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.cl-pending:hover {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
 .cl-state-panel {
   display: flex;
   min-height: 200px;
@@ -406,6 +425,34 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 中栏标题行里的「当前位置」路径：专业 › 项目 / 专业 › 章节 / 类别 › 分类。
+   放不下时逐段省略，不挤掉右侧的条数。 */
+.cl-crumb {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.cl-crumb-item {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-crumb-item:last-child {
+  color: var(--fg);
+}
+
+.cl-crumb-sep {
+  margin: 0 5px;
+  color: var(--fg-faint);
+}
+
 /* 左栏：三级切换 + 上下文清单 */
 .cl-rail {
   display: flex;
@@ -476,10 +523,35 @@
   padding: 6px 6px 12px;
 }
 
+/* 左栏的一段上下文：小标题（专业 / 项目 / 章节 / 分类）+ 该段的列表 */
+.cl-rail-section + .cl-rail-section {
+  margin-top: 8px;
+}
+
+.cl-rail-cap {
+  margin: 0;
+  padding: 5px 8px 3px;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
 .cl-rail-list {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* 分类树：每深一级缩进一次，左侧一条细线表示从属 */
+.cl-rail-sub {
+  margin-left: 9px;
+  padding-left: 5px;
+  border-left: 1px solid var(--cl-line);
+}
+
+.cl-rail-sub .cl-rail-item {
+  padding-top: 5px;
+  padding-bottom: 5px;
 }
 
 .cl-rail-row {
@@ -814,6 +886,16 @@
   white-space: nowrap;
 }
 
+/* 借鉴生成的定额：标出溯源；清单挂了外专业定额：提醒「同专业优先」，不是错误 */
+.cl-tag.is-derived {
+  border: 1px dashed color-mix(in srgb, var(--fg) 24%, transparent);
+}
+
+.cl-tag.is-cross {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+}
+
 .cl-kind {
   display: inline-flex;
   height: 18px;
@@ -1135,16 +1217,14 @@
   white-space: nowrap;
 }
 
-/* 引用清单 / 调价历史 */
-.cl-usage,
-.cl-history {
+/* 引用清单 */
+.cl-usage {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.cl-usage li + li,
-.cl-history li + li {
+.cl-usage li + li {
   border-top: 1px solid var(--cl-line);
 }
 
@@ -1181,26 +1261,18 @@
   font-size: 12px;
 }
 
-.cl-history li {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
-  color: var(--fg-dim);
-  font-size: 11.5px;
+/* 工料机详情里的各期价格表：右栏窄，列紧一些，长文本列省略（悬停看全文） */
+.cl-price-table {
+  margin-top: 4px;
 }
 
-.cl-history-price {
-  color: var(--fg);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.cl-price-table th,
+.cl-price-table td {
+  padding: 5px 6px;
 }
 
-.cl-history-time {
-  margin-left: auto;
-  color: var(--fg-faint);
-  font-size: 10.5px;
+.cl-price-table td {
+  max-width: 110px;
 }
 
 /* ── 空库引导：三步 + 可复制的示例提示词 ─────────────────────────── */

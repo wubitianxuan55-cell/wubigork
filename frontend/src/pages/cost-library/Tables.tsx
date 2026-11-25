@@ -1,10 +1,11 @@
 // Tables — 三级列表（清单 / 定额 / 工料机）。只读浏览面：行点击看详情，复选框
 // 批量删除，行尾删除。定额码是下钻入口（清单 → 定额）。状态全在页面，纯展示。
+// 列按宽度渐进披露（cl-pri-1 先收、cl-pri-2 最先收）：窄窗只留编码、名称与价。
 import { memo } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "../../gaea/icons";
 import type { WorkcostQuota, WorkcostResource } from "../../gaea/lib/types";
 import {
-  effectivePrice, fmtMoney, groupBill, linkedQuotas, selKey, unitPriceOf,
+  dimLabel, effectivePrice, fmtMoney, fmtPeriod, fmtQty, groupBill, linkedQuotas, selKey, unitPriceOf,
   type BillRow,
 } from "./logic";
 
@@ -75,6 +76,9 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
         {withProject && (
           <td className="cl-cell-project cl-pri-2" title={it.projectName}>{it.projectName}</td>
         )}
+        <td className={`cl-pri-1${it.specialty ? "" : " cl-dim"}`} title={it.specialty ? "专业" : "还没标注专业（待整理）"}>
+          {dimLabel(it.specialty, "未标注")}
+        </td>
         <td className="cl-cell-code">{it.code}</td>
         <td className="cl-cell-title">
           <button
@@ -90,6 +94,7 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
           {it.feature || it.quantityExpr || <span className="cl-dim">—</span>}
         </td>
         <td className="cl-pri-1">{it.unit || "—"}</td>
+        <td className="cl-num cl-pri-2" title={it.quantityExpr ? `计算式：${it.quantityExpr}` : "工程量"}>{fmtQty(it.quantity)}</td>
         <td className="cl-cell-quotas">
           {quotas.length > 0 ? quotas.map((c) => (
             <button
@@ -152,6 +157,7 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
                         <td className="cl-cell-code">{it.code}</td>
                         <td className="cl-cell-title">{it.title}</td>
                         <td className="cl-pri-1">{it.unit || "—"}</td>
+                        <td className="cl-num cl-pri-2">{fmtQty(it.quantity)}</td>
                         <td className="cl-cell-quotas">
                           {linkedQuotas(it).map((c) => (
                             <button key={c} type="button" className="cl-chip" title={`查看定额 ${c}`}
@@ -179,7 +185,9 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
         <tr>
           <th className="cl-check"><input type="checkbox" aria-label="全选当前清单" checked={allChecked} onChange={(e) => props.onToggleAll(e.target.checked)} /></th>
           {props.showProject && <th className="cl-pri-2">项目</th>}
-          <th>编码</th><th>名称</th><th className="cl-pri-1">项目特征</th><th className="cl-pri-1">单位</th><th>挂接定额</th>
+          <th className="cl-pri-1">专业</th>
+          <th>编码</th><th>名称</th><th className="cl-pri-1">项目特征</th><th className="cl-pri-1">单位</th>
+          <th className="cl-num cl-pri-2">工程量</th><th>挂接定额</th>
           <th className="cl-num">原表单价</th><th className="cl-num">现算单价</th>
           <th className="cl-act"><span className="sr-only">操作</span></th>
         </tr>
@@ -211,7 +219,8 @@ export const QuotaTable = memo(function QuotaTable(props: QuotaTableProps) {
       <thead>
         <tr>
           <th className="cl-check"><input type="checkbox" aria-label="全选当前定额" checked={allChecked} onChange={(e) => props.onToggleAll(e.target.checked)} /></th>
-          <th>编码</th><th>名称</th><th className="cl-pri-1">单位</th><th className="cl-pri-1">专业</th><th className="cl-num cl-pri-2">被引用</th><th className="cl-num">综合单价</th>
+          <th>编码</th><th>名称</th><th className="cl-pri-1">单位</th><th className="cl-pri-1">专业</th>
+          <th className="cl-pri-2">章节</th><th className="cl-num cl-pri-2">被引用</th><th className="cl-num">综合单价</th>
           <th className="cl-act"><span className="sr-only">操作</span></th>
         </tr>
       </thead>
@@ -229,9 +238,13 @@ export const QuotaTable = memo(function QuotaTable(props: QuotaTableProps) {
                 <button type="button" className="cl-cell-link" aria-label={`查看定额「${q.title}」`}
                   onClick={(e) => { e.stopPropagation(); props.onOpen(q); }}>{q.title}</button>
                 {q.origCode && q.origCode !== q.code && <span className="cl-tag" title="工作簿原始编码">原码 {q.origCode}</span>}
+                {q.derivedFrom && <span className="cl-tag is-derived" title="借鉴生成的溯源：本专业没有可用定额，以外专业定额为底生成">{q.derivedFrom}</span>}
               </td>
               <td className="cl-pri-1">{q.unit || "—"}</td>
-              <td className="cl-dim cl-pri-1">{q.specialty || "—"}</td>
+              <td className={q.specialty ? "cl-pri-1" : "cl-pri-1 cl-dim"}>{dimLabel(q.specialty, "未标注")}</td>
+              <td className={`cl-pri-2${q.chapter ? "" : " cl-dim"}`} title={q.chapter ? `章节 ${q.chapter}` : "还没归章节（待整理）"}>
+                {dimLabel(q.chapter, "未归章节")}
+              </td>
               <td className="cl-num cl-pri-2">{used > 0 ? used : <span className="cl-dim">—</span>}</td>
               <td className="cl-num cl-strong" title="按当前资源价现算（人材机，不含管理费/利润/税金）">{fmtMoney(typeof price === "number" ? price : null)}</td>
               <DeleteCell label={`删除定额「${q.title}」`} onClick={() => props.onDelete(q)} />
@@ -264,6 +277,7 @@ export const ResourceTable = memo(function ResourceTable(props: ResourceTablePro
         <tr>
           <th className="cl-check"><input type="checkbox" aria-label="全选当前工料机" checked={allChecked} onChange={(e) => props.onToggleAll(e.target.checked)} /></th>
           <th>编码</th><th>类别</th><th>名称</th><th className="cl-pri-1">规格</th><th className="cl-pri-1">单位</th>
+          <th className="cl-pri-1">地区</th><th className="cl-pri-2">期</th>
           <th className="cl-num">取用价</th><th className="cl-num cl-pri-2">基准价</th>
           <th className="cl-act"><span className="sr-only">操作</span></th>
         </tr>
@@ -284,6 +298,13 @@ export const ResourceTable = memo(function ResourceTable(props: ResourceTablePro
               </td>
               <td className="cl-cell-feature cl-pri-1" title={r.spec}>{r.spec || <span className="cl-dim">—</span>}</td>
               <td className="cl-pri-1">{r.unit || "—"}</td>
+              {/* 工料机按地区分行：同一种材料每个地区一行；期是现行价所属的期。 */}
+              <td className={`cl-pri-1${r.region ? "" : " cl-dim"}`} title={r.region ? `地区 ${r.region}` : "还没标注地区（待整理）"}>
+                {dimLabel(r.region, "未标注")}
+              </td>
+              <td className={`cl-pri-2${r.priceDate ? "" : " cl-dim"}`} title={r.priceDate ? `现行价的期 ${fmtPeriod(r.priceDate)}` : "现行价还没有期（待整理）"}>
+                {r.priceDate ? fmtPeriod(r.priceDate) : "无"}
+              </td>
               <td className={`cl-num cl-strong${price <= 0 ? " is-zero" : ""}`}
                 title={price <= 0 ? "现行价与基准价均为 0——引用它的定额子目按 0 计入" : r.currentPrice > 0 ? "现行价" : "现行价未录入，核算回退基准价"}>
                 {fmtMoney(price > 0 ? price : null)}

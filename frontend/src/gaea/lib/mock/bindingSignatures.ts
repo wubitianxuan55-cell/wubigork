@@ -120,7 +120,7 @@ export const bindingSignatures = {
   GaeaContextView: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaConvertToPdf: { argc: 1, variadic: false, params: "rel string" },
   GaeaCostHealthScan: { argc: 0, variadic: false, params: "" },
-  GaeaCostLibraryExport: { argc: 5, variadic: false, params: "kind string, projectID int64, keyword string, extra string, outPath string" },
+  GaeaCostLibraryExport: { argc: 3, variadic: false, params: "kind string, filter workcost.LibraryFilter, outPath string" },
   GaeaCreateProject: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCreateWorkspaceFolder: { argc: 2, variadic: false, params: "parent string, name string" },

@@ -6,8 +6,8 @@ export function GaeaCostHealthScan() {
   return window['go']['app']['CostB']['GaeaCostHealthScan']();
 }
 
-export function GaeaCostLibraryExport(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['app']['CostB']['GaeaCostLibraryExport'](arg1, arg2, arg3, arg4, arg5);
+export function GaeaCostLibraryExport(arg1, arg2, arg3) {
+  return window['go']['app']['CostB']['GaeaCostLibraryExport'](arg1, arg2, arg3);
 }
 
 export function GaeaWorkcostBillItemDelete(arg1) {

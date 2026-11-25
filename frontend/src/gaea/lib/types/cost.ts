@@ -95,12 +95,18 @@ export interface PriceFetchRecord {
 // WorkcostKind 工料机类别 + 外委。kind 值为中文，与 Go 侧常量一致。
 export type WorkcostKind = "人工" | "材料" | "机械" | "外委";
 
+/**
+ * 读侧的类别：规范值是四类之一；库定规矩之前的存量行会带着别的取值原样回来
+ * （界面归到「类别待整理」一桶）。写入面仍只收 WorkcostKind。
+ */
+export type WorkcostKindRead = WorkcostKind | (string & Record<never, never>);
+
 // WorkcostResource 工料机资源（gf_resources）：独立主数据，有基准价与现行价。
 // 核算取用价 = 现行价优先、为 0 回退基准价（EffectivePrice）。
 export interface WorkcostResource {
   id: number;
   code: string;
-  kind: WorkcostKind;
+  kind: WorkcostKindRead;
   title: string;
   spec: string;
   unit: string;
@@ -170,8 +176,11 @@ export interface WorkcostQuota {
   /** 工作簿原始清单编码（编码统一可能改写 code，溯源靠它）。 */
   origCode?: string;
   title: string;
+  /** 专业——定额的固有属性：随来源定、定了不改；空=尚未标注（待整理）。 */
   specialty: string;
   chapter: string;
+  /** 借鉴生成的溯源（「借鉴 <专业> <码>」）：本专业没有可用定额时以外专业定额为底生成；空=非借鉴。 */
+  derivedFrom?: string;
   unit: string;
   categoryPath: string;
   baseLabor: number;
@@ -218,6 +227,8 @@ export interface WorkcostCompose {
 
 // WorkcostBillProject 清单项目（五表封面 + 录入费率；一次导入=一个项目）。
 // 费率是录入数据——加总计算不在库里发生，导出五表活公式工作簿由 Excel 算。
+// specialty/region/pricePeriod 是规范值（库定规矩）：专业、地区取字典值，计价期
+// YYYY-MM；空=尚未标注（待整理）。region 与封面地址 location 分开。
 export interface WorkcostBillProject {
   id: number;
   name: string;
@@ -226,6 +237,9 @@ export interface WorkcostBillProject {
   location: string;
   duration: string;
   pricing: string;
+  specialty: string;
+  region: string;
+  pricePeriod: string;
   managementRate: number;
   regulatoryRate: number;
   profitRate: number;
@@ -257,6 +271,25 @@ export interface WorkcostBillItem {
   sort: number;
   /** 挂接的全部定额码（1:N 组合，gf_bill_quota_links 聚合；quotaCode 是主定额）。 */
   quotaCodes?: string[];
+  /** 清单项专业（读取时已归一：行自身为空则取项目默认专业；都空=待整理）。 */
+  specialty?: string;
+  /** 各挂接定额的工程量（定额码 → 工程量；0=跟随清单工程量）。详情里「消耗量 = 工程量 × 含量」用它。 */
+  linkQuantities?: Record<string, number>;
+}
+
+// WorkcostLibraryFilter 造价库列表的筛选口径（板块列表与导出共用，保证「导出（当前
+// 筛选）」导的就是界面上看到的那些行）。零值=不过滤；值为 NONE 哨兵（见 cost-library/logic）
+// =只要该字段为空的行（未标注 / 未细分的那一桶）。
+export interface WorkcostLibraryFilter {
+  projectId: number;
+  keyword: string;
+  specialty: string;
+  division: string;
+  chapter: string;
+  kind: string;
+  category: string;
+  region: string;
+  period: string;
 }
 
 // WorkcostComposeOverride 项目级覆盖含量/单价（key=资源编码；
