@@ -144,21 +144,3 @@ func TestEditFileSeekDoesNotEatCRLFHint(t *testing.T) {
 		t.Fatalf("CRLF 诊断必须保留: %v", err)
 	}
 }
-
-// multi_edit 也走兜底：定位说明随条目回喂。
-func TestMultiEditSeekFallback(t *testing.T) {
-	dir := t.TempDir()
-	path := writeTemp(t, dir, "mm.txt", "top\nalpha \nbottom\n")
-	out := execTool(t, multiEdit{}, map[string]any{
-		"path": path,
-		"edits": []map[string]any{
-			{"old_string": "alpha\nbottom", "new_string": "ALPHA\nbottom"},
-		},
-	})
-	if !strings.Contains(out, "#0 ok") || !strings.Contains(out, "按第 1 档") {
-		t.Fatalf("multi_edit 应带兜底说明: %s", out)
-	}
-	if string(mustRead(t, path)) != "top\nALPHA\nbottom\n" {
-		t.Fatalf("内容不符: %q", mustRead(t, path))
-	}
-}

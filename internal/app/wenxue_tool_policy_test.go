@@ -18,11 +18,11 @@ func TestWenxueToolFilterDeniesOfficeFamily(t *testing.T) {
 		// xlsx 族
 		"xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
 		// 域工具
-		"cad_ask", "cost_search", "cost_save", "cost_compose", "cost_indicators",
+		"cad_ask", "cost_search", "cost_save", "cost_indicators",
 		"semantic_search",
 		"schedule_get", "schedule_apply", "schedule_analyze",
 		"chart_gen", "diagram_gen", "diagram", "doc_render",
-		"format_convert", "screen_capture", "dag_plan",
+		"format_convert", "screen_capture",
 	}
 	for _, n := range denied {
 		if wenxueToolFilter(n) {
@@ -77,8 +77,10 @@ func TestWenxueToolFilterDeniesSlimmedFamily(t *testing.T) {
 	// 2026-11-16 图文瘦身刀 13 件：编辑族五件/大文件两件/办公侧栏/会话元工具
 	// 两件/子代理管理三件（管理面在 UI tab，agent 侧保留 task）。写作闭环外
 	// 的面板杂音，物理不装——boot 直注册件经 boot.addGated 同闸生效。
+	// （编辑族的 edit_lines/multi_edit/replace 与 cost_compose 已于 2026-11-25
+	// 全局退役，名单与用例同步收掉。）
 	for _, n := range []string{
-		"edit_file", "edit_lines", "multi_edit", "replace", "move_file",
+		"edit_file", "move_file",
 		"read_spill", "summarize_file", "sidebar_open",
 		"request_permission", "exit_plan_mode",
 		"interrupt_agent", "subagent_list", "read_subagent_result",

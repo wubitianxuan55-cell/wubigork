@@ -11,6 +11,14 @@ import "time"
 // space 语义与 listInSpace 一致：空 = 不过滤（旧行为），非空 = 仅该空间。
 // InSpace("") 返回原 Store，不包视图，既有调用零行为变化。
 
+// sessionMode 透传内层的运行模式（与 modeView 任意顺序叠加时都取得到）。
+func (v spaceView) sessionMode() string {
+	if sm, ok := v.inner.(interface{ sessionMode() string }); ok {
+		return sm.sessionMode()
+	}
+	return ""
+}
+
 type spaceView struct {
 	inner backend
 	space string

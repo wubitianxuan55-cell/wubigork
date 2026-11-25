@@ -223,7 +223,7 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		cctx = memory.WithQueue(cctx, a.memQueue)
 	}
 	// S1.2 A：把会话空间盖章到工具调用 ctx（与 WithQueue 同注入点）。ctx 已由
-	// agent.Run 注入会话空间（SpaceFromContext 缺省 work）——remember/memory_get
+	// agent.Run 注入会话空间（SpaceFromContext 缺省 work）——remember/memory_search
 	// 等记忆工具经 memory.SpaceFromContext 读取，写读都限定本空间。
 	cctx = memory.WithSpace(cctx, SpaceFromContext(ctx))
 	if a.sessionSaver != nil {
@@ -467,10 +467,10 @@ func isBackgroundTaskCall(args string) bool {
 //     效果不可静态推断 → unknown；只读族 → none。
 func defaultEffectForTool(name string) string {
 	switch name {
-	case "edit_file", "multi_edit", "edit_lines", "write_file",
+	case "edit_file", "write_file",
 		"docx_apply", "docx_accept", "pptx_apply", "xlsx_apply":
 		return tool.EffectNone
-	case "bash", "move_file", "replace":
+	case "bash", "move_file":
 		return tool.EffectUnknown
 	default:
 		if evidence.IsDeliverableTool(name) {
@@ -564,7 +564,7 @@ func repeatSuccessSignature(call provider.ToolCall, t tool.Tool) (string, bool) 
 		return "", false
 	}
 	switch call.Name {
-	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "replace":
+	case "write_file", "edit_file", "move_file":
 		return call.Name + "\x00" + canonicalToolArgs(call.Arguments), true
 	case "bash":
 		var p struct {
@@ -670,7 +670,7 @@ func hasShellWriteRedirect(command string) bool {
 // isFileWriter reports whether the tool name targets a specific file for writing.
 func isFileWriter(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file", "replace":
+	case "edit_file", "write_file", "move_file":
 		return true
 	}
 	return false

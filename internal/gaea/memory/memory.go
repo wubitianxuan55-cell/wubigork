@@ -23,6 +23,7 @@ type Set struct {
 	CWD     string       // project working dir used for discovery
 	UserDir string       // user config root (may be "")
 	DB      *sql.DB      // Hephaestus.db 连接（SQLite 后端时非 nil，refresh 复用）
+	Mode    string       // 会话运行模式（""=模式维度未启用；重载沿用，见 mode.go）
 }
 
 // Options configures discovery. CWD defaults to "." and UserDir is the user
@@ -37,6 +38,10 @@ type Options struct {
 	// Store 只在该空间读（List/Index/Get/Touch 收窄，写路径仍以 Memory.Space
 	// 落库为准）。经 Store.InSpace 视图实现，见 space_view.go。
 	Space string
+	// Mode 是读端运行模式收窄（2026-11-25 办公工具梳理批）："" = 模式维度未
+	// 启用（不过滤，非办公板块/未设装配零变化）；"standard" = 只读通用记忆；
+	// 其他 = 通用 + 该模式。经 Store.InMode 视图实现，见 mode.go。
+	Mode string
 }
 
 // Load discovers all memory for a session: the hierarchical docs and the
@@ -54,8 +59,8 @@ func Load(opts Options) *Set {
 		store = StoreFor(opts.UserDir, cwd)
 	}
 	// S1.2 B 读端空间收窄：Options.Space 非空时 Set 的 Store 只在该空间读
-	//（InSpace 视图；空 = 不过滤，既有调用零行为变化）。
-	store = store.InSpace(opts.Space)
+	//（InSpace 视图；空 = 不过滤，既有调用零行为变化）。模式维度同理（InMode）。
+	store = store.InSpace(opts.Space).InMode(opts.Mode)
 	docs := discoverDocs(cwd, opts.UserDir)
 	return &Set{
 		Docs:    docs,
@@ -65,6 +70,7 @@ func Load(opts Options) *Set {
 		CWD:     cwd,
 		UserDir: opts.UserDir,
 		DB:      opts.DB,
+		Mode:    store.SessionMode(),
 	}
 }
 
@@ -191,11 +197,31 @@ func (s *Set) buildFullBlock() string {
 
 	if idx := strings.TrimSpace(s.Index); idx != "" {
 		b.WriteString("\n## Saved memories\n\n")
-		b.WriteString("Facts you saved in earlier sessions — use read_file to see details.\n\n")
+		b.WriteString(savedMemoriesHint + "\n\n")
 		b.WriteString(capMemoryIndex(idx))
-		fmt.Fprintf(&b, "\n\n(stored under %s)\n", s.Store.Dir)
+		b.WriteString(storedUnder(s.Store))
 	}
 	return b.String()
+}
+
+// savedMemoriesHint 索引块的读法说明。2026-11-25 办公工具梳理批：晨报预载与
+// 项目事实单两块与索引逐条重复，已停注——引用键与「按名读正文」的提示收进
+// 这一行，同一批记忆一轮只列一遍（正文另由逐轮召回按相关度注入）。
+const savedMemoriesHint = "以往会话沉淀的记忆。方括号里的名称即引用键——采纳某条时在句末标注 [MEM:名称]；正文用记忆工具按名读取。"
+
+// IndexForInjection 返回装配点实际注入的记忆索引（渲染 + 预算截断），供注入
+// 体检（EvalIndexInjection）对真实产物断言——与 buildFullBlock 同口径。
+func IndexForInjection(s Store) string {
+	return capMemoryIndex(strings.TrimSpace(s.Index()))
+}
+
+// storedUnder 是索引尾的存储位置说明；SQLite 后端没有目录概念，不输出
+// （此前恒打印「(stored under )」半截文案）。
+func storedUnder(s Store) string {
+	if strings.TrimSpace(s.Dir) == "" {
+		return ""
+	}
+	return fmt.Sprintf("\n\n(stored under %s)\n", s.Dir)
 }
 
 // memoryIndexBudgetBytes 控制注入系统提示词的「Saved memories」索引预算（字节）。
@@ -316,8 +342,9 @@ func (s *Set) buildCompactBlock() string {
 
 	if idx := strings.TrimSpace(s.Index); idx != "" {
 		b.WriteString("\n## Saved memories\n\n")
+		b.WriteString(savedMemoriesHint + "\n\n")
 		b.WriteString(capMemoryIndex(idx))
-		fmt.Fprintf(&b, "\n\n(stored under %s)\n", s.Store.Dir)
+		b.WriteString(storedUnder(s.Store))
 	}
 	return b.String()
 }

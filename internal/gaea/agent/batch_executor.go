@@ -349,7 +349,7 @@ func getConflictKey(call provider.ToolCall) string {
 		return "spawn:" + call.ID
 	case "complete_step", "todo_write":
 		return "!ledger"
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "replace":
+	case "edit_file", "write_file":
 		path := extractFilePath(call.Name, call.Arguments)
 		if path != "" {
 			return "file:" + path

@@ -13,14 +13,15 @@ const DISABLED_TOOL_NAMES = [
   "xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
   "office_open", "office_status", "office_read", "office_edit", "office_render",
   "office_save", "office_close", "office_help", "office_macro", "office_selection",
-  "cad_ask", "cost_search", "cost_save", "cost_compose", "cost_indicators",
+  "cad_ask", "cost_search", "cost_save", "cost_indicators",
   "chart_gen", "diagram_gen", "diagram", "doc_render", "format_convert",
-  "screen_capture", "dag_plan", "semantic_search",
+  "screen_capture", "semantic_search",
   "fact_add", "fact_list", "fact_clear",
   "browser_",
-  // 图文瘦身刀（2026-11-16）：写作闭环外的面板杂音 13 件，引擎侧
-  // wenxue_tool_policy.go 同源（含 boot 直注册件，boot.addGated 同闸）。
-  "edit_file", "edit_lines", "multi_edit", "replace", "move_file",
+  // 图文瘦身刀（2026-11-16）：写作闭环外的面板杂音，引擎侧 wenxue_tool_policy.go
+  // 同源（含 boot 直注册件，boot.addGated 同闸）。multi_edit / edit_lines / replace 已于
+  // 2026-11-25 全局退役，名单里不再列。
+  "edit_file", "move_file",
   "read_spill", "summarize_file", "sidebar_open",
   "request_permission", "exit_plan_mode",
   "interrupt_agent", "subagent_list", "read_subagent_result",

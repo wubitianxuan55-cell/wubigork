@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/config"
@@ -40,8 +39,10 @@ type syspromptOut struct {
 // space 是装配空间的配置生效值（v4.5.1a 红线补课：""=space.mode=off 平铺形态
 // 走空值全量=旧行为；"work"/"play"=系统提示词记忆索引只在该空间读——会话画像
 // 与记忆索引不再跨空间泄露，兑现 S1.2 读端硬隔离的注入侧承诺）。
-// morningPreload 是晨报预载开关（v4.16 刀④，桌面端从 morning_preload 配置键
-// 读取传入）：work 空间会话装配时预装配高频工作记忆晨报块。
+// memMode 是会话运行模式（2026-11-25 办公工具梳理批·记忆按模式隔离）：非空时
+// 记忆索引/检索/逐轮召回只含「通用 + 本模式」的记忆，""=模式维度未启用（现状）。
+// 晨报预载与项目本体注入两块同批停注——它们与记忆索引逐条重复，同一批记忆一轮
+// 曾列四遍；现在系统提示词里只留索引一处，正文另由逐轮召回按相关度注入。
 // skillFilter/skillExtras（2026-11-15 刀2，图文板块技能子集）：filter 非空时
 // 索引/slash/run_skill/ctrl.Skills 面只留放行名单；extras 追加宿主内嵌技能
 // （appended before filter——extras 必须自证通过 filter）。read_skill 解析器
@@ -52,7 +53,7 @@ type syspromptOut struct {
 // 在技能索引之后追加固定文本「当前模式 + 本档未载入能力组 + 切档指引」
 // （DSH-r5 裁决：ToolHide 与模式提示必须同批上线，防能力无声消失）。空 =
 // 零注入、现状逐字节。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string, systemPromptOverride string, modeLine string) (*syspromptOut, error) {
+func buildSystemPrompt(cfg *config.Config, cwd, space, memMode string, stderrPath io.Writer, onSkillUse func(name string, ok bool), skillFilter func(name string) bool, skillExtras []skill.Skill, memUserDir string, systemPromptOverride string, modeLine string) (*syspromptOut, error) {
 	// 板块身份覆写（2026-11-16 图文身份分板）：非空顶替全局配置解析——图文
 	// 引擎传自己的身份，不再吃办公 system_prompt。空 = 现状逐字节。
 	var sysPrompt string
@@ -91,32 +92,14 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	// 用户选定的工作空间（opts.Cwd），而不是进程启动目录。
 	// v4.5.1a：Store 经 InSpace 视图收窄读端——work 会话的画像/索引只含 work
 	// 记忆，play 只含 play；space.mode=off 时 space="" 不过滤（旧行为零变化）。
-	mem := memory.Load(memory.Options{CWD: cwd, UserDir: userDir, DB: gdb, Space: space})
+	// 2026-11-25：再叠 InMode 视图按运行模式收窄（memMode 空=不过滤）。
+	mem := memory.Load(memory.Options{CWD: cwd, UserDir: userDir, DB: gdb, Space: space, Mode: memMode})
 	// 记忆开关：关闭时不把画像/文档索引折进系统提示词（磁盘记忆保留，
 	// 面板仍可管理；重新开启后下一次引擎重建即恢复注入）。
 	if cfg.Memory.Enabled {
 		sysPrompt = memory.Compose(sysPrompt, mem)
 		if mem.Empty() {
 			memory.InitDefaults(mem)
-		}
-	}
-	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
-	// 「晨报预载」块，预装配进系统提示词前缀（零 LLM、预算受限、work 只读，
-	// 与 ProfileBlock 画像/记忆索引并列）。门控：总记忆开关 + 晨报预载开关
-	// （morning_preload，默认开）+ work 空间——play/mode=off 不注入；装配点
-	// 按空间取数（Load 的 InSpace 视图），play 会话根本读不到 work 记忆
-	// （双空间红线）。空记忆时纯函数返回空串，零注入、前缀逐字节不变。
-	if cfg.Memory.Enabled && morningPreload && space == "work" {
-		if block := memory.BuildMorningPreloadBlock(mem.Store.List(), time.Now(), 0); block != "" {
-			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
-		}
-	}
-	// 项目本体注入（6.2 可审计默认化的决策侧）：固化/项目/反馈决策带
-	// [MEM:] 引用键与来源会话归因，装配进缓存稳定前缀（跨会话项目连续性）。
-	// 可关：config project_brief（默认开）；play/mode=off 不注入（work 专属）。
-	if cfg.Memory.Enabled && projectBrief && space == "work" {
-		if block := memory.BuildProjectBrief(mem.Store.List(), time.Now(), 0); block != "" {
-			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
 		}
 	}
 	// 固化正文注入（v4.378，activation 二维：pinned=正文随会话快照装配，

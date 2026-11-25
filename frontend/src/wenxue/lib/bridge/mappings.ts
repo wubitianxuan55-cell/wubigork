@@ -139,8 +139,6 @@ export const gaeaToGaea = {
   UpdateFact: "WenxueUpdateFact",
   ChangeFactType: "WenxueChangeFactType",
   SetMemoryEnabled: "GaeaSetMemoryEnabled",
-  MorningPreload: "GaeaMorningPreload",
-  SetMorningPreload: "GaeaSetMorningPreload",
   MemorySuggestions: "WenxueMemorySuggestions",
   // AI 反馈库：Go 方法同名直通（全局库，与办公面板同源展示）。
   AIFeedbackList: "GaeaAIFeedbackList",
@@ -217,8 +215,6 @@ export const gaeaToGaea = {
   MemoryFeedback: "GaeaMemoryFeedback",
   MemoryLifecycle: "GaeaMemoryLifecycle",
   MemoryEvalRun: "GaeaMemoryEvalRun",
-  MemoryBrief: "GaeaMemoryBrief",
-  SetMemoryBrief: "GaeaSetMemoryBrief",
   MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostSearch: "GaeaCostSearch",
   CostSearchPage: "GaeaCostSearchPage",

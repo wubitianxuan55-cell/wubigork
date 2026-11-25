@@ -198,33 +198,3 @@ func TestRememberToolStampsSpaceFromContext(t *testing.T) {
 		t.Fatalf("SpaceFromContext(bogus) = %q, want work（Normalize 兜底）", got)
 	}
 }
-
-// memory_get 工具空间限定：本空间可读并 Touch，跨空间键报未找到。
-func TestMemoryGetToolSpaceScoped(t *testing.T) {
-	dir := t.TempDir()
-	gdb := db.GetDatabase(dir)
-	if gdb == nil {
-		t.Fatal("GetDatabase nil")
-	}
-	t.Cleanup(func() { db.CloseDatabase(dir) })
-	s := SQLiteStoreFor(gdb, dir, "/Users/me/proj")
-	if _, err := s.Save(Memory{Name: "play-fact", Space: "play", Description: "d", Body: "乐园正文"}); err != nil {
-		t.Fatal(err)
-	}
-	tool := NewMemoryGetTool(s)
-	args, _ := json.Marshal(map[string]string{"name": "play-fact"})
-
-	// play ctx 可读
-	out, err := tool.Execute(WithSpace(context.Background(), "play"), args)
-	if err != nil || !strings.Contains(out, "乐园正文") {
-		t.Fatalf("play ctx 读取: out=%q err=%v", out, err)
-	}
-	// work ctx 跨空间不可读
-	if _, err := tool.Execute(WithSpace(context.Background(), "work"), args); err == nil {
-		t.Fatal("work ctx 读取 play 记忆应报未找到（隔离红线）")
-	}
-	// 缺省 ctx（work）同样不可读 play 记忆
-	if _, err := tool.Execute(context.Background(), args); err == nil {
-		t.Fatal("缺省 ctx 读取 play 记忆应报未找到")
-	}
-}

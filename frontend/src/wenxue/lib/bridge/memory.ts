@@ -62,14 +62,6 @@ export interface MemoryBindings {
   // 构建器，断言预算/泄漏/悬空五不变量（设计档
   // docs/gaea-memory-injection-eval-design-2026-09.md）。
   MemoryEvalRun(): Promise<MemoryEvalReport>;
-  // MorningPreload 读/写晨报预载开关（~/.gaea_config.json，默认开）：work
-  // 空间新会话装配时预装配高频工作记忆；写后重建引擎即时生效。
-  MorningPreload(): Promise<boolean>;
-  SetMorningPreload(enabled: boolean): Promise<void>;
-  // MemoryBrief 读/写项目本体注入开关（6.2：固化/项目/反馈决策带 [MEM:] 引用
-  // 注入 work 空间新会话；project_brief 键，默认开；写后重建引擎即时生效）。
-  MemoryBrief(): Promise<boolean>;
-  SetMemoryBrief(enabled: boolean): Promise<void>;
   MemorySuggestions(): Promise<MemorySuggestionsView>;
   // ── 记忆中枢 ──
   MemoryHubOverview(): Promise<MemoryHubOverview>;

@@ -65,11 +65,12 @@ func TestWenxueSurfaceDeniesFactAndOfficeFamilies(t *testing.T) {
 			t.Fatalf("交付事实库工具 %s 应被图文引擎拒绝装配（census 守卫）", n)
 		}
 	}
-	// 办公域抽样：生成/批处理/COM/CAD/造价/进度/浏览器/文件流水线。
+	// 办公域抽样：生成/批处理/COM/CAD/造价/进度/浏览器。（文件流水线 dag_plan
+	// 2026-11-25 起不再进办公 ExtraTools，不在本 census 枚举面。）
 	for _, n := range []string{
 		"office_generate(filter)", "office_batch(filter)", "docx_apply(filter)",
 		"xlsx_apply(filter)", "cad_ask(filter)", "cost_search(filter)",
-		"schedule_get(filter)", "browser_navigate(filter)", "dag_plan(filter)",
+		"schedule_get(filter)", "browser_navigate(filter)",
 	} {
 		if !denySet[n] {
 			t.Fatalf("办公域工具 %s 应被图文引擎拒绝装配（census 守卫）", n)
@@ -80,8 +81,8 @@ func TestWenxueSurfaceDeniesFactAndOfficeFamilies(t *testing.T) {
 	// census 枚举面——它们由 boot.addGated 过闸，单测见 wenxue_tool_policy_test
 	// 与 boot.boot_toolgate_test。）
 	for _, n := range []string{
-		"edit_file(filter)", "edit_lines(filter)", "multi_edit(filter)",
-		"replace(filter)", "move_file(filter)", "read_spill(filter)",
+		// （edit_lines/multi_edit/replace 已于 2026-11-25 全局退役，不在装配面。）
+		"edit_file(filter)", "move_file(filter)", "read_spill(filter)",
 		"sidebar_open(filter)",
 	} {
 		if !denySet[n] {

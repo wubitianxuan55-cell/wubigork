@@ -413,7 +413,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				if p := extractFilePath(call.Name, call.Arguments); p != "" {
 					turnFilesCreated = append(turnFilesCreated, p)
 				}
-			case "edit_file", "edit_lines", "move_file":
+			case "edit_file", "move_file":
 				if p := extractFilePath(call.Name, call.Arguments); p != "" {
 					turnFilesModified = append(turnFilesModified, p)
 				}

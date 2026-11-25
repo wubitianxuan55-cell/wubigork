@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 704 名（原生变参 19 名已收窄标注）。
+// 共 700 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -212,7 +212,6 @@ export const bindingSignatures = {
   GaeaMaterials: { argc: 1, variadic: false, params: "limit int" },
   GaeaMemory: { argc: 0, variadic: false, params: "" },
   GaeaMemoryArchivedList: { argc: 2, variadic: false, params: "limit int, offset int" },
-  GaeaMemoryBrief: { argc: 0, variadic: false, params: "" },
   GaeaMemoryCleanupArchived: { argc: 0, variadic: false, params: "" },
   GaeaMemoryDuplicates: { argc: 1, variadic: false, params: "min float64" },
   GaeaMemoryEvalRun: { argc: 0, variadic: false, params: "" },
@@ -231,7 +230,6 @@ export const bindingSignatures = {
   GaeaMeta: { argc: 0, variadic: false, params: "" },
   GaeaModelSwitchEstimate: { argc: 2, variadic: false, params: "engineID string, model string" },
   GaeaModels: { argc: 0, variadic: false, params: "" },
-  GaeaMorningPreload: { argc: 0, variadic: false, params: "" },
   GaeaNewSession: { argc: 0, variadic: false, params: "" },
   GaeaOCRText: { argc: 1, variadic: false, params: "imagePath string" },
   GaeaOfficeEditText: { argc: 2, variadic: false, params: "selectedText string, instruction string" },
@@ -318,10 +316,8 @@ export const bindingSignatures = {
   GaeaSetDefaultModel: { argc: 1, variadic: false, params: "ref string" },
   GaeaSetDreamMode: { argc: 1, variadic: false, params: "mode string" },
   GaeaSetMCPServerEnabled: { argc: 2, variadic: false, params: "name string, enabled bool" },
-  GaeaSetMemoryBrief: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetMemoryEnabled: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetModel: { argc: 1, variadic: false, params: "name string" },
-  GaeaSetMorningPreload: { argc: 1, variadic: false, params: "enabled bool" },
   GaeaSetPermLevel: { argc: 1, variadic: false, params: "level string" },
   GaeaSetPermissionMode: { argc: 1, variadic: false, params: "mode string" },
   GaeaSetProviderKey: { argc: 2, variadic: false, params: "apiKeyEnv string, value string" },
@@ -712,5 +708,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 704。
-export const bindingSignatureCount = 704;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 700。
+export const bindingSignatureCount = 700;

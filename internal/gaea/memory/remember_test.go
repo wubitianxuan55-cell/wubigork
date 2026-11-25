@@ -26,7 +26,7 @@ func TestRememberToolSaves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if !strings.Contains(out, "Saved memory") {
+	if !strings.Contains(out, "已存记忆") {
 		t.Fatalf("unexpected tool output: %q", out)
 	}
 
@@ -65,14 +65,16 @@ func TestRememberToolQueuesNote(t *testing.T) {
 	}
 }
 
-// TestRememberDescriptionConsentGate 确认制措辞（2026-11-18 众神殿余项）：
-// 全局工具描述与办公/文学身份稿及执行纪律统一为确认制——只读描述的模型
-// 不再被引导主动保存（红线「未经确认不写持久化数据」；确认卡机制本就在）。
+// TestRememberDescriptionConsentGate 确认制措辞（2026-11-18 众神殿余项；2026-11-25
+// 办公工具梳理批描述改中文，锚点同步换）：描述必须同时写明「值得记就主动记」
+// 与「确认卡=用户确认才落盘」，并排除瞬时状态与用户明令不存的内容——红线
+// 「未经确认不写持久化数据」靠确认卡机制与这句措辞共同成立。
 func TestRememberDescriptionConsentGate(t *testing.T) {
 	desc := rememberTool{}.Description()
 	for _, sub := range []string{
-		"When you learn something worth keeping long-term, call this proactively",
-		"Do not log transient state",
+		"值得长期保留的才记",
+		"用户明令不存的不要记",
+		"弹确认卡，用户确认才落盘",
 	} {
 		if !strings.Contains(desc, sub) {
 			t.Errorf("remember 描述缺确认制锚 %q", sub)

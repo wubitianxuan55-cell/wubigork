@@ -15,8 +15,8 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
-	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -38,7 +38,7 @@ type Config struct {
 	// 默认关——Enabled=false 时 computer_windows/state/launch 三件不注册，
 	// Registry.Schemas() 与现状逐字节一致；关闭即回现状。
 	ComputerUse ComputerUseConfig `toml:"computer_use"`
-	Permissions   PermissionsConfig       `toml:"permissions"`
+	Permissions PermissionsConfig `toml:"permissions"`
 	// Guardian 是动作级自动评审配置（codex 蒸馏 T11）：[guardian] 段。默认
 	// 关——关时审批仍是纯人工（现状逐字节）。
 	Guardian GuardianConfig `toml:"guardian"`
@@ -233,7 +233,6 @@ type SpaceConfig struct {
 	// 旧分区数据仍可读（读端按目录归属降级）。
 	Mode string `toml:"mode"`
 }
-
 
 // TasksConfig 是通用任务调度器配置（S1.4 按空间分账）。
 type TasksConfig struct {
@@ -826,6 +825,11 @@ type AgentConfig struct {
 	// 超出的调用排队等槽（transcript 侧车标 queued，前端可见）。≤0 = 默认 3；
 	// 硬帽 8（与批次并行度对齐），装配在 agent.SetSubagentMaxParallel 钳制。
 	SubagentMaxParallel int `toml:"subagent_max_parallel"`
+	// StreamIdleTimeoutSecs 是流式请求的空闲超时（秒）：两次收到数据之间的最长
+	// 间隔，兼作响应头等待上限。0 = 内置默认（10 分钟，见 ai 包
+	// defaultStreamIdleTimeout）。2026-11-25 紧急修复：原默认 60s 会把推理模型
+	// 的长时间思考当成空闲切断（办公造价档尤甚）。
+	StreamIdleTimeoutSecs int `toml:"stream_idle_timeout_secs"`
 	// SubagentRoutes 是 task 子代理按调用的授权路由清单（2026-11，dsh
 	// model-selection 蒸馏 P2：「无授权政策时显式选择只许父路由；显式未授权
 	// 委派必须失败」）。形如 ["engine/model", ...]；空 = 路由关闭（task 的
@@ -1162,7 +1166,7 @@ func Default() *Config {
 		// first use. Set enabled = false to opt out, or auto_install = false to
 		// require an explicit `gaea codegraph install`.
 		Tools: ToolsConfig{Enabled: []string{
-			"read_file", "write_file", "edit_file", "edit_lines", "move_file",
+			"read_file", "write_file", "edit_file", "move_file",
 			"ls", "grep", "bash",
 			"web_fetch", "web_search",
 			"todo_write", "complete_step",

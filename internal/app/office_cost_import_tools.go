@@ -24,86 +24,6 @@ import (
 // clSrcSchema import_* 各行的来源位置（回读核对的锚点）在说明里的写法。
 const clSrcSchema = `{"type":"object","description":"这一行在资料里的位置（回读核对的锚点，强烈建议每行都带）：sheet=工作表名（csv 不给），row=行号（从 1 起，与 Excel 一致）","properties":{"sheet":{"type":"string"},"row":{"type":"integer"}}}`
 
-// clImportSchema import_* 动作在 cost_library 说明里的参数段（JSON Schema 片段）。
-// 键名与 costLibraryArgs / workcost.Import* 的 json 标签逐字一致（有用例钉住）。
-const clImportSchema = `
-  "import_id":{"type":"string","description":"导入会话 id（import_open 返回；import_add / import_check / import_commit / import_discard 必填）"},
-  "source":{"type":"string","description":"import_open：资料路径（工作区内）。只用来回读核对提交的数与文字，不解析它的结构；xlsx / csv 支持，其他格式无法回读"},
-  "project":{"type":"object","description":"import_open：项目口径与封面（只导工料机 / 定额可以不给）。专业、地区是字典值，计价期 YYYY-MM","properties":{
-    "name":{"type":"string","description":"项目名（要提交清单行就必须给）"},
-    "file_name":{"type":"string","description":"资料文件名"},
-    "location":{"type":"string","description":"封面地址（自由文本）"},
-    "region":{"type":"string","description":"项目所在地区（字典值）——工料机按地区分行，行里没给地区时用它"},
-    "specialty":{"type":"string","description":"项目默认专业（字典值）——定额行没给专业时用它"},
-    "price_period":{"type":"string","description":"计价期 YYYY-MM——行里没给期时用它"},
-    "duration":{"type":"string","description":"工期"},
-    "pricing":{"type":"string","description":"计价方式"},
-    "management_rate":{"type":"number","description":"企业管理费率"},
-    "regulatory_rate":{"type":"number","description":"规费费率"},
-    "profit_rate":{"type":"number","description":"利润费率"},
-    "tax_rate":{"type":"number","description":"增值税费率"},
-    "control_price":{"type":"number","description":"控制价"}
-  }},
-  "controls":{"type":"object","description":"import_open：资料上的控制数（可选，给了才比）——你从资料上读到的行数与合计，程序拿来对暂存数据","properties":{
-    "resources":{"type":"integer","description":"工料机价格表的行数"},
-    "quotas":{"type":"integer","description":"定额子目（综合单价分析）的条数"},
-    "bills":{"type":"integer","description":"清单行数"},
-    "bill_total":{"type":"number","description":"清单合计 Σ(工程量 × 原表综合单价)"},
-    "resource_price_sum":{"type":"number","description":"工料机单价合计"}
-  }},
-  "resources":{"type":"array","description":"import_add：整理好的工料机行（每批 ≤200；被定额含量行引用的必须给 code）","items":{"type":"object","properties":{
-    "code":{"type":"string","description":"工料机编码（不给=提交时自动分配）"},
-    "kind":{"type":"string","description":"类别：人工/材料/机械/外委"},
-    "title":{"type":"string","description":"名称（必填）"},
-    "spec":{"type":"string","description":"规格"},
-    "unit":{"type":"string","description":"单位"},
-    "price":{"type":"number","description":"单价（同时作基准价与现行价）"},
-    "category_path":{"type":"string","description":"分类路径（字典值；空=待整理）"},
-    "region":{"type":"string","description":"地区（字典值；不给=项目地区）"},
-    "period":{"type":"string","description":"现行价的期 YYYY-MM（不给=项目计价期）"},
-    "price_type":{"type":"string","description":"价格口径：到场价/信息价/含税…"},
-    "source":{"type":"string","description":"价格来源"},
-    "note":{"type":"string","description":"备注"},
-    "src":` + clSrcSchema + `,
-    "derived":{"type":"array","items":{"type":"string"},"description":"由你换算、不是照抄的字段名（如 quantity）——回读时不核这些字段"}
-  }}},
-  "quotas":{"type":"array","description":"import_add：整理好的消耗定额（每批 ≤200）","items":{"type":"object","properties":{
-    "code":{"type":"string","description":"定额编码（必填；与库里的同码同专业=更新）"},
-    "title":{"type":"string","description":"名称（必填）"},
-    "unit":{"type":"string","description":"计量单位"},
-    "specialty":{"type":"string","description":"专业（字典值；不给=项目专业）"},
-    "chapter":{"type":"string","description":"章节"},
-    "category_path":{"type":"string","description":"分类路径"},
-    "source":{"type":"string","description":"来源"},
-    "note":{"type":"string","description":"备注"},
-    "items":{"type":"array","description":"含量行（引用的工料机必须已在库或已在暂存区）","items":{"type":"object","properties":{
-      "resource_code":{"type":"string","description":"工料机编码（必填）"},
-      "quantity":{"type":"number","description":"含量"},
-      "loss_rate":{"type":"number","description":"损耗率（0.03=3%）"},
-      "note":{"type":"string","description":"备注"},
-      "src":` + clSrcSchema + `
-    }}},
-    "src":` + clSrcSchema + `,
-    "derived":{"type":"array","items":{"type":"string"},"description":"由你换算的字段名"}
-  }}},
-  "bills":{"type":"array","description":"import_add：整理好的清单行（每批 ≤200）","items":{"type":"object","properties":{
-    "code":{"type":"string","description":"清单编码（空=自动 M 序号）"},
-    "title":{"type":"string","description":"名称（必填）"},
-    "unit":{"type":"string","description":"单位（必填）"},
-    "division":{"type":"string","description":"分部"},
-    "specialty":{"type":"string","description":"清单专业（字典值；不给=跟随项目专业）"},
-    "quantity":{"type":"number","description":"工程量（必须 >0）"},
-    "quantity_expr":{"type":"string","description":"工程量计算式（留痕）"},
-    "quota_code":{"type":"string","description":"主定额编码"},
-    "quota_codes":{"type":"array","items":{"type":"string"},"description":"其余定额编码（1:N 挂接）"},
-    "feature":{"type":"string","description":"项目特征"},
-    "price_override":{"type":"number","description":"手填单价（套定额的行给 0）"},
-    "list_price":{"type":"number","description":"原表综合单价——单价对照用：程序现算后与它比"},
-    "src":` + clSrcSchema + `,
-    "derived":{"type":"array","items":{"type":"string"},"description":"由你换算的字段名"}
-  }}}
-`
-
 // ── 会话保管（内存） ─────────────────────────────────────────────────
 
 const costImportTTL = 2 * time.Hour
@@ -218,6 +138,8 @@ func (t costLibraryTool) importOpen(s *workcost.Store, p costLibraryArgs) (strin
 		out.WriteString("**控制数**: 未登记（资料上有行数、合计的话，重新 import_open 带上 controls，勾稽时能对出漏行漏项）。\n")
 	}
 	out.WriteString("\n下一步：读资料、整理成工料机 / 定额 / 清单行，action=import_add 分批提交（先工料机、再定额、后清单；每批 ≤200 行，每行带 src）。")
+	// 行字段契约不常驻 schema（省每轮上下文），在这个流程必经节点随身发放。
+	out.WriteString("\n\n" + clImportRowsContract)
 	return out.String(), nil
 }
 
@@ -228,7 +150,7 @@ func (t costLibraryTool) importAdd(s *workcost.Store, p costLibraryArgs) (string
 		return "", err
 	}
 	if len(p.Resources)+len(p.Quotas)+len(p.Bills) == 0 {
-		return "", fmt.Errorf("import_add 需要 resources / quotas / bills 至少一组")
+		return "", fmt.Errorf("import_add 需要 resources / quotas / bills 至少一组（行字段契约见 import_open 回执，或 action=help）")
 	}
 	var results []workcost.ImportAddResult
 	add := func(kind string, n int, run func() (workcost.ImportAddResult, error)) error {

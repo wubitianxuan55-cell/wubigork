@@ -465,7 +465,9 @@ func TestCostImportCommitGate(t *testing.T) {
 // 错一个字母，模型按说明传的值就会被静默丢掉。逐键用说明里的写法喂进去，断言值落到了
 // 对应字段。
 func TestCostImportArgsMatchDocumentedKeys(t *testing.T) {
-	schema := string(costLibraryTool{}.Schema())
+	// 模型看到的键分布在两处：常驻 schema 与回执携带的行契约——两者同出自
+	// costLibraryDocumentedSchema，对它逐键核对（2026-11-25 工具梳理批）。
+	schema := string(costLibraryDocumentedSchema())
 	for _, needle := range []string{`"import_id"`, `"source"`, `"project"`, `"controls"`, `"resources"`, `"quotas"`, `"bills"`, `"src"`, `"row"`, `"sheet"`, `"derived"`} {
 		if !strings.Contains(schema, needle) {
 			t.Errorf("工具说明里应有键 %s", needle)

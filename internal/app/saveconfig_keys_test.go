@@ -125,7 +125,6 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 	a.cfg.IntentsLLMFallback = true
 	a.cfg.IntentsLLMTimeoutMS = 1999
 	a.cfg.EngineFailoverEnabled = true
-	a.cfg.MorningPreload = true
 	a.cfg.GLMCatalogPath = "old-path"
 	a.cfg.GLMCatalogURL = "old-url"
 
@@ -146,7 +145,6 @@ func TestSaveConfig_DiskOnlyKeysWarnNoSync(t *testing.T) {
 		{config.KeyIntentsLLMFallback, "true", func(c *config.Config) bool { return c.IntentsLLMFallback }},
 		{config.KeyIntentsLLMTimeoutMS, "3000", func(c *config.Config) bool { return c.IntentsLLMTimeoutMS == 1999 }},
 		{config.KeyEngineFailover, "true", func(c *config.Config) bool { return c.EngineFailoverEnabled }},
-		{config.KeyMorningPreload, "false", func(c *config.Config) bool { return c.MorningPreload }},
 		{config.KeyGLMCatalogPath, "new-path", func(c *config.Config) bool { return c.GLMCatalogPath == "old-path" }},
 		{config.KeyGLMCatalogURL, "http://cat.example", func(c *config.Config) bool { return c.GLMCatalogURL == "old-url" }},
 	}

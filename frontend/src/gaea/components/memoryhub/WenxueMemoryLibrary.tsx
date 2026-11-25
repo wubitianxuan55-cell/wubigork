@@ -1,7 +1,8 @@
 // WenxueMemoryLibrary — 记忆中枢「图文记忆」库（2026-11-16）。
 // 图文脑（wenxue-brain 独立 DB）的只读浏览面：物理隔离不动——读写面仍只在
-// 图文引擎记忆五件工具（remember/forget/memory_search/memory_get/
-// promote_session_facts），中枢同右脑聊天记忆「只读」先例做跨书全览。
+// 图文引擎记忆工具（remember / memory_search；forget、memory_get、
+// promote_session_facts 已于 2026-11-25 并入这两件），中枢同右脑聊天记忆
+// 「只读」先例做跨书全览。
 // 数据面 = GaeaWenxueMemoryBrowse（facts 全量，List 不过滤项目=跨书）。
 
 import { useEffect, useMemo, useState } from "react";

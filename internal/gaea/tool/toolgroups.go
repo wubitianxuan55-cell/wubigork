@@ -48,12 +48,15 @@ var toolGroupMembers = map[ToolGroupName][]string{
 	},
 	ToolGroupComputer: {"computer_windows", "computer_state", "computer_launch", "computer_click", "computer_type", "computer_key"},
 	ToolGroupCost: {
-		"cost_search", "cost_save", "cost_compose", "cost_indicators",
+		"cost_search", "cost_save", "cost_indicators",
 		"cost_project", "cost_project_apply", "cost_audit",
 		"cost_library", // 造价库维护（2026-11-25 造价数据库推倒重建：导入/解析/维护归造价模式）
 	},
-	ToolGroupLongdoc: {"longdoc_manifest", "longdoc_build", "longdoc_verify"},
-	ToolGroupMedia:   {"image_gen", "chart_gen", "diagram", "diagram_gen"},
+	// 方案库六件 2026-11-25 并入（办公工具梳理批）：取材/录入/维护都是长文方案的
+	// 一环，只在方案档出现——此前挂在 core，造价/标准档每轮白付六个 schema。
+	ToolGroupLongdoc: {"longdoc_manifest", "longdoc_build", "longdoc_verify",
+		"proposal_save", "proposal_search", "proposal_read", "proposal_update", "proposal_delete", "proposal_export"},
+	ToolGroupMedia: {"image_gen", "chart_gen", "diagram", "diagram_gen"},
 }
 
 // ToolGroups 返回可配置组清单（稳定序：配置渲染/面板展示按此序）。

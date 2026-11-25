@@ -86,10 +86,10 @@ func p3ReadRetrieval(t *testing.T) {
 	if out, err := (memorySearch{}).Execute(ctx, p3Args(t, map[string]any{"query": "客户偏好"})); err != nil || !strings.Contains(out, "客户偏好") {
 		t.Fatalf("记忆检索应命中（名称+描述形态）: %q %v", out, err)
 	}
-	// ── 缺陷例②：缺 query 正确失败（检索为模糊匹配语义——小语料下
+	// ── 缺陷例②：query 与 name 都缺正确失败（2026-11-25 memory_get 并入后二者至少给一个）（检索为模糊匹配语义——小语料下
 	// 「无关查询零命中」不成立，诚实缺省以参数闸 fail-closed 为否面）──
-	if _, err := (memorySearch{}).Execute(ctx, json.RawMessage(`{}`)); err == nil || !strings.Contains(err.Error(), "query is required") {
-		t.Fatalf("缺 query 应正确失败: %v", err)
+	if _, err := (memorySearch{}).Execute(ctx, json.RawMessage(`{}`)); err == nil || !strings.Contains(err.Error(), "至少给一个") {
+		t.Fatalf("query 与 name 都缺应正确失败: %v", err)
 	}
 
 	// ── 金标例③：造价库沉淀→检索闭环（temp db，不碰真实用户库）──

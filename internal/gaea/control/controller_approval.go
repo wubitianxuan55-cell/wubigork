@@ -157,14 +157,12 @@ var hardAskTools = map[string]bool{
 	// cost_library（2026-11-25 造价数据库推倒重建）：导入工作簿/删定额/删工料机/
 	// 批量调价/去重合并——删除与批量覆盖类逐条确认；演练与只读动作见
 	// costLibraryArgsNoWrite（不弹卡）。
-	"cost_library":          true,
-	"remember":              true,
-	"forget":                true,
-	"proposal_save":         true,
-	"proposal_update":       true,
-	"proposal_delete":       true,
-	"promote_session_facts": true,
-	"install_skill":         true,
+	"cost_library":    true,
+	"remember":        true,
+	"proposal_save":   true,
+	"proposal_update": true,
+	"proposal_delete": true,
+	"install_skill":   true,
 	// computer_key（电脑操控施工单 W4-2）：键盘可触发任意快捷键（含 Alt+F4、
 	// 全局热键），必须逐条确认；W5 落工具后生效，此处先行占位无害。
 	"computer_key": true,
@@ -252,8 +250,6 @@ func approvalSubjectFor(tool string, args json.RawMessage) string {
 		return proposalUpdateApprovalSubject(args)
 	case "proposal_delete":
 		return proposalDeleteApprovalSubject(args)
-	case "promote_session_facts":
-		return "把本次会话沉淀的临时事实提升为永久记忆（跨会话自动加载）"
 	case "schedule_apply":
 		if scheduleApplyIsProjectChannel(args) {
 			return scheduleApplyProjectSubject(args)
@@ -1153,6 +1149,7 @@ func rememberApprovalSubject(args json.RawMessage) string {
 		return ""
 	}
 	var p struct {
+		Action      string `json:"action"`
 		Name        string `json:"name"`
 		Title       string `json:"title"`
 		Description string `json:"description"`
@@ -1161,6 +1158,14 @@ func rememberApprovalSubject(args json.RawMessage) string {
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return ""
+	}
+	// 2026-11-25：forget / promote_session_facts 并入 remember（action 区分），三种
+	// 动作都走这张确认卡（未经确认不写持久化数据的红线不变）。
+	switch strings.ToLower(strings.TrimSpace(p.Action)) {
+	case "forget":
+		return "删除记忆：" + strings.TrimSpace(p.Name)
+	case "promote":
+		return "把本次会话沉淀的临时事实提升为永久记忆（跨会话自动加载）"
 	}
 	label := strings.TrimSpace(p.Title)
 	if label == "" {

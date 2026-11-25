@@ -95,9 +95,12 @@ func (b *sqliteBackend) Save(m Memory) (string, error) {
 	if space == "" {
 		space = defaultFactSpace
 	}
+	// mode_id（SchemaV42）：空=通用。零值 Store（未经 modeView 归一）写入的
+	// 记忆不带标记=通用，与存量记忆同语义。
+	mode := strings.TrimSpace(m.Mode)
 	_, err := b.commitWithEvent(`
-INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message, space_id, subject_key)
-VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?)
+INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message, space_id, subject_key, mode_id)
+VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?)
 ON CONFLICT(project, name) DO UPDATE SET
   title=excluded.title, description=excluded.description,
   type=excluded.type, kind=excluded.kind, tags=excluded.tags,
@@ -107,10 +110,11 @@ ON CONFLICT(project, name) DO UPDATE SET
   source_session=excluded.source_session,
   source_message=excluded.source_message,
   space_id=excluded.space_id,
-  subject_key=excluded.subject_key`,
+  subject_key=excluded.subject_key,
+  mode_id=excluded.mode_id`,
 		[]any{b.project, name, m.Title, m.Description,
 			string(NormalizeType(string(m.Type))), string(NormalizeKind(string(m.Kind))),
-			tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space, m.SubjectKey},
+			tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space, m.SubjectKey, mode},
 		func(sql.Result) *Event {
 			// 事件带投影所需元数据（kind/type/title/desc/tags/space/互引
 			// refs），body 只留摘要——内容真相在 facts 表（subject_key 同待遇），
@@ -366,7 +370,7 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	// S1.2 B：SELECT 补回 space_id 列并回填 m.Space（供展示/调试与跨空间
 	// 冲突审计读取）；空间谓词语义不变——space 为空不过滤（旧行为恒真）。
 	// subject_key 一并回填（v4.378 subject keys 单值约束的事实真相）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned, subject_key, COALESCE(invalid_at,'')
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned, subject_key, COALESCE(invalid_at,''), COALESCE(mode_id,'')
 		 FROM facts WHERE project=? AND archived=0`
 	args := []any{b.project}
 	if space != "" {
@@ -382,12 +386,13 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	var out []Memory
 	for rows.Next() {
 		var m Memory
-		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage, invalidAt string
+		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage, invalidAt, mode string
 		var pinned int
 		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &m.Space,
-			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey, &invalidAt); err != nil {
+			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey, &invalidAt, &mode); err != nil {
 			continue
 		}
+		m.Mode = mode
 		m.Pinned = pinned != 0
 		m.Type = NormalizeType(typ)
 		m.Kind = NormalizeKind(kind)
@@ -548,10 +553,10 @@ func (b *sqliteBackend) GetInSpace(name, space string) (Memory, bool) {
 func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	name = slug(name)
 	var m Memory
-	var typ, kind, tags, lastUsed, srcSession, srcMessage, createdAt, invalidAt string
-	// space_id 一并回填（S1.2 B，供跨空间同名冲突审计读取归属）；subject_key
-	// 回填（v4.378 subject keys）；created_at/invalid_at 回填（9.3 生命周期）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned, subject_key, created_at, COALESCE(invalid_at,'')
+	var typ, kind, tags, lastUsed, srcSession, srcMessage, createdAt, invalidAt, mode string
+	// space_id / mode_id 一并回填（供跨空间同名冲突审计、模式标签读取归属）；
+	// subject_key 回填（v4.378 subject keys）；created_at/invalid_at 回填（9.3 生命周期）。
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned, subject_key, created_at, COALESCE(invalid_at,''), COALESCE(mode_id,'')
 		 FROM facts WHERE project=? AND name=? AND archived=0`
 	args := []any{b.project, name}
 	if space != "" {
@@ -560,10 +565,11 @@ func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	}
 	var pinned int
 	err := b.db.QueryRow(query, args...).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
-		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey, &createdAt, &invalidAt)
+		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey, &createdAt, &invalidAt, &mode)
 	if err != nil {
 		return Memory{}, false
 	}
+	m.Mode = mode
 	m.Pinned = pinned != 0
 	m.Type = NormalizeType(typ)
 	m.Kind = NormalizeKind(kind)

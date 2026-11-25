@@ -197,8 +197,6 @@ func TestIsWriteTool(t *testing.T) {
 	}{
 		{"edit_file", true},
 		{"write_file", true},
-		{"multi_edit", true},
-		{"edit_lines", true},
 		{"move_file", true},
 		{"read_file", false},
 		{"grep", false},

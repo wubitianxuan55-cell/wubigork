@@ -154,8 +154,6 @@ export const gaeaToGaea = {
   UpdateFact: "GaeaUpdateFact",
   ChangeFactType: "GaeaChangeFactType",
   SetMemoryEnabled: "GaeaSetMemoryEnabled",
-  MorningPreload: "GaeaMorningPreload",
-  SetMorningPreload: "GaeaSetMorningPreload",
   MemorySuggestions: "GaeaMemorySuggestions",
   LogFrontendError: "GaeaLogFrontendError",
   // AI 反馈库（2026-11-20）：记忆面板反馈区查看/删除。
@@ -230,8 +228,6 @@ export const gaeaToGaea = {
   MemoryFeedback: "GaeaMemoryFeedback",
   MemoryLifecycle: "GaeaMemoryLifecycle",
   MemoryEvalRun: "GaeaMemoryEvalRun",
-  MemoryBrief: "GaeaMemoryBrief",
-  SetMemoryBrief: "GaeaSetMemoryBrief",
   MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostHealthScan: "GaeaCostHealthScan",
   CostLibraryExport: "GaeaCostLibraryExport",

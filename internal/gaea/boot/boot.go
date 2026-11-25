@@ -122,17 +122,14 @@ type Options struct {
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
 	ExtraTools []tool.Tool
-	// MorningPreload 是晨报预载开关（v4.16 刀④）：work 空间会话装配时把
-	// 高频工作记忆确定性聚合为「晨报预载」块预装配进系统提示词（零 LLM、
-	// 预算受限、work 只读）。桌面端从 ~/.gaea_config.json 的 morning_preload
-	// 键读取传入（默认开）；零值 false = 不注入（CLI/TUI 等不读该配置的
-	// 前端维持原行为，无晨报预载）。
-	MorningPreload bool
-	// ProjectBrief 是项目本体注入开关（6.2）：work 空间会话装配时把固化/
-	// 项目/反馈决策带 [MEM:] 引用键注入系统提示词（跨会话项目连续性）。
-	// 桌面端从 ~/.gaea_config.json 的 project_brief 键读取传入（默认开）；
-	// 零值 false = 不注入（CLI/TUI 维持原行为）。
-	ProjectBrief bool
+	// MemoryMode 是会话运行模式（2026-11-25 办公工具梳理批·记忆按模式隔离）：
+	// 非空时记忆读端只放行「通用 + 本模式」的记忆（"standard"=只看通用），
+	// remember 按默认规则给新记忆盖当前模式。空 = 模式维度未启用（图文板块、
+	// CLI/TUI：逐字节现状）。办公引擎传三档运行模式名（standard/cost/proposal）。
+	//
+	// 晨报预载（MorningPreload）与项目本体注入（ProjectBrief）两个开关同批
+	// 撤下：那两块与记忆索引逐条重复（同一批记忆一轮列四遍），现只留索引一处。
+	MemoryMode string
 	// OnSkillUse 是技能调用计数回调（7.2-2 判据②）：read_skill 按需加载
 	// 与 run_skill 管线执行各汇报一次，ok=工具级成功。空 = 不计数
 	// （CLI/TUI 宿主不传不受影响——EmitSubagentText 同款先例）。
@@ -332,7 +329,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
 	// sp, err := buildSystemPrompt(...) 参数链见该函数注释；ModeLine 是办公
 	// 运行模式行（2026-11-21 众神殿终案，非空时技能索引后追加；空=零注入）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir, opts.SystemPrompt, opts.ModeLine)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MemoryMode, opts.Stderr, opts.OnSkillUse, opts.SkillFilter, opts.SkillExtras, memUserDir, opts.SystemPrompt, opts.ModeLine)
 	if err != nil {
 		return nil, err
 	}
@@ -576,12 +573,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 
 	// The `remember` tool lets the model persist durable facts to the project's
-	// auto-memory store; `forget` prunes ones that turn out wrong. The saved index
-	// loads into the prefix on the next session.
+	// auto-memory store (and forget / promote them by action); the saved index
+	// loads into the prefix on the next session. forget / promote_session_facts /
+	// memory_get 三个独立工具 2026-11-25 并入 remember 与 memory_search。
 	addGated(reg, opts.ToolFilter, memory.NewRememberTool(mem.Store, memory.NewProfileStore(db.GetDatabase(memUserDir))))
-	addGated(reg, opts.ToolFilter, memory.NewForgetTool(mem.Store))
-	addGated(reg, opts.ToolFilter, memory.NewPromoteSessionFactsTool())
-	addGated(reg, opts.ToolFilter, memory.NewMemoryGetTool(mem.Store))
 
 	// The `ask` tool puts structured multiple-choice questions to the user. It
 	// reaches them through the Asker on the call context, which interactive
@@ -1284,9 +1279,6 @@ func lookupSubagentTemplatePrefix(skillName string) string {
 // while keeping them callable by name. V6.0 P8: reduces visible tool count
 // from ~41 to ~25, lowering model cognitive load.
 func applyCompactToolset(reg *tool.Registry) {
-	// Batch editing: multi_edit is redundant with multiple edit_file calls
-	reg.HideUnlessOnly([]string{"multi_edit"}, []string{"edit_file"})
-
 	// Background job management: merge kill_shell + wait into bash/bgjobs
 	reg.HideUnlessOnly([]string{"kill_shell", "wait"}, []string{"bash", "bash_output"})
 }

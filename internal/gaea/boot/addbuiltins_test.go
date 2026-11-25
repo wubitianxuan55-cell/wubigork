@@ -83,7 +83,8 @@ func TestAddBuiltins_NoDir(t *testing.T) {
 	}
 }
 
-// TestAddBuiltins_EditToolsRegistered S0.6：五个编辑系工具经 addBuiltins
+// TestAddBuiltins_EditToolsRegistered S0.6：编辑系工具（2026-11-25 办公工具梳理批
+// 退役 multi_edit / edit_lines / replace 后余 edit_file 与 move_file）经 addBuiltins
 // 装配后必须可用且绑定工作区（桌面端 Enabled=nil 全量注册时零配置生效）。
 func TestAddBuiltins_EditToolsRegistered(t *testing.T) {
 	procCwd := t.TempDir()
@@ -104,7 +105,7 @@ func TestAddBuiltins_EditToolsRegistered(t *testing.T) {
 	reg := tool.NewRegistry()
 	addBuiltins(reg, wsDir, nil, []string{wsDir}, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard, "", nil)
 
-	for _, name := range []string{"edit_file", "multi_edit", "edit_lines", "move_file", "grep"} {
+	for _, name := range []string{"edit_file", "move_file", "grep"} {
 		if _, ok := reg.Get(name); !ok {
 			t.Errorf("%s 未注册到 per-run registry（Workspace.Tools/ConfineWriters 装配缺失）", name)
 		}

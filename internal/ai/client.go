@@ -49,7 +49,7 @@ type Client struct {
 	chatRetryBackoff []time.Duration
 	// 流式请求重试退避序列（连接错误与 5xx；默认 2 次，1s/2s）。测试可覆盖为短间隔。
 	streamRetryBackoff []time.Duration
-	// 流空闲超时：连接/首字节后超过该时长无任何数据视为失败（默认 60s）。测试可覆盖为短时长。
+	// 流空闲超时：两次收到数据的间隔超过该时长视为失败（内置默认 10 分钟，可用	// [agent] stream_idle_timeout_secs 覆盖）。零值=未注入；测试可写该字段覆盖为短时长。
 	streamIdleTimeout time.Duration
 	// requestSendBudget bounds only one attempt's write phase (default 300s).
 	requestSendBudget time.Duration
@@ -82,7 +82,15 @@ var errStreamIdleTimeout = errors.New("stream idle timeout")
 var defaultStreamRetryBackoff = []time.Duration{time.Second, 2 * time.Second}
 
 // defaultStreamIdleTimeout 流空闲超时默认值。
-const defaultStreamIdleTimeout = 60 * time.Second
+//
+// 2026-11-25 紧急修复（用户实测办公造价档「动不动就流空闲超时：超过 1m0s 无
+// 数据直接切断」）：原值 60s。空闲是按「两次收到数据之间的间隔」计的——推理
+// 模型出第一个字之前长时间不下发任何字节（造价档思考久、提示词大），一分钟
+// 远远不够。放宽到 10 分钟：只是推迟「对端假死」的发现时间（用户随时可手动
+// 取消），不再误杀正常的长时间思考。同一值兼作响应头等待上限
+// （newSendGuardTransport 的 headerBudget）。可用 [agent]
+// stream_idle_timeout_secs 覆盖。
+const defaultStreamIdleTimeout = 10 * time.Minute
 
 // chatBackoffOrDefault 返回非流式 Chat 生效的退避序列：未注入时复用流式共享默认值
 // defaultStreamRetryBackoff（连接错误与 5xx 指数退避：1s/2s 共 2 次重试，语义与
@@ -103,8 +111,9 @@ func NewClient(cfg *config.Config) *Client {
 		sem:                make(chan struct{}, maxConcurrency),
 		chatRetryBackoff:   append([]time.Duration(nil), defaultStreamRetryBackoff...),
 		streamRetryBackoff: append([]time.Duration(nil), defaultStreamRetryBackoff...),
-		streamIdleTimeout:  defaultStreamIdleTimeout,
-		requestSendBudget:  defaultRequestSendBudget,
+		// streamIdleTimeout 留零=未注入：idleTimeout() 按「配置覆盖 → 内置默认」
+		// 解析（测试可直接写该字段覆盖）。
+		requestSendBudget: defaultRequestSendBudget,
 	}
 	c.httpClient = c.buildHTTPClient()
 	return c
@@ -181,12 +190,29 @@ func (c *Client) outboundGuard() *netclient.OutboundGuard {
 	return guard
 }
 
-// idleTimeout 返回流空闲超时时长（测试可覆盖，默认 60s）。
+// idleTimeout 返回流空闲超时时长。优先级：测试注入的字段 > gaea 配置
+// [agent] stream_idle_timeout_secs > 内置默认（10 分钟）。
 func (c *Client) idleTimeout() time.Duration {
 	if c.streamIdleTimeout > 0 {
 		return c.streamIdleTimeout
 	}
+	if d := streamIdleTimeoutFromConfig(); d > 0 {
+		return d
+	}
 	return defaultStreamIdleTimeout
+}
+
+// streamIdleTimeoutFromConfig 读 gaea 生效配置里的流空闲超时覆盖值；未配置或
+// 配置读不出（返回 0，按内置默认走，不因配置问题改变超时行为）。
+func streamIdleTimeoutFromConfig() time.Duration {
+	gcfg, err := gaeacfg.Load()
+	if err != nil || gcfg == nil {
+		return 0
+	}
+	if secs := gcfg.Agent.StreamIdleTimeoutSecs; secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	return 0
 }
 
 func (c *Client) sendBudget() time.Duration {

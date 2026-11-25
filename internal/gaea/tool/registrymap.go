@@ -41,14 +41,13 @@ type RegistryEntry struct {
 
 // RegistryMap 全量契约表。新增工具必须在此登记，缺行=守卫红。
 var RegistryMap = map[string]RegistryEntry{
-	// ── builtin-workspace：workspace.go 基础面 21 项 ──
+	// ── builtin-workspace：workspace.go 基础面 18 项 ──
+	// （2026-11-25 办公工具梳理批退役 multi_edit / edit_lines / replace：
+	// 68 个真实办公会话三个月 0 / 1 / 0 次调用，edit_file 214 次。）
 	"read_file":        {"builtin-workspace", "work", "read", "none", "内容与目标文件一致；尾标 revision（CAS 源）+凭据围栏 deny"},
 	"write_file":       {"builtin-workspace", "work", "write", "agent-write", "落盘后文件含 AfterSummary；快照可回滚；expected_revision CAS 可选（dsh-ops 蒸馏）"},
 	"edit_file":        {"builtin-workspace", "work", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
-	"multi_edit":       {"builtin-workspace", "work", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
-	"edit_lines":       {"builtin-workspace", "work", "write", "agent-write", "通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选"},
 	"move_file":        {"builtin-workspace", "work", "write", "agent-write", "目标存在且源已迁移"},
-	"replace":          {"builtin-workspace", "work", "write", "agent-write", "全计划预检零变更（任一文件超 32MiB 整次拒）；逐文件原子发布非事务（回执列已发布/失败/pending）；changed=替换次数；发布前锁内哈希重核"},
 	"grep":             {"builtin-workspace", "work", "read", "none", "命中行与实况一致；offset 续页游标+凭据围栏跳过记账"},
 	"bash":             {"builtin-workspace", "work", "write", "publish-guard", "durable 写被发布边界拦截/隔离（P1b）；前台+后台双路径"},
 	"ls":               {"builtin-workspace", "work", "read", "none", "清单与实况一致"},
@@ -91,7 +90,6 @@ var RegistryMap = map[string]RegistryEntry{
 	"computer_type":      {"builtin-domain", "work", "write", "none", "注入后新树含输入效果（同闸门链）"},
 	"computer_key":       {"builtin-domain", "work", "interactive", "none", "按键后新树与动作一致（AlwaysAsk+Win 族硬拒）"},
 	"complete_step":      {"builtin-domain", "shared", "meta", "none", "步骤裁决与计划一致"},
-	"cost_compose":       {"builtin-domain", "work", "produce", "none", "组价结果与定额飞轮口径一致"},
 	"cost_indicators":    {"builtin-domain", "work", "read", "none", "指标与 SchemaV34 快照一致"},
 	"cost_save":          {"builtin-domain", "work", "write", "none", "PersistWrite：库写入可查"},
 	"cost_search":        {"builtin-domain", "work", "read", "none", "检索命中与库一致"},
@@ -111,7 +109,7 @@ var RegistryMap = map[string]RegistryEntry{
 	"longdoc_build":    {"builtin-domain", "work", "write", "none", "声明路径=实际落点；机检 0 硬伤才组装；sha256 可复算"},
 	"longdoc_verify":   {"builtin-domain", "work", "read", "none", "只读确定性四门（章/跨/册/判色）；验证体系工具化（2026-11-21 复盘收编）"},
 	"genui_validate":   {"builtin-domain", "shared", "read", "none", "校验结论与产物一致"},
-	"memory_search":    {"builtin-domain", "shared", "read", "none", "召回与记忆库一致"},
+	"memory_search":    {"builtin-domain", "shared", "read", "none", "召回与记忆库一致；给 name 按名读正文"},
 	"proposal_delete":  {"builtin-domain", "work", "write", "none", "PersistWrite：删除后节点/语义块/全文索引不可再查；仅用户明确要求时调用"},
 	"proposal_export":  {"builtin-domain", "work", "write", "none", "导出文件按标题层级还原，托管图片落成文件；输出落点在工作区"},
 	"proposal_save":    {"builtin-domain", "work", "write", "none", "PersistWrite：方案库写入可查；父级在前逐级展开，正文与源文件逐字一致，同名覆盖须显式确认"},
@@ -125,24 +123,21 @@ var RegistryMap = map[string]RegistryEntry{
 	"web_search":       {"builtin-domain", "work", "read", "none", "结果注明来源 URL+检索时间"},
 
 	// ── build-internal：boot.Build 直接 reg.Add（skill/memory/task/slash 等） ──
-	"ask":                   {"build-internal", "shared", "interactive", "none", "用户答案回传当前席"},
-	"exit_plan_mode":        {"build-internal", "shared", "interactive", "none", "计划呈现与批准流转"},
-	"forget":                {"build-internal", "shared", "write", "none", "PersistWrite：记忆删除可查"},
-	"install_skill":         {"build-internal", "shared", "write", "none", "PersistWrite：技能落盘可查"},
-	"interrupt_agent":       {"build-internal", "shared", "meta", "none", "中断信号送达"},
-	"send_message":          {"build-internal", "shared", "meta", "none", "传话按目标态路由：steer/排队/续聊"},
-	"memory_get":            {"build-internal", "shared", "read", "none", "记忆读取与库一致"},
-	"promote_session_facts": {"build-internal", "shared", "write", "none", "PersistWrite：事实晋升可查"},
-	"read_subagent_result":  {"build-internal", "shared", "read", "none", "子代理结果读取一致"},
-	"remember":              {"build-internal", "shared", "write", "none", "PersistWrite：记忆写入可查"},
-	"request_permission":    {"build-internal", "shared", "interactive", "none", "审批请求与裁决回传"},
-	"run_skill":             {"build-internal", "shared", "produce", "none", "技能子会话产物按其工具各自登记"},
-	"session_search":        {"build-internal", "shared", "read", "none", "检索命中与会话存档一致"},
-	"slash_command":         {"build-internal", "shared", "meta", "none", "斜杠命令展开与注册一致"},
-	"subagent_list":         {"build-internal", "shared", "read", "none", "子代理清单与存档一致"},
-	"summarize_file":        {"build-internal", "shared", "read", "none", "摘要覆盖大文件截断语义"},
-	"task":                  {"build-internal", "shared", "meta", "none", "子代理白名单/作用域闸（六闸刀口径）"},
-	"discover_tools":        {"build-internal", "shared", "meta", "none", "A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册）"},
+	"ask":                  {"build-internal", "shared", "interactive", "none", "用户答案回传当前席"},
+	"exit_plan_mode":       {"build-internal", "shared", "interactive", "none", "计划呈现与批准流转"},
+	"install_skill":        {"build-internal", "shared", "write", "none", "PersistWrite：技能落盘可查"},
+	"interrupt_agent":      {"build-internal", "shared", "meta", "none", "中断信号送达"},
+	"send_message":         {"build-internal", "shared", "meta", "none", "传话按目标态路由：steer/排队/续聊"},
+	"read_subagent_result": {"build-internal", "shared", "read", "none", "子代理结果读取一致"},
+	"remember":             {"build-internal", "shared", "write", "none", "PersistWrite：记忆存/删/转正可查（action=save/forget/promote）"},
+	"request_permission":   {"build-internal", "shared", "interactive", "none", "审批请求与裁决回传"},
+	"run_skill":            {"build-internal", "shared", "produce", "none", "技能子会话产物按其工具各自登记"},
+	"session_search":       {"build-internal", "shared", "read", "none", "检索命中与会话存档一致"},
+	"slash_command":        {"build-internal", "shared", "meta", "none", "斜杠命令展开与注册一致"},
+	"subagent_list":        {"build-internal", "shared", "read", "none", "子代理清单与存档一致"},
+	"summarize_file":       {"build-internal", "shared", "read", "none", "摘要覆盖大文件截断语义"},
+	"task":                 {"build-internal", "shared", "meta", "none", "子代理白名单/作用域闸（六闸刀口径）"},
+	"discover_tools":       {"build-internal", "shared", "meta", "none", "A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册）"},
 
 	// ── extra-app：gaeaExtraTools 装配单点 ──
 	"image_gen": {"extra-app", "shared", "produce", "none", "图片落 .gaea/uploads 系统路径可查（2026-11-20 play→shared：办公/文学也生图，办公媒体根=gaeaCwd、文学锚小说目录）"},
@@ -173,7 +168,6 @@ var RegistryMap = map[string]RegistryEntry{
 	"fact_add":                 {"extra-app", "work", "write", "none", "PersistWrite：事实库写入可查"},
 	"fact_list":                {"extra-app", "work", "read", "none", "清单与库一致"},
 	"fact_clear":               {"extra-app", "work", "write", "none", "PersistWrite：清空可查"},
-	"dag_plan":                 {"extra-app", "work", "meta", "none", "write_paths/readonly schema 闸（六闸刀口径）"},
 	"office_generate":          {"extra-app", "work", "produce", "office-journal", "声明路径与实际落点逐字节一致；证据卡落账；通道 A=OOXML 容器头引用级（P1a+P2）"},
 	"docx_apply":               {"extra-app", "work", "write", "office-journal", "修订制写入；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2）"},
 	"docx_accept":              {"extra-app", "work", "write", "office-journal", "仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2）"},
@@ -238,7 +232,7 @@ var PredicateClasses = map[string]PredicateClass{
 	"domain-compute": {
 		Name:       "领域计算",
 		Definition: "计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed",
-		Tools:      []string{"schedule_analyze", "cost_indicators", "cost_compose"},
+		Tools:      []string{"schedule_analyze", "cost_indicators"},
 	},
 	"deliver-write": {
 		Name:       "交付写",
@@ -248,6 +242,6 @@ var PredicateClasses = map[string]PredicateClass{
 	"task-orchestrate": {
 		Name:       "任务编排",
 		Definition: "编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复",
-		Tools:      []string{"dag_plan", "task", "todo_write"},
+		Tools:      []string{"task", "todo_write"},
 	},
 }

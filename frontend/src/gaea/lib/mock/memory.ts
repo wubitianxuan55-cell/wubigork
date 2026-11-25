@@ -22,7 +22,7 @@ type MemoryMethods = Pick<
   | "Memory" | "MemoryArchivedList" | "MemoryCleanupArchived" | "MemoryUnarchive"
   | "MemoryUnarchiveBatch" | "MemorySetRetentionDays"
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
-  | "SetMemoryEnabled" | "MemorySuggestions" | "MorningPreload" | "SetMorningPreload"
+  | "SetMemoryEnabled" | "MemorySuggestions"
   | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
   | "AIFeedbackList" | "AIFeedbackDelete"
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
@@ -35,7 +35,7 @@ type MemoryMethods = Pick<
   | "WhisperProactiveConfig" | "WhisperProactiveSetConfig"
   // 轻语图谱子图/立即评估（批 46 NOT_MOCKED 收尾刀）。
   | "WhisperGraphSubgraph" | "WhisperProactiveNow"
-  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryEvalRun" | "MemoryBrief" | "SetMemoryBrief"
+  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryEvalRun"
   | "MemoryRecall"
   | "WenxueMemoryBrowse"
   | "MemoryMorningBrief"
@@ -142,12 +142,6 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async SetMemoryEnabled(enabled: boolean) {
       emit({ kind: "notice", level: "info", text: `memory ${enabled ? "enabled" : "disabled"}` });
-    },
-    async MorningPreload() {
-      return _s.morningPreload;
-    },
-    async SetMorningPreload(enabled: boolean) {
-      _s.setMorningPreload(enabled);
     },
     async MemorySuggestions() {
       return { memories: [], skills: [], merges: [], generatedAt: new Date().toISOString(), available: false, source: "mock" };
@@ -334,12 +328,6 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       // 未过（Go 合法返回 {shouldSend:false}，非错误）。
       return { shouldSend: false };
     },
-    async MemoryBrief() {
-      return true;
-    },
-    async SetMemoryBrief(_enabled: boolean) {
-      // mock：开关写回即成功（面板 toast 由调用方提示）。
-    },
     async MemoryFeedback(_messageID: string, _rating: string, _excerpt: string, _space: string) {
       // mock：反馈即成功（真机落 memory_events 事件，事件图谱可查）。
       return undefined;
@@ -362,22 +350,17 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       };
     },
     async MemoryEvalRun() {
-      // mock：全合规小样例（结构不变量体检，确定性无模型调用）。
+      // mock：全合规小样例（记忆索引的结构不变量体检，确定性无模型调用）。
       return {
         memoryEnabled: true,
-        morningPreload: true,
-        projectBrief: true,
         spaceModeOn: true,
-        preloadPresent: true,
-        briefPresent: true,
-        preloadRunes: 96,
-        briefRunes: 148,
-        preloadBudget: 600,
-        briefBudget: 600,
+        indexPresent: true,
+        indexBytes: 96,
+        indexBudget: 4096,
         entryCount: 2,
-        refCount: 2,
+        truncated: false,
         pinnedTotal: 1,
-        pinnedInBrief: 1,
+        pinnedInIndex: 1,
         violations: [],
         passed: true,
       };

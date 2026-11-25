@@ -63,10 +63,6 @@ func loadDefaults(home string) *Config {
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
-		// 晨报预载（v4.16 刀④）：默认开启（高频工作记忆预装配进上下文）。
-		MorningPreload: true,
-		// 项目本体注入（6.2）：默认开启（固化/项目/反馈决策带引用注入）。
-		ProjectBrief: true,
 		// 汇率默认 7.2（费用估算折算口径）。
 		UsdCnyRate: DefaultUsdCnyRate,
 		// Breeze 本地 TTS 服务（Breeze-TTS-2）。
@@ -423,12 +419,6 @@ func applyConfigFile(cfg *Config, home string) {
 			}
 			if cf.AutoPreload != nil {
 				cfg.AutoPreload = *cf.AutoPreload
-			}
-			if cf.ProjectBrief != nil {
-				cfg.ProjectBrief = *cf.ProjectBrief
-			}
-			if cf.MorningPreload != nil {
-				cfg.MorningPreload = *cf.MorningPreload
 			}
 			if cf.UsdCnyRate != 0 {
 				cfg.UsdCnyRate = cf.UsdCnyRate

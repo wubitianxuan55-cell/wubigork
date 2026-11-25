@@ -28,9 +28,13 @@ import (
 	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
-// dagPlanTool 让主代理把委托式目标规划成可执行的任务图（节点=子代理可完成的
-// 文件加工步骤）。PersistWrite 标记：子代理注册表自动剔除（FilterRegistry），
-// 流水线不能嵌套派生流水线。
+// dagPlanTool 把委托式目标规划成可执行的任务图（节点=子代理可完成的文件加工
+// 步骤）。PersistWrite 标记：子代理注册表自动剔除（FilterRegistry），流水线不能
+// 嵌套派生流水线。
+//
+// 2026-11-25 起不再装配进办公工具面（68 个真实办公会话零调用；办公工具梳理
+// 批）：模型看不到也调不到。类型保留——流水线运行面的测试用它落图；要重新开放，
+// 在 gaeaExtraTools 装回并补 RegistryMap 行即可。
 type dagPlanTool struct{ dir string }
 
 func (d dagPlanTool) Name() string       { return "dag_plan" }

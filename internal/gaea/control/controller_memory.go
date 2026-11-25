@@ -267,6 +267,8 @@ func (c *Controller) beginMemoryReloadLocked() (memory.Options, uint64) {
 		UserDir: c.mem.UserDir,
 		DB:      c.mem.DB,
 		Space:   c.space,
+		// 运行模式沿用装配时的值（Set.Mode）：重载后的快照与初始装配同一收窄口径。
+		Mode: c.mem.Mode,
 	}, c.memGen
 }
 
@@ -310,6 +312,19 @@ func (c *Controller) MemorySearchIndexForSpace(_ string) *memory.SearchIndex {
 	return c.mem.Search
 }
 
+// MemoryStoreForSpace 返回本控制器持有的记忆存储（已按空间与运行模式收窄的
+// 视图），供 memory_search 按名读正文经工具调用 ctx 取用（memory.StoreProvider）。
+// 入参 space 不做相等校验，理由同 MemorySearchIndexForSpace：实例所有权已是
+// 不跨空间串味的结构性保证。记忆未启用时返回 false。
+func (c *Controller) MemoryStoreForSpace(_ string) (memory.Store, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mem == nil {
+		return memory.Store{}, false
+	}
+	return c.mem.Store, true
+}
+
 // refreshMemory 强制重载记忆快照（测试与诊断用）：等价一次「锁内取参→
 // 锁外 Load→提交」的完整刷新。正常写路径不必直接调它——写点自带刷新。
 func (c *Controller) refreshMemory() {
@@ -348,7 +363,6 @@ func (c *Controller) PromoteSessionFacts() (int, error) {
 	c.finishMemoryReload(opts, gen)
 	return n, nil
 }
-
 
 // SaveFacts 批量写入长期记忆（按 name 去重，与 PromoteSessionFacts 同一
 // 写入路径，但不经过会话事实）——原 SaveDreamFacts 正名（2026-11-20
@@ -473,7 +487,6 @@ func (c *Controller) DistillMerge(keep, archive string) (string, error) {
 	}
 	return "merged:" + older + "->" + newer, nil
 }
-
 
 // SaveSession implements memory.SessionSaver. The remember tool calls this
 // when session=true to save a fact to session-only memory (not on disk).

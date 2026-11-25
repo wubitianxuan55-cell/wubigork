@@ -126,7 +126,6 @@ func (b *OfficeB) GaeaLoginProvider(name string) error { return b.a.GaeaLoginPro
 func (b *OfficeB) GaeaLogoutProvider(name string) error { return b.a.GaeaLogoutProvider(name) }
 func (b *OfficeB) GaeaMaterials(limit int) []FileSearchHit { return b.a.GaeaMaterials(limit) }
 func (b *OfficeB) GaeaMeta() Meta { return b.a.GaeaMeta() }
-func (b *OfficeB) GaeaMorningPreload() bool { return b.a.GaeaMorningPreload() }
 func (b *OfficeB) GaeaNewSession() error { return b.a.GaeaNewSession() }
 func (b *OfficeB) GaeaOCRText(imagePath string) (string, error) { return b.a.GaeaOCRText(imagePath) }
 func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (map[string]interface{}, error) { return b.a.GaeaOfficeEditText(selectedText, instruction) }
@@ -196,9 +195,7 @@ func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPr
 func (b *OfficeB) GaeaSetComputerUseEnabled(enabled bool) error { return b.a.GaeaSetComputerUseEnabled(enabled) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
-func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error { return b.a.GaeaSetMemoryBrief(enabled) }
 func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
-func (b *OfficeB) GaeaSetMorningPreload(enabled bool) error { return b.a.GaeaSetMorningPreload(enabled) }
 func (b *OfficeB) GaeaSetOfficeRunMode(mode string) error { return b.a.GaeaSetOfficeRunMode(mode) }
 func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermLevel(level) }
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }

@@ -30,18 +30,6 @@ func TestParseErrorsCarryToolName(t *testing.T) {
 			_, err := (editFile{}).Execute(context.Background(), json.RawMessage(`{bad`))
 			return err
 		}},
-		{"multi_edit", func() error {
-			_, err := (multiEdit{}).Execute(context.Background(), json.RawMessage(`{bad`))
-			return err
-		}},
-		{"edit_lines", func() error {
-			_, err := (editLines{}).Execute(context.Background(), json.RawMessage(`{bad`))
-			return err
-		}},
-		{"replace", func() error {
-			_, err := (replaceTool{}).Execute(context.Background(), json.RawMessage(`{bad`))
-			return err
-		}},
 		{"grep", func() error {
 			_, err := (grepTool{}).Execute(context.Background(), json.RawMessage(`{bad`))
 			return err

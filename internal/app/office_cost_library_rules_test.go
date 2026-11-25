@@ -414,12 +414,14 @@ func mustProjects(t *testing.T, s *workcost.Store) []workcost.BillProject {
 // categoryPath 与说明里的 price_period / category_path 不一致）。逐键用说明里的写法
 // 喂进去，断言值落到了对应字段。
 func TestCostLibraryArgsMatchDocumentedKeys(t *testing.T) {
-	schema := costLibraryTool{}.Schema()
+	schema := costLibraryDocumentedSchema()
 	documented := map[string]string{
-		// 入参键 → 说明文本里应出现的同名键（防说明与结构各自漂移）。
+		// 入参键 → 说明文本里应出现的同名键（防说明与结构各自漂移）。嵌套
+		// dict 对象（op/kind/name…）不再对模型说明（增改删走 dict_add/
+		// dict_update/dict_delete 扁平动作），下面的解码核对留作兼容路径。
 		"classify": `"classify"`, "projects": `"projects"`, "bills": `"bills"`, "quotas": `"quotas"`, "resources": `"resources"`,
 		"price_period": `"price_period"`, "category_path": `"category_path"`, "division": `"division"`, "chapter": `"chapter"`, "period": `"period"`,
-		"dict": `"dict"`, "op": `"op"`, "kind": `"kind"`, "name": `"name"`, "rename": `"rename"`, "code": `"code"`, "parent": `"parent"`, "sort": `"sort"`, "note": `"note"`,
+		"kind": `"kind"`, "name": `"name"`, "rename": `"rename"`, "code": `"code"`, "parent": `"parent"`, "sort": `"sort"`, "note": `"note"`,
 		"specialty": `"specialty"`, "region": `"region"`, "from_code": `"from_code"`, "new_code": `"new_code"`, "new_title": `"new_title"`, "item_ids": `"item_ids"`,
 	}
 	raw := string(schema)

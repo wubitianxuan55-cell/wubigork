@@ -120,22 +120,19 @@ func TestBuildMemoryBrainIsolation(t *testing.T) {
 		t.Fatal("脑 A 应回读探针事实")
 	}
 
-	// 脑 B 读不到：remember/memory_get 双工具 + 独立 DB 回读，三向断言。
+	// 脑 B 读不到：工具面 + 独立 DB 回读 + 索引，三向断言（memory_get 已于
+	// 2026-11-25 并入 memory_search 的按名读取，按名读走各脑自己的 Store 视图）。
 	rememberB, ok := facesB["remember"]
 	if !ok {
 		t.Fatal("脑 B 装配缺 remember")
 	}
-	memoryGetB, ok := facesB["memory_get"]
-	if !ok {
-		t.Fatal("脑 B 装配缺 memory_get")
-	}
-	if _, err := brainExec(t, memoryGetB, `{"name":"brain-isolation-probe"}`); err == nil {
-		t.Fatal("脑 B 不应读到脑 A 的事实（memory_get）")
+	if _, ok := facesB["memory_search"]; !ok {
+		t.Fatal("脑 B 装配缺 memory_search")
 	}
 	gdbB := db.GetDatabase(brainB)
 	memB := memory.Load(memory.Options{CWD: projB, UserDir: brainB, DB: gdbB})
-	if _, ok := memB.Store.Get("brain-isolation-probe"); ok {
-		t.Fatal("脑 B 不应回读脑 A 的事实（独立 DB）")
+	if m, ok := memB.Store.Get("brain-isolation-probe"); ok {
+		t.Fatalf("脑 B 不应回读脑 A 的事实（独立 DB）：%+v", m)
 	}
 	if strings.Contains(memB.Index, "brain-isolation-probe") {
 		t.Fatal("脑 B 索引不应含脑 A 探针")
@@ -144,8 +141,8 @@ func TestBuildMemoryBrainIsolation(t *testing.T) {
 	if _, err := brainExec(t, rememberB, `{"name":"brain-b-own","description":"脑 B 自有事实","body":"脑 B 独立落盘。","type":"project"}`); err != nil {
 		t.Fatalf("脑 B remember 落盘: %v", err)
 	}
-	if _, err := brainExec(t, memoryGetB, `{"name":"brain-b-own"}`); err != nil {
-		t.Fatalf("脑 B 应回读自有事实: %v", err)
+	if m, ok := memory.Load(memory.Options{CWD: projB, UserDir: brainB, DB: gdbB}).Store.Get("brain-b-own"); !ok || !strings.Contains(m.Body, "脑 B 独立落盘") {
+		t.Fatalf("脑 B 应回读自有事实: %+v ok=%v", m, ok)
 	}
 	// 脑 A 仍看不到脑 B 的自有事实（互不串的双向确认）。
 	if _, ok := memA.Store.Get("brain-b-own"); ok {

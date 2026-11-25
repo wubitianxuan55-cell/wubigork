@@ -413,14 +413,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.AutoPreload = b
 		return nil
 	},
-	KeyMorningPreload: func(cf *configFile, v string) error {
-		b, err := parseBoolPtr(v)
-		if err != nil {
-			return err
-		}
-		cf.MorningPreload = b
-		return nil
-	},
 	KeyUsdCnyRate: func(cf *configFile, v string) error {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {

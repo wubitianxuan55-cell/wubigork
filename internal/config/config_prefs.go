@@ -1,6 +1,6 @@
 // config_prefs.go — 布尔偏好域（P4 纯结构拆分）。
 // SensitiveLocal / OfficeLocal / ReadScreen / IntentsLLM / OfflineMode /
-// EngineFailover / KeepWarm / AutoPreload / MorningPreload 读写方法原样保留。
+// EngineFailover / KeepWarm / AutoPreload 读写方法原样保留。
 
 package config
 
@@ -144,33 +144,4 @@ func (c *Config) SetAutoPreload(enabled bool) {
 	funcMu.Lock()
 	defer funcMu.Unlock()
 	c.AutoPreload = enabled
-}
-
-// GetMorningPreload 读取晨报预载开关（v4.16 刀④，未显式配置时默认开启）。
-// 只影响上下文注入（work 空间预装配高频工作记忆），与晨报卡片无关。
-func (c *Config) GetMorningPreload() bool {
-	funcMu.RLock()
-	defer funcMu.RUnlock()
-	return c.MorningPreload
-}
-
-// GetProjectBrief 读取项目本体注入开关（6.2，未显式配置时默认开启）。
-func (c *Config) GetProjectBrief() bool {
-	funcMu.RLock()
-	defer funcMu.RUnlock()
-	return c.ProjectBrief
-}
-
-// SetProjectBrief 写入项目本体注入开关。
-func (c *Config) SetProjectBrief(enabled bool) {
-	funcMu.Lock()
-	defer funcMu.Unlock()
-	c.ProjectBrief = enabled
-}
-
-// SetMorningPreload 写入晨报预载开关（仅 config 文件可控，无 UI 绑定）。
-func (c *Config) SetMorningPreload(enabled bool) {
-	funcMu.Lock()
-	defer funcMu.Unlock()
-	c.MorningPreload = enabled
 }

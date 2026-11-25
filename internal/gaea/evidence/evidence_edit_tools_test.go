@@ -9,7 +9,7 @@ import (
 // new edit tools must classify as writers (receipts land as writes, not
 // reads) and grep must stay a reader.
 func TestIsWriterToolCoversEditTools(t *testing.T) {
-	writers := []string{"write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "replace"}
+	writers := []string{"write_file", "edit_file", "move_file"}
 	for _, name := range writers {
 		if !isWriterTool(name) {
 			t.Errorf("isWriterTool(%q) = false, want true", name)
@@ -33,8 +33,8 @@ func TestReceiptFromToolCallEditTools(t *testing.T) {
 		args     string
 		wantRead bool
 	}{
-		{"edit_lines receipt is a write", "edit_lines",
-			`{"path":"a.txt","start_line":1,"end_line":1,"new_content":"x"}`, false},
+		{"edit_file receipt is a write", "edit_file",
+			`{"path":"a.txt","old_string":"a","new_string":"b"}`, false},
 		{"move_file receipt is a write", "move_file",
 			`{"source":"a.txt","destination":"b.txt"}`, false},
 		{"grep receipt is a read", "grep", `{"pattern":"x","path":"a.txt"}`, true},

@@ -453,8 +453,6 @@ export const GAEA_METHOD_FACETS = {
   UpdateFact: "work",
   ChangeFactType: "work",
   SetMemoryEnabled: "work",
-  MorningPreload: "work",
-  SetMorningPreload: "work",
   MemorySuggestions: "work",
   // AI 反馈库（2026-11-20）：记忆面板反馈区（库全局跨板块）。
   AIFeedbackList: "work",
@@ -488,8 +486,6 @@ export const GAEA_METHOD_FACETS = {
   MemoryFeedback: "work",
   MemoryLifecycle: "work",
   MemoryEvalRun: "work",
-  MemoryBrief: "work",
-  SetMemoryBrief: "work",
   // 晨报（做梦 2.0 主动预取）：只读 work 空间记忆，play 不渲染（双空间红线）。
   MemoryMorningBrief: "work",
   CostSearch: "work",

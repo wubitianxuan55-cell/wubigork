@@ -20,21 +20,20 @@ func ConfineBash(spec sandbox.Spec) tool.Tool {
 }
 
 // ConfineWriters returns the file-writing built-ins (write_file, edit_file,
-// multi_edit, edit_lines, move_file) bound to roots — the only directories
-// they may modify. The composition root adds these to the per-run registry to
-// override the unconfined instances registered at init time, so writes stay
-// inside the workspace by default. roots may be relative; they are resolved to
-// absolute, symlink-free paths once here. An empty roots slice yields
-// unconfined writers.
+// move_file) bound to roots — the only directories they may modify. The
+// composition root adds these to the per-run registry to override the
+// unconfined instances registered at init time, so writes stay inside the
+// workspace by default. roots may be relative; they are resolved to absolute,
+// symlink-free paths once here. An empty roots slice yields unconfined writers.
+//
+// 2026-11-25 办公工具梳理批：multi_edit / edit_lines / replace 三件退役
+// （68 个真实办公会话三个月里 0 / 1 / 0 次调用，edit_file 214 次）。
 func ConfineWriters(roots []string) []tool.Tool {
 	rs := realRoots(roots)
 	return []tool.Tool{
 		writeFile{roots: rs},
 		editFile{roots: rs},
-		multiEdit{roots: rs},
-		editLines{roots: rs},
 		moveFile{roots: rs},
-		replaceTool{roots: rs},
 	}
 }
 

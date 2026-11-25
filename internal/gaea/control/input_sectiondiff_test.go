@@ -58,7 +58,7 @@ func TestComposeSessionFactsDisabledWholesale(t *testing.T) {
 		t.Fatalf("开关关应每回合全量注入: %q / %q", out1, out2)
 	}
 	// 与旧实现逐字节一致：前缀 + 正文形态。
-	want := "<session-facts>\nYou saved these temporary facts this session (call promote_session_facts to make them permanent):\n- [pref-style] pref-style: 简洁回复\n</session-facts>\n\n"
+	want := "<session-facts>\nYou saved these temporary facts this session (call remember with action=promote to make them permanent):\n- [pref-style] pref-style: 简洁回复\n</session-facts>\n\n"
 	if !strings.HasPrefix(out1, want) {
 		t.Fatalf("关态输出形态漂移:\n got %q\nwant prefix %q", out1, want)
 	}

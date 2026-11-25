@@ -8,10 +8,7 @@ var compactDesc = map[string]string{
 	"read_file":          "读取文件内容(可选行范围/分页;负 offset 从文件末尾倒数,默认输出绝对行号;md 文档 section=按标题整节精确读取,未命中回显标题大纲)",
 	"write_file":         "写入/覆盖文件(自动建父目录;expected_revision=CAS防陈旧写,read_file尾标取值;失败信封effect_state=unknown时先核实再重试)",
 	"edit_file":          "精确替换文件内容(old_string→new_string,new_string空串=删除;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
-	"multi_edit":         "单文件批量替换(edits数组,内存串行,全部成功才原子写盘;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
-	"edit_lines":         "按行号区间替换(1-based含端点,new_content空串=删行;expected_revision=CAS;失败信封effect_state=unknown时先核实再重试)",
 	"move_file":          "移动/重命名文件(跨卷回退复制,overwrite覆盖目标)",
-	"replace":            "跨文件字面量批量替换(逐文件原子非事务,changed计替换次数;全计划预检零变更;发布前锁内重读哈希重核;dry_run预览)",
 	"grep":               "正则搜索文件内容(path:line: content,跳过二进制/噪声目录/凭据围栏;头行scan=完备性,cursor=自校验续读游标,树变即冲突)",
 	"ls":                 "列出目录条目(子目录带/)",
 	"bash":               "执行shell命令(5分超时,output_format=json得结构化输出;失败信封带exit_code,effect_state=unknown时先核实再重试)",
@@ -23,7 +20,7 @@ var compactDesc = map[string]string{
 	"web_search":         "搜索公开网页，返回结构化JSON(title/url/snippet/source)，支持引用追踪；传url直接抓取该页整页文本",
 	"todo_write":         "更新任务清单(全量替换,最多一个进行中)",
 	"complete_step":      "完成计划步骤(step/result/evidence;kind=verification|diff|files|manual,禁止纯manual)",
-	"memory_search":      "搜索记忆(关键词,kind过滤,BM25排序)",
+	"memory_search":      "记忆检索与读取(query=关键词检索,返回名称+摘要;name=按名读全文;只含当前运行模式与通用的记忆)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
 	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;preserve_images保留内嵌图片sidecar;扫描件OCR回退;子集字体乱码的PDF自动经本机WPS;回执带标题/表格/图片计数)",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
@@ -36,7 +33,6 @@ var compactDesc = map[string]string{
 	"proposal_delete":    "删方案库方案(节点与语义索引一并清除,不可恢复;仅用户明确要求时)",
 	"proposal_export":    "方案库方案导出为Markdown(按标题层级;托管图片落到同名-assets目录)",
 	"cost_save":          "写入/更新成本库条目(同名覆盖,含单价/单位/来源;仅用户明确要求时调用)",
-	"cost_compose":       "AI 组价:相似条目价格带推荐(P25-P75+置信度+证据链),只读不落库,用户确认后 cost_save 沉淀",
 	"screen_capture":     "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
 	"vision":             "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 	"cad_ask":            "读取CAD图纸(DWG/DXF/PDF)并让视觉模型回答图纸问题(自动选质量最好图框高清渲染;PDF按页),发来图纸问内容/尺寸/数量时用",
@@ -72,14 +68,8 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256，或 absent=仅新建"}},"required":["path","content"]}`),
 	"edit_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"},"replace_all":{"type":"boolean"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256"}},"required":["path","old_string","new_string"]}`),
-	"multi_edit": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"edits":{"type":"array","items":{"type":"object","properties":{"old_string":{"type":"string"},"new_string":{"type":"string"},"replace_all":{"type":"boolean"}},"required":["old_string","new_string"]}},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256"}},"required":["path","edits"]}`),
-	"edit_lines": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"new_content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256"}},"required":["path","start_line","end_line","new_content"]}`),
 	"move_file": json.RawMessage(
 		`{"type":"object","properties":{"source":{"type":"string"},"destination":{"type":"string"},"overwrite":{"type":"boolean"}},"required":["source","destination"]}`),
-	"replace": json.RawMessage(
-		`{"type":"object","properties":{"pattern":{"type":"string"},"replacement":{"type":"string"},"path":{"type":"string"},"include":{"type":"string"},"max_replacements":{"type":"integer"},"dry_run":{"type":"boolean"}},"required":["pattern","replacement"]}`),
 	"grep": json.RawMessage(
 		`{"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"include":{"type":"string"},"max_results":{"type":"integer"},"offset":{"type":"integer","description":"跳过前 N 条命中（续页游标）"}},"required":["pattern"]}`),
 	"ls": json.RawMessage(
@@ -103,7 +93,7 @@ var compactSchema = map[string]json.RawMessage{
 	"complete_step": json.RawMessage(
 		`{"type":"object","properties":{"step":{"type":"string"},"step_index":{"type":"integer","minimum":1},"result":{"type":"string"},"evidence":{"type":"array","minItems":1,"items":{"type":"object","properties":{"kind":{"type":"string","enum":["verification","diff","files","manual"]},"summary":{"type":"string"},"command":{"type":"string"},"paths":{"type":"array","items":{"type":"string"}}},"required":["kind","summary"]}}},"required":["result","evidence"]}`),
 	"memory_search": json.RawMessage(
-		`{"type":"object","properties":{"query":{"type":"string"},"kind":{"type":"string"}},"required":["query"]}`),
+		`{"type":"object","properties":{"query":{"type":"string","description":"关键词检索；与 name 二选一"},"name":{"type":"string","description":"按名称读一条全文"},"kind":{"type":"string","enum":["semantic","episodic","procedural"]}}}`),
 	"read_skill": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`),
 	"format_convert": json.RawMessage(
@@ -128,8 +118,6 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"status":{"type":"string"},"limit":{"type":"integer"}}}`),
 	"cost_save": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"},"title":{"type":"string"},"category":{"type":"string"},"unit":{"type":"string"},"price":{"type":"number"},"spec":{"type":"string"},"source":{"type":"string"},"tags":{"type":"string"},"status":{"type":"string"},"body":{"type":"string"}},"required":["title","price"]}`),
-	"cost_compose": json.RawMessage(
-		`{"type":"object","properties":{"description":{"type":"string"},"unit":{"type":"string"},"limit":{"type":"integer"},"mode":{"type":"string"}},"required":["description"]}`),
 	"screen_capture": json.RawMessage(
 		`{"type":"object","properties":{"region":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"}}}}}`),
 	"vision": json.RawMessage(

@@ -308,16 +308,16 @@ func TestFilterRegistryAutoExcludesNewPersistWriteTool(t *testing.T) {
 	}
 }
 
-// TestPersistWriteSetMatchesLegacySix 断言：现有 6 项持久化写入工具的标记
-// 与 v2.13.21 手写禁写清单完全一致（cost_save/remember/forget/knowledge_add/
-// promote_session_facts/install_skill），注册表推导出的集合一个不多一个不少。
+// TestPersistWriteSetMatchesLegacySix 断言：持久化写入工具的标记与手写禁写清单
+// 完全一致（cost_save/remember/install_skill），注册表推导出的集合一个不多一个
+// 不少。2026-11-25 办公工具梳理批：forget / promote_session_facts 并入 remember
+// （action 区分），持久化写集合随之收成三项——合并后 delete/promote 仍走 remember
+// 的确认卡，子代理仍拿不到它。
 func TestPersistWriteSetMatchesLegacySix(t *testing.T) {
 	reg := tool.NewRegistry()
-	// cost_save / knowledge_add 是内置工具（init 注册）；其余四个由 boot 构造。
-	var nilStore memory.Store // Store 是接口，需要类型化 nil
+	// cost_save 是内置工具（init 注册）；其余两个由 boot 构造。
+	var nilStore memory.Store
 	reg.Add(memory.NewRememberTool(nilStore, nil))
-	reg.Add(memory.NewForgetTool(nilStore))
-	reg.Add(memory.NewPromoteSessionFactsTool())
 	reg.Add(skill.NewInstallSkillTool(nil, nil))
 	if ct, ok := tool.LookupBuiltin("cost_save"); ok {
 		reg.Add(ct)
@@ -326,7 +326,7 @@ func TestPersistWriteSetMatchesLegacySix(t *testing.T) {
 	}
 
 	got := reg.PersistWriteNames()
-	want := []string{"cost_save", "remember", "forget", "promote_session_facts", "install_skill"}
+	want := []string{"cost_save", "remember", "install_skill"}
 	sort.Strings(got)
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {

@@ -136,17 +136,18 @@ type memorySearch struct{}
 func (memorySearch) Name() string { return "memory_search" }
 
 func (memorySearch) Description() string {
-	return "Search saved memories by keyword. Returns matching memory entries ranked by relevance with preview descriptions. Optionally filter by kind: semantic (facts/prefs), episodic (past experiences), procedural (rules). Use this to find prior context, user preferences, or project facts before answering — don't ask the user about something memory may already record."
+	// 2026-11-25 办公工具梳理批：memory_get 并入本工具（给 name 即按名读正文）。
+	return "记忆检索与读取（本项目工作区；只含当前运行模式与通用的记忆）。给 query=按关键词检索，返回命中条目的名称与一行摘要；给 name=按名称读一条的全文（名称取自记忆索引方括号里）。回答前先查这里——用户偏好、既往决定、项目约束可能已经记着，不必再问。"
 }
 
 func (memorySearch) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "query":{"type":"string","description":"Search query — one or more keywords. The tool OR-matches tokens and ranks by relevance."},
-  "kind":{"type":"string","enum":["semantic","episodic","procedural"],"description":"Filter by cognitive kind. Omit to search all."}
-},
-"required":["query"]
+  "query":{"type":"string","description":"关键词（一个或多个）；与 name 二选一。"},
+  "name":{"type":"string","description":"记忆名称（索引里方括号中的那个，如 prefers-tabs）：给了就返回这条的全文。"},
+  "kind":{"type":"string","enum":["semantic","episodic","procedural"],"description":"只检索某一类：semantic=事实，episodic=经验，procedural=规则；不给=全部。"}
+}
 }`)
 }
 
@@ -156,21 +157,35 @@ func (memorySearch) CompactDescription() string     { return compactDesc["memory
 func (memorySearch) CompactSchema() json.RawMessage { return compactSchema["memory_search"] }
 
 func (memorySearch) Execute(ctx context.Context, args json.RawMessage) (string, error) {
-	// 索引按会话空间解析（审计 P0#7：实例所有权优先，进程级空间分槽兜底）。
-	idx := memorySearchIndexFromContext(ctx)
-	if idx == nil {
-		return "", fmt.Errorf("memory index not available — save some memories first with the remember tool")
-	}
-
 	var p struct {
 		Query string `json:"query"`
+		Name  string `json:"name"`
 		Kind  string `json:"kind"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
+	// 按名读正文（原 memory_get）：存储取自会话控制器，读取与触达都限定本空间
+	// 与本运行模式（视图已收窄，跨空间/跨模式的键不命中）。
+	if name := strings.TrimSpace(p.Name); name != "" {
+		store, ok := memory.StoreFromContext(ctx)
+		if !ok {
+			return "", fmt.Errorf("memory store not available in this context")
+		}
+		m, ok := store.Get(name)
+		if !ok {
+			return "", fmt.Errorf("memory %q not found（名称取自记忆索引的方括号；只搜得到当前运行模式与通用的记忆）", name)
+		}
+		_ = store.Touch(name) // 读取即使用：供「关键词+时间+高频」注入排序
+		return memory.RenderMemory(m), nil
+	}
+	// 索引按会话空间解析（审计 P0#7：实例所有权优先，进程级空间分槽兜底）。
+	idx := memorySearchIndexFromContext(ctx)
+	if idx == nil {
+		return "", fmt.Errorf("memory index not available — save some memories first with the remember tool")
+	}
 	if strings.TrimSpace(p.Query) == "" {
-		return "", fmt.Errorf("query is required")
+		return "", fmt.Errorf("query 与 name 至少给一个（query=关键词检索，name=按名读全文）")
 	}
 
 	var matches []memory.SearchMatch
@@ -206,7 +221,7 @@ func (memorySearch) Execute(ctx context.Context, args json.RawMessage) (string, 
 	if len(matches) > limit {
 		fmt.Fprintf(&b, "\n... and %d more. Narrow your query for fewer results.\n", len(matches)-limit)
 	}
-	b.WriteString("\nUse read_file to view a specific memory's full content.")
+	b.WriteString("\n要看某一条的全文：再调一次 memory_search，给 name。")
 	return b.String(), nil
 }
 

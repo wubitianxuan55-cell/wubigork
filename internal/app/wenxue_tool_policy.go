@@ -27,7 +27,7 @@ var wenxueDeniedTools = []string{
 	"office_save", "office_close", "office_help", "office_macro", "office_selection",
 	// CAD / 造价
 	"cad_ask",
-	"cost_search", "cost_save", "cost_compose", "cost_indicators",
+	"cost_search", "cost_save", "cost_indicators",
 	"cost_library", // 造价库维护（造价模式专属，2026-11-25）
 	// 跨库语义检索（specialist 面）
 	"semantic_search",
@@ -39,8 +39,6 @@ var wenxueDeniedTools = []string{
 	// 图表/图面/文档渲染/格式转换/截屏（小说创作无消费面）
 	"chart_gen", "diagram_gen", "diagram", "doc_render",
 	"format_convert", "screen_capture",
-	// 办公文件流水线
-	"dag_plan",
 	// 交付事实库（2026-11-15 众神殿首刀除名，pan_1794754879290 裁决）：语义=
 	// 办公交付任务的"确认数字/单位/期限"收集（PersistWrite），与图文写作闭环
 	// 无关——回写纪律走 时间线/角色卡（wenxue-workbench）。办公实现与
@@ -49,10 +47,11 @@ var wenxueDeniedTools = []string{
 	// 浏览器自动化族（前缀匹配）
 	"browser_",
 
-	// ── 图文瘦身刀（2026-11-16）：写作闭环外的面板杂音，13 件 ──
-	// 编辑族五件：章节/角色卡修订走 chapter/character_write 整卡覆写，
-	// 精确行级/多点编辑是开发域手感（read+write 覆盖兜底）。
-	"edit_file", "edit_lines", "multi_edit", "replace", "move_file",
+	// ── 图文瘦身刀（2026-11-16）：写作闭环外的面板杂音 ──
+	// 编辑族：multi_edit / edit_lines / replace 已于 2026-11-25 全局退役（办公
+	// 工具梳理批）；章节/角色卡修订走 chapter/character_write 整卡覆写，
+	// 精确替换是开发域手感（read+write 覆盖兜底）。
+	"edit_file", "move_file",
 	// 大文件两件：章节体量远低于落盘/分块摘要阈值，read_file 分页已覆盖。
 	"read_spill", "summarize_file",
 	// 办公侧栏 UI 面：图文无消费。

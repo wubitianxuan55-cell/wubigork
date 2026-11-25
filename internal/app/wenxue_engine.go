@@ -278,9 +278,6 @@ func (a *App) wenxueBuildController() (*control.Controller, error) {
 		// 通用面走媒体根分档版（wenxueBaseTools）：image_gen/ocr 锚小说目录。
 		ExtraTools: append(wenxueBaseTools(a), wenxueExtraTools(a)...),
 		ToolFilter: wenxueToolFilter,
-		// 晨报预载/项目本体是 work 空间办公会话注入段——图文一律关。
-		MorningPreload: false,
-		ProjectBrief:   false,
 		// 技能面（刀2）：allowlist 子集 + 内嵌三件（索引/slash/run_skill/
 		// read_skill/能力抽屉五面同源收口）。
 		SkillFilter: wenxueSkillFilter,

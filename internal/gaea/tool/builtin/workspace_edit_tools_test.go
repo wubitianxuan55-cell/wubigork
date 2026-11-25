@@ -21,7 +21,7 @@ func TestWorkspaceToolsIncludeEditTools(t *testing.T) {
 	for _, tl := range (Workspace{Dir: dir}).Tools() {
 		names[tl.Name()] = true
 	}
-	for _, want := range []string{"edit_file", "multi_edit", "edit_lines", "move_file", "grep"} {
+	for _, want := range []string{"edit_file", "move_file", "grep"} {
 		if !names[want] {
 			t.Errorf("Workspace.Tools() missing %q (workspace-bound instance)", want)
 		}
@@ -82,7 +82,7 @@ func TestConfineWritersCoversNewTools(t *testing.T) {
 	for _, tl := range confined {
 		byName[tl.Name()] = tl
 	}
-	for _, want := range []string{"write_file", "edit_file", "multi_edit", "edit_lines", "move_file"} {
+	for _, want := range []string{"write_file", "edit_file", "move_file"} {
 		if _, ok := byName[want]; !ok {
 			t.Errorf("ConfineWriters missing %q", want)
 		}
@@ -97,8 +97,6 @@ func TestConfineWritersCoversNewTools(t *testing.T) {
 		args map[string]any
 	}{
 		{"edit_file", map[string]any{"path": path, "old_string": "x", "new_string": "y"}},
-		{"multi_edit", map[string]any{"path": path, "edits": []map[string]any{{"old_string": "x", "new_string": "y"}}}},
-		{"edit_lines", map[string]any{"path": path, "start_line": 1, "end_line": 1, "new_content": "y"}},
 		{"move_file", map[string]any{"source": path, "destination": filepath.Join(ws, "stolen.txt")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -115,8 +113,7 @@ func TestConfineWritersCoversNewTools(t *testing.T) {
 // empty description + empty schema (tool.go has no fallback).
 func TestCompactEntriesPresent(t *testing.T) {
 	for name, tl := range map[string]tool.Tool{
-		"edit_file": editFile{}, "multi_edit": multiEdit{}, "edit_lines": editLines{},
-		"move_file": moveFile{}, "grep": grepTool{},
+		"edit_file": editFile{}, "move_file": moveFile{}, "grep": grepTool{},
 	} {
 		cd, ok := tl.(tool.CompactDescriptor)
 		if !ok {

@@ -15,9 +15,10 @@ import (
 	_ "github.com/gaea/gaea/internal/gaea/tool/builtin" // 注册 builtin 工具（含 S0.6 编辑系）
 )
 
-// S0.6 integration tests: the edit-tools layer (edit_file / multi_edit /
-// edit_lines / move_file / grep) wired through the agent runner — precheck,
-// stale guard, loop guard, cache invalidation, conflict keys.
+// S0.6 integration tests: the edit-tools layer (edit_file / move_file / grep)
+// wired through the agent runner — precheck, stale guard, loop guard, cache
+// invalidation, conflict keys. 2026-11-25 办公工具梳理批退役 multi_edit /
+// edit_lines / replace，对应用例随之移除。
 
 func lookupEditTool(t *testing.T, name string) tool.Tool {
 	t.Helper()
@@ -37,10 +38,22 @@ func editToolsRegistry(t *testing.T, names ...string) *tool.Registry {
 	return reg
 }
 
+// TestRetiredEditToolsStayUnregistered 退役工具不得回潮：注册面、紧凑描述表、
+// 常驻名单三处都没有它们的位子。
+func TestRetiredEditToolsStayUnregistered(t *testing.T) {
+	for _, name := range []string{"multi_edit", "edit_lines", "replace", "cost_compose"} {
+		if _, ok := tool.LookupBuiltin(name); ok {
+			t.Errorf("%s 已退役，不应再注册", name)
+		}
+		if a := (&AgentRunner{}).precheckTool(name, []byte(`{"path":"x"}`)); a != "" {
+			t.Errorf("%s 已退役，precheck 不应再认它", name)
+		}
+	}
+}
+
 func TestEditToolsRegisteredWithReadOnlyClassification(t *testing.T) {
 	for name, wantReadOnly := range map[string]bool{
-		"edit_file": false, "multi_edit": false, "edit_lines": false,
-		"move_file": false, "grep": true,
+		"edit_file": false, "move_file": false, "grep": true,
 	} {
 		tl := lookupEditTool(t, name)
 		if got := tl.ReadOnly(); got != wantReadOnly {
@@ -55,15 +68,14 @@ func TestEditToolsRegisteredWithReadOnlyClassification(t *testing.T) {
 	}
 }
 
-func TestPrecheckSilentForEditLinesMoveFileGrep(t *testing.T) {
-	// edit_lines / move_file / grep carry no anchor semantics — precheck must
-	// not interfere (design §3), letting Execute produce its own errors.
+func TestPrecheckSilentForMoveFileGrep(t *testing.T) {
+	// move_file / grep carry no anchor semantics — precheck must not
+	// interfere (design §3), letting Execute produce its own errors.
 	a := &AgentRunner{}
 	cases := []struct {
 		name string
 		args string
 	}{
-		{"edit_lines", `{"path":"x.txt","start_line":1,"end_line":2,"new_content":"y"}`},
 		{"move_file", `{"source":"a.txt","destination":"b.txt"}`},
 		{"grep", `{"pattern":"x"}`},
 	}
@@ -81,8 +93,6 @@ func TestGetConflictKeyEditTools(t *testing.T) {
 		want string
 	}{
 		{"move_file", `{"source":"a.txt","destination":"b.txt"}`, "!write"},
-		{"edit_lines", `{"path":"x.txt","start_line":1,"end_line":1,"new_content":"y"}`, "file:x.txt"},
-		{"edit_lines", `{"start_line":1,"end_line":1}`, "!write"},
 		{"grep", `{"pattern":"x","path":"src"}`, "file:src"}, // 刀1：与写工具统一资源键，同路径读写保序
 		{"grep", `{"pattern":"x"}`, ""},
 	}
@@ -94,10 +104,10 @@ func TestGetConflictKeyEditTools(t *testing.T) {
 }
 
 func TestRepeatSuccessSignatureCoversEditTools(t *testing.T) {
-	for _, name := range []string{"edit_lines", "move_file"} {
+	for _, name := range []string{"move_file"} {
 		tl := lookupEditTool(t, name)
 		sig, ok := repeatSuccessSignature(provider.ToolCall{
-			Name: name, Arguments: `{"path":"a.txt","start_line":1,"end_line":1,"new_content":"x","source":"a.txt","destination":"b.txt"}`,
+			Name: name, Arguments: `{"path":"a.txt","source":"a.txt","destination":"b.txt"}`,
 		}, tl)
 		if !ok || !strings.HasPrefix(sig, name+"\x00") {
 			t.Errorf("repeatSuccessSignature(%s) = %q ok=%v, want tool-prefixed signature", name, sig, ok)
@@ -180,7 +190,8 @@ func TestMoveFileInvalidatesBothCachePaths(t *testing.T) {
 	}
 }
 
-func TestEditLinesCacheInvalidation(t *testing.T) {
+// TestEditFileCacheInvalidation 写后读缓存失效（edit_file 的 path 键路径）。
+func TestEditFileCacheInvalidation(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.ToSlash(filepath.Join(dir, "a.txt"))
 	if err := os.WriteFile(path, []byte("one\ntwo\n"), 0o644); err != nil {
@@ -188,46 +199,24 @@ func TestEditLinesCacheInvalidation(t *testing.T) {
 	}
 
 	a := &AgentRunner{
-		tools: editToolsRegistry(t, "edit_lines"),
+		tools: editToolsRegistry(t, "edit_file"),
 		tc:    cache.New(0),
 	}
-	a.tc.Set(path, 0, 0, "cached")
+	// 缓存里放真实内容：edit_file 的 precheck 先查缓存核 old_string。
+	a.tc.Set(path, 0, 0, "one\ntwo\n")
 
 	out := a.executeOne(context.Background(), provider.ToolCall{
-		ID: "c1", Name: "edit_lines",
-		Arguments: `{"path":"` + path + `","start_line":1,"end_line":1,"new_content":"ONE"}`,
+		ID: "c1", Name: "edit_file",
+		Arguments: `{"path":"` + path + `","old_string":"one","new_string":"ONE"}`,
 	})
 	if out.blocked || out.errMsg != "" {
-		t.Fatalf("edit_lines should execute cleanly, got blocked=%v err=%q out=%q", out.blocked, out.errMsg, out.output)
+		t.Fatalf("edit_file should execute cleanly, got blocked=%v err=%q out=%q", out.blocked, out.errMsg, out.output)
 	}
 	if _, hit := a.tc.Get(path, 0, 0); hit {
-		t.Error("cache entry must be invalidated after edit_lines")
+		t.Error("cache entry must be invalidated after edit_file")
 	}
 	if content, _ := os.ReadFile(path); string(content) != "ONE\ntwo\n" {
 		t.Errorf("file content = %q", content)
-	}
-}
-
-func TestStaleGuardBlocksEditLinesWithoutRead(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.ToSlash(filepath.Join(dir, "a.txt"))
-	if err := os.WriteFile(path, []byte("one\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	a := &AgentRunner{
-		tools:             editToolsRegistry(t, "edit_lines"),
-		staleWrittenFiles: map[string]bool{path: true}, // modified earlier this turn, not re-read
-	}
-	out := a.executeOne(context.Background(), provider.ToolCall{
-		ID: "c1", Name: "edit_lines",
-		Arguments: `{"path":"` + path + `","start_line":1,"end_line":1,"new_content":"X"}`,
-	})
-	if !out.blocked || !strings.Contains(out.output, "[stale content]") {
-		t.Fatalf("stale guard must block edit_lines on an unwritten-then-modified file, got %+v", out)
-	}
-	if content, _ := os.ReadFile(path); string(content) != "one\n" {
-		t.Errorf("blocked edit must not touch the file, got %q", content)
 	}
 }
 
@@ -329,29 +318,6 @@ func TestStaleGuardBlocksMoveFileWithoutRead(t *testing.T) {
 	}
 	if _, err := os.Stat(src); err != nil {
 		t.Errorf("blocked move must not remove the source, stat err=%v", err)
-	}
-}
-
-func TestEditLinesLoopGuardAfterTwoSuccesses(t *testing.T) {
-	tl := lookupEditTool(t, "edit_lines")
-	a := &AgentRunner{sink: event.Discard, session: NewSession("sys")}
-	call := provider.ToolCall{ID: "c1", Name: "edit_lines",
-		Arguments: `{"path":"a.txt","start_line":1,"end_line":1,"new_content":"x"}`}
-	for i := 0; i < repeatSuccessAllowed; i++ {
-		a.recordRepeatSuccess(call, tl)
-	}
-	// 降级后计数器只在越线时触发一次性 advisory，不再产生 blocked 结果。
-	if a.advisoryRepeatSuccess() {
-		t.Fatal("below the threshold no advisory may fire")
-	}
-	a.recordRepeatSuccess(call, tl)
-	if !a.advisoryRepeatSuccess() {
-		t.Fatal("edit_lines crossing the threshold must inject the advisory")
-	}
-	for _, m := range a.session.Messages {
-		if strings.Contains(m.Content, "succeeded 3 times") && !strings.Contains(m.Content, "edit_lines") {
-			t.Fatalf("advisory must name the tool: %q", m.Content)
-		}
 	}
 }
 

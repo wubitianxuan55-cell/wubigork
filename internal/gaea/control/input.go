@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/spaces"
@@ -37,7 +37,7 @@ func (s sessionFactsSection) Body() string {
 	}
 	var b strings.Builder
 	b.WriteString("<session-facts>\n")
-	b.WriteString("You saved these temporary facts this session (call promote_session_facts to make them permanent):\n")
+	b.WriteString("You saved these temporary facts this session (call remember with action=promote to make them permanent):\n")
 	for _, f := range s.facts {
 		fmt.Fprintf(&b, "- [%s] %s: %s\n", f.Name, f.Title, f.Description)
 	}
@@ -85,7 +85,7 @@ func (c *Controller) Compose(text string) string {
 	} else if len(sessionFacts) > 0 {
 		var b strings.Builder
 		b.WriteString("<session-facts>\n")
-		b.WriteString("You saved these temporary facts this session (call promote_session_facts to make them permanent):\n")
+		b.WriteString("You saved these temporary facts this session (call remember with action=promote to make them permanent):\n")
 		for _, f := range sessionFacts {
 			fmt.Fprintf(&b, "- [%s] %s: %s\n", f.Name, f.Title, f.Description)
 		}

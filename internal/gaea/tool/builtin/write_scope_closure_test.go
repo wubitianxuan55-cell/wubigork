@@ -171,50 +171,6 @@ func TestWriterToolsClosureWithinDeclaredScope(t *testing.T) {
 			},
 		},
 		{
-			name: "multi_edit",
-			mk:   func(roots []string) tool.Tool { return multiEdit{roots: roots} },
-			seed: func(ws, declared string) {
-				os.WriteFile(filepath.Join(declared, "a.txt"), []byte("one two"), 0o644)
-			},
-			inScope: func(ws, declared string) string {
-				return mustArgsJSON(t, map[string]any{"path": filepath.Join(declared, "a.txt"), "edits": []map[string]string{{"old_string": "one", "new_string": "1"}, {"old_string": "two", "new_string": "2"}}})
-			},
-			seedOut: func(ws, declared string) {
-				os.WriteFile(filepath.Join(ws, "seed.txt"), []byte("one"), 0o644)
-			},
-			outScope: func(ws, declared string) string {
-				return mustArgsJSON(t, map[string]any{"path": filepath.Join(ws, "seed.txt"), "edits": []map[string]string{{"old_string": "one", "new_string": "1"}}})
-			},
-			verifyIn: func(t *testing.T, ws, declared string) {
-				b, _ := os.ReadFile(filepath.Join(declared, "a.txt"))
-				if string(b) != "1 2" {
-					t.Errorf("声明内 multi_edit 应生效: %q", b)
-				}
-			},
-		},
-		{
-			name: "edit_lines",
-			mk:   func(roots []string) tool.Tool { return editLines{roots: roots} },
-			seed: func(ws, declared string) {
-				os.WriteFile(filepath.Join(declared, "a.txt"), []byte("l1\nl2\nl3"), 0o644)
-			},
-			inScope: func(ws, declared string) string {
-				return mustArgsJSON(t, map[string]any{"path": filepath.Join(declared, "a.txt"), "start_line": 1, "end_line": 1, "new_content": "L1"})
-			},
-			seedOut: func(ws, declared string) {
-				os.WriteFile(filepath.Join(ws, "seed.txt"), []byte("l1\nl2"), 0o644)
-			},
-			outScope: func(ws, declared string) string {
-				return mustArgsJSON(t, map[string]any{"path": filepath.Join(ws, "seed.txt"), "start_line": 1, "end_line": 1, "new_content": "L1"})
-			},
-			verifyIn: func(t *testing.T, ws, declared string) {
-				b, _ := os.ReadFile(filepath.Join(declared, "a.txt"))
-				if !strings.HasPrefix(string(b), "L1") {
-					t.Errorf("声明内 edit_lines 应生效: %q", b)
-				}
-			},
-		},
-		{
 			name: "move_file",
 			mk:   func(roots []string) tool.Tool { return moveFile{roots: roots} },
 			seed: func(ws, declared string) {

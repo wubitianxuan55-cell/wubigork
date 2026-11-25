@@ -8,7 +8,7 @@ import (
 
 // S1.2 记忆空间隔离器 · A 步（写侧空间化）：ctx 空间管线仿 WithQueue /
 // WithSessionSaver（queue.go）——agent 运行链路把会话空间盖章到工具调用
-// ctx（注入点 agent.executeOne），remember / memory_get 等记忆工具经
+// ctx（注入点 agent.executeOne），remember 等记忆工具经
 // SpaceFromContext 读取，写读都限定本空间。
 //
 // 设计权威：docs/gaea-memory-isolation-design.md §方案 A + §勘误与关键锚点

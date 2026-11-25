@@ -29,7 +29,7 @@ func TestGaeaDynamicToolSchemasValid(t *testing.T) {
 	reg.Add(command.NewSlashCommandTool([]command.SlashEntry{{Name: "test", Description: "d", Render: func([]string) string { return "" }}}))
 	reg.Add(skill.NewRunSkillTool(skStore, nil))
 	reg.Add(skill.NewInstallSkillTool(skStore, nil))
-	reg.Add(memory.NewPromoteSessionFactsTool())
+	reg.Add(memory.NewRememberTool(memory.Store{}, nil))
 
 	bad := 0
 	for _, sch := range reg.Schemas() {

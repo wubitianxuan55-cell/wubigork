@@ -40,21 +40,26 @@ func (costLibraryTool) Name() string       { return "cost_library" }
 func (costLibraryTool) ReadOnly() bool     { return false }
 func (costLibraryTool) PersistWrite() bool { return true }
 
-// KeepSchemaDescriptions 本工具的参数语义只写在字段描述里（一个 action 一套
-// 嵌套入参），经 SchemaDescriptionsKeeper 保留描述下发——剥离后模型只能看键名
-// 猜结构，实测把 dict/classify 塞进 quota、不知道 import_project 也吃
-// specialty/region，单点浪费 9 轮（2026-11-25 铜陵反馈 #13）。
+// KeepSchemaDescriptions 本工具的参数语义写在字段描述里，经
+// SchemaDescriptionsKeeper 保留描述下发——剥离后模型只能看键名猜结构，不知道
+// import_project 也吃 specialty/region，单点浪费 9 轮（2026-11-25 铜陵反馈
+// #13）。同反馈里「把 dict/classify 塞进 quota」另有根因：旧 schema 的 quota
+// 对象少一个右花括号，后续参数在模型眼里就嵌在 quota 里（见
+// office_cost_library_schema.go）。
 func (costLibraryTool) KeepSchemaDescriptions() bool { return true }
 
-// UsageHint 给刚失败的调用一张正确的参数骨架（loop guard 附加值，铜陵反馈
-// #14：只拦不导，模型随后又原样撞了两次）。
-func (costLibraryTool) UsageHint(args json.RawMessage) string {
-	var p struct {
-		Action string `json:"action"`
-	}
-	_ = json.Unmarshal(args, &p)
-	skeletons := map[string]string{
-		"dict":           `{"action":"dict","dict":{"op":"list","kind":"region"}}`,
+// Description 只写动作路由与库定规矩。流程细则不在这里重复——身份提示词（造价档
+// 「造价库维护」段）与 cost-estimate / cost-estimation-playbook 技能是出处；行
+// 字段契约随回执发放（office_cost_library_schema.go）。
+func (costLibraryTool) Description() string {
+	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【录入资料】资料格式不固定，由你读资料、整理后提交：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行 → import_check 勾稽 → 用户确认后 import_commit 写库；只有标准六表测算工作簿才走 import_project 快速通道。【新做测算】template 取测算样表（版式真源，六表契约照抄），填完过 xlsx_recalc → xlsx_audit → import_project dry_run=true 导回。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；seed/flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
+}
+
+// clActionSkeletons 各动作的正确参数骨架：UsageHint（loop guard：给刚失败的调用
+// 一张骨架）与 action=help 共用同一份。
+func clActionSkeletons() map[string]string {
+	return map[string]string{
+		"dict":           `{"action":"dict","kind":"region"}`,
 		"dict_add":       `{"action":"dict_add","kind":"region","name":"铜陵"}`,
 		"dict_update":    `{"action":"dict_update","kind":"region","name":"铜陵","rename":"铜陵市"}`,
 		"dict_delete":    `{"action":"dict_delete","kind":"region","name":"铜陵"}`,
@@ -62,8 +67,9 @@ func (costLibraryTool) UsageHint(args json.RawMessage) string {
 		"save_quota":     `{"action":"save_quota","quota":{"code":"TR0001","title":"…","unit":"m3","specialty":"土壤修复","items":[{"resource_code":"R…","quantity":1.2}]}}`,
 		"save_resource":  `{"action":"save_resource","resource":{"kind":"材料","title":"…","unit":"t","current_price":300,"region":"铜陵","price_date":"2026-06"}}`,
 		"set_price":      `{"action":"set_price","resource_code":"R…","price":320,"period":"2026-06"}`,
-		"import_project": `{"action":"import_project","path":".gaea/exports/….xlsx","specialty":"土壤修复","region":"铜陵","period":"2026-06","dry_run":true}`,
+		"import_open":    `{"action":"import_open","source":"资料/报价单.xlsx","project":{"name":"…","specialty":"土壤修复","region":"铜陵","price_period":"2026-06"},"controls":{"resources":120,"quotas":40,"bills":18}}`,
 		"import_add":     `{"action":"import_add","import_id":"…","resources":[…],"quotas":[…],"bills":[…]}`,
+		"import_project": `{"action":"import_project","path":".gaea/exports/….xlsx","specialty":"土壤修复","region":"铜陵","period":"2026-06","dry_run":true}`,
 		"borrow_quota":   `{"action":"borrow_quota","from_code":"…","specialty":"土壤修复","dry_run":true}`,
 		// 删除/去重类骨架（铜陵反馈 #16：这批动作的顶层列表参数连缺 6 次，
 		// loop guard 只拦不导时模型没有骨架可抄）。
@@ -73,137 +79,26 @@ func (costLibraryTool) UsageHint(args json.RawMessage) string {
 		"dedupe":          `{"action":"dedupe","keep_id":1,"merge_ids":[2],"dry_run":true}`,
 		"delete_project":  `{"action":"delete_project","project_id":10,"dry_run":true}`,
 	}
-	if s, ok := skeletons[p.Action]; ok {
+}
+
+// UsageHint 给刚失败的调用一张正确的参数骨架（loop guard 附加值，铜陵反馈
+// #14：只拦不导，模型随后又原样撞了两次）。import_add / classify 的行与组字段
+// 不在常驻 schema 里：失败时直接附上字段契约，省一次 help。
+func (costLibraryTool) UsageHint(args json.RawMessage) string {
+	var p struct {
+		Action string `json:"action"`
+	}
+	_ = json.Unmarshal(args, &p)
+	switch p.Action {
+	case "import_add":
+		return "cost_library 字段契约：\n" + clImportRowsContract
+	case "classify":
+		return "cost_library 字段契约：\n" + clClassifyContract
+	}
+	if s, ok := clActionSkeletons()[p.Action]; ok {
 		return "cost_library 正确参数骨架：" + s
 	}
 	return ""
-}
-
-func (costLibraryTool) Description() string {
-	return "维护工料机造价库（三级数据：清单 → 定额 → 工料机）。库定规矩：专业、地区、工料机分类是字典（dict 查看与新增），期数统一 YYYY-MM；写进库的值必须在字典里，空=待整理。【录入资料】造价资料格式不固定，由你读资料、整理后整批提交：import_open 开导入（给资料路径、项目口径、资料上的控制数）→ import_add 分批提交整理好的工料机 / 定额 / 清单行（每行带来源位置 src，不合规的行当场退回并说明原因）→ import_check 勾稽（程序回到资料里逐行核对你提交的数与文字，对控制数、对单价）→ 用户确认后 import_commit 写库。只有确认资料是标准测算工作簿（六表模版：封面/清单/费用汇总/综合单价/工料机价格/工程量计算；旧版五表不再兼容）时才可走 import_project 快速通道，演练回执出现「将被拒收」的行就改走模型读表。【测算模版】做新的成本测算先 template 拿测算样表（版式真源：人工精修、实测可导回；程序不再渲染也不再预填——工料机价格与费率口径是你查库后在样表上填的），版式可自由发挥，但导入契约不可破（六表表名/行类枚举/公式链照抄样表），填完过三道门 xlsx_recalc → xlsx_audit → import_project dry_run=true 再导回。填法与测算口径见 cost-estimate 技能。【整理归类】文件不一定带专业/地区/分类：dims 盘点现有叫法，classify 分批归类（dry_run 出方案）；清单套定额同专业优先，本专业没有就 borrow_quota 以外专业定额为底生成本专业的。【维护】save_quota/delete_quota 维护消耗定额（含量行整组替换；定额专业固定，已有定额不改专业）；save_resource/delete_resource/set_price 维护工料机（工料机按地区分行；调价写历史并推进现行价）；bulk_price 批量调价；delete_items/delete_project 删清单行/整个项目；seed 资料条目资源化；flywheel 跨项目含量聚合生成企业定额（只在同专业内聚合）；dedupe 合并重复工料机；health 列库级健康发现。批量与删除动作先 dry_run=true 演练（不写库、不弹确认），核对后去掉 dry_run 正式执行；被引用的定额/工料机默认不删，确要删加 force=true。每次正式写入都需要用户确认。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
-}
-
-func (costLibraryTool) Schema() json.RawMessage {
-	return json.RawMessage(`{
-"type":"object",
-"required":["action"],
-"properties":{
-  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","seed","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template"],"description":"见工具说明；template 把测算样表复制到工作区（样表=测算模版的版式真源，只读库、只新增文件）；录入资料走模型读表导入 import_open → import_add → import_check → import_commit；health/dims 只读；dict 不给 dict 对象=查看字典；字典新增/修改/删除用 dict_add/dict_update/dict_delete 扁平动作（kind+name 直接给在顶层）"},
-  "dry_run":{"type":"boolean","description":"演练：校验、匹配、统计照做，但不写库、不弹确认"},
-  "path":{"type":"string","description":"测算工作簿路径（import_project 必填，.xlsx，六表模版；template 可选=模版落盘路径，工作区相对，缺省落 .gaea/exports）"},
-  "kind":{"type":"string","enum":["specialty","region","category"],"description":"字典类别（dict_add/dict_update/dict_delete 用）：specialty=专业 / region=地区 / category=工料机分类"},
-  "name":{"type":"string","description":"字典项名称（dict_add/dict_update/dict_delete 用；分类=完整路径，如 材料/土建材料/钢材，新增分类要先有上级路径）"},
-  "rename":{"type":"string","description":"dict_update：改成什么名字"},
-  "code":{"type":"string","description":"专业的标准代码（dict_add/dict_update 可选，如国标清单专业代码 04=市政），机检清单编码专业段用"},
-  "parent":{"type":"string","description":"上级字典项（dict_add/dict_update 可选；地区：省→市→价格区）"},
-  "level":{"type":"integer","description":"层级（dict_add 可选，1=顶级）"},
-  "sort":{"type":"integer","description":"排序（dict_update 可选）"},
-  "quota":{"type":"object","description":"定额（save_quota 必填）","properties":{
-    "code":{"type":"string","description":"定额编码（必填；已存在=更新）"},
-    "title":{"type":"string","description":"定额名称"},
-    "unit":{"type":"string","description":"计量单位"},
-    "specialty":{"type":"string","description":"专业（字典值；新建定额时给。已有定额的专业固定，不改）"},
-    "chapter":{"type":"string","description":"章节（本专业内的册章，归到已有章节叫法上）"},
-    "category_path":{"type":"string","description":"分类路径"},
-    "source":{"type":"string","description":"来源（手工录入/企业定额…）"},
-    "note":{"type":"string","description":"备注"},
-    "items":{"type":"array","description":"工料机含量行（整组替换；每行引用一个在库的工料机编码；不给=保留原有含量行；新建定额必须给，可为空数组）","items":{"type":"object","properties":{
-      "resource_code":{"type":"string","description":"工料机编码（必填，必须在库；需要新资源先用 save_resource 建）"},
-      "quantity":{"type":"number","description":"含量（0=工序模板占位，不计费）"},
-      "loss_rate":{"type":"number","description":"损耗率（0.03=3%）"},
-      "note":{"type":"string","description":"备注"}
-    }}
-  }},
-  "resource":{"type":"object","description":"工料机（save_resource 必填；按 id 或 code 定位已有资源，未给的字段保持原值）","properties":{
-    "id":{"type":"integer","description":"资源 id（改已有资源时给）"},
-    "code":{"type":"string","description":"资源编码（改已有资源时给；新建可留空自动分配）"},
-    "kind":{"type":"string","description":"类别：人工/材料/机械/外委"},
-    "title":{"type":"string","description":"名称"},
-    "spec":{"type":"string","description":"规格"},
-    "unit":{"type":"string","description":"单位：工日/t/m³/台班"},
-    "base_price":{"type":"number","description":"基准价（元）"},
-    "current_price":{"type":"number","description":"现行价（元；核算取用价，现行价优先）"},
-    "category_path":{"type":"string","description":"分类路径"},
-    "source":{"type":"string","description":"来源：信息价/市场询价/企业定额"},
-    "supplier":{"type":"string","description":"供应商"},
-    "region":{"type":"string","description":"地区（字典值；空=待整理。工料机按地区分行：同一种材料每个地区一行）"},
-    "price_date":{"type":"string","description":"现行价的期数，YYYY-MM，如 2026-06"},
-    "price_type":{"type":"string","description":"价格口径：到场价/信息价/含税…"},
-    "valid_until":{"type":"string","description":"有效期至（YYYY-MM-DD，可空）"},
-    "loss_rate":{"type":"number","description":"损耗率（0.03=3%）"},
-    "note":{"type":"string","description":"备注/计算式"},
-    "tags":{"type":"array","items":{"type":"string"},"description":"标签"},
-    "status":{"type":"string","description":"状态：现行/停用"}
-  }},
-  "resource_id":{"type":"integer","description":"工料机 id（set_price 用；与 resource_code 二选一）"},
-  "resource_code":{"type":"string","description":"工料机编码（set_price 用；与 resource_id 二选一）"},
-  "price":{"type":"number","description":"新单价（set_price 必填，元）"},
-  "price_type":{"type":"string","description":"调价口径（set_price 可选，默认 到场价）"},
-  "period":{"type":"string","description":"期数，YYYY-MM（set_price/import_project 可选；import_project 不给=导入当月）。信息价期数请换算成年月"},
-  "region":{"type":"string","description":"地区（字典值）。set_price=这条价的地区；import_project=项目所在地区，工料机按它分行"},
-  "specialty":{"type":"string","description":"专业（字典值）。import_project=项目默认专业，本次新建的定额专业随它；flywheel=只生成该专业的候选（同词干多专业时必给）；borrow_quota=目标专业"},
-  "note":{"type":"string","description":"调价依据（set_price 可选）"},
-  "rows":{"type":"array","description":"批量调价行（bulk_price 必填，单批 ≤500）","items":{"type":"object","properties":{
-    "title":{"type":"string","description":"资源名称（精确匹配）"},
-    "spec":{"type":"string","description":"规格（给了就参与精确匹配）"},
-    "unit":{"type":"string","description":"单位（给了就参与精确匹配）"},
-    "price":{"type":"number","description":"新单价（元）"},
-    "period":{"type":"string","description":"期数"},
-    "region":{"type":"string","description":"地区"},
-    "note":{"type":"string","description":"备注"}
-  }}},
-  "codes":{"type":"array","items":{"type":"string"},"description":"编码列表：delete_quota 填定额编码；delete_resource 填工料机编码"},
-  "ids":{"type":"array","items":{"type":"integer"},"description":"工料机 id 列表（delete_resource 用，与 codes 二选一）"},
-  "force":{"type":"boolean","description":"仍被引用时一并解除引用（清单项退回手填行/定额含量行悬空），默认 false=拒绝"},
-  "project_id":{"type":"integer","description":"项目 id（delete_items/delete_project 必填）"},
-  "item_ids":{"type":"array","items":{"type":"integer"},"description":"清单行 id 列表（delete_items 必填）"},
-  "stems":{"type":"array","items":{"type":"string"},"description":"要生成的聚类词干 orig_code（flywheel，取自 dry_run 预览的 origCode）"},
-  "keep_id":{"type":"integer","description":"保留的工料机 id（dedupe 必填）"},
-  "merge_ids":{"type":"array","items":{"type":"integer"},"description":"合并掉的工料机 id（dedupe 必填）"},
-  "classify":{"type":"object","description":"批量整理归类（classify 用；每组 ≤500 条；没给的字段不动，值必须是字典里的）。先 dims 看现有叫法","properties":{
-    "projects":{"type":"array","items":{"type":"object","properties":{
-      "id":{"type":"integer","description":"项目 id（必填）"},
-      "specialty":{"type":"string","description":"项目默认专业（字典值）"},
-      "region":{"type":"string","description":"项目所在地区（字典值）"},
-      "price_period":{"type":"string","description":"计价期，YYYY-MM"}
-    }}},
-    "bills":{"type":"array","items":{"type":"object","properties":{
-      "id":{"type":"integer","description":"清单行 id（必填，cost_project action=items 可查）"},
-      "specialty":{"type":"string","description":"清单专业（字典值；覆盖项目默认专业）"},
-      "division":{"type":"string","description":"分部（整理后的叫法）"}
-    }}},
-    "quotas":{"type":"array","items":{"type":"object","properties":{
-      "code":{"type":"string","description":"定额编码（必填）"},
-      "specialty":{"type":"string","description":"专业——定额专业固定：只补空值，或按引用它的清单项纠错；对不上会进冲突清单，改用 borrow_quota"},
-      "chapter":{"type":"string","description":"章节（本专业内的册章）"}
-    }}},
-    "resources":{"type":"array","items":{"type":"object","properties":{
-      "code":{"type":"string","description":"工料机编码（必填）"},
-      "kind":{"type":"string","description":"类别，只在原类别不是四类之一时纠错"},
-      "category_path":{"type":"string","description":"分类路径（字典值，如 材料/土建材料/钢材）"},
-      "region":{"type":"string","description":"地区（字典值；只能给未标注地区的工料机补）"},
-      "period":{"type":"string","description":"现行价的期数 YYYY-MM（只能给还没有期的工料机补）"}
-    }}}
-  }},
-  "from_code":{"type":"string","description":"借鉴生成的源定额编码（borrow_quota 必填，须是别的专业的定额）"},
-  "new_code":{"type":"string","description":"借鉴生成的新定额编码（borrow_quota 可选，缺省 原码-N）"},
-  "new_title":{"type":"string","description":"借鉴生成的新定额名称（borrow_quota 可选，缺省沿用源定额）"},
-  "template":{"type":"object","description":"样表出口参数（action=template）：name 文件名（缺省 成本测算模版）、path 落盘路径（工作区相对，缺省 .gaea/exports）。版式、口径、工料机预填都由你在样表上完成——程序不再渲染","properties":{
-    "name":{"type":"string"},"path":{"type":"string"}
-  }},
-  "dict":{"type":"object","description":"字典：专业 specialty / 地区 region / 工料机分类 category。不给本对象或 op=list=查看；add=新增；update=改名/改上级/改标准代码（改名级联到所有引用它的数据）；delete=删除（仍被引用的不能删）","properties":{
-    "op":{"type":"string","enum":["list","add","update","delete"]},
-    "kind":{"type":"string","enum":["specialty","region","category"]},
-    "name":{"type":"string","description":"字典项名称（分类=完整路径，如 材料/土建材料/钢材；新增分类要先有上级路径）"},
-    "rename":{"type":"string","description":"update：改成什么名字"},
-    "code":{"type":"string","description":"专业的标准代码（如国标清单专业代码 04=市政），机检清单编码专业段用"},
-    "parent":{"type":"string","description":"上级字典项（地区：省→市→价格区）"},
-    "level":{"type":"integer","description":"层级（1=顶级）"},
-    "sort":{"type":"integer","description":"排序"},
-    "note":{"type":"string","description":"备注"}
-  }},
-` + clImportSchema + `}
-}}`)
 }
 
 // costLibraryArgs cost_library 入参。需要区分「没传」的嵌套字段用指针。
@@ -340,6 +235,7 @@ var costLibraryActionLabel = map[string]string{
 	"classify": "整理归类", "borrow_quota": "借鉴生成定额", "dims": "维度盘点", "dict": "字典",
 	"import_open": "开导入", "import_add": "暂存导入行", "import_check": "导入勾稽", "import_commit": "提交导入", "import_discard": "丢弃导入",
 	"dict_add": "新增字典项", "dict_update": "修改字典项", "dict_delete": "删除字典项",
+	"help": "参数契约",
 }
 
 func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
@@ -347,8 +243,12 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("cost_library 参数解析失败: %w", err)
 	}
-	if _, ok := costLibraryActionLabel[p.Action]; !ok {
-		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict/dict_add/dict_update/dict_delete/template）", p.Action)
+	if _, ok := costLibraryActionLabel[p.Action]; !ok && p.Action != "help" {
+		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict/dict_add/dict_update/dict_delete/template；参数契约 action=help）", p.Action)
+	}
+	// help 只读不碰库：不必等 store 就绪。
+	if p.Action == "help" {
+		return t.clHelpReceipt(), nil
 	}
 	p.RecvKeys = clReceivedKeys(args)
 	t.rescueMisnamedNested(&p, args)
@@ -466,7 +366,7 @@ func (t costLibraryTool) rescueMisnamedNested(p *costLibraryArgs, args json.RawM
 		"parent": func(raw json.RawMessage) bool { return p.Parent == "" && clDecodeString(raw, &p.Parent) },
 		"level":  func(raw json.RawMessage) bool { return p.Level == 0 && clDecodeIntVal(raw, &p.Level) },
 		"sort":   func(raw json.RawMessage) bool { return p.Sort == nil && clDecodeIntPtr(raw, &p.Sort) },
-		"code":   func(raw json.RawMessage) bool {
+		"code": func(raw json.RawMessage) bool {
 			// delete_* 的 code 留给下面 code→codes 分支（那是数组串化的错拼，
 			// 不是字典标准代码）。
 			if p.Action == "delete_quota" || p.Action == "delete_resource" {
@@ -729,7 +629,7 @@ func clRoundingNote(b *workcost.ProjectBundle) string {
 			blk := blocks[key]
 			simRaw += blk.raw * f
 			// 库内链：单价 2 位入库 → 三费逐段舍到分 → 小计（综合单价）舍到分。
-			simLib += math.Round((math.Round(blk.lib*100) / 100) * f * 100) / 100
+			simLib += math.Round((math.Round(blk.lib*100)/100)*f*100) / 100
 		}
 		diffRaw := math.Abs(item.ListPrice - simRaw)
 		diffLib := math.Abs(item.ListPrice - simLib)
@@ -2115,16 +2015,15 @@ func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
 	p := d.Pending
 	fmt.Fprintf(&out, "**待整理**: 项目未标专业 %d｜清单无专业 %d｜定额未标专业 %d｜定额未归章节 %d｜工料机未标地区 %d｜工料机未细分 %d｜工料机无期数 %d\n",
 		p.ProjectSpecialty, p.BillSpecialty, p.QuotaSpecialty, p.QuotaChapter, p.ResourceRegion, p.ResourceCategory, p.ResourcePeriod)
-	out.WriteString("\n规矩：专业、地区、工料机分类只能用字典里的值（没有的先 dict.op=add，经用户确认）；期数写 YYYY-MM；地区写到最细一级（信息价发布区挂在所属市下）。定额专业固定——classify 只补空值或按引用它的清单项纠错，对不上的用 borrow_quota 借鉴生成。")
+	out.WriteString("\n规矩：专业、地区、工料机分类只能用字典里的值（没有的先 dict_add，经用户确认）；期数写 YYYY-MM；地区写到最细一级（信息价发布区挂在所属市下）。定额专业固定——classify 只补空值或按引用它的清单项纠错，对不上的用 borrow_quota 借鉴生成。")
+	out.WriteString("\n\n" + clClassifyContract)
 	return out.String(), nil
 }
 
 // classify 批量整理归类（演练与正式共用同一套校验与冲突判定）。
 func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string, error) {
 	if p.Classify == nil {
-		return "", fmt.Errorf("classify 需要 classify 对象（projects / bills / quotas / resources 四组，至少给一组）。" +
-			"骨架：{\"action\":\"classify\",\"dry_run\":true,\"classify\":{\"projects\":[{\"id\":10,\"specialty\":\"土壤修复\"}]}}" +
-			"——classify 是顶层参数，不要塞进 quota；先 action=dims 看现有叫法")
+		return "", fmt.Errorf("classify 需要 classify 对象（顶层参数，projects / bills / quotas / resources 四组至少给一组）。字段契约：\n%s\n先 action=dims 看现有叫法", clClassifyContract)
 	}
 	plan := *p.Classify
 	for _, g := range []struct {
@@ -2315,7 +2214,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 					continue
 				}
 				if kind == workcost.DictCategory && in.Kind == "" && len(lines) >= 12 {
-					lines = append(lines, "…（看全部：dict.op=list 且 dict.kind=category）")
+					lines = append(lines, "…（看全部：action=dict 且 kind=category）")
 					break
 				}
 				n := it.Name
@@ -2336,7 +2235,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 			}
 			out.WriteString("\n")
 		}
-		out.WriteString("\n新增走 dict.op=add（经用户确认）；值必须先在字典里，才能写进数据。")
+		out.WriteString("\n新增走 dict_add（经用户确认）；值必须先在字典里，才能写进数据。")
 		return out.String(), nil
 	case "add":
 		if !workcost.ValidDictKind(in.Kind) {
@@ -2352,7 +2251,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 					if ok, err := s.DictHas(workcost.DictCategory, parent); err != nil {
 						return "", err
 					} else if !ok {
-						return "", fmt.Errorf("上级分类「%s」不在字典里——先 dict.op=add 把上级加进去，再加「%s」", parent, in.Name)
+						return "", fmt.Errorf("上级分类「%s」不在字典里——先用 dict_add 把上级加进去，再加「%s」", parent, in.Name)
 					}
 				}
 			}
@@ -2361,7 +2260,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 			if ok, err := s.DictHas(workcost.DictRegion, in.Parent); err != nil {
 				return "", err
 			} else if !ok {
-				return "", fmt.Errorf("上级地区「%s」不在字典里——先 dict.op=add 把上级加进去", in.Parent)
+				return "", fmt.Errorf("上级地区「%s」不在字典里——先用 dict_add 把上级加进去", in.Parent)
 			}
 		}
 		exists, err := s.DictHas(in.Kind, in.Name)
@@ -2397,7 +2296,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 		return out.String(), nil
 	case "update":
 		if !workcost.ValidDictKind(in.Kind) || in.Name == "" {
-			return "", fmt.Errorf("dict.op=update 需要 dict.kind 与 dict.name（改哪一条）")
+			return "", fmt.Errorf("dict_update 需要 kind 与 name（改哪一条）")
 		}
 		items, err := s.DictList(in.Kind)
 		if err != nil {
@@ -2456,7 +2355,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 		return out.String(), nil
 	default: // delete
 		if !workcost.ValidDictKind(in.Kind) || in.Name == "" {
-			return "", fmt.Errorf("dict.op=delete 需要 dict.kind 与 dict.name")
+			return "", fmt.Errorf("dict_delete 需要 kind 与 name")
 		}
 		used, err := s.DictUsage(in.Kind, in.Name)
 		if err != nil {

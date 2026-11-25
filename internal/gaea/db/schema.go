@@ -1022,3 +1022,12 @@ CREATE TABLE IF NOT EXISTS gf_gcode_seq (
   last   INTEGER NOT NULL DEFAULT 0
 );
 `
+
+// SchemaV42 记忆的运行模式归属（2026-11-25 办公工具梳理批·记忆按模式隔离）：
+// facts 加 mode_id 列。空=通用；非空=所属运行模式（cost/proposal…），只在对应
+// 模式的办公会话里注入。ADD COLUMN NOT NULL DEFAULT 空串：存量记忆零成本
+// 回填成通用（不猜不回填——宁可以为通用，不替用户决定某条属于哪个模式）。
+// 读写口径见 internal/gaea/memory/mode.go。
+const SchemaV42 = `
+ALTER TABLE facts ADD COLUMN mode_id TEXT NOT NULL DEFAULT '';
+`

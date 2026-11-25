@@ -664,7 +664,7 @@ func (a *AgentRunner) SetMemoryQueue(q memory.Queue) { a.memQueue = q }
 // SetSessionSaver installs the sink the remember tool uses when session=true.
 func (a *AgentRunner) SetSessionSaver(s memory.SessionSaver) { a.sessionSaver = s }
 
-// SetPromoter installs the sink the promote_session_facts tool uses.
+// SetPromoter installs the sink `remember` (action=promote) uses.
 func (a *AgentRunner) SetPromoter(p memory.SessionFactPromoter) { a.promoter = p }
 
 // SetCheckpointFlusher 注入模型调用前的检查点 flush 钩子（事件日志模式）。

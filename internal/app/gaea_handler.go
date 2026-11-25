@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	appconfig "github.com/gaea/gaea/internal/config"
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
@@ -200,21 +198,16 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 3.0 Step 3d #6：专业工具（ocr 等）经 gaeaSpecialistTools 集中注册，
 		// 展开进 ExtraTools，避免装配列表与定义漂移。
 		ExtraTools: gaeaExtraTools(a),
-		// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
-		// agent 上下文（零 LLM、预算受限、work 只读）。开关读 ~/.gaea_config.json
-		// 的 morning_preload 键（默认开，仅 config 文件可控，无 UI 绑定）；
-		// a.cfg 未就绪（测试/启动早期）时缺省开启，与配置默认值一致。
-		MorningPreload: morningPreloadEnabled(a),
-		// 项目本体注入（6.2）：开关读 project_brief 键（默认开）；绑定
-		// GaeaMemoryBrief/GaeaSetMemoryBrief 可查可关。
-		ProjectBrief: projectBriefEnabled(a),
 	}
+	// 运行模式（下面 ToolHide/ModeLine/技能面同用）：记忆读端也按它收窄——会话只
+	// 看到「通用 + 本模式」的记忆（2026-11-25 办公工具梳理批·记忆按模式隔离）。
+	runMode := normalizeOfficeRunMode(ga.cfg.OfficeRunMode())
+	opts.MemoryMode = runMode
 	// 运行模式×工具面双轴（2026-11-21 pan_1795202763988 + pan_1795224680124
 	// 终案）：组合器（office_runmode.go）按 run_mode→tool_face→组覆盖确定性
 	// 汇总 Hide 名单与 ModeLine；技能门窄 deny 跟随最终启用组（schedule-edit/
 	// cad-takeoff），配合 SkillFilterKeepsInstall 保住 install_skill。
 	// ga.cfg 为 nil（部分测试路径）时归一 standard/lean=最小面。
-	runMode := normalizeOfficeRunMode(ga.cfg.OfficeRunMode())
 	face := normalizeOfficeToolFace(ga.cfg.OfficeToolFace())
 	overrides := ga.cfg.OfficeToolGroupOverrides()
 	hide := composeToolHide(runMode, face, overrides)
@@ -252,16 +245,6 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。
 	ctrl.EnableInteractiveApproval()
 	return ctrl, nil
-}
-
-// morningPreloadEnabled 返回晨报预载开关（v4.16 刀④）：读 App 配置的
-// morning_preload 键（默认开）；a/a.cfg 未就绪（测试/启动早期）时缺省开启，
-// 与配置键默认值一致。
-func morningPreloadEnabled(a *App) bool {
-	if a == nil || a.cfg == nil {
-		return true
-	}
-	return a.cfg.GetMorningPreload()
 }
 
 // gaeaRoutedContextWindow resolves the window for the model the office agent
@@ -307,71 +290,6 @@ func (a *App) engineModelContextWindow(engineID, model string, fallback int) int
 		return 1_000_000
 	}
 	return fallback
-}
-
-func projectBriefEnabled(a *App) bool {
-	if a == nil || a.cfg == nil {
-		return true
-	}
-	return a.cfg.GetProjectBrief()
-}
-
-// GaeaMemoryBrief 返回项目本体注入开关（project_brief 键，默认开）：work
-// 空间新会话装配时把固化/项目/反馈决策带 [MEM:] 引用键注入上下文（6.2）。
-func (a *App) GaeaMemoryBrief() bool {
-	if a == nil || a.cfg == nil {
-		return true
-	}
-	return a.cfg.GetProjectBrief()
-}
-
-// GaeaSetMemoryBrief 持久化项目本体注入开关并重建办公引擎（新会话装配即时
-// 生效）：写 ~/.gaea_config.json + 更新内存 + gaeaRebuildLocked。
-func (a *App) GaeaSetMemoryBrief(enabled bool) error {
-	val := "0"
-	if enabled {
-		val = "1"
-	}
-	if err := appconfig.Save(appconfig.KeyProjectBrief, val); err != nil {
-		return err
-	}
-	if a.cfg != nil {
-		a.cfg.SetProjectBrief(enabled)
-	}
-	// 审计 P1 AP3-04：gaeaRebuildLocked 调用方必须持 ga.mu（注释明写），本绑定
-	// 此前裸调；持久化仍在 appconfig（与 gaeaApplyCfg 的 gaea.toml 是两个存储，
-	// 不改落点）。
-	ga.mu.Lock()
-	defer ga.mu.Unlock()
-	return a.gaeaRebuildLocked()
-}
-
-// GaeaMorningPreload 返回晨报预载开关（~/.gaea_config.json 的 morning_preload
-// 键，默认开）：work 空间新会话装配时把高频工作记忆确定性预装配进上下文。
-func (a *App) GaeaMorningPreload() bool {
-	if a == nil || a.cfg == nil {
-		return true
-	}
-	return a.cfg.GetMorningPreload()
-}
-
-// GaeaSetMorningPreload 持久化晨报预载开关并重建办公引擎（新会话装配即时
-// 生效）：写 ~/.gaea_config.json + 更新内存 + gaeaRebuildLocked。
-func (a *App) GaeaSetMorningPreload(enabled bool) error {
-	val := "0"
-	if enabled {
-		val = "1"
-	}
-	if err := appconfig.Save(appconfig.KeyMorningPreload, val); err != nil {
-		return err
-	}
-	if a.cfg != nil {
-		a.cfg.SetMorningPreload(enabled)
-	}
-	// 审计 P1 AP3-04：同 GaeaSetMemoryBrief，补 ga.mu。
-	ga.mu.Lock()
-	defer ga.mu.Unlock()
-	return a.gaeaRebuildLocked()
 }
 
 // gaeaRebuildLocked 用当前配置重建 controller（设置变更后生效），替换旧实例。
@@ -1051,8 +969,9 @@ func extraToolsWithMediaRoot(a *App, mediaRoot func() string) []tool.Tool {
 		factAddTool{},
 		factListTool{},
 		factClearTool{},
-		// 6.3 文件流水线：主代理规划工具（work 空间，PersistWrite 防子代理嵌套）。
-		dagPlanTool{dir: filepath.Join(gaeaCwd(), ".gaea", "work", "dag")},
+		// 6.3 文件流水线：规划工具 dag_plan 已于 2026-11-25 从模型工具面下线
+		// （68 个真实办公会话零调用；办公工具梳理批）。运行面（任务中心→文件
+		// 流水线）与模板实例化保留，实现留作测试夹具。
 		// P1a 结构化写入口：office_generate（从零生成声明入口）+ 四类写升
 		// agent 工具（docx_apply/docx_accept/pptx_apply/xlsx_apply）。全部走
 		// appendOfficeEvidence 单点 Journal；实现 WritePathResolver、不标

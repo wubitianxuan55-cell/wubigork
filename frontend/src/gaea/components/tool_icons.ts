@@ -10,7 +10,7 @@ import {
 
 export const ICONS: Record<string, Icon> = {
   // 文档
-  edit_file: FilePen, multi_edit: FilePen, write_file: FilePen, read_file: FileText,
+  edit_file: FilePen, write_file: FilePen, read_file: FileText,
   // 计算
   bash: Calculator, bash_output: Calculator, kill_shell: Calculator,
   // 规范
@@ -26,8 +26,7 @@ export const ICONS: Record<string, Icon> = {
   // 通讯
   web_fetch: Globe, web_search: Globe, message: Users, chat: Users,
   // 通用
-  memory_search: Brain, remember: Brain, memory_get: Brain, read_skill: BookOpen,
-  promote_session_facts: Sparkles,
+  memory_search: Brain, remember: Brain, read_skill: BookOpen,
   genui_validate: CheckCircle,
   wait: Hourglass, complete_step: CheckCircle, ask: List, brainstorm: Sparkles,
 };

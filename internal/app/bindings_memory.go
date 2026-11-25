@@ -15,7 +15,6 @@ func (b *MemoryB) GaeaAIFeedbackDelete(id string) error { return b.a.GaeaAIFeedb
 func (b *MemoryB) GaeaAIFeedbackList() []feedback.Item { return b.a.GaeaAIFeedbackList() }
 func (b *MemoryB) GaeaMemory() MemoryView { return b.a.GaeaMemory() }
 func (b *MemoryB) GaeaMemoryArchivedList(limit int, offset int) (MemoryArchivedPage, error) { return b.a.GaeaMemoryArchivedList(limit, offset) }
-func (b *MemoryB) GaeaMemoryBrief() bool { return b.a.GaeaMemoryBrief() }
 func (b *MemoryB) GaeaMemoryCleanupArchived() (int, error) { return b.a.GaeaMemoryCleanupArchived() }
 func (b *MemoryB) GaeaMemoryDuplicates(min float64) []MemoryDuplicateView { return b.a.GaeaMemoryDuplicates(min) }
 func (b *MemoryB) GaeaMemoryEvalRun() (MemoryEvalReport, error) { return b.a.GaeaMemoryEvalRun() }

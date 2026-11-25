@@ -90,6 +90,9 @@ type Memory struct {
 	// S1.2 B：读端 SELECT 回填 space_id（ListInSpace/Get），供展示/调试与
 	// 跨空间同名冲突审计读取归属。
 	Space string
+	// Mode 是运行模式归属（2026-11-25 办公工具梳理批，facts.mode_id）：空=通用，
+	// 非空=只在对应模式的会话里注入（cost/proposal…）。读写口径见 mode.go。
+	Mode string
 	// 生命周期与溯源（SQLite 后端持久化；file 后端不落盘，语义为空）：
 	UpdatedAt     time.Time // 最近一次写入/修订时间（近期排序用）
 	LastUsedAt    time.Time // 最近一次被模型读取/检索的时间（高频排序用）
@@ -382,7 +385,7 @@ func (s Store) CiteCounts() map[string]int {
 // GraphNeighbors 返回实体级互引邻接表（mem_graph_edges etype=references，
 // 双向；键=memory slug）。星云召回图谱臂/聊天席融合注入的数据源；读取上限
 // 5000 边（物化投影规模护栏）。SQLite 后端专属；file 后端/图库不可用=nil
-//（调用方按无图处理）。只读。
+// （调用方按无图处理）。只读。
 func (s Store) GraphNeighbors() map[string][]string {
 	b, ok := s.engine().(*sqliteBackend)
 	if !ok {
@@ -440,6 +443,24 @@ func (s Store) InSpace(space string) Store {
 		return s
 	}
 	return Store{backend: spaceView{inner: s.engine(), space: spaces.Normalize(space)}}
+}
+
+// InMode 返回按运行模式收窄读端的视图（mode 为空=模式维度未启用，原样返回，
+// 既有调用零行为变化）。可与 InSpace 任意顺序叠加。读写口径见 mode.go。
+func (s Store) InMode(mode string) Store {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		return s
+	}
+	return Store{backend: modeView{inner: s.engine(), mode: mode}}
+}
+
+// SessionMode 返回当前视图生效的会话运行模式；""=模式维度未启用。
+func (s Store) SessionMode() string {
+	if v, ok := s.engine().(interface{ sessionMode() string }); ok {
+		return v.sessionMode()
+	}
+	return ""
 }
 
 // slugRe strips everything but lowercase alphanumerics and dashes.

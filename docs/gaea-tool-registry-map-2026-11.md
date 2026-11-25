@@ -32,14 +32,12 @@
 | `computer_type` | builtin-domain | work | write | none | 注入后新树含输入效果（同闸门链） |
 | `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册） |
 | `cost_audit` | builtin-domain | work | read | none | 硬检可复算（库读口同源）；信息项不混 HardCount |
-| `cost_compose` | builtin-domain | work | produce | none | 组价结果与定额飞轮口径一致 |
 | `cost_indicators` | builtin-domain | work | read | none | 指标与 SchemaV34 快照一致 |
 | `cost_library` | builtin-domain | work | write | none | PersistWrite：三级库写入可查；被引用对象默认拒删；dry_run 不写库 |
 | `cost_project` | builtin-domain | work | read | none | 读回与 workcost 库一致 |
 | `cost_project_apply` | builtin-domain | work | write | none | PersistWrite：workcost 写入可查，同批编码唯一写前闸 |
 | `cost_save` | builtin-domain | work | write | none | PersistWrite：库写入可查 |
 | `cost_search` | builtin-domain | work | read | none | 检索命中与库一致 |
-| `dag_plan` | extra-app | work | meta | none | write_paths/readonly schema 闸（六闸刀口径） |
 | `diagram` | extra-app | work | produce | none | 无边 nil 切片显式 null 契约（回归钉） |
 | `diagram_gen` | builtin-workspace | work | produce | agent-produce | 图片落点存在（无边树图回归钉） |
 | `discover_tools` | build-internal | shared | meta | none | A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册） |
@@ -47,12 +45,10 @@
 | `docx_accept` | extra-app | work | write | office-journal | 仅 accept=true；基线快照+证据卡；通道 A=无本作者待处理修订引用级（P2） |
 | `docx_apply` | extra-app | work | write | office-journal | 修订制写入；基线快照+证据卡；通道 A=文本流含替换+修订在册引用级（P2） |
 | `edit_file` | builtin-workspace | work | write | agent-write | 通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选 |
-| `edit_lines` | builtin-workspace | work | write | agent-write | 通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选 |
 | `exit_plan_mode` | build-internal | shared | interactive | none | 计划呈现与批准流转 |
 | `fact_add` | extra-app | work | write | none | PersistWrite：事实库写入可查 |
 | `fact_clear` | extra-app | work | write | none | PersistWrite：清空可查 |
 | `fact_list` | extra-app | work | read | none | 清单与库一致 |
-| `forget` | build-internal | shared | write | none | PersistWrite：记忆删除可查 |
 | `format_convert` | builtin-workspace | work | produce | agent-produce | output 落点存在且格式正确 |
 | `genui_validate` | builtin-domain | shared | read | none | 校验结论与产物一致 |
 | `grep` | builtin-workspace | work | read | none | 命中行与实况一致；offset 续页游标+凭据围栏跳过记账 |
@@ -66,10 +62,8 @@
 | `ls` | builtin-workspace | work | read | none | 清单与实况一致 |
 | `mcp__<server>__<tool>` | plugin-mcp | 随插件 | 随工具 | 随工具 | 动态热插（plugins.go/controller_mcp.go reg.Add 同账）；名单凭证边界不枚举，P0 按非凭证方式标注 |
 | `md_validate` | builtin-workspace | work | read | none | 编号/引用/列数机检与回执一致（只读；多代理并行编制撞号实测落地） |
-| `memory_get` | build-internal | shared | read | none | 记忆读取与库一致 |
-| `memory_search` | builtin-domain | shared | read | none | 召回与记忆库一致 |
+| `memory_search` | builtin-domain | shared | read | none | 召回与记忆库一致；给 name 按名读正文 |
 | `move_file` | builtin-workspace | work | write | agent-write | 目标存在且源已迁移 |
-| `multi_edit` | builtin-workspace | work | write | agent-write | 通道 A 摘要比对（新在旧亡）；expected_revision CAS 可选 |
 | `ocr` | extra-app | work | read | none | 全文提取与图片内容一致（seam 测试防真拉起） |
 | `office_batch` | extra-app | work | meta | task-center | 批量转 PDF 进持久调度器：断窗续跑/可取消/可重试/进度逐文件；out_dir 声明=产物目录；Result 逐文件报告（P4） |
 | `office_close` | extra-app | work | write | none | dsh-office COM 档：仅关 AI 自己打开的文档（用户文档拒绝）；save:true 时 WritePaths 声明落盘路径（波1 条件装配） |
@@ -84,7 +78,6 @@
 | `office_selection` | extra-app | work | read | none | 选区上下文（P0-3）：读用户此刻选中的文字/区域与前后文，供划词即改 |
 | `office_status` | extra-app | work | read | none | dsh-office COM 档：三应用安装/运行/打开清单与未保存态（波1 条件装配） |
 | `pptx_apply` | extra-app | work | write | office-journal | 页级替换；基线快照+证据卡；通道 A=页文本替换在目标不在引用级（P2） |
-| `promote_session_facts` | build-internal | shared | write | none | PersistWrite：事实晋升可查 |
 | `proposal_delete` | builtin-domain | work | write | none | PersistWrite：删除后节点/语义块/全文索引不可再查；仅用户明确要求时调用 |
 | `proposal_export` | builtin-domain | work | write | none | 导出文件按标题层级还原，托管图片落成文件；输出落点在工作区 |
 | `proposal_read` | builtin-domain | work | read | none | 整节/命中段落与库一致，分页可续读 |
@@ -97,8 +90,7 @@
 | `read_spill` | builtin-domain | shared | read | none | 溢出读与落盘内容一致 |
 | `read_subagent_result` | build-internal | shared | read | none | 子代理结果读取一致 |
 | `recall_archived` | builtin-domain | shared | read | none | 归档召回与存档一致（显式 SpaceShared） |
-| `remember` | build-internal | shared | write | none | PersistWrite：记忆写入可查 |
-| `replace` | builtin-workspace | work | write | agent-write | 全计划预检零变更（任一文件超 32MiB 整次拒）；逐文件原子发布非事务（回执列已发布/失败/pending）；changed=替换次数；发布前锁内哈希重核 |
+| `remember` | build-internal | shared | write | none | PersistWrite：记忆存/删/转正可查（action=save/forget/promote） |
 | `request_permission` | build-internal | shared | interactive | none | 审批请求与裁决回传 |
 | `routine_llm` | extra-app | work | read | none | 子调用回执与 feature 绑定一致 |
 | `run_skill` | build-internal | shared | produce | none | 技能子会话产物按其工具各自登记 |
@@ -152,8 +144,8 @@
 | 类 | 统一验收口径 | 代表工具 |
 |---|---|---|---|
 | deliver-write（交付写） | 声明路径=实际落点；落账可查（Journal/库）；越界与非法输入正确失败 | office_generate / docx_apply / pptx_apply / xlsx_apply / schedule_apply / write_file |
-| domain-compute（领域计算） | 计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed | schedule_analyze / cost_indicators / cost_compose |
+| domain-compute（领域计算） | 计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed | schedule_analyze / cost_indicators |
 | read-retrieval（读取检索） | 命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率） | grep / read_file / memory_search / cost_search |
-| task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | dag_plan / task / todo_write |
+| task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | task / todo_write |
 
 适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；若出现第五装配面（如按 `boot.go` 注释绕过 Build 的自定义装配器）则本清单失效，需重新盘点。

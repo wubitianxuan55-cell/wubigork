@@ -26,7 +26,7 @@ const dynamicMCPThresholdBytes = 32 * 1024
 // dynamicCoreResident 是 "on" 模式的核心常驻清单（工作区读写/命令/网络/任务
 // 协议族——日常主链路零发现成本）。
 var dynamicCoreResident = []string{
-	"read_file", "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "replace",
+	"read_file", "write_file", "edit_file", "move_file",
 	"grep", "ls", "bash", "bash_output", "kill_shell", "wait", "read_spill",
 	"web_fetch", "web_search", "todo_write", "complete_step",
 }

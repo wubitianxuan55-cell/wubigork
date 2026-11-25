@@ -37,7 +37,7 @@ var readTools = []string{
 }
 
 var editTools = []string{
-	"edit_file", "multi_edit", "write_file",
+	"edit_file", "write_file",
 }
 
 var shellTools = []string{
@@ -46,7 +46,7 @@ var shellTools = []string{
 
 var metaTools = []string{
 	"todo_write", "complete_step",
-	"remember", "forget", "memory_search",
+	"remember", "memory_search",
 }
 
 // merge concatenates multiple string slices.

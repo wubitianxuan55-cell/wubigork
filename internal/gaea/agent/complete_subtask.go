@@ -352,7 +352,7 @@ func criterionBacked(c completionCriterion, receipts []receiptPair) (bool, strin
 // isWriteReceipt 写族工具（与 batch_executor 冲突键同名单）。
 func isWriteReceipt(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file":
+	case "edit_file", "write_file", "move_file":
 		return true
 	}
 	return false

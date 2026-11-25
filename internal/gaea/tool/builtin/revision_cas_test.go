@@ -116,8 +116,7 @@ func TestFailureAsValueB2(t *testing.T) {
 
 func TestRevisionCASEditFamily(t *testing.T) {
 	ws, w, e := casWorkspace(t)
-	me := multiEdit{workDir: ws, roots: []string{ws}}
-	el := editLines{workDir: ws, roots: []string{ws}}
+
 	if _, err := w.Execute(context.Background(), casArgs(t, map[string]any{
 		"path": "b.txt", "content": "alpha\nbeta\ngamma",
 	})); err != nil {
@@ -139,32 +138,6 @@ func TestRevisionCASEditFamily(t *testing.T) {
 		"path": "b.txt", "old_string": "alpha", "new_string": "ALPHA", "expected_revision": rev,
 	})); err != nil {
 		t.Fatalf("edit_file 正确 sha 应成功: %v", err)
-	}
-	// multi_edit CAS
-	rev2, _ := RevisionSHA256(filepath.Join(ws, "b.txt"))
-	if _, err := me.Execute(context.Background(), casArgs(t, map[string]any{
-		"path": "b.txt", "expected_revision": rev2,
-		"edits": []map[string]any{{"old_string": "beta", "new_string": "BETA"}},
-	})); err != nil {
-		t.Fatalf("multi_edit 正确 sha 应成功: %v", err)
-	}
-	if _, err := me.Execute(context.Background(), casArgs(t, map[string]any{
-		"path": "b.txt", "expected_revision": stale,
-		"edits": []map[string]any{{"old_string": "BETA", "new_string": "x"}},
-	})); err == nil || !strings.Contains(err.Error(), "REVISION_CONFLICT") {
-		t.Fatalf("multi_edit 陈旧 sha 应拒绝: %v", err)
-	}
-	// edit_lines CAS
-	rev3, _ := RevisionSHA256(filepath.Join(ws, "b.txt"))
-	if _, err := el.Execute(context.Background(), casArgs(t, map[string]any{
-		"path": "b.txt", "start_line": 3, "end_line": 3, "new_content": "GAMMA", "expected_revision": rev3,
-	})); err != nil {
-		t.Fatalf("edit_lines 正确 sha 应成功: %v", err)
-	}
-	if _, err := el.Execute(context.Background(), casArgs(t, map[string]any{
-		"path": "b.txt", "start_line": 1, "end_line": 1, "new_content": "x", "expected_revision": stale,
-	})); err == nil || !strings.Contains(err.Error(), "REVISION_CONFLICT") {
-		t.Fatalf("edit_lines 陈旧 sha 应拒绝: %v", err)
 	}
 }
 

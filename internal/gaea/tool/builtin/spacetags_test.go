@@ -31,7 +31,7 @@ func (s taggedStub) SpaceTag() string { return s.tag }
 // work=办公/编辑/检索系，play=生图域，shared=通用编排/记忆（缺省 shared）。
 func TestToolSpaceClassification(t *testing.T) {
 	work := []string{
-		"read_file", "write_file", "edit_file", "edit_lines", "multi_edit", "move_file",
+		"read_file", "write_file", "edit_file", "move_file",
 		"ls", "grep", "bash", "bash_output", "kill_shell", "wait",
 		"web_fetch", "web_search", "format_convert", "chart_gen", "diagram_gen", "diagram",
 		"screen_capture", "vision", "ocr",

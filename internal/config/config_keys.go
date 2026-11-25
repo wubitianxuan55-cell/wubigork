@@ -113,14 +113,9 @@ const (
 	// 连续 N 分钟无真实使用（LLM 请求/启动/识图）即自动停止，不占 GPU/内存。
 	// 默认 5；0=关闭。gaea 退出（含崩溃）另有 Job Object 兜底杀整树。
 	KeyModelIdleExitMinutes = "model_idle_exit_minutes"
-	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
-	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。
-	// 只影响上下文注入，与首页晨报卡片（GaeaMemoryMorningBrief）无关。默认开启。
-	KeyMorningPreload   = "morning_preload"
-	KeyProjectBrief     = "project_brief"
-	KeyDeepseekAPIKey   = "deepseek_api_key"
-	KeyGLMAPIKey        = "glm_api_key"
-	KeyOpencodeGoAPIKey = "opencode_go_api_key"
+	KeyDeepseekAPIKey       = "deepseek_api_key"
+	KeyGLMAPIKey            = "glm_api_key"
+	KeyOpencodeGoAPIKey     = "opencode_go_api_key"
 	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
 	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、
 	// 不做加解密（明文↔密文由 app 层 secure 负责，先例 realtime_api_key）。

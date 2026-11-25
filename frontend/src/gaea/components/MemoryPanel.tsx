@@ -76,10 +76,7 @@ export function MemoryPanel(p: {
   const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
   // 自动做梦模式（v4.377 建议制）：off=不整理 | suggest=提炼进待确认建议
   //（默认，接受才入库）| auto=旧直写行为。循环切换，直接调绑定持久化。
-  // 晨报预载开关（v4.16 刀④ UI 补齐）：work 空间新会话自动预装配高频工作记忆
-  const [morningPreload, setMorningPreload] = useState(true);
-  // 项目本体注入开关（6.2）：work 空间新会话注入固化/项目决策带引用块
-  const [projectBrief, setProjectBrief] = useState(true);
+  // 晨报预载 / 项目本体两个开关 2026-11-25 撤下：那两块与记忆索引逐条重复，已停注。
   const toast = useToast();
   const scopes = useMemo(() => view?.scopes ?? [], [view?.scopes]);
   const factNames = useMemo(() => new Set(facts.map((f) => f.name)), [facts]);
@@ -103,17 +100,6 @@ export function MemoryPanel(p: {
   // v4.377 建议制：待确认建议的忽略集合（丢弃即出队，不写库）；两步式清污
   // 状态（idle → confirm(名单) → 执行）。
   // 可见记忆建议（忽略后即从计数/列表移除，与技能/合并候选计数同口径）。
-
-  useEffect(() => {
-    let alive = true;
-    app.MorningPreload()
-      .then((v) => { if (alive) setMorningPreload(v); })
-      .catch(() => {});
-    app.MemoryBrief()
-      .then((v) => { if (alive) setProjectBrief(v); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
 
   // 流程蒸馏首拉（7.2-2 收口）：建议 tab 打开时自动取一次候选（只读零 LLM、
   // 静默失败）——fetch 期间分区显示 loading 而非「不可用」；失败可走扫描按钮。
@@ -174,44 +160,6 @@ export function MemoryPanel(p: {
   }, [memoryEnabled, toast]);
 
   // 自动做梦三态循环（v4.377 建议制）：关 → 建议 → 直写 → 关。
-
-  const toggleMorningPreload = useCallback(() => {
-    const next = !morningPreload;
-    setMorningPreload(next);
-    app
-      .SetMorningPreload(next)
-      .then(() => {
-        toast.show(
-          next
-            ? "晨报预载已开启：新会话自动预装配高频工作记忆（work 空间）"
-            : "晨报预载已关闭：新会话不再预装配晨报块",
-          "info",
-        );
-      })
-      .catch(() => {
-        setMorningPreload(!next);
-        toast.show("设置失败，已还原", "error");
-      });
-  }, [morningPreload, toast]);
-
-  const toggleProjectBrief = useCallback(() => {
-    const next = !projectBrief;
-    setProjectBrief(next);
-    app
-      .SetMemoryBrief(next)
-      .then(() => {
-        toast.show(
-          next
-            ? "项目本体已开启：新会话注入固化/项目决策事实（带引用键）"
-            : "项目本体已关闭：新会话不再注入项目事实块",
-          "info",
-        );
-      })
-      .catch(() => {
-        setProjectBrief(!next);
-        toast.show("设置失败，已还原", "error");
-      });
-  }, [projectBrief, toast]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredFacts = useMemo(
@@ -374,36 +322,6 @@ export function MemoryPanel(p: {
                 className={`w-1.5 h-1.5 rounded-full ${memoryEnabled ? "bg-accent" : "bg-fg-faint/50"}`}
               />
               记忆 {memoryEnabled ? "开" : "关"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleMorningPreload}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border text-[11px] cursor-pointer transition-colors ${
-                morningPreload
-                  ? "border-accent/30 bg-accent/10 text-accent"
-                  : "border-border text-fg-faint hover:text-fg"
-              }`}
-              title={morningPreload ? "点击关闭晨报预载（新会话不再预装配晨报块）" : "点击开启晨报预载（work 空间新会话自动预装配高频工作记忆）"}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${morningPreload ? "bg-accent" : "bg-fg-faint/50"}`}
-              />
-              晨报预载 {morningPreload ? "开" : "关"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleProjectBrief}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border text-[11px] cursor-pointer transition-colors ${
-                projectBrief
-                  ? "border-accent/30 bg-accent/10 text-accent"
-                  : "border-border text-fg-faint hover:text-fg"
-              }`}
-              title={projectBrief ? "点击关闭项目本体（新会话不再注入项目事实块）" : "点击开启项目本体（work 空间新会话注入固化/项目决策，带 [MEM:] 引用）"}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${projectBrief ? "bg-accent" : "bg-fg-faint/50"}`}
-              />
-              项目本体 {projectBrief ? "开" : "关"}
             </button>
         </div>
       </section>
