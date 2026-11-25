@@ -7,10 +7,12 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
@@ -78,7 +80,8 @@ func TestCostLibraryDict(t *testing.T) {
 		return map[string]any{"action": "dict", "dict": kv}
 	}
 
-	out := clMust(t, tl, map[string]any{"action": "dict"}, "专业 0 项")
+	// 专业字典预设了规划专业表（SchemaV40）；地区、工料机分类仍是空的。
+	out := clMust(t, tl, map[string]any{"action": "dict"}, fmt.Sprintf("专业 %d 项", len(db.PlannedSpecialties)))
 	if !strings.Contains(out, "只读") {
 		t.Fatalf("不带 dict 对象应是只读查看：%s", out)
 	}
@@ -91,8 +94,8 @@ func TestCostLibraryDict(t *testing.T) {
 	clMust(t, tl, dict("add", map[string]any{"kind": "specialty", "name": "市政", "code": "04"}), "已新增")
 	clMust(t, tl, dict("add", map[string]any{"kind": "specialty", "name": "市政"}), "已在字典里")
 	out = clMust(t, tl, dict("list", map[string]any{"kind": "specialty"}), "市政（代码 04）")
-	if !strings.Contains(out, "专业 1 项") {
-		t.Fatalf("按种类查看应只列该种类：%s", out)
+	if !strings.Contains(out, fmt.Sprintf("专业 %d 项", len(db.PlannedSpecialties)+1)) {
+		t.Fatalf("按种类查看应只列该种类（规划专业 + 刚加的市政）：%s", out)
 	}
 	clMustFail(t, tl, dict("add", map[string]any{"kind": "category", "name": "材料/钢材"}), "上级分类「材料」不在字典里")
 	clMust(t, tl, dict("add", map[string]any{"kind": "category", "name": "材料"}), "已新增")
@@ -120,7 +123,7 @@ func TestCostLibraryDims(t *testing.T) {
 	tl := costLibraryTool{a: a}
 	ruleSeed(t, s)
 	out := clMust(t, tl, map[string]any{"action": "dims"}, "## 造价库维度盘点（只读）")
-	for _, want := range []string{"专业 2 项", "地区 1 项：成都市区", "测算P（清单 1）｜专业 未标注｜地区 未标注",
+	for _, want := range []string{fmt.Sprintf("专业 %d 项", len(db.PlannedSpecialties)+1), "地区 1 项：成都市区", "测算P（清单 1）｜专业 未标注｜地区 未标注",
 		"定额专业分布", "土壤修复 1", "待整理", "工料机未标地区 1", "定额未归章节 1"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("盘点应含 %q：%s", want, out)
@@ -278,7 +281,7 @@ func TestCostLibraryImportProjectScope(t *testing.T) {
 	}
 	clMustFail(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture, "specialty": "不存在专业"}, "导入口径不合规矩")
 	clMustFail(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture, "period": "2026年第7期"}, "不是年月写法")
-	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "specialty", "name": "土壤修复"}}, "已新增")
+	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "specialty", "name": "土壤修复"}}, "已在字典里，无需新增") // 规划专业（SchemaV40）
 	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "region", "name": "成都市区"}}, "已新增")
 	clMust(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture,
 		"specialty": "土壤修复", "region": "成都市区", "period": "2026年6月"}, "**导入口径**: 专业 土壤修复｜地区 成都市区｜计价期 2026-06")

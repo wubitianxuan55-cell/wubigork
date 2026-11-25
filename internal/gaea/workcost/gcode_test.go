@@ -66,22 +66,22 @@ VALUES('MIX','调和沥青','神秘物质','t',1,'','成都市区','[]','现行'
 		}
 		return c
 	}
-	if got := dictCode("土壤修复"); got != "01" {
-		t.Fatalf("土壤修复 应补字典码 01，得到 %q", got)
+	if got := dictCode("土壤修复"); got != "TR" {
+		t.Fatalf("土壤修复是规划专业，应带预设代号 TR，得到 %q", got)
 	}
-	if got := dictCode("市政"); got != "02" {
-		t.Fatalf("市政 应补字典码 02，得到 %q", got)
+	if got := dictCode("市政"); got != "01" {
+		t.Fatalf("市政是本用例临时加的，补授时应发数字代号 01，得到 %q", got)
 	}
 
 	// 定额：D + 专业2 + 章节2 + 流水3；同章节两行共享段号、流水递增。
-	if got := gcode("gf_quotas", "WP01"); got != "D0201001" {
-		t.Fatalf("WP01 应授 D0201001（D+市政02+桩基工程01+001），得到 %q", got)
+	if got := gcode("gf_quotas", "WP01"); got != "D0101001" {
+		t.Fatalf("WP01 应授 D0101001（D+市政01+桩基工程01+001），得到 %q", got)
 	}
-	if got := gcode("gf_quotas", "WP02"); got != "D0201002" {
-		t.Fatalf("WP02 应授 D0201002（同章节段号不变），得到 %q", got)
+	if got := gcode("gf_quotas", "WP02"); got != "D0101002" {
+		t.Fatalf("WP02 应授 D0101002（同章节段号不变），得到 %q", got)
 	}
-	if got := gcode("gf_quotas", "WP03"); got != "D0100001" {
-		t.Fatalf("WP03 没归章节，应授 D0100001（土壤修复01+章节00+001），得到 %q", got)
+	if got := gcode("gf_quotas", "WP03"); got != "DTR00001" {
+		t.Fatalf("WP03 没归章节，应授 DTR00001（土壤修复TR+章节00+001），得到 %q", got)
 	}
 	// 清单：Q + 专业2（行专业空→项目默认；项目也没标→00 待整理段）+ 分部2 + 流水3。
 	if got := gcode("gf_bill_items", "WP01"); got != "Q0001001" {
@@ -108,7 +108,7 @@ VALUES('MIX','调和沥青','神秘物质','t',1,'','成都市区','[]','现行'
 	}
 
 	// 双码检索：自有码当关键词能命中。
-	qs, err := s.ListQuotas("", "D0201001")
+	qs, err := s.ListQuotas("", "D0101001")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestGCodeSlotDistinctPerScope(t *testing.T) {
 	checkBill(bill("降水井", "B支护降水", "市政"), "Q0102001") // 另一个分部：另一个段号
 	checkBill(bill("场平", "C场地", "市政"), "Q0103001")
 	checkBill(bill("没归分部", "", "市政"), "Q0100001")
-	checkBill(bill("修复区降水", "B支护降水", "土壤修复"), "Q0201001") // 换专业：从它自己的 01 起算
+	checkBill(bill("修复区降水", "B支护降水", "土壤修复"), "QTR01001") // 换专业：土壤修复是规划专业，段号是预设的 TR
 	// 定额的章节同理。
 	if got, want := quota("Q1", "道路工程"), "D0101001"; got != want {
 		t.Errorf("定额自有码 = %s, want %s", got, want)
@@ -279,14 +279,14 @@ func TestGCodeSlotDistinctPerScope(t *testing.T) {
 		}
 		return c
 	}
-	if dictCode(DictSpecialty, "市政") != "01" || dictCode(DictSpecialty, "土壤修复") != "02" {
-		t.Errorf("专业段号应写回字典（市政 01 / 土壤修复 02），得到 %q / %q", dictCode(DictSpecialty, "市政"), dictCode(DictSpecialty, "土壤修复"))
+	if dictCode(DictSpecialty, "市政") != "01" || dictCode(DictSpecialty, "土壤修复") != "TR" {
+		t.Errorf("专业段号：临时加的市政发 01 并写回字典，土壤修复用预设的 TR，得到 %q / %q", dictCode(DictSpecialty, "市政"), dictCode(DictSpecialty, "土壤修复"))
 	}
 	// 专业改名：数据跟着改，段号不漂——新行仍是 01 段，流水接着排。
-	if _, err := s.DictUpdate(DictSpecialty, "市政", "市政工程", "", "", 0, ""); err != nil {
+	if _, err := s.DictUpdate(DictSpecialty, "市政", "市政道路", "", "", 0, ""); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := bill("新便道", "A临建", "市政工程"), "Q0101003"; got != want {
+	if got, want := bill("新便道", "A临建", "市政道路"), "Q0101003"; got != want {
 		t.Errorf("专业改名后新清单应沿用 01 段与 A临建 段号，得到 %s, want %s", got, want)
 	}
 }

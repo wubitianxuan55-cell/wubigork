@@ -7,6 +7,8 @@ package workcost
 import (
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/gaea/db"
 )
 
 // sampleBundle 手搭一份五表 bundle：两条有价工料机、一条清单项两条消耗行。
@@ -572,7 +574,8 @@ func TestDims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Dicts[DictSpecialty]) != 1 || len(d.Dicts[DictRegion]) != 1 || len(d.Dicts[DictCategory]) != 1 {
+	// 专业字典预设了规划专业表（SchemaV40）；地区与分类仍只收库里已有的取值。
+	if len(d.Dicts[DictSpecialty]) != len(db.PlannedSpecialties) || len(d.Dicts[DictRegion]) != 1 || len(d.Dicts[DictCategory]) != 1 {
 		t.Fatalf("字典盘点不符: %+v", d.Dicts)
 	}
 	if d.Pending.ProjectSpecialty != 1 || d.Pending.BillSpecialty != 1 || d.Pending.QuotaSpecialty != 1 || d.Pending.QuotaChapter != 1 {

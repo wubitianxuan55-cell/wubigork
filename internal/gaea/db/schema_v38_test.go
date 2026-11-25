@@ -139,8 +139,19 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
 		}
 		return out
 	}
-	if got := dict("specialty"); strings.Join(got, "|") != "土壤修复|市政" {
-		t.Errorf("专业字典应取自已有取值，得到 %v", got)
+	// 专业：数据里已有的取值（土壤修复 / 市政）都在；另加 SchemaV40 预设的规划专业
+	// （土壤修复既在数据里也在规划表里，只占一条）。
+	if got := dict("specialty"); len(got) != len(PlannedSpecialties)+1 {
+		t.Errorf("专业字典应 = 库里已有取值 + 规划专业共 %d 条，得到 %v", len(PlannedSpecialties)+1, got)
+	}
+	for _, want := range []string{"土壤修复", "市政", "临建", "检测"} {
+		found := false
+		for _, n := range dict("specialty") {
+			found = found || n == want
+		}
+		if !found {
+			t.Errorf("专业字典缺 %q", want)
+		}
 	}
 	if got := dict("region"); strings.Join(got, "|") != "成都市区|重庆中心城区" {
 		t.Errorf("地区字典应取自已有取值，得到 %v", got)
@@ -170,8 +181,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
 	}
 }
 
-// TestSchemaV38FreshChain 新库跑全链：字典表是空的（不预设任何清单），规矩留给
-// 用户按需加。
+// TestSchemaV38FreshChain 新库跑全链：地区与工料机分类不预设（空表），规矩留给用户
+// 按需加。专业自 SchemaV40（2026-11-25 用户令重新规划）起预设规划专业表——那一条
+// 「不预设任何清单」的口径只对专业翻了案。
 func TestSchemaV38FreshChain(t *testing.T) {
 	dir := t.TempDir()
 	db := GetDatabase(dir)
@@ -179,9 +191,15 @@ func TestSchemaV38FreshChain(t *testing.T) {
 		t.Fatal("GetDatabase returned nil")
 	}
 	defer CloseDatabase(dir)
+	for _, kind := range []string{"region", "category"} {
+		var n int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM gf_dicts WHERE kind=?`, kind).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("新库的%s字典应为空（n=%d err=%v）", map[string]string{"region": "地区", "category": "工料机分类"}[kind], n, err)
+		}
+	}
 	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM gf_dicts`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("新库的字典应为空（n=%d err=%v）", n, err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM gf_dicts WHERE kind='specialty'`).Scan(&n); err != nil || n != len(PlannedSpecialties) {
+		t.Fatalf("新库的专业字典应为规划专业 %d 个（n=%d err=%v）", len(PlannedSpecialties), n, err)
 	}
 	if _, err := filepath.Glob(filepath.Join(dir, "Hephaestus.db")); err != nil {
 		t.Fatal(err)
