@@ -20,6 +20,11 @@
    `/api/health` 必须返回 200。不要从被本机策略拦截的 `.tmp` 路径运行 exe。
 7. 打包某次提交时必须从该提交的独立干净工作树构建，不能把主工作树未提交的
    其他业务改动混入包；记录提交号、exe/DLL/ZIP/源码包 SHA256 和冒烟结果。
+8. 干净树打包/装机收尾时，必须把包版四件（exe + 三 DLL）**回写主树
+   `build/bin`**（哈希对账装机位一致），保持 `build/bin` 恒等最近装机版——
+   它是测试 DLL wrapper 与 `go test`/`wails build` PATH 前置的引用源、
+   `gaea_install.ps1` 的默认 `-SourceDir`。主树压着未提交改动时用包版文件
+   回写，**不得**改在主树重建（会把未提交改动混编进去）。
 
 若 `build.bat` 触发 Wails runtime 的 `Access is denied`，按构建指南清理孤儿进程、
 恢复系统 `TMP/TEMP` 后执行上述裸 `wails build`，不要跳过 bindings。

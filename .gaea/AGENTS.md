@@ -32,7 +32,10 @@
   会话状态重接管，停止时可按 PID 回收进程树。详见构建指南「编程板块与 Windows
   子进程」。
 - 做“某提交的交付包”时，从该提交的独立干净工作树构建，严禁混入主工作树其他未提交
-  业务改动；同时记录提交号、exe/DLL/ZIP/源码包 SHA256 与冒烟结果。
+  业务改动；同时记录提交号、exe/DLL/ZIP/源码包 SHA256 与冒烟结果。收尾必须把包版
+  四件（exe+三 DLL）回写主树 `build/bin` 并与装机位哈希对账（build/bin 恒等最近
+  装机版：测试 DLL wrapper 与 PATH 前置的引用源、gaea_install.ps1 默认
+  `-SourceDir`）；主树压着未提交改动时用包版文件回写，不得改在主树重建。
 - 装机按 `scripts\gaea_install.ps1`；exe + 三枚 DLL 同放 `C:\AI\gaea-app`，
   桌面只保留 `gaea.lnk`。若本轮只做预览包，不擅自覆盖用户已安装版本。
 

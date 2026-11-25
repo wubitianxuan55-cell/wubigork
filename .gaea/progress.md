@@ -7733,3 +7733,16 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - 干净树 .worktrees/pkg-0f600f5f 构建（npm 28s+wails），payload 冒烟 200
   （PID 55692 回收）；装机 INSTALL OK（exe 14F8A0FC…，构建时刻 2026-11-25
   21:01:12）。worktree 已回收。zip 345A9AEE…/src.zip 1DD7FB35…。
+
+## 2026-11-25 纪律补丁——干净树打包后 build/bin 回写（用户质询触发）
+
+- 用户问「构建桌面端为什么 build/bin 没同步？纪律没写吗」。核实：build/bin 停在
+  7ccdc1cc（4B0466B4，11-25 19:02），装机位已 0f600f5f（14F8A0FC）——落后两批。
+  根因=纪律洞：AGENTS.md #7 只写「干净树打包」，装机又显式 -SourceDir=payload，
+  两步都碰不到主树 build/bin；「回写」一步三处都没写。
+- 现场：包版四件回写 build/bin（与装机位逐一哈希对账一致）；未在主树重建——主树
+  压着 modelengine 未提交改动（GLM 目录线在途），重建会混编破坏「build/bin=最近
+  装机版」。
+- 纪律三处同批：根 AGENTS.md 最低要求新增第 8 条；.gaea/AGENTS.md 构建入口交付包
+  条扩写；docs/gaea-build-guide.md 新增「交付包收尾：build/bin 回写」节 + 坑清单
+  一行。要点：回写用包版文件，主树有未提交改动时禁用主树重建代替。

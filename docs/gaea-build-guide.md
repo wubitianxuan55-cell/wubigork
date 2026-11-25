@@ -19,6 +19,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gaea_install.ps1
 
 首次构建前前端依赖：`cd frontend && npm install`。开发热加载用 `wails dev`。
 
+## 交付包收尾：build/bin 回写（2026-11-25 补纪律）
+
+干净工作树打包 + payload 装机后，**必须把包版四件（exe + 三 DLL）复制回主树
+`build/bin`**，并与装机位逐一哈希对账。原因：`build/bin` 不只是构建产物，它是
+（a）测试 DLL wrapper（`cgo_test_dll_prep.cmd`）与 go test / wails build 的
+PATH 前置引用源，（b）`gaea_install.ps1` 缺省 `-SourceDir`（主树构建→默认装机
+链路的入口）。漏了这步，`build/bin` 就停留在旧版（2026-11-25 实测落后两个交付
+批），测试与后续默认装机都吃旧件。
+
+- 主树干净（无未提交业务改动）→ 也可在主树重跑同提交构建代替回写。
+- 主树压着未提交改动（如另一条线在途）→ **只用包版文件回写**，禁止改在主树
+  重建——重建会把未提交改动混编进 `build/bin`，破坏「build/bin = 最近装机版」。
+
 ## 交付布局（2026-11-05 拍板）
 
 - **exe + 三个 DLL 同装 `C:\AI\gaea-app`**：`gaea.exe` + `onnxruntime.dll` + `sherpa-onnx-c-api.dll` + `sherpa-onnx-cxx-api.dll`
@@ -41,6 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gaea_install.ps1
 | 桌面散件旧 exe（2026-10-31 事故） | 用户跑的一直是桌面旧壳；装机脚本默认清桌面散件 |
 | 拉起验证 | 壳起来后验 PID 启动时间 > 构建时刻（CIM `CreationDate`），防旧壳假象 |
 | 挂死 wails.exe/go.exe 孤儿连环锁（2026-11-07） | 构建 Cancel/失败会遗留 wails.exe+go.exe 孤儿持句柄，后续绑定生成子进程重抽 `frontend/wailsjs/runtime/` 报「package.json: Access is denied」连环假象（文件 ACL 实为全 Allow，`cat`/改名/重建全通）；处置=CIM 找 wails.exe/go.exe/gaea.exe 孤儿 taskkill /T /F 后按本指南 `wails build` 流程走即通 |
+| 干净树打包后 `build/bin` 停在旧版（2026-11-25：装机已 0f600f5f、build/bin 还 7ccdc1cc） | 交付包收尾把包版四件回写主树 `build/bin` 并与装机位哈希对账；主树有未提交改动时禁止用主树重建代替回写（见「交付包收尾」节） |
 
 ## 编程板块与 Windows 子进程
 
