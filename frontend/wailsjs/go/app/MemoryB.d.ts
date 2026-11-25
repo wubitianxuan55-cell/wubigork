@@ -12,8 +12,6 @@ export function GaeaMemory():Promise<app.MemoryView>;
 
 export function GaeaMemoryArchivedList(arg1:number,arg2:number):Promise<app.MemoryArchivedPage>;
 
-export function GaeaMemoryBrief():Promise<boolean>;
-
 export function GaeaMemoryCleanupArchived():Promise<number>;
 
 export function GaeaMemoryDuplicates(arg1:number):Promise<Array<app.MemoryDuplicateView>>;

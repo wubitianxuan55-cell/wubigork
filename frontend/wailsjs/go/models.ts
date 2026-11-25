@@ -2102,19 +2102,14 @@ export namespace app {
 	}
 	export class MemoryEvalReport {
 	    memoryEnabled: boolean;
-	    morningPreload: boolean;
-	    projectBrief: boolean;
 	    spaceModeOn: boolean;
-	    preloadPresent: boolean;
-	    briefPresent: boolean;
-	    preloadRunes: number;
-	    briefRunes: number;
-	    preloadBudget: number;
-	    briefBudget: number;
+	    indexPresent: boolean;
+	    indexBytes: number;
+	    indexBudget: number;
 	    entryCount: number;
-	    refCount: number;
+	    truncated: boolean;
 	    pinnedTotal: number;
-	    pinnedInBrief: number;
+	    pinnedInIndex: number;
 	    missingPinned?: string[];
 	    violations?: string[];
 	    passed: boolean;
@@ -2127,19 +2122,14 @@ export namespace app {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.memoryEnabled = source["memoryEnabled"];
-	        this.morningPreload = source["morningPreload"];
-	        this.projectBrief = source["projectBrief"];
 	        this.spaceModeOn = source["spaceModeOn"];
-	        this.preloadPresent = source["preloadPresent"];
-	        this.briefPresent = source["briefPresent"];
-	        this.preloadRunes = source["preloadRunes"];
-	        this.briefRunes = source["briefRunes"];
-	        this.preloadBudget = source["preloadBudget"];
-	        this.briefBudget = source["briefBudget"];
+	        this.indexPresent = source["indexPresent"];
+	        this.indexBytes = source["indexBytes"];
+	        this.indexBudget = source["indexBudget"];
 	        this.entryCount = source["entryCount"];
-	        this.refCount = source["refCount"];
+	        this.truncated = source["truncated"];
 	        this.pinnedTotal = source["pinnedTotal"];
-	        this.pinnedInBrief = source["pinnedInBrief"];
+	        this.pinnedInIndex = source["pinnedInIndex"];
 	        this.missingPinned = source["missingPinned"];
 	        this.violations = source["violations"];
 	        this.passed = source["passed"];

@@ -18,10 +18,6 @@ export function GaeaMemoryArchivedList(arg1, arg2) {
   return window['go']['app']['MemoryB']['GaeaMemoryArchivedList'](arg1, arg2);
 }
 
-export function GaeaMemoryBrief() {
-  return window['go']['app']['MemoryB']['GaeaMemoryBrief']();
-}
-
 export function GaeaMemoryCleanupArchived() {
   return window['go']['app']['MemoryB']['GaeaMemoryCleanupArchived']();
 }

@@ -422,10 +422,6 @@ export function GaeaMeta() {
   return window['go']['app']['OfficeB']['GaeaMeta']();
 }
 
-export function GaeaMorningPreload() {
-  return window['go']['app']['OfficeB']['GaeaMorningPreload']();
-}
-
 export function GaeaNewSession() {
   return window['go']['app']['OfficeB']['GaeaNewSession']();
 }
@@ -702,16 +698,8 @@ export function GaeaSetMCPServerEnabled(arg1, arg2) {
   return window['go']['app']['OfficeB']['GaeaSetMCPServerEnabled'](arg1, arg2);
 }
 
-export function GaeaSetMemoryBrief(arg1) {
-  return window['go']['app']['OfficeB']['GaeaSetMemoryBrief'](arg1);
-}
-
 export function GaeaSetMemoryEnabled(arg1) {
   return window['go']['app']['OfficeB']['GaeaSetMemoryEnabled'](arg1);
-}
-
-export function GaeaSetMorningPreload(arg1) {
-  return window['go']['app']['OfficeB']['GaeaSetMorningPreload'](arg1);
 }
 
 export function GaeaSetOfficeRunMode(arg1) {

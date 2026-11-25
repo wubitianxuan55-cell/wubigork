@@ -224,8 +224,6 @@ export function GaeaMaterials(arg1:number):Promise<Array<app.FileSearchHit>>;
 
 export function GaeaMeta():Promise<app.Meta>;
 
-export function GaeaMorningPreload():Promise<boolean>;
-
 export function GaeaNewSession():Promise<void>;
 
 export function GaeaOCRText(arg1:string):Promise<string>;
@@ -364,11 +362,7 @@ export function GaeaSetDefaultModel(arg1:string):Promise<void>;
 
 export function GaeaSetMCPServerEnabled(arg1:string,arg2:boolean):Promise<void>;
 
-export function GaeaSetMemoryBrief(arg1:boolean):Promise<void>;
-
 export function GaeaSetMemoryEnabled(arg1:boolean):Promise<void>;
-
-export function GaeaSetMorningPreload(arg1:boolean):Promise<void>;
 
 export function GaeaSetOfficeRunMode(arg1:string):Promise<void>;
 
