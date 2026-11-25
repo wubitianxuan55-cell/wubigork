@@ -7758,6 +7758,9 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   （设 GAEA_TOOLDUMP_OUT 导出三档逐工具尺寸）。精简面：标准 73 件/21779 字符、
   造价 82 件/38774、方案 79 件/24945；cost_library 一个 14207（占造价档 37%）；
   调用频次（D:\新工作 15 工作区 68 会话 9~11 月）：前 24 件占九成，19 件零调用。
+- 改后实测（同口径 TestOfficeToolFaceDump）：标准 60 件/17395 字符（−20%）、
+  造价 68 件/28867（−26%）、方案 72 件/21917（−12%）；造价档余下大头=
+  cost_library 8847、remember 2531、request_permission 1284、ask 1010。
 - 紧急修复：ai.defaultStreamIdleTimeout 60s→10min（按「两次收数间隔」计，推理
   模型出字前零字节被当空闲；同值兼作响应头等待上限）+[agent]
   stream_idle_timeout_secs 覆盖；回归钉 TestStreamIdleTimeoutResolution。
