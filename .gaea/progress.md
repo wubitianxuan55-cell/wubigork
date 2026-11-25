@@ -7845,3 +7845,18 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   已回收；GLM 热更新文件 glm_catalog_remote.json 备份后删除（内嵌目录已带）。
 - 工作树遗留（非本批所动）：仓根 4 张图片（logo 浅/深色、盲业智能启动画面
   浅/深色）处于已删除未提交状态，仓内无引用。
+- 收尾发现并堵根因（ef2a3047，仅测试代码、不进装机包）：不带隔离的 app 包
+  用例经 config.Save 把夹具写进**真实的** `~/.gaea_config.json`（该文件按家目录
+  USERPROFILE 定位，手工重定向 APPDATA 管不到）。新增 TestMain 把
+  USERPROFILE/HOME/APPDATA 沙箱化，不设全局逃生口；不做手工重定向四分片
+  1424 例 0 失败（94s），跑前跑后真实配置 SHA256 不变。实证：不带沙箱单跑
+  TestWenxueChatSessionBindingSmoke 后 wenxue_workspace 立刻变成它的临时目录
+  （我做这步定性时用的是真实家目录，等于又写了一次——同键仍是死路径，但这是
+  我的操作失误）。
+- **待用户确认**：真实 `~/.gaea_config.json` 里三个键是测试垃圾——
+  wenxue_workspace、image_save_dir 指向已删除的测试临时目录（文学板块每次回退
+  到图文根、办公生图落点异常），voice_persona_presets 是「傲娇音→v1」；image_
+  backend=xai / image_model=grok-imagine-image-quality 可能也来自同名测试，
+  无法区分。修法=备份后删前三个键（是否保留 xai 生图设置由用户定）；没动。
+- 偶发：TestWenxueChatSessionBindingSmoke 在四分片负载下 TempDir 清理撞上仍被
+  占用的会话日志句柄一次（单跑 5/5 绿，第二次全量也绿）——存量 flaky，未改。
