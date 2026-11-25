@@ -7746,3 +7746,54 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - 纪律三处同批：根 AGENTS.md 最低要求新增第 8 条；.gaea/AGENTS.md 构建入口交付包
   条扩写；docs/gaea-build-guide.md 新增「交付包收尾：build/bin 回写」节 + 坑清单
   一行。要点：回写用包版文件，主树有未提交改动时禁用主树重建代替。
+
+## 2026-11-25 办公工具梳理首批 + 记忆按模式隔离 + 流空闲超时紧急修复（gaea-office-tools-20261125-799e9ba8）
+
+- 用户令三条：①「重新梳理整个办公板块的工具，该优化优化、该合并合并、该删除
+  删除」；②「记忆为什么没按项目及工作空间隔离，不同项目的不同模式的都混在
+  一起」；③紧急「办公板块动不动就流空闲超时：超过 1m0s 无数据直接切断，1min
+  对造价模式不够」。随后「完成这个就先构建桌面端，做好文件记录和记忆更新，
+  剩下的下个会话继续」。commit 799e9ba8（139 文件：新增 10 / 删除 19 / 改 110）。
+- 盘底：真实会话 request_header + 新增工具面体检 TestOfficeToolFaceDump
+  （设 GAEA_TOOLDUMP_OUT 导出三档逐工具尺寸）。精简面：标准 73 件/21779 字符、
+  造价 82 件/38774、方案 79 件/24945；cost_library 一个 14207（占造价档 37%）；
+  调用频次（D:\新工作 15 工作区 68 会话 9~11 月）：前 24 件占九成，19 件零调用。
+- 紧急修复：ai.defaultStreamIdleTimeout 60s→10min（按「两次收数间隔」计，推理
+  模型出字前零字节被当空闲；同值兼作响应头等待上限）+[agent]
+  stream_idle_timeout_secs 覆盖；回归钉 TestStreamIdleTimeoutResolution。
+  真机实弹未做（需造价档长思考实跑）。
+- 工具首批：cost_library 花括号 bug（quota 少一个右括号→31 个参数在模型眼里
+  嵌在 quota 里，铜陵反馈 #13 根因）+ 行契约随回执发放（import_open 回执带
+  行契约、dims 带 classify 契约、action=help；常驻 13091→8541）；退役
+  cost_compose/multi_edit/edit_lines/replace；summarize_file 读码改判保留（挂在
+  大文件读取子系统上）；方案库六件归长文方案组；dag_plan 摘出工具面（流水线
+  运行面保留）；五表/六表口径统一。
+- 记忆：facts.mode_id（SchemaV42）+ modeView（通用+本模式，标准档只看通用，
+  模式维度未启用的引擎逐字节不变）+ remember scope；五件合两件（remember
+  action=save/forget/promote、memory_search 给 name 读全文）；晨报/事实单两块
+  停注只留索引一处；两开关（morning_preload/project_brief）及 4 绑定/设置页/
+  面板开关/配置项撤下；注入体检改对索引块断言四不变量。装配断言
+  boot.TestBuildMemoryModeIsolation / TestBuildRememberStampsMode。
+- 实情澄清：存储本就按工作区绝对路径分桶（16 桶无串数据）；「混」来自三因——
+  同一文件夹里干多个项目、没有运行模式这一维、过程类记忆每轮常驻 + 用户级
+  AGENTS.md 混进造价规矩；外加同一批记忆一轮曾列四遍。C2（造价口径规矩迁技能、
+  用户级 AGENTS.md 两条迁出）未动，下会话续。
+- 门禁：app 包按用户令「取消单进程，改并线」——go test -c 编一次 + 4 进程分片
+  各用独立 APPDATA，1425 例 0 失败；memory/db/boot/control/tool/evidence/
+  contextview/cache/ai/config 包通过；tsc -b 0；vitest 受影响 33 文件通过；
+  registry_map_doc -check OK。存量红（未改动的 HEAD 同红）：agent
+  TestStaleGuardBlocksMoveFileWithoutRead、builtin 三例 markitdown（本机无
+  markitdown）。并行负载下 TestGaeaPriceFetchAllTask 偶发一次，单独 3/3 通过。
+- 干净树 .worktrees/pkg-799e9ba8（Vite 36s，Wails 1m13s，bindings 未跳过），
+  payload 冒烟 200（PID 46288 回收）；装机 INSTALL OK（exe B65B9B14…，构建
+  23:20:22，PID 50204 23:22:40）；zip C65E81CE… / src.zip 173A4AF9…。包版四件
+  已回写主树 build/bin（与装机位、payload 三处哈希一致）；真实库 V42 已迁移
+  （facts.mode_id 在，16 桶 245 行）；worktree 已回收。未 push。
+- 发现：用户壳当时跑的是主树 build/bin（不是装机位），锁着四件——回写必须在
+  装机脚本关壳之后；顺序=先装机再回写。
+- 余（下会话续做，按优先级）：①C2 造价口径规矩迁技能 + 用户级 AGENTS.md 两条
+  迁出；②B2 技能三件合 run_skill；③B3 COM 三件并入 office_read/office_edit；
+  ④B4 xlsx_recalc 回执带审计、docx_accept 并入 docx_apply；⑤B5 后台任务三件、
+  B6 子代理管理三件（协议面宽、收益小，可缓）；⑥A2 request_permission 描述
+  瘦身（1188 字符英文）；⑦三档工具面预算守卫定数（TestOfficeToolFaceBudget
+  未写）；⑧流空闲超时真机实弹。
