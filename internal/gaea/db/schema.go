@@ -931,3 +931,74 @@ CREATE INDEX IF NOT EXISTS idx_proposal_assets_proposal
 CREATE INDEX IF NOT EXISTS idx_proposal_assets_sha
   ON proposal_assets(sha256);
 `
+
+// SchemaV38 造价库定规矩（2026-11-25 用户拍板「数据库要定规矩，不是比着几个
+// 文件去适配」：清单/定额分专业，工料机分种类·地区·时间）。规范值由库说了算，
+// 文件和模型向库靠：
+//   - gf_dicts 字典表：专业、地区、工料机分类各一种 kind。写进库的值必须在字典
+//     里（存储层校验），空值=待整理；新值只能显式新增字典项。初始字典不预设任何
+//     清单——机械地把库里已有的取值收进来，其余由用户按需加。
+//   - 期数统一存 YYYY-MM：库里已有的「2026年6月」写法一次性无损转换，其余
+//     写法（信息价期数等）不猜，原样留着进待整理。
+//   - gf_projects 增 specialty/region/price_period：项目默认专业、地区（与封面
+//     地址 location 分开）、计价期——给了才写，空=待整理。
+//   - gf_bill_items 增 specialty：清单项专业，空=跟随项目默认专业（保存时传空
+//     =保持原值，重导入不冲掉已归类的专业）。
+//   - gf_quotas 增 derived_from：借鉴生成的溯源（「借鉴 <专业> <码>」）。定额
+//     专业是固有属性（随来源定、定了不改、跨专业不并），既有 specialty 不动。
+//   - gf_resources 身份唯一索引加地区：工料机按地区分行（同一种材料每个地区
+//     一行，时间=该行各期价格）。身份加地区只会放宽唯一性，重建索引不产生冲突。
+const SchemaV38 = `
+ALTER TABLE gf_projects ADD COLUMN specialty TEXT NOT NULL DEFAULT '';
+ALTER TABLE gf_projects ADD COLUMN region TEXT NOT NULL DEFAULT '';
+ALTER TABLE gf_projects ADD COLUMN price_period TEXT NOT NULL DEFAULT '';
+ALTER TABLE gf_bill_items ADD COLUMN specialty TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_bill_items_specialty ON gf_bill_items(specialty);
+ALTER TABLE gf_quotas ADD COLUMN derived_from TEXT NOT NULL DEFAULT '';
+DROP INDEX IF EXISTS idx_gf_resources_ident;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_resources_ident
+  ON gf_resources(kind, title, spec, unit, region);
+CREATE INDEX IF NOT EXISTS idx_gf_resources_region ON gf_resources(region);
+CREATE INDEX IF NOT EXISTS idx_gf_resource_prices_key
+  ON gf_resource_prices(resource_id, period, region, source);
+CREATE TABLE IF NOT EXISTS gf_dicts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind       TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  code       TEXT NOT NULL DEFAULT '',
+  parent     TEXT NOT NULL DEFAULT '',
+  level      INTEGER NOT NULL DEFAULT 1,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  note       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gf_dicts_kind_name ON gf_dicts(kind, name);
+INSERT INTO gf_dicts(kind, name, note)
+  SELECT DISTINCT 'specialty', specialty, '初始字典：取自库内已有取值'
+  FROM gf_quotas WHERE specialty <> '' ORDER BY specialty;
+INSERT INTO gf_dicts(kind, name, note)
+  SELECT DISTINCT 'region', region, '初始字典：取自库内已有取值'
+  FROM gf_resources WHERE region <> '' ORDER BY region;
+INSERT INTO gf_dicts(kind, name, note)
+  SELECT DISTINCT 'category', category_path, '初始字典：取自库内已有取值'
+  FROM gf_resources WHERE category_path <> '' ORDER BY category_path;
+UPDATE gf_resources SET price_date = printf('%s-%02d', substr(price_date,1,4),
+  CAST(substr(price_date,6,length(price_date)-6) AS INTEGER))
+WHERE price_date GLOB '[0-9][0-9][0-9][0-9]年[0-9]*月'
+  AND price_date NOT GLOB '*[^0-9年月]*' AND price_date NOT GLOB '*月*月*'
+  AND substr(price_date,1,2) IN ('19','20')
+  AND CAST(substr(price_date,6,length(price_date)-6) AS INTEGER) BETWEEN 1 AND 12;
+UPDATE gf_quotas SET price_date = printf('%s-%02d', substr(price_date,1,4),
+  CAST(substr(price_date,6,length(price_date)-6) AS INTEGER))
+WHERE price_date GLOB '[0-9][0-9][0-9][0-9]年[0-9]*月'
+  AND price_date NOT GLOB '*[^0-9年月]*' AND price_date NOT GLOB '*月*月*'
+  AND substr(price_date,1,2) IN ('19','20')
+  AND CAST(substr(price_date,6,length(price_date)-6) AS INTEGER) BETWEEN 1 AND 12;
+UPDATE gf_resource_prices SET period = printf('%s-%02d', substr(period,1,4),
+  CAST(substr(period,6,length(period)-6) AS INTEGER))
+WHERE period GLOB '[0-9][0-9][0-9][0-9]年[0-9]*月'
+  AND period NOT GLOB '*[^0-9年月]*' AND period NOT GLOB '*月*月*'
+  AND substr(period,1,2) IN ('19','20')
+  AND CAST(substr(period,6,length(period)-6) AS INTEGER) BETWEEN 1 AND 12;
+`

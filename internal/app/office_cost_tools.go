@@ -97,7 +97,8 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 		var b strings.Builder
 		fmt.Fprintf(&b, "测算项目 %d 个：\n", len(projects))
 		for _, pr := range projects {
-			fmt.Fprintf(&b, "- #%d %s（清单 %d 行，地区=%s 计价=%s 控制价=%.2f）\n", pr.ID, pr.Name, pr.ItemCount, pr.Location, pr.Pricing, pr.ControlPrice)
+			fmt.Fprintf(&b, "- #%d %s（清单 %d 行，封面地点=%s 计价=%s 控制价=%.2f%s）\n", pr.ID, pr.Name, pr.ItemCount, pr.Location, pr.Pricing, pr.ControlPrice,
+				clProjectScope(pr.Specialty, pr.Region, pr.PricePeriod))
 		}
 		return b.String(), nil
 	case "items":
@@ -124,6 +125,9 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 				}())
 			}
 			line := fmt.Sprintf("- [%s] %s（%s）量=%g", it.Code, it.Title, it.Unit, it.Quantity)
+			if sp := strings.TrimSpace(it.Specialty); sp != "" {
+				line += " 专业=" + sp
+			}
 			if quotas != "" {
 				line += fmt.Sprintf(" 定额=%s", quotas)
 			}
@@ -153,9 +157,12 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "定额 %d 条（限 %d）：\n", len(quotas), p.Limit)
+		fmt.Fprintf(&b, "定额 %d 条（限 %d）:\n", len(quotas), p.Limit)
 		for _, q := range quotas {
-			fmt.Fprintf(&b, "- [%s] %s（%s，含量行 %d，引用 %d 次）\n", q.Code, q.Title, q.Unit, len(q.Items), q.UsageCount)
+			fmt.Fprintf(&b, "- [%s] %s（%s，%s，含量行 %d，引用 %d 次）\n", q.Code, q.Title, q.Unit, clDim(q.Specialty, "未标注专业"), len(q.Items), q.UsageCount)
+		}
+		if strings.TrimSpace(p.Specialty) == "" {
+			b.WriteString("清单套定额同专业优先：带上 specialty 只看本专业的定额；本专业没有匹配的，再用 cost_library borrow_quota 借鉴生成。\n")
 		}
 		return b.String(), nil
 	case "quota":
@@ -186,7 +193,8 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 		var b strings.Builder
 		fmt.Fprintf(&b, "资源 %d 条（限 %d）：\n", len(resources), p.Limit)
 		for _, r := range resources {
-			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f %s）\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice, r.PriceDate)
+			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s）\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
+				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"))
 		}
 		return b.String(), nil
 	default:
@@ -346,7 +354,7 @@ func (t costProjectApplyTool) Name() string       { return "cost_project_apply" 
 func (t costProjectApplyTool) ReadOnly() bool     { return false }
 func (t costProjectApplyTool) PersistWrite() bool { return true }
 func (t costProjectApplyTool) Description() string {
-	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取）、update_rates 更新项目费率（只改传入的字段）、save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。quota_code 与 quota_codes 合起来就是该行的全部定额挂接（整体替换）：只改名称等字段时，把原挂接原样带回。本工具只增不删；删除、导入工作簿、改定额与工料机走 cost_library。沉淀回成本库走 cost_save（用户确认门）。"
+	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取；可带专业/地区/计价期，都是字典里的规范值），update_rates 更新项目费率（只改传入的字段），save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。quota_code 与 quota_codes 合起来就是该行的全部定额挂接（整体替换）：只改名称等字段时，把原挂接原样带回。清单套定额同专业优先：先用 cost_project action=quotas 带 specialty 检索本专业定额；本专业没有就用 cost_library borrow_quota 以外专业定额为底生成本专业的再挂——回执会点名挂了外专业定额的行。本工具只增不删；删除、导入工作簿、改定额与工料机走 cost_library。沉淀回成本库走 cost_save（用户确认门）。"
 }
 func (t costProjectApplyTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -357,7 +365,10 @@ func (t costProjectApplyTool) Schema() json.RawMessage {
   "name":{"type":"string","description":"项目名（create_project 必填，同名=更新封面）"},
   "file_name":{"type":"string","description":"源工作簿名（可选）"},
   "source":{"type":"string","description":"数据来源说明（可选）"},
-  "location":{"type":"string","description":"地区（可选）"},
+  "location":{"type":"string","description":"封面地址（可选，自由文本）"},
+  "region":{"type":"string","description":"项目所在地区（字典值，可选；与封面地址分开）——工料机按地区分行，取价归价都看它"},
+  "price_period":{"type":"string","description":"计价期，YYYY-MM（可选）"},
+  "specialty":{"type":"string","description":"项目默认专业（字典值，可选）——清单与它套的定额都按这个专业走"},
   "duration":{"type":"string","description":"工期（可选）"},
   "pricing":{"type":"string","description":"计价方式（可选）"},
   "management_rate":{"type":"number","description":"企业管理费率（create_project 未传=0 不计取）"},
@@ -372,6 +383,7 @@ func (t costProjectApplyTool) Schema() json.RawMessage {
     "title":{"type":"string","description":"清单项名称（必填）"},
     "unit":{"type":"string","description":"单位（必填）"},
     "division":{"type":"string","description":"分部（可选）"},
+    "specialty":{"type":"string","description":"清单专业（字典值，可选；不给=已有行保持原值，新行跟随项目默认专业）"},
     "quantity":{"type":"number","description":"工程量（必须>0）"},
     "quantity_expr":{"type":"string","description":"工程量计算式（留痕，可选）"},
     "quota_code":{"type":"string","description":"主定额编码（与 quota_codes 合起来=该行全部挂接，整体替换；手填行留空）"},
@@ -394,6 +406,9 @@ type costProjectApplyArgs struct {
 	FileName                 string                 `json:"file_name"`
 	Source                   string                 `json:"source"`
 	Location                 string                 `json:"location"`
+	Region                   string                 `json:"region"`
+	PricePeriod              string                 `json:"price_period"`
+	Specialty                string                 `json:"specialty"`
 	Duration                 string                 `json:"duration"`
 	Pricing                  string                 `json:"pricing"`
 	ManagementRate           *float64               `json:"management_rate"`
@@ -411,6 +426,7 @@ type costProjectApplyItem struct {
 	Title         string   `json:"title"`
 	Unit          string   `json:"unit"`
 	Division      string   `json:"division"`
+	Specialty     *string  `json:"specialty"` // 不给=已有行保持原值，新行跟随项目默认专业
 	Quantity      float64  `json:"quantity"`
 	QuantityExpr  string   `json:"quantity_expr"`
 	QuotaCode     *string  `json:"quota_code"`
@@ -471,6 +487,17 @@ func (it costProjectApplyItem) linkInputs() []workcost.BillQuotaLinkInput {
 	return out
 }
 
+// clProjectScope 项目口径的回显片段：专业/地区/计价期（一个都没给=空串）。
+func clProjectScope(specialty, region, period string) string {
+	specialty = strings.TrimSpace(specialty)
+	region = strings.TrimSpace(region)
+	period = strings.TrimSpace(period)
+	if specialty == "" && region == "" && period == "" {
+		return ""
+	}
+	return fmt.Sprintf("｜专业 %s｜地区 %s｜计价期 %s", clDim(specialty, "未标注"), clDim(region, "未标注"), clDim(period, "未标注"))
+}
+
 // findBillProject 按 id 找项目封面（含费率）；不存在返回 nil。
 func findBillProject(s *workcost.Store, id int64) *workcost.BillProject {
 	projects, err := s.BillProjects()
@@ -513,11 +540,22 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 				}
 			}
 		}
+		// 项目的专业/地区/计价期是规范值（库定规矩）：专业、地区必须在字典里，期数
+		// YYYY-MM；不给=保持原值（待整理）。先过规矩再建封面——口径被拒不留半截封面。
+		specialty, region := strings.TrimSpace(p.Specialty), strings.TrimSpace(p.Region)
+		period, err := s.ValidateProjectScope(specialty, region, strings.TrimSpace(p.PricePeriod))
+		if err != nil {
+			return "", fmt.Errorf("项目口径不合规矩，未建档：%w", err)
+		}
 		id, err := s.UpsertBillProject(p.Name, p.FileName, p.Source, p.Location, p.Duration, p.Pricing, rates, p.boolOr(p.ProfitIncludesRegulatory, false), p.floatOr(p.ControlPrice, 0))
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("项目已建档：#%d %s（费率按提交值落库，0=该段显式不计取）。下一步 action=save_items 编制清单。", id, p.Name), nil
+		if err := s.UpdateBillProjectProfile(id, specialty, region, period); err != nil {
+			return "", fmt.Errorf("项目封面已建（#%d），但专业/地区/计价期未写入：%w", id, err)
+		}
+		return fmt.Sprintf("项目已建档：#%d %s（费率按提交值落库，0=该段显式不计取）%s。下一步 action=save_items 编制清单。",
+			id, p.Name, clProjectScope(specialty, region, period)), nil
 	case "update_rates":
 		if p.ProjectID <= 0 {
 			return "", fmt.Errorf("update_rates 需要 project_id")
@@ -572,6 +610,11 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 		//   ③ 定额存在性：悬空定额写前拦下；资源悬空留给 cost_audit（含量行走
 		//      读口，写前不扫资源）。
 		seen := map[string]int{}
+		quotaSpec := map[string]string{} // 定额码 → 专业（回执点名外专业挂接用）
+		proj := findBillProject(s, p.ProjectID)
+		if proj == nil {
+			return "", fmt.Errorf("项目 #%d 不存在（cost_project action=projects 可查）", p.ProjectID)
+		}
 		for i, it := range p.Items {
 			if code := strings.TrimSpace(it.Code); code != "" {
 				if prev, ok := seen[code]; ok {
@@ -587,14 +630,16 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			}
 			for _, in := range it.linkInputs() {
 				c := in.QuotaCode
-				if _, err := s.GetQuota(c); err != nil && !workcostNotFound(err) {
-					return "", fmt.Errorf("第 %d 行定额 %s 校验失败: %w（整批未写入）", i+1, c, err)
-				} else if workcostNotFound(err) {
+				q, err := s.GetQuota(c)
+				if workcostNotFound(err) {
 					return "", fmt.Errorf("第 %d 行定额 %s 不存在（整批未写入）：核对编码或让用户提供，不要编造定额号", i+1, c)
+				} else if err != nil {
+					return "", fmt.Errorf("第 %d 行定额 %s 校验失败: %w（整批未写入）", i+1, c, err)
 				}
+				quotaSpec[c] = strings.TrimSpace(q.Specialty)
 			}
 		}
-		saved, droppedLinks := 0, 0
+		saved, droppedLinks, crossSpecialty := 0, 0, 0
 		for i, it := range p.Items {
 			code := strings.TrimSpace(it.Code)
 			item := workcost.BillItem{
@@ -605,7 +650,7 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 				PriceOverride: it.PriceOverride,
 			}
 			// 已有行：没传的字段保持原值——原表单价快照（2026-11-25 修：此前整行
-			// 重写会把 list_price 清零）与没提交挂接字段时的主定额。
+			// 重写会把 list_price 清零）、没提交挂接字段时的主定额、已归类的专业。
 			var existing *workcost.BillItem
 			if code != "" {
 				got, err := s.FindBillItem(p.ProjectID, code)
@@ -617,9 +662,13 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			if existing != nil {
 				item.ListPrice = existing.ListPrice
 				item.QuotaCode = existing.QuotaCode
+				item.Specialty = existing.Specialty
 			}
 			if it.ListPrice != nil {
 				item.ListPrice = *it.ListPrice
+			}
+			if it.Specialty != nil {
+				item.Specialty = strings.TrimSpace(*it.Specialty)
 			}
 			links := it.linkInputs()
 			if it.linksGiven() {
@@ -653,12 +702,27 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 				if _, err := s.SaveBillItemLinks(savedItem.ID, links); err != nil {
 					return "", fmt.Errorf("第 %d 行定额挂接写入失败（清单行已落库，修正后重发该行即可）: %w", i+1, err)
 				}
+				// 同专业优先（规矩，不拦只点名）：清单专业与挂接定额专业对不上，
+				// 说明没先借鉴生成本专业定额。
+				rowSpec := strings.TrimSpace(item.Specialty)
+				if rowSpec == "" {
+					rowSpec = strings.TrimSpace(proj.Specialty)
+				}
+				for _, in := range links {
+					if qs := quotaSpec[in.QuotaCode]; qs != "" && rowSpec != "" && qs != rowSpec {
+						crossSpecialty++
+						break
+					}
+				}
 			}
 			saved++
 		}
 		receipt := fmt.Sprintf("项目 #%d 清单已写入 %d/%d 行（写前校验：编码唯一/工程量>0/定额存在）。用 cost_audit 跑机检后再交付。", p.ProjectID, saved, len(p.Items))
 		if droppedLinks > 0 {
 			receipt += fmt.Sprintf("\n注意：本次按整体替换解除了 %d 条原有定额挂接（不在提交的 quota_code/quota_codes 里）。若非本意，把原挂接补回后重发对应行。", droppedLinks)
+		}
+		if crossSpecialty > 0 {
+			receipt += fmt.Sprintf("\n注意：%d 行挂接了别的专业的定额（清单专业与定额专业不一致）——清单套定额同专业优先：用 cost_library borrow_quota 以外专业定额为底生成本专业定额，再把这些行改挂过去。cost_audit 会点名。", crossSpecialty)
 		}
 		return receipt, nil
 	default:
@@ -673,7 +737,7 @@ type costAuditTool struct{ a *App }
 func (t costAuditTool) Name() string   { return "cost_audit" }
 func (t costAuditTool) ReadOnly() bool { return true }
 func (t costAuditTool) Description() string {
-	return "对测算项目跑确定性机检（只读，不改数据）：行级硬检=身份/单位缺失、无计价路径（无定额且无手填价）、定额悬空、资源悬空（HardCount>0 必须修复后再交付）；信息项不阻塞=费率>1、跨项目查漏、库级健康扫描。费率≤0 是显式不计取，不报错。"
+	return "对测算项目跑确定性机检（只读，不改数据）：行级硬检=身份/单位缺失、无计价路径（无定额且无手填价）、定额悬空、资源悬空（HardCount>0 必须修复后再交付）；信息项不阻塞=费率>1、规格档错配、跨项目查漏（只在同专业间比）、清单与定额专业对不上（specialty_gap：清单挂着外专业定额，应先借鉴生成本专业的；code_gap：国标清单编码的专业段与清单专业不一致）、库级健康扫描。费率≤0 是显式不计取，不报错。"
 }
 func (t costAuditTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -881,6 +945,11 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 		}
 		for _, f := range scan.QuotaGaps {
 			fmt.Fprintf(&b, "- [INFO] quota_gap: %s（%s）\n", f.Detail, f.Target)
+			infoCount++
+		}
+		// 清单与定额专业对不上（清单套定额同专业优先）：同样一件事各专业各有定额。
+		for _, f := range scan.SpecialtyGaps {
+			fmt.Fprintf(&b, "- [INFO] %s: %s（%s）\n", f.Kind, f.Detail, f.Target)
 			infoCount++
 		}
 	} else if err != nil {

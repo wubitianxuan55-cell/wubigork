@@ -294,16 +294,24 @@ func TestCostLibraryResourceLifecycle(t *testing.T) {
 	// 改编码不支持。
 	clMustFail(t, tl, map[string]any{"action": "save_resource", "resource": map[string]any{"code": "NEWCODE", "id": got.ID}}, "不支持改工料机编码")
 
-	// 调价：演练不写库 → 正式写历史并推进现行价。
-	clMust(t, tl, map[string]any{"action": "set_price", "dry_run": true, "resource_code": res.Code, "price": 500, "period": "2026年第11期"}, "演练（未写库）")
+	// 调价：演练不写库 → 正式写历史并推进现行价。库定规矩：期数写 YYYY-MM，
+	// 地区必须在地区字典里。
+	if err := s.DictAdd(workcost.DictItem{Kind: workcost.DictRegion, Name: "乐山"}); err != nil {
+		t.Fatal(err)
+	}
+	clMust(t, tl, map[string]any{"action": "set_price", "dry_run": true, "resource_code": res.Code, "price": 500, "period": "2026-11"}, "演练（未写库）")
 	if got, _ = s.GetResourceByCode(res.Code); got.CurrentPrice != 480 {
 		t.Fatal("演练不应改价")
 	}
-	clMust(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 500, "period": "2026年第11期", "region": "乐山"}, "现行价已更新为 ¥500.00")
+	clMust(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 500, "period": "2026-11", "region": "乐山"}, "现行价已更新为 ¥500.00")
 	hist, _ := s.ResourcePrices(got.ID)
-	if len(hist) != 1 || hist[0].Period != "2026年第11期" || hist[0].Region != "乐山" {
+	if len(hist) != 1 || hist[0].Period != "2026-11" || hist[0].Region != "乐山" {
 		t.Fatalf("应留下一条调价历史，得到 %+v", hist)
 	}
+	// 旧写法「2026年11月」能归一；信息价期数「2026-11」认不出，拒收不猜。
+	clMust(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 510, "period": "2026年12月"}, "现行价已更新为 ¥510.00")
+	clMustFail(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 520, "period": "2026年第12期"}, "不是年月写法")
+	clMustFail(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 520, "region": "不在字典的地方"}, "不在地区字典里")
 
 	// 删除：被定额含量行引用 → 拒绝；未被引用的可删；force 才连带。
 	clMustFail(t, tl, map[string]any{"action": "delete_resource", "codes": []string{res.Code}}, "仍被定额含量行引用")
@@ -342,7 +350,7 @@ func TestCostLibraryBulkPriceAndBillDelete(t *testing.T) {
 		t.Fatal("演练不应改价")
 	}
 	clMust(t, tl, map[string]any{"action": "bulk_price", "rows": []map[string]any{
-		{"title": res.Title, "unit": res.Unit, "price": 470, "period": "2026年第11期"},
+		{"title": res.Title, "unit": res.Unit, "price": 470, "period": "2026-11"},
 	}}, "已更新 1 条工料机的现行价")
 	if got, _ := s.GetResourceByCode(res.Code); got.CurrentPrice != 470 {
 		t.Fatalf("批量调价后现行价应为 470，得到 %v", got.CurrentPrice)

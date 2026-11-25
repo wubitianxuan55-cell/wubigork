@@ -50,20 +50,25 @@ func nowText() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // SaveResource 新建/更新工料机资源。
 //
-// 身份键 = (Kind, Title, Spec, Unit)，由唯一索引 idx_gf_resources_ident 硬约束；
-// 同身份再次保存走 UPDATE（不制造重复资源）。Code 为空时自动分配稳定编码
-// （人工/材料/机械 + 序号），保证定额引用锚点存在。
+// 身份键 = (Kind, Title, Spec, Unit, Region)，由唯一索引 idx_gf_resources_ident
+// 硬约束；同身份再次保存走 UPDATE（不制造重复资源）。Code 为空时自动分配稳定
+// 编码（人工/材料/机械 + 序号），保证定额引用锚点存在。
+//
+// 规矩（rules.go）在这里把关：类别必须是四种之一；地区、分类必须在字典里
+// （空=待整理）；期数归一成 YYYY-MM。地区进了身份（2026-11-25 工料机按地区
+// 分行）后严格按地区匹配——未标注地区的行不并入任何已标注地区的行，宁分勿并，
+// 一个地区的价不顶掉另一个地区的价。
+//
+// 命中既有行时**编码保留原值**（编码是定额含量行的引用锚点）：入参带来的另一个
+// 编码由调用方按别名解析到原码（见 ApplyProjectBundle）。
 func (s *Store) SaveResource(r Resource) (*Resource, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
-	r.Kind = normalizeKind(r.Kind)
-	r.Title = strings.TrimSpace(r.Title)
-	if r.Title == "" {
-		return nil, fmt.Errorf("工料机资源需要名称")
+	// 规矩校验与演练（cost_library save_resource dry_run）共用同一个入口。
+	if err := s.ValidateResource(&r); err != nil {
+		return nil, err
 	}
-	r.Spec = strings.TrimSpace(r.Spec)
-	r.Unit = strings.TrimSpace(r.Unit)
 	if r.Status == "" {
 		r.Status = "现行"
 	}
@@ -74,14 +79,15 @@ func (s *Store) SaveResource(r Resource) (*Resource, error) {
 	var existID int64
 	var existCode string
 	err := s.db.QueryRow(
-		`SELECT id, code FROM gf_resources WHERE kind=? AND title=? AND spec=? AND unit=?`,
-		r.Kind, r.Title, r.Spec, r.Unit).Scan(&existID, &existCode)
+		`SELECT id, code FROM gf_resources WHERE kind=? AND title=? AND spec=? AND unit=? AND region=?`,
+		r.Kind, r.Title, r.Spec, r.Unit, r.Region).Scan(&existID, &existCode)
 	switch {
 	case err == nil:
-		r.ID = existID
-		if r.Code == "" {
-			r.Code = existCode
+		if r.ID > 0 && r.ID != existID {
+			return nil, fmt.Errorf("身份（类别+名称+规格+单位+地区）与工料机 %s「%s」重复——直接改那一条（给它的 id 或 code），或调整规格/单位/地区", existCode, r.Title)
 		}
+		r.ID = existID
+		r.Code = existCode
 	case err == sql.ErrNoRows:
 		if r.Code == "" {
 			code, e := s.nextResourceCode(r.Kind, r.Title)
@@ -116,6 +122,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			r.CategoryPath, r.Source, r.Supplier, r.Region, r.PriceDate, r.PriceType, r.ValidUntil,
 			r.LossRate, r.Note, string(tags), r.Status, now, now)
 		if e != nil {
+			if strings.Contains(e.Error(), "UNIQUE constraint failed: gf_resources.code") {
+				return nil, fmt.Errorf("工料机编码 %s 已被占用", r.Code)
+			}
 			return nil, e
 		}
 		r.ID, _ = res.LastInsertId()
@@ -125,6 +134,115 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		r.CreatedAt = now
 	}
 	return &r, nil
+}
+
+// ValidateResource 工料机入库前的规矩校验（SaveResource 与演练共用，规矩见 rules.go）：
+// 类别必须是四种之一；地区、分类必须在字典里（空=待整理）；期数归一成 YYYY-MM。
+// 通过后 r 的这几个字段已是归一后的值。
+func (s *Store) ValidateResource(r *Resource) error {
+	if err := s.requireDB(); err != nil {
+		return err
+	}
+	r.Kind = normalizeKind(r.Kind)
+	r.Title = strings.TrimSpace(r.Title)
+	if r.Title == "" {
+		return fmt.Errorf("工料机资源需要名称")
+	}
+	r.Spec = strings.TrimSpace(r.Spec)
+	r.Unit = strings.TrimSpace(r.Unit)
+	r.Region = strings.TrimSpace(r.Region)
+	r.CategoryPath = strings.TrimSpace(r.CategoryPath)
+	if !isKnownKind(r.Kind) {
+		return fmt.Errorf("工料机「%s」的类别「%s」不在 人工/材料/机械/外委 之内", r.Title, r.Kind)
+	}
+	if err := s.checkDict(DictRegion, r.Region, "工料机地区"); err != nil {
+		return err
+	}
+	if err := s.checkDict(DictCategory, r.CategoryPath, "工料机分类"); err != nil {
+		return err
+	}
+	period, err := checkPeriod(r.PriceDate, "工料机价格期数")
+	if err != nil {
+		return err
+	}
+	r.PriceDate = period
+	return nil
+}
+
+// CheckPrice 一次调价的口径校验（UpdateResourcePrice 与演练共用）：期数归一成
+// YYYY-MM；地区必须在字典里；工料机按地区分行，一条行只代表一个地区的价——行上
+// 已归属别的地区则拒绝。返回归一后的期数。
+func (s *Store) CheckPrice(r *Resource, period, region string) (string, error) {
+	normalized, err := checkPeriod(period, "调价期数")
+	if err != nil {
+		return "", err
+	}
+	region = strings.TrimSpace(region)
+	if err := s.checkDict(DictRegion, region, "调价地区"); err != nil {
+		return "", err
+	}
+	if region != "" && r.Region != "" && region != r.Region {
+		return "", fmt.Errorf("工料机 %s「%s」已归属地区「%s」，不能记「%s」的价——请给「%s」的那条工料机记价（库里没有就先 save_resource 新建）",
+			r.Code, r.Title, r.Region, region, region)
+	}
+	return normalized, nil
+}
+
+// findResourceByIdentity 按身份（类别+名称+规格+单位+地区）找既有行；没有返回 nil。
+func (s *Store) findResourceByIdentity(r Resource) (*Resource, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	row, err := scanResource(s.db.QueryRow(resourceCols+` WHERE kind=? AND title=? AND spec=? AND unit=? AND region=?`,
+		normalizeKind(r.Kind), strings.TrimSpace(r.Title), strings.TrimSpace(r.Spec), strings.TrimSpace(r.Unit), strings.TrimSpace(r.Region)))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return row, nil
+}
+
+// FreeResourceCode 编码可用性：未被占用原样返回；已占用则返回「码-N」消歧码
+// （N 从 2 起，取最小空位），与定额码 ResolveQuotaCode 的消歧规则同款。导入链
+// 用它处理「两份工料机价格表用了同一个码」（L01 在每个项目里都是人工）。
+func (s *Store) FreeResourceCode(code string) (string, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return "", nil
+	}
+	taken := func(c string) (bool, error) {
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM gf_resources WHERE code=?`, c).Scan(&n); err != nil {
+			return false, err
+		}
+		return n > 0, nil
+	}
+	used, err := taken(code)
+	if err != nil || !used {
+		return code, err
+	}
+	for n := 2; n <= 999; n++ {
+		c := fmt.Sprintf("%s-%d", code, n)
+		used, err := taken(c)
+		if err != nil {
+			return "", err
+		}
+		if !used {
+			return c, nil
+		}
+	}
+	return "", fmt.Errorf("资源编码 %s 已用尽可用后缀", code)
+}
+
+// sameResourceIdentity 两行是否同一身份（类别+名称+规格+单位+地区）。
+func sameResourceIdentity(a, b Resource) bool {
+	return normalizeKind(a.Kind) == normalizeKind(b.Kind) &&
+		strings.TrimSpace(a.Title) == strings.TrimSpace(b.Title) &&
+		strings.TrimSpace(a.Spec) == strings.TrimSpace(b.Spec) &&
+		strings.TrimSpace(a.Unit) == strings.TrimSpace(b.Unit) &&
+		strings.TrimSpace(a.Region) == strings.TrimSpace(b.Region)
 }
 
 // nextResourceCode 分配稳定资源编码。
@@ -356,6 +474,11 @@ func (s *Store) DeleteResource(id int64, force bool) error {
 //
 // 这是「信息价一涨、所有引用该资源的综合单价同步重算」的唯一入口——现行价
 // 变了，引用它的定额子目与综合单价在下次读取时自然按新价重算，无需逐条改价。
+//
+// 行上的期与口径随现行价走（2026-11-25）：price_date/price_type 更新为本次的值
+// （没给保持原值）。地区只记在价格事实上：工料机按地区分行，一条行只代表一个
+// 地区的价——行上已归属别的地区则拒绝（要记别的地区的价，请给那个地区的那条）；
+// 行上地区为空表示尚未整理，不由调价顺手改身份（走 classify）。
 func (s *Store) UpdateResourcePrice(id int64, price float64, period, region, priceType, source, note string) (*Resource, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
@@ -367,6 +490,12 @@ func (s *Store) UpdateResourcePrice(id int64, price float64, period, region, pri
 	if err != nil {
 		return nil, err
 	}
+	period, err = s.CheckPrice(r, period, region)
+	if err != nil {
+		return nil, err
+	}
+	region = strings.TrimSpace(region)
+	priceType = strings.TrimSpace(priceType)
 	now := nowText()
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -378,16 +507,59 @@ INSERT INTO gf_resource_prices(resource_id, price, period, region, price_type, s
 VALUES(?,?,?,?,?,?,?,?)`, id, price, period, region, priceType, source, now, note); err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(
-		`UPDATE gf_resources SET current_price=?, updated_at=? WHERE id=?`, price, now, id); err != nil {
+	if _, err := tx.Exec(`
+UPDATE gf_resources SET current_price=?,
+  price_date=CASE WHEN ?<>'' THEN ? ELSE price_date END,
+  price_type=CASE WHEN ?<>'' THEN ? ELSE price_type END,
+  updated_at=?
+WHERE id=?`, price, period, period, priceType, priceType, now, id); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	r.CurrentPrice = price
+	if period != "" {
+		r.PriceDate = period
+	}
+	if priceType != "" {
+		r.PriceType = priceType
+	}
 	r.UpdatedAt = now
 	return r, nil
+}
+
+// RecordPriceFact 登记一条价格事实（工料机 × 地区 × 期），不动现行价。
+// 幂等键 = (资源, 期, 地区, 来源)：同键已有行则更新价格，重复导入不堆积重复行。
+func (s *Store) RecordPriceFact(resourceID int64, price float64, period, region, priceType, source, note string) error {
+	if err := s.requireDB(); err != nil {
+		return err
+	}
+	if resourceID <= 0 || price <= 0 {
+		return nil
+	}
+	normalized, err := checkPeriod(period, "价格期数")
+	if err != nil {
+		return err
+	}
+	period = normalized
+	region = strings.TrimSpace(region)
+	if err := s.checkDict(DictRegion, region, "价格地区"); err != nil {
+		return err
+	}
+	now := nowText()
+	res, err := s.db.Exec(`UPDATE gf_resource_prices SET price=?, price_type=?, fetched_at=?, note=?
+WHERE resource_id=? AND period=? AND region=? AND source=?`,
+		price, priceType, now, note, resourceID, period, region, source)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = s.db.Exec(`INSERT INTO gf_resource_prices(resource_id, price, period, region, price_type, source, fetched_at, note)
+VALUES(?,?,?,?,?,?,?,?)`, resourceID, price, period, region, priceType, source, now, note)
+	return err
 }
 
 // ResourcePrices 返回某资源的调价历史（新→旧）。
@@ -436,13 +608,57 @@ func (s *Store) SaveQuota(q Quota, idx map[string]Resource) (*Quota, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	saved, err := s.saveQuota(tx, q, idx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return saved, nil
+}
+
+// ValidateQuota 定额入库前的规矩校验（SaveQuota 与演练共用，规矩见 rules.go）：
+// 编码、名称必填；专业必须在字典里（空=待整理）；地区、期数同理，期数归一成
+// YYYY-MM。通过后 q 的这几个字段已是归一后的值。
+func (s *Store) ValidateQuota(q *Quota) error {
+	if err := s.requireDB(); err != nil {
+		return err
+	}
 	q.Code = strings.TrimSpace(q.Code)
 	q.Title = strings.TrimSpace(q.Title)
 	if q.Code == "" {
-		return nil, fmt.Errorf("消耗定额需要编码")
+		return fmt.Errorf("消耗定额需要编码")
 	}
 	if q.Title == "" {
-		return nil, fmt.Errorf("消耗定额需要名称")
+		return fmt.Errorf("消耗定额需要名称")
+	}
+	q.Specialty = strings.TrimSpace(q.Specialty)
+	q.Region = strings.TrimSpace(q.Region)
+	if err := s.checkDict(DictSpecialty, q.Specialty, "定额专业"); err != nil {
+		return err
+	}
+	if err := s.checkDict(DictRegion, q.Region, "定额地区"); err != nil {
+		return err
+	}
+	period, err := checkPeriod(q.PriceDate, "定额价格期数")
+	if err != nil {
+		return err
+	}
+	q.PriceDate = period
+	return nil
+}
+
+// saveQuota 定额落库的主体：在调用方给的句柄/事务上执行（借鉴生成要与改挂清单行
+// 同一个事务，所以不开自己的事务）。
+func (s *Store) saveQuota(ex executor, q Quota, idx map[string]Resource) (*Quota, error) {
+	if err := s.ValidateQuota(&q); err != nil {
+		return nil, err
 	}
 	if q.Status == "" {
 		q.Status = "现行"
@@ -455,15 +671,9 @@ func (s *Store) SaveQuota(q Quota, idx map[string]Resource) (*Quota, error) {
 	}
 	now := nowText()
 
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
 	var existID int64
 	var createdAt string
-	e := tx.QueryRow(`SELECT id, created_at FROM gf_quotas WHERE code=?`, q.Code).Scan(&existID, &createdAt)
+	e := ex.QueryRow(`SELECT id, created_at FROM gf_quotas WHERE code=?`, q.Code).Scan(&existID, &createdAt)
 	// 注意：e 在命中/未命中两路上都会被复用，故下面各分支一律显式判定并立即
 	// 处置，不把「上一步的错误值」带到后续成功路径（这正是 SaveResource 早期
 	// 版本踩过的坑：回查的 ErrNoRows 残留，insert 成功却带错返回）。
@@ -473,23 +683,23 @@ func (s *Store) SaveQuota(q Quota, idx map[string]Resource) (*Quota, error) {
 		if createdAt != "" {
 			q.CreatedAt = createdAt
 		}
-		if _, err := tx.Exec(`
+		if _, err := ex.Exec(`
 UPDATE gf_quotas SET title=?, specialty=?, chapter=?, unit=?, category_path=?,
   base_labor=?, base_material=?, base_machine=?, source=?, region=?, price_date=?,
-  note=?, status=?, orig_code=?, updated_at=? WHERE id=?`,
+  note=?, status=?, orig_code=?, derived_from=?, updated_at=? WHERE id=?`,
 			q.Title, q.Specialty, q.Chapter, q.Unit, q.CategoryPath,
 			q.BaseLabor, q.BaseMaterial, q.BaseMachine, q.Source, q.Region, q.PriceDate,
-			q.Note, q.Status, q.OrigCode, now, q.ID); err != nil {
+			q.Note, q.Status, q.OrigCode, q.DerivedFrom, now, q.ID); err != nil {
 			return nil, err
 		}
 	case sql.ErrNoRows:
-		res, e2 := tx.Exec(`
+		res, e2 := ex.Exec(`
 INSERT INTO gf_quotas(code, title, specialty, chapter, unit, category_path,
-  base_labor, base_material, base_machine, source, region, price_date, note, status, orig_code, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  base_labor, base_material, base_machine, source, region, price_date, note, status, orig_code, derived_from, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			q.Code, q.Title, q.Specialty, q.Chapter, q.Unit, q.CategoryPath,
 			q.BaseLabor, q.BaseMaterial, q.BaseMachine, q.Source, q.Region, q.PriceDate,
-			q.Note, q.Status, q.OrigCode, now, now)
+			q.Note, q.Status, q.OrigCode, q.DerivedFrom, now, now)
 		if e2 != nil {
 			return nil, e2
 		}
@@ -502,7 +712,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 	}
 	q.UpdatedAt = now
 
-	if _, err := tx.Exec(`DELETE FROM gf_quota_items WHERE quota_code=?`, q.Code); err != nil {
+	if _, err := ex.Exec(`DELETE FROM gf_quota_items WHERE quota_code=?`, q.Code); err != nil {
 		return nil, err
 	}
 	for i := range q.Items {
@@ -533,7 +743,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		if it.Quantity < 0 {
 			it.Quantity = 0
 		}
-		if _, err := tx.Exec(`
+		if _, err := ex.Exec(`
 INSERT INTO gf_quota_items(quota_code, resource_code, kind, title, spec, unit,
   quantity, resource_price, loss_rate, note, sort, created_at, updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -541,9 +751,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			it.Quantity, it.ResourcePrice, it.LossRate, it.Note, i, now, now); err != nil {
 			return nil, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
 	}
 	return &q, nil
 }
@@ -558,11 +765,12 @@ func (s *Store) GetQuota(code string) (*Quota, error) {
 	err := s.db.QueryRow(`
 SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
+  COALESCE(derived_from,''),
   (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
 FROM gf_quotas WHERE code=?`, code).Scan(
 		&q.ID, &q.Code, &q.OrigCode, &q.Title, &q.Specialty, &q.Chapter, &q.Unit, &q.CategoryPath,
 		&q.BaseLabor, &q.BaseMaterial, &q.BaseMachine, &q.Source, &q.Region, &q.PriceDate,
-		&q.Note, &q.Status, &q.CreatedAt, &q.UpdatedAt, &q.UsageCount)
+		&q.Note, &q.Status, &q.CreatedAt, &q.UpdatedAt, &q.DerivedFrom, &q.UsageCount)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("消耗定额 %q 不存在", code)
@@ -607,6 +815,7 @@ func (s *Store) ListQuotas(specialty, keyword string) ([]Quota, error) {
 	q := `
 SELECT id, code, COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
   base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
+  COALESCE(derived_from,''),
   (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
 FROM gf_quotas WHERE 1=1`
 	var args []any
@@ -630,7 +839,7 @@ FROM gf_quotas WHERE 1=1`
 		var it Quota
 		if e := rows.Scan(&it.ID, &it.Code, &it.OrigCode, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
 			&it.CategoryPath, &it.BaseLabor, &it.BaseMaterial, &it.BaseMachine, &it.Source,
-			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt, &it.UsageCount); e != nil {
+			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt, &it.DerivedFrom, &it.UsageCount); e != nil {
 			continue
 		}
 		out = append(out, it)

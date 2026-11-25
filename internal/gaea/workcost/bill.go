@@ -24,6 +24,12 @@ type BillProject struct {
 	Location string `json:"location"`
 	Duration string `json:"duration"`
 	Pricing  string `json:"pricing"`
+	// Specialty 项目默认专业（字典值；清单项自身专业为空时跟随它）。
+	// Region 项目所在地区（字典值；与封面地址 Location 分开——地址是自由文本，
+	// 地区是规范值）。PricePeriod 计价期（YYYY-MM）。三者空=待整理。
+	Specialty   string `json:"specialty"`
+	Region      string `json:"region"`
+	PricePeriod string `json:"pricePeriod"`
 	// 费率（录入数据）：企管/规费/利润/增值税 + 利润基数含规费开关 + 控制价。
 	// 零值语义与 workcost.RateSet 一致：任一费率 ≤0 = 显式不计取该段。
 	ManagementRate           float64 `json:"managementRate"`
@@ -58,9 +64,15 @@ type BillItem struct {
 	// 读取面现算口径不破坏——现算按资源现行价，快照只做对照显形与案例样本。
 	ListPrice float64 `json:"listPrice"`
 	Sort      int     `json:"sort"`
+	// Specialty 清单项专业（字典值）。读取时已归一：行自身专业为空则取项目
+	// 默认专业，都空=待整理。保存时传空=保持原值（重导入不冲掉已归类的专业）。
+	Specialty string `json:"specialty"`
 	// QuotaCodes 该清单项挂接的全部定额码（gf_bill_quota_links 聚合，1:N 组合；
 	// 单值 QuotaCode 是主定额=旧锚点）。构造即非 nil（JSON null 崩前端）。
 	QuotaCodes []string `json:"quotaCodes"`
+	// LinkQuantities 各挂接定额的工程量（定额码 → 工程量；0=跟随清单工程量）。
+	// 与 QuotaCodes 同源（引用表），详情里「消耗量 = 工程量 × 定额含量」用它。构造即非 nil。
+	LinkQuantities map[string]float64 `json:"linkQuantities"`
 }
 
 // UpsertBillProject 落项目封面与费率（同名更新），返回项目 ID。
@@ -118,7 +130,63 @@ func boolToInt(b bool) int {
 	return 0
 }
 
+// ValidateProjectScope 项目口径过规矩（规矩见 rules.go）：专业、地区必须在字典里
+// （空=待整理），计价期归一成 YYYY-MM。返回归一后的计价期。建项目与改口径都先过它
+// ——口径被拒时不留半截封面。
+func (s *Store) ValidateProjectScope(specialty, region, pricePeriod string) (string, error) {
+	if err := s.requireDB(); err != nil {
+		return "", err
+	}
+	if err := s.checkDict(DictSpecialty, strings.TrimSpace(specialty), "项目专业"); err != nil {
+		return "", err
+	}
+	if err := s.checkDict(DictRegion, strings.TrimSpace(region), "项目地区"); err != nil {
+		return "", err
+	}
+	return checkPeriod(pricePeriod, "项目计价期")
+}
+
+// UpdateBillProjectProfile 改项目的专业/地区/计价期（空=保持原值）。三个都是规范
+// 值（规矩见 rules.go）：专业、地区必须在字典里，计价期归一成 YYYY-MM。
+func (s *Store) UpdateBillProjectProfile(id int64, specialty, region, pricePeriod string) error {
+	if err := s.requireDB(); err != nil {
+		return err
+	}
+	period, err := s.ValidateProjectScope(specialty, region, pricePeriod)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`UPDATE gf_projects SET
+  specialty=COALESCE(NULLIF(?,''), specialty),
+  region=COALESCE(NULLIF(?,''), region),
+  price_period=COALESCE(NULLIF(?,''), price_period),
+  updated_at=?
+WHERE id=?`, specialty, region, period, time.Now().Format(time.RFC3339), id)
+	return err
+}
+
+// billItemCols 清单行查询列（FindBillItem / BillItems 共用，避免两处列序漂移）。
+// 专业读取时已归一：行自身为空则取项目默认专业。
+const billItemCols = `
+SELECT i.id, i.project_id, i.code, i.title, i.unit, i.division, i.quantity, i.quantity_expr, i.quota_code,
+  i.feature, i.price_override, i.list_price, i.sort,
+  COALESCE(NULLIF(i.specialty,''), NULLIF(p.specialty,''), '')
+FROM gf_bill_items i JOIN gf_projects p ON p.id=i.project_id`
+
+func scanBillItem(sc scanner) (*BillItem, error) {
+	var it BillItem
+	if err := sc.Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
+		&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.ListPrice, &it.Sort,
+		&it.Specialty); err != nil {
+		return nil, err
+	}
+	return &it, nil
+}
+
 // SaveBillItem 新增/更新一条清单项（同项目同编码走更新；code 空自动生成 M 序号）。
+// 专业传空=保持原值（新行为空=跟随项目默认专业）——重导入不冲掉已归类的专业。
+// sort 传 0=保持原序（新行追加到末尾）：造价模式重发已有行不带序号，不应把行顶到
+// 列表最前面。
 func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 	if err := s.requireDB(); err != nil {
 		return item, err
@@ -131,6 +199,10 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 	if item.ProjectID <= 0 {
 		return item, fmt.Errorf("清单项需要归属项目")
 	}
+	item.Specialty = strings.TrimSpace(item.Specialty)
+	if err := s.checkDict(DictSpecialty, item.Specialty, "清单项专业"); err != nil {
+		return item, err
+	}
 	if item.Code == "" {
 		n, err := s.nextBillCode(item.ProjectID)
 		if err != nil {
@@ -142,10 +214,17 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 	err := s.db.QueryRow(`SELECT id FROM gf_bill_items WHERE project_id=? AND code=?`, item.ProjectID, item.Code).Scan(&existing)
 	if err == nil {
 		item.ID = existing
-		_, err = s.db.Exec(`UPDATE gf_bill_items SET title=?, unit=?, division=?, quantity=?, quantity_expr=?, quota_code=?, feature=?, price_override=?, list_price=?, sort=? WHERE id=?`,
-			item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort, existing)
+		_, err = s.db.Exec(`UPDATE gf_bill_items SET title=?, unit=?, division=?, quantity=?, quantity_expr=?, quota_code=?, feature=?, price_override=?, list_price=?,
+  sort=CASE WHEN ?<>0 THEN ? ELSE sort END,
+  specialty=COALESCE(NULLIF(?,''), specialty) WHERE id=?`,
+			item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice,
+			item.Sort, item.Sort, item.Specialty, existing)
 		if err != nil {
 			return item, err
+		}
+		if item.Specialty == "" {
+			// 传空=保持原值：返回值回读库里的专业，回执不至于把已归类的专业显示成空。
+			_ = s.db.QueryRow(`SELECT specialty FROM gf_bill_items WHERE id=?`, existing).Scan(&item.Specialty)
 		}
 		// 返回值按绑定面契约构造即非 nil（nil 切片 JSON null 崩前端）。
 		if item.QuotaCodes == nil {
@@ -163,8 +242,8 @@ func (s *Store) SaveBillItem(item BillItem) (BillItem, error) {
 			item.Sort = maxSort + 1
 		}
 	}
-	res, err := s.db.Exec(`INSERT INTO gf_bill_items (project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-		item.ProjectID, item.Code, item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort)
+	res, err := s.db.Exec(`INSERT INTO gf_bill_items (project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort, specialty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		item.ProjectID, item.Code, item.Title, item.Unit, item.Division, item.Quantity, item.QuantityExpr, item.QuotaCode, item.Feature, item.PriceOverride, item.ListPrice, item.Sort, item.Specialty)
 	if err != nil {
 		return item, err
 	}
@@ -185,11 +264,7 @@ func (s *Store) FindBillItem(projectID int64, code string) (*BillItem, error) {
 	if projectID <= 0 || code == "" {
 		return nil, nil
 	}
-	var it BillItem
-	err := s.db.QueryRow(`SELECT id, project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort
-FROM gf_bill_items WHERE project_id=? AND code=?`, projectID, code).
-		Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
-			&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.ListPrice, &it.Sort)
+	it, err := scanBillItem(s.db.QueryRow(billItemCols+` WHERE i.project_id=? AND i.code=?`, projectID, code))
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
 			return nil, nil
@@ -197,8 +272,8 @@ FROM gf_bill_items WHERE project_id=? AND code=?`, projectID, code).
 		return nil, err
 	}
 	// 与 BillItems 同口径聚合挂接码（引用表为准，单值列兜底），构造即非 nil。
-	it.QuotaCodes = s.quotaLinksByItems([]int64{it.ID}, map[int64]string{it.ID: it.QuotaCode})[it.ID]
-	return &it, nil
+	it.attachLinks(s.quotaLinkRowsByItems([]int64{it.ID}, map[int64]string{it.ID: it.QuotaCode})[it.ID])
+	return it, nil
 }
 
 // nextBillCode 手填行自动编号（项目内 M 序号，跳过已用号）。
@@ -254,13 +329,13 @@ func (s *Store) DeleteBillItem(id int64) error {
 	return tx.Commit()
 }
 
-// BillItems 项目的清单（按 sort, id 稳定序）。
+// BillItems 项目的清单（按 sort, id 稳定序）。每行带挂接定额码与各定额的工程量
+// （构造即非 nil）。
 func (s *Store) BillItems(projectID int64) ([]BillItem, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(`SELECT id, project_id, code, title, unit, division, quantity, quantity_expr, quota_code, feature, price_override, list_price, sort
-FROM gf_bill_items WHERE project_id=? ORDER BY sort, id`, projectID)
+	rows, err := s.db.Query(billItemCols+` WHERE i.project_id=? ORDER BY i.sort, i.id`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -269,25 +344,38 @@ FROM gf_bill_items WHERE project_id=? ORDER BY sort, id`, projectID)
 	var ids []int64
 	fallback := map[int64]string{}
 	for rows.Next() {
-		var it BillItem
-		if err := rows.Scan(&it.ID, &it.ProjectID, &it.Code, &it.Title, &it.Unit, &it.Division,
-			&it.Quantity, &it.QuantityExpr, &it.QuotaCode, &it.Feature, &it.PriceOverride, &it.ListPrice, &it.Sort); err != nil {
+		it, err := scanBillItem(rows)
+		if err != nil {
 			continue
 		}
-		it.QuotaCodes = []string{}
 		ids = append(ids, it.ID)
 		fallback[it.ID] = it.QuotaCode
-		out = append(out, it)
+		out = append(out, *it)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	// 1:N 引用聚合（link 表全量事实；单值列兜底）。
-	links := s.quotaLinksByItems(ids, fallback)
+	links := s.quotaLinkRowsByItems(ids, fallback)
 	for i := range out {
-		out[i].QuotaCodes = links[out[i].ID]
+		out[i].attachLinks(links[out[i].ID])
 	}
 	return out, nil
+}
+
+// attachLinks 把挂接明细装到清单行上：定额码集合 + 各定额工程量。
+func (it *BillItem) attachLinks(links []quotaLinkRow) {
+	codes := make([]string, 0, len(links))
+	qtys := make(map[string]float64, len(links))
+	for _, l := range links {
+		if l.Code == "" {
+			continue
+		}
+		codes = append(codes, l.Code)
+		qtys[l.Code] = l.Quantity
+	}
+	it.QuotaCodes = codes
+	it.LinkQuantities = qtys
 }
 
 // BillProjects 项目列表（含费率与清单项数，最新在前）。
@@ -296,6 +384,7 @@ func (s *Store) BillProjects() ([]BillProject, error) {
 		return nil, err
 	}
 	rows, err := s.db.Query(`SELECT p.id, p.name, p.file_name, p.source_path, p.location, p.duration, p.pricing,
+  p.specialty, p.region, p.price_period,
   p.management_rate, p.regulatory_rate, p.profit_rate, p.tax_rate, p.profit_includes_regulatory, p.control_price,
   p.created_at, p.updated_at, (SELECT COUNT(*) FROM gf_bill_items b WHERE b.project_id=p.id) AS item_count
 FROM gf_projects p ORDER BY p.updated_at DESC, p.id DESC`)
@@ -308,6 +397,7 @@ FROM gf_projects p ORDER BY p.updated_at DESC, p.id DESC`)
 		var p BillProject
 		var flag int
 		if err := rows.Scan(&p.ID, &p.Name, &p.FileName, &p.Source, &p.Location, &p.Duration, &p.Pricing,
+			&p.Specialty, &p.Region, &p.PricePeriod,
 			&p.ManagementRate, &p.RegulatoryRate, &p.ProfitRate, &p.TaxRate, &flag, &p.ControlPrice,
 			&p.CreatedAt, &p.UpdatedAt, &p.ItemCount); err != nil {
 			continue
@@ -407,23 +497,29 @@ func NormalizeText(s string) string {
 // MatchResourceByTitleSpec 按（归一化标题+规格+单位）匹配工料机资源。
 // 信息价发布联动资源现行价的匹配入口。多条命中视为歧义返回 nil（宁缺勿误
 // ——把价推进到错的资源比不推进更糟）。
-func (s *Store) MatchResourceByTitleSpec(title, spec, unit string) (*Resource, error) {
+//
+// 地区（规矩：工料机按地区分行）：给了地区就先在该地区的行里找，该地区没有
+// 候选时退到尚未整理地区的行；别的地区的同名行不参与。不给地区=全库找，
+// 多地区同名即歧义。
+func (s *Store) MatchResourceByTitleSpec(title, spec, unit, region string) (*Resource, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
 	nt, ns, nu := NormalizeText(title), NormalizeText(spec), NormalizeText(unit)
+	region = strings.TrimSpace(region)
 	if nt == "" {
 		return nil, nil
 	}
-	rows, err := s.db.Query(`SELECT id, code, kind, title, spec, unit FROM gf_resources WHERE status != '停用'`)
+	rows, err := s.db.Query(`SELECT id, code, kind, title, spec, unit, region FROM gf_resources WHERE status != '停用'`)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var hit *Resource
+	var hit, unlabeled *Resource
+	exactN, unlabeledN := 0, 0
 	for rows.Next() {
 		var r Resource
-		if err := rows.Scan(&r.ID, &r.Code, &r.Kind, &r.Title, &r.Spec, &r.Unit); err != nil {
+		if err := rows.Scan(&r.ID, &r.Code, &r.Kind, &r.Title, &r.Spec, &r.Unit, &r.Region); err != nil {
 			continue
 		}
 		rt, rs := NormalizeText(r.Title), NormalizeText(r.Spec)
@@ -433,10 +529,22 @@ func (s *Store) MatchResourceByTitleSpec(title, spec, unit string) (*Resource, e
 		if nu != "" && NormalizeText(r.Unit) != nu {
 			continue
 		}
-		if hit != nil {
-			return nil, nil // 歧义：多条同身份
+		if region != "" && r.Region != "" && r.Region != region {
+			continue // 别的地区的行不参与
 		}
-		hit = &r
+		if region == "" || r.Region == region {
+			exactN++
+			hit = &r
+		} else {
+			unlabeledN++
+			unlabeled = &r
+		}
 	}
-	return hit, rows.Err()
+	if exactN > 1 || (exactN == 0 && unlabeledN > 1) {
+		return nil, nil // 歧义：多条同身份
+	}
+	if exactN == 1 {
+		return hit, rows.Err()
+	}
+	return unlabeled, rows.Err()
 }

@@ -54,7 +54,7 @@ func TestCostLibraryExportBillAndGuard(t *testing.T) {
 	}
 
 	out := filepath.Join(t.TempDir(), "清单.xlsx")
-	written, err := a.GaeaCostLibraryExport("bill", 0, "", "", out)
+	written, err := a.GaeaCostLibraryExport("bill", workcost.LibraryFilter{}, out)
 	if err != nil {
 		t.Fatalf("导出清单失败: %v", err)
 	}
@@ -65,18 +65,33 @@ func TestCostLibraryExportBillAndGuard(t *testing.T) {
 	if len(sheets["分部分项清单"]) != 2 {
 		t.Fatalf("全部项目应导出 2 行，得到 %d", len(sheets["分部分项清单"]))
 	}
-	// 关键词筛选（忽略大小写）+ 分部筛选。
+	// 关键词筛选（忽略大小写）+ 分部筛选。列序：项目, 专业, 编码, …, 手填单价（第 10 列）。
 	out2 := filepath.Join(t.TempDir(), "清单-筛选")
-	if _, err := a.GaeaCostLibraryExport("bill", pid2, "WP77", "临建", out2); err != nil {
+	if _, err := a.GaeaCostLibraryExport("bill", workcost.LibraryFilter{ProjectID: pid2, Keyword: "WP77", Division: "临建"}, out2); err != nil {
 		t.Fatalf("筛选导出失败: %v", err)
 	}
-	if rows := exportRows(t, out2+".xlsx")["分部分项清单"]; len(rows) != 1 || rows[0][1] != "WP77" || rows[0][9] != "30" {
+	if rows := exportRows(t, out2+".xlsx")["分部分项清单"]; len(rows) != 1 || rows[0][2] != "WP77" || rows[0][10] != "30" {
 		t.Fatalf("筛选后应只剩 WP77 且手填单价 30，得到 %v", rows)
 	}
-	if _, err := a.GaeaCostLibraryExport("bill", pid, "", "", out2); err == nil || !strings.Contains(err.Error(), "已存在") {
+	// 「未标注专业」哨兵：清单行都没标专业（跟随项目默认专业，项目也没标）→ 两行都在。
+	noneOut := filepath.Join(t.TempDir(), "清单-未标注")
+	if _, err := a.GaeaCostLibraryExport("bill", workcost.LibraryFilter{Specialty: workcost.FilterNone}, noneOut); err != nil {
+		t.Fatalf("未标注筛选导出失败: %v", err)
+	}
+	if rows := exportRows(t, noneOut+".xlsx")["分部分项清单"]; len(rows) != 2 {
+		t.Fatalf("筛「未标注专业」应仍是 2 行，得到 %d", len(rows))
+	}
+	specOut := filepath.Join(t.TempDir(), "清单-市政")
+	if _, err := a.GaeaCostLibraryExport("bill", workcost.LibraryFilter{Specialty: "市政"}, specOut); err != nil {
+		t.Fatalf("导出空结果不应报错: %v", err)
+	}
+	if rows := exportRows(t, specOut+".xlsx")["分部分项清单"]; len(rows) != 0 {
+		t.Fatalf("筛「市政」应无数据行，得到 %v", rows)
+	}
+	if _, err := a.GaeaCostLibraryExport("bill", workcost.LibraryFilter{ProjectID: pid}, out2); err == nil || !strings.Contains(err.Error(), "已存在") {
 		t.Fatalf("目标文件已存在应拒绝覆盖，得到 err=%v", err)
 	}
-	if _, err := a.GaeaCostLibraryExport("nope", 0, "", "", out); err == nil {
+	if _, err := a.GaeaCostLibraryExport("nope", workcost.LibraryFilter{}, out); err == nil {
 		t.Fatal("未知导出类型应被拒绝")
 	}
 
@@ -103,9 +118,10 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 	s := a.hubWorkcostStore()
 	res, _, _ := clSeed(t, s)
 
-	// 定额：主表 + 含量明细附表。
+	// 定额：主表 + 含量明细附表。主表列序：编码, 原码, 名称, 单位, 专业, 章节, 借鉴来源,
+	// 来源, 含量行数, 被清单引用, 现算综合单价。
 	quotaOut := filepath.Join(t.TempDir(), "定额")
-	if _, err := a.GaeaCostLibraryExport("quota", 0, "", "", quotaOut); err != nil {
+	if _, err := a.GaeaCostLibraryExport("quota", workcost.LibraryFilter{}, quotaOut); err != nil {
 		t.Fatalf("导出定额失败: %v", err)
 	}
 	sheets := exportRows(t, quotaOut+".xlsx")
@@ -114,11 +130,11 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 		t.Fatalf("应导出 2 条定额，得到 %d", len(main))
 	}
 	// 行序：专业/章节/编码——A 在前。
-	if main[0][0] != "A" || main[0][7] != "1" || main[0][8] != "1" {
+	if main[0][0] != "A" || main[0][8] != "1" || main[0][9] != "1" {
 		t.Fatalf("定额 A 应有 1 行含量、被 1 条清单引用，得到 %v", main[0])
 	}
-	if !strings.HasPrefix(main[0][9], "469") { // 1.02 × 460 = 469.2
-		t.Fatalf("定额 A 现算综合单价应为 469.2，得到 %q", main[0][9])
+	if !strings.HasPrefix(main[0][10], "469") { // 1.02 × 460 = 469.2
+		t.Fatalf("定额 A 现算综合单价应为 469.2，得到 %q", main[0][10])
 	}
 	detail := sheets["含量明细"]
 	if len(detail) != 1 || detail[0][3] != res.Code || detail[0][7] != "1.02" {
@@ -127,7 +143,7 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 
 	// 工料机：含被定额引用次数。
 	resOut := filepath.Join(t.TempDir(), "工料机")
-	if _, err := a.GaeaCostLibraryExport("resource", 0, "", "", resOut); err != nil {
+	if _, err := a.GaeaCostLibraryExport("resource", workcost.LibraryFilter{}, resOut); err != nil {
 		t.Fatalf("导出工料机失败: %v", err)
 	}
 	resRows := exportRows(t, resOut+".xlsx")["工料机"]
@@ -136,11 +152,38 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 	}
 	// 按类别筛选：库里只有一条材料，筛「人工」应为空表（只有表头）。
 	laborOut := filepath.Join(t.TempDir(), "工料机-人工")
-	if _, err := a.GaeaCostLibraryExport("resource", 0, "", "人工", laborOut); err != nil {
+	if _, err := a.GaeaCostLibraryExport("resource", workcost.LibraryFilter{Kind: "人工"}, laborOut); err != nil {
 		t.Fatalf("按类别导出失败: %v", err)
 	}
 	if rows := exportRows(t, laborOut+".xlsx")["工料机"]; len(rows) != 0 {
 		t.Fatalf("按「人工」筛选应无数据行，得到 %v", rows)
+	}
+	// 地区筛选：按地区分行后，选一个地区只导那个地区的行（未标注地区是另一桶）。
+	if err := s.DictAdd(workcost.DictItem{Kind: workcost.DictRegion, Name: "成都市区"}); err != nil {
+		t.Fatal(err)
+	}
+	cq, err := s.SaveResource(workcost.Resource{Kind: res.Kind, Title: res.Title, Spec: res.Spec, Unit: res.Unit,
+		Region: "成都市区", BasePrice: 480, CurrentPrice: 480})
+	if err != nil {
+		t.Fatalf("建成都地区的同身份工料机失败: %v", err)
+	}
+	cdOut := filepath.Join(t.TempDir(), "工料机-成都")
+	if _, err := a.GaeaCostLibraryExport("resource", workcost.LibraryFilter{Region: "成都市区"}, cdOut); err != nil {
+		t.Fatalf("按地区导出失败: %v", err)
+	}
+	if rows := exportRows(t, cdOut+".xlsx")["工料机"]; len(rows) != 1 || rows[0][0] != cq.Code {
+		t.Fatalf("按「成都市区」应只导出 1 行，得到 %v", rows)
+	}
+	// 「类别待整理」：存量里类别不在四类之内的行（写入面已拒收，只能直插模拟），导出按同一哨兵取。
+	if _, err := s.DB().Exec(`INSERT INTO gf_resources(code, kind, title, unit, tags) VALUES('NOTE-1', '一段说明', '错记成工料机的说明行', '项', '[]')`); err != nil {
+		t.Fatalf("直插类别不合规矩的工料机失败: %v", err)
+	}
+	outsideOut := filepath.Join(t.TempDir(), "工料机-类别待整理")
+	if _, err := a.GaeaCostLibraryExport("resource", workcost.LibraryFilter{Kind: workcost.FilterOutside}, outsideOut); err != nil {
+		t.Fatalf("按「类别待整理」导出失败: %v", err)
+	}
+	if rows := exportRows(t, outsideOut+".xlsx")["工料机"]; len(rows) != 1 || rows[0][0] != "NOTE-1" || rows[0][1] != "一段说明" {
+		t.Fatalf("按「类别待整理」应只导出 NOTE-1，得到 %v", rows)
 	}
 
 	// 资料条目。
@@ -148,7 +191,7 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 		t.Fatalf("写资料条目失败: %v", err)
 	}
 	entryOut := filepath.Join(t.TempDir(), "资料条目")
-	if _, err := a.GaeaCostLibraryExport("entry", 0, "中砂", "", entryOut); err != nil {
+	if _, err := a.GaeaCostLibraryExport("entry", workcost.LibraryFilter{Keyword: "中砂"}, entryOut); err != nil {
 		t.Fatalf("导出资料条目失败: %v", err)
 	}
 	entryRows := exportRows(t, entryOut+".xlsx")["资料条目"]

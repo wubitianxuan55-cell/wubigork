@@ -132,7 +132,7 @@ func TestDedupeResources_CrossIdentitySemanticMerge(t *testing.T) {
 	if err := s.db.QueryRow(`SELECT id FROM gf_resources WHERE code='M9001'`).Scan(&idM); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.UpdateResourcePrice(idM, 1900, "2026年3期", "", "manual", "测试", ""); err != nil {
+	if _, err := s.UpdateResourcePrice(idM, 1900, "2026-03", "", "manual", "测试", ""); err != nil {
 		t.Fatal(err)
 	}
 

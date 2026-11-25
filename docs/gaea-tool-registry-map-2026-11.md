@@ -53,7 +53,7 @@
 | `fact_clear` | extra-app | work | write | none | PersistWrite：清空可查 |
 | `fact_list` | extra-app | work | read | none | 清单与库一致 |
 | `forget` | build-internal | shared | write | none | PersistWrite：记忆删除可查 |
-| `format_convert` | builtin-workspace | work | produce | agent-produce | output 落点存在且格式正确；`preserve_images=true` 时 DOCX/PPTX 图片 sidecar 与 Markdown 引用对账 |
+| `format_convert` | builtin-workspace | work | produce | agent-produce | output 落点存在且格式正确 |
 | `genui_validate` | builtin-domain | shared | read | none | 校验结论与产物一致 |
 | `grep` | builtin-workspace | work | read | none | 命中行与实况一致；offset 续页游标+凭据围栏跳过记账 |
 | `image_gen` | extra-app | shared | produce | none | 图片落 .gaea/uploads 系统路径可查（2026-11-20 play→shared：办公/文学也生图，办公媒体根=gaeaCwd、文学锚小说目录） |
@@ -88,7 +88,7 @@
 | `proposal_delete` | builtin-domain | work | write | none | PersistWrite：删除后节点/语义块/全文索引不可再查；仅用户明确要求时调用 |
 | `proposal_export` | builtin-domain | work | write | none | 导出文件按标题层级还原，托管图片落成文件；输出落点在工作区 |
 | `proposal_read` | builtin-domain | work | read | none | 整节/命中段落与库一致，分页可续读 |
-| `proposal_save` | builtin-domain | work | write | none | PersistWrite：方案库写入可查；父级在前逐级展开，正文与源文件逐字一致，本地图片复制为托管资产并改写稳定引用，同名覆盖须显式确认 |
+| `proposal_save` | builtin-domain | work | write | none | PersistWrite：方案库写入可查；父级在前逐级展开，正文与源文件逐字一致，同名覆盖须显式确认 |
 | `proposal_search` | builtin-domain | work | read | none | 召回与库一致；全文管精确词，语义路走本地 embedding，本地 reranker 精排 |
 | `proposal_update` | builtin-domain | work | write | none | PersistWrite：改动可查——改小节标题连带子树路径，全文索引同步，语义向量重算 |
 | `quarantine_list` | builtin-workspace | work | read | none | 账本批次按 stamp 去重与同 stamp 最后一条一致；行数≠批次数 |

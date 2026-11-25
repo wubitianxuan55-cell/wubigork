@@ -131,6 +131,13 @@ type ProjectBundle struct {
 	Skipped    []SkippedRow         `json:"skipped"`
 	Warnings   []string             `json:"warnings"`
 	Sheets     []string             `json:"sheets"`
+	// 导入口径——规范值，由调用方给（规矩见 rules.go）；文件里没有就不猜，空=待整理：
+	// Specialty 项目默认专业（字典值），本次新建的定额专业随它；Region 项目所在
+	// 地区（字典值），工料机按它分行；Period 计价期（YYYY-MM），工料机价格事实的期。
+	// 解析器不填这三个字段。
+	Specialty string `json:"specialty"`
+	Region    string `json:"region"`
+	Period    string `json:"period"`
 }
 
 // DetectedFiveSheet 报告该工作簿是否为新五表模版（供导入入口分流）。

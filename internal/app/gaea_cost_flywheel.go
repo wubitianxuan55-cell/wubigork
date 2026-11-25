@@ -32,7 +32,9 @@ func (a *App) GaeaCostQuotaFlywheelPreview() (workcost.QuotaFlywheelPreview, err
 }
 
 // GaeaCostQuotaFlywheelApply 作者确认后生成企业定额（ENT-<原码词干>，整组
-// 替换=重生成即飞轮进化；只覆写自有命名空间）。
+// 替换=重生成即飞轮进化；只覆写自有命名空间）。同词干在多个专业下各有一个
+// 候选时本绑定不指明专业，按「宁缺勿误」整簇跳过；造价模式走 cost_library
+// flywheel 带 specialty。
 func (a *App) GaeaCostQuotaFlywheelApply(origCodes []string) (*workcost.QuotaFlywheelResult, error) {
-	return a.hubWorkcostStore().QuotaFlywheelApply(origCodes)
+	return a.hubWorkcostStore().QuotaFlywheelApply(origCodes, "")
 }

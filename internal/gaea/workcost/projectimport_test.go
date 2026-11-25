@@ -369,7 +369,7 @@ func TestApplyProjectBundleResourcePriceNotSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("缺资源 L01: %v", err)
 	}
-	if _, err := s.UpdateResourcePrice(l01.ID, l01.EffectivePrice()*2, "测试期", "测试地", "到场价", "测试", "调价联动验证"); err != nil {
+	if _, err := s.UpdateResourcePrice(l01.ID, l01.EffectivePrice()*2, "2026-03", "", "到场价", "测试", "调价联动验证"); err != nil {
 		t.Fatalf("调价失败: %v", err)
 	}
 	after, _, err := s.ComposeQuota("SF01", nil)

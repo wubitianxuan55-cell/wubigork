@@ -62,7 +62,10 @@ func TestCostFamilyBindingsNonNilSlices(t *testing.T) {
 	}
 
 	// 空定额（无含量行）：QuotaGet.Items 非 nil——正是 v4.467.1 造价弹窗
-	// 崩溃的相邻形态。
+	// 崩溃的相邻形态。专业是字典值：先收进字典。
+	if err := a.hubWorkcostStore().DictAdd(workcost.DictItem{Kind: workcost.DictSpecialty, Name: "建筑"}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := a.hubWorkcostStore().SaveQuota(workcost.Quota{
 		Code: "Q-EMPTY", Title: "空定额", Specialty: "建筑", Unit: "m³", Status: "现行",
 	}, nil); err != nil {

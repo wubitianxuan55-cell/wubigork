@@ -150,6 +150,10 @@ func ParseBulkPriceXlsx(raw []byte) ([]BulkPriceRow, error) {
 // MatchBulkPrices 逐行匹配资源（纯读，Preview 与 Apply 共用的匹配真相）。
 // 匹配键=名称精确 + 单位精确（若行提供）+ 规格精确（若行提供）；名称命中多行
 // 时按单位/规格收窄，仍歧义=跳过。
+//
+// 地区（规矩：工料机按地区分行）：调价行带了地区就只匹配该地区的行——别的地区
+// 的同名行不参与，尚未整理地区的行也不参与（先 classify 归地区再调价）。行没带
+// 地区时全库候选，多地区同名即歧义跳过。
 func (s *Store) MatchBulkPrices(rows []BulkPriceRow) (matches []BulkPriceMatch, skips []BulkPriceSkip, err error) {
 	if err = s.requireDB(); err != nil {
 		return nil, nil, err
@@ -163,6 +167,19 @@ func (s *Store) MatchBulkPrices(rows []BulkPriceRow) (matches []BulkPriceMatch, 
 			skips = append(skips, BulkPriceSkip{Row: r.Row, Title: r.Title, Reason: fmt.Sprintf("价格非法（%v），调价须为正数", r.Price)})
 			continue
 		}
+		r.Region = strings.TrimSpace(r.Region)
+		if ok, err := s.DictHas(DictRegion, r.Region); err != nil {
+			return nil, nil, err
+		} else if r.Region != "" && !ok {
+			skips = append(skips, BulkPriceSkip{Row: r.Row, Title: r.Title, Reason: fmt.Sprintf("地区「%s」不在地区字典里", r.Region)})
+			continue
+		}
+		period, ok := NormalizePeriod(r.Period)
+		if !ok {
+			skips = append(skips, BulkPriceSkip{Row: r.Row, Title: r.Title, Reason: fmt.Sprintf("期数「%s」不是年月写法（统一 YYYY-MM）", strings.TrimSpace(r.Period))})
+			continue
+		}
+		r.Period = period
 		cands, err := s.listResourcesByTitle(r.Title)
 		if err != nil {
 			return nil, nil, err
@@ -176,19 +193,29 @@ func (s *Store) MatchBulkPrices(rows []BulkPriceRow) (matches []BulkPriceMatch, 
 			if r.Spec != "" && c.Spec != r.Spec {
 				continue
 			}
+			if r.Region != "" && c.Region != r.Region {
+				continue
+			}
 			filtered = append(filtered, c)
 		}
 		if len(filtered) == 0 {
 			reason := "未找到同名资源"
 			if len(cands) > 0 {
-				reason = fmt.Sprintf("同名 %d 条但单位/规格不匹配", len(cands))
+				reason = fmt.Sprintf("同名 %d 条但单位/规格%s不匹配", len(cands), map[bool]string{true: "/地区", false: ""}[r.Region != ""])
 			}
 			skips = append(skips, BulkPriceSkip{Row: r.Row, Title: r.Title, Reason: reason})
 			continue
 		}
 		if len(filtered) > 1 {
-			skips = append(skips, BulkPriceSkip{Row: r.Row, Title: r.Title,
-				Reason: fmt.Sprintf("匹配到 %d 条同身份资源（歧义），请先做资源去重", len(filtered))})
+			regions := map[string]bool{}
+			for _, c := range filtered {
+				regions[c.Region] = true
+			}
+			reason := fmt.Sprintf("匹配到 %d 条同身份资源（歧义），请先做资源去重", len(filtered))
+			if len(regions) > 1 {
+				reason = fmt.Sprintf("同名资源分布在 %d 个地区（歧义）——调价行带上 region 指明地区", len(regions))
+			}
+			skips = append(skips, BulkPriceSkip{Row: r.Row, Title: r.Title, Reason: reason})
 			continue
 		}
 		c := filtered[0]
@@ -226,9 +253,11 @@ VALUES(?,?,?,?,?,?,?,?)`,
 			m.ResourceID, m.NewPrice, m.Period, m.Region, "bulk_import", "批量调价导入", now, m.Note); err != nil {
 			return nil, fmt.Errorf("写入调价历史（%s）：%w", m.Title, err)
 		}
-		if _, err := tx.Exec(
-			`UPDATE gf_resources SET current_price=?, updated_at=? WHERE id=?`,
-			m.NewPrice, now, m.ResourceID); err != nil {
+		if _, err := tx.Exec(`
+UPDATE gf_resources SET current_price=?,
+  price_date=CASE WHEN ?<>'' THEN ? ELSE price_date END,
+  updated_at=?
+WHERE id=?`, m.NewPrice, m.Period, m.Period, now, m.ResourceID); err != nil {
 			return nil, fmt.Errorf("推进现行价（%s）：%w", m.Title, err)
 		}
 		res.Applied = append(res.Applied, m)
@@ -243,7 +272,7 @@ VALUES(?,?,?,?,?,?,?,?)`,
 // listResourcesByTitle 名称精确匹配的资源（大小写/首尾空白归一后比对）。
 func (s *Store) listResourcesByTitle(title string) ([]Resource, error) {
 	rows, err := s.db.Query(
-		`SELECT id, code, kind, title, spec, unit, base_price, current_price FROM gf_resources WHERE title=?`, strings.TrimSpace(title))
+		`SELECT id, code, kind, title, spec, unit, base_price, current_price, region FROM gf_resources WHERE title=?`, strings.TrimSpace(title))
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +280,7 @@ func (s *Store) listResourcesByTitle(title string) ([]Resource, error) {
 	var out []Resource
 	for rows.Next() {
 		var r Resource
-		if err := rows.Scan(&r.ID, &r.Code, &r.Kind, &r.Title, &r.Spec, &r.Unit, &r.BasePrice, &r.CurrentPrice); err != nil {
+		if err := rows.Scan(&r.ID, &r.Code, &r.Kind, &r.Title, &r.Spec, &r.Unit, &r.BasePrice, &r.CurrentPrice, &r.Region); err != nil {
 			continue
 		}
 		out = append(out, r)

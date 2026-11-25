@@ -909,14 +909,17 @@ func costSaveApprovalSubject(args json.RawMessage) string {
 	return strings.Join(parts, " · ")
 }
 
-// costLibraryArgsNoWrite 造价库的演练与只读调用：dry_run=true，或 action=health，
-// 或 flywheel 没点名词干（只出预览）。这些调用不写库，不必走逐条确认。参数
-// 解析不了按「会写」处理（fail-closed）。
+// costLibraryArgsNoWrite 造价库的演练与只读调用：dry_run=true，或 action=health /
+// dims（只读），或 dict 只查看（op=list），或 flywheel 没点名词干（只出预览）。
+// 这些调用不写库，不必走逐条确认。参数解析不了按「会写」处理（fail-closed）。
 func costLibraryArgsNoWrite(args json.RawMessage) bool {
 	var p struct {
 		DryRun bool     `json:"dry_run"`
 		Action string   `json:"action"`
 		Stems  []string `json:"stems"`
+		Dict   struct {
+			Op string `json:"op"`
+		} `json:"dict"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return false
@@ -925,12 +928,30 @@ func costLibraryArgsNoWrite(args json.RawMessage) bool {
 		return true
 	}
 	switch strings.TrimSpace(p.Action) {
-	case "health":
+	case "health", "dims":
 		return true
 	case "flywheel":
 		return len(p.Stems) == 0
+	case "dict":
+		// 不带 dict 对象=查看；带 op=list 也是查看。
+		op := strings.TrimSpace(p.Dict.Op)
+		return op == "" || op == "list"
+	case "import_open", "import_add", "import_check", "import_discard":
+		// 模型读表导入：开导入、入暂存、勾稽、丢弃都不写库——暂存只在内存里，
+		// 正式写库只有 import_commit（不带 dry_run 才弹卡）。
+		return true
 	}
 	return false
+}
+
+// costImportSummaryHook 「提交导入」的确认卡要写出什么。暂存区在 app 层的会话里，
+// 这里拿不到，由 app 层在 init 里登记（按 import_id 取项目名与三类行数）；没登记或
+// 找不到会话时卡上只显会话号。
+var costImportSummaryHook func(importID string) (project string, resources, quotas, bills int, ok bool)
+
+// SetCostImportSummaryHook 登记「提交导入」确认卡的取数口（app 层 init 调用）。
+func SetCostImportSummaryHook(fn func(importID string) (string, int, int, int, bool)) {
+	costImportSummaryHook = fn
 }
 
 // costLibraryApprovalSubject 把 cost_library 的参数整理成可读的确认摘要：
@@ -953,7 +974,22 @@ func costLibraryApprovalSubject(args json.RawMessage) string {
 		Stems        []string `json:"stems"`
 		KeepID       int64    `json:"keep_id"`
 		MergeIDs     []int64  `json:"merge_ids"`
-		Rows         []struct {
+		Specialty    string   `json:"specialty"`
+		FromCode     string   `json:"from_code"`
+		Classify     struct {
+			Projects  []json.RawMessage `json:"projects"`
+			Bills     []json.RawMessage `json:"bills"`
+			Quotas    []json.RawMessage `json:"quotas"`
+			Resources []json.RawMessage `json:"resources"`
+		} `json:"classify"`
+		Dict struct {
+			Op     string `json:"op"`
+			Kind   string `json:"kind"`
+			Name   string `json:"name"`
+			Rename string `json:"rename"`
+		} `json:"dict"`
+		ImportID string `json:"import_id"`
+		Rows     []struct {
 			Title string  `json:"title"`
 			Price float64 `json:"price"`
 		} `json:"rows"`
@@ -998,6 +1034,21 @@ func costLibraryApprovalSubject(args json.RawMessage) string {
 		label = "自生成企业定额"
 	case "dedupe":
 		label = "工料机去重"
+	case "classify":
+		label = "整理归类"
+	case "borrow_quota":
+		label = "借鉴生成定额"
+	case "dict":
+		switch strings.TrimSpace(p.Dict.Op) {
+		case "add":
+			label = "新增字典项"
+		case "delete":
+			label = "删除字典项"
+		default:
+			label = "修改字典项"
+		}
+	case "import_commit":
+		label = "提交导入"
 	default:
 		return permission.Subject(args)
 	}
@@ -1050,6 +1101,40 @@ func costLibraryApprovalSubject(args json.RawMessage) string {
 		parts = append(parts, fmt.Sprintf("%d 个簇", len(p.Stems)))
 	case "dedupe":
 		parts = append(parts, fmt.Sprintf("保留 #%d，合并 %d 条", p.KeepID, len(p.MergeIDs)))
+	case "classify":
+		parts = append(parts, fmt.Sprintf("项目 %d · 清单 %d · 定额 %d · 工料机 %d",
+			len(p.Classify.Projects), len(p.Classify.Bills), len(p.Classify.Quotas), len(p.Classify.Resources)))
+	case "borrow_quota":
+		if s := strings.TrimSpace(p.FromCode); s != "" {
+			parts = append(parts, s)
+		}
+		if s := strings.TrimSpace(p.Specialty); s != "" {
+			parts = append(parts, "→ "+s+"专业")
+		}
+		if n := len(p.ItemIDs); n > 0 {
+			parts = append(parts, fmt.Sprintf("改挂 %d 行清单", n))
+		}
+	case "dict":
+		kind := map[string]string{"specialty": "专业", "region": "地区", "category": "工料机分类"}[strings.TrimSpace(p.Dict.Kind)]
+		if kind == "" {
+			kind = strings.TrimSpace(p.Dict.Kind)
+		}
+		parts = append(parts, fmt.Sprintf("%s「%s」", kind, strings.TrimSpace(p.Dict.Name)))
+		if s := strings.TrimSpace(p.Dict.Rename); s != "" {
+			parts = append(parts, "改名为「"+s+"」")
+		}
+	case "import_commit":
+		id := strings.TrimSpace(p.ImportID)
+		if costImportSummaryHook != nil {
+			if project, r, q, b, ok := costImportSummaryHook(id); ok {
+				if project != "" {
+					parts = append(parts, "项目「"+project+"」")
+				}
+				parts = append(parts, fmt.Sprintf("工料机 %d · 定额 %d · 清单 %d", r, q, b))
+				break
+			}
+		}
+		parts = append(parts, "会话 "+id)
 	}
 	if p.Force {
 		parts = append(parts, "连带解除引用")

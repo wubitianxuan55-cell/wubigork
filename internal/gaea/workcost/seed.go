@@ -344,7 +344,10 @@ type SeedResult struct {
 	Updated int           `json:"updated"`
 	Skipped int           `json:"skipped"`
 	Counts  ClassifyCount `json:"counts"`
-	Errors  []string      `json:"errors"`
+	// Pending 对不上规矩、没进规范字段的维度计数（原因 → 条数）。这些行照常
+	// 入库，对应维度留空待整理。
+	Pending map[string]int `json:"pending"`
+	Errors  []string       `json:"errors"`
 }
 
 // ApplySeed 把候选写入工料机资源库（同身份 UPDATE、新身份 INSERT，由
@@ -352,19 +355,40 @@ type SeedResult struct {
 //
 // 逐条容错：单条失败记入 Errors 而不中断整批——1564 条批量入库若因一条脏数据
 // 整体回滚，用户无法知道卡在哪条。
+//
+// 资料条目带的是自由文本：地区/分类/期数对不上库的规矩时不进规范字段（留空
+// 待整理，计入 Pending），价格照常入库——不因一个维度不合规矩丢掉一条价。
 func (s *Store) ApplySeed(cands []SeedCandidate) SeedResult {
-	var res SeedResult
+	res := SeedResult{Pending: map[string]int{}}
 	if err := s.requireDB(); err != nil {
 		res.Errors = append(res.Errors, err.Error())
 		return res
 	}
 	for _, c := range cands {
 		r := c.AsResource()
+		if r.Region != "" {
+			if ok, _ := s.DictHas(DictRegion, r.Region); !ok {
+				res.Pending["地区不在字典"]++
+				r.Region = ""
+			}
+		}
+		if r.CategoryPath != "" {
+			if ok, _ := s.DictHas(DictCategory, r.CategoryPath); !ok {
+				res.Pending["分类不在字典"]++
+				r.CategoryPath = ""
+			}
+		}
+		if p, ok := NormalizePeriod(r.PriceDate); !ok {
+			res.Pending["期数不是年月写法"]++
+			r.PriceDate = ""
+		} else {
+			r.PriceDate = p
+		}
 		// 入库前探测是否已存在同身份资源，以区分 created / updated 计数。
 		var existed int
 		_ = s.db.QueryRow(
-			`SELECT COUNT(*) FROM gf_resources WHERE kind=? AND title=? AND spec=? AND unit=?`,
-			r.Kind, r.Title, r.Spec, r.Unit).Scan(&existed)
+			`SELECT COUNT(*) FROM gf_resources WHERE kind=? AND title=? AND spec=? AND unit=? AND region=?`,
+			r.Kind, r.Title, r.Spec, r.Unit, r.Region).Scan(&existed)
 
 		saved, err := s.SaveResource(r)
 		if err != nil {

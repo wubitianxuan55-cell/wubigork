@@ -36,7 +36,7 @@ func (costLibraryTool) ReadOnly() bool     { return false }
 func (costLibraryTool) PersistWrite() bool { return true }
 
 func (costLibraryTool) Description() string {
-	return "维护工料机造价库（三级数据：清单 → 定额 → 工料机）。import_project 导入五表成本测算工作簿（项目+清单+费率+工料机+定额一次落库）；save_quota/delete_quota 维护消耗定额（含量行整组替换）；save_resource/delete_resource/set_price 维护工料机（调价写历史并推进现行价，引用它的定额综合单价自动重算）；bulk_price 批量调价（名称+单位+规格精确匹配，歧义跳过）；delete_items/delete_project 删清单行/整个项目；seed 把资料条目资源化；flywheel 跨项目含量聚合生成企业定额；dedupe 合并重复工料机；health 列库级健康发现。批量与删除动作先 dry_run=true 演练（不写库、不弹确认），核对后去掉 dry_run 正式执行；被引用的定额/工料机默认不删，确要删加 force=true。每次正式写入都需要用户确认。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
+	return "维护工料机造价库（三级数据：清单 → 定额 → 工料机）。库定规矩：专业、地区、工料机分类是字典（dict 查看与新增），期数统一 YYYY-MM；写进库的值必须在字典里，空=待整理。【录入资料】造价资料格式不固定，由你读资料、整理后整批提交：import_open 开导入（给资料路径、项目口径、资料上的控制数）→ import_add 分批提交整理好的工料机 / 定额 / 清单行（每行带来源位置 src，不合规的行当场退回并说明原因）→ import_check 勾稽（程序回到资料里逐行核对你提交的数与文字，对控制数、对单价）→ 用户确认后 import_commit 写库。只有确认资料是标准五表模版时才可走 import_project 快速通道，演练回执出现「将被拒收」的行就改走模型读表。【整理归类】文件不一定带专业/地区/分类：dims 盘点现有叫法，classify 分批归类（dry_run 出方案）；清单套定额同专业优先，本专业没有就 borrow_quota 以外专业定额为底生成本专业的。【维护】save_quota/delete_quota 维护消耗定额（含量行整组替换；定额专业固定，已有定额不改专业）；save_resource/delete_resource/set_price 维护工料机（工料机按地区分行；调价写历史并推进现行价）；bulk_price 批量调价；delete_items/delete_project 删清单行/整个项目；seed 资料条目资源化；flywheel 跨项目含量聚合生成企业定额（只在同专业内聚合）；dedupe 合并重复工料机；health 列库级健康发现。批量与删除动作先 dry_run=true 演练（不写库、不弹确认），核对后去掉 dry_run 正式执行；被引用的定额/工料机默认不删，确要删加 force=true。每次正式写入都需要用户确认。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
 }
 
 func (costLibraryTool) Schema() json.RawMessage {
@@ -44,15 +44,15 @@ func (costLibraryTool) Schema() json.RawMessage {
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","seed","flywheel","dedupe","health"],"description":"见工具说明；health 不需要其它参数"},
+  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","seed","flywheel","dedupe","health","classify","borrow_quota","dims","dict"],"description":"见工具说明；录入资料走模型读表导入 import_open → import_add → import_check → import_commit；health/dims 只读；dict 不给 dict 对象=查看字典"},
   "dry_run":{"type":"boolean","description":"演练：校验、匹配、统计照做，但不写库、不弹确认"},
   "path":{"type":"string","description":"五表工作簿路径（import_project 必填，.xlsx）"},
   "quota":{"type":"object","description":"定额（save_quota 必填）","properties":{
     "code":{"type":"string","description":"定额编码（必填；已存在=更新）"},
     "title":{"type":"string","description":"定额名称"},
     "unit":{"type":"string","description":"计量单位"},
-    "specialty":{"type":"string","description":"专业"},
-    "chapter":{"type":"string","description":"章节"},
+    "specialty":{"type":"string","description":"专业（字典值；新建定额时给。已有定额的专业固定，不改）"},
+    "chapter":{"type":"string","description":"章节（本专业内的册章，归到已有章节叫法上）"},
     "category_path":{"type":"string","description":"分类路径"},
     "source":{"type":"string","description":"来源（手工录入/企业定额…）"},
     "note":{"type":"string","description":"备注"},
@@ -75,8 +75,8 @@ func (costLibraryTool) Schema() json.RawMessage {
     "category_path":{"type":"string","description":"分类路径"},
     "source":{"type":"string","description":"来源：信息价/市场询价/企业定额"},
     "supplier":{"type":"string","description":"供应商"},
-    "region":{"type":"string","description":"地区"},
-    "price_date":{"type":"string","description":"价格期数，如 2026年第7期"},
+    "region":{"type":"string","description":"地区（字典值；空=待整理。工料机按地区分行：同一种材料每个地区一行）"},
+    "price_date":{"type":"string","description":"现行价的期数，YYYY-MM，如 2026-06"},
     "price_type":{"type":"string","description":"价格口径：到场价/信息价/含税…"},
     "valid_until":{"type":"string","description":"有效期至（YYYY-MM-DD，可空）"},
     "loss_rate":{"type":"number","description":"损耗率（0.03=3%）"},
@@ -88,8 +88,9 @@ func (costLibraryTool) Schema() json.RawMessage {
   "resource_code":{"type":"string","description":"工料机编码（set_price 用；与 resource_id 二选一）"},
   "price":{"type":"number","description":"新单价（set_price 必填，元）"},
   "price_type":{"type":"string","description":"调价口径（set_price 可选，默认 到场价）"},
-  "period":{"type":"string","description":"期数（set_price 可选）"},
-  "region":{"type":"string","description":"地区（set_price 可选）"},
+  "period":{"type":"string","description":"期数，YYYY-MM（set_price/import_project 可选；import_project 不给=导入当月）。信息价期数请换算成年月"},
+  "region":{"type":"string","description":"地区（字典值）。set_price=这条价的地区；import_project=项目所在地区，工料机按它分行"},
+  "specialty":{"type":"string","description":"专业（字典值）。import_project=项目默认专业，本次新建的定额专业随它；flywheel=只生成该专业的候选（同词干多专业时必给）；borrow_quota=目标专业"},
   "note":{"type":"string","description":"调价依据（set_price 可选）"},
   "rows":{"type":"array","description":"批量调价行（bulk_price 必填，单批 ≤500）","items":{"type":"object","properties":{
     "title":{"type":"string","description":"资源名称（精确匹配）"},
@@ -107,9 +108,48 @@ func (costLibraryTool) Schema() json.RawMessage {
   "item_ids":{"type":"array","items":{"type":"integer"},"description":"清单行 id 列表（delete_items 必填）"},
   "stems":{"type":"array","items":{"type":"string"},"description":"要生成的聚类词干 orig_code（flywheel，取自 dry_run 预览的 origCode）"},
   "keep_id":{"type":"integer","description":"保留的工料机 id（dedupe 必填）"},
-  "merge_ids":{"type":"array","items":{"type":"integer"},"description":"合并掉的工料机 id（dedupe 必填）"}
-}
-}`)
+  "merge_ids":{"type":"array","items":{"type":"integer"},"description":"合并掉的工料机 id（dedupe 必填）"},
+  "classify":{"type":"object","description":"批量整理归类（classify 用；每组 ≤500 条；没给的字段不动，值必须是字典里的）。先 dims 看现有叫法","properties":{
+    "projects":{"type":"array","items":{"type":"object","properties":{
+      "id":{"type":"integer","description":"项目 id（必填）"},
+      "specialty":{"type":"string","description":"项目默认专业（字典值）"},
+      "region":{"type":"string","description":"项目所在地区（字典值）"},
+      "price_period":{"type":"string","description":"计价期，YYYY-MM"}
+    }}},
+    "bills":{"type":"array","items":{"type":"object","properties":{
+      "id":{"type":"integer","description":"清单行 id（必填，cost_project action=items 可查）"},
+      "specialty":{"type":"string","description":"清单专业（字典值；覆盖项目默认专业）"},
+      "division":{"type":"string","description":"分部（整理后的叫法）"}
+    }}},
+    "quotas":{"type":"array","items":{"type":"object","properties":{
+      "code":{"type":"string","description":"定额编码（必填）"},
+      "specialty":{"type":"string","description":"专业——定额专业固定：只补空值，或按引用它的清单项纠错；对不上会进冲突清单，改用 borrow_quota"},
+      "chapter":{"type":"string","description":"章节（本专业内的册章）"}
+    }}},
+    "resources":{"type":"array","items":{"type":"object","properties":{
+      "code":{"type":"string","description":"工料机编码（必填）"},
+      "kind":{"type":"string","description":"类别，只在原类别不是四类之一时纠错"},
+      "category_path":{"type":"string","description":"分类路径（字典值，如 材料/土建材料/钢材）"},
+      "region":{"type":"string","description":"地区（字典值；只能给未标注地区的工料机补）"},
+      "period":{"type":"string","description":"现行价的期数 YYYY-MM（只能给还没有期的工料机补）"}
+    }}}
+  }},
+  "from_code":{"type":"string","description":"借鉴生成的源定额编码（borrow_quota 必填，须是别的专业的定额）"},
+  "new_code":{"type":"string","description":"借鉴生成的新定额编码（borrow_quota 可选，缺省 原码-N）"},
+  "new_title":{"type":"string","description":"借鉴生成的新定额名称（borrow_quota 可选，缺省沿用源定额）"},
+  "dict":{"type":"object","description":"字典：专业 specialty / 地区 region / 工料机分类 category。不给本对象或 op=list=查看；add=新增；update=改名/改上级/改标准代码（改名级联到所有引用它的数据）；delete=删除（仍被引用的不能删）","properties":{
+    "op":{"type":"string","enum":["list","add","update","delete"]},
+    "kind":{"type":"string","enum":["specialty","region","category"]},
+    "name":{"type":"string","description":"字典项名称（分类=完整路径，如 材料/土建材料/钢材；新增分类要先有上级路径）"},
+    "rename":{"type":"string","description":"update：改成什么名字"},
+    "code":{"type":"string","description":"专业的标准代码（如国标清单专业代码 04=市政），机检清单编码专业段用"},
+    "parent":{"type":"string","description":"上级字典项（地区：省→市→价格区）"},
+    "level":{"type":"integer","description":"层级（1=顶级）"},
+    "sort":{"type":"integer","description":"排序"},
+    "note":{"type":"string","description":"备注"}
+  }},
+` + clImportSchema + `}
+}}`)
 }
 
 // costLibraryArgs cost_library 入参。需要区分「没传」的嵌套字段用指针。
@@ -139,6 +179,40 @@ type costLibraryArgs struct {
 	Stems    []string `json:"stems"`
 	KeepID   int64    `json:"keep_id"`
 	MergeIDs []int64  `json:"merge_ids"`
+
+	// 导入口径 / 飞轮专业筛选 / 借鉴生成的目标专业（规范值，字典校验在存储层）。
+	Specialty string `json:"specialty"`
+	// 借鉴生成（borrow_quota）。
+	FromCode string `json:"from_code"`
+	NewCode  string `json:"new_code"`
+	NewTitle string `json:"new_title"`
+	// 整理归类（classify）。
+	Classify *workcost.ClassifyPlan `json:"classify"`
+	// 字典（dict）。
+	Dict *costLibraryDict `json:"dict"`
+
+	// 模型读表导入（import_*）。JSON 键与工具说明逐字一致（有用例钉住）。
+	ImportID  string                    `json:"import_id"`
+	Source    string                    `json:"source"`
+	Project   *workcost.ImportProject   `json:"project"`
+	Controls  *workcost.ImportControls  `json:"controls"`
+	Resources []workcost.ImportResource `json:"resources"`
+	Quotas    []workcost.ImportQuota    `json:"quotas"`
+	Bills     []workcost.ImportBill     `json:"bills"`
+}
+
+// costLibraryDict 字典操作的入参。op 空=list。update 时没给的字段保持原值
+// （指针区分「没给」）。
+type costLibraryDict struct {
+	Op     string  `json:"op"`
+	Kind   string  `json:"kind"`
+	Name   string  `json:"name"`
+	Rename string  `json:"rename"`
+	Code   string  `json:"code"`
+	Parent string  `json:"parent"`
+	Level  int     `json:"level"`
+	Sort   *int    `json:"sort"`
+	Note   *string `json:"note"`
 }
 
 type costLibraryQuota struct {
@@ -191,6 +265,9 @@ var costLibraryActionLabel = map[string]string{
 	"save_resource": "保存工料机", "delete_resource": "删除工料机", "set_price": "工料机调价",
 	"bulk_price": "批量调价", "delete_items": "删除清单行", "delete_project": "删除项目",
 	"seed": "资料条目资源化", "flywheel": "自生成企业定额", "dedupe": "工料机去重", "health": "库级健康扫描",
+	"classify": "整理归类", "borrow_quota": "借鉴生成定额", "dims": "维度盘点", "dict": "字典",
+	"import_open": "开导入", "import_add": "暂存导入行", "import_check": "导入勾稽", "import_commit": "提交导入", "import_discard": "丢弃导入",
+	"dict_add": "新增字典项", "dict_update": "修改字典项", "dict_delete": "删除字典项",
 }
 
 func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
@@ -199,7 +276,7 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return "", fmt.Errorf("cost_library 参数解析失败: %w", err)
 	}
 	if _, ok := costLibraryActionLabel[p.Action]; !ok {
-		return "", fmt.Errorf("未知 action %q（import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health）", p.Action)
+		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict）", p.Action)
 	}
 	s := t.a.hubWorkcostStore()
 	if !s.Available() {
@@ -230,6 +307,24 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return t.flywheel(s, p)
 	case "dedupe":
 		return t.dedupe(s, p)
+	case "classify":
+		return t.classify(s, p)
+	case "borrow_quota":
+		return t.borrowQuota(s, p)
+	case "dims":
+		return t.dims(s)
+	case "dict":
+		return t.dict(s, p)
+	case "import_open":
+		return t.importOpen(s, p)
+	case "import_add":
+		return t.importAdd(s, p)
+	case "import_check":
+		return t.importCheck(s, p)
+	case "import_commit":
+		return t.importCommit(s, p)
+	case "import_discard":
+		return t.importDiscard(s, p)
 	default: // health
 		return t.health(s)
 	}
@@ -391,6 +486,18 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	if err != nil {
 		return "", err
 	}
+	// 导入口径是规范值（库定规矩）：专业、地区必须在字典里，计价期 YYYY-MM。
+	// 文件或用户没给就留空（待整理），不从文件里猜；给了不对的当场拒收。
+	b.Specialty = strings.TrimSpace(p.Specialty)
+	b.Region = strings.TrimSpace(p.Region)
+	b.Period = strings.TrimSpace(p.Period)
+	if b.Period == "" {
+		b.Period = workcost.CurrentPeriod()
+	}
+	specialty, region, period, err := s.ImportScope(b)
+	if err != nil {
+		return "", fmt.Errorf("导入口径不合规矩，未导入：%w", err)
+	}
 	projectName := strings.TrimSpace(b.Project)
 	if projectName == "" {
 		projectName = strings.TrimSuffix(b.FileName, ".xlsx")
@@ -400,12 +507,15 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	fmt.Fprintf(&out, "**工作簿**: %s（%d 张表）\n", display, len(b.Sheets))
 	fmt.Fprintf(&out, "**项目**: %s", projectName)
 	if b.Location != "" {
-		fmt.Fprintf(&out, "｜地区 %s", b.Location)
+		fmt.Fprintf(&out, "｜封面地点 %s", b.Location)
 	}
 	if b.Duration != "" {
 		fmt.Fprintf(&out, "｜工期 %s", b.Duration)
 	}
 	out.WriteString("\n")
+	fmt.Fprintf(&out, "**导入口径**: 专业 %s｜地区 %s｜计价期 %s\n",
+		clDim(specialty, "未标注"), clDim(region, "未标注"), period)
+	out.WriteString("口径说明：专业是项目默认专业，本次新建的定额专业随它；地区决定工料机按地区分行；未标注的导入后用 classify 整理。\n")
 	fmt.Fprintf(&out, "**规模**: 工料机 %d 条｜清单项 %d 条｜消耗行 %d 条\n", len(b.Resources), len(b.Items), len(b.Lines))
 	fmt.Fprintf(&out, "**取费**: 企管 %s｜规费 %s｜利润 %s｜增值税 %s", clPct(b.Fee.ManagementRate), clPct(b.Fee.RegulatoryRate), clPct(b.Fee.ProfitRate), clPct(b.Fee.TaxRate))
 	if b.Fee.ControlPrice > 0 {
@@ -452,8 +562,33 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	if !workcost.DetectedFiveSheet(b.Sheets) {
 		out.WriteString("\n注意：这份工作簿不是标准五表模版（缺「工料机价格」或「综合单价」表），解析结果可能不完整——核对上面的规模；非五表的工作簿请读表后用 cost_project_apply（create_project + save_items）编制。\n")
 	}
+	// 文件里不合规矩的工料机行导入时会被拒收——演练就点名，不等到正式导入才暴露：
+	// 类别不在四类之内，或编码根本不是编码（整格同一段说明文字的「行」）。
+	var rejected []string
+	for _, pr := range b.Resources {
+		code, title := strings.TrimSpace(pr.Code), strings.TrimSpace(pr.Title)
+		if code == "" && title == "" {
+			continue
+		}
+		ok, why := workcost.CodeWellFormed(code)
+		switch {
+		case !ok:
+			rejected = append(rejected, fmt.Sprintf("「%s」%s", clExcerpt(title, 24), why))
+		case !workcost.IsKnownKind(pr.Kind):
+			rejected = append(rejected, fmt.Sprintf("[%s] %s（类别「%s」）", code, title, pr.Kind))
+		}
+	}
+	if len(rejected) > 0 {
+		fmt.Fprintf(&out, "**将被拒收的工料机行 %d 条**（编码不是编码，或类别不在 人工/材料/机械/外委 之内；列前 %d 条）——说明文字请挪出数据区，类别请改成四类之一:\n", len(rejected), clCap(len(rejected)))
+		for i, line := range rejected {
+			if i >= clCap(len(rejected)) {
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", line)
+		}
+	}
 	if p.DryRun {
-		out.WriteString("\n落库口径：工料机按编码与身份 UPSERT；定额按统一编码（同内容复用，冲突加 -N 消歧）。确认无误后去掉 dry_run 正式导入。")
+		out.WriteString("\n落库口径：工料机按身份与地区 UPSERT（编码被占则消歧成「码-N」，含量行跟着落规范编码）；定额按专业内统一编码（同专业同内容复用，外专业同码另立并记借鉴来源）；有价的工料机各记一条价格事实（期 + 地区）。确认无误后去掉 dry_run 正式导入。\n")
 		return out.String(), nil
 	}
 	res := s.ApplyProjectBundle(b)
@@ -467,6 +602,14 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	}
 	fmt.Fprintf(&out, "**落库**: 工料机 新建 %d/更新 %d｜定额 新建 %d/更新 %d｜消耗行 %d｜清单 %d 行\n",
 		res.ResourceNew, res.ResourceUpd, res.QuotaNew, res.QuotaUpd, res.Lines, itemCount)
+	if res.ResourceRenamed > 0 {
+		fmt.Fprintf(&out, "**编码消歧**: %d 条工料机的编码已被别的资源占用，落成了「码-N」（含量行已跟着改指，不会悬空）\n", res.ResourceRenamed)
+	}
+	if res.QuotaDerived > 0 {
+		fmt.Fprintf(&out, "**跨专业另立**: %d 条定额的同码定额属于别的专业，已另立本专业新定额并记借鉴来源\n", res.QuotaDerived)
+	}
+	fmt.Fprintf(&out, "**价格事实**: %d 条（期 %s%s）\n", res.PriceFacts, clDim(period, "无"),
+		map[bool]string{true: "｜地区 " + region, false: ""}[region != ""])
 	if n := len(res.Errors); n > 0 {
 		fmt.Fprintf(&out, "**未落成 %d 条**（列前 %d 条，逐条核对）:\n", n, clCap(n))
 		for i, e := range res.Errors {
@@ -480,6 +623,9 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 		fmt.Fprintf(&out, "\n下一步：cost_audit project_id=%d 跑机检；造价数据库板块切回即见。", existingID)
 	} else {
 		out.WriteString("\n下一步：cost_audit 跑机检；造价数据库板块切回即见。")
+	}
+	if specialty == "" || region == "" {
+		out.WriteString("\n本次导入口径没标全：确认项目专业与地区后用 cost_library classify 补上（项目 + 它的清单行与新定额）。")
 	}
 	return out.String(), nil
 }
@@ -500,6 +646,11 @@ func (t costLibraryTool) saveQuota(s *workcost.Store, p costLibraryArgs) (string
 	q := workcost.Quota{Code: code, Status: "现行"}
 	if !isNew {
 		q = *existing // 没给的头字段保持原值
+		if in.Specialty != nil && strings.TrimSpace(*in.Specialty) != strings.TrimSpace(existing.Specialty) {
+			// 定额专业是固有属性（随来源定、定了不改）：同样一件事各专业各有定额。
+			return "", fmt.Errorf("定额 %s 已是「%s」专业，专业固定不改——要「%s」专业的请 cost_library borrow_quota（from_code=%s, specialty=%s）借鉴生成本专业的",
+				code, existing.Specialty, strings.TrimSpace(*in.Specialty), code, strings.TrimSpace(*in.Specialty))
+		}
 	}
 	setStr := func(dst *string, v *string) {
 		if v != nil {
@@ -555,17 +706,21 @@ func (t costLibraryTool) saveQuota(s *workcost.Store, p costLibraryArgs) (string
 		}
 		q.Items = items
 	}
+	// 专业、期数等头字段过规矩（演练同样校验）。
+	if err := s.ValidateQuota(&q); err != nil {
+		return "", err
+	}
 
 	var out strings.Builder
 	out.WriteString(clHead(p.DryRun, "save_quota"))
 	if isNew {
-		fmt.Fprintf(&out, "**新建定额** %s「%s」（%s）｜含量行 %d 行\n", code, q.Title, q.Unit, len(q.Items))
+		fmt.Fprintf(&out, "**新建定额** %s「%s」（%s）｜专业 %s｜含量行 %d 行\n", code, q.Title, q.Unit, clDim(q.Specialty, "未标注"), len(q.Items))
 	} else {
 		how := "保留原有"
 		if in.Items != nil {
 			how = "整组替换为"
 		}
-		fmt.Fprintf(&out, "**更新定额** %s「%s」（%s）｜含量行%s %d 行\n", code, q.Title, q.Unit, how, len(q.Items))
+		fmt.Fprintf(&out, "**更新定额** %s「%s」（%s）｜专业 %s｜含量行%s %d 行\n", code, q.Title, q.Unit, q.Specialty, how, len(q.Items))
 	}
 	labor, material, machine, outsourced := 0, 0, 0, 0
 	for _, it := range q.Items {
@@ -746,6 +901,11 @@ func (t costLibraryTool) saveResource(s *workcost.Store, p costLibraryArgs) (str
 		oldEffective = target.EffectivePrice()
 	}
 	priceChanged := target == nil || oldEffective != r.EffectivePrice()
+	// 演练与落库走同一套规矩校验（类别四选一、地区/分类在字典里、期数 YYYY-MM）——
+	// 不让演练显示通过、正式执行才被拒。
+	if err := s.ValidateResource(&r); err != nil {
+		return "", err
+	}
 
 	var out strings.Builder
 	out.WriteString(clHead(p.DryRun, "save_resource"))
@@ -880,12 +1040,17 @@ func (t costLibraryTool) setPrice(s *workcost.Store, p costLibraryArgs) (string,
 	if priceType == "" {
 		priceType = "到场价"
 	}
+	// 期数与地区先过规矩（演练同样校验）：期数归一成 YYYY-MM，地区在字典里。
+	period, err := s.CheckPrice(r, p.Period, p.Region)
+	if err != nil {
+		return "", err
+	}
 	var out strings.Builder
 	out.WriteString(clHead(p.DryRun, "set_price"))
 	fmt.Fprintf(&out, "**[%s] %s（%s）**: %s → %s", r.Code, r.Title, r.Unit, clMoney(r.EffectivePrice()), clMoney(*p.Price))
 	meta := []string{}
-	if v := strings.TrimSpace(p.Period); v != "" {
-		meta = append(meta, "期数 "+v)
+	if period != "" {
+		meta = append(meta, "期数 "+period)
 	}
 	if v := strings.TrimSpace(p.Region); v != "" {
 		meta = append(meta, "地区 "+v)
@@ -897,7 +1062,7 @@ func (t costLibraryTool) setPrice(s *workcost.Store, p costLibraryArgs) (string,
 		out.WriteString("\n演练通过。去掉 dry_run 正式调价（写一条调价历史并推进现行价）。")
 		return out.String(), nil
 	}
-	saved, err := s.UpdateResourcePrice(r.ID, *p.Price, strings.TrimSpace(p.Period), strings.TrimSpace(p.Region), priceType, "造价模式调价", strings.TrimSpace(p.Note))
+	saved, err := s.UpdateResourcePrice(r.ID, *p.Price, period, strings.TrimSpace(p.Region), priceType, "造价模式调价", strings.TrimSpace(p.Note))
 	if err != nil {
 		return "", err
 	}
@@ -1139,13 +1304,13 @@ func (t costLibraryTool) flywheel(s *workcost.Store, p costLibraryArgs) (string,
 	if p.DryRun || len(stems) == 0 {
 		var out strings.Builder
 		out.WriteString("🔍 演练（未写库）：自生成企业定额\n")
-		fmt.Fprintf(&out, "**跨项目含量分歧簇 %d 个**｜不成立 %d 个\n", len(prev.Candidates), len(prev.Skipped))
+		fmt.Fprintf(&out, "**同专业跨项目含量分歧簇 %d 个**｜不成立 %d 个（聚合只在专业内进行，不同专业的同词干定额是两个候选）\n", len(prev.Candidates), len(prev.Skipped))
 		for i, c := range prev.Candidates {
 			if i >= clCap(len(prev.Candidates)) {
 				fmt.Fprintf(&out, "- …共 %d 个候选\n", len(prev.Candidates))
 				break
 			}
-			fmt.Fprintf(&out, "- %s → %s「%s」（%s）: %d 个变体｜来源项目 %d 个\n", c.OrigCode, c.NewCode, c.Title, c.Unit, len(c.Members), c.Sources)
+			fmt.Fprintf(&out, "- %s｜%s → %s「%s」（%s）: %d 个变体｜来源项目 %d 个\n", clDim(c.Specialty, "未标注专业"), c.OrigCode, c.NewCode, c.Title, c.Unit, len(c.Members), c.Sources)
 		}
 		if len(prev.Skipped) > 0 {
 			fmt.Fprintf(&out, "**不成立的簇**（列前 %d 个）:\n", clCap(len(prev.Skipped)))
@@ -1156,10 +1321,10 @@ func (t costLibraryTool) flywheel(s *workcost.Store, p costLibraryArgs) (string,
 				fmt.Fprintf(&out, "- %s「%s」：%s\n", sk.Key, sk.Title, sk.Reason)
 			}
 		}
-		out.WriteString("\n挑出要生成的簇，用 stems=[origCode…] 去掉 dry_run 正式生成（ENT-* 企业定额，含量=各变体中位数）。")
+		out.WriteString("\n挑出要生成的簇，用 stems=[origCode…] 去掉 dry_run 正式生成（ENT-* 企业定额，含量=各变体中位数）；同一词干在多个专业下各有一个候选时，带 specialty 指明专业。")
 		return out.String(), nil
 	}
-	res, err := s.QuotaFlywheelApply(stems)
+	res, err := s.QuotaFlywheelApply(stems, strings.TrimSpace(p.Specialty))
 	if err != nil {
 		return "", err
 	}
@@ -1240,6 +1405,467 @@ func (t costLibraryTool) dedupe(s *workcost.Store, p costLibraryArgs) (string, e
 	return out.String(), nil
 }
 
+// ── classify / borrow_quota / dims / dict：库定规矩与整理归类 ───────────
+
+// clDim 维度值的显示：空值显示占位说明。
+func clDim(v, empty string) string {
+	if s := strings.TrimSpace(v); s != "" {
+		return s
+	}
+	return empty
+}
+
+// clCleanIDs 去重保序的正整数 id 列表。
+func clCleanIDs(in []int64) []int64 {
+	var out []int64
+	seen := map[int64]bool{}
+	for _, id := range in {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+// clExcerpt 截到 n 个字符（回执里引用文件原文用）。
+func clExcerpt(s string, n int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= n {
+		return string(r)
+	}
+	return string(r[:n]) + "…"
+}
+
+// dims 维度盘点（只读）：模型整理归类前先看它对齐叫法，不另造新词。
+func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
+	d, err := s.Dims()
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	out.WriteString("## 造价库维度盘点（只读）\n\n")
+	dictLine := func(kind, label string, cap int) string {
+		items := d.Dicts[kind]
+		names := make([]string, 0, len(items))
+		for i, it := range items {
+			if i >= cap {
+				names = append(names, fmt.Sprintf("…共 %d 项", len(items)))
+				break
+			}
+			n := it.Name
+			if it.Code != "" {
+				n += "(" + it.Code + ")"
+			}
+			if it.Parent != "" {
+				n += "↑" + it.Parent
+			}
+			names = append(names, n)
+		}
+		if len(names) == 0 {
+			return fmt.Sprintf("%s 0 项", label)
+		}
+		return fmt.Sprintf("%s %d 项：%s", label, len(items), strings.Join(names, "、"))
+	}
+	fmt.Fprintf(&out, "**字典**:\n- %s\n- %s\n- %s\n",
+		dictLine(workcost.DictSpecialty, "专业", 60), dictLine(workcost.DictRegion, "地区", 80),
+		dictLine(workcost.DictCategory, "工料机分类", 40))
+	if len(d.Projects) > 0 {
+		out.WriteString("**项目**:\n")
+		for _, p := range d.Projects {
+			fmt.Fprintf(&out, "- #%d %s（清单 %d）｜专业 %s｜地区 %s｜计价期 %s｜封面地点 %s\n",
+				p.ID, p.Name, p.ItemCount, clDim(p.Specialty, "未标注"), clDim(p.Region, "未标注"),
+				clDim(p.PricePeriod, "未标注"), clDim(p.Location, "—"))
+		}
+	}
+	dist := func(title string, cs []workcost.DimCount, cap int) {
+		parts := make([]string, 0, len(cs))
+		for i, c := range cs {
+			if i >= cap {
+				parts = append(parts, fmt.Sprintf("…共 %d 种取值", len(cs)))
+				break
+			}
+			parts = append(parts, fmt.Sprintf("%s %d", clDim(c.Name, "未标注"), c.Count))
+		}
+		fmt.Fprintf(&out, "**%s**: %s\n", title, strings.Join(parts, "｜"))
+	}
+	dist("清单专业分布", d.BillSpecialties, 30)
+	dist("定额专业分布", d.QuotaSpecialties, 30)
+	if len(d.Chapters) > 0 {
+		parts := make([]string, 0, len(d.Chapters))
+		for i, c := range d.Chapters {
+			if i >= 40 {
+				parts = append(parts, "…")
+				break
+			}
+			parts = append(parts, fmt.Sprintf("%s/%s %d", clDim(c.Specialty, "未标注"), c.Chapter, c.Count))
+		}
+		fmt.Fprintf(&out, "**定额章节分布**（专业/章节）: %s\n", strings.Join(parts, "｜"))
+	}
+	dist("工料机地区分布", d.Regions, 40)
+	dist("工料机期数分布", d.Periods, 24)
+	dist("工料机分类分布", d.Categories, 40)
+	if len(d.Divisions) > 0 {
+		out.WriteString("**清单分部分布**（项目 → 分部 条数）:\n")
+		projectOf := map[int64]string{}
+		for _, p := range d.Projects {
+			projectOf[p.ID] = p.Name
+		}
+		groups := map[int64][]string{}
+		var order []int64
+		for _, v := range d.Divisions {
+			if _, seen := groups[v.ProjectID]; !seen {
+				order = append(order, v.ProjectID)
+			}
+			groups[v.ProjectID] = append(groups[v.ProjectID], fmt.Sprintf("%s %d", v.Division, v.Count))
+		}
+		for i, pid := range order {
+			if i >= 12 {
+				fmt.Fprintf(&out, "- …（共 %d 个项目有分部）\n", len(order))
+				break
+			}
+			fmt.Fprintf(&out, "- #%d %s：%s\n", pid, projectOf[pid], strings.Join(groups[pid], "、"))
+		}
+	}
+	p := d.Pending
+	fmt.Fprintf(&out, "**待整理**: 项目未标专业 %d｜清单无专业 %d｜定额未标专业 %d｜定额未归章节 %d｜工料机未标地区 %d｜工料机未细分 %d｜工料机无期数 %d\n",
+		p.ProjectSpecialty, p.BillSpecialty, p.QuotaSpecialty, p.QuotaChapter, p.ResourceRegion, p.ResourceCategory, p.ResourcePeriod)
+	out.WriteString("\n规矩：专业、地区、工料机分类只能用字典里的值（没有的先 dict.op=add，经用户确认）；期数写 YYYY-MM；地区写到最细一级（信息价发布区挂在所属市下）。定额专业固定——classify 只补空值或按引用它的清单项纠错，对不上的用 borrow_quota 借鉴生成。")
+	return out.String(), nil
+}
+
+// classify 批量整理归类（演练与正式共用同一套校验与冲突判定）。
+func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string, error) {
+	if p.Classify == nil {
+		return "", fmt.Errorf("classify 需要 classify 对象（projects / bills / quotas / resources 四组，至少给一组；先 action=dims 看现有叫法）")
+	}
+	plan := *p.Classify
+	for _, g := range []struct {
+		name string
+		n    int
+	}{{"projects", len(plan.Projects)}, {"bills", len(plan.Bills)}, {"quotas", len(plan.Quotas)}, {"resources", len(plan.Resources)}} {
+		if g.n > costLibraryMaxRows {
+			return "", fmt.Errorf("classify.%s 单批最多 %d 条（当前 %d），请分批提交", g.name, costLibraryMaxRows, g.n)
+		}
+	}
+	if len(plan.Projects)+len(plan.Bills)+len(plan.Quotas)+len(plan.Resources) == 0 {
+		return "", fmt.Errorf("classify 四组都是空的：至少给一组要归类的条目")
+	}
+	var (
+		res *workcost.ClassifyResult
+		err error
+	)
+	if p.DryRun {
+		res, err = s.PreviewClassify(plan)
+	} else {
+		res, err = s.ApplyClassify(plan)
+	}
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	out.WriteString(clHead(p.DryRun, "classify"))
+	a := res.Applied
+	fmt.Fprintf(&out, "**%s**: 项目 %d｜清单 %d｜定额 %d｜工料机 %d\n",
+		map[bool]string{true: "将改动", false: "已改动"}[p.DryRun], a.Projects, a.Bills, a.Quotas, a.Resources)
+	if n := len(res.Summary); n > 0 {
+		fmt.Fprintf(&out, "**方案**（按目标值，共 %d 项）:\n", n)
+		for i, sm := range res.Summary {
+			if i >= clCap(n) {
+				fmt.Fprintf(&out, "- …共 %d 项\n", n)
+				break
+			}
+			fmt.Fprintf(&out, "- %s「%s」：%d 条\n", sm.Dimension, clDim(sm.Value, "未标注"), sm.Count)
+		}
+	} else {
+		out.WriteString("没有需要改动的条目（都已是指定值，或全部进了冲突清单）。\n")
+	}
+	if n := len(res.Conflicts); n > 0 {
+		fmt.Fprintf(&out, "**未执行 %d 条**（冲突，逐条裁决；列前 %d 条）:\n", n, clCap(n))
+		for i, c := range res.Conflicts {
+			if i >= clCap(n) {
+				break
+			}
+			// 有目标值的冲突写成「字段 → 值」；条目本身不存在的只写原因。
+			what := ""
+			if c.Field != "" {
+				what = " " + c.Field + " → " + c.Value
+			}
+			fmt.Fprintf(&out, "- [%s] %s「%s」%s：%s\n", c.Tier, c.Code, c.Title, what, c.Reason)
+		}
+	}
+	if p.DryRun {
+		out.WriteString("\n演练未写库。核对方案与冲突后去掉 dry_run 正式执行（弹确认）。")
+	}
+	return out.String(), nil
+}
+
+// borrowQuota 借鉴生成：以外专业定额为底生成本专业定额，可同时改挂清单行。
+func (t costLibraryTool) borrowQuota(s *workcost.Store, p costLibraryArgs) (string, error) {
+	if strings.TrimSpace(p.FromCode) == "" || strings.TrimSpace(p.Specialty) == "" {
+		return "", fmt.Errorf("borrow_quota 需要 from_code（源定额编码）与 specialty（目标专业，字典值）；可选 new_code / new_title / item_ids（把哪些清单行改挂到新定额）")
+	}
+	res, err := s.BorrowQuota(workcost.BorrowRequest{
+		FromCode: p.FromCode, Specialty: p.Specialty, NewCode: p.NewCode, Title: p.NewTitle,
+		ItemIDs: clCleanIDs(p.ItemIDs),
+	}, !p.DryRun)
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	out.WriteString(clHead(p.DryRun, "borrow_quota"))
+	fmt.Fprintf(&out, "**源定额** [%s]「%s」（%s，%s专业）｜含量行 %d 行\n",
+		res.From.Code, res.From.Title, res.From.Unit, clDim(res.From.Specialty, "未标注"), len(res.From.Items))
+	how := map[bool]string{true: "将生成本专业定额", false: "已生成本专业定额"}[p.DryRun]
+	if res.Existed {
+		how = "复用既有的本专业定额"
+	}
+	fmt.Fprintf(&out, "**%s** [%s]「%s」（%s专业）｜溯源：%s\n", how, res.New.Code, res.New.Title, res.New.Specialty, res.New.DerivedFrom)
+	for i, it := range res.New.Items {
+		if i >= 8 {
+			fmt.Fprintf(&out, "- …共 %d 行\n", len(res.New.Items))
+			break
+		}
+		fmt.Fprintf(&out, "- %s %s（%s）含量 %g\n", it.Kind, it.Title, it.Unit, it.Quantity)
+	}
+	if n := len(res.Relinked); n > 0 {
+		cross := 0
+		fmt.Fprintf(&out, "**%s改挂清单行 %d 条**（列前 %d 条）:\n",
+			map[bool]string{true: "将", false: "已"}[p.DryRun], n, clCap(n))
+		for i, r := range res.Relinked {
+			if r.Specialty != "" && r.Specialty != res.New.Specialty {
+				cross++
+			}
+			if i >= clCap(n) {
+				continue
+			}
+			fmt.Fprintf(&out, "- [%s] %s（%s｜清单专业 %s｜定额工程量 %g）\n", r.Code, r.Title, r.Project, clDim(r.Specialty, "未标注"), r.Quantity)
+		}
+		if cross > 0 {
+			fmt.Fprintf(&out, "注意：其中 %d 行的清单专业不是「%s」——改挂后 cost_audit 会点名清单与定额专业不一致，先用 classify 核对这些行的专业。\n", cross, res.New.Specialty)
+		}
+	}
+	if n := len(res.Conflicts); n > 0 {
+		fmt.Fprintf(&out, "**未改挂 %d 条**:\n", n)
+		for i, c := range res.Conflicts {
+			if i >= clCap(n) {
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", c)
+		}
+	}
+	if p.DryRun {
+		out.WriteString("\n演练未写库。含量行照搬自源定额——按本项目特征核对；去掉 dry_run 正式生成并改挂（弹确认），要调含量再用 save_quota。")
+	}
+	return out.String(), nil
+}
+
+// dict 字典：查看 / 新增 / 修改 / 删除（专业、地区、工料机分类）。
+func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, error) {
+	var in costLibraryDict
+	if p.Dict != nil {
+		in = *p.Dict
+	}
+	op := strings.TrimSpace(in.Op)
+	if op == "" {
+		op = "list"
+	}
+	in.Kind = strings.TrimSpace(in.Kind)
+	in.Name = strings.TrimSpace(in.Name)
+	in.Rename = strings.TrimSpace(in.Rename)
+	in.Code = strings.TrimSpace(in.Code)
+	in.Parent = strings.TrimSpace(in.Parent)
+	switch op {
+	case "list":
+		items, err := s.DictList(in.Kind)
+		if err != nil {
+			return "", err
+		}
+		var out strings.Builder
+		out.WriteString("## 造价库字典（只读）\n\n")
+		for _, kind := range []string{workcost.DictSpecialty, workcost.DictRegion, workcost.DictCategory} {
+			if in.Kind != "" && in.Kind != kind {
+				continue
+			}
+			var lines []string
+			for _, it := range items {
+				if it.Kind != kind {
+					continue
+				}
+				if kind == workcost.DictCategory && in.Kind == "" && len(lines) >= 12 {
+					lines = append(lines, "…（看全部：dict.op=list 且 dict.kind=category）")
+					break
+				}
+				n := it.Name
+				if it.Code != "" {
+					n += "（代码 " + it.Code + "）"
+				}
+				if it.Parent != "" {
+					n += "↑" + it.Parent
+				}
+				if used, err := s.DictUsage(kind, it.Name); err == nil && used > 0 {
+					n += fmt.Sprintf(" 被引用 %d", used)
+				}
+				lines = append(lines, n)
+			}
+			fmt.Fprintf(&out, "**%s %d 项**", workcost.DictKindLabel[kind], len(lines))
+			if len(lines) > 0 {
+				out.WriteString("：" + strings.Join(lines, "、"))
+			}
+			out.WriteString("\n")
+		}
+		out.WriteString("\n新增走 dict.op=add（经用户确认）；值必须先在字典里，才能写进数据。")
+		return out.String(), nil
+	case "add":
+		if !workcost.ValidDictKind(in.Kind) {
+			return "", fmt.Errorf("dict.kind 须为 specialty（专业）/ region（地区）/ category（工料机分类），收到 %q", in.Kind)
+		}
+		if in.Name == "" {
+			return "", fmt.Errorf("新增%s需要 dict.name", workcost.DictKindLabel[in.Kind])
+		}
+		if in.Kind == workcost.DictCategory {
+			// 分类是路径：每一段都得是字典项（库定规矩），上级不在就先加上级。
+			if i := strings.LastIndex(in.Name, "/"); i > 0 {
+				if parent := strings.TrimSpace(in.Name[:i]); parent != "" {
+					if ok, err := s.DictHas(workcost.DictCategory, parent); err != nil {
+						return "", err
+					} else if !ok {
+						return "", fmt.Errorf("上级分类「%s」不在字典里——先 dict.op=add 把上级加进去，再加「%s」", parent, in.Name)
+					}
+				}
+			}
+		}
+		if in.Kind == workcost.DictRegion && in.Parent != "" {
+			if ok, err := s.DictHas(workcost.DictRegion, in.Parent); err != nil {
+				return "", err
+			} else if !ok {
+				return "", fmt.Errorf("上级地区「%s」不在字典里——先 dict.op=add 把上级加进去", in.Parent)
+			}
+		}
+		exists, err := s.DictHas(in.Kind, in.Name)
+		if err != nil {
+			return "", err
+		}
+		var out strings.Builder
+		out.WriteString(clHead(p.DryRun, "dict_add"))
+		if exists {
+			fmt.Fprintf(&out, "%s「%s」已在字典里，无需新增。", workcost.DictKindLabel[in.Kind], in.Name)
+			return out.String(), nil
+		}
+		fmt.Fprintf(&out, "**将新增%s**「%s」", workcost.DictKindLabel[in.Kind], in.Name)
+		if in.Code != "" {
+			fmt.Fprintf(&out, "｜代码 %s", in.Code)
+		}
+		if in.Parent != "" {
+			fmt.Fprintf(&out, "｜上级 %s", in.Parent)
+		}
+		out.WriteString("\n")
+		if p.DryRun {
+			out.WriteString("\n演练未写库。去掉 dry_run 正式新增（弹确认）。新增只是把值收进字典；已有数据要用它还得 classify。")
+			return out.String(), nil
+		}
+		if err := s.DictAdd(workcost.DictItem{Kind: in.Kind, Name: in.Name, Code: in.Code, Parent: in.Parent,
+			Level: in.Level, Sort: 0, Note: clDeref(in.Note)}); err != nil {
+			return "", err
+		}
+		out.WriteString("已新增。接下来用 classify 把数据归到它下面。")
+		return out.String(), nil
+	case "update":
+		if !workcost.ValidDictKind(in.Kind) || in.Name == "" {
+			return "", fmt.Errorf("dict.op=update 需要 dict.kind 与 dict.name（改哪一条）")
+		}
+		items, err := s.DictList(in.Kind)
+		if err != nil {
+			return "", err
+		}
+		var cur *workcost.DictItem
+		for i := range items {
+			if items[i].Name == in.Name {
+				cur = &items[i]
+				break
+			}
+		}
+		if cur == nil {
+			return "", fmt.Errorf("%s字典里没有「%s」", workcost.DictKindLabel[in.Kind], in.Name)
+		}
+		sort := cur.Sort
+		if in.Sort != nil {
+			sort = *in.Sort
+		}
+		note := cur.Note
+		if in.Note != nil {
+			note = strings.TrimSpace(*in.Note)
+		}
+		parent := cur.Parent
+		if in.Parent != "" {
+			parent = in.Parent
+		}
+		code := cur.Code
+		if in.Code != "" {
+			code = in.Code
+		}
+		used, err := s.DictUsage(in.Kind, in.Name)
+		if err != nil {
+			return "", err
+		}
+		var out strings.Builder
+		out.WriteString(clHead(p.DryRun, "dict_update"))
+		fmt.Fprintf(&out, "**将修改%s**「%s」", workcost.DictKindLabel[in.Kind], in.Name)
+		if in.Rename != "" {
+			fmt.Fprintf(&out, " → 改名为「%s」（级联 %d 条引用它的数据）", in.Rename, used)
+		}
+		fmt.Fprintf(&out, "｜代码 %s｜上级 %s", clDim(code, "—"), clDim(parent, "—"))
+		out.WriteString("\n")
+		if p.DryRun {
+			out.WriteString("\n演练未写库。去掉 dry_run 正式修改（弹确认）。")
+			return out.String(), nil
+		}
+		cascaded, err := s.DictUpdate(in.Kind, in.Name, in.Rename, parent, code, sort, note)
+		if err != nil {
+			return "", err
+		}
+		out.WriteString("已修改。")
+		for table, n := range cascaded {
+			fmt.Fprintf(&out, " %s 改了 %d 条；", table, n)
+		}
+		return out.String(), nil
+	default: // delete
+		if !workcost.ValidDictKind(in.Kind) || in.Name == "" {
+			return "", fmt.Errorf("dict.op=delete 需要 dict.kind 与 dict.name")
+		}
+		used, err := s.DictUsage(in.Kind, in.Name)
+		if err != nil {
+			return "", err
+		}
+		var out strings.Builder
+		out.WriteString(clHead(p.DryRun, "dict_delete"))
+		fmt.Fprintf(&out, "**将删除%s**「%s」", workcost.DictKindLabel[in.Kind], in.Name)
+		if used > 0 {
+			fmt.Fprintf(&out, "｜仍被 %d 条数据引用——先把它们 classify 到别的%s，才能删", used, workcost.DictKindLabel[in.Kind])
+			out.WriteString("\n")
+			return out.String(), nil
+		}
+		out.WriteString("\n")
+		if p.DryRun {
+			out.WriteString("\n演练未写库。去掉 dry_run 正式删除（弹确认）。")
+			return out.String(), nil
+		}
+		if err := s.DictDelete(in.Kind, in.Name); err != nil {
+			return "", err
+		}
+		out.WriteString("已删除。")
+		return out.String(), nil
+	}
+}
+
+func clDeref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return strings.TrimSpace(*s)
+}
+
 // health 库级健康明细（只读）。
 func (t costLibraryTool) health(s *workcost.Store) (string, error) {
 	hr, err := s.HealthScan()
@@ -1291,7 +1917,12 @@ func (t costLibraryTool) health(s *workcost.Store) (string, error) {
 		}
 		mismatch = append(mismatch, fmt.Sprintf("「%s」：%s", g.Title, strings.Join(codes, " / ")))
 	}
-	section("编码未统一（同名资源编码风格混用）", len(hr.CodeMismatch), "确认保留哪一条后 cost_library dedupe 合并", mismatch)
+	section("编码未统一（同地区同名资源编码风格混用）", len(hr.CodeMismatch), "确认保留哪一条后 cost_library dedupe 合并", mismatch)
+	rule := make([]string, 0, len(hr.RuleIssues))
+	for _, r := range hr.RuleIssues {
+		rule = append(rule, fmt.Sprintf("[%s] %s「%s」的 %s =「%s」：%s", r.Tier, r.Code, r.Title, r.Field, r.Value, r.Fix))
+	}
+	section("不合规矩的数据（取值在字典外 / 类别不在四类内 / 期数不是 YYYY-MM）", len(hr.RuleIssues), "按条目后的处置指引：classify 改数据，或 dict add 把值收进字典", rule)
 	if hr.TotalFindings == 0 {
 		out.WriteString("库级扫描全绿。")
 	}

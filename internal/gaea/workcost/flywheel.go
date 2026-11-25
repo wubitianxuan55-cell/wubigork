@@ -8,7 +8,8 @@ package workcost
 // 数据面事实（本刀盘底 2026-10-15）：跨项目的含量分歧在库里已有形——导入链
 // 统一四态（ResolveQuotaCode）把「同原码不同内容」拆成 原码-N 变体行，各带
 // 自己的 Source（项目导入：<文件名>）；内容全等的复用同一条（真统一）。因此
-// 聚类键=orig_code（-N 变体的溯源字段就是原码），簇内 ≥2 条含量相异且来自
+// 聚类键=(专业, orig_code)（-N 变体的溯源字段就是原码；2026-11-25 起只在专业
+// 内聚合——同样一件事各专业各有定额），簇内 ≥2 条含量相异且来自
 // ≥2 个项目源的变体，就是飞轮原料。
 //
 // 聚合口径：逐资源取各变体含量的**中位数**（对离群稳健）；覆盖度/极差如实
@@ -37,7 +38,7 @@ func (s *Store) QuotaFlywheelPreview() (QuotaFlywheelPreview, error) {
 
 // allQuotasWithItems 全量定额+含量行（两条查询内存拼装，避免逐定额 N+1）。
 func (s *Store) allQuotasWithItems() ([]Quota, error) {
-	rows, err := s.db.Query(`SELECT code, COALESCE(orig_code,''), title, COALESCE(unit,''), COALESCE(source,'')
+	rows, err := s.db.Query(`SELECT code, COALESCE(orig_code,''), title, COALESCE(unit,''), COALESCE(source,''), COALESCE(specialty,'')
 FROM gf_quotas ORDER BY code`)
 	if err != nil {
 		return nil, err
@@ -45,11 +46,11 @@ FROM gf_quotas ORDER BY code`)
 	byCode := map[string]*Quota{}
 	var order []string
 	for rows.Next() {
-		var code, orig, title, unit, source string
-		if e := rows.Scan(&code, &orig, &title, &unit, &source); e != nil {
+		var code, orig, title, unit, source, specialty string
+		if e := rows.Scan(&code, &orig, &title, &unit, &source, &specialty); e != nil {
 			continue
 		}
-		byCode[code] = &Quota{Code: code, OrigCode: orig, Title: title, Unit: unit, Source: source}
+		byCode[code] = &Quota{Code: code, OrigCode: orig, Title: title, Unit: unit, Source: source, Specialty: specialty}
 		order = append(order, code)
 	}
 	if e := rows.Err(); e != nil {
@@ -85,7 +86,12 @@ FROM gf_quota_items ORDER BY quota_code, sort, id`)
 // QuotaFlywheelApply 作者点名聚类词干（orig_code 词干）后落库：重建候选（与
 // Preview 同一纯函数，天然一致）→ SaveQuota 按 code upsert 整组替换。ENT-* 是
 // 自有命名空间，重生成=飞轮进化，绝不覆写项目导入/全局定额。
-func (s *Store) QuotaFlywheelApply(origCodes []string) (*QuotaFlywheelResult, error) {
+//
+// 专业内聚合（2026-11-25 定额专业随来源定）：同词干在多个专业下各有一个候选时
+// 必须带 specialty 指明，否则跳过不猜。落库编码：ENT-<词干> 被别的专业的企业定额
+// 占用时，复用本专业这一词干既有的 ENT-* 行（按 orig_code + 专业找），都没有才
+// 消歧成 ENT-<词干>-N——保证重生成稳定落到同一条。
+func (s *Store) QuotaFlywheelApply(origCodes []string, specialty string) (*QuotaFlywheelResult, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
@@ -95,28 +101,85 @@ func (s *Store) QuotaFlywheelApply(origCodes []string) (*QuotaFlywheelResult, er
 	}
 	prev := BuildQuotaFlywheelPreview(quotas)
 	res := &QuotaFlywheelResult{Saved: []string{}, Skipped: []QuotaFlywheelSkip{}}
+	specialty = strings.TrimSpace(specialty)
+	byStem := map[string][]QuotaFlywheelCandidate{}
+	for _, cand := range prev.Candidates {
+		byStem[cand.OrigCode] = append(byStem[cand.OrigCode], cand)
+	}
 	want := map[string]bool{}
 	for _, c := range origCodes {
 		if k := strings.TrimSpace(c); k != "" {
 			want[k] = true
 		}
 	}
-	for _, cand := range prev.Candidates {
-		if !want[cand.OrigCode] {
+	stems := make([]string, 0, len(want))
+	for k := range want {
+		stems = append(stems, k)
+	}
+	sort.Strings(stems)
+	for _, stem := range stems {
+		cands := byStem[stem]
+		if specialty != "" {
+			only := cands[:0:0]
+			for _, c := range cands {
+				if c.Specialty == specialty {
+					only = append(only, c)
+				}
+			}
+			cands = only
+		}
+		if len(cands) == 0 {
+			res.Skipped = append(res.Skipped, QuotaFlywheelSkip{Key: stem, Reason: "不是有效候选（预览不存在、未成立，或该专业下没有这个簇），宁缺勿误"})
 			continue
 		}
-		delete(want, cand.OrigCode)
+		if len(cands) > 1 {
+			names := make([]string, 0, len(cands))
+			for _, c := range cands {
+				names = append(names, c.Specialty)
+			}
+			res.Skipped = append(res.Skipped, QuotaFlywheelSkip{Key: stem,
+				Reason: fmt.Sprintf("该词干在 %d 个专业下各有一个候选（%s）——定额专业固定，带 specialty 指明要生成哪个专业的", len(cands), strings.Join(names, "、"))})
+			continue
+		}
+		cand := cands[0]
+		code, err := s.enterpriseQuotaCode(cand)
+		if err != nil {
+			res.Skipped = append(res.Skipped, QuotaFlywheelSkip{Key: stem, Title: cand.Title, Reason: fmt.Sprintf("编码解析失败: %v", err)})
+			continue
+		}
+		cand.NewCode = code
 		if _, err := s.SaveQuota(BuildEnterpriseQuota(cand), nil); err != nil {
 			res.Skipped = append(res.Skipped, QuotaFlywheelSkip{
-				Key: cand.OrigCode, Title: cand.Title, Reason: fmt.Sprintf("落库失败: %v", err)})
+				Key: stem, Title: cand.Title, Reason: fmt.Sprintf("落库失败: %v", err)})
 			continue
 		}
-		res.Saved = append(res.Saved, cand.NewCode)
-	}
-	for k := range want {
-		res.Skipped = append(res.Skipped, QuotaFlywheelSkip{Key: k, Reason: "不是有效候选（预览不存在或未成立，宁缺勿误）"})
+		res.Saved = append(res.Saved, code)
 	}
 	return res, nil
+}
+
+// enterpriseQuotaCode 企业定额的落库编码（见 QuotaFlywheelApply 的编码规则）。
+func (s *Store) enterpriseQuotaCode(cand QuotaFlywheelCandidate) (string, error) {
+	preferred := cand.NewCode
+	var existSpec string
+	err := s.db.QueryRow(`SELECT COALESCE(specialty,'') FROM gf_quotas WHERE code=?`, preferred).Scan(&existSpec)
+	if err == nil && existSpec == cand.Specialty {
+		return preferred, nil // 本专业既有企业定额：重生成=进化，原位覆写
+	}
+	if err == nil {
+		// 首选码被别的专业占着：找本专业这一词干既有的 ENT-* 行。
+		var code string
+		e := s.db.QueryRow(`SELECT code FROM gf_quotas WHERE code LIKE ? AND orig_code=? AND specialty=? ORDER BY code LIMIT 1`,
+			preferred+"-%", cand.OrigCode, cand.Specialty).Scan(&code)
+		if e == nil {
+			return code, nil
+		}
+		return s.freeQuotaCode(preferred)
+	}
+	if strings.Contains(err.Error(), "no rows") {
+		return preferred, nil
+	}
+	return "", err
 }
 
 // QuotaFlywheelMember 聚类成员（同工作内容的一个定额变体）。
@@ -146,9 +209,12 @@ type QuotaFlywheelRow struct {
 // QuotaFlywheelCandidate 一个工作内容的企业定额候选。
 type QuotaFlywheelCandidate struct {
 	OrigCode string `json:"origCode"`
-	NewCode  string `json:"newCode"` // ENT-<orig_code>
+	NewCode  string `json:"newcode"` // ENT-<orig_code>（被别的专业占用时落库会消歧成 -N）
 	Title    string `json:"title"`
 	Unit     string `json:"unit"`
+	// Specialty 候选所属专业（定额专业随来源定：聚类在专业内进行，不同专业的
+	// 同词干定额是两个候选；空=成员都未标注专业）。
+	Specialty string `json:"specialty"`
 	// Members 成员变体（按 code 稳定序）。
 	Members []QuotaFlywheelMember `json:"members"`
 	Rows    []QuotaFlywheelRow    `json:"rows"`
@@ -213,12 +279,14 @@ func medianFloat(xs []float64) float64 {
 }
 
 // BuildQuotaFlywheelPreview 纯函数：全量定额（含含量行）→ 飞轮候选。
-// 聚类键=orig_code（消歧变体的溯源字段，见 quotaClusterKey）；成员要求
+// 聚类键=(专业, orig_code)：定额专业随来源定，同样一件事各专业各有定额，所以
+// **只在专业内聚合**，不同专业的同词干定额是两个候选，绝不混聚。成员要求
 // Source 非空（无溯源的定额不参与聚合——来源不明的东西不该变成企业标准）。
 func BuildQuotaFlywheelPreview(quotas []Quota) QuotaFlywheelPreview {
 	type cluster struct {
-		stem    string
-		members []Quota
+		stem      string
+		specialty string
+		members   []Quota
 	}
 	clusters := map[string]*cluster{}
 	var order []string
@@ -230,19 +298,21 @@ func BuildQuotaFlywheelPreview(quotas []Quota) QuotaFlywheelPreview {
 		if stem == "" {
 			continue
 		}
-		c, ok := clusters[stem]
+		specialty := strings.TrimSpace(q.Specialty)
+		key := specialty + "\x00" + stem
+		c, ok := clusters[key]
 		if !ok {
-			c = &cluster{stem: stem}
-			clusters[stem] = c
-			order = append(order, stem)
+			c = &cluster{stem: stem, specialty: specialty}
+			clusters[key] = c
+			order = append(order, key)
 		}
 		c.members = append(c.members, q)
 	}
 	sort.Strings(order)
 
 	out := QuotaFlywheelPreview{Clusters: len(clusters), Candidates: []QuotaFlywheelCandidate{}, Skipped: []QuotaFlywheelSkip{}}
-	for _, stem := range order {
-		c := clusters[stem]
+	for _, key := range order {
+		c := clusters[key]
 		ms := c.members
 		titleOf := func() string {
 			for _, m := range ms {
@@ -250,10 +320,14 @@ func BuildQuotaFlywheelPreview(quotas []Quota) QuotaFlywheelPreview {
 					return m.Title
 				}
 			}
-			return stem
+			return c.stem
 		}
 		fail := func(reason string) {
-			out.Skipped = append(out.Skipped, QuotaFlywheelSkip{Key: stem, Title: titleOf(), Reason: reason})
+			key := c.stem
+			if c.specialty != "" {
+				key = c.specialty + "｜" + c.stem
+			}
+			out.Skipped = append(out.Skipped, QuotaFlywheelSkip{Key: key, Title: titleOf(), Reason: reason})
 		}
 		// 带含量行的成员才有聚合价值。
 		var withItems []Quota
@@ -306,12 +380,14 @@ func BuildQuotaFlywheelPreview(quotas []Quota) QuotaFlywheelPreview {
 		}
 
 		sort.Slice(members, func(i, j int) bool { return members[i].Code < members[j].Code })
+		stem := c.stem
 		cand := QuotaFlywheelCandidate{
-			OrigCode: stem,
-			NewCode:  "ENT-" + stem,
-			Title:    strings.TrimSpace(members[0].Title),
-			Unit:     strings.TrimSpace(members[0].Unit),
-			Sources:  len(srcSet),
+			OrigCode:  stem,
+			NewCode:   "ENT-" + stem,
+			Title:     strings.TrimSpace(members[0].Title),
+			Unit:      strings.TrimSpace(members[0].Unit),
+			Specialty: c.specialty,
+			Sources:   len(srcSet),
 		}
 		for _, m := range members {
 			cand.Members = append(cand.Members, QuotaFlywheelMember{
@@ -371,14 +447,15 @@ func BuildQuotaFlywheelPreview(quotas []Quota) QuotaFlywheelPreview {
 }
 
 // BuildEnterpriseQuota 由候选构造落库定额（含量行=中位数，ResourcePrice 留 0
-// 按现行价核算——导入链同款口径）。
+// 按现行价核算——导入链同款口径）。企业定额带候选的专业。
 func BuildEnterpriseQuota(cand QuotaFlywheelCandidate) Quota {
 	q := Quota{
-		Code:     cand.NewCode,
-		OrigCode: cand.OrigCode,
-		Title:    cand.Title,
-		Unit:     cand.Unit,
-		Source:   fmt.Sprintf("企业聚合：%d 项目", cand.Sources),
+		Code:      cand.NewCode,
+		OrigCode:  cand.OrigCode,
+		Title:     cand.Title,
+		Specialty: cand.Specialty,
+		Unit:      cand.Unit,
+		Source:    fmt.Sprintf("企业聚合：%d 项目", cand.Sources),
 		Note: fmt.Sprintf("自 %d 个项目变体聚合（%s）；含量=各变体中位数，分歧幅度见预览",
 			len(cand.Members), strings.Join(memberCodes(cand), " ")),
 		Items: []QuotaItem{},

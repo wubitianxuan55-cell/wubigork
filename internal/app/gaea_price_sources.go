@@ -13,6 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tasks"
+	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
 // hubPriceStore 构造价格源存储（Hephaestus.db SchemaV4，与成本库同库）。
@@ -189,9 +190,16 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string, syncResources
 		})
 		out.Applied++
 		// 资源联动：预匹配到唯一工料机资源 → 推进现行价 + 写调价历史。
+		// 期数与地区按库的规矩过一遍（rules.go）：价格源的期数不是年月写法就留空
+		// （原文已在备注里），地区不在字典里就不往价格事实上写。
 		if syncResources && c.ResourceCode != "" {
-			if r, err := ws.MatchResourceByTitleSpec(c.Title, c.Spec, c.Unit); err == nil && r != nil {
-				if _, err := ws.UpdateResourcePrice(r.ID, c.Price, rec.Period, area,
+			if r, err := ws.MatchResourceByTitleSpec(c.Title, c.Spec, c.Unit, area); err == nil && r != nil {
+				period, _ := workcost.NormalizePeriod(rec.Period)
+				region := area
+				if ok, _ := ws.DictHas(workcost.DictRegion, region); !ok {
+					region = ""
+				}
+				if _, err := ws.UpdateResourcePrice(r.ID, c.Price, period, region,
 					"信息价", "信息价发布", fmt.Sprintf("%s（期数 %s）", rec.SourceName, rec.Period)); err == nil {
 					out.ResourceSynced++
 				}
@@ -229,9 +237,16 @@ func (a *App) enrichResourceMatches(res *pricefeed.Result) {
 		return
 	}
 	ws := a.hubWorkcostStore()
+	// 价格源的地区参与匹配：工料机按地区分行，优先落在该地区的行上。
+	var area string
+	if res.SourceID != "" {
+		if src, ok := a.hubPriceStore().GetSource(res.SourceID); ok {
+			area = src.Area
+		}
+	}
 	for i := range res.Candidates {
 		c := &res.Candidates[i]
-		if r, err := ws.MatchResourceByTitleSpec(c.Title, c.Spec, c.Unit); err == nil && r != nil {
+		if r, err := ws.MatchResourceByTitleSpec(c.Title, c.Spec, c.Unit, area); err == nil && r != nil {
 			c.ResourceCode = r.Code
 			c.ResourceTitle = r.Title
 		}

@@ -2,7 +2,7 @@ package workcost
 
 // ── 数据健康扫描（四期 4.1，master plan 原案）────────────────
 //
-// 五类扫描（各有独立测试；每条发现带人可读详情，前端一键跳转修复）：
+// 六类扫描（各有独立测试；每条发现带人可读详情，前端一键跳转修复）：
 //   1. zero_price      零价资源——现行价与基准价皆为 0（无价可核算）
 //   2. quota_missing_price 缺价定额子目——含量行 resource_price ≤ 0（综合
 //      单价按 0 计，算出来必错）
@@ -12,8 +12,11 @@ package workcost
 //      V25）在库层面已消灭同身份多行；本项检查**索引本身仍在**（防未来迁移
 //      误删唯一约束使防护失效）。跨身份的语义性重复（同物异规格/编码分裂）
 //      由 ⑤ 检出、由 DedupeResources（作者显式裁决的跨身份合并）处置
-//   5. code_mismatch   编码未统一——同 title 的资源编码风格混用（助记码 vs
+//   5. code_mismatch   编码未统一——同 title 同地区的资源编码风格混用（助记码 vs
 //      前缀序号），提示作者归一
+//   6. rule_issues     不合规矩的数据（2026-11-25 库定规矩）——取值在字典外、类别
+//      不在四类内、期数不是 YYYY-MM。多为升级前的存量，处置走 cost_library
+//      classify（改数据）或 dict（加字典项）
 //
 // 全部为只读查询（零写零事务），可在概览页随开随扫。
 
@@ -21,13 +24,14 @@ import (
 	"fmt"
 )
 
-// HealthReport 五类扫描报告（wire camelCase）。
+// HealthReport 六类扫描报告（wire camelCase）。
 type HealthReport struct {
 	ZeroPrice     []HealthFinding     `json:"zeroPrice"`
 	QuotaNoPrice  []HealthFinding     `json:"quotaNoPrice"`
 	BrokenRef     []HealthFinding     `json:"brokenRef"`
 	Duplicates    []DuplicateGroup    `json:"duplicates"`
 	CodeMismatch  []CodeMismatchGroup `json:"codeMismatch"`
+	RuleIssues    []RuleIssue         `json:"ruleIssues"`
 	TotalFindings int                 `json:"totalFindings"`
 }
 
@@ -40,6 +44,18 @@ type HealthFinding struct {
 	Unit  string `json:"unit,omitempty"`
 	// Detail 人可读补充（如「现行价与基准价均为 0」）。
 	Detail string `json:"detail,omitempty"`
+}
+
+// RuleIssue 一条不合规矩的数据：某个字段的取值不在库认可的范围内。
+type RuleIssue struct {
+	Tier  string `json:"tier"` // resource / quota / bill / project
+	ID    int64  `json:"id"`
+	Code  string `json:"code"` // 资源码 / 定额码 / 清单码（项目为空）
+	Title string `json:"title"`
+	Field string `json:"field"` // kind / region / category_path / specialty / price_date / price_period
+	Value string `json:"value"` // 不合规的原值
+	// Fix 处置指引。
+	Fix string `json:"fix"`
 }
 
 // DuplicateGroup 重复防护发现（索引缺失告警形态；正常态为空）。
@@ -55,7 +71,7 @@ type CodeMismatchGroup struct {
 	Items []HealthFinding `json:"items"`
 }
 
-// HealthScan 五类扫描（只读）。
+// HealthScan 六类扫描（只读）。
 func (s *Store) HealthScan() (*HealthReport, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
@@ -121,28 +137,30 @@ WHERE qi.resource_code != '' AND r.id IS NULL ORDER BY qi.resource_code`)
 		})
 	}
 
-	// ⑤ 编码未统一（同 title 编码风格混用：助记码 vs 前缀序号）
-	rows, err = s.db.Query(`SELECT DISTINCT title FROM gf_resources ORDER BY title`)
+	// ⑤ 编码未统一（同 title **同地区**的编码风格混用：助记码 vs 前缀序号）。
+	// 工料机按地区分行后，同名的各地行各用各的编码体系是正常的，跨地区不比。
+	rows, err = s.db.Query(`SELECT DISTINCT title, COALESCE(region,'') FROM gf_resources ORDER BY title, region`)
 	if err != nil {
 		return nil, err
 	}
-	var titles []string
+	type titleKey struct{ title, region string }
+	var keys []titleKey
 	for rows.Next() {
-		var t string
-		if rows.Scan(&t) == nil {
-			titles = append(titles, t)
+		var k titleKey
+		if rows.Scan(&k.title, &k.region) == nil {
+			keys = append(keys, k)
 		}
 	}
 	_ = rows.Close()
-	for _, title := range titles {
-		rows2, err := s.db.Query(`SELECT id, code, kind FROM gf_resources WHERE title=? ORDER BY id`, title)
+	for _, k := range keys {
+		rows2, err := s.db.Query(`SELECT id, code, kind FROM gf_resources WHERE title=? AND region=? ORDER BY id`, k.title, k.region)
 		if err != nil {
 			return nil, err
 		}
 		var items []HealthFinding
 		styles := map[string]bool{}
 		for rows2.Next() {
-			f := HealthFinding{Title: title}
+			f := HealthFinding{Title: k.title}
 			if err := rows2.Scan(&f.ID, &f.Code, &f.Kind); err == nil {
 				styles[codeStyle(f.Code)] = true
 				items = append(items, f)
@@ -150,13 +168,87 @@ WHERE qi.resource_code != '' AND r.id IS NULL ORDER BY qi.resource_code`)
 		}
 		_ = rows2.Close()
 		if len(styles) > 1 {
-			rep.CodeMismatch = append(rep.CodeMismatch, CodeMismatchGroup{Title: title, Items: items})
+			if k.region != "" {
+				for i := range items {
+					items[i].Detail = "地区 " + k.region
+				}
+			}
+			rep.CodeMismatch = append(rep.CodeMismatch, CodeMismatchGroup{Title: k.title, Items: items})
 		}
 	}
 
+	// ⑥ 不合规矩的数据（库定规矩，见 rules.go）：取值在字典外 / 类别不在四类内 /
+	// 期数不是 YYYY-MM。多为升级前的存量。
+	rep.RuleIssues, err = s.scanRuleIssues()
+	if err != nil {
+		return nil, err
+	}
+
 	rep.TotalFindings = len(rep.ZeroPrice) + len(rep.QuotaNoPrice) + len(rep.BrokenRef) +
-		len(rep.Duplicates) + len(rep.CodeMismatch)
+		len(rep.Duplicates) + len(rep.CodeMismatch) + len(rep.RuleIssues)
 	return rep, nil
+}
+
+// scanRuleIssues 扫出取值不在库认可范围内的数据（只读）。
+func (s *Store) scanRuleIssues() ([]RuleIssue, error) {
+	// GLOB 没有分组与多选，YYYY-MM 的月份段拆成两条模式。
+	const (
+		canonA = "[0-9][0-9][0-9][0-9]-0[1-9]"
+		canonB = "[0-9][0-9][0-9][0-9]-1[0-2]"
+	)
+	notPeriod := func(col string) string {
+		return col + " <> '' AND " + col + " NOT GLOB '" + canonA + "' AND " + col + " NOT GLOB '" + canonB + "'"
+	}
+	rows, err := s.db.Query(`
+SELECT 'resource', r.id, r.code, r.title, 'kind', r.kind, '改成 人工/材料/机械/外委 之一（cost_library classify）'
+FROM gf_resources r WHERE r.kind NOT IN ('人工','材料','机械','外委')
+UNION ALL
+SELECT 'resource', r.id, r.code, r.title, 'region', r.region, '地区不在字典：加进字典（dict add）或改成字典里的地区（classify）'
+FROM gf_resources r LEFT JOIN gf_dicts d ON d.kind='region' AND d.name=r.region
+WHERE r.region<>'' AND d.id IS NULL
+UNION ALL
+SELECT 'resource', r.id, r.code, r.title, 'category_path', r.category_path, '分类不在字典：加进字典（dict add）或改成字典里的分类（classify）'
+FROM gf_resources r LEFT JOIN gf_dicts d ON d.kind='category' AND d.name=r.category_path
+WHERE r.category_path<>'' AND d.id IS NULL
+UNION ALL
+SELECT 'resource', r.id, r.code, r.title, 'price_date', r.price_date, '期数不是 YYYY-MM：换算后重设（classify 的 period）'
+FROM gf_resources r WHERE ` + notPeriod("r.price_date") + `
+UNION ALL
+SELECT 'quota', q.id, q.code, q.title, 'specialty', q.specialty, '专业不在字典：加进字典（dict add）或改成字典里的专业（classify）'
+FROM gf_quotas q LEFT JOIN gf_dicts d ON d.kind='specialty' AND d.name=q.specialty
+WHERE q.specialty<>'' AND d.id IS NULL
+UNION ALL
+SELECT 'quota', q.id, q.code, q.title, 'price_date', q.price_date, '期数不是 YYYY-MM'
+FROM gf_quotas q WHERE ` + notPeriod("q.price_date") + `
+UNION ALL
+SELECT 'bill', b.id, b.code, b.title, 'specialty', b.specialty, '专业不在字典'
+FROM gf_bill_items b LEFT JOIN gf_dicts d ON d.kind='specialty' AND d.name=b.specialty
+WHERE b.specialty<>'' AND d.id IS NULL
+UNION ALL
+SELECT 'project', p.id, '', p.name, 'specialty', p.specialty, '专业不在字典'
+FROM gf_projects p LEFT JOIN gf_dicts d ON d.kind='specialty' AND d.name=p.specialty
+WHERE p.specialty<>'' AND d.id IS NULL
+UNION ALL
+SELECT 'project', p.id, '', p.name, 'region', p.region, '地区不在字典'
+FROM gf_projects p LEFT JOIN gf_dicts d ON d.kind='region' AND d.name=p.region
+WHERE p.region<>'' AND d.id IS NULL
+UNION ALL
+SELECT 'project', p.id, '', p.name, 'price_period', p.price_period, '期数不是 YYYY-MM'
+FROM gf_projects p WHERE ` + notPeriod("p.price_period") + `
+ORDER BY 1, 5, 3`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []RuleIssue{}
+	for rows.Next() {
+		var it RuleIssue
+		if err := rows.Scan(&it.Tier, &it.ID, &it.Code, &it.Title, &it.Field, &it.Value, &it.Fix); err != nil {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
 }
 
 // codeStyle 编码风格：助记码（字母 ≥2 连续，如 EXC/HP300 开头段）vs 前缀序号

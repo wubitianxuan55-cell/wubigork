@@ -188,7 +188,7 @@ func TestQuotaFlywheelPreviewAndApply(t *testing.T) {
 	}
 
 	// 无效词干 → 全部跳过（宁缺勿误；空串在入口被滤掉不算点名）。
-	res, err := s.QuotaFlywheelApply([]string{"NOPE-9", "NOPE-10", " "})
+	res, err := s.QuotaFlywheelApply([]string{"NOPE-9", "NOPE-10", " "}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestQuotaFlywheelPreviewAndApply(t *testing.T) {
 	}
 
 	// 正式点名 → ENT-WP-100 落库，含量=中位数，Source=企业聚合。
-	res, err = s.QuotaFlywheelApply([]string{"WP-100"})
+	res, err = s.QuotaFlywheelApply([]string{"WP-100"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestQuotaFlywheelPreviewAndApply(t *testing.T) {
 	}
 
 	// 重生成（飞轮进化）：再应用同词干 → 同码整组替换，不产生 ENT-WP-100-2。
-	res, err = s.QuotaFlywheelApply([]string{"WP-100"})
+	res, err = s.QuotaFlywheelApply([]string{"WP-100"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

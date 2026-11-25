@@ -138,39 +138,40 @@ func TestBillItemListPriceRoundtrip(t *testing.T) {
 	}
 }
 
-// TestResolveQuotaCodeUnification 定额编码统一规则四态（V29）：
-// 空库直用 / 同源重导入复用 / 内容全等跨项目复用 / 冲突消歧。
-func TestResolveQuotaCodeUnification(t *testing.T) {
+// TestResolveQuotaUnification 定额编码解析规则：V29 四态（空库直用 / 同源重导入复用 /
+// 内容全等跨项目复用 / 冲突消歧）+ 2026-11-25 定额专业随来源定、跨专业不并。
+func TestResolveQuotaUnification(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
 
 	// ① 空库：原码直用。
-	got, err := s.ResolveQuotaCode("WP02", "施工便道", "m", "3m宽", "项目导入：A.xlsx")
-	if err != nil || got != "WP02" {
-		t.Fatalf("空库应直用原码，得到 %s（err=%v）", got, err)
+	got, err := s.ResolveQuota("WP02", "施工便道", "m", "3m宽", "项目导入：A.xlsx", "")
+	if err != nil || got.Code != "WP02" || got.Reuse {
+		t.Fatalf("空库应直用原码，得到 %+v（err=%v）", got, err)
 	}
 	if _, err := s.SaveQuota(Quota{Code: "WP02", OrigCode: "WP02", Title: "施工便道", Unit: "m", Note: "3m宽", Source: "项目导入：A.xlsx"}, nil); err != nil {
 		t.Fatalf("建定额失败: %v", err)
 	}
 
-	// ② 同源重导入：复用。
-	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "3m宽", "项目导入：A.xlsx")
-	if err != nil || got != "WP02" {
-		t.Fatalf("同源重导入应复用，得到 %s（err=%v）", got, err)
+	// ② 同源重导入：复用，且是本项目自己的定额（随工作簿刷新）。
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "3m宽", "项目导入：A.xlsx", "")
+	if err != nil || got.Code != "WP02" || !got.Reuse || !got.SameSource {
+		t.Fatalf("同源重导入应复用，得到 %+v（err=%v）", got, err)
 	}
 
-	// ③ 他项目内容全等：复用（真统一）。
-	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "3m宽", "项目导入：B.xlsx")
-	if err != nil || got != "WP02" {
-		t.Fatalf("内容全等应跨项目复用，得到 %s（err=%v）", got, err)
+	// ③ 他项目内容全等（双方未标注专业）：复用（真统一），但不是本项目自己的定额。
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "3m宽", "项目导入：B.xlsx", "")
+	if err != nil || got.Code != "WP02" || !got.Reuse || got.SameSource {
+		t.Fatalf("内容全等应跨项目复用，得到 %+v（err=%v）", got, err)
 	}
 
 	// ④ 他项目内容不同：消歧 WP02-2，且 orig_code 保留原码。
-	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "5m宽双车道", "项目导入：C.xlsx")
-	if err != nil || got != "WP02-2" {
-		t.Fatalf("内容不同应消歧 WP02-2，得到 %s（err=%v）", got, err)
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "5m宽双车道", "项目导入：C.xlsx", "")
+	if err != nil || got.Code != "WP02-2" {
+		t.Fatalf("内容不同应消歧 WP02-2，得到 %+v（err=%v）", got, err)
 	}
-	if _, err := s.SaveQuota(Quota{Code: got, OrigCode: "WP02", Title: "施工便道", Unit: "m", Note: "5m宽双车道", Source: "项目导入：C.xlsx"}, nil); err != nil {
+	if _, err := s.SaveQuota(Quota{Code: got.Code, OrigCode: "WP02", Title: "施工便道", Unit: "m", Note: "5m宽双车道", Source: "项目导入：C.xlsx"}, nil); err != nil {
 		t.Fatalf("消歧定额落库失败: %v", err)
 	}
 	q, err := s.GetQuota("WP02-2")
@@ -178,9 +179,29 @@ func TestResolveQuotaCodeUnification(t *testing.T) {
 		t.Fatalf("消歧定额应保留 orig_code=WP02，得到 %q（err=%v）", q.OrigCode, err)
 	}
 	// 第三次冲突：WP02-3。
-	got, err = s.ResolveQuotaCode("WP02", "施工便道", "m", "6m宽", "项目导入：D.xlsx")
-	if err != nil || got != "WP02-3" {
-		t.Fatalf("第三个冲突应 WP02-3，得到 %s（err=%v）", got, err)
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "6m宽", "项目导入：D.xlsx", "")
+	if err != nil || got.Code != "WP02-3" {
+		t.Fatalf("第三个冲突应 WP02-3，得到 %+v（err=%v）", got, err)
+	}
+
+	// ⑤ 外专业同码同内容：不并——另立本专业新定额，溯源记借鉴。
+	if _, err := s.saveQuota(s.db, Quota{Code: "WP02", OrigCode: "WP02", Title: "施工便道", Unit: "m", Note: "3m宽",
+		Source: "项目导入：A.xlsx", Specialty: "土壤修复"}, nil); err != nil {
+		t.Fatalf("把 WP02 标成土壤修复失败: %v", err)
+	}
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "3m宽", "项目导入：E.xlsx", "市政")
+	if err != nil || got.Code != "WP02-3" || got.Reuse || got.Derived != "借鉴 土壤修复 WP02" {
+		t.Fatalf("外专业同内容应另立（WP02-3 尚未被占用）并记借鉴，得到 %+v（err=%v）", got, err)
+	}
+	// ⑥ 同专业同内容：复用同一条。
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "3m宽", "项目导入：F.xlsx", "土壤修复")
+	if err != nil || got.Code != "WP02" || !got.Reuse || got.Derived != "" {
+		t.Fatalf("同专业同内容应复用，得到 %+v（err=%v）", got, err)
+	}
+	// ⑦ 任一方未标注专业：仍按内容复用（待整理的数据不因缺专业而裂开）。
+	got, err = s.ResolveQuota("WP02", "施工便道", "m", "3m宽", "项目导入：G.xlsx", "")
+	if err != nil || got.Code != "WP02" || !got.Reuse {
+		t.Fatalf("未标注专业应按内容复用，得到 %+v（err=%v）", got, err)
 	}
 }
 
@@ -189,6 +210,7 @@ func TestResolveQuotaCodeUnification(t *testing.T) {
 func TestDeleteBillProject(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
 
 	idA, _ := s.UpsertBillProject("项目A", "a.xlsx", "", "", "", "", nil, false, 0)
 	idB, _ := s.UpsertBillProject("项目B", "b.xlsx", "", "", "", "", nil, false, 0)
@@ -238,6 +260,7 @@ func TestDeleteBillProject(t *testing.T) {
 func TestComposeQuotasBatchSkipsMissing(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
 
 	idx, err := s.ResourceIndex()
 	if err != nil {
@@ -273,6 +296,7 @@ func TestComposeQuotasBatchSkipsMissing(t *testing.T) {
 func TestBillQuotaLinksCRUD(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
 
 	idx, err := s.ResourceIndex()
 	if err != nil {
@@ -347,6 +371,7 @@ func TestBillQuotaLinksCRUD(t *testing.T) {
 func TestV31BackfillAutoConvertsQuotaCodes(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
 
 	idx, err := s.ResourceIndex()
 	if err != nil {
@@ -396,6 +421,7 @@ WHERE COALESCE(quota_code,'') != '' AND id NOT IN (SELECT bill_item_id FROM gf_b
 func TestDeleteBillItemCascadesQuotaLinks(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
 
 	idx, err := s.ResourceIndex()
 	if err != nil {

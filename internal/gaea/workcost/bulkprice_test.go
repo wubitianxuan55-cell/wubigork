@@ -101,7 +101,7 @@ func TestMatchBulkPrices_NoFalsePositive(t *testing.T) {
 		{Row: 3, Title: "P.O 42.5 水泥", Unit: "kg", Price: 0.48},             // 无规格→同名双行歧义
 		{Row: 4, Title: "不存在的材料", Unit: "kg", Price: 1},                     // 零命中
 		{Row: 5, Title: "挖掘机 220", Unit: "台班", Price: -5},                   // 价格非法
-		{Row: 6, Title: "普工", Unit: "工日", Price: 180, Period: "2026年3期"},    // 唯一命中
+		{Row: 6, Title: "普工", Unit: "工日", Price: 180, Period: "2026年3月"},    // 唯一命中
 	}
 	matches, skips, err := s.MatchBulkPrices(rows)
 	if err != nil {
@@ -123,7 +123,7 @@ func TestMatchBulkPrices_NoFalsePositive(t *testing.T) {
 func TestApplyBulkPrices_TransactionAndHistory(t *testing.T) {
 	s := bulkTestStore(t)
 	rows := []BulkPriceRow{
-		{Row: 2, Title: "P.O 42.5 水泥", Spec: "散装", Unit: "kg", Price: 0.48, Period: "2026年3期"},
+		{Row: 2, Title: "P.O 42.5 水泥", Spec: "散装", Unit: "kg", Price: 0.48, Period: "2026年3月"},
 		{Row: 3, Title: "普工", Unit: "工日", Price: 180},
 		{Row: 4, Title: "不存在的材料", Price: 1}, // 跳过不影响整批
 	}
@@ -147,7 +147,11 @@ func TestApplyBulkPrices_TransactionAndHistory(t *testing.T) {
 	if err != nil || len(ps) != 1 {
 		t.Fatalf("历史: %+v err=%v", ps, err)
 	}
-	if ps[0].Price != 0.48 || ps[0].Period != "2026年3期" || ps[0].PriceType != "bulk_import" {
+	// 库定规矩：期数归一成 YYYY-MM 落历史，并同步到工料机行上的现行价期数。
+	if ps[0].Price != 0.48 || ps[0].Period != "2026-03" || ps[0].PriceType != "bulk_import" {
 		t.Fatalf("历史行不符: %+v", ps[0])
+	}
+	if got, _ := s.GetResource(r.ID); got.PriceDate != "2026-03" {
+		t.Fatalf("调价后行上的期数应同步为 2026-03，得到 %q", got.PriceDate)
 	}
 }

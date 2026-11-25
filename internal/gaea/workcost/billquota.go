@@ -126,12 +126,19 @@ func (s *Store) DetachBillQuotaLink(billItemID, linkID int64) error {
 	return nil
 }
 
-// quotaLinksByItems 批量取一组清单项的定额码（BillItems 聚合用）：一次查询，
-// 按 item 分组。单值 quota_code 非空但 link 表没挂时兜底补一条（旧数据兼容）。
-func (s *Store) quotaLinksByItems(itemIDs []int64, fallback map[int64]string) map[int64][]string {
-	out := make(map[int64][]string, len(itemIDs))
+// quotaLinkRow 一条挂接明细（定额码 + 该定额的工程量）。
+type quotaLinkRow struct {
+	Code     string
+	Quantity float64
+}
+
+// quotaLinkRowsByItems 批量取一组清单项的挂接明细（定额码+工程量）：一次查询，
+// 按 item 分组。单值 quota_code 非空但 link 表没挂时兜底补一条（旧数据兼容，
+// 工程量 0=跟随清单工程量）。
+func (s *Store) quotaLinkRowsByItems(itemIDs []int64, fallback map[int64]string) map[int64][]quotaLinkRow {
+	out := make(map[int64][]quotaLinkRow, len(itemIDs))
 	for _, id := range itemIDs {
-		out[id] = []string{}
+		out[id] = []quotaLinkRow{}
 	}
 	if len(itemIDs) == 0 {
 		return out
@@ -141,26 +148,41 @@ func (s *Store) quotaLinksByItems(itemIDs []int64, fallback map[int64]string) ma
 	for i, id := range itemIDs {
 		args[i] = id
 	}
-	rows, err := s.db.Query(`SELECT bill_item_id, quota_code FROM gf_bill_quota_links
+	rows, err := s.db.Query(`SELECT bill_item_id, quota_code, quantity FROM gf_bill_quota_links
 WHERE bill_item_id IN (`+placeholders+`) ORDER BY bill_item_id, sort, id`, args...)
 	if err == nil {
 		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var itemID int64
 			var code string
-			if err := rows.Scan(&itemID, &code); err != nil || code == "" {
+			var qty float64
+			if err := rows.Scan(&itemID, &code, &qty); err != nil || code == "" {
 				continue
 			}
-			out[itemID] = append(out[itemID], code)
+			out[itemID] = append(out[itemID], quotaLinkRow{Code: code, Quantity: qty})
 		}
 	}
 	// 兜底：单值列有码但 link 表缺失（V30 前的旧清单）。
 	for _, id := range itemIDs {
 		if len(out[id]) == 0 {
 			if fb := fallback[id]; fb != "" {
-				out[id] = []string{fb}
+				out[id] = []quotaLinkRow{{Code: fb}}
 			}
 		}
+	}
+	return out
+}
+
+// quotaLinksByItems 批量取一组清单项的定额码（只要码的调用方用）。
+func (s *Store) quotaLinksByItems(itemIDs []int64, fallback map[int64]string) map[int64][]string {
+	rows := s.quotaLinkRowsByItems(itemIDs, fallback)
+	out := make(map[int64][]string, len(rows))
+	for id, links := range rows {
+		codes := make([]string, 0, len(links))
+		for _, l := range links {
+			codes = append(codes, l.Code)
+		}
+		out[id] = codes
 	}
 	return out
 }

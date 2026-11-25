@@ -11,7 +11,7 @@ import (
 type CostB struct{ a *App }
 
 func (b *CostB) GaeaCostHealthScan() (*workcost.HealthReport, error) { return b.a.GaeaCostHealthScan() }
-func (b *CostB) GaeaCostLibraryExport(kind string, projectID int64, keyword string, extra string, outPath string) (string, error) { return b.a.GaeaCostLibraryExport(kind, projectID, keyword, extra, outPath) }
+func (b *CostB) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, outPath string) (string, error) { return b.a.GaeaCostLibraryExport(kind, filter, outPath) }
 func (b *CostB) GaeaWorkcostBillItemDelete(id int64) error { return b.a.GaeaWorkcostBillItemDelete(id) }
 func (b *CostB) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillItems(projectID) }
 func (b *CostB) GaeaWorkcostBillProjectDelete(id int64) (int, error) { return b.a.GaeaWorkcostBillProjectDelete(id) }

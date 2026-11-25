@@ -57,9 +57,12 @@ const (
 
 // Resource 工料机资源（gf_resources 一行）。
 //
-// 身份 = (Kind, Title, Spec, Unit)；Code 是定额引用的稳定锚点（改址不改引用）。
-// BasePrice 为编制基准价，CurrentPrice 为现行价（信息价更新后）——两者分离
-// 才能做「基准价 vs 现行价」调差；核算默认取 CurrentPrice（现行价优先）。
+// 身份 = (Kind, Title, Spec, Unit, Region)——工料机按地区分行（2026-11-25 用户
+// 拍板：同一种材料每个地区一行），Region 空表示尚未标注地区（待整理）。Code 是
+// 定额引用的稳定锚点（改址不改引用）。BasePrice 为编制基准价，CurrentPrice 为
+// 现行价（信息价更新后）——两者分离才能做「基准价 vs 现行价」调差；核算默认取
+// CurrentPrice（现行价优先）。各期价格是 gf_resource_prices 里的价格事实，
+// PriceDate 是现行价所属的期。
 type Resource struct {
 	ID           int64    `json:"id"`
 	Code         string   `json:"code"`
@@ -115,10 +118,15 @@ type Quota struct {
 	ID   int64  `json:"id"`
 	Code string `json:"code"`
 	// OrigCode 工作簿里的原始清单编码（编码统一可能改写 Code，溯源靠它）。
-	OrigCode     string      `json:"origCode"`
-	Title        string      `json:"title"`
-	Specialty    string      `json:"specialty"`
-	Chapter      string      `json:"chapter"`
+	OrigCode string `json:"origCode"`
+	Title    string `json:"title"`
+	// Specialty 专业——定额的固有属性：随来源定、定了不改，同样一件事各专业
+	// 各有定额，跨专业不并成一条。空=尚未标注（待整理）。
+	Specialty string `json:"specialty"`
+	Chapter   string `json:"chapter"`
+	// DerivedFrom 借鉴生成的溯源（「借鉴 <专业> <码>」）：本专业没有可用定额时，
+	// 以外专业定额为底生成本专业的新定额，来源记在这里。空=非借鉴。
+	DerivedFrom  string      `json:"derivedFrom"`
 	Unit         string      `json:"unit"`
 	CategoryPath string      `json:"categoryPath"`
 	BaseLabor    float64     `json:"baseLabor"`
