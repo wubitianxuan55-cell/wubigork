@@ -7715,3 +7715,21 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   43448 回收）。SHA256：exe A738B0E5…；ORT/sherpa 与历届同；zip 9BAEC2DB…/
   src.zip C8C877F3…。装机 payload 同源 INSTALL OK（构建时刻 2026-11-25
   20:48:25）。worktree 待回收（junction 先摘）。
+
+## 2026-11-25 技能去噪批——办公档索引 15→10（gaea-skill-slim-20261125-0f600f5f）
+
+- 用户令「办公板块技能太多，不需要的删除，不要干扰模型」。盘底（铜陵会话
+  request_header 实抠）：造价档索引 15 件 = builtin 9 + 造价模式 2 + 泄漏 4
+  （~/.gaea/skills 的 8-12 ANTHROPIC 旧拷贝 docx/pdf/pptx/xlsx）+1（ZCode
+  hindsight 插件技能经 ~/.agents/skills 漏入）。
+- 两刀：①skill Store home 级停扫外厂约定目录（.agents/.agent/.claude），项目级
+  保留（外厂技能显式投喂口），commands 侧 ConventionDirs 未动；回归钉
+  TestHomeForeignConventionsNotScanned。②删 ~/.gaea/skills 四件旧拷贝（备份
+  ~/.gaea/skills-retired-20261125.zip；docx/pptx 导出脚本 home 回退由
+  ~/.codex/skills 同版承接，diff 已核）。
+- 余 10 件件履职：cad-takeoff/chart-builder/cost-estimate/doc-assemble/
+  format-convert/genui/office-edit/office-gongwen + cost-estimation-playbook/
+  soil-remediation-costing。commit 0f600f5f。
+- 干净树 .worktrees/pkg-0f600f5f 构建（npm 28s+wails），payload 冒烟 200
+  （PID 55692 回收）；装机 INSTALL OK（exe 14F8A0FC…，构建时刻 2026-11-25
+  21:01:12）。worktree 已回收。zip 345A9AEE…/src.zip 1DD7FB35…。
