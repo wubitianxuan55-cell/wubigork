@@ -7690,3 +7690,28 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   payload 冒烟 200（PID 53160 回收）；装机 payload 同源 INSTALL OK（exe
   0A4B616FA091F94E…，构建时刻 21:53:08）。zip 9360EBE3…/src.zip 1BC9BD77… 留盘。
 - 待用户验证：壳拉起 → 编程板块点启动（3091 已清场，DSH rc.5 应就绪）。
+
+## 2026-11-25 修复批——办公 GenUI 表格闪烁根修 + 铜陵二轮反馈 #16–#20/#9（gaea-cost-genui-20261125-69300696）
+
+- 交付提交 69300696。GenUI 闪烁根因：gaea/wenxue Markdown 每渲染内联重建
+  components（新 Code 闭包）→ react-markdown 换组件类型 → GenUI 子树整体重挂
+  → gui-reveal 动画每帧重放；修=components/fenceKeyFor/codeLabels 按依赖
+  memo（scope 原语键防宿主内联对象），插件数组提模块常量，回归测试钉同一
+  .gui-block 节点跨重渲染存活。聊天线不受影响（ChatRow 早已 memo）。
+- 铜陵 #16/#17 根因（铜陵会话 gaea-log 实证，非模型侧玄学）：顶层列表/标量
+  被模型塞进 quota（delete_quota codes、dedupe keep_id/merge_ids、import_project
+  region/path）、同键重复 quota 后值胜吃掉好内容、数组串化进 code——cost_library
+  救回面推广全谱 + clQuotaProbe 重复键容忍 + clDecodeStrings 串化拆分；缺参
+  回显收到键；UsageHint 补 delete/dedupe 五骨架。#19 remember 同款三件
+  （KeepSchemaDescriptions+回显+UsageHint）。#18 四要素同仅地区异并入原行
+  （SaveResource 须继承原行 id/code 才走 UPDATE——坑）、消歧回执带旧码→新码
+  (id=N) 映射、cost_project resources 补 id 列解 dedupe 链路死结。#20 舍分
+  口径进技能契约 + 演练按 bundle 模拟库内舍入链出 INFO。#9 bash 描述前置
+  长 heredoc 截断警示。#6 已被样表化吸收无需再刀。
+- 测试：Go workcost/skill/builtin/memory 全量 + app 造价面全绿（新增三回归
+  钉）；前端 tsc/eslint 净，vitest 76 例绿（含闪烁回归钉）。
+- 打包：干净工作树 .worktrees/pkg-69300696（junction node_modules；主树
+  modelengine 未提交改动未混入），npm 30s+wails 68s；payload 冒烟 200（PID
+  43448 回收）。SHA256：exe A738B0E5…；ORT/sherpa 与历届同；zip 9BAEC2DB…/
+  src.zip C8C877F3…。装机 payload 同源 INSTALL OK（构建时刻 2026-11-25
+  20:48:25）。worktree 待回收（junction 先摘）。
