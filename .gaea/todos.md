@@ -1,5 +1,7 @@
 # 任务进度
 
+| ✅ | **造价数据库维度化 + 库定规矩 + 模型读表导入**（2026-11-25，提交 13e6e6f1/05a2fd7d + 包 gaea-cost-dims-20261125-05a2fd7d 已装机）：清单 / 定额按专业、工料机按种类 · 地区 · 期分；规矩在库（SchemaV38 字典 + 写入校验 + 期数 `YYYY-MM` + 工料机身份带地区 + 价格事实；定额专业固有、跨专业不并）；录入主线改模型读表（cost_library import_open/add/check/commit/discard，五表机械导入降为快速通道）；整理归类 classify / borrow_quota / dims / dict；浏览面三级左栏两级上下文 + 地区 / 期筛选 + 待整理入口 + 导出同口径。Go 相关包 + 前端 vitest 全量 4662 例绿；真实库升 V38 七表行数不变、旧列逐字一致；payload 冒烟 200、装机位=包同源（exe E4A98E8E…）。未做：模型读表导入的真实模型实弹；详情栏打开时中栏列数偏多需横向滚动（用户令先不管 UI）；成本测算模版重设计挂池；存量待整理 1869 项待造价模式归类；push 挂令 |
+
 | ✅ | **造价数据库推倒重建**（2026-11-25，提交 4adec93a + 包 gaea-cost-db-20261125-4adec93a 已装机）：板块只读化为「清单→定额→工料机」三级浏览面（下钻/删除/四类列表导出/体检抽屉）；维护归造价模式新工具 cost_library（导入五表/增删改调价/批量/删除，dry_run+确认卡）；cost_project_apply 三缺陷根修（原表单价清零/挂接不落库/费率整组覆盖）；绑定面 727→668（59 个零消费绑定进排除清单）；分位数对标下线。Go app 全量+前端 vitest 4639 例绿；真实库副本走查 7/329/295/1788 对上；payload 冒烟 200、装机位=包同源（exe 4260836C…）。未走查余项：导出/体检/删除真机走查、造价模式实弹、push 挂令 |
 
 | ✅ | **方案库图片托管改造**（2026-11-24，桌面构建完成未装机）：SchemaV37 `proposal_assets` + `%APPDATA%\gaea\proposal-assets` sha256 内容寻址；`proposal_save` 自动复制本地图/外置 data URI并改写 `gaea-asset://`；`format_convert preserve_images=true` 支持 DOCX/PPTX sidecar；ProposalB 增资产读取绑定（724→725）；阅读端 data URL 解析、跨方案去重与最后引用回收完成。DOCX 转换→录入端到端、Go 定向/vet、前端定向/tsc/ESLint、docs 守卫绿；npm 26.48s + Wails 47.153s（bindings 未跳过），exe `582BB3BA…AD2780`，smoke 200；当前构建含工作树其他未提交改动。PDF 图片与 EMF/WMF/SVG 挂池 |
