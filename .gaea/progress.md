@@ -7800,3 +7800,48 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   B6 子代理管理三件（协议面宽、收益小，可缓）；⑥A2 request_permission 描述
   瘦身（1188 字符英文）；⑦三档工具面预算守卫定数（TestOfficeToolFaceBudget
   未写）；⑧流空闲超时真机实弹。
+
+## 2026-11-26 办公工具梳理二批 + 工具面预算守卫 + GLM-5.4（gaea-office-tools2-20261126-113d84ad）
+
+- 用户令「继续优化gaea」，承接上条余项；按 69 个真实办公会话（9~11 月）的调用
+  频次排刀。三个提交：b16bc58e（GLM-5.4 目录）、72625cb9（二批，42 文件）、
+  113d84ad（wailsjs 生成件同步）。未 push。
+- 改后实测（同口径 TestOfficeToolFaceDump）：标准 58 件/16404 字符（首批后
+  60/17395；自梳理前 73/21779 累计 −25%）、造价 66/27824（68/28867；自 82/38774
+  累计 −28%）、方案 70/20863（72/21917；自 79/24945 累计 −16%）；COM 档 10→7。
+- A2 request_permission 描述 1188→559 字符（69 会话 4 次调用，却每轮占三档最大
+  单项）：只留调用前必须知道的规矩，各决策的后续动作由回执给出。
+- B4 xlsx_recalc 回执自带审计与交付门结论（重算 25 / 审计 22 次几乎成对）；
+  xlsx_audit 保留只读复核面（一写一读，不真合并）。docx_accept 并入 docx_apply
+  （accept:true；Journal 记录名不变，通道 A 复核按记录名分派不受影响）。
+- B2 slash_command 并入 run_skill（项目命令按名展开、技能优先、name=list 取清单、
+  命令展开不计技能用量）。**read_skill 改判保留**：只读席位（众神殿白名单、
+  只读闸）的唯一读技能通道，run_skill 是写类工具，合并会让席位读不了领域规范。
+  顺带实测复现并消除 slash_command 对技能名空指针（技能条目不带 Render）。
+- B3 office_status / office_help 并入 office_read（status:true / help:true，仍是
+  只读面）；office_macro 退役（两个宏各等价一条 replace op，5 次调用）。
+- 守卫 TestOfficeToolFaceBudget：件数 58/66/70、字符 16750/28250/21250；已下线
+  名单不得回潮（含 gaeaExtraTools 直查，钉到按条件装配的 COM 档）。
+- C2 技能侧：造价口径两条规矩迁入造价 playbook「口径纪律」与 cost-estimate
+  「口径」节。**用户级 AGENTS.md 两条未动**（用户数据，等确认、备份后再迁出）。
+- 未动：B5 后台任务三件 / B6 子代理管理三件（wait 60 次、bash_output 39 次是
+  高频协议面，并入 task 收益小风险大——建议不做，挂拍板）；流空闲超时造价档
+  长思考真机实弹。
+- 发现：干净树 wails build 再生成绑定，暴露已提交 wailsjs 落后于 Go 绑定面
+  （首批撤的 4 个绑定 + MemoryEvalReport 字段没同步生成件）——113d84ad 补齐；
+  从 72625cb9 打的首个包作废，改从 113d84ad 重打。
+- 门禁：app 包 1423 例四分片并线 78s 零失败（测试 exe 须放系统临时目录且
+  cwd=internal/app——仓内 .tmp 路径下跑被本机策略限权，连 TempDir 都 Access
+  denied）；skill/command/boot/tool/builtin/evidence/skillstats/modelengine 通过；
+  tsc -b 0（主树 + 干净树各一遍）；vitest 受影响 6 文件 89 例、干净树
+  spaceBindings+mock contract 15 例；registry_map_doc -check OK；go build ./...
+  过。存量红：agent TestStaleGuardBlocksMoveFileWithoutRead（HEAD 同红）。
+- 交付：干净树 .worktrees/pkg-72625cb9（后切 113d84ad；Vite 38s，Wails 16s，
+  bindings 未跳过），payload 冒烟 200（PID 23156 回收）；装机前查旧壳空闲
+  （6s 窗口 0.14 CPU 秒）→ INSTALL OK（exe 726CA973…，构建 00:12:54，新壳
+  PID 14692 00:14:56，诊断口 ok）；zip B662308D… / src.zip 25484433…（git
+  archive 排除 releases/，5493 文件；上一包 src.zip 834MB 是没排除、卷进 1482
+  个 releases 条目）；包版四件已回写主树 build/bin（三处哈希一致）；worktree
+  已回收；GLM 热更新文件 glm_catalog_remote.json 备份后删除（内嵌目录已带）。
+- 工作树遗留（非本批所动）：仓根 4 张图片（logo 浅/深色、盲业智能启动画面
+  浅/深色）处于已删除未提交状态，仓内无引用。
