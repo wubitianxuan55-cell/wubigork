@@ -4,10 +4,14 @@
 // a tool result, a "subagent" skill runs in an isolated child loop and returns
 // only its final answer. Project scope wins over global; only names+descriptions
 // enter the cache-stable system-prompt index (see index.go) — bodies load on
-// demand. Discovery scans several conventions (.gaea / .agents / .agent /
-// .claude under the project root and the home dir — see config.ConventionDirs) so
-// skills authored for other agent tools migrate in unchanged, and follows
-// symlinks, so a linked skill directory or flat <name>.md is picked up like a real one.
+// demand. Discovery scans the foreign conventions (.agents / .agent / .claude)
+// under the PROJECT root (see config.ConventionDirs) so skills authored for
+// other agent tools migrate in unchanged, but under the HOME dir only the
+// canonical .gaea is scanned — a home-level foreign dir is another agent tool's
+// live global skill store, and pulling it in floods the model's skill index
+// with unrelated playbooks (2026-11-25 办公档实测：ZCode 的 hindsight 插件技能
+// 经 ~/.agents/skills 漏进索引). Symlinks are followed, so a linked skill
+// directory or flat <name>.md is picked up like a real one.
 package skill
 
 import (
@@ -152,8 +156,11 @@ type Root struct {
 
 // roots returns the discovery directories, highest priority first: the
 // convention dirs (config.ConventionDirs: .gaea / .agents / .agent / .claude)
-// under the project root → custom paths → the same convention dirs under the home
-// dir. A later root never overrides an earlier one.
+// under the project root → custom paths → the canonical .gaea under the home
+// dir. Home 级不扫外厂约定目录：那是别的工具的全局技能库（.agents=ZCode、
+// .claude=Claude），扫进来会把无关 playbook 灌进模型索引（2026-11-25 用户
+// 拍板「技能不要干扰模型」）；项目级保留——用户显式放进项目的外厂技能才是
+// 投喂。A later root never overrides an earlier one.
 func (s *Store) roots() []Root {
 	type de struct {
 		dir   string
@@ -168,9 +175,7 @@ func (s *Store) roots() []Root {
 	for _, d := range s.customPaths {
 		dirs = append(dirs, de{d, ScopeCustom})
 	}
-	for _, c := range config.ConventionDirs {
-		dirs = append(dirs, de{filepath.Join(s.homeDir, c, SkillsDirname), ScopeGlobal})
-	}
+	dirs = append(dirs, de{filepath.Join(s.homeDir, ".gaea", SkillsDirname), ScopeGlobal})
 	out := make([]Root, len(dirs))
 	for i, d := range dirs {
 		out[i] = Root{Dir: d.dir, Scope: d.scope, Priority: i, Status: pathStatus(d.dir)}

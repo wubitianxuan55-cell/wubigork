@@ -81,6 +81,28 @@ func TestConventionDirsDiscovered(t *testing.T) {
 	}
 }
 
+// TestHomeForeignConventionsNotScanned（2026-11-25 用户拍板「技能不要干扰
+// 模型」）：home 下的 .agents/.agent/.claude 是别的工具的全局技能库（实测
+// ZCode 的 hindsight 插件技能经 ~/.agents/skills 漏进办公档索引），不扫；
+// home 的 .gaea 照扫。项目级约定目录照扫（TestConventionDirsDiscovered）。
+func TestHomeForeignConventionsNotScanned(t *testing.T) {
+	home := t.TempDir()
+	writeSkill(t, home, ".gaea/skills/fromhome.md", "---\ndescription: h\n---\nb")
+	writeSkill(t, home, ".agents/skills/zcode-skill.md", "---\ndescription: z\n---\nb")
+	writeSkill(t, home, ".claude/skills/claude-skill.md", "---\ndescription: c\n---\nb")
+	writeSkill(t, home, ".agent/skills/agent-skill.md", "---\ndescription: s\n---\nb")
+	st := New(Options{HomeDir: home, DisableBuiltins: true})
+	list := st.List()
+	if _, ok := find(list, "fromhome"); !ok {
+		t.Error("home .gaea skill not discovered")
+	}
+	for _, name := range []string{"zcode-skill", "claude-skill", "agent-skill"} {
+		if _, ok := find(list, name); ok {
+			t.Errorf("home foreign convention skill %q should NOT be scanned", name)
+		}
+	}
+}
+
 func TestFrontmatterFields(t *testing.T) {
 	home := t.TempDir()
 	writeSkill(t, home, ".gaea/skills/sub.md",
