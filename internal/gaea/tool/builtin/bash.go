@@ -87,8 +87,8 @@ func (b bash) Description() string {
 		"State is captured when a command finishes; a timed-out or interrupted command does not update it, " +
 		"and a deleted working directory falls back to the workspace root. " +
 		"Direct rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
-		"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; heredocs add fragile shell/Python escaping layers. " +
-		"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
+		"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; heredocs add fragile shell/Python escaping layers, and a heredoc longer than a few KB is truncated outright (HEREDOC_TRUNCATED) — write the script with write_file first, then execute it by path. " +
+			"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
 		"Set output_format=json to get structured result with separated stdout/stderr fields."
 }
 
@@ -102,7 +102,7 @@ func (b bash) resolved() sandbox.Shell {
 }
 
 func (b bash) Schema() json.RawMessage {
-	commandDesc := "Command passed to bash -c. Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax. Direct rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of heredoc."
+	commandDesc := "Command passed to bash -c. Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax. Direct rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of heredoc (a heredoc longer than a few KB is truncated — write_file the script, then run it)."
 	if b.resolved().Kind == sandbox.ShellPowerShell {
 		commandDesc = "Command passed to Windows PowerShell -Command. Use PowerShell syntax, not bash syntax. Direct Remove-Item/rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of shell escaping."
 	}

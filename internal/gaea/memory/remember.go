@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -86,7 +88,20 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 		return "", fmt.Errorf("invalid arguments: %w", err)
 	}
 	if in.Description == "" || in.Body == "" {
-		return "", fmt.Errorf("description and body are required")
+		// 缺参回显收到的键（铜陵反馈 #16/#19 同款：模型反复缺同一批键时，
+		// 键面让它立刻看出哪个键没发出去）。
+		var top map[string]json.RawMessage
+		_ = json.Unmarshal(args, &top)
+		keys := make([]string, 0, len(top))
+		for k := range top {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		missing := "description"
+		if in.Description != "" {
+			missing = "body"
+		}
+		return "", fmt.Errorf("%s is required（本次收到键：%s——缺 %s 没送达，多半没发出去或发进了别的键；description=索引里的一行钩子）", missing, strings.Join(keys, ", "), missing)
 	}
 	name := in.Name
 	if name == "" {
@@ -146,3 +161,23 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 
 func (rememberTool) ReadOnly() bool     { return false }
 func (rememberTool) PersistWrite() bool { return true }
+
+// KeepSchemaDescriptions 记忆字段（description 一行钩子 / body Why-How 结构 /
+// subject_key 单值语义）的语义只写在字段描述里（铜陵反馈 #19：剥掉描述后模型
+// 连发 4 次「只有 body 没有 description」——它看不见每个字段该装什么）。
+func (rememberTool) KeepSchemaDescriptions() bool { return true }
+
+// UsageHint 缺参时给一张正确骨架（loop guard 附加值，与 cost_library 同款；
+// 2026-11-25 铜陵反馈 #19 实测缺 description 连发 3 次原样撞）。
+func (rememberTool) UsageHint(args json.RawMessage) string {
+	var got struct {
+		Description string `json:"description"`
+		Body        string `json:"body"`
+	}
+	_ = json.Unmarshal(args, &got)
+	hint := `remember 正确参数骨架：{"name":"kebab-case-slug","description":"一行钩子（索引里给未来会话看的那句）","body":"事实本体（feedback/project 用 **Why:** 与 **How to apply:** 结构）","type":"feedback"}`
+	if got.Body != "" && got.Description == "" {
+		hint += "——本次只差 description：把这条记忆的一句话钩子补上（越具体越好，别复述 body）"
+	}
+	return hint
+}

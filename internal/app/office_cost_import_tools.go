@@ -416,6 +416,17 @@ func (t costLibraryTool) importCommit(s *workcost.Store, p costLibraryArgs) (str
 	}
 	fmt.Fprintf(&out, "**写入**: 工料机 新建 %d / 更新 %d｜定额 新建 %d / 更新 %d｜清单 %d 行｜价格事实 %d 条\n",
 		res.ResourcesNew, res.ResourcesUpd, res.QuotasNew, res.QuotasUpd, res.Bills, res.PriceFacts)
+	if len(res.RegionMerged) > 0 {
+		// 铜陵反馈 #18：四要素同、仅地区缺失/不同的既有行并入原行（更新，不消歧）。
+		fmt.Fprintf(&out, "**地区并入**: %d 条工料机按身份四要素并入既有行（更新原行地区，未新建）\n", len(res.RegionMerged))
+		for i, m := range res.RegionMerged {
+			if i >= clCap(len(res.RegionMerged)) {
+				fmt.Fprintf(&out, "- …共 %d 条\n", len(res.RegionMerged))
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", m)
+		}
+	}
 	if n := len(res.Errors); n > 0 {
 		fmt.Fprintf(&out, "**未写成 %d 行**（其余已写；修掉后重新 import_open → import_add 这几行 → import_commit，已写的行按更新处理不会重复）:\n", n)
 		for i, e := range res.Errors {

@@ -17,7 +17,7 @@
 // 性能：插件恒挂管线（未做 "<字母" 启发式门控）——树级消毒 O(树)，代价
 // 远小于一次 reparse，正确性优先避免启发式漏判。
 
-import { cloneElement, isValidElement, memo, useCallback, useEffect, useRef, useState } from "react";
+import { cloneElement, isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
@@ -389,6 +389,11 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 
 // ── Markdown 组件 ────────────────────────────────────────────────────
 
+// remark/rehype 插件数组提为模块常量：数组身份每 render 变化会让 react-markdown
+// 重建整条处理管线（与下方 components memo 同一批次）。
+const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations];
+const MARKDOWN_REHYPE_PLUGINS = [rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex];
+
 function buildComponents(
   onOpenFile: (rel: string) => void,
   autoExportMermaid: boolean,
@@ -621,20 +626,38 @@ export const Markdown = memo(function Markdown({
       }
     }
   }, [text, genuiKey, genuiScope, publishPanel]);
-  const fenceKeyFor =
-    genuiScope !== null && genuiKey !== undefined
-      ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
-      : undefined;
   const t = useTOptional();
+  // 组件映射必须按依赖 memo（2026-11-25 办公板块 GenUI 表格闪烁）：内联
+  // buildComponents 每次 render 造新 Code 闭包，react-markdown 视为换了组件
+  // 类型 → GenUI 子树整体卸载重挂 → .gui-item 的 gui-reveal 动画每帧重放，
+  // 流式期间表格不停闪。聊天线同款问题在 ChatRow 用 useMemo 稳定 overrides
+  // （genuiAdapter），此处对齐。t 本身 useCallback 稳定，可作依赖；scope 用
+  // 原语键做依赖——宿主若内联 scope 对象（身份每 render 变），也不破坏 memo。
+  const scopeKey = genuiScope === null ? null : `${genuiScope.scope}:${genuiScope.sessionKey}`;
+  const fenceKeyFor = useMemo(
+    () =>
+      genuiScope !== null && genuiKey !== undefined
+        ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
+        : undefined,
+    [scopeKey, genuiKey], // eslint-disable-line react-hooks/exhaustive-deps -- genuiScope 由 scopeKey 原语代表
+  );
+  const codeLabels = useMemo(
+    () => ({
+      expand: (n: number) => t("msg.codeExpand", { n }),
+      collapse: t("msg.codeCollapse"),
+    }),
+    [t],
+  );
+  const components = useMemo(
+    () => buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, codeLabels, imageBasePath),
+    [openFilePreview, autoExportMermaid, fenceKeyFor, codeLabels, imageBasePath],
+  );
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
-        rehypePlugins={[rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex]}
-        components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, {
-          expand: (n: number) => t("msg.codeExpand", { n }),
-          collapse: t("msg.codeCollapse"),
-        }, imageBasePath)}
+        remarkPlugins={MARKDOWN_PLUGINS}
+        rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
+        components={components}
         urlTransform={mdUrlTransform}
       >
         {normalizeMath(text)}

@@ -18,9 +18,11 @@ package app
 //   - 数据面一律锚 workcost（工料机 × 定额 = 综合单价，活重算链）。
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -63,6 +65,13 @@ func (costLibraryTool) UsageHint(args json.RawMessage) string {
 		"import_project": `{"action":"import_project","path":".gaea/exports/….xlsx","specialty":"土壤修复","region":"铜陵","period":"2026-06","dry_run":true}`,
 		"import_add":     `{"action":"import_add","import_id":"…","resources":[…],"quotas":[…],"bills":[…]}`,
 		"borrow_quota":   `{"action":"borrow_quota","from_code":"…","specialty":"土壤修复","dry_run":true}`,
+		// 删除/去重类骨架（铜陵反馈 #16：这批动作的顶层列表参数连缺 6 次，
+		// loop guard 只拦不导时模型没有骨架可抄）。
+		"delete_quota":    `{"action":"delete_quota","codes":["D-01","D-02"],"dry_run":true}`,
+		"delete_resource": `{"action":"delete_resource","ids":[3],"dry_run":true}`,
+		"delete_items":    `{"action":"delete_items","project_id":10,"item_ids":[101,102],"dry_run":true}`,
+		"dedupe":          `{"action":"dedupe","keep_id":1,"merge_ids":[2],"dry_run":true}`,
+		"delete_project":  `{"action":"delete_project","project_id":10,"dry_run":true}`,
 	}
 	if s, ok := skeletons[p.Action]; ok {
 		return "cost_library 正确参数骨架：" + s
@@ -260,6 +269,8 @@ type costLibraryArgs struct {
 
 	// Misnamed 非空=有嵌套参数从 quota 里救回（值=参数名），回执头点名。
 	Misnamed string `json:"-"`
+	// RecvKeys 本次调用收到的顶层键面（Execute 填），缺参报错附上。
+	RecvKeys string `json:"-"`
 }
 
 // costLibraryDict 字典操作的入参。op 空=list。update 时没给的字段保持原值
@@ -339,6 +350,7 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 	if _, ok := costLibraryActionLabel[p.Action]; !ok {
 		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict/dict_add/dict_update/dict_delete/template）", p.Action)
 	}
+	p.RecvKeys = clReceivedKeys(args)
 	t.rescueMisnamedNested(&p, args)
 	s := t.a.hubWorkcostStore()
 	if !s.Available() {
@@ -394,28 +406,31 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 	}
 }
 
-// rescueMisnamedNested 救回发错位置的嵌套参数（2026-11-25 铜陵反馈 #13 实测
-// 形态：模型把 dict/classify 塞进第一个嵌套槽 quota——{"action":"dict",
-// "quota":{"dict":{…}}}；强类型字段会静默丢掉未知键，所以从原始 args 里探）。
-// 目标字段为空且 quota 里能认出已知键时搬过去；救回了记进 p.Misnamed，回执头
-// 点一句，让模型知道参数被挪过位。
+// rescueMisnamedNested 救回发错位置的参数（2026-11-25 铜陵反馈 #13/#16 实测）。
+// 两类形态，都从原始 args 里探（强类型字段会静默丢掉未知键）：
+//
+//  1. 嵌套对象发进第一个嵌套槽 quota：{"action":"dict","quota":{"dict":{…}}}、
+//     {"action":"classify","quota":{"classify":{…}}}（#13）。
+//  2. 顶层标量/列表发进 quota：{"action":"delete_quota","quota":{"codes":[…]}}、
+//     {"action":"import_project","quota":{"region":"…"}}（#16/#17，log 实证
+//     delete_quota/dedupe/delete_resource/import_project 全中）；极端形态还有
+//     同键重复 {"quota":{好},"quota":{}}（Go 解码后者胜，好内容被吃掉）与
+//     "code":"[\"D-01\",…]"（数组 JSON 串进标量键）。
+//
+// 目标字段为空且能认出已知键时搬过去；救回了记进 p.Misnamed，回执头点一句，
+// 让模型知道参数被挪过位。save_quota 的 quota 本就是主参数，不参与。
 func (t costLibraryTool) rescueMisnamedNested(p *costLibraryArgs, args json.RawMessage) {
-	if p.Quota == nil || p.Action == "save_quota" {
-		return // save_quota 的 quota 本就是它的主参数
+	if p.Action == "save_quota" {
+		return
 	}
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(args, &top); err != nil {
 		return
 	}
-	rawQuota, ok := top["quota"]
-	if !ok || len(rawQuota) == 0 {
-		return
-	}
-	var probe map[string]json.RawMessage
-	if err := json.Unmarshal(rawQuota, &probe); err != nil {
-		return
-	}
+	probe := clQuotaProbe(args, top)
+	// probe 为空不提前返回：串化数组 code→codes（③）不依赖 quota。
 	moved := ""
+	// 嵌套对象（#13）：classify / dict。
 	if raw, ok := probe["classify"]; ok && p.Classify == nil {
 		var cp workcost.ClassifyPlan
 		if err := json.Unmarshal(raw, &cp); err == nil &&
@@ -431,10 +446,320 @@ func (t costLibraryTool) rescueMisnamedNested(p *costLibraryArgs, args json.RawM
 			moved = "dict"
 		}
 	}
-	if moved != "" {
-		p.Quota = nil
-		p.Misnamed = moved
+	// 顶层标量/列表（#16/#17）：目标字段为空才搬，不覆盖调用方正着给的值。
+	scoped := map[string]func(json.RawMessage) bool{
+		"codes":      func(raw json.RawMessage) bool { return p.codesEmpty() && clDecodeStrings(raw, &p.Codes) },
+		"ids":        func(raw json.RawMessage) bool { return len(p.IDs) == 0 && clDecodeInts(raw, &p.IDs) },
+		"merge_ids":  func(raw json.RawMessage) bool { return len(p.MergeIDs) == 0 && clDecodeInts(raw, &p.MergeIDs) },
+		"item_ids":   func(raw json.RawMessage) bool { return len(p.ItemIDs) == 0 && clDecodeInts(raw, &p.ItemIDs) },
+		"keep_id":    func(raw json.RawMessage) bool { return p.KeepID <= 0 && clDecodeInt(raw, &p.KeepID) },
+		"project_id": func(raw json.RawMessage) bool { return p.ProjectID <= 0 && clDecodeInt(raw, &p.ProjectID) },
+		"force":      func(raw json.RawMessage) bool { return !p.Force && clDecodeBool(raw, &p.Force) },
+		"region":     func(raw json.RawMessage) bool { return p.Region == "" && clDecodeString(raw, &p.Region) },
+		"specialty":  func(raw json.RawMessage) bool { return p.Specialty == "" && clDecodeString(raw, &p.Specialty) },
+		"period":     func(raw json.RawMessage) bool { return p.Period == "" && clDecodeString(raw, &p.Period) },
+		"path":       func(raw json.RawMessage) bool { return p.Path == "" && clDecodeString(raw, &p.Path) },
+		// dict_add/dict_update 扁平动作家族（同类错位一并救）。
+		"kind":   func(raw json.RawMessage) bool { return p.Kind == "" && clDecodeString(raw, &p.Kind) },
+		"name":   func(raw json.RawMessage) bool { return p.Name == "" && clDecodeString(raw, &p.Name) },
+		"rename": func(raw json.RawMessage) bool { return p.Rename == "" && clDecodeString(raw, &p.Rename) },
+		"parent": func(raw json.RawMessage) bool { return p.Parent == "" && clDecodeString(raw, &p.Parent) },
+		"level":  func(raw json.RawMessage) bool { return p.Level == 0 && clDecodeIntVal(raw, &p.Level) },
+		"sort":   func(raw json.RawMessage) bool { return p.Sort == nil && clDecodeIntPtr(raw, &p.Sort) },
+		"code":   func(raw json.RawMessage) bool {
+			// delete_* 的 code 留给下面 code→codes 分支（那是数组串化的错拼，
+			// 不是字典标准代码）。
+			if p.Action == "delete_quota" || p.Action == "delete_resource" {
+				return false
+			}
+			return p.Code == "" && clDecodeString(raw, &p.Code)
+		},
 	}
+	names := make([]string, 0, 4)
+	for key, adopt := range scoped {
+		raw, ok := probe[key]
+		if !ok || len(raw) == 0 {
+			continue
+		}
+		if adopt(raw) {
+			names = append(names, key)
+		}
+	}
+	// "code":"[\"D-01\",…]"（#16 log 实证）：delete_* 动作下 code 是数组串化
+	// 的错拼——按 JSON 数组或逗号/空白列表拆进 codes（顶层与 quota 内嵌都查）。
+	// dict_add 的 code（字典标准代码）是合法标量，不受影响。
+	if p.codesEmpty() && (p.Action == "delete_quota" || p.Action == "delete_resource") {
+		for _, src := range []map[string]json.RawMessage{top, probe} {
+			if raw, ok := src["code"]; ok && len(raw) > 0 {
+				if clDecodeStrings(raw, &p.Codes) {
+					names = append(names, "code→codes")
+					break
+				}
+			}
+		}
+	}
+	if moved != "" {
+		names = append(names, moved)
+		p.Quota = nil
+	}
+	if len(names) > 0 {
+		sort.Strings(names)
+		p.Misnamed = strings.Join(names, ",")
+	}
+}
+
+// clQuotaProbe 汇总顶层所有 "quota" 对象出现次的键面（重复键容忍：Go 的 map
+// 解码后者胜，{"quota":{好},"quota":{}} 会把好内容吃掉——铜陵会话 log 实证
+// 过这个形态）。浅合并，键冲突时**非空者胜**；非 quota 顶层键不进 probe。
+func clQuotaProbe(args json.RawMessage, top map[string]json.RawMessage) map[string]json.RawMessage {
+	dec := json.NewDecoder(bytes.NewReader(args))
+	dec.UseNumber()
+	probe := map[string]json.RawMessage{}
+	merge := func(v map[string]json.RawMessage) {
+		for k, raw := range v {
+			if prev, ok := probe[k]; ok && len(prev) > 0 && string(prev) != "null" {
+				continue // 已有非空值，保留
+			}
+			probe[k] = raw
+		}
+	}
+	if err := clScanKeyObjects(dec, "quota", merge); err != nil {
+		// 兜底：流式扫描失败退回 map 解码（丢重复键容忍，不丢救回能力）。
+		if raw, ok := top["quota"]; ok && len(raw) > 0 {
+			var once map[string]json.RawMessage
+			if json.Unmarshal(raw, &once) == nil {
+				merge(once)
+			}
+		}
+	}
+	if raw, ok := top["quota"]; ok && len(raw) > 0 && len(probe) == 0 {
+		var once map[string]json.RawMessage
+		if json.Unmarshal(raw, &once) == nil {
+			merge(once)
+		}
+	}
+	return probe
+}
+
+// clScanKeyObjects 在顶层对象里找出每一次 key 的对象值，逐个交给 seen（重复
+// 键每次都回调）。只在 depth=1 工作，嵌套对象里的同名键不算。
+func clScanKeyObjects(dec *json.Decoder, key string, seen func(map[string]json.RawMessage)) error {
+	tok, err := dec.Token()
+	if err != nil {
+		return err
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return fmt.Errorf("顶层不是对象")
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		name, _ := keyTok.(string)
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return err
+		}
+		if name == key {
+			var obj map[string]json.RawMessage
+			if json.Unmarshal(value, &obj) == nil {
+				seen(obj)
+			}
+		}
+	}
+	_, err = dec.Token() // 收尾 '}'
+	return err
+}
+
+// clDecodeStrings 数组或「逗号/空白分隔的串」→ []string（#16 log 实证模型会
+// 把 codes 发成串化数组或逗号列表）。
+func clDecodeStrings(raw json.RawMessage, out *[]string) bool {
+	var arr []string
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		*out = arr
+		return true
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return false
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if strings.HasPrefix(s, "[") {
+		if err := json.Unmarshal([]byte(s), &arr); err == nil {
+			*out = arr
+			return true
+		}
+		return false
+	}
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '，' || r == ' ' || r == '\t' || r == ';' || r == '；' })
+	if len(parts) == 0 {
+		return false
+	}
+	*out = parts
+	return true
+}
+
+// clDecodeInts 数组（或单元素标量）→ []int64。
+func clDecodeInts(raw json.RawMessage, out *[]int64) bool {
+	var arr []int64
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		*out = arr
+		return true
+	}
+	var one int64
+	if err := json.Unmarshal(raw, &one); err == nil {
+		*out = []int64{one}
+		return true
+	}
+	return false
+}
+
+func clDecodeInt(raw json.RawMessage, out *int64) bool {
+	var v int64
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	*out = v
+	return true
+}
+
+func clDecodeIntVal(raw json.RawMessage, out *int) bool {
+	var v int
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	*out = v
+	return true
+}
+
+func clDecodeIntPtr(raw json.RawMessage, out **int) bool {
+	var v int
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	*out = &v
+	return true
+}
+
+func clDecodeBool(raw json.RawMessage, out *bool) bool {
+	var v bool
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	*out = v
+	return true
+}
+
+func clDecodeString(raw json.RawMessage, out *string) bool {
+	var v string
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	if strings.TrimSpace(v) == "" {
+		return false
+	}
+	*out = v
+	return true
+}
+
+func (p *costLibraryArgs) codesEmpty() bool { return len(p.Codes) == 0 }
+
+// clRecvSuffix 缺参报错的键面附注（「（本次收到键：…）」；解析不出=空串）。
+func clRecvSuffix(p costLibraryArgs) string {
+	if p.RecvKeys == "" {
+		return ""
+	}
+	return fmt.Sprintf("（本次收到键：%s——缺的键没送达，多半发进了别的键里；按骨架顶层直给）", p.RecvKeys)
+}
+
+// clRoundingNote 舍入口径对账（铜陵反馈 #20）：库内单价按 2 位小数入库、
+// 三费逐段舍到分再求小计；工作簿若按全精度编制（公式链不 ROUND），导入后
+// cost_project summary 与工作簿会出现尾差——实测 45 条清单差 747.65 元，
+// 模型手算了 5 轮才确认是舍位不是口径分叉。演练期就从 bundle 模拟两条链
+// 对比清单综合单价，命中即给 INFO 与对齐办法。
+func clRoundingNote(b *workcost.ProjectBundle) string {
+	factorOf := map[string]float64{}
+	for _, blk := range b.QuotaBlocks {
+		f := blk.Factor
+		if f <= 0 {
+			f = 1
+		}
+		factorOf[blk.ItemCode+"\x00"+blk.Code] = f
+	}
+	flagged := 0
+	exposure := 0.0
+	for _, item := range b.Items {
+		if item.ListPrice <= 0 {
+			continue
+		}
+		// 逐定额块聚合明细（QuotaCode 空=旧 1:1 形态：整项一条隐式块，系数 1）。
+		type block struct{ raw, lib float64 }
+		blocks := map[string]*block{}
+		var order []string
+		for _, l := range b.Lines {
+			if l.ItemCode != item.Code {
+				continue
+			}
+			key := l.QuotaCode
+			blk, ok := blocks[key]
+			if !ok {
+				blk = &block{}
+				blocks[key] = blk
+				order = append(order, key)
+			}
+			amt := l.Quantity * l.Price // 工作簿合价口径（不含损耗列——六表明细无损耗）
+			blk.raw += amt
+			blk.lib += math.Round(l.Price*100) / 100 * l.Quantity
+		}
+		if len(blocks) == 0 {
+			continue
+		}
+		simRaw, simLib := 0.0, 0.0
+		for _, key := range order {
+			f := 1.0
+			if key != "" {
+				if v, ok := factorOf[item.Code+"\x00"+key]; ok {
+					f = v
+				}
+			}
+			blk := blocks[key]
+			simRaw += blk.raw * f
+			// 库内链：单价 2 位入库 → 三费逐段舍到分 → 小计（综合单价）舍到分。
+			simLib += math.Round((math.Round(blk.lib*100) / 100) * f * 100) / 100
+		}
+		diffRaw := math.Abs(item.ListPrice - simRaw)
+		diffLib := math.Abs(item.ListPrice - simLib)
+		if diffRaw <= 0.02 && diffLib > 0.05 {
+			flagged++
+			if item.Quantity > 0 {
+				exposure += item.Quantity * (simLib - simRaw)
+			}
+		}
+	}
+	if flagged == 0 {
+		return ""
+	}
+	return fmt.Sprintf("ℹ 舍入口径 INFO：%d 条清单的综合单价按全精度编制（工作簿链未 ROUND）。库内单价按 2 位小数入库、三费逐段舍到分——导入后 cost_project summary 与工作簿差约 %+.2f 元（尾差不是口径分叉）。对齐办法：清单表综合单价列写 =ROUND(综合单价!S行,2)（实测 45 条清单可逐行吻合）。\n",
+		flagged, exposure)
+}
+
+// clReceivedKeys 本次调用实际收到的顶层键（缺参报错附上，铜陵反馈 #16：模型
+// 反复缺同一批键时，回显键面让它立刻看出「键没发出去/发错位置」）。
+func clReceivedKeys(args json.RawMessage) string {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(args, &top); err != nil {
+		return ""
+	}
+	keys := make([]string, 0, len(top))
+	for k := range top {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ", ")
 }
 
 // ── 小工具 ───────────────────────────────────────────────────────────
@@ -661,6 +986,9 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 		fmt.Fprintf(&out, "口径出处：%s 取自封面自述（调用方没给参数时的兜底）。\n", strings.Join(coverUsed, "｜"))
 	}
 	out.WriteString("口径说明：专业是项目默认专业，本次新建的定额专业随它；地区决定工料机按地区分行；未标注的导入后用 classify 整理。\n")
+	if note := clRoundingNote(b); note != "" {
+		out.WriteString(note)
+	}
 	fmt.Fprintf(&out, "**规模**: 工料机 %d 条｜清单项 %d 条｜消耗行 %d 条", len(b.Resources), len(b.Items), len(b.Lines))
 	if len(b.QuotaBlocks) > 0 {
 		fmt.Fprintf(&out, "｜定额块 %d 个（三级行组：一个清单可挂多条定额）", len(b.QuotaBlocks))
@@ -778,6 +1106,24 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 		res.ResourceNew, res.ResourceUpd, res.QuotaNew, res.QuotaUpd, res.Lines, itemCount)
 	if res.ResourceRenamed > 0 {
 		fmt.Fprintf(&out, "**编码消歧**: %d 条工料机的编码已被别的资源占用，落成了「码-N」（含量行已跟着改指，不会悬空）\n", res.ResourceRenamed)
+		for i, rn := range res.Renames {
+			if i >= clCap(len(res.Renames)) {
+				fmt.Fprintf(&out, "- …共 %d 条\n", len(res.Renames))
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", rn)
+		}
+	}
+	if len(res.RegionMerged) > 0 {
+		// 铜陵反馈 #18：四要素同、仅地区缺失/不同的既有行并入原行（更新，不消歧）。
+		fmt.Fprintf(&out, "**地区并入**: %d 条工料机按身份四要素并入既有行（更新原行地区，未新建）\n", len(res.RegionMerged))
+		for i, m := range res.RegionMerged {
+			if i >= clCap(len(res.RegionMerged)) {
+				fmt.Fprintf(&out, "- …共 %d 条\n", len(res.RegionMerged))
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", m)
+		}
 	}
 	if res.QuotaDerived > 0 {
 		fmt.Fprintf(&out, "**跨专业另立**: %d 条定额的同码定额属于别的专业，已另立本专业新定额并记借鉴来源\n", res.QuotaDerived)
@@ -995,7 +1341,7 @@ func (t costLibraryTool) saveQuota(s *workcost.Store, p costLibraryArgs) (string
 func (t costLibraryTool) deleteQuota(s *workcost.Store, p costLibraryArgs) (string, error) {
 	codes := clCleanCodes(p.Codes)
 	if len(codes) == 0 {
-		return "", fmt.Errorf("delete_quota 需要 codes（定额编码列表）")
+		return "", fmt.Errorf("delete_quota 需要 codes（定额编码列表，顶层直给）%s", clRecvSuffix(p))
 	}
 	type victim struct {
 		code  string
@@ -1184,7 +1530,7 @@ func (t costLibraryTool) saveResource(s *workcost.Store, p costLibraryArgs) (str
 
 func (t costLibraryTool) deleteResource(s *workcost.Store, p costLibraryArgs) (string, error) {
 	if len(p.IDs) == 0 && len(clCleanCodes(p.Codes)) == 0 {
-		return "", fmt.Errorf("delete_resource 需要 ids 或 codes（工料机 id 或编码列表，至少一个）")
+		return "", fmt.Errorf("delete_resource 需要 ids 或 codes（工料机 id 或编码列表，至少一个，顶层直给）%s", clRecvSuffix(p))
 	}
 	type victim struct {
 		r    workcost.Resource
@@ -1375,7 +1721,7 @@ func (t costLibraryTool) bulkPrice(s *workcost.Store, p costLibraryArgs) (string
 
 func (t costLibraryTool) deleteItems(s *workcost.Store, p costLibraryArgs) (string, error) {
 	if p.ProjectID <= 0 || len(p.ItemIDs) == 0 {
-		return "", fmt.Errorf("delete_items 需要 project_id 与 item_ids（清单行 id 列表，cost_project action=items 可查）")
+		return "", fmt.Errorf("delete_items 需要 project_id 与 item_ids（清单行 id 列表，cost_project action=items 可查，顶层直给）%s", clRecvSuffix(p))
 	}
 	items, err := s.BillItems(p.ProjectID)
 	if err != nil {
@@ -1583,7 +1929,7 @@ func (t costLibraryTool) flywheel(s *workcost.Store, p costLibraryArgs) (string,
 
 func (t costLibraryTool) dedupe(s *workcost.Store, p costLibraryArgs) (string, error) {
 	if p.KeepID <= 0 || len(p.MergeIDs) == 0 {
-		return "", fmt.Errorf("dedupe 需要 keep_id（保留）与 merge_ids（合并掉的工料机 id）")
+		return "", fmt.Errorf("dedupe 需要 keep_id（保留）与 merge_ids（合并掉的工料机 id，顶层直给）%s", clRecvSuffix(p))
 	}
 	keep, err := s.GetResource(p.KeepID)
 	if err != nil {
@@ -1807,7 +2153,7 @@ func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string,
 	var out strings.Builder
 	out.WriteString(clHead(p.DryRun, "classify"))
 	if p.Misnamed != "" {
-		fmt.Fprintf(&out, "⚠ 参数已救回：%s 对象原本发在 quota 里，已挪到正确位置——classify 是顶层参数，直接给 classify={…}。\n", p.Misnamed)
+		fmt.Fprintf(&out, "⚠ 参数已救回：%s 原本发在 quota 里，已挪到正确位置——这些键都是顶层参数，直接顶层直给。\n", p.Misnamed)
 	}
 	a := res.Applied
 	fmt.Fprintf(&out, "**%s**: 项目 %d｜清单 %d｜定额 %d｜工料机 %d\n",
@@ -2025,7 +2371,7 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 		var out strings.Builder
 		out.WriteString(clHead(p.DryRun, "dict_add"))
 		if p.Misnamed != "" {
-			fmt.Fprintf(&out, "⚠ 参数已救回：%s 对象原本发在 quota 里，已挪到正确位置——下次按骨架直接给顶层字段。\n", p.Misnamed)
+			fmt.Fprintf(&out, "⚠ 参数已救回：%s 原本发在 quota 里，已挪到正确位置——下次按骨架直接给顶层字段。\n", p.Misnamed)
 		}
 		if exists {
 			fmt.Fprintf(&out, "%s「%s」已在字典里，无需新增。", workcost.DictKindLabel[in.Kind], in.Name)

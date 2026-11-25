@@ -79,3 +79,23 @@ func TestRememberDescriptionConsentGate(t *testing.T) {
 		}
 	}
 }
+
+// TestRememberMissingFieldEchoesKeys（铜陵反馈 #19）：缺参报错回显本次收到的
+// 键面并点名缺的是哪个，UsageHint 给正确骨架——模型不再对着「required」盲撞
+// （实测连发 4 次「只有 body 没有 description」）。
+func TestRememberMissingFieldEchoesKeys(t *testing.T) {
+	tl := NewRememberTool(Store{Dir: t.TempDir()}, nil)
+	_, err := tl.Execute(context.Background(), []byte(`{"body":"b","name":"n"}`))
+	if err == nil {
+		t.Fatal("expected error when description is missing")
+	}
+	for _, want := range []string{"description", "本次收到键：body, name"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("错误应含 %q，得到：%v", want, err)
+		}
+	}
+	hint := (rememberTool{}).UsageHint(json.RawMessage(`{"body":"b","name":"n"}`))
+	if !strings.Contains(hint, "description") || !strings.Contains(hint, "骨架") {
+		t.Fatalf("UsageHint 应给骨架并点名 description：%s", hint)
+	}
+}

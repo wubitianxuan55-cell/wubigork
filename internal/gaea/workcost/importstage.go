@@ -1071,6 +1071,8 @@ type ImportWriteResult struct {
 	Bills        int      `json:"bills"`
 	PriceFacts   int      `json:"priceFacts"`
 	Errors       []string `json:"errors"` // 写入中途失败的行（其余已写；修掉后重新提交即可）
+	// RegionMerged 身份四要素同、仅地区缺失/不同被并入原行的明细（铜陵反馈 #18）。
+	RegionMerged []string `json:"regionMerged,omitempty"`
 }
 
 // Commit 把暂存区写进库。写前把每一行再过一遍规矩与引用完整——有任何一行不合规
@@ -1129,13 +1131,26 @@ func (imp *ImportSession) Commit(s *Store) (*ImportWriteResult, error) {
 		res.ProjectID, res.ProjectName = id, name
 	}
 
-	// ② 工料机：按身份 UPSERT（同身份已有行=更新，编码沿用库里的）。
+	// ② 工料机：按身份 UPSERT（同身份已有行=更新，编码沿用库里的）。全等身份
+	// （含地区）没命中时走 ResolveResourcePrev 第二跳（铜陵反馈 #18）：四要素
+	// 同、仅地区缺失/不同 → 更新原行，不消歧成新行。
 	for _, in := range imp.resources {
 		r, _ := imp.resourceOf(s, in)
 		prev, err := s.findResourceByIdentity(*r)
 		if err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("工料机 %s「%s」身份回查失败: %v", in.Code, in.Title, err))
 			continue
+		}
+		if prev == nil {
+			if p2, e2 := s.ResolveResourcePrev(*r); e2 == nil && p2 != nil {
+				prev = p2
+				// 继承原行 id/code（SaveResource 身份回查含地区，不继承它还会
+				// 插新行；code 是消耗行引用锚点，不换）。
+				r.ID = p2.ID
+				r.Code = p2.Code
+				res.RegionMerged = append(res.RegionMerged, fmt.Sprintf("%s %s（地区 %s→%s）",
+					p2.Code, in.Title, clRegionOrNone(p2.Region), clRegionOrNone(r.Region)))
+			}
 		}
 		saved, err := s.SaveResource(*r)
 		if err != nil {

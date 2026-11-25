@@ -33,11 +33,25 @@ type ApplyProjectResult struct {
 	// ResourceRenamed 工料机编码被别的资源占用、消歧成「码-N」的条数（含量行已
 	// 按别名落到消歧码上，不会悬空）。两份价格表各写各的 L01 时会发生。
 	ResourceRenamed int `json:"resourceRenamed"`
+	// RegionMerged 身份四要素同、仅地区缺失/不同的既有行被并入（更新原行、
+	// 不消歧成新行）的明细（铜陵反馈 #18），形如 "L01 普工（地区 安徽-铜陵→安徽省/铜陵市）"。
+	RegionMerged []string `json:"regionMerged,omitempty"`
+	// Renames 消歧明细（工作簿码 → 库内码 + 落库 id），回执给模型做后续
+	// dedupe/classify 引用（反馈 #18：只给计数时模型拿不到数字 id，链路卡死）。
+	Renames []string `json:"renames,omitempty"`
 	// QuotaDerived 跨专业另立（借鉴外专业同码定额）的定额条数。
 	QuotaDerived int `json:"quotaDerived"`
 	// PriceFacts 写入的价格事实条数。
 	PriceFacts int      `json:"priceFacts"`
 	Errors     []string `json:"errors"`
+}
+
+// clRegionOrNone 回执里的地区显示：空=未标注。
+func clRegionOrNone(region string) string {
+	if strings.TrimSpace(region) == "" {
+		return "未标注"
+	}
+	return region
 }
 
 // truncateRunes 截到 n 个字符（回执里引用文件原文用，避免整段说明刷屏）。
@@ -160,6 +174,22 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 			res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）身份回查失败: %v", r.Code, r.Title, err))
 			continue
 		}
+		if prev == nil {
+			// 第二跳（铜陵反馈 #18）：四要素同、仅地区缺失/不同的既有行并入原行，
+			// 不消歧成新行。恰好一行才并；多行=真歧义，维持下方消歧路径。
+			// SaveResource 的身份回查含地区，必须显式继承原行 id/code 它才会走
+			// UPDATE（code 是库里消耗行的引用锚点，不换码）。
+			if p2, e2 := s.ResolveResourcePrev(r); e2 != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）身份回查失败: %v", r.Code, r.Title, e2))
+				continue
+			} else if p2 != nil {
+				prev = p2
+				r.ID = p2.ID
+				r.Code = p2.Code
+				res.RegionMerged = append(res.RegionMerged, fmt.Sprintf("%s %s（地区 %s→%s）",
+					p2.Code, r.Title, clRegionOrNone(p2.Region), clRegionOrNone(r.Region)))
+			}
+		}
 		if prev != nil {
 			// 同身份既有行：改价不改身份。这次导入没带的分类/来源/备注不被清空，
 			// 价格读成 0（公式无缓存值）也不顶掉已有价。
@@ -178,6 +208,7 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 		} else if pr.Price > 0 {
 			r.PriceDate = period
 		}
+		renamed := false
 		if prev == nil {
 			// 新行但编码已被别的工料机占用：消歧成「码-N」，不靠 UNIQUE 约束报错了事。
 			if _, taken := idx[r.Code]; taken {
@@ -188,12 +219,16 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 				}
 				r.Code = free
 				res.ResourceRenamed++
+				renamed = true
 			}
 		}
 		saved, err := s.SaveResource(r)
 		if err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）落库失败: %v", pr.Code, r.Title, err))
 			continue
+		}
+		if renamed {
+			res.Renames = append(res.Renames, fmt.Sprintf("%s → %s (id=%d)", pr.Code, saved.Code, saved.ID))
 		}
 		alias[strings.TrimSpace(pr.Code)] = saved.Code
 		if prev != nil {

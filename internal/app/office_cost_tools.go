@@ -193,8 +193,10 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 		var b strings.Builder
 		fmt.Fprintf(&b, "资源 %d 条（限 %d）：\n", len(resources), p.Limit)
 		for _, r := range resources {
-			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s）\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
-				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"))
+			// id=数字主键（铜陵反馈 #18：dedupe 的 keep_id/merge_ids 只吃数字 id，
+			// 只读口不给 id 时消歧链路当场卡死）。
+			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s，id=%d）\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
+				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"), r.ID)
 		}
 		return b.String(), nil
 	default:

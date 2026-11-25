@@ -314,3 +314,30 @@ describe("Markdown 超长代码块折叠（v4.234）", () => {
     expect(screen.queryByRole("button", { name: /展开全部/ })).toBeNull();
   });
 });
+
+describe("Markdown GenUI 稳定性（办公表格闪烁回归）", () => {
+  it("文本增长重渲染时 GenUI 子树不重挂（components 身份 memo）", () => {
+    // 2026-11-25 办公板块 GenUI 表格不停闪烁：内联 buildComponents 每次
+    // render 造新 Code 闭包 → react-markdown 换组件类型 → 整树卸载重挂 →
+    // .gui-item 的 gui-reveal 动画每帧重放。修复后 components 按依赖 memo，
+    // 重挂不再发生——用「同一 DOM 节点跨重渲染存活」钉住。
+    const fence =
+      '```genui\n{"items":[{"type":"table","columns":["项","量"],"rows":[["挖土","100"]]}]}\n```';
+    const view = render(
+      <GenuiScopeProvider scope={{ scope: "office", sessionKey: "flicker" }}>
+        <Markdown text={`开场\n${fence}`} genuiKey="fx1" />
+      </GenuiScopeProvider>,
+    );
+    const block = view.container.querySelector(".gui-block");
+    expect(block).toBeTruthy();
+
+    view.rerender(
+      <GenuiScopeProvider scope={{ scope: "office", sessionKey: "flicker" }}>
+        <Markdown text={`开场\n${fence}\n\n补充说明一段。`} genuiKey="fx1" />
+      </GenuiScopeProvider>,
+    );
+    const after = view.container.querySelector(".gui-block");
+    expect(after).toBeTruthy();
+    expect(after).toBe(block);
+  });
+});

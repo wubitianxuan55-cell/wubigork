@@ -481,3 +481,84 @@ func TestCostLibraryPromptAnchors(t *testing.T) {
 		}
 	}
 }
+
+// TestCostLibraryRescueMisplacedTopLevelParams（铜陵反馈 #16/#17 log 实证形态）：
+// 模型把顶层列表/标量发进 quota、把数组 JSON 串化进 code、同键重复 quota 把好
+// 内容吃掉——三类都要救回，缺参报错要回显本次收到的键面。
+func TestCostLibraryRescueMisplacedTopLevelParams(t *testing.T) {
+	a, cleanup := workcostTestApp(t)
+	defer cleanup()
+	s := a.hubWorkcostStore()
+	tl := costLibraryTool{a: a}
+	r, _, _ := clSeed(t, s)
+	r2, err := s.SaveResource(workcost.Resource{Kind: workcost.KindLabor, Title: "技工", Unit: "工日", BasePrice: 150, CurrentPrice: 160})
+	if err != nil {
+		t.Fatalf("建第二个工料机失败: %v", err)
+	}
+
+	// ① codes 发进 quota（delete_quota 实证形态）。A 被 clSeed 清单行引用，
+	// 带 force 才走到演练明细（走到= codes 已救回）。
+	out, err := clRun(t, tl, map[string]any{
+		"action": "delete_quota", "dry_run": true, "force": true,
+		"quota": map[string]any{"codes": []string{"A"}},
+	})
+	if err != nil {
+		t.Fatalf("quota 内嵌 codes 应被救回: %v", err)
+	}
+	if !strings.Contains(out, "A") {
+		t.Fatalf("演练回执应命中定额 A：%s", out)
+	}
+
+	// ② 数组串化进 code（delete_resource 后期撞墙形态："code":"[\"L01\",…]"）。
+	// 放在 dedupe 之前——dedupe 会真合并 r2。
+	out, err = clRun(t, tl, map[string]any{
+		"action": "delete_resource", "dry_run": true,
+		"code": `["` + r2.Code + `"]`,
+	})
+	if err != nil {
+		t.Fatalf("串化数组 code 应救回成 codes: %v", err)
+	}
+	if !strings.Contains(out, r2.Code) {
+		t.Fatalf("演练回执应命中 %s：%s", r2.Code, out)
+	}
+
+	// ③ keep_id/merge_ids 发进 quota（dedupe 实证形态）。真合并，放最后。
+	out, err = clRun(t, tl, map[string]any{
+		"action": "dedupe",
+		"quota":  map[string]any{"keep_id": r.ID, "merge_ids": []int64{r2.ID}},
+	})
+	if err != nil {
+		t.Fatalf("quota 内嵌 keep_id/merge_ids 应被救回: %v", err)
+	}
+	if !strings.Contains(out, "去重") && !strings.Contains(out, "合并") {
+		t.Fatalf("dedupe 应执行：%s", out)
+	}
+
+	// ④ 同键重复 quota：后者为空不覆盖前者内容（{"quota":{好},"quota":{}}）。
+	out, err = clRunRaw(t, tl, `{"action":"delete_quota","dry_run":true,"force":true,"quota":{"codes":["A"]},"quota":{}}`)
+	if err != nil {
+		t.Fatalf("重复 quota 键应非空者胜: %v", err)
+	}
+	if !strings.Contains(out, "A") {
+		t.Fatalf("重复键下 codes 应存活：%s", out)
+	}
+
+	// ⑤ 缺参报错回显收到键面。
+	clMustFail(t, tl, map[string]any{"action": "delete_quota", "dry_run": true}, "本次收到键：action, dry_run")
+
+	// ⑥ import_project 的 region 发进 quota（#17 实证形态）——纯救回单元断言。
+	tlp := costLibraryTool{a: a}
+	var p costLibraryArgs
+	p.Action = "import_project"
+	raw := json.RawMessage(`{"action":"import_project","path":"x.xlsx","quota":{"region":"安徽省/铜陵市","specialty":"土壤修复"}}`)
+	tlp.rescueMisnamedNested(&p, raw)
+	if p.Region != "安徽省/铜陵市" || p.Specialty != "土壤修复" {
+		t.Fatalf("region/specialty 应从 quota 救回: region=%q specialty=%q", p.Region, p.Specialty)
+	}
+}
+
+// clRunRaw 原始 JSON 串执行（测重复键必须绕开 map 序列化）。
+func clRunRaw(t *testing.T, tl costLibraryTool, raw string) (string, error) {
+	t.Helper()
+	return tl.Execute(context.Background(), json.RawMessage(raw))
+}

@@ -221,6 +221,38 @@ func (s *Store) findResourceByIdentity(r Resource) (*Resource, error) {
 	return row, nil
 }
 
+// ResolveResourcePrev 全等身份（含地区）没命中时的第二跳：身份四要素
+// （类别+名称+规格+单位）相同、**仅地区缺失或不同**的既有行视为同一资源，
+// 更新原行而不是消歧成新行（铜陵反馈 #18：旧 60 行已标地区、重导入带着项目
+// 地区，全等身份查不到 → 撞码消歧落成「码-N」重复行，还得 classify+dedupe
+// 两步清理）。恰好一行命中才并；0 行或多行返回 nil（多行=真歧义，维持消歧）。
+func (s *Store) ResolveResourcePrev(r Resource) (*Resource, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(resourceCols+` WHERE kind=? AND title=? AND spec=? AND unit=?`,
+		normalizeKind(r.Kind), strings.TrimSpace(r.Title), strings.TrimSpace(r.Spec), strings.TrimSpace(r.Unit))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var hits []Resource
+	for rows.Next() {
+		row, err := scanResource(rows)
+		if err != nil {
+			return nil, err
+		}
+		hits = append(hits, *row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(hits) != 1 {
+		return nil, nil
+	}
+	return &hits[0], nil
+}
+
 // FreeResourceCode 编码可用性：未被占用原样返回；已占用则返回「码-N」消歧码
 // （N 从 2 起，取最小空位），与定额码 ResolveQuotaCode 的消歧规则同款。导入链
 // 用它处理「两份工料机价格表用了同一个码」（L01 在每个项目里都是人工）。

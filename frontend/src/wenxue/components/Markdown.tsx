@@ -17,7 +17,7 @@
 // 性能：插件恒挂管线（未做 "<字母" 启发式门控）——树级消毒 O(树)，代价
 // 远小于一次 reparse，正确性优先避免启发式漏判。
 
-import { cloneElement, isValidElement, memo, useCallback, useEffect, useRef, useState } from "react";
+import { cloneElement, isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
@@ -414,6 +414,11 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 
 // ── Markdown 组件 ────────────────────────────────────────────────────
 
+// remark/rehype 插件数组提为模块常量：数组身份每 render 变化会让 react-markdown
+// 重建整条处理管线（与下方 components memo 同一批次）。
+const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations];
+const MARKDOWN_REHYPE_PLUGINS = [rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex];
+
 function buildComponents(
   onOpenFile: (rel: string) => void,
   autoExportMermaid: boolean,
@@ -646,20 +651,36 @@ export const Markdown = memo(function Markdown({
       }
     }
   }, [text, genuiKey, genuiScope, publishPanel]);
-  const fenceKeyFor =
-    genuiScope !== null && genuiKey !== undefined
-      ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
-      : undefined;
   const t = useTOptional();
+  // 组件映射按依赖 memo（同 gaea/components/Markdown 的 GenUI 表格闪烁修复）：
+  // 内联 buildComponents 每次 render 造新 Code 闭包 → react-markdown 换组件
+  // 类型 → GenUI 子树重挂 → gui-reveal 动画重放，流式期间表格不停闪。scope
+  // 用原语键做依赖，宿主内联 scope 对象也不破坏 memo。
+  const scopeKey = genuiScope === null ? null : `${genuiScope.scope}:${genuiScope.sessionKey}`;
+  const fenceKeyFor = useMemo(
+    () =>
+      genuiScope !== null && genuiKey !== undefined
+        ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
+        : undefined,
+    [scopeKey, genuiKey], // eslint-disable-line react-hooks/exhaustive-deps -- genuiScope 由 scopeKey 原语代表
+  );
+  const codeLabels = useMemo(
+    () => ({
+      expand: (n: number) => t("msg.codeExpand", { n }),
+      collapse: t("msg.codeCollapse"),
+    }),
+    [t],
+  );
+  const components = useMemo(
+    () => buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, codeLabels, imageBasePath),
+    [openFilePreview, autoExportMermaid, fenceKeyFor, codeLabels, imageBasePath],
+  );
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
-        rehypePlugins={[rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex]}
-        components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, {
-          expand: (n: number) => t("msg.codeExpand", { n }),
-          collapse: t("msg.codeCollapse"),
-        }, imageBasePath)}
+        remarkPlugins={MARKDOWN_PLUGINS}
+        rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
+        components={components}
         urlTransform={mdUrlTransform}
       >
         {normalizeMath(text)}
