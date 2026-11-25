@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -453,10 +454,33 @@ func (a *AgentRunner) applyStormBreaker(calls []provider.ToolCall, outcomes []to
 		short = fmt.Sprintf("a batch of %d calls", len(calls))
 	}
 	guardMsg := fmt.Sprintf(
-		"\n\n[loop guard] %s has now failed %d times in a row with the same error. Re-sending it �� even with the wording changed �� will not help: the calls keep failing the same way. Change approach: if an argument is being truncated, write less in one call and split the work into several smaller calls; otherwise fix the arguments, use a different tool, or explain the blocker in your final answer.",
+		"\n\n[loop guard] %s has now failed %d times in a row with the same error. Re-sending it — even with the wording changed — will not help: the calls keep failing the same way. Change approach: if an argument is being truncated, write less in one call and split the work into several smaller calls; otherwise fix the arguments, use a different tool, or explain the blocker in your final answer.",
 		subject, a.storm.Count)
+	// UsageHint 附加值（2026-11-25 铜陵反馈 #14）：只拦不导，模型随后又原样撞了
+	// 两次。工具自己最清楚每个 action 的正确骨架——实现了 UsageHinter 的，把
+	// 骨架附在这条 guard 后面，把「换个方法」换成「照这个样子发」。
+	hints := make(map[int]string, len(calls))
+	for i := range calls {
+		if a.tools == nil {
+			break
+		}
+		t, ok := a.tools.Get(calls[i].Name)
+		if !ok {
+			continue
+		}
+		hinter, ok := t.(tool.UsageHinter)
+		if !ok {
+			continue
+		}
+		if hint := hinter.UsageHint(json.RawMessage(calls[i].Arguments)); hint != "" {
+			hints[i] = hint
+		}
+	}
 	for i := range results {
 		results[i] = outcomes[i].output + guardMsg
+		if hints[i] != "" {
+			results[i] += "\n\n[usage hint] " + hints[i]
+		}
 	}
 	a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn, Text: fmt.Sprintf(
 		"loop guard: %s failed %d�� the same way �� nudging the model to change approach",

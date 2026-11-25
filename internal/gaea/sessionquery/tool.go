@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -48,7 +49,22 @@ func (t searchTool) Execute(ctx context.Context, args json.RawMessage) (string, 
 	if strings.TrimSpace(p.Query) == "" {
 		return "", fmt.Errorf("query is required")
 	}
-	hits, err := t.store.Search(p.Query, p.Limit)
+	// SQLITE_BUSY 短重试（2026-11-25 铜陵反馈 #11）：会话库与主库共用一个
+	// SQLite 文件，写入回合撞上即偶发 busy——一次失败重试即过，别让模型白跑
+	// 一轮（3 次 × 60ms 退避，覆盖写入事务的尾窗口）。
+	var hits []Hit
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		hits, err = t.store.Search(p.Query, p.Limit)
+		if err == nil || !strings.Contains(err.Error(), "SQLITE_BUSY") {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(time.Duration(attempt+1) * 60 * time.Millisecond):
+		}
+	}
 	if err != nil {
 		return "", err
 	}

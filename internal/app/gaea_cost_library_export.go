@@ -113,87 +113,16 @@ func costWriteFile(outPath string, save func(path string) error) error {
 	return nil
 }
 
-// costTemplateMaxResources 模版预填工料机的上限（防极端大库把模版撑爆）。
-const costTemplateMaxResources = 5000
-
-// costExportTemplate 按库生成成本测算模版：专业/地区/期数取 filter（「未标注」
-// 哨兵对模版没有意义，当没给），工料机按 工料机级筛选口径（类别/分类/地区/期数）
-// 从库预填，类别不在四类之内的存量行不预填（多为错记的说明行）。
-func (a *App) costExportTemplate(f workcost.LibraryFilter, outPath string) (string, error) {
-	opt, err := a.costTemplateOptions(f)
-	if err != nil {
+// costExportTemplate 测算样表出口（板块「导出 → 测算模版」；2026-11-25 用户拍板
+// 「删除渲染器思路，提供样本给模型，再进行约束」）：把样表复制到目标路径。
+// 版式真源=样表文件（工作区覆盖优先、内嵌种子兜底，见 office_cost_template_sample.go），
+// 不再按库渲染、不再预填——工料机价格与费率口径由模型查库填。filter 参数保留
+// 绑定签名兼容，内容不再使用。
+func (a *App) costExportTemplate(_ workcost.LibraryFilter, outPath string) (string, error) {
+	if _, _, err := writeCostEstimateSample(outPath); err != nil {
 		return "", err
 	}
-	data, err := workcost.ExportProjectTemplate(opt)
-	if err != nil {
-		return "", fmt.Errorf("生成测算模版失败: %w", err)
-	}
-	if err := os.WriteFile(outPath, data, 0o644); err != nil {
-		return "", fmt.Errorf("写出测算模版失败: %w", err)
-	}
 	return filepath.ToSlash(outPath), nil
-}
-
-// costTemplateOptions 按筛选口径从库组装模版选项（口径三件、预填工料机、预填费率
-// 与其出处）。板块导出与 cost_library action=template 共用——回执里的预填条数、
-// 费率出处都从这里来。
-func (a *App) costTemplateOptions(f workcost.LibraryFilter) (workcost.TemplateOptions, error) {
-	s := a.hubWorkcostStore()
-	if !s.Available() {
-		return workcost.TemplateOptions{}, fmt.Errorf("工料机造价库不可用")
-	}
-	plain := func(v string) string {
-		v = strings.TrimSpace(v)
-		if v == workcost.FilterNone || v == workcost.FilterOutside {
-			return ""
-		}
-		return v
-	}
-	opt := workcost.TemplateOptions{
-		Specialty: plain(f.Specialty),
-		Region:    plain(f.Region),
-		Period:    plain(f.Period),
-	}
-
-	kind, region, period, category := plain(f.Kind), plain(f.Region), plain(f.Period), plain(f.Category)
-	list, err := s.ListResources(kind, "")
-	if err != nil {
-		return workcost.TemplateOptions{}, err
-	}
-	for _, r := range list {
-		// 分类是路径：选上级分类连带下级。
-		if category != "" && r.CategoryPath != category && !strings.HasPrefix(r.CategoryPath, category+"/") {
-			continue
-		}
-		if !workcost.IsKnownKind(r.Kind) {
-			continue
-		}
-		if !costExportPick(region, r.Region) || !costExportPick(period, r.PriceDate) {
-			continue
-		}
-		opt.Resources = append(opt.Resources, r)
-		if len(opt.Resources) >= costTemplateMaxResources {
-			break
-		}
-	}
-
-	// 费率：预填库内最近一个带费率项目的取费口径（企业自己的习惯口径），封面注明
-	// 出处；库里没有项目则用默认口径。
-	opt.Fee, opt.FeeSource = a.costTemplateFee(s)
-	return opt, nil
-}
-
-// costTemplateFee 模版预填的取费口径与出处说明。
-func (a *App) costTemplateFee(s *workcost.Store) (workcost.RateSet, string) {
-	if projects, err := s.BillProjects(); err == nil {
-		for _, p := range projects { // 最新在前
-			rs := workcost.RateSet{ManagementRate: p.ManagementRate, RegulatoryRate: p.RegulatoryRate, ProfitRate: p.ProfitRate, TaxRate: p.TaxRate}
-			if rs != (workcost.RateSet{}) {
-				return rs, fmt.Sprintf("取自库内最近项目「%s」的取费口径，按本项目实际口径改费用汇总的费率列", p.Name)
-			}
-		}
-	}
-	return workcost.DefaultRateSet(), "默认口径（企管 10% / 规费 2% / 利润 7% / 增值税 9%），库内还没有带费率的项目——按本项目实际口径改费用汇总的费率列"
 }
 
 // costExportMatch 关键词包含（已小写）；空关键词恒命中。

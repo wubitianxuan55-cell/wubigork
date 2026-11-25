@@ -105,7 +105,10 @@ type ProjectQuotaBlock struct {
 	Factor   float64 `json:"factor"`   // 工程量系数（每清单单位含多少定额单位；0=跟随）
 }
 
-// ProjectFeeParams 解析出的取费参数（费用汇总下半段）。
+// ProjectFeeParams 解析出的取费参数（费用汇总下半段）。费率之外带各段金额
+// （工作簿缓存值；没重算的簿取不到，恒 0）——导入回执拿它与库内现算对账，
+// 差异按性质拆开说（2026-11-25 铜陵反馈 #15：122,785 元差异里 98% 是利润
+// 基数口径分叉，被当成「精度舍位」手算了 5 轮）。
 type ProjectFeeParams struct {
 	ManagementRate    float64 `json:"managementRate"`
 	RegulatoryRate    float64 `json:"regulatoryRate"`
@@ -114,6 +117,15 @@ type ProjectFeeParams struct {
 	ControlPrice      float64 `json:"controlPrice"`
 	ManagementFormula string  `json:"managementFormula"`
 	TaxNote           string  `json:"taxNote"`
+	// HasAmounts 报告金额段是否取到了缓存值（至少直接费与含税总造价非零）。
+	HasAmounts       bool    `json:"hasAmounts"`
+	DirectAmount     float64 `json:"directAmount"`
+	ManagementAmount float64 `json:"managementAmount"`
+	ProfitAmount     float64 `json:"profitAmount"`
+	RegulatoryAmount float64 `json:"regulatoryAmount"`
+	PreTaxAmount     float64 `json:"preTaxAmount"`
+	TaxAmount        float64 `json:"taxAmount"`
+	TotalAmount      float64 `json:"totalAmount"`
 }
 
 // ProjectQuantity 解析出的工程量计算条目（工程量计算表）。
@@ -127,9 +139,13 @@ type ProjectQuantity struct {
 
 // SkippedRow 解析时跳过的行（显形而非静默丢弃）。
 type SkippedRow struct {
-	Sheet  string `json:"sheet"`
-	Row    int    `json:"row"`
+	Sheet string `json:"sheet"`
+	Row   int    `json:"row"`
+	// Reason 跳过原因。
 	Reason string `json:"reason"`
+	// Excerpt 该行原文摘要（非空格逐格拼接，截断）——只给计数不给位置时，
+	// 一句脚注被当成资源行要另写脚本逐行扫才找得到（2026-11-25 铜陵反馈 #4）。
+	Excerpt string `json:"excerpt"`
 }
 
 // ProjectBundle 一份项目工作簿的完整解析结果（待用户确认后落库）。
@@ -159,6 +175,36 @@ type ProjectBundle struct {
 	Specialty string `json:"specialty"`
 	Region    string `json:"region"`
 	Period    string `json:"period"`
+
+	// CoverScope 封面上写明的口径（「专业：X」「地区：Y」「计价期：Z」）——
+	// 只是**文件里的自述**，不是规范值：导入时调用方没给口径才拿它兜底，且仍要
+	// 过字典校验（见 app 侧 importProject）。与上面三个字段分开，保持「规范值
+	// 由调用方给」的契约不破。
+	CoverSpecialty string `json:"coverSpecialty"`
+	CoverRegion    string `json:"coverRegion"`
+	CoverPeriod    string `json:"coverPeriod"`
+}
+
+// skip 记一行跳过（带原文摘要）。
+func (b *ProjectBundle) skip(f *excelize.File, sheet string, row int, reason string) {
+	b.Skipped = append(b.Skipped, SkippedRow{Sheet: sheet, Row: row, Reason: reason, Excerpt: rowExcerpt(f, sheet, row, maxProbeCols)})
+}
+
+// rowExcerpt 一行的原文摘要：非空格按列序拼接，每格截到 16 字、最多 6 格。
+func rowExcerpt(f *excelize.File, sheet string, row, maxCol int) string {
+	var parts []string
+	for c := 1; c <= maxCol && len(parts) < 6; c++ {
+		v := strings.TrimSpace(cellAt(f, sheet, row, c))
+		if v == "" {
+			continue
+		}
+		r := []rune(v)
+		if len(r) > 16 {
+			v = string(r[:16]) + "…"
+		}
+		parts = append(parts, v)
+	}
+	return strings.Join(parts, " | ")
 }
 
 // DetectedSixSheet 报告该工作簿是否为测算工作簿（六表模版，供导入入口分流）：

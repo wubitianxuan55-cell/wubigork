@@ -57,7 +57,7 @@ func (t xlsxRecalcTool) Execute(_ context.Context, args json.RawMessage) (string
 	if strings.TrimSpace(in.Path) == "" {
 		return "", fmt.Errorf("缺少参数 path（目标 .xlsx 工作区相对路径）")
 	}
-	path := in.Path
+	path := officeTranslateShellPath(in.Path)
 	if !filepath.IsAbs(path) {
 		p, perr := wspath.ResolveRelWithin(gaeaCwd(), path)
 		if perr != nil {

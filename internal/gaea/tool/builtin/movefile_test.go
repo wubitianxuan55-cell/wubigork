@@ -106,17 +106,40 @@ func TestMoveFileSourceValidation(t *testing.T) {
 }
 
 func TestMoveFileConfinedBothEndpoints(t *testing.T) {
-	outside := t.TempDir()
+	// 2026-11-25 铜陵反馈 #2 起，move_file 放行「系统 TEMP 里的源 → 工作区内」
+	// （合规落盘推荐路径）。测试里用 TMP/TEMP 重定向造出真界外与真 TEMP：
+	// os.TempDir → ws；工作区根 = ws/work（temp 内、roots 外的 staged/ 正好
+	// 落在「TEMP 放行」的区间上）。
+	outside := t.TempDir() // 旧 TEMP 下；重定向后不再属于 TEMP
 	ws := t.TempDir()
-	mover := moveFile{workDir: ws, roots: []string{ws}}
+	t.Setenv("TMP", ws)
+	t.Setenv("TEMP", ws)
+	work := filepath.Join(ws, "work")
+	if err := os.MkdirAll(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mover := moveFile{workDir: work, roots: []string{work}}
 	outsideFile := writeTemp(t, outside, "secret.txt", "x\n")
-	writeTemp(t, ws, "local.txt", "y\n")
+	writeTemp(t, work, "local.txt", "y\n")
+	staged := writeTemp(t, ws, "staged.txt", "z\n") // 在 os.TempDir 内、roots 外
 
-	// Source outside the roots.
+	// 界外且不在 TEMP 的源：拒绝。
 	if _, err := mover.Execute(context.Background(), mustArgs(t, map[string]any{
 		"source": outsideFile, "destination": "local2.txt",
 	})); err == nil || !strings.Contains(err.Error(), "outside the workspace") {
-		t.Errorf("source outside roots: err=%v", err)
+		t.Errorf("source outside roots and temp: err=%v", err)
+	}
+	// 系统 TEMP 里的源 → 工作区：放行（合规落盘路径），且是真正的移动。
+	if _, err := mover.Execute(context.Background(), mustArgs(t, map[string]any{
+		"source": staged, "destination": "published.txt",
+	})); err != nil {
+		t.Errorf("temp-dir source must be allowed into the workspace: err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(work, "published.txt")); err != nil {
+		t.Errorf("published file missing: %v", err)
+	}
+	if _, err := os.Stat(staged); !os.IsNotExist(err) {
+		t.Errorf("temp source must be gone, stat err=%v", err)
 	}
 	// Destination outside the roots.
 	if _, err := mover.Execute(context.Background(), mustArgs(t, map[string]any{
@@ -127,8 +150,11 @@ func TestMoveFileConfinedBothEndpoints(t *testing.T) {
 }
 
 func TestMoveFileSymlinkEscapeBlocked(t *testing.T) {
+	// TMP 重定向同上：界外 = 旧 TEMP 下、新 os.TempDir 之外。
 	outside := t.TempDir()
 	ws := t.TempDir()
+	t.Setenv("TMP", ws)
+	t.Setenv("TEMP", ws)
 	target := writeTemp(t, outside, "target.txt", "x\n")
 	link := filepath.Join(ws, "link.txt")
 	if err := os.Symlink(target, link); err != nil {

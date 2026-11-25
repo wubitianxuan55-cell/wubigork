@@ -45,9 +45,10 @@ func (t xlsxProfileTool) Schema() json.RawMessage {
 }
 
 // xlsxProfileResolvePath 读路径单点收口（与 officeComResolvePath 同模式，
-// 只读版：相对=ResolveRelWithin；绝对=Clean 原样交上层）。不可解析返回错误。
+// 只读版：先过 bash 方言翻译；相对=ResolveRelWithin；绝对=Clean 原样交上层）。
+// 不可解析返回错误。
 func xlsxProfileResolvePath(raw string) (string, error) {
-	raw = strings.TrimSpace(raw)
+	raw = officeTranslateShellPath(strings.TrimSpace(raw))
 	if raw == "" {
 		return "", fmt.Errorf("缺少文件路径")
 	}

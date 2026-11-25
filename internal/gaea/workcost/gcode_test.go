@@ -91,8 +91,9 @@ VALUES('MIX','调和沥青','神秘物质','t',1,'','成都市区','[]','现行'
 	if got := gcode("gf_resources", "L01"); got != "RR000001" {
 		t.Fatalf("普工没细分，应授 RR000001（人工R+分类00+0001），得到 %q", got)
 	}
-	if got := gcode("gf_resources", "C20"); got != "RC010001" {
-		t.Fatalf("商品混凝土 应授 RC010001（材料C+材料/土建材01），得到 %q", got)
+	// 材料/土建材 不在 V41 种子里 → 自动号发 35（字典已被种子的 01–34 占用）。
+	if got := gcode("gf_resources", "C20"); got != "RC350001" {
+		t.Fatalf("商品混凝土 应授 RC350001（材料C+分类段35，种子的01–34已被占用），得到 %q", got)
 	}
 	if got := gcode("gf_resources", "MIX"); got[:2] != "RX" {
 		t.Fatalf("四类之外的「调和沥青」应授 RX…（X=类别待整理），得到 %q", got)
@@ -318,12 +319,13 @@ func TestGCodeCategorySlotFromDict(t *testing.T) {
 			t.Errorf("工料机自有码 = %s, want %s", got, want)
 		}
 	}
+	// V41 种子占了字典 01–34：不在种子里的分类自动号从 35 起。
 	check(save("螺纹钢", "材料/钢材"), "RCGZ0001")  // 用户给的码
-	check(save("散装水泥", "材料/水泥"), "RC010001") // 自动 01
-	check(save("中砂", "材料/砂石"), "RC020001")   // 自动 02
+	check(save("散装水泥", "材料/水泥"), "RC350001") // 自动 35
+	check(save("中砂", "材料/砂石"), "RC360001")   // 自动 36
 	check(save("原木", "材料/木材"), "RC030001")   // 用户给的 03
 	check(save("没细分", ""), "RC000001")       // 没细分 00
-	check(save("袋装水泥", "材料/水泥"), "RC010002") // 同分类：段号不变、流水递增
+	check(save("袋装水泥", "材料/水泥"), "RC350002") // 同分类：段号不变、流水递增
 	dictCode := func(name string) string {
 		t.Helper()
 		var c string
@@ -332,7 +334,7 @@ func TestGCodeCategorySlotFromDict(t *testing.T) {
 		}
 		return c
 	}
-	if dictCode("材料/水泥") != "01" || dictCode("材料/砂石") != "02" || dictCode("材料/钢材") != "GZ" || dictCode("材料/木材") != "03" {
+	if dictCode("材料/水泥") != "35" || dictCode("材料/砂石") != "36" || dictCode("材料/钢材") != "GZ" || dictCode("材料/木材") != "03" {
 		t.Fatalf("分类段号应写回字典且不覆盖用户给的码，得到 水泥 %q / 砂石 %q / 钢材 %q / 木材 %q",
 			dictCode("材料/水泥"), dictCode("材料/砂石"), dictCode("材料/钢材"), dictCode("材料/木材"))
 	}
@@ -340,8 +342,8 @@ func TestGCodeCategorySlotFromDict(t *testing.T) {
 	if _, err := s.DictUpdate(DictCategory, "材料/水泥", "材料/水泥及制品", "", "", 0, ""); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := save("砌筑水泥", "材料/水泥及制品"), "RC010003"; got != want {
-		t.Errorf("分类改名后新工料机应沿用 01 段，得到 %s, want %s", got, want)
+	if got, want := save("砌筑水泥", "材料/水泥及制品"), "RC350003"; got != want {
+		t.Errorf("分类改名后新工料机应沿用 35 段，得到 %s, want %s", got, want)
 	}
 	// 存量里不在字典的分类（写入面已拒收，直插模拟）：补授时只记映射，不往字典里加条目；
 	// 自动号跳过已被占用的 03。
@@ -362,8 +364,10 @@ func TestGCodeCategorySlotFromDict(t *testing.T) {
 		}
 		return g
 	}
-	if gcodeOf("OLD-1") != "RC040001" || gcodeOf("OLD-2") != "RC040002" {
-		t.Errorf("不在字典的存量分类应得没人用的 04 段，得到 %s / %s", gcodeOf("OLD-1"), gcodeOf("OLD-2"))
+	// 材料/土建材 不在字典也不在种子映射里；种子占了 01–34，本测的 35/36 也已被
+	// 水泥/砂石用掉，自动号发没人用的 37。
+	if gcodeOf("OLD-1") != "RC370001" || gcodeOf("OLD-2") != "RC370002" {
+		t.Errorf("不在字典的存量分类应得没人用的 37 段，得到 %s / %s", gcodeOf("OLD-1"), gcodeOf("OLD-2"))
 	}
 	if n, _ := s.DictHas(DictCategory, "材料/土建材"); n {
 		t.Error("补授不该往分类字典里加条目")
@@ -391,10 +395,11 @@ func TestGCodeCategorySlotIsGlobal(t *testing.T) {
 			t.Errorf("gcode = %s, want %s", got, want)
 		}
 	}
-	check(save(KindMaterial, "散装水泥", "材料/水泥"), "RC010001")
-	check(save(KindMachine, "挖掘机", "机械/土方机械"), "RJ020001")
+	// 人工/技工 在 V41 种子里（段 03）；材料/水泥、机械/土方机械 不在 → 自动 35/36。
+	check(save(KindMaterial, "散装水泥", "材料/水泥"), "RC350001")
+	check(save(KindMachine, "挖掘机", "机械/土方机械"), "RJ360001")
 	check(save(KindLabor, "钢筋工", "人工/技工"), "RR030001")
-	check(save(KindOutsourced, "外购水泥", "材料/水泥"), "RW010001")
+	check(save(KindOutsourced, "外购水泥", "材料/水泥"), "RW350001")
 	var dup int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM (SELECT code FROM gf_dicts WHERE kind='category' GROUP BY code HAVING COUNT(*)>1)`).Scan(&dup); err != nil {
 		t.Fatal(err)

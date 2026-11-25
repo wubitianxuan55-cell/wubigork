@@ -13,8 +13,12 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// maxProbeCols 扫描表头/数据时的列上限（模版最宽 16 列，留余量）。
+// maxProbeCols 扫描表头/数据时的列上限（模版最宽 19 列，留余量）。
 const maxProbeCols = 20
+
+// maxSheetRows 各表扫描的行数上限。空白模版默认 30 组 × 11 行，groups 可调；
+// 上限按「几百个清单项的测算」留足，真实项目离它还远。
+const maxSheetRows = 5000
 
 // ── 封面 ────────────────────────────────────────────────────────────
 
@@ -88,6 +92,39 @@ func parseCover(f *excelize.File, sheet string, b *ProjectBundle) {
 			b.assignCoverField(k, v)
 		}
 	}
+	// ── 口径自述（六表模版封面写明「专业 / 地区 / 计价期」）────────────
+	//
+	// 只记「文件里写了什么」，不当规范值用：导入时调用方没给口径才拿它兜底，
+	// 且仍要过字典校验（app 侧 importProject）。两种写法都认——冒号整格
+	// 「专业：土壤修复」；标签格 + 右邻值格。标签须**恰为**这几个词：上面的
+	// 短标签配对按长度判（值须比标签长），「地区 | 铜陵」这类两字值走不进去。
+	for _, vals := range cells {
+		merged := rowIsMergedUniform(vals)
+		for c, v := range vals {
+			t := strings.TrimSpace(v)
+			if t == "" {
+				continue
+			}
+			if k, val, ok := splitKV(t); ok {
+				b.assignCoverScope(k, val)
+				continue
+			}
+			if merged {
+				continue
+			}
+			k := strings.TrimSuffix(t, "：")
+			if k != "专业" && k != "地区" && k != "计价期" && k != "期数" {
+				continue
+			}
+			for nc := c + 1; nc < len(vals); nc++ {
+				if nv := strings.TrimSpace(vals[nc]); nv != "" {
+					b.assignCoverScope(k, nv)
+					break
+				}
+			}
+		}
+	}
+
 	// 组价口径兜底。两种实测写法：
 	//   旺平：「综合单价=工序消耗量×基础资源价。管理费5%…」（含 =）
 	//   什邡：「五表模版：封面 → 费用汇总（工程量×综合单价）→ …，综合单价不含
@@ -108,6 +145,29 @@ func parseCover(f *excelize.File, sheet string, b *ProjectBundle) {
 			if b.Pricing != "" {
 				break
 			}
+		}
+	}
+}
+
+// assignCoverScope 把封面自述的口径记到 Cover* 字段（只填首次）。标签取整个
+// 冒号前缀，所以「项目专业」「定额专业」这类不会被误认成口径自述。
+func (b *ProjectBundle) assignCoverScope(k, v string) {
+	v = compactSpaces(v)
+	if v == "" {
+		return
+	}
+	switch strings.TrimSpace(k) {
+	case "专业":
+		if b.CoverSpecialty == "" {
+			b.CoverSpecialty = v
+		}
+	case "地区":
+		if b.CoverRegion == "" {
+			b.CoverRegion = v
+		}
+	case "计价期", "期数", "价格期":
+		if b.CoverPeriod == "" {
+			b.CoverPeriod = v
 		}
 	}
 }
@@ -190,7 +250,8 @@ func parseResourceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	cSource := colIndex(header, false, "来源")
 	cNote := colIndex(header, false, "备注")
 
-	maxRow := sheetMaxRow(f, sheet, 400)
+	// 行数上限按空白模版的规模留足（默认 30 组 × 11 行；groups 可调到数百组）。
+	maxRow := sheetMaxRow(f, sheet, maxSheetRows)
 	for r := hdr + 1; r <= maxRow; r++ {
 		code := cellAt(f, sheet, r, cCode)
 		title := cellAt(f, sheet, r, cTitle)
@@ -198,7 +259,7 @@ func parseResourceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 			continue
 		}
 		if strings.TrimSpace(title) == "" {
-			b.Skipped = append(b.Skipped, SkippedRow{Sheet: sheet, Row: r, Reason: "资源无名称"})
+			b.skip(f, sheet, r, "资源无名称")
 			continue
 		}
 		cell, _ := excelize.CoordinatesToCellName(cPrice, r)
@@ -278,7 +339,7 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 		return
 	}
 
-	maxRow := sheetMaxRow(f, sheet, 600)
+	maxRow := sheetMaxRow(f, sheet, maxSheetRows)
 	seenItems := map[string]bool{}
 	// 清单编码向下携带：模版里用户只在汇总行填一次码，定额/明细行留空时继承
 	// 上一行（导出文件每行都带码，继承值=本行值，两种形态一致）。
@@ -314,8 +375,7 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 				if qTitle == "" {
 					continue // 模版里没用到的预置定额块（码/名称都没填）：静默跳过
 				}
-				b.Skipped = append(b.Skipped, SkippedRow{Sheet: sheet, Row: r,
-					Reason: fmt.Sprintf("定额行「%s」缺定额编码（清单 %s）", qTitle, itemCode)})
+				b.skip(f, sheet, r, fmt.Sprintf("定额行「%s」缺定额编码（清单 %s）", qTitle, itemCode))
 				continue
 			}
 			// 定额计量单位读「单位」列（定额行的单位可与清单不同，如清单 m³、
@@ -376,8 +436,7 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 		// 明细行 = 工序消耗。
 		resCode := strings.TrimSpace(cellAt(f, sheet, r, cResCode))
 		if resCode == "" {
-			b.Skipped = append(b.Skipped, SkippedRow{Sheet: sheet, Row: r,
-				Reason: fmt.Sprintf("明细行缺资源编码（%s %s）", itemCode, cellAt(f, sheet, r, cResTitle))})
+			b.skip(f, sheet, r, fmt.Sprintf("明细行缺资源编码（%s %s）", itemCode, cellAt(f, sheet, r, cResTitle)))
 			continue
 		}
 		cellQty, _ := excelize.CoordinatesToCellName(cQty, r)
@@ -427,7 +486,7 @@ func parseBillSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	for i := range b.Items {
 		byCode[b.Items[i].Code] = &b.Items[i]
 	}
-	maxRow := sheetMaxRow(f, sheet, 400)
+	maxRow := sheetMaxRow(f, sheet, maxSheetRows)
 	for r := hdr + 1; r <= maxRow; r++ {
 		title := strings.TrimSpace(cellAt(f, sheet, r, cTitle))
 		code := strings.TrimSpace(cellAt(f, sheet, r, cCode))
@@ -501,15 +560,17 @@ func parseSummarySheet(f *excelize.File, sheet string, b *ProjectBundle) {
 // 「费率」列表头所在列的值（表头由 findHeaderRow 定位）。
 func parseFeeSection(f *excelize.File, sheet string, b *ProjectBundle) {
 	maxRow := sheetMaxRow(f, sheet, 400)
-	// 定位取费区表头（含「费用名称」），拿到「费率」列号。
+	// 定位取费区表头（含「费用名称」），拿到「费率」「金额」列号。
 	feeHdr := 0
 	feeRateCol := 0
+	feeAmtCol := 0
 	for r := 1; r <= maxRow; r++ {
 		vals := rowValues(f, sheet, r, 11)
 		joined := strings.Join(vals, "|")
 		if strings.Contains(joined, "费用名称") || strings.Contains(joined, "费用类别") {
 			feeHdr = r
 			feeRateCol = colIndex(vals, false, "费率")
+			feeAmtCol = colIndex(vals, false, "金额")
 			break
 		}
 	}
@@ -519,6 +580,13 @@ func parseFeeSection(f *excelize.File, sheet string, b *ProjectBundle) {
 		vals := rowValues(f, sheet, r, 11)
 		if len(nonEmpty(vals)) == 0 {
 			continue
+		}
+		// 各段金额（缓存值）：按列序第一个命中取费词的格子定段，所以「分部小计」
+		// 块的表头（占直接费）与合计行不会被当成取费行。
+		if kind := feeRowKind(vals); kind != "" {
+			if v := feeRowAmount(f, sheet, r, vals, feeHdr > 0 && r > feeHdr, feeAmtCol); v > 0 {
+				b.Fee.setAmount(kind, v)
+			}
 		}
 		name := feeNameInRow(vals)
 		if name == "" {
@@ -711,7 +779,7 @@ func parseQuantitySheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	cUnit := colIndex(header, false, "单位")
 	cNote := colIndex(header, false, "备注")
 
-	maxRow := sheetMaxRow(f, sheet, 300)
+	maxRow := sheetMaxRow(f, sheet, maxSheetRows)
 	for r := hdr + 1; r <= maxRow; r++ {
 		code := strings.TrimSpace(cellAt(f, sheet, r, cCode))
 		title := strings.TrimSpace(cellAt(f, sheet, r, cTitle))

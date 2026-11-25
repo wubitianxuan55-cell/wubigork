@@ -72,6 +72,10 @@ func TestWorkspaceToolsFilter(t *testing.T) {
 func TestConfineWritersCoversNewTools(t *testing.T) {
 	ws := t.TempDir()
 	outside := t.TempDir()
+	// move_file 自 2026-11-25 起放行系统 TEMP 里的源（合规落盘路径）；把 TEMP
+	// 重定向到工作区内，让这里的 outside 不再属于 TEMP，拒绝口径保持原判。
+	t.Setenv("TMP", ws)
+	t.Setenv("TEMP", ws)
 	confined := ConfineWriters([]string{ws})
 
 	byName := map[string]tool.Tool{}

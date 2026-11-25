@@ -20,17 +20,48 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
+// officeTranslateShellPath 把 bash 方言的路径翻译成 Windows 形态（2026-11-25
+// 铜陵反馈 #10：xlsx_recalc/xlsx_audit 收 /tmp/... 报「文件不存在」、收 /d/...
+// 被当工作区相对路径——bash 壳的路径方言在文件工具侧统一翻译，与 builtin
+// resolveIn 同源口径）：
+//   - MSYS 盘符挂载 /d/foo → D:\foo；
+//   - MSYS /tmp（Git Bash 的 TEMP 挂载）→ 系统 TEMP 目录；
+//   - 正斜杠盘符 D:/x → D:\x。
+//
+// 非 Windows 宿主原样返回。
+func officeTranslateShellPath(raw string) string {
+	p := strings.TrimSpace(raw)
+	if p == "" || runtime.GOOS != "windows" {
+		return p
+	}
+	if p == "/tmp" || strings.HasPrefix(p, "/tmp/") {
+		return filepath.Join(os.TempDir(), filepath.FromSlash(strings.TrimPrefix(p, "/tmp")))
+	}
+	if len(p) >= 3 && p[0] == '/' && p[2] == '/' {
+		if c := p[1]; c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' {
+			return strings.ToUpper(string(c)) + ":" + strings.ReplaceAll(p[2:], "/", "\\")
+		}
+	}
+	if vol := filepath.VolumeName(p); len(vol) == 2 && vol[1] == ':' && strings.Contains(p, "/") {
+		return filepath.Clean(filepath.FromSlash(p))
+	}
+	return p
+}
+
 // officeResolveWritePath 把工具参数里的目标路径归一到绝对路径（WritePathResolver
-// 与 App 方法同判据：相对=ResolveRelWithin，绝对=原样交 WriteScopePolicy 校验）。
+// 与 App 方法同判据：先过 bash 方言翻译；相对=ResolveRelWithin，绝对=原样交
+// WriteScopePolicy 校验）。
 func officeResolveWritePath(raw string) (string, error) {
-	raw = strings.TrimSpace(raw)
+	raw = officeTranslateShellPath(strings.TrimSpace(raw))
 	if raw == "" {
 		return "", fmt.Errorf("缺少目标文件路径")
 	}

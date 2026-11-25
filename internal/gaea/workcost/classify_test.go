@@ -574,8 +574,11 @@ func TestDims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 专业字典预设了规划专业表（SchemaV40）；地区与分类仍只收库里已有的取值。
-	if len(d.Dicts[DictSpecialty]) != len(db.PlannedSpecialties) || len(d.Dicts[DictRegion]) != 1 || len(d.Dicts[DictCategory]) != 1 {
+	// 专业字典预设了规划专业表（SchemaV40）；分类自 SchemaV41 起预设分类树（34 项），
+	// 地区仍只收库里已有的取值。本测另加 材料/混凝土 → 分类 = 种子 + 1。
+	if len(d.Dicts[DictSpecialty]) != len(db.PlannedSpecialties) ||
+		len(d.Dicts[DictRegion]) != 1 ||
+		len(d.Dicts[DictCategory]) != len(db.PlannedCategories)+1 {
 		t.Fatalf("字典盘点不符: %+v", d.Dicts)
 	}
 	if d.Pending.ProjectSpecialty != 1 || d.Pending.BillSpecialty != 1 || d.Pending.QuotaSpecialty != 1 || d.Pending.QuotaChapter != 1 {
@@ -634,7 +637,7 @@ func TestDictCrudAndCascade(t *testing.T) {
 	if err := s.DictDelete(DictCategory, "材料"); err != nil {
 		t.Fatalf("未被引用的字典项应能删: %v", err)
 	}
-	if items, _ := s.DictList(DictCategory); len(items) != 2 {
-		t.Fatalf("分类字典应剩 2 项，得到 %+v", items)
+	if items, _ := s.DictList(DictCategory); len(items) != len(db.PlannedCategories)-1+2 {
+		t.Fatalf("分类字典应剩 %d 项（种子 −已删材料 +本测砼两条），得到 %d 项", len(db.PlannedCategories)-1+2, len(items))
 	}
 }

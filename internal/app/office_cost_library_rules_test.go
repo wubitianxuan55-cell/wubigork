@@ -97,10 +97,13 @@ func TestCostLibraryDict(t *testing.T) {
 	if !strings.Contains(out, fmt.Sprintf("专业 %d 项", len(db.PlannedSpecialties)+1)) {
 		t.Fatalf("按种类查看应只列该种类（规划专业 + 刚加的市政）：%s", out)
 	}
-	clMustFail(t, tl, dict("add", map[string]any{"kind": "category", "name": "材料/钢材"}), "上级分类「材料」不在字典里")
-	clMust(t, tl, dict("add", map[string]any{"kind": "category", "name": "材料"}), "已新增")
+	// 上级先存在：周转材料不在 V41 种子里 → 先加父，才能加子。材料已在种子
+	// 里（重复新增幂等=已在字典里），材料/钢材 仍可正常新增。
+	clMustFail(t, tl, dict("add", map[string]any{"kind": "category", "name": "周转材料/钢材"}), "上级分类「周转材料」不在字典里")
+	clMust(t, tl, dict("add", map[string]any{"kind": "category", "name": "周转材料"}), "已新增")
+	clMust(t, tl, dict("add", map[string]any{"kind": "category", "name": "材料"}), "已在字典里")
 	clMust(t, tl, dict("add", map[string]any{"kind": "category", "name": "材料/钢材"}), "已新增")
-	clMustFail(t, tl, dict("add", map[string]any{"kind": "nope", "name": "x"}), "dict.kind 须为")
+	clMustFail(t, tl, dict("add", map[string]any{"kind": "nope", "name": "x"}), "字典新增需要 kind=")
 
 	// 改名：没给 rename 时只改其他字段；给了 rename 才改名。
 	clMust(t, tl, dict("update", map[string]any{"kind": "category", "name": "材料/钢材", "rename": "材料/钢筋"}), "已修改")

@@ -149,11 +149,21 @@ func TestSchemaV40UpgradeFromV39(t *testing.T) {
 	if r := byName["市政"]; r.Code != "JS" || r.Note != "用户自己加的，自己填了代号" {
 		t.Errorf("用户手填代号的专业不应被动，得到 %v", r)
 	}
-	for kind, want := range map[string]int{"specialty": len(PlannedSpecialties) + 1, "region": 1, "category": 1} {
+	for kind, want := range map[string]int{
+		"specialty": len(PlannedSpecialties) + 1, "region": 1,
+		// V41 起工料机分类按规划表种子（2026-11-25 用户令「补充工料机分类字典」）；
+		// 用户的旧分类行保留、不改号。
+		"category": len(PlannedCategories) + 1,
+	} {
 		var n int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM gf_dicts WHERE kind=?`, kind).Scan(&n); err != nil || n != want {
-			t.Errorf("%s 字典应 %d 条，得到 %d（err=%v）——地区与工料机分类不预设", kind, want, n, err)
+			t.Errorf("%s 字典应 %d 条，得到 %d（err=%v）——地区不预设；分类自 V41 按规划表种子", kind, want, n, err)
 		}
+	}
+	// 用户的旧分类（不在规划表里）：保留原样，种子不改它的号。
+	var legacyCode string
+	if err := db.QueryRow(`SELECT code FROM gf_dicts WHERE kind='category' AND name='材料/钢材'`).Scan(&legacyCode); err != nil || legacyCode != "" {
+		t.Errorf("用户旧分类「材料/钢材」应原样保留（code 空），得到 code=%q err=%v", legacyCode, err)
 	}
 
 	// 幂等：把同一段迁移再跑一遍，字典不变。

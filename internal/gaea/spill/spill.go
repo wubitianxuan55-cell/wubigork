@@ -10,6 +10,7 @@ package spill
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -106,6 +107,47 @@ func (s *Store) Retrieve(id string, offset, maxBytes int) (string, int, int, err
 		end = e.Bytes
 	}
 	return e.Data[offset:end], e.Bytes, e.Bytes - end, nil
+}
+
+// RetrieveLines 按行号区间取回（1-based，闭区间；startLine<=0 视为 1）。
+// 泄洪的多是行式文本（文件正文、表格行），按字节分页会把中段切碎、要多轮拼装
+// （2026-11-25 铜陵反馈 #12）；行区间一次直达。返回（区间文本[≤maxBytes 截断],
+// 总行数, error）。
+func (s *Store) RetrieveLines(id string, startLine, endLine, maxBytes int) (string, int, error) {
+	if s == nil {
+		return "", 0, fmt.Errorf("spill store unavailable in this context")
+	}
+	if maxBytes <= 0 {
+		maxBytes = ReadDefaultBytes
+	}
+	if maxBytes > ReadMaxBytes {
+		maxBytes = ReadMaxBytes
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.byID[id]
+	if !ok {
+		return "", 0, fmt.Errorf("spill %q not found (expired or never existed in this session)", id)
+	}
+	lines := strings.Split(e.Data, "\n")
+	total := len(lines)
+	if startLine <= 0 {
+		startLine = 1
+	}
+	if endLine <= 0 || endLine > total {
+		endLine = total
+	}
+	if startLine > total {
+		return "", total, fmt.Errorf("spill %q start_line %d out of range (total %d lines)", id, startLine, total)
+	}
+	if endLine < startLine {
+		endLine = startLine
+	}
+	chunk := strings.Join(lines[startLine-1:endLine], "\n")
+	if len(chunk) > maxBytes {
+		chunk = chunk[:maxBytes]
+	}
+	return chunk, total, nil
 }
 
 // storeKey 是泄洪库的 ctx 盖章键（read_spill 工具经此取库——工具是无状态

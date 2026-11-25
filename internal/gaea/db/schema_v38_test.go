@@ -156,8 +156,19 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
 	if got := dict("region"); strings.Join(got, "|") != "成都市区|重庆中心城区" {
 		t.Errorf("地区字典应取自已有取值，得到 %v", got)
 	}
-	if got := dict("category"); strings.Join(got, "|") != "人工/普工|材料/土建材料/钢材" {
-		t.Errorf("分类字典应取自已有取值（整条路径），得到 %v", got)
+	// V41 起分类按规划表种子；V38「取自已有取值」收进来的 人工/普工 与
+	// 材料/土建材料/钢材 与种子同名，迁移并入（补号不重复插）→ 恰为规划表条数。
+	if got := dict("category"); len(got) != len(PlannedCategories) {
+		t.Errorf("分类字典应 = 规划分类 %d 条（旧取值同名并入），得到 %d 条", len(PlannedCategories), len(got))
+	}
+	for _, want := range []string{"人工/普工", "材料/土建材料/钢材", "机械/土方及压实机械", "外委/检测监测外委"} {
+		found := false
+		for _, n := range dict("category") {
+			found = found || n == want
+		}
+		if !found {
+			t.Errorf("分类字典缺 %q", want)
+		}
 	}
 	// 期数：年月写法统一成 YYYY-MM；认不出的原样保留。
 	periodOf := func(table, code string) string {
@@ -182,8 +193,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
 }
 
 // TestSchemaV38FreshChain 新库跑全链：地区与工料机分类不预设（空表），规矩留给用户
-// 按需加。专业自 SchemaV40（2026-11-25 用户令重新规划）起预设规划专业表——那一条
-// 「不预设任何清单」的口径只对专业翻了案。
+// 按需加。专业自 SchemaV40（2026-11-25 用户令重新规划）起预设规划专业表；工料机
+// 分类自 SchemaV41（同日用户令补充分类字典）起预设分类树——「不预设任何清单」
+// 只剩地区这一项。
 func TestSchemaV38FreshChain(t *testing.T) {
 	dir := t.TempDir()
 	db := GetDatabase(dir)
@@ -191,10 +203,12 @@ func TestSchemaV38FreshChain(t *testing.T) {
 		t.Fatal("GetDatabase returned nil")
 	}
 	defer CloseDatabase(dir)
-	for _, kind := range []string{"region", "category"} {
+	// 地区仍不预设；工料机分类自 SchemaV41（2026-11-25 用户令「补充工料机分类
+	// 字典」）起按规划表种子进新库。
+	for kind, want := range map[string]int{"region": 0, "category": len(PlannedCategories)} {
 		var n int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM gf_dicts WHERE kind=?`, kind).Scan(&n); err != nil || n != 0 {
-			t.Fatalf("新库的%s字典应为空（n=%d err=%v）", map[string]string{"region": "地区", "category": "工料机分类"}[kind], n, err)
+		if err := db.QueryRow(`SELECT COUNT(*) FROM gf_dicts WHERE kind=?`, kind).Scan(&n); err != nil || n != want {
+			t.Fatalf("新库的%s字典应 %d 行（n=%d err=%v）", map[string]string{"region": "地区", "category": "工料机分类"}[kind], want, n, err)
 		}
 	}
 	var n int

@@ -20,11 +20,11 @@ func init() { tool.RegisterBuiltin(readSpill{}) }
 func (readSpill) Name() string { return "read_spill" }
 
 func (readSpill) Description() string {
-	return "Retrieve the full text of a spilled tool result. When a tool output is too large to inline, the agent stores it and shows a locator like \"[spilled] ... saved as spill sp-000042\" — call this tool with that id to read it. Pages with offset (bytes); returns total size and remaining bytes so you can fetch more. Results live for the current session only."
+	return "Retrieve the full text of a spilled tool result. When a tool output is too large to inline, the agent stores it and shows a locator like \"[spilled] ... saved as spill sp-000042\" — call this tool with that id to read it. Read by line range (start_line/end_line, best for line-oriented text like file bodies and tables) or by byte offset; returns total size and remaining bytes so you can fetch more. Results live for the current session only."
 }
 
 func (readSpill) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","description":"Spill id from the locator, e.g. sp-000042."},"offset":{"type":"integer","description":"Byte offset to start reading from (0 = start)."},"max_bytes":{"type":"integer","description":"Max bytes to return (default 16384, cap 49152)."}},"required":["id"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","description":"Spill id from the locator, e.g. sp-000042."},"start_line":{"type":"integer","description":"First 1-based line to read (with end_line; best for line-oriented text like file bodies/tables)."},"end_line":{"type":"integer","description":"Last 1-based line (default = last line)."},"offset":{"type":"integer","description":"Byte offset to start reading from (0 = start; ignored when start_line is given)."},"max_bytes":{"type":"integer","description":"Max bytes to return (default 16384, cap 49152)."}},"required":["id"]}`)
 }
 
 // ReadOnly：读会话内存泄洪库，无任何可观察副作用。
@@ -37,9 +37,11 @@ func (readSpill) CompactSchema() json.RawMessage {
 
 func (readSpill) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		ID       string `json:"id"`
-		Offset   int    `json:"offset"`
-		MaxBytes int    `json:"max_bytes"`
+		ID        string `json:"id"`
+		StartLine int    `json:"start_line"`
+		EndLine   int    `json:"end_line"`
+		Offset    int    `json:"offset"`
+		MaxBytes  int    `json:"max_bytes"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
@@ -50,6 +52,19 @@ func (readSpill) Execute(ctx context.Context, args json.RawMessage) (string, err
 	store, ok := spill.FromContext(ctx)
 	if !ok {
 		return "", fmt.Errorf("spill store is not available (tool spill is disabled for this session)")
+	}
+	// 行区间模式（#12）：给了 start_line 就按行取，一次直达中段。
+	if p.StartLine > 0 {
+		chunk, totalLines, err := store.RetrieveLines(p.ID, p.StartLine, p.EndLine, p.MaxBytes)
+		if err != nil {
+			return "", err
+		}
+		out := fmt.Sprintf("[spill %s | tool output | lines %d-%d of %d]\n%s",
+			p.ID, p.StartLine, p.EndLine, totalLines, chunk)
+		if len(chunk) >= spill.ReadDefaultBytes && p.MaxBytes <= 0 {
+			out += fmt.Sprintf("\n[... truncated at default byte cap — narrow start_line/end_line or pass max_bytes]")
+		}
+		return out, nil
 	}
 	chunk, total, remaining, err := store.Retrieve(p.ID, p.Offset, p.MaxBytes)
 	if err != nil {

@@ -77,7 +77,7 @@ export function ApprovalModal({
   const approvalSubject = approval.subject ?? "";
   const subjectShort =
     approvalSubject.startsWith("process:")
-      ? approvalSubject.slice("process:".length).split(/[\/]/).pop() || approvalSubject
+      ? approvalSubject.slice("process:".length).split(/[/]/).pop() || approvalSubject
       : approvalSubject;
   const isHardAsk = HARD_ASK_TOOLS.includes(approval.tool);
   // diff 确认闭环刀C：schedule_apply project 整量通道（args.project 非空）

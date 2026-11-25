@@ -29,6 +29,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/workcost"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 type costLibraryTool struct{ a *App }
@@ -37,8 +38,40 @@ func (costLibraryTool) Name() string       { return "cost_library" }
 func (costLibraryTool) ReadOnly() bool     { return false }
 func (costLibraryTool) PersistWrite() bool { return true }
 
+// KeepSchemaDescriptions 本工具的参数语义只写在字段描述里（一个 action 一套
+// 嵌套入参），经 SchemaDescriptionsKeeper 保留描述下发——剥离后模型只能看键名
+// 猜结构，实测把 dict/classify 塞进 quota、不知道 import_project 也吃
+// specialty/region，单点浪费 9 轮（2026-11-25 铜陵反馈 #13）。
+func (costLibraryTool) KeepSchemaDescriptions() bool { return true }
+
+// UsageHint 给刚失败的调用一张正确的参数骨架（loop guard 附加值，铜陵反馈
+// #14：只拦不导，模型随后又原样撞了两次）。
+func (costLibraryTool) UsageHint(args json.RawMessage) string {
+	var p struct {
+		Action string `json:"action"`
+	}
+	_ = json.Unmarshal(args, &p)
+	skeletons := map[string]string{
+		"dict":           `{"action":"dict","dict":{"op":"list","kind":"region"}}`,
+		"dict_add":       `{"action":"dict_add","kind":"region","name":"铜陵"}`,
+		"dict_update":    `{"action":"dict_update","kind":"region","name":"铜陵","rename":"铜陵市"}`,
+		"dict_delete":    `{"action":"dict_delete","kind":"region","name":"铜陵"}`,
+		"classify":       `{"action":"classify","dry_run":true,"classify":{"projects":[{"id":10,"specialty":"土壤修复"}]}}`,
+		"save_quota":     `{"action":"save_quota","quota":{"code":"TR0001","title":"…","unit":"m3","specialty":"土壤修复","items":[{"resource_code":"R…","quantity":1.2}]}}`,
+		"save_resource":  `{"action":"save_resource","resource":{"kind":"材料","title":"…","unit":"t","current_price":300,"region":"铜陵","price_date":"2026-06"}}`,
+		"set_price":      `{"action":"set_price","resource_code":"R…","price":320,"period":"2026-06"}`,
+		"import_project": `{"action":"import_project","path":".gaea/exports/….xlsx","specialty":"土壤修复","region":"铜陵","period":"2026-06","dry_run":true}`,
+		"import_add":     `{"action":"import_add","import_id":"…","resources":[…],"quotas":[…],"bills":[…]}`,
+		"borrow_quota":   `{"action":"borrow_quota","from_code":"…","specialty":"土壤修复","dry_run":true}`,
+	}
+	if s, ok := skeletons[p.Action]; ok {
+		return "cost_library 正确参数骨架：" + s
+	}
+	return ""
+}
+
 func (costLibraryTool) Description() string {
-	return "维护工料机造价库（三级数据：清单 → 定额 → 工料机）。库定规矩：专业、地区、工料机分类是字典（dict 查看与新增），期数统一 YYYY-MM；写进库的值必须在字典里，空=待整理。【录入资料】造价资料格式不固定，由你读资料、整理后整批提交：import_open 开导入（给资料路径、项目口径、资料上的控制数）→ import_add 分批提交整理好的工料机 / 定额 / 清单行（每行带来源位置 src，不合规的行当场退回并说明原因）→ import_check 勾稽（程序回到资料里逐行核对你提交的数与文字，对控制数、对单价）→ 用户确认后 import_commit 写库。只有确认资料是标准测算工作簿（六表模版：封面/清单/费用汇总/综合单价/工料机价格/工程量计算；旧版五表不再兼容）时才可走 import_project 快速通道，演练回执出现「将被拒收」的行就改走模型读表。【测算模版】做新的成本测算先 template 生成六表空白测算表（口径 specialty/region/period/category 可选，工料机价格与费率按库预填），把路径交给用户；填法与测算口径见 cost-estimate 技能，填完走 import_project（先 dry_run=true）导回。【整理归类】文件不一定带专业/地区/分类：dims 盘点现有叫法，classify 分批归类（dry_run 出方案）；清单套定额同专业优先，本专业没有就 borrow_quota 以外专业定额为底生成本专业的。【维护】save_quota/delete_quota 维护消耗定额（含量行整组替换；定额专业固定，已有定额不改专业）；save_resource/delete_resource/set_price 维护工料机（工料机按地区分行；调价写历史并推进现行价）；bulk_price 批量调价；delete_items/delete_project 删清单行/整个项目；seed 资料条目资源化；flywheel 跨项目含量聚合生成企业定额（只在同专业内聚合）；dedupe 合并重复工料机；health 列库级健康发现。批量与删除动作先 dry_run=true 演练（不写库、不弹确认），核对后去掉 dry_run 正式执行；被引用的定额/工料机默认不删，确要删加 force=true。每次正式写入都需要用户确认。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
+	return "维护工料机造价库（三级数据：清单 → 定额 → 工料机）。库定规矩：专业、地区、工料机分类是字典（dict 查看与新增），期数统一 YYYY-MM；写进库的值必须在字典里，空=待整理。【录入资料】造价资料格式不固定，由你读资料、整理后整批提交：import_open 开导入（给资料路径、项目口径、资料上的控制数）→ import_add 分批提交整理好的工料机 / 定额 / 清单行（每行带来源位置 src，不合规的行当场退回并说明原因）→ import_check 勾稽（程序回到资料里逐行核对你提交的数与文字，对控制数、对单价）→ 用户确认后 import_commit 写库。只有确认资料是标准测算工作簿（六表模版：封面/清单/费用汇总/综合单价/工料机价格/工程量计算；旧版五表不再兼容）时才可走 import_project 快速通道，演练回执出现「将被拒收」的行就改走模型读表。【测算模版】做新的成本测算先 template 拿测算样表（版式真源：人工精修、实测可导回；程序不再渲染也不再预填——工料机价格与费率口径是你查库后在样表上填的），版式可自由发挥，但导入契约不可破（六表表名/行类枚举/公式链照抄样表），填完过三道门 xlsx_recalc → xlsx_audit → import_project dry_run=true 再导回。填法与测算口径见 cost-estimate 技能。【整理归类】文件不一定带专业/地区/分类：dims 盘点现有叫法，classify 分批归类（dry_run 出方案）；清单套定额同专业优先，本专业没有就 borrow_quota 以外专业定额为底生成本专业的。【维护】save_quota/delete_quota 维护消耗定额（含量行整组替换；定额专业固定，已有定额不改专业）；save_resource/delete_resource/set_price 维护工料机（工料机按地区分行；调价写历史并推进现行价）；bulk_price 批量调价；delete_items/delete_project 删清单行/整个项目；seed 资料条目资源化；flywheel 跨项目含量聚合生成企业定额（只在同专业内聚合）；dedupe 合并重复工料机；health 列库级健康发现。批量与删除动作先 dry_run=true 演练（不写库、不弹确认），核对后去掉 dry_run 正式执行；被引用的定额/工料机默认不删，确要删加 force=true。每次正式写入都需要用户确认。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
 }
 
 func (costLibraryTool) Schema() json.RawMessage {
@@ -46,9 +79,16 @@ func (costLibraryTool) Schema() json.RawMessage {
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","seed","flywheel","dedupe","health","classify","borrow_quota","dims","dict","template"],"description":"见工具说明；template 生成六表测算模版（只读库、只新增文件）；录入资料走模型读表导入 import_open → import_add → import_check → import_commit；health/dims 只读；dict 不给 dict 对象=查看字典"},
+  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","seed","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template"],"description":"见工具说明；template 把测算样表复制到工作区（样表=测算模版的版式真源，只读库、只新增文件）；录入资料走模型读表导入 import_open → import_add → import_check → import_commit；health/dims 只读；dict 不给 dict 对象=查看字典；字典新增/修改/删除用 dict_add/dict_update/dict_delete 扁平动作（kind+name 直接给在顶层）"},
   "dry_run":{"type":"boolean","description":"演练：校验、匹配、统计照做，但不写库、不弹确认"},
-  "path":{"type":"string","description":"测算工作簿路径（import_project 必填，.xlsx，六表模版）"},
+  "path":{"type":"string","description":"测算工作簿路径（import_project 必填，.xlsx，六表模版；template 可选=模版落盘路径，工作区相对，缺省落 .gaea/exports）"},
+  "kind":{"type":"string","enum":["specialty","region","category"],"description":"字典类别（dict_add/dict_update/dict_delete 用）：specialty=专业 / region=地区 / category=工料机分类"},
+  "name":{"type":"string","description":"字典项名称（dict_add/dict_update/dict_delete 用；分类=完整路径，如 材料/土建材料/钢材，新增分类要先有上级路径）"},
+  "rename":{"type":"string","description":"dict_update：改成什么名字"},
+  "code":{"type":"string","description":"专业的标准代码（dict_add/dict_update 可选，如国标清单专业代码 04=市政），机检清单编码专业段用"},
+  "parent":{"type":"string","description":"上级字典项（dict_add/dict_update 可选；地区：省→市→价格区）"},
+  "level":{"type":"integer","description":"层级（dict_add 可选，1=顶级）"},
+  "sort":{"type":"integer","description":"排序（dict_update 可选）"},
   "quota":{"type":"object","description":"定额（save_quota 必填）","properties":{
     "code":{"type":"string","description":"定额编码（必填；已存在=更新）"},
     "title":{"type":"string","description":"定额名称"},
@@ -139,9 +179,8 @@ func (costLibraryTool) Schema() json.RawMessage {
   "from_code":{"type":"string","description":"借鉴生成的源定额编码（borrow_quota 必填，须是别的专业的定额）"},
   "new_code":{"type":"string","description":"借鉴生成的新定额编码（borrow_quota 可选，缺省 原码-N）"},
   "new_title":{"type":"string","description":"借鉴生成的新定额名称（borrow_quota 可选，缺省沿用源定额）"},
-  "template":{"type":"object","description":"测算模版口径（action=template；都可不给=不限）： specialty 专业、region 地区、period 计价期（YYYY-MM）、kind 工料机类别、category 工料机分类（给上级连带下级）、name 文件名","properties":{
-    "specialty":{"type":"string"},"region":{"type":"string"},"period":{"type":"string"},
-    "kind":{"type":"string","enum":["人工","材料","机械","外委"]},"category":{"type":"string"},"name":{"type":"string"}
+  "template":{"type":"object","description":"样表出口参数（action=template）：name 文件名（缺省 成本测算模版）、path 落盘路径（工作区相对，缺省 .gaea/exports）。版式、口径、工料机预填都由你在样表上完成——程序不再渲染","properties":{
+    "name":{"type":"string"},"path":{"type":"string"}
   }},
   "dict":{"type":"object","description":"字典：专业 specialty / 地区 region / 工料机分类 category。不给本对象或 op=list=查看；add=新增；update=改名/改上级/改标准代码（改名级联到所有引用它的数据）；delete=删除（仍被引用的不能删）","properties":{
     "op":{"type":"string","enum":["list","add","update","delete"]},
@@ -163,6 +202,17 @@ type costLibraryArgs struct {
 	Action string `json:"action"`
 	DryRun bool   `json:"dry_run"`
 	Path   string `json:"path"`
+
+	// 字典扁平动作（dict_add/dict_update/dict_delete）：kind+name 直接给在顶层，
+	// 与嵌套 dict 对象并存（2026-11-25 铜陵反馈 #1/#13：action=dict 与参数 dict
+	// 同名、嵌套对象难发对，拆成独立动作走扁平参数）。
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	Rename string `json:"rename"`
+	Code   string `json:"code"`
+	Parent string `json:"parent"`
+	Level  int    `json:"level"`
+	Sort   *int   `json:"sort"`
 
 	Quota    *costLibraryQuota       `json:"quota"`
 	Resource *costLibraryResource    `json:"resource"`
@@ -207,6 +257,9 @@ type costLibraryArgs struct {
 	Resources []workcost.ImportResource `json:"resources"`
 	Quotas    []workcost.ImportQuota    `json:"quotas"`
 	Bills     []workcost.ImportBill     `json:"bills"`
+
+	// Misnamed 非空=有嵌套参数从 quota 里救回（值=参数名），回执头点名。
+	Misnamed string `json:"-"`
 }
 
 // costLibraryDict 字典操作的入参。op 空=list。update 时没给的字段保持原值
@@ -284,8 +337,9 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return "", fmt.Errorf("cost_library 参数解析失败: %w", err)
 	}
 	if _, ok := costLibraryActionLabel[p.Action]; !ok {
-		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict/template）", p.Action)
+		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict/dict_add/dict_update/dict_delete/template）", p.Action)
 	}
+	t.rescueMisnamedNested(&p, args)
 	s := t.a.hubWorkcostStore()
 	if !s.Available() {
 		return "", fmt.Errorf("工料机造价库不可用（Hephaestus.db 未就绪）")
@@ -323,7 +377,7 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return t.borrowQuota(s, p)
 	case "dims":
 		return t.dims(s)
-	case "dict":
+	case "dict", "dict_add", "dict_update", "dict_delete":
 		return t.dict(s, p)
 	case "import_open":
 		return t.importOpen(s, p)
@@ -337,6 +391,49 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return t.importDiscard(s, p)
 	default: // health
 		return t.health(s)
+	}
+}
+
+// rescueMisnamedNested 救回发错位置的嵌套参数（2026-11-25 铜陵反馈 #13 实测
+// 形态：模型把 dict/classify 塞进第一个嵌套槽 quota——{"action":"dict",
+// "quota":{"dict":{…}}}；强类型字段会静默丢掉未知键，所以从原始 args 里探）。
+// 目标字段为空且 quota 里能认出已知键时搬过去；救回了记进 p.Misnamed，回执头
+// 点一句，让模型知道参数被挪过位。
+func (t costLibraryTool) rescueMisnamedNested(p *costLibraryArgs, args json.RawMessage) {
+	if p.Quota == nil || p.Action == "save_quota" {
+		return // save_quota 的 quota 本就是它的主参数
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(args, &top); err != nil {
+		return
+	}
+	rawQuota, ok := top["quota"]
+	if !ok || len(rawQuota) == 0 {
+		return
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(rawQuota, &probe); err != nil {
+		return
+	}
+	moved := ""
+	if raw, ok := probe["classify"]; ok && p.Classify == nil {
+		var cp workcost.ClassifyPlan
+		if err := json.Unmarshal(raw, &cp); err == nil &&
+			len(cp.Projects)+len(cp.Bills)+len(cp.Quotas)+len(cp.Resources) > 0 {
+			p.Classify = &cp
+			moved = "classify"
+		}
+	}
+	if raw, ok := probe["dict"]; ok && p.Dict == nil {
+		var d costLibraryDict
+		if err := json.Unmarshal(raw, &d); err == nil && (d.Op != "" || d.Kind != "" || d.Name != "") {
+			p.Dict = &d
+			moved = "dict"
+		}
+	}
+	if moved != "" {
+		p.Quota = nil
+		p.Misnamed = moved
 	}
 }
 
@@ -497,14 +594,47 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 		return "", err
 	}
 	// 导入口径是规范值（库定规矩）：专业、地区必须在字典里，计价期 YYYY-MM。
-	// 文件或用户没给就留空（待整理），不从文件里猜；给了不对的当场拒收。
-	b.Specialty = strings.TrimSpace(p.Specialty)
-	b.Region = strings.TrimSpace(p.Region)
+	// 调用方没给时拿封面自述兜底（2026-11-25 铜陵反馈 #3：模版封面写了口径，
+	// 调用方漏给参数就直接「未标注」，导入后还得返工 classify）。封面值仍要过
+	// 字典校验：不过关就退回待整理并回执点名，不硬拦导入。
+	callerSpecialty, callerRegion := strings.TrimSpace(p.Specialty), strings.TrimSpace(p.Region)
+	b.Specialty = callerSpecialty
+	b.Region = callerRegion
 	b.Period = strings.TrimSpace(p.Period)
+	coverUsed := []string{}
+	coverScopeWarn := ""
+	if b.Specialty == "" && strings.TrimSpace(b.CoverSpecialty) != "" {
+		b.Specialty = strings.TrimSpace(b.CoverSpecialty)
+		coverUsed = append(coverUsed, "专业 "+b.Specialty)
+	}
+	if b.Region == "" && strings.TrimSpace(b.CoverRegion) != "" {
+		b.Region = strings.TrimSpace(b.CoverRegion)
+		coverUsed = append(coverUsed, "地区 "+b.Region)
+	}
+	if b.Period == "" {
+		if cp := strings.TrimSpace(b.CoverPeriod); cp != "" {
+			if norm, ok := workcost.NormalizePeriod(cp); ok {
+				b.Period = norm
+				coverUsed = append(coverUsed, "计价期 "+norm)
+			}
+		}
+	}
 	if b.Period == "" {
 		b.Period = workcost.CurrentPeriod()
 	}
 	specialty, region, period, err := s.ImportScope(b)
+	if err != nil && len(coverUsed) > 0 {
+		// 封面兜底值不过关（不在字典/期数不规范）→ 退回调用方原值重试。
+		coverRejected := err.Error()
+		b.Specialty, b.Region = callerSpecialty, callerRegion
+		if b.Period == "" || b.Period == strings.TrimSpace(b.CoverPeriod) {
+			b.Period = workcost.CurrentPeriod()
+		}
+		if s2, r2, p2, e2 := s.ImportScope(b); e2 == nil {
+			specialty, region, period, err = s2, r2, p2, e2
+			coverScopeWarn = fmt.Sprintf("封面口径（%s）未采用：%s——按待整理导入，确认口径后 classify 补。", strings.Join(coverUsed, "｜"), coverRejected)
+		}
+	}
 	if err != nil {
 		return "", fmt.Errorf("导入口径不合规矩，未导入：%w", err)
 	}
@@ -525,6 +655,11 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	out.WriteString("\n")
 	fmt.Fprintf(&out, "**导入口径**: 专业 %s｜地区 %s｜计价期 %s\n",
 		clDim(specialty, "未标注"), clDim(region, "未标注"), period)
+	if coverScopeWarn != "" {
+		out.WriteString("⚠ " + coverScopeWarn + "\n")
+	} else if len(coverUsed) > 0 {
+		fmt.Fprintf(&out, "口径出处：%s 取自封面自述（调用方没给参数时的兜底）。\n", strings.Join(coverUsed, "｜"))
+	}
 	out.WriteString("口径说明：专业是项目默认专业，本次新建的定额专业随它；地区决定工料机按地区分行；未标注的导入后用 classify 整理。\n")
 	fmt.Fprintf(&out, "**规模**: 工料机 %d 条｜清单项 %d 条｜消耗行 %d 条", len(b.Resources), len(b.Items), len(b.Lines))
 	if len(b.QuotaBlocks) > 0 {
@@ -536,6 +671,21 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 		fmt.Fprintf(&out, "｜控制价 %s", clMoney(b.Fee.ControlPrice))
 	}
 	out.WriteString("\n")
+	// 取费链对账（2026-11-25 铜陵反馈 #15）：拿工作簿费用汇总的缓存金额反推
+	// 每段基数，与模版口径比；差异按性质拆开说，不让模型手算 5 轮再判错性质。
+	if b.Fee.HasAmounts {
+		if findings := workcost.CheckFeeChain(b.Fee); len(findings) > 0 {
+			fmt.Fprintf(&out, "**取费链核对：%d 处与模版口径不同**（库内现算与六表导出按模版口径；导入后两账必差——确认口径后改工作簿费率列，或明确哪边为准）:\n", len(findings))
+			for _, f := range findings {
+				fmt.Fprintf(&out, "- %s：工作簿按「%s」=%.2f，模版/库内按「%s」应=%.2f（差 %+.2f）\n",
+					f.Item, f.Workbook, f.Amount, f.Template, f.Expected, f.Diff)
+			}
+		} else {
+			out.WriteString("**取费链核对**: 各段基数与模版口径一致（按工作簿缓存金额反推核对）。\n")
+		}
+	} else {
+		out.WriteString("**取费链核对**: 工作簿费用汇总无缓存金额（未重算），导入后用 cost_project summary 与工作簿对账。\n")
+	}
 	projects, _ := s.BillProjects()
 	existingID := int64(0)
 	for i := range projects {
@@ -563,6 +713,19 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 			fmt.Fprintf(&out, "%s ×%d", k, reasons[k])
 		}
 		out.WriteString("\n")
+		// 逐行定位（表名+行号+内容摘要）：只给计数时，一句脚注被当成资源行
+		// 要另写脚本逐行扫才找得到（2026-11-25 铜陵反馈 #4）。
+		fmt.Fprintf(&out, "**跳过行明细**（列前 %d 条）:\n", clCap(len(b.Skipped)))
+		for i, r := range b.Skipped {
+			if i >= clCap(len(b.Skipped)) {
+				break
+			}
+			if r.Excerpt != "" {
+				fmt.Fprintf(&out, "- %s!%d｜%s｜%s\n", r.Sheet, r.Row, clExcerpt(r.Excerpt, 60), r.Reason)
+			} else {
+				fmt.Fprintf(&out, "- %s!%d｜%s\n", r.Sheet, r.Row, r.Reason)
+			}
+		}
 	}
 	if len(b.Warnings) > 0 {
 		fmt.Fprintf(&out, "**告警 %d 条**（公式无缓存值/列未识别等，列前 %d 条）:\n", len(b.Warnings), clCap(len(b.Warnings)))
@@ -641,55 +804,51 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	return out.String(), nil
 }
 
-// ── template：生成测算模版 ────────────────────────────────────────────
+// ── template：测算样表（版式真源）────────────────────────────────────
 
-// costLibraryTemplate 测算模版的口径（action=template；都可不给=不限）。
+// costLibraryTemplate 样表出口参数（action=template）。
 type costLibraryTemplate struct {
-	Specialty string `json:"specialty"`
-	Region    string `json:"region"`
-	Period    string `json:"period"`
-	Kind      string `json:"kind"`
-	Category  string `json:"category"`
-	Name      string `json:"name"`
+	Name string `json:"name"`
+	// Path 落盘路径（工作区相对；缺省 .gaea/exports 带时间戳）。顶层 path 同义
+	// （2026-11-25 铜陵反馈 #5）。
+	Path string `json:"path"`
 }
 
-// template 按库生成六表测算模版，落到工作区 .gaea/exports。只读库、只新增一个
-// 文件，不写库（控制面按只读动作放行）。口径里专业/地区不在字典里、期数不是年月
-// 时当场拒——模版封面写明的口径必须是规范值，回导时 ImportScope 才不会拦下它。
+// template 把测算样表复制到工作区（2026-11-25 用户拍板「删除渲染器这条思路，
+// 提供样本给模型，再进行约束」）：版式真源是一份人工精修、实测可导回造价库的
+// 样表；本动作只复制文件，不再程序渲染、不再预填库内工料机与费率——预填是
+// 模型的活（查库填表）。只读库、只新增一个文件，不写库（控制面按只读动作放行）。
+// 样表来源：工作区覆盖（.gaea/skills/cost-estimate/样表-成本测算模版.xlsx）优先，
+// 内嵌种子兜底（见 skill.cost_estimate_assets.go）。
 func (t costLibraryTool) template(_ *workcost.Store, p costLibraryArgs) (string, error) {
 	in := p.Template
 	if in == nil {
 		in = &costLibraryTemplate{}
 	}
-	filter := workcost.LibraryFilter{
-		Specialty: strings.TrimSpace(in.Specialty), Region: strings.TrimSpace(in.Region),
-		Period: strings.TrimSpace(in.Period), Kind: strings.TrimSpace(in.Kind), Category: strings.TrimSpace(in.Category),
+	if strings.TrimSpace(in.Path) == "" {
+		in.Path = p.Path // 顶层 path 同义
 	}
-	if err := t.a.costTemplateScopeCheck(filter); err != nil {
-		return "", fmt.Errorf("模版口径不合规矩，未生成：%w", err)
+	var out string
+	if want := strings.TrimSpace(in.Path); want != "" {
+		if !strings.EqualFold(filepath.Ext(want), ".xlsx") {
+			return "", fmt.Errorf("template.path 只收 .xlsx（收到 %s）", filepath.Ext(want))
+		}
+		abs, err := wspath.ResolveRelWithin(gaeaCwd(), want)
+		if err != nil {
+			return "", fmt.Errorf("template.path 必须是工作区相对路径（拒 .. 穿越）：%s", want)
+		}
+		out = abs
+	} else {
+		name := strings.TrimSpace(in.Name)
+		if name == "" {
+			name = "成本测算模版"
+		}
+		exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
+		out = filepath.Join(exportsDir, fmt.Sprintf("%s-%s.xlsx", sanitizeFileName(name), time.Now().Format("20060102-150405")))
 	}
-	opt, err := t.a.costTemplateOptions(filter)
+	_, source, err := writeCostEstimateSample(out)
 	if err != nil {
 		return "", err
-	}
-	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
-	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
-		return "", fmt.Errorf("创建导出目录失败: %w", err)
-	}
-	name := strings.TrimSpace(in.Name)
-	if name == "" {
-		name = "成本测算模版"
-	} else {
-		// 给了名字就同时当封面标题——导回库时封面标题就是项目名，两者必须一致。
-		opt.Project = name
-	}
-	out := filepath.Join(exportsDir, fmt.Sprintf("%s-%s.xlsx", sanitizeFileName(name), time.Now().Format("20060102-150405")))
-	data, err := workcost.ExportProjectTemplate(opt)
-	if err != nil {
-		return "", fmt.Errorf("生成测算模版失败: %w", err)
-	}
-	if err := os.WriteFile(out, data, 0o644); err != nil {
-		return "", fmt.Errorf("写出测算模版失败: %w", err)
 	}
 	written := out
 	if rel, rerr := filepath.Rel(gaeaCwd(), out); rerr == nil && !strings.HasPrefix(rel, "..") {
@@ -697,41 +856,16 @@ func (t costLibraryTool) template(_ *workcost.Store, p costLibraryArgs) (string,
 	}
 
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "**测算模版**: %s\n", written)
-	fmt.Fprintf(&buf, "**口径**: 专业 %s｜地区 %s｜计价期 %s｜工料机类别 %s｜分类 %s\n",
-		clDim(filter.Specialty, "不限"), clDim(filter.Region, "不限"), clDim(filter.Period, "不限"),
-		clDim(filter.Kind, "全部"), clDim(filter.Category, "全部"))
-	fmt.Fprintf(&buf, "**工料机价格表**: 已从造价库预填 %d 条（现行价，带库内自有码；类别不在四类之内的存量行不预填）\n", len(opt.Resources))
-	fmt.Fprintf(&buf, "**费用汇总表**: 企管 %s｜规费 %s｜利润 %s｜增值税 %s——%s\n",
-		clPct(opt.Fee.ManagementRate), clPct(opt.Fee.RegulatoryRate), clPct(opt.Fee.ProfitRate), clPct(opt.Fee.TaxRate), opt.FeeSource)
-	buf.WriteString("填法与测算口径见 cost-estimate 技能。要点：综合单价每组 = 1 清单汇总行 + 定额块（定额行填 单位/定额编码/定额名称/系数，明细行填 行类/资源编码/消耗量），一个清单套几条定额就建几个块；封面标题改成真实项目名；没填的组导回库时自动跳过。\n")
-	fmt.Fprintf(&buf, "**下一步**: 把路径交给用户去填；填完用 cost_library import_project（path=%s，先 dry_run=true 演练，specialty/region 给本次项目的口径）导回库。", written)
+	fmt.Fprintf(&buf, "**测算样表**: %s（来源：%s）\n", written, source)
+	buf.WriteString("版式以此为准——样表是测算模版的版式真源（人工精修、实测可导回）。程序不渲染、不预填：工料机价格表由你检索库价后自己填（cost_project action=resources / cost_library dims 查库，明细行按「编码」列引用、价格经公式带出）；费用汇总费率按项目填。样表里的预填行是上项目样例，可整段清掉。\n")
+	buf.WriteString("导入契约（破一条导回就废，其余版式随便发挥）：\n")
+	buf.WriteString("- 六张表名不可改：封面 / 清单 / 费用汇总 / 综合单价 / 工料机价格 / 工程量计算。\n")
+	buf.WriteString("- 综合单价行类只用 汇总/定额/人工/材料/机械/外委；组 = 1 汇总行 + N 定额块（块 = 1 定额行 + 明细行）；清单编码填在汇总行 B 列。\n")
+	buf.WriteString("- 公式链照样表复制（VLOOKUP 取价、SUMIF 三费、系数乘定额单价），不许用手算数值覆盖公式。\n")
+	buf.WriteString("- 封面 A2 标题改成真实项目名（导回库即项目名）；「专业/地区/计价期」标签格与值格保持成对。费率列（费用汇总 D 列）按本项目口径填。\n")
+	buf.WriteString("交付三道门（全过才算完成）：xlsx_recalc（公式零错误）→ xlsx_audit（复核）→ cost_library import_project dry_run=true（回执核对规模与口径）。\n")
+	fmt.Fprintf(&buf, "**下一步**: 按项目改内容（封面概况、清单、综合单价、费用汇总费率、工程量）；填完 import_project（path=%s，先 dry_run=true，specialty/region 给本项目口径）导回库。填法与口径见 cost-estimate 技能。", written)
 	return buf.String(), nil
-}
-
-// costTemplateScopeCheck 模版口径过规矩：专业、地区必须在字典里（空=不限放行），
-// 计价期须是 YYYY-MM（空=不限）。
-func (a *App) costTemplateScopeCheck(f workcost.LibraryFilter) error {
-	s := a.hubWorkcostStore()
-	if !s.Available() {
-		return fmt.Errorf("工料机造价库不可用")
-	}
-	if f.Period != "" {
-		if _, ok := workcost.NormalizePeriod(f.Period); !ok {
-			return fmt.Errorf("计价期「%s」不是年月写法——统一写成 YYYY-MM，如 2026-06", f.Period)
-		}
-	}
-	if ok, err := s.DictHas(workcost.DictSpecialty, f.Specialty); err != nil {
-		return err
-	} else if f.Specialty != "" && !ok {
-		return fmt.Errorf("专业「%s」不在专业字典里——先 dict 查看现有专业，或 cost_library action=dict op=add 新增（需用户确认）", f.Specialty)
-	}
-	if ok, err := s.DictHas(workcost.DictRegion, f.Region); err != nil {
-		return err
-	} else if f.Region != "" && !ok {
-		return fmt.Errorf("地区「%s」不在地区字典里——先 dict 查看现有地区，或 cost_library action=dict op=add 新增（需用户确认）", f.Region)
-	}
-	return nil
 }
 
 // ── save_quota / delete_quota：消耗定额 ──────────────────────────────
@@ -1642,7 +1776,9 @@ func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
 // classify 批量整理归类（演练与正式共用同一套校验与冲突判定）。
 func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string, error) {
 	if p.Classify == nil {
-		return "", fmt.Errorf("classify 需要 classify 对象（projects / bills / quotas / resources 四组，至少给一组；先 action=dims 看现有叫法）")
+		return "", fmt.Errorf("classify 需要 classify 对象（projects / bills / quotas / resources 四组，至少给一组）。" +
+			"骨架：{\"action\":\"classify\",\"dry_run\":true,\"classify\":{\"projects\":[{\"id\":10,\"specialty\":\"土壤修复\"}]}}" +
+			"——classify 是顶层参数，不要塞进 quota；先 action=dims 看现有叫法")
 	}
 	plan := *p.Classify
 	for _, g := range []struct {
@@ -1670,6 +1806,9 @@ func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string,
 	}
 	var out strings.Builder
 	out.WriteString(clHead(p.DryRun, "classify"))
+	if p.Misnamed != "" {
+		fmt.Fprintf(&out, "⚠ 参数已救回：%s 对象原本发在 quota 里，已挪到正确位置——classify 是顶层参数，直接给 classify={…}。\n", p.Misnamed)
+	}
 	a := res.Applied
 	fmt.Fprintf(&out, "**%s**: 项目 %d｜清单 %d｜定额 %d｜工料机 %d\n",
 		map[bool]string{true: "将改动", false: "已改动"}[p.DryRun], a.Projects, a.Bills, a.Quotas, a.Resources)
@@ -1766,10 +1905,42 @@ func (t costLibraryTool) borrowQuota(s *workcost.Store, p costLibraryArgs) (stri
 }
 
 // dict 字典：查看 / 新增 / 修改 / 删除（专业、地区、工料机分类）。
+// dict_add / dict_update / dict_delete 是独立扁平动作（kind+name 给在顶层，
+// 2026-11-25 铜陵反馈 #1/#13），进来先并成同一入参形态再走 op 分支。
 func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, error) {
 	var in costLibraryDict
 	if p.Dict != nil {
 		in = *p.Dict
+	}
+	switch p.Action {
+	case "dict_add":
+		in.Op = "add"
+	case "dict_update":
+		in.Op = "update"
+	case "dict_delete":
+		in.Op = "delete"
+	}
+	// 扁平顶层字段兜底（嵌套对象里显式给的优先）。
+	if in.Kind == "" {
+		in.Kind = p.Kind
+	}
+	if in.Name == "" {
+		in.Name = p.Name
+	}
+	if in.Rename == "" {
+		in.Rename = p.Rename
+	}
+	if in.Code == "" {
+		in.Code = p.Code
+	}
+	if in.Parent == "" {
+		in.Parent = p.Parent
+	}
+	if in.Level == 0 {
+		in.Level = p.Level
+	}
+	if in.Sort == nil {
+		in.Sort = p.Sort
 	}
 	op := strings.TrimSpace(in.Op)
 	if op == "" {
@@ -1823,10 +1994,10 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 		return out.String(), nil
 	case "add":
 		if !workcost.ValidDictKind(in.Kind) {
-			return "", fmt.Errorf("dict.kind 须为 specialty（专业）/ region（地区）/ category（工料机分类），收到 %q", in.Kind)
+			return "", fmt.Errorf("字典新增需要 kind=specialty/region/category（收到 %q）。骨架：{\"action\":\"dict_add\",\"kind\":\"region\",\"name\":\"铜陵\"}", in.Kind)
 		}
 		if in.Name == "" {
-			return "", fmt.Errorf("新增%s需要 dict.name", workcost.DictKindLabel[in.Kind])
+			return "", fmt.Errorf("新增%s需要 name。骨架：{\"action\":\"dict_add\",\"kind\":\"%s\",\"name\":\"铜陵\"}", workcost.DictKindLabel[in.Kind], in.Kind)
 		}
 		if in.Kind == workcost.DictCategory {
 			// 分类是路径：每一段都得是字典项（库定规矩），上级不在就先加上级。
@@ -1853,6 +2024,9 @@ func (t costLibraryTool) dict(s *workcost.Store, p costLibraryArgs) (string, err
 		}
 		var out strings.Builder
 		out.WriteString(clHead(p.DryRun, "dict_add"))
+		if p.Misnamed != "" {
+			fmt.Fprintf(&out, "⚠ 参数已救回：%s 对象原本发在 quota 里，已挪到正确位置——下次按骨架直接给顶层字段。\n", p.Misnamed)
+		}
 		if exists {
 			fmt.Fprintf(&out, "%s「%s」已在字典里，无需新增。", workcost.DictKindLabel[in.Kind], in.Name)
 			return out.String(), nil

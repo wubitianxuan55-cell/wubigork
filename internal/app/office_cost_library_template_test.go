@@ -1,9 +1,10 @@
 package app
 
-// office_cost_library_template_test.go — cost_library 的测算模版闭环（2026-11-25）：
-// template 按库生成六表模版 → 按填法填两组 → import_project 导回 → 库里还原成
-// 1:N 挂接。口径过规矩：字典外的专业/地区、非年月的期数当场拒。全部走隔离库；
-// 工作区指到临时目录，模版落在它的 .gaea/exports 下，不碰仓库。
+// office_cost_library_template_test.go — cost_library 的测算样表闭环（2026-11-25
+// 删渲染器拍板后的形态）：template 复制样表（版式真源）→ 按契约填两组 →
+// import_project 导回 → 库里还原成 1:N 挂接。样表来源三层都钉住：内嵌种子、
+// 工作区覆盖、golden 解析。全部走隔离库；工作区指到临时目录，样表落在它的
+// .gaea/exports 下，不碰仓库。
 
 import (
 	"os"
@@ -14,9 +15,113 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
+// TestCostLibrarySampleGolden 内嵌样表必须过解析链：这是「样表=版式真源」的
+// 凭据——样表一旦改到导不回，template 出口就是废纸。
+func TestCostLibrarySampleGolden(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "样表.xlsx")
+	if err := os.WriteFile(path, skill.CostEstimateSampleXLSX(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b, err := workcost.ParseProjectWorkbook(path)
+	if err != nil {
+		t.Fatalf("内嵌样表解析失败: %v", err)
+	}
+	if len(b.Sheets) != 6 || b.Project != "成本测算模版" {
+		t.Fatalf("样表应 6 张表、封面标题=成本测算模版，得到 %v / %q", b.Sheets, b.Project)
+	}
+	if len(b.Resources) != 60 {
+		t.Fatalf("样表应预填 60 条样例工料机，得到 %d", len(b.Resources))
+	}
+	if b.Fee.ManagementRate != 0.05 || b.Fee.ProfitRate != 0.04 || b.Fee.RegulatoryRate != 0 || b.Fee.TaxRate != 0.09 {
+		t.Errorf("样表费率样例应 5%%/4%%/0%%/9%%，得到 %+v", b.Fee)
+	}
+	if len(b.Skipped) != 0 {
+		t.Errorf("样表不应有被跳过的行: %+v", b.Skipped)
+	}
+}
+
+// TestCostLibraryTemplateCopiesSample template 动作=复制样表：内嵌种子兜底、
+// 工作区覆盖优先、路径可指定；回执带导入契约与三道门。
+func TestCostLibraryTemplateCopiesSample(t *testing.T) {
+	a, cleanup := workcostTestApp(t)
+	defer cleanup()
+	tl := costLibraryTool{a: a}
+	ws := t.TempDir()
+	origCfg := ga.cfg
+	ga.cfg = &config.Config{Workspace: ws}
+	t.Cleanup(func() { ga.cfg = origCfg })
+
+	out := clMust(t, tl, map[string]any{"action": "template", "template": map[string]any{
+		"name": "南岸测算",
+	}}, "**测算样表**")
+	for _, want := range []string{"导入契约", "xlsx_recalc", "xlsx_audit", "dry_run=true", "内置样表"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("回执缺 %q：%s", want, out)
+		}
+	}
+	// 回执给的是工作区相对路径；按它找回文件，字节应与种子一致。
+	first := strings.SplitN(out, "\n", 2)[0]
+	rel := strings.TrimSpace(strings.TrimPrefix(first, "**测算样表**: "))
+	rel = rel[:strings.Index(rel, "（")]
+	if rel == "" || filepath.IsAbs(rel) || !strings.HasPrefix(rel, ".gaea/exports/南岸测算-") {
+		t.Fatalf("回执应给出工作区内的相对路径，得到 %q", first)
+	}
+	path := filepath.Join(ws, filepath.FromSlash(rel))
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("样表应已落盘: %v", err)
+	}
+	if string(got) != string(skill.CostEstimateSampleXLSX()) {
+		t.Error("复制语义：落盘样表应与内嵌种子逐字节一致")
+	}
+
+	// 指定路径（顶层 path 同义）。
+	out2 := clMust(t, tl, map[string]any{"action": "template", "path": ".gaea/work/样表副本.xlsx"}, "**测算样表**")
+	if !strings.Contains(out2, ".gaea/work/样表副本.xlsx") {
+		t.Errorf("指定路径应被尊重：%s", out2)
+	}
+	if _, err := os.Stat(filepath.Join(ws, ".gaea", "work", "样表副本.xlsx")); err != nil {
+		t.Errorf("指定路径的样表应落盘: %v", err)
+	}
+
+	// 工作区覆盖：.gaea/skills/cost-estimate/样表 存在时优先于种子。
+	overrideDir := filepath.Join(ws, ".gaea", "skills", "cost-estimate")
+	if err := os.MkdirAll(overrideDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	override := filepath.Join(overrideDir, "样表-成本测算模版.xlsx")
+	f := excelize.NewFile()
+	if err := f.SaveAs(override); err != nil {
+		t.Fatalf("写工作区覆盖样表失败: %v", err)
+	}
+	_ = f.Close()
+	out3 := clMust(t, tl, map[string]any{"action": "template"}, "**测算样表**")
+	if !strings.Contains(out3, "工作区样表") {
+		t.Errorf("覆盖态回执应注明来源=工作区样表：%s", out3)
+	}
+	third := strings.SplitN(out3, "\n", 2)[0]
+	rel3 := third[strings.Index(third, ": ")+2:]
+	rel3 = rel3[:strings.Index(rel3, "（")]
+	got3, err := os.ReadFile(filepath.Join(ws, filepath.FromSlash(rel3)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want3, err := os.ReadFile(override)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got3) != string(want3) {
+		t.Error("工作区覆盖样表应优先于内嵌种子")
+	}
+}
+
+// TestCostLibraryTemplateRoundTrip 样表闭环：拿样表 → 按契约填两组 →
+// import_project 导回 → 库里还原 1:N 挂接与系数。填法=「复制组、填关键列」，
+// 与真实模型在样表上的动作同构。
 func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	a, cleanup := workcostTestApp(t)
 	defer cleanup()
@@ -28,14 +133,9 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	t.Cleanup(func() { ga.cfg = origCfg })
 
 	for _, d := range []struct{ kind, name string }{
-		{workcost.DictSpecialty, "市政"}, {workcost.DictRegion, "重庆中心城区"}, {workcost.DictRegion, "成都市区"},
+		{workcost.DictSpecialty, "市政"}, {workcost.DictRegion, "重庆中心城区"},
 	} {
 		clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": d.kind, "name": d.name}}, "已新增")
-	}
-	// 最新项目带费率：模版的费率口径取自它。
-	rates := workcost.RateSet{ManagementRate: 0.05, RegulatoryRate: 0.02, ProfitRate: 0.04, TaxRate: 0.03}
-	if _, err := s.UpsertBillProject("新项目Q", "", "", "", "", "", &rates, false, 0); err != nil {
-		t.Fatalf("建带费率的项目失败: %v", err)
 	}
 	save := func(r workcost.Resource) *workcost.Resource {
 		t.Helper()
@@ -48,35 +148,18 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	labor := save(workcost.Resource{Kind: workcost.KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 300, Region: "重庆中心城区"})
 	c20 := save(workcost.Resource{Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 400, Region: "重庆中心城区"})
 	exc := save(workcost.Resource{Kind: workcost.KindMachine, Title: "挖掘机", Unit: "台班", CurrentPrice: 1000, Region: "重庆中心城区"})
-	save(workcost.Resource{Kind: workcost.KindMaterial, Title: "中砂", Unit: "m³", CurrentPrice: 110, Region: "成都市区"})
 
-	// 口径不过规矩：字典外的专业、非年月的期数，当场拒、不生成。
-	clMustFail(t, tl, map[string]any{"action": "template", "template": map[string]any{"specialty": "不存在专业"}}, "不在专业字典里")
-	clMustFail(t, tl, map[string]any{"action": "template", "template": map[string]any{"period": "2026年第7期"}}, "不是年月写法")
-
-	out := clMust(t, tl, map[string]any{"action": "template", "template": map[string]any{
-		"specialty": "市政", "region": "重庆中心城区", "name": "南岸测算",
-	}}, "**测算模版**")
-	for _, want := range []string{"专业 市政｜地区 重庆中心城区", "已从造价库预填 3 条", "取自库内最近项目「新项目Q」", "cost-estimate 技能"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("回执缺 %q：%s", want, out)
-		}
-	}
-	// 回执给的是工作区相对路径；按它找回文件。
+	out := clMust(t, tl, map[string]any{"action": "template", "template": map[string]any{"name": "南岸测算"}}, "**测算样表**")
 	first := strings.SplitN(out, "\n", 2)[0]
-	rel := strings.TrimSpace(strings.TrimPrefix(first, "**测算模版**: "))
-	if rel == "" || filepath.IsAbs(rel) || !strings.HasPrefix(rel, ".gaea/exports/南岸测算-") {
-		t.Fatalf("回执应给出工作区内的相对路径，得到 %q", first)
-	}
+	rel := strings.TrimSpace(strings.TrimPrefix(first, "**测算样表**: "))
+	rel = rel[:strings.Index(rel, "（")]
 	path := filepath.Join(ws, filepath.FromSlash(rel))
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("模版文件应已落盘: %v", err)
-	}
 
-	// 按填法填两组：Q01 挂两条定额（第二条系数 0.5），Q02 挂一条；其余组留空。
+	// 按契约填两组：Q01 挂两条定额（第二条系数 0.5），Q02 挂一条；封面标题改
+	// 真实项目名。样表几何与旧渲染模版一致（每组 11 行），填同样的关键列。
 	f, err := excelize.OpenFile(path)
 	if err != nil {
-		t.Fatalf("打开模版失败: %v", err)
+		t.Fatalf("打开样表失败: %v", err)
 	}
 	set := func(sheet, cell string, v any) {
 		t.Helper()
@@ -91,6 +174,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 			t.Fatalf("填 %s!%s 失败: %v", sheet, cell, err)
 		}
 	}
+	set("封面", "A2", "南岸测算")
 	up, bill := "综合单价", "清单"
 	set(up, "B4", "Q01")
 	set(up, "C4", "垫层")
@@ -134,7 +218,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	set(bill, "F5", "m²")
 	set(bill, "G5", 2000.0)
 	if err := f.Save(); err != nil {
-		t.Fatalf("保存填好的模版失败: %v", err)
+		t.Fatalf("保存填好的样表失败: %v", err)
 	}
 	_ = f.Close()
 
@@ -145,7 +229,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 		dry[k] = v
 	}
 	clMust(t, tl, dry, "定额块 3 个")
-	if projects, _ := s.BillProjects(); len(projects) != 1 {
+	if projects, _ := s.BillProjects(); len(projects) != 0 {
 		t.Fatalf("演练不应落库，得到 %d 个项目", len(projects))
 	}
 	real := map[string]any{"action": "import_project", "path": path}
@@ -154,7 +238,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	}
 	clMust(t, tl, real, "**落库**")
 
-	// 库里：项目（封面标题=文件名）与口径、三条定额各带自己的含量行、1:N 挂接带系数。
+	// 库里：项目（封面标题）与口径、三条定额各带含量行、1:N 挂接带系数。
 	projects, _ := s.BillProjects()
 	var pid int64
 	for _, p := range projects {
@@ -163,8 +247,9 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 			if p.Specialty != "市政" || p.Region != "重庆中心城区" || p.PricePeriod != "2026-06" {
 				t.Errorf("项目口径应随导入口径落库，得到 %+v", p)
 			}
-			if p.ManagementRate != 0.05 || p.TaxRate != 0.03 {
-				t.Errorf("项目费率应取自模版费用汇总（最近项目口径），得到 %+v", p)
+			// 费率取自样表费用汇总的费率列（样例口径 5%/0%/4%/9%）。
+			if p.ManagementRate != 0.05 || p.TaxRate != 0.09 {
+				t.Errorf("项目费率应取自样表费用汇总（5%%/9%%），得到 %+v", p)
 			}
 		}
 	}

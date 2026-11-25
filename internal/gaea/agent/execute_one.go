@@ -139,34 +139,39 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	}
 	// V10.28: stale anchor 守卫 — 同一轮内已编辑的文件必须先 read_file 才能再编辑
 	if !t.ReadOnly() && isFileWriter(call.Name) {
-		if path := extractFilePath(call.Name, call.Arguments); path != "" {
-			// 刀2（Reasonix fileops observation 蒸馏）：跨轮外部修改检测——
-			// 模型观察过的版本与磁盘当前版本不一致即拦，防静默覆盖外部修改。
-			if msg := a.checkFileStale(path); msg != "" {
-				return toolOutcome{output: msg, blocked: true, errMsg: msg}
-			}
-			// turnMu guards the per-turn stale maps against the other executeOne
-			// goroutines running this batch (audit P0 race fix). Only the map
-			// reads happen under the lock; the message is built outside it.
-			a.turnMu.Lock()
-			written := a.staleWrittenFiles != nil && a.staleWrittenFiles[path]
-			read := a.staleReadFiles != nil && a.staleReadFiles[path]
-			a.turnMu.Unlock()
-			// D2（2026-11-20 缺陷清单）：write_file 显式 overwrite:true 豁免同
-			// 回合迭代闸——整篇重写不需要旧内容锚点，强迫重读 48KB 文件是纯
-			// 惩罚（实测被拦 3 次，绕行产物=目录里 _v1/_v2/_v3 冗余堆）。跨轮
-			// 外部修改检测（checkFileStale）不豁免——stale 的本意是防外部改动。
-			// P2-10（2026-11-21 沿江反馈）：edit_file 的 old_string 仍锚在当前
-			// 磁盘内容上时同样放行——文件是本回合自己写的（内容是新鲜的，不是
-			// stale），改一行却要重读 370KB 整篇是纯惩罚（实测被拒 6 次）。锚点
-			// 失配时仍拦（那才是闸的本意）。
-			if written && !read &&
-				!(call.Name == "write_file" && argsDeclareOverwrite(call.Arguments)) &&
-				!sameTurnEditAnchorFresh(call.Name, call.Arguments, path) {
-				msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. "+
-					"要整篇替换：write_file 传 \"overwrite\": true 跳过本闸（无需旧内容）；"+
-					"要局部修改：先 read_file（可用 offset+limit 只读目标段，行号用 grep 定位）再 edit_file（old_string 仍匹配当前内容时会自动放行）。原提示：Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
-				return toolOutcome{output: msg, blocked: true, errMsg: msg}
+		// move_file 豁免（2026-11-25 铜陵反馈 #8）：move 不改内容、没有编辑锚点，
+		// 「本回合脚本 cp 覆盖临时件 → move_file 落正式名」恰是合规落盘的推荐
+		// 流程——stale 闸拦它纯属惩罚（实测换文件名绕行，留下一堆 .tmp 副本）。
+		if call.Name != "move_file" {
+			if path := extractFilePath(call.Name, call.Arguments); path != "" {
+				// 刀2（Reasonix fileops observation 蒸馏）：跨轮外部修改检测——
+				// 模型观察过的版本与磁盘当前版本不一致即拦，防静默覆盖外部修改。
+				if msg := a.checkFileStale(path); msg != "" {
+					return toolOutcome{output: msg, blocked: true, errMsg: msg}
+				}
+				// turnMu guards the per-turn stale maps against the other executeOne
+				// goroutines running this batch (audit P0 race fix). Only the map
+				// reads happen under the lock; the message is built outside it.
+				a.turnMu.Lock()
+				written := a.staleWrittenFiles != nil && a.staleWrittenFiles[path]
+				read := a.staleReadFiles != nil && a.staleReadFiles[path]
+				a.turnMu.Unlock()
+				// D2（2026-11-20 缺陷清单）：write_file 显式 overwrite:true 豁免同
+				// 回合迭代闸——整篇重写不需要旧内容锚点，强迫重读 48KB 文件是纯
+				// 惩罚（实测被拦 3 次，绕行产物=目录里 _v1/_v2/_v3 冗余堆）。跨轮
+				// 外部修改检测（checkFileStale）不豁免——stale 的本意是防外部改动。
+				// P2-10（2026-11-21 沿江反馈）：edit_file 的 old_string 仍锚在当前
+				// 磁盘内容上时同样放行——文件是本回合自己写的（内容是新鲜的，不是
+				// stale），改一行却要重读 370KB 整篇是纯惩罚（实测被拒 6 次）。锚点
+				// 失配时仍拦（那才是闸的本意）。
+				if written && !read &&
+					!(call.Name == "write_file" && argsDeclareOverwrite(call.Arguments)) &&
+					!sameTurnEditAnchorFresh(call.Name, call.Arguments, path) {
+					msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. "+
+						"要整篇替换：write_file 传 \"overwrite\": true 跳过本闸（无需旧内容）；"+
+						"要局部修改：先 read_file（可用 offset+limit 只读目标段，行号用 grep 定位）再 edit_file（old_string 仍匹配当前内容时会自动放行）。原提示：Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
+					return toolOutcome{output: msg, blocked: true, errMsg: msg}
+				}
 			}
 		}
 	}

@@ -71,6 +71,35 @@ type CompactDescriptor interface {
 	CompactSchema() json.RawMessage
 }
 
+// SchemaDescriptionsKeeper is an optional capability a Tool may implement to opt
+// its provider-facing schema out of description stripping. Registry.Add
+// canonicalizes every schema, and that canonicalization deletes every
+// `description` at every nesting level — fine when the descriptions merely mirror
+// the tool-level Description(), which is the case for single-action tools.
+//
+// A multi-action tool (one `action` selecting among several nested argument
+// sets) keeps its argument semantics ONLY in field descriptions; stripped, the
+// model sees bare key names and guesses the shape. Observed 2026-11-25 (铜陵
+// six-sheet feedback #13): the model nested `dict`/`classify` inside `quota`,
+// and never learned that import_project also takes specialty/region — nine
+// wasted rounds in one session. Such a tool returns true here and gets
+// provider.CanonicalizeSchemaVerbose instead. The cost is prompt size, so this
+// is opt-in per tool, never the default.
+type SchemaDescriptionsKeeper interface {
+	KeepSchemaDescriptions() bool
+}
+
+// UsageHinter is an optional capability a Tool may implement to hand the model
+// the correct argument skeleton for the call it just got wrong. The agent
+// appends it when a tool keeps failing the same way (loop guard), so the guard
+// points at the exit instead of only saying "change approach" — observed
+// 2026-11-25 (铜陵 six-sheet feedback #14): the guard stopped the model from
+// hammering but not from re-hammering twice with the same malformed args.
+// args is the raw argument body of the failing call; return "" for no hint.
+type UsageHinter interface {
+	UsageHint(args json.RawMessage) string
+}
+
 // PersistWriteTool is an optional capability a Tool may implement to declare
 // that it performs persistent writes to shared stores (cost library / memory /
 // knowledge base / skill files). Sub-agents are never given such tools — they
@@ -207,6 +236,21 @@ func NewRegistry() *Registry {
 	return &Registry{tools: map[string]Tool{}, hidden: map[string]bool{}, canon: map[string]json.RawMessage{}}
 }
 
+// canonicalizeForModel picks the schema canonicalization the model will see:
+// tools opting in via SchemaDescriptionsKeeper keep their field descriptions
+// (see that interface's doc for why); everything else is stripped as before.
+// raw defaults to the tool's own Schema().
+func canonicalizeForModel(t Tool, raw ...json.RawMessage) json.RawMessage {
+	schema := t.Schema()
+	if len(raw) > 0 && len(raw[0]) > 0 {
+		schema = raw[0]
+	}
+	if keeper, ok := t.(SchemaDescriptionsKeeper); ok && keeper.KeepSchemaDescriptions() {
+		return provider.CanonicalizeSchemaVerbose(schema)
+	}
+	return provider.CanonicalizeSchema(schema)
+}
+
 // Add inserts (or replaces) a tool, preserving first-seen order.
 // V10.0: canonicalizes the schema once here — Schemas() reuses the cached result.
 //
@@ -219,7 +263,7 @@ func NewRegistry() *Registry {
 // registration).
 func (r *Registry) Add(t Tool) {
 	name := t.Name()
-	canon := provider.CanonicalizeSchema(t.Schema())
+	canon := canonicalizeForModel(t)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -439,7 +483,7 @@ func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
 			out = append(out, provider.ToolSchema{
 				Name:        s.t.Name(),
 				Description: desc,
-				Parameters:  provider.CanonicalizeSchema(schema),
+				Parameters:  canonicalizeForModel(s.t, schema),
 				Source:      SourceOf(s.name),
 			})
 		} else {

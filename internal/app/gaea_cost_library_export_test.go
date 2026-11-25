@@ -11,7 +11,9 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
+	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
+	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
@@ -203,117 +205,68 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 	}
 }
 
-// TestCostLibraryExportTemplate 测算模版出口（kind=template）：六表结构；工料机价格表
-// 按口径从库预填（带自有码），类别不在四类之内的存量行不预填；「未标注」哨兵对
-// 模版当没给；费率预填库内最近项目的取费口径并在封面注明出处。
+// TestCostLibraryExportTemplate 测算样表出口（kind=template；2026-11-25 删渲染器
+// 拍板）：把样表复制到目标路径——六表结构完整、可直接被解析链吃下；不按库渲染、
+// 不预填（工料机价格与费率由模型查库填）。filter 参数保留签名兼容，不再使用。
 func TestCostLibraryExportTemplate(t *testing.T) {
 	a, cleanup := workcostTestApp(t)
 	defer cleanup()
-	s := a.hubWorkcostStore()
-	res, _, _ := clSeed(t, s)
-	for _, d := range []struct{ kind, name string }{{workcost.DictRegion, "重庆中心城区"}, {workcost.DictCategory, "材料/钢材"}} {
-		if err := s.DictAdd(workcost.DictItem{Kind: d.kind, Name: d.name}); err != nil {
-			t.Fatalf("加字典失败: %v", err)
-		}
+
+	out := filepath.Join(t.TempDir(), "样表")
+	if _, err := a.GaeaCostLibraryExport("template", workcost.LibraryFilter{}, out); err != nil {
+		t.Fatalf("导出测算样表失败: %v", err)
 	}
-	labor, err := s.SaveResource(workcost.Resource{Kind: workcost.KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 300, Region: "重庆中心城区"})
+	raw, err := os.ReadFile(out + ".xlsx")
 	if err != nil {
-		t.Fatalf("建重庆人工失败: %v", err)
+		t.Fatalf("样表应已落盘: %v", err)
 	}
-	steel, err := s.SaveResource(workcost.Resource{Kind: workcost.KindMaterial, Title: "螺纹钢", Spec: "HRB400", Unit: "t", CurrentPrice: 3800,
-		Region: "重庆中心城区", CategoryPath: "材料/钢材"})
+	if len(raw) == 0 {
+		t.Fatal("样表为空")
+	}
+	// 与内嵌种子逐字节一致（复制语义，不是渲染）。
+	if string(raw) != string(skill.CostEstimateSampleXLSX()) {
+		t.Error("样表出口应与内嵌种子逐字节一致")
+	}
+	// 解析链吃得下：六表、60 条样例预填、费率样例口径。
+	path := out + ".xlsx"
+	b, perr := workcost.ParseProjectWorkbook(path)
+	if perr != nil {
+		t.Fatalf("样表应可被导入解析链解析: %v", perr)
+	}
+	if len(b.Sheets) != 6 || len(b.Resources) != 60 {
+		t.Fatalf("样表应 6 张表 / 60 条样例工料机，得到 %v / %d", b.Sheets, len(b.Resources))
+	}
+	if b.Fee.ManagementRate != 0.05 || b.Fee.ProfitRate != 0.04 || b.Fee.TaxRate != 0.09 {
+		t.Errorf("样表费率样例应 5%%/4%%/0%%/9%%，得到 %+v", b.Fee)
+	}
+	// 工作区覆盖：.gaea/skills/cost-estimate/样表 存在时优先于种子。
+	ws := t.TempDir()
+	origCfg := ga.cfg
+	ga.cfg = &config.Config{Workspace: ws}
+	t.Cleanup(func() { ga.cfg = origCfg })
+	overrideDir := filepath.Join(ws, ".gaea", "skills", "cost-estimate")
+	if err := os.MkdirAll(overrideDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	override := filepath.Join(overrideDir, "样表-成本测算模版.xlsx")
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	if err := f.SaveAs(override); err != nil {
+		t.Fatalf("写工作区覆盖样表失败: %v", err)
+	}
+	out2 := filepath.Join(t.TempDir(), "样表2")
+	if _, err := a.GaeaCostLibraryExport("template", workcost.LibraryFilter{}, out2); err != nil {
+		t.Fatalf("导出（覆盖态）失败: %v", err)
+	}
+	got, err := os.ReadFile(out2 + ".xlsx")
 	if err != nil {
-		t.Fatalf("建重庆钢材失败: %v", err)
+		t.Fatal(err)
 	}
-	// 类别不在四类之内的存量行（写入面已拒收，直插模拟）：不是工料机，不进模版。
-	if _, err := s.DB().Exec(`INSERT INTO gf_resources(code, kind, title, unit, tags) VALUES('NOTE-1', '一段说明', '错记成工料机的说明行', '项', '[]')`); err != nil {
-		t.Fatalf("直插类别不合规矩的工料机失败: %v", err)
+	want, err := os.ReadFile(override)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// 最新项目带费率：模版的费率口径取自它。
-	rates := workcost.RateSet{ManagementRate: 0.05, RegulatoryRate: 0.02, ProfitRate: 0.04, TaxRate: 0.03}
-	if _, err := s.UpsertBillProject("新项目Q", "", "", "", "", "", &rates, false, 0); err != nil {
-		t.Fatalf("建带费率的项目失败: %v", err)
-	}
-
-	export := func(f workcost.LibraryFilter) map[string][][]string {
-		t.Helper()
-		out := filepath.Join(t.TempDir(), "模版")
-		if _, err := a.GaeaCostLibraryExport("template", f, out); err != nil {
-			t.Fatalf("导出测算模版失败: %v", err)
-		}
-		return exportRows(t, out+".xlsx")
-	}
-	resourceRows := func(sheets map[string][][]string) [][]string {
-		rows := sheets["工料机价格"]
-		for i, r := range rows { // 说明两行 + 表头，之后是预填行
-			if len(r) > 0 && r[0] == "编码" {
-				return rows[i+1:]
-			}
-		}
-		t.Fatalf("工料机价格表未找到表头：%v", rows)
-		return nil
-	}
-
-	// 不给口径：库里三条合规工料机全部预填，脏行不进；每行带库内自有码。
-	all := resourceRows(export(workcost.LibraryFilter{}))
-	if len(all) != 3 {
-		t.Fatalf("应预填 3 条工料机，得到 %d 行：%v", len(all), all)
-	}
-	codes := map[string]string{}
-	for _, r := range all {
-		if len(r) < 7 {
-			t.Fatalf("预填行列数不足：%v", r)
-		}
-		codes[r[0]] = r[1]
-		if r[1] == "" || !strings.HasPrefix(r[1], "R") {
-			t.Errorf("预填行 %s 应带 R 族自有码，得到 %q", r[0], r[1])
-		}
-	}
-	if codes[res.Code] == "" || codes[labor.Code] == "" || codes[steel.Code] == "" {
-		t.Errorf("三条合规工料机都应预填，得到 %v", codes)
-	}
-	for _, r := range all {
-		if r[0] == "NOTE-1" {
-			t.Error("类别不在四类之内的行不应预填进模版")
-		}
-	}
-
-	// 按地区：只预填该地区的行；按分类：选上级分类连带下级。
-	if got := resourceRows(export(workcost.LibraryFilter{Region: "重庆中心城区"})); len(got) != 2 {
-		t.Errorf("按地区应预填 2 条，得到 %d 行：%v", len(got), got)
-	}
-	if got := resourceRows(export(workcost.LibraryFilter{Category: "材料/钢材"})); len(got) != 1 || got[0][0] != steel.Code {
-		t.Errorf("按分类应只预填钢材，得到 %v", got)
-	}
-	// 「未标注」哨兵对模版=没给口径（模版没有「只要未标注」这种用法）。
-	if got := resourceRows(export(workcost.LibraryFilter{Region: workcost.FilterNone, Kind: workcost.FilterOutside})); len(got) != 3 {
-		t.Errorf("哨兵应 当没给，预填 3 条，得到 %d 行", len(got))
-	}
-
-	// 封面写明口径与费率出处；费用汇总费率=最近项目的口径。
-	sheets := export(workcost.LibraryFilter{Specialty: "市政", Region: "重庆中心城区", Period: "2026-06"})
-	cover := ""
-	for _, r := range sheets["封面"] {
-		cover += strings.Join(r, " ") + "\n"
-	}
-	for _, want := range []string{"专业：市政", "地区：重庆中心城区", "计价期：2026-06", "取自库内最近项目「新项目Q」"} {
-		if !strings.Contains(cover, want) {
-			t.Errorf("封面应写明 %q，得到：\n%s", want, cover)
-		}
-	}
-	found := false
-	for _, r := range sheets["费用汇总"] {
-		if len(r) > 3 && r[1] == "企业管理费" {
-			found = true
-			if r[3] != "0.05" {
-				t.Errorf("企业管理费率应预填最近项目的 5%%，得到 %q", r[3])
-			}
-		}
-	}
-	if !found {
-		t.Error("费用汇总应有「企业管理费」取费行")
-	}
-	if len(sheets["清单"]) == 0 || len(sheets["综合单价"]) == 0 {
-		t.Error("模版应有「清单」与「综合单价」两张表")
+	if string(got) != string(want) {
+		t.Error("工作区覆盖样表应优先于内嵌种子")
 	}
 }

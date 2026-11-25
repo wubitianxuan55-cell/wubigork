@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 func init() { tool.RegisterBuiltin(moveFile{}) }
@@ -57,8 +58,15 @@ func (m moveFile) WritePaths(args json.RawMessage) ([]string, error) {
 	if strings.TrimSpace(p.Source) == "" || strings.TrimSpace(p.Destination) == "" {
 		return nil, fmt.Errorf("source and destination are required")
 	}
+	// 源在系统临时目录时不声明为写路径（2026-11-25 铜陵反馈 #2）：向工作区内
+	// move 是「发布」不是越界写，agent 层只按写面校验终点；Execute 里对源做
+	// 同一条 withinTempDir 校验，两处口径一致。
+	src := resolveIn(m.workDir, p.Source)
+	if withinTempDir(src) {
+		return []string{resolveIn(m.workDir, p.Destination)}, nil
+	}
 	return []string{
-		resolveIn(m.workDir, p.Source),
+		src,
 		resolveIn(m.workDir, p.Destination),
 	}, nil
 }
@@ -83,12 +91,19 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 	src := resolveIn(m.workDir, p.Source)
 	dst := resolveIn(m.workDir, p.Destination)
-	// Both endpoints are writes — each must sit inside the workspace roots.
-	if err := confine(m.roots, src); err != nil {
-		return "", err
-	}
+	// Destination is always a write and must sit inside the workspace roots.
+	// The source may live in the OS temp directory (2026-11-25 铜陵反馈 #2：
+	// 办公技能的合规落盘指引就是「脚本先落系统临时目录 → move_file 移入正式名」，
+	// 而此前 source 越界即拒，推荐路径自己走不通，交付一个 xlsx 要绕 4 次调用)：
+	// read side of temp is fine — a move INTO the workspace publishes the file,
+	// it cannot smuggle writes out. Anything else outside the roots stays denied.
 	if err := confine(m.roots, dst); err != nil {
 		return "", err
+	}
+	if err := confine(m.roots, src); err != nil {
+		if !withinTempDir(src) {
+			return "", err
+		}
 	}
 	srcFi, err := os.Stat(src)
 	if err != nil {
@@ -143,6 +158,20 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		BaselinePath:  baseline,
 	})
 	return fmt.Sprintf("moved %s → %s", src, dst), nil
+}
+
+// withinTempDir reports whether path resolves inside the OS temp directory
+// (os.TempDir, symlink-free on both endpoints).
+func withinTempDir(path string) bool {
+	tmp, err := wspath.RealPath(os.TempDir())
+	if err != nil {
+		return false
+	}
+	real, err := wspath.RealPath(path)
+	if err != nil {
+		return false
+	}
+	return wspath.Within(tmp, real)
 }
 
 // copyFileContents copies src to dst with the given permission bits. Used as
