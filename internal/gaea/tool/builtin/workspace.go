@@ -55,6 +55,12 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		docRender{workDir: w.Dir},
 		quarantineList{workDir: w.Dir},
 		screenCapture{workDir: w.Dir},
+		// 只读件同样要绑工作区：漏绑的实例 workDir 为空，相对路径按进程 cwd
+		// 解析，过读边界时被判「outside readable roots」（2026-11-26 造价反馈
+		// 三批：md_validate 校验 .gaea/exports/ 下的交付文档，太原、旺平两场
+		// 各白耗一次，换绝对路径才过；cad_ask 同病同根）。
+		mdValidate{workDir: w.Dir},
+		cadAsk{workDir: w.Dir},
 		webFetch{proxySpec: w.ProxySpec},
 		sidebarOpen{root: w.Dir},
 		scheduleGet{workDir: w.Dir},

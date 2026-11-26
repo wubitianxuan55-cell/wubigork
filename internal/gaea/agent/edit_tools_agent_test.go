@@ -298,7 +298,11 @@ func TestStaleGuardEditFileAnchorFreshPass(t *testing.T) {
 	}
 }
 
-func TestStaleGuardBlocksMoveFileWithoutRead(t *testing.T) {
+// TestStaleGuardExemptsMoveFile move_file 豁免同回合 stale 闸（2026-11-25 铜陵反馈
+// #8：move 不改内容、没有编辑锚点，「脚本覆盖临时件 → move_file 落正式名」是合规
+// 落盘的推荐流程）。豁免落地时旧用例没同步、一直红，2026-11-26 造价反馈批跑
+// agent 包门禁时翻出来——改钉现行口径。
+func TestStaleGuardExemptsMoveFile(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.ToSlash(filepath.Join(dir, "a.txt"))
 	if err := os.WriteFile(src, []byte("one\n"), 0o644); err != nil {
@@ -313,11 +317,11 @@ func TestStaleGuardBlocksMoveFileWithoutRead(t *testing.T) {
 		ID: "c1", Name: "move_file",
 		Arguments: `{"source":"` + src + `","destination":"` + filepath.ToSlash(filepath.Join(dir, "b.txt")) + `"}`,
 	})
-	if !out.blocked || !strings.Contains(out.output, "[stale content]") {
-		t.Fatalf("stale guard must block move_file on a stale source, got %+v", out)
+	if out.blocked || strings.Contains(out.output, "[stale content]") {
+		t.Fatalf("move_file 豁免同回合 stale 闸，不该被拦，got %+v", out)
 	}
-	if _, err := os.Stat(src); err != nil {
-		t.Errorf("blocked move must not remove the source, stat err=%v", err)
+	if _, err := os.Stat(filepath.Join(dir, "b.txt")); err != nil {
+		t.Errorf("豁免后 move 应已落盘: %v", err)
 	}
 }
 

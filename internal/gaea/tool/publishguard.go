@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // DefaultDurableExts v1 durable 档扩展名（D1：v1 只承诺 Office 三格式；非 Office
@@ -152,27 +153,64 @@ func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 var publishExemptNameTokens = []string{"probe", "test", "tmp", "draft", "草稿", "临时"}
 
 // exempt 报告本越界件是否属过程件豁免面（P0-1 建议三）：路径含 `_draft/`
-// 段，或文件名含探针字样。豁免=不隔离不拦（过程件不是交付件）；真交付物
-// 落这些名字属命名自误，非本边界职责。
+// 段或 `.gaea/work/`，或文件名含探针字样。豁免=不隔离不拦（过程件不是交付件）；
+// 真交付物落这些名字属命名自误，非本边界职责。
 func (v PublishViolation) exempt() bool {
 	rel := strings.ToLower(v.RelPath)
-	for _, seg := range strings.Split(rel, "/") {
-		if seg == "_draft" || seg == "_probe" {
+	segs := strings.Split(rel, "/")
+	for i, seg := range segs {
+		switch seg {
+		case "_draft", "_probe":
 			return true
+		case ".gaea":
+			// .gaea/work/ 过程目录豁免（2026-11-26 造价反馈三批，百锦路 #1 /
+			// 太原 #10）：系统提示词明令「中间表格」写 .gaea/work/<任务名>/，本边界
+			// 却把脚本落在那里、或改过那里的 xlsx 一律隔离——提示词与闸门自相
+			// 矛盾，两场各被拦两次。过程目录不是交付面：正式路径照拦，move_file
+			// 仍是 durable 落进正式名的唯一出口。
+			if i+1 < len(segs) && segs[i+1] == "work" {
+				return true
+			}
 		}
 	}
 	base := rel
 	if i := strings.LastIndex(rel, "/"); i >= 0 {
 		base = rel[i+1:]
 	}
-	// 扩展名前的 stem 判 token（防 docx 名里恰好撞 test 的低概率面：要求
-	// token 是 stem 的独立子串形态——直接子串匹配已够用，命名惯例面）。
 	for _, tok := range publishExemptNameTokens {
-		if strings.Contains(base, tok) {
+		if nameHasToken(base, tok) {
 			return true
 		}
 	}
 	return false
+}
+
+// nameHasToken 报告小写文件名 base 是否含特征词 tok。ASCII 特征词要求左侧是
+// 词边界（开头或非字母）：直接子串匹配会把 latest.xlsx、contest.docx 里的
+// test 当成探针件放过（2026-11-26 对码发现）。中文特征词没有分隔符，仍按
+// 子串算。
+func nameHasToken(base, tok string) bool {
+	if tok == "" || !strings.Contains(base, tok) {
+		return false
+	}
+	if tok[0] >= utf8.RuneSelf {
+		return true
+	}
+	for i := 0; ; {
+		j := strings.Index(base[i:], tok)
+		if j < 0 {
+			return false
+		}
+		at := i + j
+		if at == 0 || !isASCIILetter(base[at-1]) {
+			return true
+		}
+		i = at + 1
+	}
+}
+
+func isASCIILetter(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 // Quarantine 把越界件移出正式工作区（隔离目录下按时间戳子目录保留相对结构），
@@ -288,11 +326,23 @@ func (g *PublishGuard) Quarantine(vs []PublishViolation) ([]string, error) {
 func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ...string) string {
 	var b strings.Builder
 	b.WriteString("发布边界拦截：以下 Office 交付文件（durable 档）不得经本工具写入正式工作区，已隔离：")
+	stamp := ""
+	if len(dest) > 0 {
+		stamp = dest[0]
+	}
 	for _, v := range violations {
 		b.WriteString("\n  - " + v.RelPath + "（" + v.Kind + "）")
+		if stamp != "" {
+			// 2026-11-26 造价反馈三批（百锦路 #1、太原 #10）：回执此前只给批次
+			// 目录，而隔离件落在批次目录下**镜像原相对路径**的子目录里——模型
+			// 照回执路径取回直接 source not found，再花三次调用（ls/ls/find）
+			// 才定位。逐件给完整落点；在工作区根内时给 move_file 能直接用的
+			// 工作区相对写法。
+			b.WriteString("\n    隔离件：" + quarantineFilePath(stamp, v))
+		}
 	}
-	if len(dest) > 0 && dest[0] != "" {
-		b.WriteString("\n隔离位置：" + dest[0])
+	if stamp != "" {
+		b.WriteString("\n隔离位置：" + stamp)
 	} else {
 		// 实测反馈⑤：dest 缺席时不得只剩「已隔离」裸句——给出可定位的兜底。
 		b.WriteString("\n隔离位置：本次回执未取到具体 stamp 目录；隔离件按时间戳子目录保存在工作区 .gaea/publish-quarantine/ 下，会话 JSONL 隔离账本（D6）有完整路径与命令预览。")
@@ -305,17 +355,34 @@ func ExpectedPathsNote(violations []PublishViolation, expected []string, dest ..
 	// 多轮才找到合规入口。声明路径是归因信息，与合规出路不互斥，两句都给。
 	b.WriteString("\ndurable 交付物只能经结构化入口：office_generate（从零生成）或 docx_apply/pptx_apply/xlsx_apply（编辑）。")
 	// 实测反馈⑤补两件：能不能取回、允许的落点是什么（此前用户试错一轮才找到
-	// 临时目录中转）。隔离件是原件（Quarantine 只 move 不改内容），取回=从
-	// 隔离目录 move 到工作区外的暂存位；非 durable 档不受本边界限制。
-	b.WriteString("\n取回：隔离件为原件，可用 move_file 移到工作区外暂存位（如临时目录）复核。")
+	// 临时目录中转）。隔离件是原件（Quarantine 只 move 不改内容）。
+	// 2026-11-26 造价反馈三批改写：原句「move_file 移到工作区外暂存位（如临时
+	// 目录）」实测走不通——move_file 的终点必须在写根内，两场都被 path access
+	// denied 拦。改成在工作区内取回的可行序列（.gaea/work/ 已是过程目录豁免面）。
+	b.WriteString("\n取回：隔离件是原件。在工作区内取回——move_file 的终点必须在写根内，移到工作区外会被拦：")
+	b.WriteString("\n  move_file source=<上面的隔离件路径> destination=.gaea/work/<文件名>")
+	b.WriteString("\n.gaea/work/ 是过程目录（脚本在其中读写 xlsx 不受本边界限制）；复核、改完后再 move_file 到正式名。")
 	b.WriteString("\n允许落点：md/txt/png 等非 durable 档不受本边界限制；durable 档（docx/xlsx/pptx）走上述结构化入口。")
 	// 2026-11-21 造价门实测 2.1：自由脚本（openpyxl/python-docx 等）生成 durable
 	// 是合法场景，但合规路径此前只能试错撞出——Temp→copy→move_file。明示出口；
 	// 同时告示 request_permission 的路径授权与本边界是两个独立闸门（实测用户
 	// 批准了持久规则仍被拦，误以为授权无效）。
-	b.WriteString("\n自由脚本生成 durable 的合规路径：先落系统临时目录（或非 durable 扩展名如 .xlsx.tmp），再用 move_file 移入工作区正式名——move_file 是 durable 落盘的合法出口。")
+	b.WriteString("\n自由脚本生成 durable 的合规路径：直接落 .gaea/work/（过程目录，不受限），或先落系统临时目录（或非 durable 扩展名如 .xlsx.tmp），再用 move_file 移入工作区正式名——move_file 是 durable 落盘的合法出口。")
 	b.WriteString("\n注意：request_permission 批准的路径规则不改变本边界（独立闸门）——durable 交付物一律走结构化入口或上述 move_file 路径。")
 	return b.String()
+}
+
+// quarantineFilePath 报告一件隔离件的落点：批次目录下镜像原相对路径。工作区根
+// 在场且隔离目录在根内时给工作区相对写法（move_file / bash 都能直接用），
+// 否则给绝对路径。
+func quarantineFilePath(stamp string, v PublishViolation) string {
+	full := filepath.Join(stamp, filepath.FromSlash(v.RelPath))
+	if v.Root != "" {
+		if rel, err := filepath.Rel(v.Root, full); err == nil && !strings.HasPrefix(rel, "..") {
+			return filepath.ToSlash(rel)
+		}
+	}
+	return full
 }
 
 // --- internals ---

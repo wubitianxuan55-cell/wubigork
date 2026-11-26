@@ -48,3 +48,26 @@ func TestBash_EmptyCommandReportsReceivedKeys(t *testing.T) {
 		})
 	}
 }
+
+// 2026-11-26 造价反馈（旺平 #1）：参数体是 {} 时模型「照提示把 command 放进
+// 字段重试」五次五空。空体必须换话术——点名「命令没发出来」并给出实测走得通
+// 的绕行（write_file 落盘 + 短命令）；键名错的形态不带这句（那不是空体）。
+func TestBash_EmptyBodyGivesTheProvenWayOut(t *testing.T) {
+	b := bash{}
+	_, err := b.Execute(context.Background(), json.RawMessage(`{}`))
+	if err == nil {
+		t.Fatal("空参数体必须报错")
+	}
+	for _, want := range []string{"本次收到 0 个参数键", "命令没发出来", "write_file"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("空体话术应含 %q，实得: %v", want, err)
+		}
+	}
+	_, err = b.Execute(context.Background(), json.RawMessage(`{"cmd":"echo hi"}`))
+	if err == nil {
+		t.Fatal("缺 command 必须报错")
+	}
+	if strings.Contains(err.Error(), "命令没发出来") {
+		t.Errorf("键名错的形态不应套空体话术，实得: %v", err)
+	}
+}

@@ -63,7 +63,7 @@ var compactSchema = map[string]json.RawMessage{
 	"read_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer","description":"向前分页用非负 offset；负值表示从 EOF 倒数，如 -30 读末尾 30 行窗口"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"},"section":{"type":"string","description":"md 标题选择子（编号或文本子串，如 3.2/风险评估）：整节返回，offset 非负时在节内翻页"}},"required":["path"]}`),
 	"write_file": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256，或 absent=仅新建"}},"required":["path","content"]}`),
+		`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256，或 absent=仅新建"},"overwrite":{"type":"boolean","description":"同回合已写过/被改过的文件要整篇重写时传 true"}},"required":["path","content"]}`),
 	"edit_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"},"replace_all":{"type":"boolean"},"expected_revision":{"type":"string","description":"可选 CAS：read_file 尾标 sha256"}},"required":["path","old_string","new_string"]}`),
 	"move_file": json.RawMessage(

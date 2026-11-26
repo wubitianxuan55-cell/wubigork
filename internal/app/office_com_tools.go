@@ -40,11 +40,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/wspath"
 	comhelper "github.com/gaea/gaea/internal/office/comhelper"
 	"github.com/gaea/gaea/internal/office/omml"
+	"golang.org/x/text/unicode/norm"
 )
 
 // ── 体验设置（波3：从 gaea 配置 [office_com] 段单点读取）──────────────────
@@ -808,9 +810,10 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 	if err != nil {
 		return "", err
 	}
+	opsJSON, opNotes := normalizeOpNames(in.Ops)
 	settings := officeComSettings()
 	editArgs := map[string]any{
-		"app": kind, "ops": json.RawMessage(argsOfOps(in.Ops)),
+		"app": kind, "ops": json.RawMessage(opsJSON),
 		"follow": settings.follow, "typing": settings.typing,
 		// card 恒 false（迷你卡片由前端壳内状态条替代）；silent 透传设置——
 		// helper 侧对静默打开（Hidden）或 silent 声明的文档按 quiet 模式编辑
@@ -825,7 +828,7 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 	// 解析器，不受影响）。fail-soft：转不动的公式不进 math map，helper 保留
 	// 原文不报错；本步任何失败（含 ops JSON 还原异常）都不阻断 edit 本身。
 	var opsAny any
-	if err := json.Unmarshal([]byte(argsOfOps(in.Ops)), &opsAny); err == nil {
+	if err := json.Unmarshal([]byte(opsJSON), &opsAny); err == nil {
 		if math := omml.FormulasOf(opsAny, nil); len(math) > 0 {
 			editArgs["math"] = math
 		}
@@ -848,22 +851,57 @@ func (t officeComEditTool) execute(ctx context.Context, session string, args jso
 		officeCom.unseen[officeComKey(kind, targetDoc)] = true
 		officeCom.unseenMu.Unlock()
 	}
-	return comhelper.FormatEdit(result, kind) + officeCom.officeGuide(session, kind), nil
+	out := comhelper.FormatEdit(result, kind) + officeCom.officeGuide(session, kind)
+	if len(opNotes) > 0 {
+		out += "\n（操作名已归一：" + strings.Join(opNotes, "；") + "——操作名用小写 ASCII，下次照归一后的名字发。）"
+	}
+	return out, nil
 }
 
-// argsOfOps 把 ops 原样还原成 JSON 数组文本（透传给 helper，不做字段级校验——
-// 未知名段会被 helper 的 Bag.Unread 点名，不悄悄失效）。
-func argsOfOps(ops []json.RawMessage) string {
+// normalizeOpNames 把 ops 还原成下发给 helper 的 JSON 数组文本，顺手把每条的
+// 操作名归一（见 normalizeOpName）。返回数组文本与被改写清单（"原名→归一名"）。
+// 除被改写的那条外其余 op 原样透传，不做字段级校验——未知字段会被 helper 的
+// Bag.Unread 点名，不悄悄失效。
+func normalizeOpNames(ops []json.RawMessage) (string, []string) {
+	var notes []string
 	buf := strings.Builder{}
 	buf.WriteByte('[')
 	for i, op := range ops {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
+		var m map[string]json.RawMessage
+		if json.Unmarshal(op, &m) == nil && m != nil {
+			var name string
+			if raw, ok := m["op"]; ok && json.Unmarshal(raw, &name) == nil {
+				if fixed := normalizeOpName(name); fixed != name {
+					m["op"], _ = json.Marshal(fixed)
+					if b, err := json.Marshal(m); err == nil {
+						op = b
+						notes = append(notes, name+"→"+fixed)
+					}
+				}
+			}
+		}
 		buf.Write(op)
 	}
 	buf.WriteByte(']')
-	return buf.String()
+	return buf.String(), notes
+}
+
+// normalizeOpName 把操作名归一：去首尾空白、转小写、去掉拉丁字母上的附加符。
+// 2026-11-26 造价反馈（旺平 #1）：模型把 write_range 发成 "wrİte_range"（İ 是
+// 带点的大写 I），helper 按序数比对报 Unknown Excel operation，四次全废——连
+// 只写一格的小负载也中招。这是模型输出侧的怪癖，传输链路不改字；Go 侧在下发
+// 前兜一道，回执里如实报出改写。
+func normalizeOpName(name string) string {
+	s := norm.NFD.String(strings.ToLower(strings.TrimSpace(name)))
+	return norm.NFC.String(strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
+		return r
+	}, s))
 }
 
 // ── office_render ────────────────────────────────────────────────────────

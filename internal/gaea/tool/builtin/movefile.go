@@ -3,11 +3,14 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -127,25 +130,34 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 		// Remove the target first: os.Rename onto an existing file fails on
 		// Windows, and the copy fallback below must not merge with it either.
+		// 占用预检（2026-11-26 造价反馈，旺平 #5）：用户开着交付表时这里必然
+		// 失败——WPS/Excel 打开文档时拒绝写共享，试开写句柄即可提前点名。
+		if err := probeNotOccupied(dst); err != nil {
+			return "", err
+		}
 		if err := os.Remove(dst); err != nil {
-			return "", fmt.Errorf("move %s: replace existing destination %s: %w", src, dst, err)
+			return "", fmt.Errorf("move %s: replace existing destination %s: %w%s", src, dst, err, occupiedHintFor(err))
 		}
 	}
 	if err := os.Rename(src, dst); err != nil {
 		// Rename fails across volumes (EXDEV) and in a few other cases —
 		// fall back to copy+remove so a move still happens.
 		if copyErr := copyFileContents(src, dst, srcFi.Mode().Perm()); copyErr != nil {
-			return "", fmt.Errorf("move %s → %s: rename: %v; copy fallback: %w", src, dst, err, copyErr)
+			return "", fmt.Errorf("move %s → %s: rename: %v; copy fallback: %w%s", src, dst, err, copyErr, occupiedHintFor(err, copyErr))
 		}
 		if rmErr := os.Remove(src); rmErr != nil {
 			// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：目标已完整写出、源未删——
 			// 副作用已发生（applied），盲目重试 move 会 No such file/重复复制。
+			next := "目标已完整写出、源未删：先核实目标内容，再决定手动删源或视为完成"
+			if occupiedHintFor(rmErr) != "" {
+				next = "源文件被占用（多半在 WPS/Excel 里开着）：目标已完整写出；关掉占用进程后删源，或视为完成"
+			}
 			return "", &tool.Failure{
 				Code:        tool.CodeExecError,
 				Subcode:     "SOURCE_REMOVE_FAILED",
-				Err:         fmt.Errorf("move %s → %s: copied but could not remove source: %w", src, dst, rmErr),
+				Err:         fmt.Errorf("move %s → %s: copied but could not remove source: %w%s", src, dst, rmErr, occupiedHintFor(rmErr)),
 				EffectState: tool.EffectApplied,
-				NextAction:  "目标已完整写出、源未删：先核实目标内容，再决定手动删源或视为完成",
+				NextAction:  next,
 			}
 		}
 	}
@@ -158,6 +170,46 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		BaselinePath:  baseline,
 	})
 	return fmt.Sprintf("moved %s → %s", src, dst), nil
+}
+
+// occupiedHint 是 Windows 共享/锁冲突（文件正被别的进程打开）时附在错误后的
+// 处置提示。2026-11-26 造价反馈（旺平 #5）：用户开着交付表时 move_file 落盘
+// 失败只透传 OS 原话，模型摸不着头脑转去试别的；提前点名占用并给两条出路。
+const occupiedHint = "——文件正被占用（多半是你在 WPS/Excel 里开着它）：关掉后重试；要在开着的情况下改内容，走 office_edit 实时编辑"
+
+// isFileOccupied 报告 err 是否为共享冲突 / 锁冲突（ERROR_SHARING_VIOLATION=32、
+// ERROR_LOCK_VIOLATION=33）。按错误码字面比较而不引用 syscall 常量：那两个
+// 常量只在 windows 构建里有，字面量在各平台都能编译（非 windows 恒 false）。
+func isFileOccupied(err error) bool {
+	if runtime.GOOS != "windows" || err == nil {
+		return false
+	}
+	return errors.Is(err, syscall.Errno(32)) || errors.Is(err, syscall.Errno(33))
+}
+
+// occupiedHintFor 任一 err 是占用类错误就返回处置提示，否则空串。
+func occupiedHintFor(errs ...error) string {
+	for _, err := range errs {
+		if isFileOccupied(err) {
+			return occupiedHint
+		}
+	}
+	return ""
+}
+
+// probeNotOccupied 在动目标之前试开一次写句柄：WPS/Excel 打开文档时拒绝写
+// 共享，这一步就会报共享冲突。其他打开失败（只读属性等）不在这里拦，交给
+// 后续步骤按原口径报。
+func probeNotOccupied(dst string) error {
+	f, err := os.OpenFile(dst, os.O_RDWR, 0)
+	if err != nil {
+		if isFileOccupied(err) {
+			return fmt.Errorf("move → %s: %w%s", dst, err, occupiedHint)
+		}
+		return nil
+	}
+	_ = f.Close()
+	return nil
 }
 
 // withinTempDir reports whether path resolves inside the OS temp directory

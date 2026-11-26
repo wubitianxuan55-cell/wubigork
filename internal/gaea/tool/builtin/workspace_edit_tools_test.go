@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,6 +51,38 @@ func TestWorkspaceEditToolsBoundToDir(t *testing.T) {
 	}
 	if _, err := os.Stat("w.txt"); err == nil {
 		t.Error("w.txt must not appear in the process cwd — tool must bind the workspace dir")
+	}
+}
+
+// TestWorkspaceReadTargetToolsBoundToDir 钉只读件的绑订：凡是经
+// Workspace.Tools() 装配的读路径工具，相对路径必须落在工作区里。
+// 病根=只读件漏进 all 列表时拿到的是 init 注册的零值实例（workDir 空），
+// resolveIn 把相对路径原样返回，读边界拿它比工作区根 → 必拒。
+func TestWorkspaceReadTargetToolsBoundToDir(t *testing.T) {
+	dir := t.TempDir()
+	byName := map[string]tool.Tool{}
+	for _, tl := range (Workspace{Dir: dir}).Tools() {
+		byName[tl.Name()] = tl
+	}
+	for _, name := range []string{"md_validate", "cad_ask", "read_file"} {
+		tl, ok := byName[name]
+		if !ok {
+			t.Errorf("Workspace.Tools() missing %q（未绑工作区的只读件）", name)
+			continue
+		}
+		rt, ok := tl.(tool.ReadTargeter)
+		if !ok {
+			t.Errorf("%s 不再实现 ReadTargeter——本用例的钉法要跟着改", name)
+			continue
+		}
+		got, ok := rt.ReadTarget(json.RawMessage(`{"path":".gaea/exports/x.md"}`))
+		if !ok {
+			t.Errorf("%s: ReadTarget 对带 path 的参数应报 true", name)
+			continue
+		}
+		if want := filepath.Join(dir, ".gaea", "exports", "x.md"); got != want {
+			t.Errorf("%s: 相对路径应按工作区解析\n got %q\nwant %q", name, got, want)
+		}
 	}
 }
 

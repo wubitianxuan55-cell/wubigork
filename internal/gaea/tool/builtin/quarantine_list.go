@@ -109,9 +109,18 @@ func (t quarantineList) Execute(_ context.Context, args json.RawMessage) (string
 				fmt.Fprintf(&sb, "    …等 %d 件\n", len(r.Entries)-i)
 				break
 			}
-			fmt.Fprintf(&sb, "    %s（%s）\n", e.RelPath, e.Kind)
+			// 现状按盘面核（2026-11-26 造价反馈，百锦路 #1）：账本只追加、没有
+			// 「已取回」态，文件被 move 走后批次仍显示 quarantined——实测模型
+			// 照账本去取，source not found。每件如实报还在不在隔离区。
+			present := "否（已取回或已不在）"
+			if _, serr := os.Stat(filepath.Join(root, r.Stamp, filepath.FromSlash(e.RelPath))); serr == nil {
+				present = "是"
+			}
+			fmt.Fprintf(&sb, "    %s（%s｜在隔离区：%s）\n", e.RelPath, e.Kind, present)
 		}
-		fmt.Fprintf(&sb, "    落点：%s\n", filepath.Join(root, r.Stamp))
+		// 落点给到件：隔离目录下镜像原相对路径，批次目录本身不是文件所在处。
+		fmt.Fprintf(&sb, "    落点：%s（每件完整路径 = 落点/原相对路径；工作区相对写法 .gaea/publish-quarantine/%s/…）\n",
+			filepath.Join(root, r.Stamp), r.Stamp)
 	}
 	if total == 0 {
 		if p.Status != "" {
@@ -126,5 +135,6 @@ func (t quarantineList) Execute(_ context.Context, args json.RawMessage) (string
 		head = fmt.Sprintf("隔离账本共 %d 批次（按 stamp 去重，新优先）：\n", total)
 	}
 	return head + strings.TrimRight(sb.String(), "\n") +
-		"\n取回：隔离件为原件，move_file 可移到工作区外暂存位复核；durable 正式落盘走结构化入口或 Temp→move_file。", nil
+		"\n取回：隔离件是原件。在工作区内取回——move_file 终点须在写根内（移到工作区外会被拦）：" +
+		"move_file source=<落点>/<原相对路径> destination=.gaea/work/<文件名>（过程目录，不受发布边界限制）；复核、改完后再 move_file 到正式名。", nil
 }

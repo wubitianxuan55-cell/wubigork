@@ -94,6 +94,45 @@ func TestCompactSchemaIsSubsetOfFullSchema(t *testing.T) {
 	}
 }
 
+// modelMustSeeParams 列出「agent 层靠它放行、模型却只能从 schema 里学到」的
+// 参数（逃生口）。它们此前只写在全量 Schema() 里，而模型恒看 compact 版——
+// 守 schema 的模型不会发未声明的字段，闸门的豁免口等于不存在。
+//
+// 2026-11-26 造价反馈三批实测：write_file 的 overwrite 就是这样——同回合闸
+// （execute_one.go）靠 overwrite:true 豁免，compact schema 没声明，三场 26 次
+// write_file 调用 0 次带上，太原场被连拒 5 次（参数体三次字节相同）。
+var modelMustSeeParams = map[string][]string{
+	"write_file": {"overwrite"},
+	"move_file":  {"overwrite"},
+}
+
+// TestCompactSchemaDeclaresEscapeHatches 钉住逃生口：这些参数必须在模型实见
+// 的 compact schema 里（全量 schema 有不算——模型看不到全量版）。
+func TestCompactSchemaDeclaresEscapeHatches(t *testing.T) {
+	tools := productionCompactTools(t)
+	for name, params := range modelMustSeeParams {
+		tl, ok := tools[name]
+		if !ok {
+			t.Fatalf("modelMustSeeParams 点名的 %q 不在枚举面里", name)
+		}
+		cd, ok := tl.(tool.CompactDescriptor)
+		if !ok {
+			t.Fatalf("%s 不是 CompactDescriptor——逃生口检查只对模型恒看 compact 的工具成立", name)
+		}
+		var compact struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(cd.CompactSchema(), &compact); err != nil {
+			t.Fatalf("%s: CompactSchema() 不是合法 JSON: %v", name, err)
+		}
+		for _, p := range params {
+			if _, ok := compact.Properties[p]; !ok {
+				t.Errorf("%s: compact schema 缺 %q——agent 层靠它豁免，模型看不到就永远发不出来", name, p)
+			}
+		}
+	}
+}
+
 // assertSchemaSubset asserts compact ⊆ full for one schema node:
 //   - compact.required ⊆ full.required
 //   - compact.required ⊆ compact.properties (well-formedness)

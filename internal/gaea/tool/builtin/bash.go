@@ -88,7 +88,7 @@ func (b bash) Description() string {
 		"and a deleted working directory falls back to the workspace root. " +
 		"Direct rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
 		"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; heredocs add fragile shell/Python escaping layers, and a heredoc longer than a few KB is truncated outright (HEREDOC_TRUNCATED) — write the script with write_file first, then execute it by path. " +
-			"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
+		"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
 		"Set output_format=json to get structured result with separated stdout/stderr fields."
 }
 
@@ -190,8 +190,16 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		if len(raw) > 120 {
 			raw = append(raw[:120], []rune("…")...)
 		}
+		// 2026-11-26 造价反馈（旺平 #1）：参数体就是 {} 时，「把 command 放进
+		// command 字段重试」是句废话——模型照做五次五空（实测 70 秒内连发），
+		// 改走「write_file 落盘脚本 + 短命令」才通。空体单列话术，直接给出这条路。
+		guide := "command 缺失或值为空，把命令字符串放进 command 字段重试。"
+		if n == 0 {
+			guide = "收到的参数体就是空的——不是 command 拼错，是命令没发出来。" +
+				"原样重发多半还是空：第二次仍空就换路，用 write_file 把脚本落盘，再用短命令执行（如 python 脚本路径）。"
+		}
 		return "", &tool.Failure{Code: tool.CodeValidationError,
-			Err:         fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——command 缺失或值为空，把命令字符串放进 command 字段重试。原始参数回显（%d 字节）：%q", n, names, len(args), string(raw)),
+			Err:         fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——%s原始参数回显（%d 字节）：%q", n, names, guide, len(args), string(raw)),
 			EffectState: tool.EffectNone}
 	}
 
