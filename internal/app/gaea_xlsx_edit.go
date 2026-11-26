@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -146,12 +147,12 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 	// 载荷摘要，After 为应用摘要；单元格级 old/new 由 Verifier 对基线快照复核）。
 	appendXlsxEvidence(rel, ops, summary, baseline)
 	recalcNote := ""
-	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
+	if rep, rerr := xlsxedit.Recalc(path); rerr == nil {
 		if rep.TotalErrors > 0 {
 			recalcNote = fmt.Sprintf("；重算发现 %d 处公式错误（%s）", rep.TotalErrors, rep.Status)
 		}
-	} else if strings.Contains(rerr.Error(), "未找到 recalc.py") {
-		recalcNote = "；公式重算跳过（未找到 recalc.py）"
+	} else if errors.Is(rerr, xlsxedit.ErrRecalcUnavailable) {
+		recalcNote = "；公式重算跳过（本机缺 LibreOffice 或 Python 环境）"
 	}
 	// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：预览失败不得让已落盘的编辑报错
 	// ——ApplyOps 已成功、证据卡已记，此处报错=「副作用已发生却报失败」的
@@ -275,7 +276,7 @@ func (a *App) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
 	}
 
-	rep, rerr := xlsxedit.Recalc(path, gaeaCwd())
+	rep, rerr := xlsxedit.Recalc(path)
 	if rerr != nil {
 		return XlsxEditResult{}, fmt.Errorf("公式重算失败：%w", rerr)
 	}
@@ -429,12 +430,12 @@ func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (res XlsxEditResult
 // renderXlsxAfterChange 通用收尾：LibreOffice 重算（best-effort）→ 渲染预览。
 func (a *App) renderXlsxAfterChange(path, summary string, applied int) (XlsxEditResult, error) {
 	recalcNote := ""
-	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
+	if rep, rerr := xlsxedit.Recalc(path); rerr == nil {
 		if rep.TotalErrors > 0 {
 			recalcNote = fmt.Sprintf("；重算发现 %d 处公式错误（%s）", rep.TotalErrors, rep.Status)
 		}
-	} else if strings.Contains(rerr.Error(), "未找到 recalc.py") {
-		recalcNote = "；公式重算跳过（未找到 recalc.py）"
+	} else if errors.Is(rerr, xlsxedit.ErrRecalcUnavailable) {
+		recalcNote = "；公式重算跳过（本机缺 LibreOffice 或 Python 环境）"
 	}
 	preview, err := xlsxpreview.Render(path)
 	if err != nil {

@@ -1,9 +1,9 @@
 package app
 
-// xlsx_recalc — 灵犀 optimize plan P1-2 的公式重算工具：把既有 LibreOffice
-// 重算链（xlsxedit.Recalc，.gaea/skills/xlsx/scripts/recalc.py 宏）暴露成
-// agent 工具面。原 GaeaXlsxRecalc 是前端「重算」钮用的（返回预览投影），
-// 本工具给 agent 返回重算报告文本。
+// xlsx_recalc — 灵犀 optimize plan P1-2 的公式重算工具：把 LibreOffice
+// 重算链（xlsxedit.Recalc——重算脚本随 gaea 二进制内嵌，2026-11-26 起不再取
+// 自技能目录；每次调用一份独立配置目录）暴露成 agent 工具面。原 GaeaXlsxRecalc
+// 是前端「重算」钮用的（返回预览投影），本工具给 agent 返回重算报告文本。
 //
 // 写面：重算会用缓存值改写文件（公式本身不动），因此实现 WritePathResolver
 // 声明 path；不落证据卡——刷新的是派生数据（公式结果缓存），公式与用户数据
@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -73,15 +74,21 @@ func (t xlsxRecalcTool) Execute(_ context.Context, args json.RawMessage) (string
 	if !xlsxedit.AuditFileExists(path) {
 		return "", fmt.Errorf("文件不存在：%s", in.Path)
 	}
-	rep, err := xlsxedit.Recalc(path, gaeaCwd())
+	rep, err := xlsxedit.Recalc(path)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "recalc.py") ||
-			strings.Contains(err.Error(), "重算失败") {
-			return "", fmt.Errorf("公式重算不可用：%v（需要本机 LibreOffice 与 .gaea/skills/xlsx/scripts/recalc.py）。"+
-				"重算没做成，文件里的公式缓存值就没刷新——不要声称「公式已计算/结果已校验」，如实告知用户本机缺 LibreOffice；"+
+		switch {
+		case errors.Is(err, xlsxedit.ErrRecalcNotWorkbook):
+			return "", fmt.Errorf("文件不是能打开的 .xlsx（zip 结构坏了），重算没做：%v——先核实文件是否写完整，不要去 xlsx_audit 找单元格", err)
+		case errors.Is(err, xlsxedit.ErrRecalcRead):
+			return "", fmt.Errorf("读取重算结果失败（瞬时读取错误，已自动重试 1 次仍失败）：%v——"+
+				"这是文件读取环节的问题，不是公式问题，不要去 xlsx_audit 找单元格；文件多半没坏，原样再调一次 xlsx_recalc", err)
+		case errors.Is(err, xlsxedit.ErrRecalcUnavailable):
+			return "", fmt.Errorf("公式重算不可用：%v（需要本机 python+openpyxl 与 LibreOffice）。"+
+				"重算没做成，文件里的公式缓存值就没刷新——不要声称「公式已计算/结果已校验」，如实告知用户本机缺重算环境；"+
 				"确实需要结果数值时，用 excelize CalcCellValue 类思路在脚本里逐格算并明确标注「脚本估算值，非重算缓存」", err)
+		default:
+			return "", fmt.Errorf("公式重算失败：%v——不要声称重算完成；用 xlsx_audit 看具体单元格后修复再试", err)
 		}
-		return "", fmt.Errorf("公式重算失败：%w——不要声称重算完成；用 xlsx_audit 看具体单元格后修复再试", err)
 	}
 	// 重算已成功落盘：随后的审计只是给回执附证据，跑不成也不把这次调用
 	// 判成失败（文件确实重算过了），只在回执里如实说明并指向 xlsx_audit。
@@ -121,10 +128,28 @@ func formatRecalcReceipt(rep xlsxedit.RecalcReport, audit xlsxedit.AuditReport, 
 			b.WriteString("\n零错误，达到交付门（重算后审计：错误值/自引用/未重算均为零）。")
 		}
 	default:
-		b.WriteString("\n未达交付门——按下面审计结果修复后再次重算。重算后审计：\n")
+		if n := countAuditKind(audit.Findings, "missing_cache"); n > 0 && n == len(audit.Findings) && rep.TotalErrors == 0 {
+			// 没有错误值、没有自引用，只是公式没缓存值：多半是重算没生效（文件没被
+			// LibreOffice 真正写过），也可能是公式结果本身就是空字符串——两种都不该
+			// 按「公式写错了」去改（2026-11-26 宁丰反馈 #1）。
+			fmt.Fprintf(&b, "\n未达交付门——%d 个公式重算后没有缓存值。先原样再调一次 xlsx_recalc（上一次重算可能没生效）；仍有则逐格核对，结果本应为空的公式不算问题。清单：\n", n)
+		} else {
+			b.WriteString("\n未达交付门——按下面审计结果修复后再次重算。重算后审计：\n")
+		}
 		b.WriteString(formatAuditFindings(audit, recalcAuditLimit))
 	}
 	return b.String()
+}
+
+// countAuditKind 数审计发现里某一类的条数。
+func countAuditKind(findings []xlsxedit.AuditFinding, kind string) int {
+	n := 0
+	for _, f := range findings {
+		if f.Kind == kind {
+			n++
+		}
+	}
+	return n
 }
 
 // recalcAuditLimit 是重算回执里审计发现的最多个数（全文清单用 xlsx_audit）。

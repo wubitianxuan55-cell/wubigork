@@ -33,6 +33,8 @@ func TestGaeaSelfGenerateCost(t *testing.T) {
 		t.Fatal("仓库 .env 缺少 DEEPSEEK_API_KEY")
 	}
 	os.Setenv("DEEPSEEK_API_KEY", key)
+	// 真实工具链里 xlsx_recalc 必须可用：TestMain 为其余用例关掉了重算，这里开回来。
+	os.Unsetenv("GAEA_RECALC_DISABLE")
 
 	workdir := t.TempDir()
 	recalc := filepath.Join(root, ".gaea", "skills", "xlsx", "scripts", "recalc.py")

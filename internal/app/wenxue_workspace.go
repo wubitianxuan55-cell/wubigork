@@ -1471,7 +1471,7 @@ func (a *App) WenxuePreview(rel string) PreviewResult {
 	case ".xlsx":
 		// 公式无缓存值时先补一次 LibreOffice 重算，保证预览显示计算结果
 		if need, _ := xlsxpreview.NeedsRecalc(path); need {
-			_, _ = xlsxedit.Recalc(path, wenxueWorkspace())
+			_, _ = xlsxedit.Recalc(path)
 		}
 		j, err := xlsxpreview.Render(path)
 		if err != nil {

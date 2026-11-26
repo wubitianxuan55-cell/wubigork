@@ -348,8 +348,8 @@ func TestXlsxProfileToolShape(t *testing.T) {
 }
 
 // TestXlsxApplyCleanToNumberFullChain 新 clean 字段经 GaeaXlsxApplyEdit 全链
-// （基线快照→ApplyOps→Recalc→证据卡；测试环境无 recalc.py，回执如实带
-// 「公式重算跳过」备注——既有测试同款 seam）。
+// （基线快照→ApplyOps→Recalc→证据卡；TestMain 用 GAEA_RECALC_DISABLE 关掉了重算，
+// 回执如实带「公式重算跳过」备注）。
 func TestXlsxApplyCleanToNumberFullChain(t *testing.T) {
 	ws := isolateOfficeWorkspace(t)
 	rel := filepath.Join("表", "清洗.xlsx")

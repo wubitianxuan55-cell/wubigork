@@ -2,7 +2,6 @@ package xlsxedit
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -355,35 +354,5 @@ func TestBuildContext(t *testing.T) {
 	}
 	if len(ctx.Sample) == 0 || ctx.Sample[0][0] != "北京-朝阳" {
 		t.Errorf("抽样数据错误: %v", ctx.Sample)
-	}
-}
-
-// TestSmokeRecalc 真实调用 recalc.py（LibreOffice 重算），默认跳过：
-//
-//	GAEA_SMOKE_RECALC=1 go test ./internal/office/xlsxedit -run TestSmokeRecalc -v
-func TestSmokeRecalc(t *testing.T) {
-	if os.Getenv("GAEA_SMOKE_RECALC") == "" {
-		t.Skip("未设置 GAEA_SMOKE_RECALC")
-	}
-	path := buildBase(t)
-	if _, err := ApplyOps(path, []Op{{Type: "set_formula", Sheet: "数据", Target: "B5", Formula: "SUM(B2:B4)"}}); err != nil {
-		t.Fatal(err)
-	}
-	root, _ := os.Getwd()
-	for i := 0; i < 4; i++ {
-		if _, err := os.Stat(filepath.Join(root, ".gaea", "skills", "xlsx", "scripts", "recalc.py")); err == nil {
-			break
-		}
-		root = filepath.Dir(root)
-	}
-	rep, err := Recalc(path, root)
-	if err != nil {
-		t.Fatalf("重算失败: %v", err)
-	}
-	if rep.Status != "success" && rep.Status != "errors_found" {
-		t.Fatalf("重算状态异常: %+v", rep)
-	}
-	if rep.TotalFormulas < 1 {
-		t.Errorf("重算后公式数 = %d，期望 ≥1", rep.TotalFormulas)
 	}
 }

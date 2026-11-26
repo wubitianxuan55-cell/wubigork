@@ -8,14 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
-	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -639,60 +637,7 @@ func adjustRowRefs(formula string, delta int) string {
 	return b.String()
 }
 
-// ── LibreOffice 重算 ────────────────────────────────────────
-
-// RecalcReport 是 recalc.py 的 JSON 输出。
-type RecalcReport struct {
-	Status        string                 `json:"status"`
-	TotalErrors   int                    `json:"total_errors"`
-	TotalFormulas int                    `json:"total_formulas"`
-	ErrorSummary  map[string]interface{} `json:"error_summary"`
-	Error         string                 `json:"error"`
-}
-
-// Recalc 调用技能环境里的 recalc.py（LibreOffice 宏重算公式并扫描错误）。
-// workspaceRoot 用于定位 .gaea/skills/xlsx/scripts/recalc.py。
-func Recalc(path, workspaceRoot string) (RecalcReport, error) {
-	script := findRecalcScript(workspaceRoot)
-	if script == "" {
-		return RecalcReport{}, fmt.Errorf("未找到 recalc.py（.gaea/skills/xlsx/scripts）")
-	}
-	cmd := exec.Command("python", script, path, "60")
-	cmd.Env = proc.CommandEnv()
-	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return RecalcReport{}, fmt.Errorf("重算失败: %v（%s）", err, truncate(string(out), 300))
-	}
-	var rep RecalcReport
-	if err := json.Unmarshal(out, &rep); err != nil {
-		return RecalcReport{}, fmt.Errorf("重算输出解析失败: %v（%s）", err, truncate(string(out), 300))
-	}
-	if rep.Error != "" {
-		return rep, fmt.Errorf("重算出错: %s", rep.Error)
-	}
-	return rep, nil
-}
-
-func findRecalcScript(workspaceRoot string) string {
-	candidates := []string{
-		filepath.Join(workspaceRoot, ".gaea", "skills", "xlsx", "scripts", "recalc.py"),
-		filepath.Join(workspaceRoot, "skills", "xlsx", "scripts", "recalc.py"),
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates,
-			filepath.Join(home, ".codex", "skills", "xlsx", "scripts", "recalc.py"),
-			filepath.Join(home, ".gaea", "skills", "xlsx", "scripts", "recalc.py"),
-		)
-	}
-	for _, c := range candidates {
-		if info, err := os.Stat(c); err == nil && !info.IsDir() {
-			return c
-		}
-	}
-	return ""
-}
-
+// truncate 把超长输出截到 n 字节并加省略号（错误信息里带脚本输出用）。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

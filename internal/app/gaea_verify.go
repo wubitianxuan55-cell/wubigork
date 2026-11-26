@@ -197,7 +197,7 @@ func verifyRecordAt(st *evidence.JournalStore, rec evidence.ChangeRecord, id str
 	case "xlsx_apply":
 		if _, err := os.Stat(target); err != nil {
 			v.ChannelA = "fail: 目标文件不存在"
-		} else if rep, err := xlsxedit.Recalc(target, cwd); err != nil {
+		} else if rep, err := xlsxedit.Recalc(target); err != nil {
 			v.ChannelA = "fail: 公式重算失败 " + err.Error()
 		} else if rep.TotalErrors > 0 {
 			v.ChannelA = fmt.Sprintf("fail: 重算发现 %d 处公式错误", rep.TotalErrors)

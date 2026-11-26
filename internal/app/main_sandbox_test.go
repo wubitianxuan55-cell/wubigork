@@ -34,6 +34,10 @@ func TestMain(m *testing.M) {
 		os.Setenv("USERPROFILE", home)
 		os.Setenv("HOME", home)
 	}
+	// xlsx 链路的既有用例都会走到 LibreOffice 重算（ApplyOps→Recalc、预览、Verifier），
+	// 此前靠「测试工作区没有 recalc.py」自然跳过；2026-11-26 重算脚本内嵌后不再有
+	// 这个天然缺席——显式关掉，测试不拉起 LibreOffice，回执照旧带「公式重算跳过」备注。
+	os.Setenv("GAEA_RECALC_DISABLE", "1")
 	code := m.Run()
 	os.Exit(code)
 }
