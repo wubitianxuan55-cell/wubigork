@@ -1031,3 +1031,31 @@ CREATE TABLE IF NOT EXISTS gf_gcode_seq (
 const SchemaV42 = `
 ALTER TABLE facts ADD COLUMN mode_id TEXT NOT NULL DEFAULT '';
 `
+
+// SchemaV43 本地向量索引底座（2026-11-26 造价库接入本地模型索引：清单 / 定额 / 工料机）：
+// semantic_vec2 按类目存二进制向量（float32 小端，bge-m3 1024 维 = 4KB/条；旧表
+// semantic_vectors 存 JSON，一条十几 KB 且每次查询全量读出解析，库一大先慢后废），
+// 连同正文哈希与模型名 / 维度——正文变了重嵌、换了模型整类目重嵌，都靠这两列判定。
+// semantic_vec2_meta 每类目一行的版本号：索引器每写一批 +1，内存缓存按它判失效。
+// 只服务造价库三类；其余类目仍用旧表，本批不动。读写口径见 internal/gaea/vecindex。
+const SchemaV43 = `
+CREATE TABLE IF NOT EXISTS semantic_vec2 (
+  kind       TEXT    NOT NULL,
+  id         TEXT    NOT NULL,
+  model      TEXT    NOT NULL,
+  dim        INTEGER NOT NULL,
+  vec        BLOB    NOT NULL,
+  hash       BLOB    NOT NULL,
+  doc        TEXT    NOT NULL DEFAULT '',
+  updated_at TEXT    NOT NULL DEFAULT '',
+  PRIMARY KEY (kind, id)
+);
+CREATE TABLE IF NOT EXISTS semantic_vec2_meta (
+  kind       TEXT PRIMARY KEY,
+  version    INTEGER NOT NULL DEFAULT 1,
+  model      TEXT    NOT NULL DEFAULT '',
+  dim        INTEGER NOT NULL DEFAULT 0,
+  count      INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT    NOT NULL DEFAULT ''
+);
+`
