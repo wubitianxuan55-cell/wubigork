@@ -1,3 +1,28 @@
+## 文学板块对办公优化的同步批（2026-11-26，未提交未装机；审计→施工同一会话，ZCode）
+
+用户问「办公板块进行了多次优化，文学板块相同的部分有没有同步」→ 只读审计 → 用户令「开始」。分叉点 44f8bb6b（11-15）。
+
+- **审计结论**：引擎/后端对齐（两板块共用 `boot.Build`；工具梳理两批同批改了 wenxue deny 名单/前端 disabledDomains/wailsjs；`boot.Options` 逐字段比对，办公独传的只有运行模式三项与 DAG 执行器）。未同步的全在前端 fork 树。
+- **落地**：
+  1. 上下文视图 `contextWindow`（57daf182）：`ContextModal`/`ContextView` + App 两处挂点——切模型后已打开的上下文 tab 重拉。
+  2. 能力摘要宽度截断（d30cb5d2）：`wenxue/lib/capabilities.ts` 改转发办公模块。
+  3. 子代理体验（f7dc3063/712ac51e/fc120738/73d1a906）：`lib/taskActivity.ts`（后台回执信封剥离/全部运行匹配/委派命名）、`Transcript.tsx`（委派显示名贯通；后台启动回执与子代理答复不在父对话重复成行）、`SubagentThread.tsx` 与 `lib/types/agent.ts`·`subagent.ts`·`context/AgentRadial.tsx` 取办公现版（与办公仅差上述提交）、`useTaskCards` 打开目标/歧义在**全部运行**里匹配（后台完成卡可点；打开链路第一批仍走主区会话 tab，第二批改开右栏 pane，见下）。
+  4. 能力面板重设计（f3f9b5b0 + 6d4c6dfc）：`CapabilitiesPanel` 壳/`CapabilitiesInline`/`SkillsSection`/`ServersSection` 取办公现版（技能区保留办公域过滤），`ToolsSection` 渲染面换办公新版、数据面保留图文静态兜底表（功能分组：`wenxue_*` 归「图文专属」；`ToolSurfaceEntryB` 补 `group`）；样式直接引办公 `capabilities.css`（`components/capabilities/` 下是三级 `../../../`，写错两级 vite 解析失败）。`disabledDomains.ts` 补 `cost_library`（799e9ba8 只改了 Go 侧）。
+  5. CSS 补查（首轮审计没比样式）：灵犀皮肤文件卡色值接主题 token（10 条）、对话两处强调色、代码高亮接 `--syntax-*` 并修浅色选择器（`.wx-root :root[data-hl="light"]` 永不命中，分叉起文学浅色主题代码块一直用暗色配色）、上下文视图补 5 段 @media 并清掉**分叉坏尾**（文件尾 5 段 `@media` 后面是生成脚本泄漏的 JS 数组字面量，自 44f8bb6b 起；坏块不闭合会吞掉后续规则）。
+- **分叉结构缝（施工中由测试牵出）**：
+  - i18n：文学复用的办公组件（ToolCard 委派卡、ApprovalModal…）查的是文学词典，办公后加的 10 个键缺失（委派卡等待态显示裸键名 `tool.delegateWaiting`）→ `wenxue/lib/i18n.tsx` 缺键按同语言回落办公词典。
+  - 双份模块：`components/Toast.tsx`、`lib/useNow.ts` 逐字拷贝 → 改转发（Context 按子树、时钟全局，keepAlive 下安全；此前办公组件在文学里拿到的是缺省空实现，提示被静默丢弃）。
+  - **keepAlive 下两板块 App 同挂，模块单例不能合并**（后挂载的注册覆盖先挂载）：新增 `gaea/components/boardPorts.ts`（Context 缝，未提供=模块单例，办公行为不变；初名 toolCardPorts.ts，第二批扩成板块级读口），`gaea/components/ToolCard.tsx`·`FileLinkText.tsx` 读口改经缝；文学 `ToolCard` 包装壳提供本树 `taskActivity`/`paneFileOpen` 槽位。此前文学侧子代理卡读不到自己的活动/打开器（无实时动态、点击不开会话）、卡内文件链接落到办公那侧的预览库。
+- **审计更正**：首轮报告的「Esc 分层未同步」是误报（`app/useAppKeyboard.ts`、`components/Composer.tsx`、`components/ToolCard.tsx` 都是转发桩/包装壳，共用办公实现）——教训：**孪生文件要先读正文再判，只搜关键字会把转发桩当成缺失**。
+- **验证**：`tsc -b` 0 错；vitest wenxue 27 文件 182 例全绿（首跑 1 例 `WenxueSettingsHub` 负载抖动：单跑 7/7、复跑全量绿）；办公回归 5 文件 96 例绿（ToolCard.i18n/FileLinkText/taskActivity/Transcript/Message）；eslint 32 个改动文件 0 错 0 警告；`npm run build`（tsc -b && vite build）过。新增测试：拷办公 `taskActivity`/`Transcript`/`ContextModal`/`SubagentThread` 四份到 wenxue + 能力面板三份 9 例。**未做**：桌面构建、装机、真机走查。
+- **第二批（用户令「你说的 3 样都做」，同日）**：
+  1. **右栏子会话窗 + 子智能体目录树 + 插话**：Go 新增 `WenxueSubagentSteer`（`wenxue_subagent.go`——插话的终态腿走追问管道，此前映射到办公绑定会把图文子代理的追问交给办公 runner，事件落办公通道）；**独立 Stop 不换锚**（审查批6 留档的决定不变：中断面按 ref 全局寻址、与引擎无关，直用 `GaeaSubagentStop`；我上一轮说「需新增两个绑定」有误）。门面与清单走生成器：`go run ./scripts/gen_bindings`（门面 +1）、`-names`/`-legacy-ts`/`-signatures-ts`（办公树）；文学树手补 `bindingNames`/两份 `bindingSignatures`/`legacyBindings`（`GaeaSubagentSteer` 落 legacy）+ `mappings.ts` 换锚 + wailsjs `WenxueB.d.ts/.js` 手补（下次 `wails build` 会再生，届时 diff 应为零）。前端：`SubagentPaneChat`/`SubagentCatalogButton` 取办公现版、`WorkspacePane` 特例渲染、`paneTabs` 加 `openSubagentPane` 且净化认 `subagent` 并保留 `meta.subagentRef`、App 接 `openSubagentAside`（委派卡与歧义选择器点开右栏，主对话不再被切走）+ 顶栏目录树 + 面包屑谱系、`useTaskCards` 取办公现版；词典补 `subagent.catalog*`/`openAside` 三键三语。
+  2. **附件条预览缝**：`boardPorts.ts` 加 `openFilePreview`，共享 `ComposerAttachmentBar` 经缝取预览入口（未提供=办公预览库）；文学 `lib/boardPorts.ts` 单源读口，`ToolCard`/`Composer` 两个包装壳提供。
+  3. **文学工具面预算守卫** `wenxue_toolface_test.go`（真实 `WenxueEngineInit` 装配口径）：首测 55 件 / 17682 字符，**量出造价/长文方案两组 6 件办公运行模式工具混进文学工具面**（`cost_project_apply`/`cost_project`/`cost_audit`/`longdoc_manifest`/`longdoc_build`/`longdoc_verify`，约 4400 字符、25%）——办公靠运行模式 ToolHide 藏掉，文学没有这一层，名单式 deny 又只钉了两组的一部分成员 → `wenxue_tool_policy.go` 加按组反查整组拒绝（`wenxueDeniedGroups`），前端 `disabledDomains` 前缀同批补 `cost_`/`longdoc_`/`proposal_`；复测 **49 件 / 13285 字符**，预算钉 49 件 / 13750 字符。
+- **验证（第二批后）**：`tsc -b` 0 错；vitest wenxue 30 文件 201 例、办公回归 15 文件 165 例全绿；eslint 54 个改动文件 0 错 0 警告；`go vet ./internal/app` 过；`go test ./internal/app -run 'TestWenxue|TestBindingsCompleteness|TestOfficeToolFaceBudget'` 全过；`scripts/check-bindings-drift.ps1` OK（665 个方法）。新增测试：`wenxue_subagent_test.go`、`wenxue_toolface_test.go`、`wenxue_tool_policy_test.go` 按组用例；前端拷办公 `SubagentCatalogButton`/`subagentRunsStore` 两份 + 新 `paneTabs.test.ts` + `WorkspacePane` 子会话 pane 用例。**未做**：桌面构建、装机、真机走查。
+- **挂池**：①下次 `wails build` 后核对 wailsjs 生成件 diff 为零；②文学树绑定清单自 11-25 造价库重建后未再生（仍挂 59 个已退役造价名、缺 2 个新造价名；不影响运行），本批只补了本次新增的一名；③`wenxue_*` 专属 19 件约 4200 字符，是后续梳理候选面；④文学工具面里还有办公标准档也有的通用件（`ai_feedback`/`md_validate`/`send_message`），本批未动。
+- **审计脚本**（系统临时目录 `wx_audit/`，未入库；需要时按 `.gaea/progress.md` 本条与记忆里的方法重写）：reach（可达性）/ mirror（提交×文件增量核对）/ csscmp（样式规则级比对）/ i18ncheck / dualmod。
+
 ## 铜陵六表反馈批 + 测算样表化（2026-11-25，删渲染器拍板；本节提交号见 git log）
 
 用户先交《铜陵项目六表编制_软件使用反馈与建议》（15 条），令「修复问题」，中途追加「六表排版比五表差远了，一起调整」；看了效果图后先纠「封面是不是设计错了」（修：信息区+整行合并）；再交人工精修样表令「把这个作为测算模版，已测试可以导入」，我开动手工复刻渲染器时被拍板：**「删除渲染器这条思路，你现在没有能力完美复刻这个表格，而且彻底堵死后续模型的发挥。提供样本给模型，再进行约束」**；我问意见后用户令「开始吧」，又补「工料机不用预填写，模型自己检索引用」。中途再次被质「就没有自己的思想吗」——连续两次顺着执行不给意见，已记 feedback。
@@ -7860,3 +7885,45 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   无法区分。修法=备份后删前三个键（是否保留 xai 生图设置由用户定）；没动。
 - 偶发：TestWenxueChatSessionBindingSmoke 在四分片负载下 TempDir 清理撞上仍被
   占用的会话日志句柄一次（单跑 5/5 绿，第二次全量也绿）——存量 flaky，未改。
+
+## 2026-11-26 重算脚本内嵌 + LibreOffice 独立配置目录（宁丰反馈 #1；主树装机 PID 13748，未提交、未打包）
+
+- 用户令「吸收重算脚本」（6 条反馈的分诊见记忆
+  gaea-ningfeng-feedback-2026-11-26-triage；其余 4 条小刀未令、未动）。新增
+  internal/office/xlsxedit/recalc.go、scripts/recalc.py（go:embed）、
+  recalc_test.go、recalc_smoke_test.go；xlsxedit.go 删旧 Recalc/
+  findRecalcScript；7 个调用点随签名改为 Recalc(path)。
+- 来历：重算链原先到 工作区 .gaea/skills → ~/.codex/skills → ~/.gaea/skills 找
+  recalc.py——脚本不是 gaea 的，用户机上命中的是 Codex 技能目录的副本。对照
+  实验坐实：soffice 走默认配置目录时，机器上另有 LibreOffice 实例（忙或空闲）
+  就被转交并立刻返回，文件没重算而脚本回「成功」（6/6）。宁丰会话里那次 zlib
+  报错 28 次未复现，成因未证实（会话时序严格串行）。
+- 改后：脚本自包含内嵌；每次调用复制一份独立配置目录
+  （-env:UserInstallation）去跑，用完即删。首次让 LibreOffice 自己初始化
+  （约 5s）并留作模板 %LOCALAPPDATA%\gaea\lo-recalc\lo-recalc-profile-<脚本
+  指纹>，此后复制 0.1s + 重算 1.4s（原走默认目录 1.9s）。**手写最小配置目录
+  不行**：LibreOffice 对没经它初始化的目录挂住不返回（实测超 60s）。
+- Go 层 Recalc：zip 预检（打不开的文件秒退——交给 LibreOffice 会挂满 60s
+  超时）；回读类错误自动重试一次；模板复制件跑不起来=丢弃模板重建（自愈）；
+  失败三类 ErrRecalcUnavailable / ErrRecalcRead / ErrRecalcNotWorkbook，工具
+  回执分别指路，不再一律引去 xlsx_audit。全是「公式无缓存值」时回执改说
+  「重算可能没生效，原样再调一次」，不再当成公式写错。
+- 测试隔离：app 包 TestMain 置 GAEA_RECALC_DISABLE=1（此前靠「测试工作区没有
+  recalc.py」自然跳过，内嵌后不再有）；TestGaeaSelfGenerateCost 自行解除。
+- 门禁：xlsxedit 包全绿（新增离线 10 例，含内嵌脚本 python 语法守卫）；实弹
+  GAEA_SMOKE_RECALC=1 两例过——常规 11.2s、外部 LibreOffice 实例在场 4.9s，
+  均写回缓存值 B5=600；app 包 1424 例四分片 90s 零失败；gofmt / vet 净；
+  CGO_ENABLED=0 go build ./... 过。
+- 装机（用户令「构建桌面端」，主树日常装机流程，非干净树包）：HEAD a038e34f + 本刀
+  未提交改动（另有既有的仓根 4 张图片删除，仓内无引用）。frontend npm.cmd
+  run build 33.9s；wails build -s -ldflags "-s -w" -trimpath 53.3s（ucrt64 gcc、
+  系统 TMP、bindings 未跳过且 frontend/wailsjs 零漂移）；exe 60,073,472B
+  sha256 85DD1F23…DC090（load-time 导入含 sherpa-onnx-c-api.dll，内嵌
+  GAEA_RECALC_PROFILE 串在）；三 DLL 未变（68D0D5F5… / 408F9AB6… / DBAC55CE…）。
+  冒烟 /api/health 200（PID 59480 回收）→ INSTALL OK：装机位四件哈希与
+  build/bin 一致，新壳 PID 13748 启动 07:56:06 晚于构建 07:55:19，诊断口
+  healthz=ok。重算配置模板缓存在 %LOCALAPPDATA%/gaea/lo-recalc。
+  **未提交、未打包**（提交与干净树包待令）。
+- 未动/遗留：技能包那份 .gaea/skills/xlsx/scripts/recalc.py 原样——xlsx 技能
+  经 bash 调它仍走默认配置目录，同一缺陷在；前端「重算」钮路径
+  GaeaXlsxRecalc → renderXlsxAfterChange 连算两次（存量，未改）。
