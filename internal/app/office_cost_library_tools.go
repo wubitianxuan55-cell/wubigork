@@ -52,7 +52,7 @@ func (costLibraryTool) KeepSchemaDescriptions() bool { return true }
 // 「造价库维护」段）与 cost-estimate / cost-estimation-playbook 技能是出处；行
 // 字段契约随回执发放（office_cost_library_schema.go）。
 func (costLibraryTool) Description() string {
-	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【录入资料】资料格式不固定，由你读资料、整理后提交：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行 → import_check 勾稽 → 用户确认后 import_commit 写库；只有标准六表测算工作簿才走 import_project 快速通道。【新做测算】template 取测算样表（版式真源，六表契约照抄），填完过 xlsx_recalc → import_project dry_run=true 导回。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
+	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【录入资料】资料格式不固定，由你读资料、整理后提交：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行 → import_check 勾稽 → 用户确认后 import_commit 写库；综合单价表是三级树表的测算簿走 import_project 快速通道（综合单价表是唯一硬契约，其余表参考、可自由改版式）。【新做测算】template 取测算样表（版式真源），填完过 xlsx_recalc → import_project dry_run=true 导回。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
 }
 
 // clActionSkeletons 各动作的正确参数骨架：UsageHint（loop guard：给刚失败的调用
@@ -231,7 +231,7 @@ const costLibraryMaxRows = 500
 
 // costLibraryActionLabel 动作中文名（回执头与确认卡摘要共用口径）。
 var costLibraryActionLabel = map[string]string{
-	"import_project": "导入测算工作簿（六表）", "template": "生成测算模版", "save_quota": "保存定额", "delete_quota": "删除定额",
+	"import_project": "导入测算工作簿", "template": "生成测算模版", "save_quota": "保存定额", "delete_quota": "删除定额",
 	"save_resource": "保存工料机", "delete_resource": "删除工料机", "set_price": "工料机调价",
 	"bulk_price": "批量调价", "delete_items": "删除清单行", "delete_project": "删除项目",
 	"flywheel": "自生成企业定额", "dedupe": "工料机去重", "health": "库级健康扫描",
@@ -644,7 +644,7 @@ func clRoundingNote(b *workcost.ProjectBundle) string {
 	if flagged == 0 {
 		return ""
 	}
-	return fmt.Sprintf("ℹ 舍入口径 INFO：%d 条清单的综合单价按全精度编制（工作簿链未 ROUND）。库内单价按 2 位小数入库、三费逐段舍到分——导入后 cost_project summary 与工作簿差约 %+.2f 元（尾差不是口径分叉）。对齐办法：清单表综合单价列写 =ROUND(综合单价!S行,2)（实测 45 条清单可逐行吻合）。\n",
+	return fmt.Sprintf("ℹ 舍入口径 INFO：%d 条清单的综合单价按全精度编制（工作簿链未 ROUND）。库内单价按 2 位小数入库、三费逐段舍到分——导入后 cost_project summary 与工作簿差约 %+.2f 元（尾差不是口径分叉）。对齐办法：按样表的三层 ROUND 补齐——明细 H=ROUND(F×G,2)、定额行 H=ROUND(SUM(明细 H),2)、清单行 H=ROUND(Σ(定额 H×换算系数),2)，清单表综合单价 =ROUND(综合单价!H<组清单行>,2)（实测 45 条清单可逐行吻合）。\n",
 		flagged, exposure)
 }
 
@@ -816,7 +816,7 @@ func clMergeResource(target *workcost.Resource, in *costLibraryResource) (workco
 	return r, nil
 }
 
-// ── import_project：导入测算工作簿（六表模版） ────────────────────────
+// ── import_project：导入测算工作簿（综合单价表是硬契约，其余表参考）──────
 
 func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (string, error) {
 	rel := strings.TrimSpace(p.Path)
@@ -824,7 +824,7 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 		return "", fmt.Errorf("import_project 需要工作簿路径 path（.xlsx）")
 	}
 	if !strings.EqualFold(filepath.Ext(rel), ".xlsx") {
-		return "", fmt.Errorf("import_project 只收 .xlsx 测算工作簿（六表模版；收到 %s）", filepath.Ext(rel))
+		return "", fmt.Errorf("import_project 只收 .xlsx 测算工作簿（综合单价表须是三级树表；收到 %s）", filepath.Ext(rel))
 	}
 	abs, display := resolvePreviewPath(rel)
 	if abs == "" {
@@ -924,9 +924,28 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 	}
 	fmt.Fprintf(&out, "**规模**: 工料机 %d 条｜清单项 %d 条｜消耗行 %d 条", len(b.Resources), len(b.Items), len(b.Lines))
 	if len(b.QuotaBlocks) > 0 {
-		fmt.Fprintf(&out, "｜定额块 %d 个（三级行组：一个清单可挂多条定额）", len(b.QuotaBlocks))
+		fmt.Fprintf(&out, "｜定额块 %d 个（三级树表：一个清单可挂多条定额）", len(b.QuotaBlocks))
 	}
 	out.WriteString("\n")
+	// 工程量来源写明：清单表是参考表、可以按单项工程改版式——回执说清读到了几条，
+	// 剩下的是从综合单价「清单工程量」列兜底的，用户才知道改版式有没有被认出来。
+	if n := len(b.Items); n > 0 {
+		zero := 0
+		for _, it := range b.Items {
+			if it.Quantity == 0 {
+				zero++
+			}
+		}
+		switch rest := n - b.BillQuantityRows; {
+		case rest == 0:
+			fmt.Fprintf(&out, "**工程量来源**: 清单表 %d 条\n", n)
+		case zero == 0:
+			fmt.Fprintf(&out, "**工程量来源**: 清单表 %d 条｜综合单价「清单工程量」列 %d 条\n", b.BillQuantityRows, rest)
+		default:
+			fmt.Fprintf(&out, "**工程量来源**: 清单表 %d 条｜综合单价「清单工程量」列 %d 条｜无工程量 %d 条\n",
+				b.BillQuantityRows, rest-zero, zero)
+		}
+	}
 	fmt.Fprintf(&out, "**取费**: 企管 %s｜规费 %s｜利润 %s｜增值税 %s", clPct(b.Fee.ManagementRate), clPct(b.Fee.RegulatoryRate), clPct(b.Fee.ProfitRate), clPct(b.Fee.TaxRate))
 	if b.Fee.ControlPrice > 0 {
 		fmt.Fprintf(&out, "｜控制价 %s", clMoney(b.Fee.ControlPrice))
@@ -1150,13 +1169,12 @@ func (t costLibraryTool) template(_ *workcost.Store, p costLibraryArgs) (string,
 
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "**测算样表**: %s（来源：%s）\n", written, source)
-	buf.WriteString("版式以此为准——样表是测算模版的版式真源（人工精修、实测可导回）。程序不渲染、不预填：工料机价格表由你检索库价后自己填（cost_project action=resources / cost_library dims 查库，明细行按「编码」列引用、价格经公式带出）；费用汇总费率按项目填。样表里的预填行是上项目样例，可整段清掉。\n")
-	buf.WriteString("导入契约（破一条导回就废，其余版式随便发挥）：\n")
-	buf.WriteString("- 六张表名不可改：封面 / 清单 / 费用汇总 / 综合单价 / 工料机价格 / 工程量计算。\n")
-	buf.WriteString("- 综合单价行类只用 汇总/定额/人工/材料/机械/外委；组 = 1 汇总行 + 定额块（块 = 1 定额行 + 明细行）；清单编码填在汇总行 B 列。样表每组预置 2 块、每块 4 行明细：定额块数按清单的真实工序构成定，1 块完全合法（第二块留空，不要删行）；要 3 块以上、或清单超过 30 条，做法见 cost-estimate 技能「组与块怎么增减」。\n")
-	buf.WriteString("- 手填的列：行类 E、定额编码 F、定额名称 G、系数 H、资源编码 I、消耗量 L；资源名称 J、消耗单位 K、单价 M、合价 N 是公式，不要手填。清单条数定了先把末尾未用的组删掉再填（配方见技能），交付时没有空骨架。\n")
-	buf.WriteString("- 公式链照样表复制（VLOOKUP 取价、SUMIF 三费、系数乘定额单价），不许用手算数值覆盖公式；两层 ROUND 都要在——定额行 M=ROUND(SUM(明细合价),2)、清单 H=ROUND(综合单价!S行,2)。\n")
-	buf.WriteString("- 封面 A2 标题改成真实项目名（导回库即项目名）；「专业/地区/计价期」标签格与值格保持成对。费率列（费用汇总 D 列）按本项目口径填。\n")
+	buf.WriteString("版式以此为准——样表是测算模版的版式真源（人工精修、实测可导回）。程序不渲染、不预填：工料机价格表是空白骨架，由你检索库价后逐行填（cost_project action=resources / cost_library dims 查库，明细行按「编码」列引用、价格经公式带出；填了编码与名称的行单价不能空，空价按 0 计）；费用汇总费率按项目填。\n")
+	buf.WriteString("导入契约——只有综合单价表是硬约束，其余表是参考、可自由改版式（清单表按单项工程划分、加列、调列序都行）：\n")
+	buf.WriteString("- 综合单价表：表名含「综合单价」；三级树表，表头要有 层级 / 编码 / 名称 / 工程量 列；行型只看「层级」列：清单 / 定额 / 人工·材料·机械·外委；组 = 1 清单行 + 定额块（块 = 1 定额行 + 明细行）；清单编码填在清单行的编码列。样表每组预置 2 块、每块 4 行明细：定额块数按清单的真实工序构成定，1 块完全合法（第二块留空，不要删行）；要 3 块以上、一块超过 4 条明细、或清单超过 30 条，做法见 cost-estimate 技能「组与块怎么增减」。\n")
+	buf.WriteString("- 手填的列：层级 B、编码 C（清单编码 / 定额编码 / 工料机编码共用），清单行与定额行的名称 D、单位 E，明细行的含量 F（定额行的 F 是换算系数，样表预置 1）；明细行的名称 D、单位 E、单价 G 与各行的金额 / 合价 / 三费是公式，不要手填。清单条数定了先把末尾未用的组删掉再填（配方见技能），交付时没有空骨架。\n")
+	buf.WriteString("- 公式链照样表复制（VLOOKUP 取价、ROUND 金额链、SUMIF 三费、系数乘定额金额），不许用手算数值覆盖公式；两层 ROUND 都要在——定额行 H=ROUND(SUM(明细 H),2)、清单行 H=ROUND(Σ(定额 H×系数),2)、清单表综合单价=ROUND(综合单价!H<组清单行>,2)。\n")
+	buf.WriteString("- 其余表（参考）：清单表给清单项补工程量 / 分部，列名保留 编码 / 名称 / 单位 / 工程量 即可（「单项工程」列可顶替「分部」），没有这一行时工程量取综合单价「清单工程量」列（先 xlsx_recalc 才有值）；工料机价格表按 编码 / 类别 / 名称 / 单位 / 不含税单价 逐行填；封面 B2 写真实项目名（导回库即项目名，「项目名称」标签值与它同步）；费用汇总费率在 D17–D21（0 = 该段不计取）。\n")
 	buf.WriteString("交付两道门（全过才算完成）：xlsx_recalc（回执自带审计，写「零错误，达到交付门」才算过，不必再调 xlsx_audit；回执单列的「空结果」公式不算问题，未用槽位的公式可用 xlsx_apply clear_where 清）→ cost_library import_project dry_run=true（回执核对规模与口径）。\n")
 	fmt.Fprintf(&buf, "**下一步**: 按项目改内容（封面概况、清单、综合单价、费用汇总费率、工程量）；填完 import_project（path=%s，先 dry_run=true，specialty/region 给本项目口径）导回库。填法与口径见 cost-estimate 技能。", written)
 	return buf.String(), nil

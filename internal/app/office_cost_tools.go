@@ -316,7 +316,7 @@ func clViaMark(via string) string {
 // runSummary 现算汇总口（2026-11-21 造价门实测 4.1：金额是造价的核心产出，
 // 此前 items 只给量不给价，模型被迫自建 SQL 四表 join 算价——两条算价链任何
 // 口径偏差（损耗率/资源价覆盖/快照回退）都会出两份金额。本口复用库内
-// ComposeQuotas 现算链（唯一权威），取费公式与五表导出 writeSummarySheet 同源：
+// ComposeQuotas 现算链（唯一权威），取费公式与测算样表费用汇总的取费链同源：
 // 管理费=直接费×率；利润=(直接费+管理费)×率；规费=直接费×率；税前=四项显式
 // 相加；税=税前×率。手填价行人材机归属约定=**整价归材料**（无组价依据时唯一
 // 能保持 人+材+机=合价 恒等式的口径，此前靠模型自定——2026-11-21 拍板入文档）。
@@ -422,7 +422,7 @@ func (t costProjectTool) runSummary(projectID int64) (string, error) {
 		unit := 0.0
 		if qty > 0 {
 			// 清单综合单价取到分、合价=单价×工程量（2026-11-26 造价反馈，百锦路
-			// #6 / 太原 #9）：与六表工作簿 =ROUND(综合单价!S行,2) 同口径。此前本口
+			// #6 / 太原 #9）：与六表工作簿 =ROUND(综合单价!H<组清单行>,2) 同口径。此前本口
 			// 用全精度 S×量，与工作簿「取到分再乘」差出按量放大的尾数，模型只能
 			// 逐行对账去反推舍入口径。
 			raw := total
@@ -553,6 +553,7 @@ func (t costProjectApplyTool) Schema() json.RawMessage {
     "quantity_expr":{"type":"string","description":"工程量计算式（留痕，可选）"},
     "quota_code":{"type":"string","description":"主定额编码（与 quota_codes 合起来=该行全部挂接，整体替换；手填行留空）"},
     "quota_codes":{"type":"array","items":{"type":"string"},"description":"其余定额编码（1:N 挂接；与 quota_code 同一批落库）"},
+    "quota_factors":{"type":"object","description":"定额换算系数 {定额编码: 系数}（每一个清单单位含几个定额单位；须与 quota_code/quota_codes 同批给）。挂接量=清单工程量×系数；没列的定额沿用该行原有挂接的比例"},
     "feature":{"type":"string","description":"工序特征（可选）"},
     "price_override":{"type":"number","description":"手填单价（套定额行留 0=按定额现算）"},
     "list_price":{"type":"number","description":"原表综合单价快照（可选；不传=已有行保持原值，新行为 0）"}
@@ -587,18 +588,22 @@ type costProjectApplyArgs struct {
 }
 
 type costProjectApplyItem struct {
-	Code          string   `json:"code"`
-	Title         string   `json:"title"`
-	Unit          string   `json:"unit"`
-	Division      string   `json:"division"`
-	Specialty     *string  `json:"specialty"` // 不给=已有行保持原值，新行跟随项目默认专业
-	Quantity      float64  `json:"quantity"`
-	QuantityExpr  string   `json:"quantity_expr"`
-	QuotaCode     *string  `json:"quota_code"`
-	QuotaCodes    []string `json:"quota_codes"`
-	Feature       string   `json:"feature"`
-	PriceOverride float64  `json:"price_override"`
-	ListPrice     *float64 `json:"list_price"`
+	Code         string   `json:"code"`
+	Title        string   `json:"title"`
+	Unit         string   `json:"unit"`
+	Division     string   `json:"division"`
+	Specialty    *string  `json:"specialty"` // 不给=已有行保持原值，新行跟随项目默认专业
+	Quantity     float64  `json:"quantity"`
+	QuantityExpr string   `json:"quantity_expr"`
+	QuotaCode    *string  `json:"quota_code"`
+	QuotaCodes   []string `json:"quota_codes"`
+	// QuotaFactors 定额换算系数（定额编码 → 每一个清单单位包含几个定额单位），须与
+	// quota_code / quota_codes 同批提交：挂接量 = 清单工程量 × 系数。没列的定额沿用
+	// 该行原有挂接的比例，没有原挂接 = 跟随清单工程量。
+	QuotaFactors  map[string]float64 `json:"quota_factors"`
+	Feature       string             `json:"feature"`
+	PriceOverride float64            `json:"price_override"`
+	ListPrice     *float64           `json:"list_price"`
 }
 
 // anyRate 是否至少传了一个费率（partial 传参合法：没传的按 0=不计取）。
@@ -629,10 +634,21 @@ func (p costProjectApplyArgs) floatOr(v *float64, def float64) float64 {
 }
 
 // linksGiven 该行是否提交了定额挂接字段（提交了=整体替换该行的挂接集合）。
-func (it costProjectApplyItem) linksGiven() bool { return it.QuotaCode != nil || it.QuotaCodes != nil }
+func (it costProjectApplyItem) linksGiven() bool {
+	return it.QuotaCode != nil || it.QuotaCodes != nil || it.QuotaFactors != nil
+}
 
 // linkInputs 挂接集合（主定额在前，其余保序；空码与重复码剔除）。
-func (it costProjectApplyItem) linkInputs() []workcost.BillQuotaLinkInput {
+//
+// 挂接量 = 清单工程量 × 换算系数：系数取 quota_factors；没列的定额沿用该行原有挂接
+// 的比例（原挂接量 ÷ 原清单工程量）——重发一行只改名称、或导入时带进来的系数 ≠1，
+// 都不会被整体替换清成「跟随」。没有原挂接、或系数恰为 1 = 0（跟随清单工程量）。
+// existing / old = 该行落库前的样子（新行传 nil）。
+func (it costProjectApplyItem) linkInputs(existing *workcost.BillItem, old []workcost.BillQuotaLink) []workcost.BillQuotaLinkInput {
+	oldQty := map[string]float64{}
+	for _, l := range old {
+		oldQty[strings.TrimSpace(l.QuotaCode)] = l.Quantity
+	}
 	var out []workcost.BillQuotaLinkInput
 	seen := map[string]bool{}
 	add := func(c string) {
@@ -641,7 +657,27 @@ func (it costProjectApplyItem) linkInputs() []workcost.BillQuotaLinkInput {
 			return
 		}
 		seen[c] = true
-		out = append(out, workcost.BillQuotaLinkInput{QuotaCode: c})
+		f, listed := it.QuotaFactors[c]
+		if !listed && existing != nil && existing.Quantity > 0 && oldQty[c] > 0 {
+			f = oldQty[c] / existing.Quantity
+		}
+		var q float64
+		if it.Quantity > 0 && f > 0 && f != 1 {
+			q = it.Quantity * f
+		}
+		out = append(out, workcost.BillQuotaLinkInput{QuotaCode: c, Quantity: q})
+	}
+	if it.QuotaCode == nil && it.QuotaCodes == nil {
+		// 只给了系数、没给挂接集合：把系数套在该行原有挂接上（新行没有原挂接，
+		// 写前校验已拦下）。老数据可能只有单值主定额、没有挂接行——以它为准，
+		// 别把这一行清成无定额。
+		for _, l := range old {
+			add(l.QuotaCode)
+		}
+		if len(out) == 0 && existing != nil {
+			add(existing.QuotaCode)
+		}
+		return out
 	}
 	if it.QuotaCode != nil {
 		add(*it.QuotaCode)
@@ -650,6 +686,16 @@ func (it costProjectApplyItem) linkInputs() []workcost.BillQuotaLinkInput {
 		add(c)
 	}
 	return out
+}
+
+// badFactor 该行的换算系数有没有不合法的（负数）；有则返回报错文案。
+func (it costProjectApplyItem) badFactor(row int) string {
+	for code, f := range it.QuotaFactors {
+		if f < 0 {
+			return fmt.Sprintf("第 %d 行定额 %s 的换算系数 %g 不能为负。整批未写入", row, code, f)
+		}
+	}
+	return ""
 }
 
 // clProjectScope 项目口径的回显片段：专业/地区/计价期（一个都没给=空串）。
@@ -793,7 +839,17 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			if it.Quantity <= 0 {
 				return "", fmt.Errorf("第 %d 行工程量必须>0。整批未写入", i+1)
 			}
-			for _, in := range it.linkInputs() {
+			if msg := it.badFactor(i + 1); msg != "" {
+				return "", fmt.Errorf("%s", msg)
+			}
+			if it.QuotaFactors != nil && it.QuotaCode == nil && it.QuotaCodes == nil {
+				// 只给系数 = 套在该行原有挂接上：新行没有原挂接可套。
+				got, err := s.FindBillItem(p.ProjectID, strings.TrimSpace(it.Code))
+				if err != nil || got == nil {
+					return "", fmt.Errorf("第 %d 行只给了 quota_factors、没给 quota_code / quota_codes，而它不是已有行——换算系数须与挂接集合同批提交。整批未写入", i+1)
+				}
+			}
+			for _, in := range it.linkInputs(nil, nil) {
 				c := in.QuotaCode
 				q, err := s.GetQuota(c)
 				if workcostNotFound(err) {
@@ -805,6 +861,7 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			}
 		}
 		saved, droppedLinks, crossSpecialty := 0, 0, 0
+		factorRows := 0 // 挂接量带换算系数的行数（回执点名，免得模型以为都是跟随清单工程量）
 		for i, it := range p.Items {
 			code := strings.TrimSpace(it.Code)
 			item := workcost.BillItem{
@@ -817,12 +874,18 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			// 已有行：没传的字段保持原值——原表单价快照（2026-11-25 修：此前整行
 			// 重写会把 list_price 清零）、没提交挂接字段时的主定额、已归类的专业。
 			var existing *workcost.BillItem
+			var oldLinks []workcost.BillQuotaLink // 该行原有挂接：没给系数的定额沿用它的比例
 			if code != "" {
 				got, err := s.FindBillItem(p.ProjectID, code)
 				if err != nil {
 					return "", fmt.Errorf("第 %d 行查重失败: %w（整批未写入）", i+1, err)
 				}
 				existing = got
+				if existing != nil {
+					if old, lerr := s.BillQuotaLinks(existing.ID); lerr == nil {
+						oldLinks = old
+					}
+				}
 			}
 			if existing != nil {
 				item.ListPrice = existing.ListPrice
@@ -835,7 +898,7 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 			if it.Specialty != nil {
 				item.Specialty = strings.TrimSpace(*it.Specialty)
 			}
-			links := it.linkInputs()
+			links := it.linkInputs(existing, oldLinks)
 			if it.linksGiven() {
 				// 提交了挂接字段=整体替换；主定额列先写集合首项，落库后同步引用表。
 				item.QuotaCode = ""
@@ -856,16 +919,20 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 					for _, in := range links {
 						keep[in.QuotaCode] = true
 					}
-					if old, lerr := s.BillQuotaLinks(existing.ID); lerr == nil {
-						for _, l := range old {
-							if !keep[l.QuotaCode] {
-								droppedLinks++
-							}
+					for _, l := range oldLinks {
+						if !keep[l.QuotaCode] {
+							droppedLinks++
 						}
 					}
 				}
 				if _, err := s.SaveBillItemLinks(savedItem.ID, links); err != nil {
 					return "", fmt.Errorf("第 %d 行定额挂接写入失败（清单行已落库，修正后重发该行即可）: %w", i+1, err)
+				}
+				for _, in := range links {
+					if in.Quantity > 0 {
+						factorRows++
+						break
+					}
 				}
 				// 同专业优先（规矩，不拦只点名）：清单专业与挂接定额专业对不上，
 				// 说明没先借鉴生成本专业定额。
@@ -888,6 +955,9 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 		}
 		if crossSpecialty > 0 {
 			receipt += fmt.Sprintf("\n注意：%d 行挂接了别的专业的定额（清单专业与定额专业不一致）——清单套定额同专业优先：用 cost_library borrow_quota 以外专业定额为底生成本专业定额，再把这些行改挂过去。cost_audit 会点名。", crossSpecialty)
+		}
+		if factorRows > 0 {
+			receipt += fmt.Sprintf("\n其中 %d 行的定额挂接量 = 清单工程量 × 换算系数（quota_factors；没给系数的定额沿用该行原有挂接的比例）。要让某条定额改回跟随清单工程量，给它传系数 1。", factorRows)
 		}
 		return receipt, nil
 	default:

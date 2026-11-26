@@ -274,8 +274,6 @@ export const gaeaToGaea = {
   WorkcostProjectFees: "GaeaWorkcostProjectFees",
   WorkcostProjectParse: "GaeaWorkcostProjectParse",
   WorkcostProjectApply: "GaeaWorkcostProjectApply",
-  WorkcostProjectExport: "GaeaWorkcostProjectExport",
-  WorkcostProjectExportToWorkspace: "GaeaWorkcostProjectExportToWorkspace",
   WorkcostBillProjects: "GaeaWorkcostBillProjects",
   WorkcostBillItems: "GaeaWorkcostBillItems",
   WorkcostBillItemSave: "GaeaWorkcostBillItemSave",

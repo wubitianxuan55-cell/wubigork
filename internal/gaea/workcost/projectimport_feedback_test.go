@@ -75,28 +75,6 @@ func TestParseFeeSectionControlPrice(t *testing.T) {
 	}
 }
 
-// 行类空但有资源编码/消耗量的明细行显形为跳过行（太原 #2：此前被当成汇总行、
-// 撞「已见编码」静默丢弃——工作簿里它仍计入定额单价，库内却缺这条消耗）。
-// 清单自己的汇总行行类留空的合法形态不受影响。
-func TestParseUnitPriceSheetBlankKindDetailRowIsReported(t *testing.T) {
-	rows := [][]any{
-		{"序号", "清单编码", "项目名称", "计量单位", "行类", "定额编码", "定额名称", "系数", "资源编码", "资源名称", "消耗量单位", "消耗量", "单价", "合价", "", "", "", "", "综合单价"},
-		{"1", "Q1", "污染土清挖", "m³", "汇总", "", "", "", "", "", "", "", "", "", "", "", "", "", 70},
-		{"", "", "", "", "定额", "D1", "挖机挖装", 1, "", "", "", "", "", "", "", "", "", "", ""},
-		{"", "", "", "", "人工", "", "", "", "L01", "普工", "工日", 0.1, 300, 30, "", "", "", "", ""},
-		{"", "", "", "", "", "", "", "", "EXC", "挖机", "台班", 0.02, 2000, 40, "", "", "", "", ""}, // 行类漏填
-		{"2", "Q2", "污染土外运", "m³", "", "", "", "", "", "", "", "", "", "", "", "", "", "", 20},  // 汇总行行类留空：合法
-	}
-	b := &ProjectBundle{}
-	parseUnitPriceSheet(sheetWithRows(t, "综合单价", rows), "综合单价", b)
-
-	if len(b.Items) != 2 || b.Items[0].Code != "Q1" || b.Items[1].Code != "Q2" {
-		t.Fatalf("两条清单都应识别（含行类留空的汇总行），实得 %+v", b.Items)
-	}
-	if len(b.Lines) != 1 || b.Lines[0].ResourceCode != "L01" {
-		t.Fatalf("只应收行类齐全的那条明细，实得 %+v", b.Lines)
-	}
-	if len(b.Skipped) != 1 || b.Skipped[0].Row != 5 || !strings.Contains(b.Skipped[0].Reason, "行类为空") || !strings.Contains(b.Skipped[0].Reason, "EXC") {
-		t.Fatalf("漏填行类的明细行应显形为跳过行并点名，实得 %+v", b.Skipped)
-	}
-}
+// 漏填层级 / 缺编码 / 重复清单等残缺行的显形用例，随三级树表版式挪到
+// projectimport_tree_test.go（TestParseUnitPriceTreeSkipsAreNamed）。旧「行类」
+// 版式的同名用例随版式退役删除（2026-11-27）。

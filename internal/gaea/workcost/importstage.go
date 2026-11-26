@@ -97,23 +97,29 @@ type ImportQuota struct {
 
 // ImportBill 模型整理好的一条清单行。
 type ImportBill struct {
-	Code          string     `json:"code"` // 空=自动 M 序号
-	Title         string     `json:"title"`
-	Unit          string     `json:"unit"`
-	Division      string     `json:"division"`
-	Specialty     string     `json:"specialty"` // 不给=跟随项目专业
-	Quantity      float64    `json:"quantity"`
-	QuantityExpr  string     `json:"quantity_expr"`
-	QuotaCode     string     `json:"quota_code"`
-	QuotaCodes    []string   `json:"quota_codes"`
-	Feature       string     `json:"feature"`
-	PriceOverride float64    `json:"price_override"`
-	ListPrice     float64    `json:"list_price"` // 原表综合单价（单价对照用）
-	Src           *ImportSrc `json:"src"`
-	Derived       []string   `json:"derived"`
+	Code         string   `json:"code"` // 空=自动 M 序号
+	Title        string   `json:"title"`
+	Unit         string   `json:"unit"`
+	Division     string   `json:"division"`
+	Specialty    string   `json:"specialty"` // 不给=跟随项目专业
+	Quantity     float64  `json:"quantity"`
+	QuantityExpr string   `json:"quantity_expr"`
+	QuotaCode    string   `json:"quota_code"`
+	QuotaCodes   []string `json:"quota_codes"`
+	// QuotaFactors 定额换算系数（定额编码 → 每一个清单单位包含几个定额单位；三级
+	// 树表里是定额行「工程量」列）。没列的定额按 1 计。系数必须进金额链：清单
+	// 综合单价 = Σ(定额单价 × 系数)——漏传它，系数 ≠1 的定额块金额链就偏低。
+	QuotaFactors  map[string]float64 `json:"quota_factors,omitempty"`
+	Feature       string             `json:"feature"`
+	PriceOverride float64            `json:"price_override"`
+	ListPrice     float64            `json:"list_price"` // 原表综合单价（单价对照用）
+	Src           *ImportSrc         `json:"src"`
+	Derived       []string           `json:"derived"`
 }
 
-// links 该行挂接的定额码（主定额在前，其余保序；空码与重复码剔除）。
+// links 该行挂接的定额（主定额在前，其余保序；空码与重复码剔除）。Quantity =
+// 该定额参与合价的工程量：换算系数 ≠1 时是 清单工程量 × 系数，否则 0（跟随清单
+// 工程量）。
 func (in ImportBill) links() []BillQuotaLinkInput {
 	var out []BillQuotaLinkInput
 	seen := map[string]bool{}
@@ -123,13 +129,25 @@ func (in ImportBill) links() []BillQuotaLinkInput {
 			return
 		}
 		seen[c] = true
-		out = append(out, BillQuotaLinkInput{QuotaCode: c})
+		var q float64
+		if f := in.factorOf(c); in.Quantity > 0 && f != 1 {
+			q = in.Quantity * f
+		}
+		out = append(out, BillQuotaLinkInput{QuotaCode: c, Quantity: q})
 	}
 	add(in.QuotaCode)
 	for _, c := range in.QuotaCodes {
 		add(c)
 	}
 	return out
+}
+
+// factorOf 挂接定额的换算系数（没列、0 = 1）。负数在 billOf 退回，这里按 1 计。
+func (in ImportBill) factorOf(code string) float64 {
+	if f, ok := in.QuotaFactors[strings.TrimSpace(code)]; ok && f > 0 {
+		return f
+	}
+	return 1
 }
 
 // ImportProject 导入的项目口径与封面。
@@ -499,6 +517,11 @@ func (imp *ImportSession) billOf(s *Store, in ImportBill) (*BillItem, []BillQuot
 	if err := s.checkDict(DictSpecialty, b.Specialty, "清单项专业"); err != nil {
 		reasons = append(reasons, err.Error())
 	}
+	for code, f := range in.QuotaFactors {
+		if f < 0 {
+			reasons = append(reasons, fmt.Sprintf("挂接定额 %s 的换算系数 %g 不能为负", code, f))
+		}
+	}
 	links := in.links()
 	for _, l := range links {
 		if !imp.hasQuotaCode(s, l.QuotaCode) {
@@ -720,9 +743,27 @@ func (imp *ImportSession) Check(s *Store) (*ImportReport, error) {
 		}
 		verify(b.Src, "清单 "+b.Code, texts, nums, b.Derived)
 	}
+
+	// ③b 换算系数写在定额行上（三级树表定额行「工程量」列），不在清单行里：按
+	// 挂接定额自己的来源行回读，防抄错。
+	for _, b := range imp.bills {
+		for _, l := range b.links() {
+			f := b.factorOf(l.QuotaCode)
+			if f == 1 {
+				continue
+			}
+			idx, ok := imp.quotaIdx[l.QuotaCode]
+			if !ok {
+				continue // 库里的既有定额没有来源行，核不了
+			}
+			verify(imp.quotas[idx].Src, fmt.Sprintf("清单 %s 挂接定额 %s 的换算系数", b.Code, l.QuotaCode),
+				nil, map[string]float64{"换算系数": f}, nil)
+		}
+	}
 	rep.UnverifiedRows = unverified
 
 	// ④ 单价对照：清单有原表综合单价、又挂了定额（暂存或库）的，现算对原表。
+	// 现算 = Σ(定额单价 × 换算系数)——系数不乘进去，系数 ≠1 的清单必报偏差。
 	for _, b := range imp.bills {
 		links := b.links()
 		if b.ListPrice <= 0 || len(links) == 0 {
@@ -735,7 +776,7 @@ func (imp *ImportSession) Check(s *Store) (*ImportReport, error) {
 				ok = false
 				break
 			}
-			computed += p
+			computed += p * b.factorOf(l.QuotaCode)
 		}
 		if !ok {
 			continue

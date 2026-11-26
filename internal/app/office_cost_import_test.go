@@ -513,3 +513,130 @@ func TestCostImportArgsMatchDocumentedKeys(t *testing.T) {
 		t.Errorf("derived 没落到字段上： %+v", p.Resources[0].Derived)
 	}
 }
+
+// impTreeBook 三级树表资料（现行样表的形态）：换算系数在定额行「工程量」列，
+// 明细行的含量在同一个「工程量」列。清单 Q01 垫层 = D-A1（系数 1.5，单价 528.60）
+// + D-A2（系数 0.5，单价 35.47）= 810.64。
+func impTreeBook(t *testing.T) string {
+	t.Helper()
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	if err := f.SetSheetName("Sheet1", "工料机价格"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"综合单价", "清单"} {
+		if _, err := f.NewSheet(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row := func(sheet, cell string, vals []interface{}) {
+		t.Helper()
+		if err := f.SetSheetRow(sheet, cell, &vals); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row("工料机价格", "A3", []interface{}{"编码", "自有码", "类别", "名称", "规格/计算式", "单位", "不含税单价（元）", "来源", "备注"})
+	row("工料机价格", "A4", []interface{}{"L01", "", "人工", "普工", "", "工日", 180, "市场"})
+	row("工料机价格", "A5", []interface{}{"C20", "", "材料", "商品混凝土", "C20", "m³", 430, "信息价"})
+	row("工料机价格", "A6", []interface{}{"EXC", "", "机械", "挖掘机台班", "1.0m³", "台班", 1773.3, "台班公式"})
+	row("综合单价", "A3", []interface{}{"序号", "层级", "编码", "名称", "单位", "工程量", "单价", "金额", "清单工程量", "合价", "人工", "材料", "机械", "备注"})
+	row("综合单价", "A4", []interface{}{1, "清单", "Q01", "垫层", "m³", 1, 810.64, 810.64, 100, 81064})
+	row("综合单价", "A5", []interface{}{"1.1", "定额", "D-A1", "垫层浇筑", "m³", 1.5, 528.6, 528.6})
+	row("综合单价", "A6", []interface{}{"1.1.1", "人工", "L01", "普工", "工日", 0.5, 180, 90})
+	row("综合单价", "A7", []interface{}{"1.1.2", "材料", "C20", "商品混凝土", "m³", 1.02, 430, 438.6})
+	row("综合单价", "A8", []interface{}{"1.2", "定额", "D-A2", "垫层夯实", "m³", 0.5, 35.47, 35.47})
+	row("综合单价", "A9", []interface{}{"1.2.1", "机械", "EXC", "挖掘机台班", "台班", 0.02, 1773.3, 35.47})
+	row("清单", "A3", []interface{}{"序号", "分部", "编码", "项目名称", "工序特征", "单位", "工程量", "综合单价", "合价（元）"})
+	row("清单", "A4", []interface{}{1, "A临建", "Q01", "垫层", "", "m³", 100, 810.64, 81064})
+	path := filepath.Join(t.TempDir(), "三级树表资料.xlsx")
+	if err := f.SaveAs(path); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestCostImportQuotaFactors 暂存流的定额换算系数（三级树表定额行「工程量」列）：
+// 单价对照与落库挂接都要乘系数；系数按定额行的来源位置回读；负数当场退回。
+// 此前清单行没有这个字段——系数 ≠1 的定额块走模型读表导入，金额链就偏低。
+func TestCostImportQuotaFactors(t *testing.T) {
+	a, cleanup := workcostTestApp(t)
+	defer cleanup()
+	s := a.hubWorkcostStore()
+	tl := costLibraryTool{a: a}
+	impDict(t, s)
+	book := impTreeBook(t)
+	src := func(sheet string, r int) map[string]any { return map[string]any{"sheet": sheet, "row": r} }
+
+	id := impOpen(t, tl, book, nil)
+	impAdd(t, tl, id, "resources", []map[string]any{
+		{"code": "L01", "kind": "人工", "title": "普工", "unit": "工日", "price": 180, "src": src("工料机价格", 4)},
+		{"code": "C20", "kind": "材料", "title": "商品混凝土", "spec": "C20", "unit": "m³", "price": 430, "src": src("工料机价格", 5)},
+		{"code": "EXC", "kind": "机械", "title": "挖掘机台班", "spec": "1.0m³", "unit": "台班", "price": 1773.3, "src": src("工料机价格", 6)},
+	})
+	impAdd(t, tl, id, "quotas", []map[string]any{
+		{"code": "D-A1", "title": "垫层浇筑", "unit": "m³", "src": src("综合单价", 5), "items": []map[string]any{
+			{"resource_code": "L01", "quantity": 0.5, "src": src("综合单价", 6)},
+			{"resource_code": "C20", "quantity": 1.02, "src": src("综合单价", 7)},
+		}},
+		{"code": "D-A2", "title": "垫层夯实", "unit": "m³", "src": src("综合单价", 8), "items": []map[string]any{
+			{"resource_code": "EXC", "quantity": 0.02, "src": src("综合单价", 9)},
+		}},
+	})
+	bill := func(extra map[string]any) map[string]any {
+		b := map[string]any{
+			"code": "Q01", "title": "垫层", "unit": "m³", "division": "A临建", "quantity": 100,
+			"quota_code": "D-A1", "quota_codes": []any{"D-A2"}, "list_price": 810.64, "src": src("清单", 4),
+		}
+		for k, v := range extra {
+			b[k] = v
+		}
+		return b
+	}
+	factors := map[string]any{"D-A1": 1.5, "D-A2": 0.5}
+
+	// 负系数当场退回。
+	clMust(t, tl, map[string]any{"action": "import_add", "import_id": id, "bills": []map[string]any{
+		bill(map[string]any{"quota_factors": map[string]any{"D-A1": -1}}),
+	}}, "换算系数 -1 不能为负")
+
+	// 系数与定额行对不上：按定额行的来源位置回读，点名。
+	impAdd(t, tl, id, "bills", []map[string]any{bill(map[string]any{"quota_factors": map[string]any{"D-A1": 2, "D-A2": 0.5}})})
+	out := clMust(t, tl, map[string]any{"action": "import_check", "import_id": id}, "🔍 勾稽（只读）")
+	if !strings.Contains(out, "清单 Q01 挂接定额 D-A1 的换算系数") || !strings.Contains(out, "不符 1 处") {
+		t.Fatalf("抄错的换算系数应被定额行回读逮到：\n%s", out)
+	}
+
+	// 漏传系数：现算不乘系数，单价对照报偏差（528.6 + 35.47 = 564.07，差 30%）。
+	impAdd(t, tl, id, "bills", []map[string]any{bill(nil)})
+	clMust(t, tl, map[string]any{"action": "import_check", "import_id": id}, "可比 1 条｜偏差超 1% 的 1 条")
+
+	// 系数给对：单价对照 528.6×1.5 + 35.47×0.5 ≈ 810.64；两个系数各回读一行。
+	impAdd(t, tl, id, "bills", []map[string]any{bill(map[string]any{"quota_factors": factors})})
+	out = clMust(t, tl, map[string]any{"action": "import_check", "import_id": id}, "全部对上，可以提交")
+	for _, want := range []string{"已核对 11 行", "不符 0 处｜未带来源位置的 0 行", "可比 1 条｜偏差超 1% 的 0 条"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("勾稽报告应含 %q：\n%s", want, out)
+		}
+	}
+	// 落库：挂接量 = 清单工程量 × 系数（100×1.5 / 100×0.5）。
+	clMust(t, tl, map[string]any{"action": "import_commit", "import_id": id}, "✅ 已完成：提交导入")
+	projects, _ := s.BillProjects()
+	if len(projects) != 1 {
+		t.Fatalf("应落 1 个项目，得到 %d 个", len(projects))
+	}
+	items, _ := s.BillItems(projects[0].ID)
+	if len(items) != 1 {
+		t.Fatalf("应落 1 条清单，得到 %+v", items)
+	}
+	links, err := s.BillQuotaLinks(items[0].ID)
+	if err != nil || len(links) != 2 {
+		t.Fatalf("应落 2 条挂接，得到 %+v（err=%v）", links, err)
+	}
+	got := map[string]float64{}
+	for _, lk := range links {
+		got[lk.QuotaCode] = lk.Quantity
+	}
+	if got["D-A1"] != 150 || got["D-A2"] != 50 {
+		t.Errorf("挂接量应为 清单工程量 × 系数（D-A1 150 / D-A2 50），实得 %v", got)
+	}
+}

@@ -7,15 +7,11 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
@@ -286,10 +282,13 @@ func (a *App) GaeaWorkcostProjectFees(directFee float64, rates workcost.RateSet,
 	}, measures, contingency, controlPrice)
 }
 
-// ── 项目工作簿（五表模版）解析与录入 ─────────────────────────────────
+// ── 项目工作簿解析与录入（绑定面）───────────────────────────────────
+//
+// 2026-11-27：测算簿的硬契约只有综合单价表（三级树表），其余表是参考——规矩在
+// workcost.ParseProjectWorkbook 与 cost-estimate 技能。旧的「解析 → 重新导出」
+// 渲染器（产出「行类」版式）已删：它导出的簿导不回，样表出口改走样表复制。
 
-// GaeaWorkcostProjectParse 解析一份五表项目工作簿（封面/费用汇总/综合单价/
-// 工料机价格/工程量计算），**只解析不落库**，供前端预览后确认。
+// GaeaWorkcostProjectParse 解析一份测算工作簿，**只解析不落库**。
 func (a *App) GaeaWorkcostProjectParse(path string) (*workcost.ProjectBundle, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("需要工作簿路径")
@@ -297,76 +296,16 @@ func (a *App) GaeaWorkcostProjectParse(path string) (*workcost.ProjectBundle, er
 	return workcost.ParseProjectWorkbook(path)
 }
 
-// GaeaWorkcostProjectApply 把解析出的项目落库：工料机价格表 → 资源库，
-// 综合单价表（清单项 + 工序消耗量）→ 消耗定额库。幂等（按身份/编码 UPSERT）。
+// GaeaWorkcostProjectApply 把测算工作簿解析后直接落库：工料机价格 → 资源库，
+// 综合单价的定额块 → 消耗定额库，清单行 → 项目清单。幂等（按身份 / 编码 UPSERT）。
 //
-// 只落工料法前两层——综合单价是核算输出，由 GaeaWorkcostQuotaCompose 现算，
-// 不落库（否则派生值会与资源价漂移）。
+// 综合单价是核算输出，由 GaeaWorkcostQuotaCompose 现算，不落库（否则派生值会与
+// 资源价漂移）。日常录入走办公「造价」运行模式的 cost_library（带演练与用户
+// 确认）；本绑定不在前端门面生成范围内，只作绑定面的端到端验证。
 func (a *App) GaeaWorkcostProjectApply(path string) (workcost.ApplyProjectResult, error) {
 	b, err := workcost.ParseProjectWorkbook(path)
 	if err != nil {
 		return workcost.ApplyProjectResult{}, err
 	}
 	return a.hubWorkcostStore().ApplyProjectBundle(b), nil
-}
-
-// GaeaWorkcostProjectExport 把项目工作簿解析结果重新导出为**五表模版**工作簿，
-// 写出到指定路径（活公式：改资源价/费率后 Excel 全表重算）。
-//
-// 入参为源工作簿路径：导出内容取自解析结果（工料机价格 → 资源、综合单价 →
-// 消耗量、费用汇总 → 取费参数、工程量计算 → 工程量），因此「导出」= 用当前
-// 工料法口径重新生成一份同构模版，可用于「导出 → 改价 → 导回」闭环。
-func (a *App) GaeaWorkcostProjectExport(srcPath string, outPath string, project string, location string, duration string) (string, error) {
-	if strings.TrimSpace(srcPath) == "" || strings.TrimSpace(outPath) == "" {
-		return "", fmt.Errorf("需要源工作簿与输出路径")
-	}
-	b, err := workcost.ParseProjectWorkbook(srcPath)
-	if err != nil {
-		return "", err
-	}
-	data, err := workcost.ExportProjectWorkbook(b, workcost.ExportOptions{
-		Project: project, Location: location, Duration: duration,
-	})
-	if err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(outPath, data, 0o644); err != nil {
-		return "", fmt.Errorf("写出工作簿失败: %w", err)
-	}
-	return outPath, nil
-}
-
-// GaeaWorkcostProjectExportToWorkspace 把五表工作簿导出到工作区 `.gaea/exports`
-// （与既有导出链同分区约定：work → .gaea/exports，play → .gaea/play/exports），
-// 返回写出路径。文件名带时间戳避免覆盖。
-//
-// 与 GaeaWorkcostProjectExport（接显式路径）的分工：本方法给 UI 用——前端没有
-// 文件系统能力，由后端按工作区约定落盘；前者给「另存为」类显式路径场景。
-func (a *App) GaeaWorkcostProjectExportToWorkspace(srcPath string, fileName string) (string, error) {
-	if strings.TrimSpace(srcPath) == "" {
-		return "", fmt.Errorf("需要源工作簿路径")
-	}
-	b, err := workcost.ParseProjectWorkbook(srcPath)
-	if err != nil {
-		return "", err
-	}
-	data, err := workcost.ExportProjectWorkbook(b, workcost.ExportOptions{})
-	if err != nil {
-		return "", err
-	}
-	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
-	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
-		return "", fmt.Errorf("创建导出目录失败: %w", err)
-	}
-	base := strings.TrimSpace(fileName)
-	if base == "" {
-		base = "成本测算表"
-	}
-	base = strings.TrimSuffix(base, ".xlsx")
-	stamp := time.Now().Format("20060102-150405")
-	out := filepath.Join(exportsDir, fmt.Sprintf("%s-%s.xlsx", base, stamp))
-	if err := os.WriteFile(out, data, 0o644); err != nil {
-		return "", fmt.Errorf("写出工作簿失败: %w", err)
-	}
-	return filepath.ToSlash(out), nil
 }

@@ -159,19 +159,10 @@ export interface CostBindings {
   WorkcostBillQuotaAttach(billItemId: number, quotaCode: string, quantity: number): Promise<WorkcostBillQuotaLink>;
   // WorkcostBillQuotaDetach 解挂一条定额引用。
   WorkcostBillQuotaDetach(billItemId: number, linkId: number): Promise<void>;
-  // WorkcostProjectParse 解析五表项目工作簿（只解析不落库）。
+  // WorkcostProjectParse 解析测算工作簿（只解析不落库；硬契约只有综合单价表）。
   WorkcostProjectParse(path: string): Promise<WorkcostProjectBundle>;
-  // WorkcostProjectApply 把解析结果落库（工料机价格→资源库，综合单价表→定额库）。
+  // WorkcostProjectApply 把解析结果落库（工料机价格→资源库，综合单价定额块→定额库）。
   WorkcostProjectApply(path: string): Promise<WorkcostApplyProjectResult>;
-  // WorkcostProjectExport 重新导出为五表模版工作簿（活公式），返回输出路径。
-  WorkcostProjectExport(
-    srcPath: string,
-    outPath: string,
-    project: string,
-    location: string,
-    duration: string,
-  ): Promise<string>;
-  // WorkcostProjectExportToWorkspace 导出到工作区 .gaea/exports（文件名带时间戳），
-  // 返回写出路径——前端无文件系统能力，由后端按工作区约定落盘。
-  WorkcostProjectExportToWorkspace(srcPath: string, fileName: string): Promise<string>;
+  // （WorkcostProjectExport / WorkcostProjectExportToWorkspace 已随旧版渲染器删除：
+  //   它产出旧「行类」版式、导不回；测算样表走 CostLibraryExport kind=template。）
 }

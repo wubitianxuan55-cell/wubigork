@@ -162,13 +162,13 @@ func TestCostTemplateTrimTrailingGroupsRecipe(t *testing.T) {
 	path := filepath.Join(ws, filepath.FromSlash(rel))
 
 	// 15 条清单：综合单价从第 4+11×15=169 行起删 165 行；清单、工程量计算从第
-	// 19 行起删 15 行；合计区间收到第 18 行。
+	// 19 行起删 15 行；合计区间收到第 18 行（费用汇总的直接费合计在 E16）。
 	if _, err := xlsxedit.ApplyOps(path, []xlsxedit.Op{
 		{Type: "delete_rows", Sheet: "综合单价", Row: 169, Count: 165},
 		{Type: "delete_rows", Sheet: "清单", Row: 19, Count: 15},
 		{Type: "delete_rows", Sheet: "工程量计算", Row: 19, Count: 15},
 		{Type: "set_formula", Sheet: "清单", Target: "I1", Formula: "=SUM(I4:I18)"},
-		{Type: "set_formula", Sheet: "费用汇总", Target: "E4", Formula: "=SUM(清单!I4:I18)"},
+		{Type: "set_formula", Sheet: "费用汇总", Target: "E16", Formula: "=SUM(清单!I4:I18)"},
 	}); err != nil {
 		t.Fatalf("裁组操作集失败: %v", err)
 	}
@@ -190,40 +190,42 @@ func TestCostTemplateTrimTrailingGroupsRecipe(t *testing.T) {
 			t.Fatalf("填 %s!%s 失败: %v", sheet, cell, err)
 		}
 	}
-	// 结构：只剩 15 组；第 15 组的汇总行是第 158 行，清单第 18 行引用它（带 ROUND）。
+	// 结构：只剩 15 组；第 15 组的清单行是第 158 行，清单第 18 行引它的金额列（带 ROUND）。
 	if rows, _ := f.GetRows("综合单价"); len(rows) != 168 {
 		t.Errorf("综合单价裁后应 168 行，实得 %d", len(rows))
 	}
 	if rows, _ := f.GetRows("清单"); len(rows) != 18 {
 		t.Errorf("清单裁后应 18 行，实得 %d", len(rows))
 	}
-	for cell, want := range map[string]string{"H18": "ROUND(综合单价!S158,2)", "I1": "SUM(I4:I18)"} {
+	for cell, want := range map[string]string{"H18": "ROUND(综合单价!H158,2)", "I1": "SUM(I4:I18)"} {
 		if got, _ := f.GetCellFormula("清单", cell); got != want {
 			t.Errorf("清单!%s 公式应为 %s，实得 %s", cell, want, got)
 		}
 	}
-	if got, _ := f.GetCellFormula("费用汇总", "E4"); got != "SUM(清单!I4:I18)" {
-		t.Errorf("费用汇总!E4 应收到第 18 行，实得 %s", got)
+	if got, _ := f.GetCellFormula("费用汇总", "E16"); got != "SUM(清单!I4:I18)" {
+		t.Errorf("费用汇总!E16 应收到第 18 行，实得 %s", got)
 	}
-	// 填第 1 组与第 15 组（各一块）。
+	// 填第 1 组与第 15 组（各一块）。三级树表：清单行填 编码 C / 名称 D / 单位 E，
+	// 定额行填 编码 C / 名称 D / 单位 E（换算系数 F 样表预置 1），明细行填 层级 B /
+	// 工料机编码 C / 含量 F。
 	up, bill := "综合单价", "清单"
 	for _, g := range []struct {
 		sumRow, quotaRow, detailRow, billRow int
 		code, quota                          string
 	}{{4, 5, 6, 4, "Q01", "D-A1"}, {158, 159, 160, 18, "Q15", "D-A15"}} {
 		r := func(n int) string { return strconv.Itoa(n) }
-		set(up, "B"+r(g.sumRow), g.code)
-		set(up, "C"+r(g.sumRow), "垫层")
-		set(up, "D"+r(g.sumRow), "m³")
-		set(up, "D"+r(g.quotaRow), "m³")
-		set(up, "F"+r(g.quotaRow), g.quota)
-		set(up, "G"+r(g.quotaRow), "垫层浇筑")
-		set(up, "E"+r(g.detailRow), "人工")
-		set(up, "I"+r(g.detailRow), labor.Code)
-		set(up, "L"+r(g.detailRow), 0.1)
-		set(up, "E"+r(g.detailRow+1), "材料")
-		set(up, "I"+r(g.detailRow+1), c20.Code)
-		set(up, "L"+r(g.detailRow+1), 1.02)
+		set(up, "C"+r(g.sumRow), g.code)
+		set(up, "D"+r(g.sumRow), "垫层")
+		set(up, "E"+r(g.sumRow), "m³")
+		set(up, "C"+r(g.quotaRow), g.quota)
+		set(up, "D"+r(g.quotaRow), "垫层浇筑")
+		set(up, "E"+r(g.quotaRow), "m³")
+		set(up, "B"+r(g.detailRow), "人工")
+		set(up, "C"+r(g.detailRow), labor.Code)
+		set(up, "F"+r(g.detailRow), 0.1)
+		set(up, "B"+r(g.detailRow+1), "材料")
+		set(up, "C"+r(g.detailRow+1), c20.Code)
+		set(up, "F"+r(g.detailRow+1), 1.02)
 		set(bill, "C"+r(g.billRow), g.code)
 		set(bill, "D"+r(g.billRow), "垫层")
 		set(bill, "F"+r(g.billRow), "m³")

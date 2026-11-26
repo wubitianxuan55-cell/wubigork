@@ -1,16 +1,21 @@
-// projectimport.go —— 实测项目工作簿（五表模版）解析器。
+// projectimport.go —— 测算工作簿解析器。
 //
-// 模版形态（旺平矿业 2026-10-07 / 什邡 2026-10-06，均为 gaea 项目空间导出）：
+// **硬契约只有综合单价表**（2026-11-27 用户拍板）：它必须是三级树表（样表 v5.1 起），
+// 其余五张表是参考表——交给模型自由发挥，模板只是参考，有就读、没有或认不出就跳过：
 //
-//	封面       —— 项目名/地点/工期/组价口径（自述「综合单价=工序消耗量×基础资源价」）
-//	费用汇总   —— 序号|分部|编码|项目名称|工序特征|单位|工程量|综合单价|合价|单价位置|依据
-//	              + 下半段取费（管理费/利润/规费/税/控制价）
-//	综合单价   —— 序号|清单编码|项目名称|单位|行类|资源编码|资源名称|消耗单位|消耗量|单价|合价
-//	              （汇总行 P=Σ明细；明细行 单价=VLOOKUP 工料机价格）
-//	工料机价格 —— 编码|类别|名称|规格/计算式|单位|不含税单价|来源|备注
-//	工程量计算 —— 编码|名称|数值|单位|公式/口径|来源|去向|备注
+//	综合单价   —— 序号|层级|编码|名称|单位|工程量|单价|金额|清单工程量|合价|人工|材料|机械|备注【硬约束】
+//	              行型看「层级」：清单 → 定额 → 人材机；换算系数在定额行「工程量」列
+//	清单       —— 序号|分部|编码|项目名称|工序特征|单位|工程量|综合单价|合价【参考】
+//	              补工程量 / 分部 / 工序特征；列按列名定位，可按单项工程改版式
+//	工料机价格 —— 编码|自有码|类别|名称|规格|单位|不含税单价|来源|备注【参考】
+//	封面       —— 书名带 + 项目名（B2；「项目名称」标签值同步）/地点/工期/口径自述【参考】
+//	费用汇总   —— 分部构成段 + 取费链（管理费/利润/规费/税/控制价），行 16–23【参考】
+//	工程量计算 —— 编码|名称|数值|单位|公式/口径|来源|去向|备注【参考】
 //
-// 本解析器把前三张表映射到工料法三层：资源库 / 消耗量（工序） / 综合单价，
+// 更早的「行类」版式（旺平 2026-10-07 / 什邡 2026-10-06 / 旧内置样表）与五表模版
+// 已退役：用户拍板以后不再上传，解析器不认（表头不是三级树表即拒收）。
+//
+// 本解析器把工作簿映射到工料法三层：资源库 / 消耗定额（含量行）/ 分部分项清单，
 // 并把工程量与取费参数一并带出。**只解析、不落库**——落库由调用方在用户确认后执行。
 //
 // 公式单元格（台班单价 =900+F4*90+F5、数量 =1/3/2）：优先取公式串保留口径，
@@ -65,7 +70,7 @@ type ProjectConsumption struct {
 	ItemCode      string  `json:"itemCode"`
 	ItemTitle     string  `json:"itemTitle"`
 	ItemUnit      string  `json:"itemUnit"`
-	Kind          string  `json:"kind"` // 行类：人工/材料/机械/外委
+	Kind          string  `json:"kind"` // 层级：人工/材料/机械/外委（已归一成库内类别）
 	ResourceCode  string  `json:"resourceCode"`
 	ResourceTitle string  `json:"resourceTitle"`
 	Unit          string  `json:"unit"`
@@ -73,8 +78,8 @@ type ProjectConsumption struct {
 	Price         float64 `json:"price"`
 	PriceFormula  string  `json:"priceFormula"`
 	Amount        float64 `json:"amount"`
-	// QuotaCode 三级行组（2026-11-25 测算模版）：本明细行归属的定额码。空=旧
-	// 1:1 形态（整份工作簿的全部明细并一条定额，定额码=清单码）。
+	// QuotaCode 本明细行归属的定额码（层级=定额那一行的编码；三级树表的人材机
+	// 必挂在定额块下，解析端保证非空）。
 	QuotaCode string `json:"quotaCode"`
 }
 
@@ -98,11 +103,14 @@ type ProjectItem struct {
 // 工程量系数）。回导时按 ResolveQuota 逐块解析（撞码消歧同款），1:N 挂接落
 // gf_bill_quota_links；系数 0=跟随清单工程量（与挂接面语义一致）。
 type ProjectQuotaBlock struct {
-	ItemCode string  `json:"itemCode"` // 所属清单编码
-	Code     string  `json:"code"`     // 定额编码（工作簿原码，解析端消歧）
-	Title    string  `json:"title"`    // 定额名称（空=沿用清单标题/库内既有）
-	Unit     string  `json:"unit"`     // 定额计量单位（空=跟随清单单位）
-	Factor   float64 `json:"factor"`   // 工程量系数（每清单单位含多少定额单位；0=跟随）
+	ItemCode string `json:"itemCode"` // 所属清单编码
+	Code     string `json:"code"`     // 定额编码（工作簿原码，解析端消歧）
+	Title    string `json:"title"`    // 定额名称（空=沿用清单标题/库内既有）
+	Unit     string `json:"unit"`     // 定额计量单位（空=跟随清单单位）
+	// Factor 换算系数 = 每一个清单单位包含几个定额单位（定额行「工程量」列；
+	// 清单 m³、定额 100m³ 时 =0.01）。0=跟随清单工程量（即按 1 计）；系数必须进
+	// 金额链：清单综合单价 = Σ(定额单价 × 系数)。
+	Factor float64 `json:"factor"`
 }
 
 // ProjectFeeParams 解析出的取费参数（费用汇总下半段）。费率之外带各段金额
@@ -163,11 +171,14 @@ type ProjectBundle struct {
 	// 挂的一条定额（编码/名称/工程量系数）。空=旧 1:1 形态；apply 逐块 ResolveQuota
 	// 落定额并把 1:N 挂接写进 gf_bill_quota_links（库的一等模型）。
 	QuotaBlocks []ProjectQuotaBlock `json:"quotaBlocks"`
-	Fee         ProjectFeeParams    `json:"fee"`
-	Quantities  []ProjectQuantity   `json:"quantities"`
-	Skipped     []SkippedRow        `json:"skipped"`
-	Warnings    []string            `json:"warnings"`
-	Sheets      []string            `json:"sheets"`
+	// BillQuantityRows 工程量取自清单表的清单项条数（其余取自综合单价「清单工程量」
+	// 列，或没有工程量）——导入回执据此写明工程量来源。
+	BillQuantityRows int               `json:"billQuantityRows"`
+	Fee              ProjectFeeParams  `json:"fee"`
+	Quantities       []ProjectQuantity `json:"quantities"`
+	Skipped          []SkippedRow      `json:"skipped"`
+	Warnings         []string          `json:"warnings"`
+	Sheets           []string          `json:"sheets"`
 	// 导入口径——规范值，由调用方给（规矩见 rules.go）；文件里没有就不猜，空=待整理：
 	// Specialty 项目默认专业（字典值），本次新建的定额专业随它；Region 项目所在
 	// 地区（字典值），工料机按它分行；Period 计价期（YYYY-MM），工料机价格事实的期。
@@ -207,28 +218,35 @@ func rowExcerpt(f *excelize.File, sheet string, row, maxCol int) string {
 	return strings.Join(parts, " | ")
 }
 
-// DetectedSixSheet 报告该工作簿是否为测算工作簿（六表模版，供导入入口分流）：
-// 「清单」「综合单价」「工料机价格」三张表同时在。
+// IsEstimateWorkbook 报告该工作簿是不是测算簿（供导入入口分流）：有「综合单价」表
+// 就算（表名、别名，或表名含「综合单价」）。
 //
-// 2026-11-25 起费用汇总拆成 清单表 + 费用汇总表，旧五表（清单在费用汇总上半段）
-// **不再兼容**——用户拍板旧版资料走模型读表导入。判据必须带上「清单」表：旧五表
-// 若被放进来，清单工程量会整批丢失而解析不报错（带病入库比不入更糟）。
-func DetectedSixSheet(sheets []string) bool {
-	has := map[string]bool{}
+// 2026-11-27 用户拍板：导入的**硬契约只有综合单价表**（三级树表结构）；其余五张
+// 表是参考，交给模型自由发挥——清单表按单项工程改版式、封面与费用汇总重排都不拦。
+// 此前要求「清单 + 综合单价 + 工料机价格」三张表同在才认，少一张整份拒收。
+func IsEstimateWorkbook(sheets []string) bool {
 	for _, s := range sheets {
 		n := strings.TrimSpace(s)
-		for _, canonical := range []string{sheetBill, sheetUnitPrice, sheetResourcePr} {
-			for _, a := range sheetAliases[canonical] {
-				if n == a {
-					has[canonical] = true
-				}
+		for _, a := range sheetAliases[sheetUnitPrice] {
+			if n == a {
+				return true
 			}
 		}
+		if strings.Contains(n, sheetKeyWords[sheetUnitPrice]) {
+			return true
+		}
 	}
-	return has[sheetBill] && has[sheetUnitPrice] && has[sheetResourcePr]
+	return false
 }
 
-// ParseProjectWorkbook 解析一份测算工作簿（六表模版）。
+// ParseProjectWorkbook 解析一份测算工作簿。
+//
+// 综合单价表是核心与唯一硬约束（缺了、或不是三级树表 → 整份拒收）；其余表有就
+// 读、没有或认不出就跳过并告警：
+//   - 清单表：补工程量 / 分部 / 工序特征，按列名关键词定位，列序、加列、按单项
+//     工程分段的标题行都不影响；没有这一行时工程量退回综合单价表「清单工程量」列。
+//   - 工料机价格：资源与价格；没有时消耗行按库内既有编码解析。
+//   - 封面 / 费用汇总 / 工程量计算：项目名、费率、工程量溯源，都只是补充。
 func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
 	if err != nil {
@@ -249,28 +267,40 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 		Skipped:    []SkippedRow{},
 		Warnings:   []string{},
 	}
-	if !DetectedSixSheet(b.Sheets) {
-		return nil, fmt.Errorf("不是测算工作簿（六表模版需要「%s」「%s」「%s」三张表），实得表：%v——旧版五表或别的格式的资料请走模型读表导入（import_open → import_add → import_check → import_commit）",
-			sheetBill, sheetUnitPrice, sheetResourcePr, b.Sheets)
+	// taken 已经认领的表：一张表只当一种用途（「清单综合单价」先归综合单价）。
+	taken := map[string]bool{}
+	pick := func(canonical string) string {
+		sn := sheetByName(f, canonical, taken)
+		taken[sn] = true
+		return sn
 	}
-
-	if sn := sheetByName(f, sheetCover); sn != "" {
-		parseCover(f, sn, b)
+	upSheet := pick(sheetUnitPrice)
+	if upSheet == "" {
+		return nil, fmt.Errorf("不是测算工作簿：找不到「%s」表——它是测算簿的核心与唯一硬约束（三级树表：层级 / 编码 / 名称 三列表头），实得表：%v。其余表只是参考，缺了或改了版式不拦导入；别的格式的资料请走模型读表导入（import_open → import_add → import_check → import_commit）",
+			sheetUnitPrice, b.Sheets)
 	}
-	if sn := sheetByName(f, sheetResourcePr); sn != "" {
+	// 综合单价读不了 = 整份拒收：定额与消耗行是工作簿的主体，缺了它们清单行
+	// 会全部「无消耗」入库，带病入库比不入更糟。
+	if err := parseUnitPriceSheet(f, upSheet, b); err != nil {
+		return nil, err
+	}
+	if sn := pick(sheetResourcePr); sn != "" {
 		parseResourceSheet(f, sn, b)
+	} else {
+		b.Warnings = append(b.Warnings, "工作簿没有工料机价格表：消耗行引用的工料机按库内既有编码解析，库内没有的按零价核算")
 	}
-	if sn := sheetByName(f, sheetUnitPrice); sn != "" {
-		parseUnitPriceSheet(f, sn, b)
-	}
-	// 六表模版（2026-11-25 用户拍板）：清单单独成表，费用汇总只有累计后的取费链。
-	if sn := sheetByName(f, sheetBill); sn != "" {
+	if sn := pick(sheetBill); sn != "" {
 		parseBillSheet(f, sn, b)
 	}
-	if sn := sheetByName(f, sheetSummary); sn != "" {
-		parseSummarySheet(f, sn, b)
+	if sn := pick(sheetCover); sn != "" {
+		parseCover(f, sn, b)
 	}
-	if sn := sheetByName(f, sheetQuantity); sn != "" {
+	if sn := pick(sheetSummary); sn != "" {
+		parseSummarySheet(f, sn, b)
+	} else {
+		b.Warnings = append(b.Warnings, "工作簿没有费用汇总表：取费费率未读到（落库为 0，各段不计取）——要取费口径就把费用汇总表带上，或导入后 cost_project_apply action=update_rates 补")
+	}
+	if sn := pick(sheetQuantity); sn != "" {
 		parseQuantitySheet(f, sn, b)
 	}
 
@@ -278,8 +308,19 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 	return b, nil
 }
 
-// sheetByName 按名称或别名找 sheet（返回实际 sheet 名，找不到返回空串）。
-func sheetByName(f *excelize.File, canonical string) string {
+// sheetKeyWords 各表表名的关键词（包含匹配）：表名常带后缀（「综合单价分析表」
+// 「工料机价格表」），按关键词也认。空 = 只认名称与别名。
+var sheetKeyWords = map[string]string{
+	sheetCover:      "封面",
+	sheetBill:       "清单",
+	sheetSummary:    "费用汇总",
+	sheetUnitPrice:  "综合单价",
+	sheetResourcePr: "工料机",
+}
+
+// sheetByName 按名称找 sheet：先按名称 / 别名精确匹配，再按关键词包含匹配；
+// taken 里的表不再认领。找不到返回空串。
+func sheetByName(f *excelize.File, canonical string, taken map[string]bool) string {
 	list := f.GetSheetList()
 	names := sheetAliases[canonical]
 	if len(names) == 0 {
@@ -287,7 +328,14 @@ func sheetByName(f *excelize.File, canonical string) string {
 	}
 	for _, want := range names {
 		for _, sn := range list {
-			if strings.TrimSpace(sn) == want {
+			if strings.TrimSpace(sn) == want && !taken[sn] {
+				return sn
+			}
+		}
+	}
+	if key := sheetKeyWords[canonical]; key != "" {
+		for _, sn := range list {
+			if !taken[sn] && strings.Contains(strings.TrimSpace(sn), key) {
 				return sn
 			}
 		}
@@ -311,8 +359,13 @@ func cellText(f *excelize.File, sheet, cell string) string {
 
 // cellValue 取单元格数值：有缓存值时用它；无缓存但公式指向另一单元格
 // （如 =工料机价格!F44）则递归取一次目标值；否则 0。
+//
+// 读的是**存储值**，不是显示值：含量列的格式常是 0.####（最多四位小数），按
+// 显示值读，0.00015 读成 0.0001、0.00002 读成 0——沿江包1 实测活性炭 / PAM
+// 两行含量被吃掉，「废水处理运行」表里 34.70、读进库 33.91，表上还看不出来
+// （表内公式用的正是存储值）。
 func cellValue(f *excelize.File, sheet, cell string) float64 {
-	if v, err := f.GetCellValue(sheet, cell); err == nil {
+	if v, err := f.GetCellValue(sheet, cell, excelize.Options{RawCellValue: true}); err == nil {
 		if n, ok := parseNum(v); ok {
 			return n
 		}
@@ -338,7 +391,7 @@ func resolveFormulaRef(f *excelize.File, sheet, formula string) float64 {
 		if refSheet == "" || !isCellRef(target) {
 			return 0
 		}
-		if v, err := f.GetCellValue(refSheet, target); err == nil {
+		if v, err := f.GetCellValue(refSheet, target, excelize.Options{RawCellValue: true}); err == nil {
 			if n, ok := parseNum(v); ok {
 				return n
 			}

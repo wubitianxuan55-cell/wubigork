@@ -381,8 +381,6 @@ export const bindingSignatures = {
   GaeaWorkcostBillQuotaDetach: { argc: 2, variadic: false, params: "billItemID int64, linkID int64" },
   GaeaWorkcostBillQuotaLinks: { argc: 1, variadic: false, params: "billItemID int64" },
   GaeaWorkcostProjectApply: { argc: 1, variadic: false, params: "path string" },
-  GaeaWorkcostProjectExport: { argc: 5, variadic: false, params: "srcPath string, outPath string, project string, location string, duration string" },
-  GaeaWorkcostProjectExportToWorkspace: { argc: 2, variadic: false, params: "srcPath string, fileName string" },
   GaeaWorkcostProjectFees: { argc: 6, variadic: false, params: "directFee float64, rates workcost.RateSet, profitIncludesRegulatory bool, measures float64, contingency float64, controlPrice float64" },
   GaeaWorkcostProjectParse: { argc: 1, variadic: false, params: "path string" },
   GaeaWorkcostQuotaCompose: { argc: 2, variadic: false, params: "code string, overrides map[string]workcost.ComposeOverride" },

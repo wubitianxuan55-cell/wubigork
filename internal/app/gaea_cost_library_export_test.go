@@ -210,14 +210,16 @@ func TestCostLibraryExportTemplate(t *testing.T) {
 	if string(raw) != string(skill.CostEstimateSampleXLSX()) {
 		t.Error("样表出口应与内嵌种子逐字节一致")
 	}
-	// 解析链吃得下：六表、60 条样例预填、费率样例口径。
+	// 解析链吃得下：六表、空白骨架（工料机价格按项目查库后逐行填，不预填）、
+	// 费率样例口径。预置的清单行 / 定额块没填编码，解析端静默跳过。
 	path := out + ".xlsx"
 	b, perr := workcost.ParseProjectWorkbook(path)
 	if perr != nil {
 		t.Fatalf("样表应可被导入解析链解析: %v", perr)
 	}
-	if len(b.Sheets) != 6 || len(b.Resources) != 60 {
-		t.Fatalf("样表应 6 张表 / 60 条样例工料机，得到 %v / %d", b.Sheets, len(b.Resources))
+	if len(b.Sheets) != 6 || len(b.Resources) != 0 || len(b.Items) != 0 || len(b.Skipped) != 0 {
+		t.Fatalf("样表应 6 张表 / 空白骨架（0 条工料机、0 条清单、0 跳过行），得到 %v / %d / %d / %+v",
+			b.Sheets, len(b.Resources), len(b.Items), b.Skipped)
 	}
 	if b.Fee.ManagementRate != 0.05 || b.Fee.ProfitRate != 0.04 || b.Fee.TaxRate != 0.09 {
 		t.Errorf("样表费率样例应 5%%/4%%/0%%/9%%，得到 %+v", b.Fee)

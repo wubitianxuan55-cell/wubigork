@@ -507,8 +507,6 @@ export const GAEA_METHOD_FACETS = {
   WorkcostProjectFees: "work",
   WorkcostProjectParse: "work",
   WorkcostProjectApply: "work",
-  WorkcostProjectExport: "work",
-  WorkcostProjectExportToWorkspace: "work",
   WorkcostBillProjects: "work",
   WorkcostBillItems: "work",
   WorkcostBillItemSave: "work",

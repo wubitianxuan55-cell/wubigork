@@ -32,7 +32,7 @@ type CostMethods = Pick<
   | "WorkcostResourceSetPrice" | "WorkcostResourcePrices"
   | "WorkcostQuotaSave" | "WorkcostQuotaGet" | "WorkcostQuotaList" | "WorkcostQuotaDelete"
   | "WorkcostQuotaCompose" | "WorkcostQuotaComposeMany" | "WorkcostProjectFees"
-  | "WorkcostProjectParse" | "WorkcostProjectApply" | "WorkcostProjectExport" | "WorkcostProjectExportToWorkspace"
+  | "WorkcostProjectParse" | "WorkcostProjectApply"
   | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemSave" | "WorkcostBillItemDelete"
   | "WorkcostBillProjectRatesSave"
   | "WorkcostBillProjectDelete"
@@ -319,18 +319,13 @@ export function buildCost(_s: MakeMockState): CostMethods {
       };
     },
 
-    // 项目工作簿解析/落库/导出均依赖真实 xlsx 与文件系统 → dev mock 诚实拒。
+    // 项目工作簿解析/落库依赖真实 xlsx 与数据库 → dev mock 诚实拒。
+    // （重新导出五表的 WorkcostProjectExport* 已随旧版渲染器删除，2026-11-27。）
     async WorkcostProjectParse(_path: string) {
       throw new Error("dev mock：项目工作簿解析需真实文件系统与 Go 后端");
     },
     async WorkcostProjectApply(_path: string) {
       throw new Error("dev mock：项目工作簿落库需真实数据库与 Go 后端");
-    },
-    async WorkcostProjectExport(_srcPath: string, _outPath: string, _project: string, _location: string, _duration: string) {
-      throw new Error("dev mock：五表导出需真实文件系统与 Go 后端");
-    },
-    async WorkcostProjectExportToWorkspace(_srcPath: string, _fileName: string) {
-      throw new Error("dev mock：五表导出需真实文件系统与 Go 后端");
     },
 
     // ── 工料法④：分部分项清单（内存态，刷新即清——演示录入形态）────

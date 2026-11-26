@@ -363,8 +363,6 @@ export const bindingNames = [
   "GaeaWorkcostBillQuotaDetach",
   "GaeaWorkcostBillQuotaLinks",
   "GaeaWorkcostProjectApply",
-  "GaeaWorkcostProjectExport",
-  "GaeaWorkcostProjectExportToWorkspace",
   "GaeaWorkcostProjectFees",
   "GaeaWorkcostProjectParse",
   "GaeaWorkcostQuotaCompose",

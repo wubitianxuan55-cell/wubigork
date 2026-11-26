@@ -33,11 +33,10 @@ var costExportKinds = map[string]string{
 // workcost.LibraryFilter；未给的字段=不过滤）。outPath 是目标 .xlsx 的完整路径；
 // 已存在则拒绝覆盖。
 //
-// kind=template 生成六表测算模版（封面/清单/费用汇总/综合单价/工料机价格/工程量
-// 计算；综合单价是「清单→定额→工料机」三级行组），此时 filter 的 专业/地区/期数/
-// 类别/分类 是模版口径：封面写明专业·地区·计价期，工料机价格表按口径从库预填
-// 现行价（带自有码），费率预填库内最近项目的取费口径。填好的模版走 import_project
-// 原样回流。
+// kind=template 把测算样表复制到 outPath（2026-11-25 删渲染器拍板：样表是版式
+// 真源，程序不渲染、不预填——工料机价格与费率由模型查库后填；filter 保留签名兼容，
+// 不再使用）。样表填出的测算簿走 cost_library 的 import_project 导回：综合单价表是
+// 三级树表即可，其余表是参考。
 func (a *App) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, outPath string) (string, error) {
 	out, err := costOutPath(outPath)
 	if err != nil {

@@ -405,3 +405,13 @@ func round2(v float64) float64 {
 
 // Round2 导出舍入（app/导出层复用同一口径，避免各写一份）。
 func Round2(v float64) float64 { return round2(v) }
+
+// firstNonEmpty 第一个非空串（去首尾空白；全空返回空串）。
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}

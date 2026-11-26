@@ -184,7 +184,7 @@ func feeBaseName(amount, rate float64, candidates []feeBase) string {
 // CheckFeeChain 核对工作簿费用汇总的取费链：每一段拿「缓存金额」反推它用的
 // 基数，再与模版口径比。全部一致或没有缓存金额时返回空切片。
 //
-// 模版口径（render.go writeFeeSheet 与 ComposeProjectFees 同源）：
+// 模版口径（测算样表费用汇总的取费链与 ComposeProjectFees 同源）：
 //
 //	管理费 = 直接费 × 管理费率；利润 =（直接费+管理费）× 利润率；规费 = 直接费 × 规费率
 //	税前合计 = 直接费+管理费+利润+规费；增值税 = 税前合计 × 税率；含税总造价 = 税前合计+增值税

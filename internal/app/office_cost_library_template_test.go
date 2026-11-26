@@ -30,32 +30,51 @@ func TestCostLibrarySampleGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("内嵌样表解析失败: %v", err)
 	}
-	if len(b.Sheets) != 6 || b.Project != "成本测算模版" {
-		t.Fatalf("样表应 6 张表、封面标题=成本测算模版，得到 %v / %q", b.Sheets, b.Project)
+	// 三级树表样表（v5.5）：30 组 × 11 行的空骨架，预置的清单行 / 定额块都没填
+	// 编码，解析端静默跳过；工料机价格是空白骨架（查库后按项目逐行填）。
+	if len(b.Sheets) != 6 || b.Project != "（填写实际项目名称）" {
+		t.Fatalf("样表应 6 张表、封面项目名占位=（填写实际项目名称），得到 %v / %q", b.Sheets, b.Project)
 	}
-	if len(b.Resources) != 60 {
-		t.Fatalf("样表应预填 60 条样例工料机，得到 %d", len(b.Resources))
+	if len(b.Resources) != 0 || len(b.Items) != 0 || len(b.QuotaBlocks) != 0 || len(b.Lines) != 0 {
+		t.Fatalf("空白样表不该解析出数据行：工料机 %d / 清单 %d / 定额块 %d / 消耗行 %d",
+			len(b.Resources), len(b.Items), len(b.QuotaBlocks), len(b.Lines))
 	}
 	if b.Fee.ManagementRate != 0.05 || b.Fee.ProfitRate != 0.04 || b.Fee.RegulatoryRate != 0 || b.Fee.TaxRate != 0.09 {
 		t.Errorf("样表费率样例应 5%%/4%%/0%%/9%%，得到 %+v", b.Fee)
 	}
 	if len(b.Skipped) != 0 {
-		t.Errorf("样表不应有被跳过的行: %+v", b.Skipped)
+		t.Errorf("空白样表不应有被跳过的行（预置空槽静默）: %+v", b.Skipped)
 	}
-	// 两层 ROUND 预置在样表里（2026-11-26：样表由用户用 gaea 改好，换作内置种子）：
-	// 定额单价舍到分、清单综合单价舍到分。样表哪一层丢了，工作簿与库现算就又出
-	// 尾差——三场实测都为此对账了好几轮。
+	for _, w := range b.Warnings {
+		if !strings.Contains(w, "未解析到任何工料机消耗行") {
+			t.Errorf("空白样表只该有「没有消耗行」一条告警，实得 %q（全部：%v）", w, b.Warnings)
+		}
+	}
+	// 两层 ROUND 预置在样表里：定额金额舍到分（第一层）、清单金额与综合单价舍到分
+	// （第二层），换算系数进金额链。样表哪一层丢了，工作簿与库现算就又出尾差——
+	// 三场实测都为此对账了好几轮。
 	f, err := excelize.OpenFile(path)
 	if err != nil {
 		t.Fatalf("打开样表失败: %v", err)
 	}
 	defer func() { _ = f.Close() }()
 	for _, tc := range []struct{ sheet, cell, want string }{
-		{"综合单价", "M5", "ROUND(SUM(N6:N9),2)"},
-		{"综合单价", "M10", "ROUND(SUM(N11:N14),2)"},
-		{"综合单价", "M324", "ROUND(SUM(N325:N328),2)"},
-		{"清单", "H4", "ROUND(综合单价!S4,2)"},
-		{"清单", "H33", "ROUND(综合单价!S323,2)"},
+		// 明细行：金额 = ROUND(含量 × 单价, 2)，单价 VLOOKUP 工料机价格。
+		{"综合单价", "H6", "ROUND(F6*G6,2)"},
+		{"综合单价", "G6", `IFERROR(VLOOKUP(C6,工料机价格!$A$4:$G$9999,7,FALSE()),0)`},
+		// 第一层：定额行金额 = ROUND(SUM(本块明细金额), 2)。
+		{"综合单价", "H5", "ROUND(SUM(H6:H9),2)"},
+		{"综合单价", "H10", "ROUND(SUM(H11:H14),2)"},
+		{"综合单价", "H324", "ROUND(SUM(H325:H328),2)"},
+		// 第二层：清单行金额 = ROUND(Σ(定额金额 × 换算系数), 2)；综合单价 = 金额 / 工程量。
+		{"综合单价", "H4", `ROUND(IF(F5="",1,F5)*SUM(H6:H9)+IF(F10="",1,F10)*SUM(H11:H14),2)`},
+		{"综合单价", "G4", "ROUND(H4/F4,2)"},
+		{"综合单价", "J4", "ROUND(H4*I4,2)"},
+		// 清单表综合单价引「组清单行」4+11×(n−1)（不再是旧的 S 列）；直接费 = 清单合价合计。
+		{"清单", "H5", "ROUND(综合单价!H15,2)"},
+		{"清单", "H33", "ROUND(综合单价!H323,2)"},
+		{"清单", "I1", "SUM(I4:I33)"},
+		{"费用汇总", "E16", "SUM(清单!I4:I33)"},
 	} {
 		if got, _ := f.GetCellFormula(tc.sheet, tc.cell); got != tc.want {
 			t.Errorf("样表 %s!%s 公式应为 %s，实得 %s", tc.sheet, tc.cell, tc.want, got)
@@ -174,8 +193,10 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	rel = rel[:strings.Index(rel, "（")]
 	path := filepath.Join(ws, filepath.FromSlash(rel))
 
-	// 按契约填两组：Q01 挂两条定额（第二条系数 0.5），Q02 挂一条；封面标题改
-	// 真实项目名。样表几何与旧渲染模版一致（每组 11 行），填同样的关键列。
+	// 按契约填两组：Q01 挂两条定额（第二条系数 0.5），Q02 挂一条；封面 B2 改
+	// 真实项目名。三级树表（样表 v5.5）：行型在 B 列「层级」，三种行共用 编码 C /
+	// 名称 D / 单位 E；工程量 F 在清单行是 1、在定额行是换算系数、在明细行是含量。
+	// 样表每组固定 11 行（清单 1 + 2 块 ×（定额 1 + 明细 4）），组清单行 = 4+11×(n−1)。
 	f, err := excelize.OpenFile(path)
 	if err != nil {
 		t.Fatalf("打开样表失败: %v", err)
@@ -193,39 +214,41 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 			t.Fatalf("填 %s!%s 失败: %v", sheet, cell, err)
 		}
 	}
-	set("封面", "A2", "南岸测算")
+	set("封面", "B2", "南岸测算")
 	up, bill := "综合单价", "清单"
-	set(up, "B4", "Q01")
-	set(up, "C4", "垫层")
-	set(up, "D4", "m³")
-	set(up, "D5", "m³")
-	set(up, "F5", "D-A1")
-	set(up, "G5", "垫层浇筑")
-	set(up, "E6", "人工")
-	set(up, "I6", labor.Code)
-	set(up, "L6", 0.1)
-	set(up, "E7", "材料")
-	set(up, "I7", c20.Code)
-	set(up, "L7", 1.02)
-	set(up, "D10", "m³")
-	set(up, "F10", "D-A2")
-	set(up, "G10", "垫层夯实")
-	set(up, "H10", 0.5)
-	set(up, "E11", "机械")
-	set(up, "I11", exc.Code)
-	set(up, "L11", 0.02)
-	set(up, "B15", "Q02")
-	set(up, "C15", "面层")
-	set(up, "D15", "m²")
-	set(up, "D16", "m²")
-	set(up, "F16", "D-B1")
-	set(up, "G16", "面层摊铺")
-	set(up, "E17", "材料")
-	set(up, "I17", c20.Code)
-	set(up, "L17", 0.03)
-	set(up, "E18", "人工")
-	set(up, "I18", labor.Code)
-	set(up, "L18", 0.05)
+	// 第 1 组（清单行 4）：块 1 = 定额行 5 + 明细 6–9；块 2 = 定额行 10 + 明细 11–14。
+	set(up, "C4", "Q01")
+	set(up, "D4", "垫层")
+	set(up, "E4", "m³")
+	set(up, "C5", "D-A1")
+	set(up, "D5", "垫层浇筑")
+	set(up, "E5", "m³")
+	set(up, "B6", "人工")
+	set(up, "C6", labor.Code)
+	set(up, "F6", 0.1)
+	set(up, "B7", "材料")
+	set(up, "C7", c20.Code)
+	set(up, "F7", 1.02)
+	set(up, "C10", "D-A2")
+	set(up, "D10", "垫层夯实")
+	set(up, "E10", "m³")
+	set(up, "F10", 0.5) // 换算系数（样表预置 1）
+	set(up, "B11", "机械")
+	set(up, "C11", exc.Code)
+	set(up, "F11", 0.02)
+	// 第 2 组（清单行 15）：只用块 1（定额行 16 + 明细 17–20），块 2 整块留空。
+	set(up, "C15", "Q02")
+	set(up, "D15", "面层")
+	set(up, "E15", "m²")
+	set(up, "C16", "D-B1")
+	set(up, "D16", "面层摊铺")
+	set(up, "E16", "m²")
+	set(up, "B17", "材料")
+	set(up, "C17", c20.Code)
+	set(up, "F17", 0.03)
+	set(up, "B18", "人工")
+	set(up, "C18", labor.Code)
+	set(up, "F18", 0.05)
 	set(bill, "B4", "A路基")
 	set(bill, "C4", "Q01")
 	set(bill, "D4", "垫层")
