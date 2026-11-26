@@ -1,9 +1,9 @@
 package docmd
 
-// ocr_uocr2_llama_test.go — uocr2 引擎 llama 后端（llama-server + Q8 GGUF）单测：
-// chat 协议形状（两条铁律）、单/批识别解码与拆页、截断/页数不齐 fail-closed、
-// 后端腿序（auto 偏好 llama / 回退 python / 显式指定 / 未知值 fail-closed）。
-// 全部 httptest 假服务，不依赖真实 llama-server 或 python 服务。
+// ocr_uocr2_llama_test.go — uocr2 引擎（Unlimited-OCR-2，llama 后端）单测：
+// chat 协议形状（两条铁律）、启动参数、单/批识别解码与拆页、截断/页数不齐
+// fail-closed、provider 的地址解析与缓存。全部 httptest 假服务，不依赖真实 llama-server。
+// python 后端腿序相关用例随 2026-11-26 退役一并删除。
 
 import (
 	"encoding/json"
@@ -75,11 +75,13 @@ func TestBuildUocr2LlamaServerCmd(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+	// OCR 专用构建钉点（2026-11-20）：可执行文件在 bin-ocr-0.8.0-dev\，不是 qwen35
+	// 自管引擎的 bin\（夹具曾按旧路径建工件，钉点后一直假红）。
+	if err := os.MkdirAll(filepath.Join(dir, "bin-ocr-0.8.0-dev"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range []string{
-		filepath.Join(dir, "bin", "llama-server.exe"),
+		filepath.Join(dir, "bin-ocr-0.8.0-dev", "llama-server.exe"),
 		filepath.Join(dir, "uocr2-Q8_0.gguf"),
 		filepath.Join(dir, "mmproj-uocr2-F16.gguf"),
 	} {
@@ -184,9 +186,9 @@ func assertLlamaChatRequest(t *testing.T, req map[string]any, nPages int) {
 	}
 }
 
-// TestUocr2ProviderAutoPrefersLlama 默认腿序（auto）：llama 假服务健康即命中，
-// python 端点不得被探活（llama 成功后短路）。
-func TestUocr2ProviderAutoPrefersLlama(t *testing.T) {
+// TestUocr2ProviderResolvesHealthyServer 常驻服务健康即命中并缓存地址：一次探测、
+// 一次 chat 识别。
+func TestUocr2ProviderResolvesHealthyServer(t *testing.T) {
 	var llamaHits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -205,7 +207,6 @@ func TestUocr2ProviderAutoPrefersLlama(t *testing.T) {
 	}))
 	defer srv.Close()
 	t.Setenv("GAEA_UOCR2_LLAMA_URL", srv.URL)
-	t.Setenv("GAEA_UOCR2_URL", "http://127.0.0.1:1") // python 侧死值：llama 成功即不应触达
 
 	p := &uocr2OCRProvider{}
 	got, err := p.ExtractImage(mustTempPNG(t))
@@ -218,72 +219,7 @@ func TestUocr2ProviderAutoPrefersLlama(t *testing.T) {
 	if atomic.LoadInt32(&llamaHits) != 1 {
 		t.Errorf("llama chat 应命中 1 次, got %d", llamaHits)
 	}
-	if p.backend != uocr2BackendLlama {
-		t.Errorf("backend = %q, want llama", p.backend)
-	}
-}
-
-// TestUocr2ProviderAutoFallsBackToPython auto 腿序：llama 探活失败+拉起工件缺失
-// → 回退 python 后端（/ocr 协议）。
-func TestUocr2ProviderAutoFallsBackToPython(t *testing.T) {
-	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1")                        // 死端口：探活必失败
-	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama")) // 工件缺失：不真拉起
-	pySrv := fakeUocr2Server(t, http.StatusOK, mustJSON(t, map[string]string{"text": "python 兜底文本"}))
-	t.Setenv("GAEA_UOCR2_URL", pySrv.URL)
-
-	p := &uocr2OCRProvider{}
-	got, err := p.ExtractImage(mustTempPNG(t))
-	if err != nil {
-		t.Fatalf("ExtractImage: %v", err)
-	}
-	if got != "python 兜底文本" {
-		t.Errorf("text = %q, want python 兜底文本", got)
-	}
-	if p.backend != uocr2BackendPython {
-		t.Errorf("backend = %q, want python", p.backend)
-	}
-}
-
-// TestUocr2ProviderExplicitPythonSkipsLlama 显式 GAEA_UOCR2_BACKEND=python：
-// 即使 llama 假服务活着也不得触达（llama 0 命中）。
-func TestUocr2ProviderExplicitPythonSkipsLlama(t *testing.T) {
-	var llamaHits int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" {
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
-			return
-		}
-		atomic.AddInt32(&llamaHits, 1)
-		http.NotFound(w, r)
-	}))
-	defer srv.Close()
-	t.Setenv("GAEA_UOCR2_BACKEND", "python")
-	t.Setenv("GAEA_UOCR2_LLAMA_URL", srv.URL)
-	pySrv := fakeUocr2Server(t, http.StatusOK, mustJSON(t, map[string]string{"text": "指定 python"}))
-	t.Setenv("GAEA_UOCR2_URL", pySrv.URL)
-
-	p := &uocr2OCRProvider{}
-	got, err := p.ExtractImage(mustTempPNG(t))
-	if err != nil || got != "指定 python" {
-		t.Fatalf("ExtractImage = %q, %v", got, err)
-	}
-	if atomic.LoadInt32(&llamaHits) != 0 {
-		t.Errorf("显式 python 时 llama 不得被调（命中 %d 次）", llamaHits)
-	}
-}
-
-// TestUocr2ProviderBackendUnknownFailsClosed 未知 GAEA_UOCR2_BACKEND fail-closed：
-// 报错含原值，不静默回退任何后端。
-func TestUocr2ProviderBackendUnknownFailsClosed(t *testing.T) {
-	t.Setenv("GAEA_UOCR2_BACKEND", "bogus-backend")
-	p := &uocr2OCRProvider{}
-	_, err := p.ExtractImage(mustTempPNG(t))
-	if err == nil {
-		t.Fatal("未知后端值应 fail-closed 报错")
-	}
-	for _, want := range []string{"GAEA_UOCR2_BACKEND", "bogus-backend"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("错误 %q 缺少 %q", err.Error(), want)
-		}
+	if p.base != srv.URL {
+		t.Errorf("base = %q, want %q（健康地址应缓存）", p.base, srv.URL)
 	}
 }

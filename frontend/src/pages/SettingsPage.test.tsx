@@ -149,9 +149,9 @@ describe('SettingsPage 设置中枢骨架（批 1：两级导航+锚点直达）
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /办公/ }))
     fireEvent.click(await screen.findByRole('tab', { name: '记忆与面板' }))
-    // 记忆四态段（原右栏 MemoryPanel 胶囊）
+    // 记忆四态段（原右栏 MemoryPanel 胶囊）。晨报预载 / 项目本体两个开关 2026-11-25 撤下
+    // （799e9ba8，办公工具梳理首批），此处不再断言——旧断言到 2026-11-26 才被发现一直红着。
     expect(await screen.findByText('办公记忆', { selector: 'strong' })).toBeTruthy()
-    expect(await screen.findByText('晨报预载')).toBeTruthy()
     // 工位面板启停段（原「管理」弹层，CAD 可选卡常驻入口）
     expect(await screen.findByText('工位面板', { selector: 'strong' })).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: '工具与技能' }))

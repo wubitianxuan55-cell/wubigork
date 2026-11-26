@@ -23,11 +23,11 @@ import (
 //   - 腿 2 herdsman /v1/ocr（PaddleOCR），模型取 HERDSMAN_OCR_MODEL 或引擎
 //     OCR 模型；
 //   - 腿 3 herdsman /v1/documents/parse（MinerU，HERDSMAN_PARSE_MODEL/_MODE）；
-//   - 腿 4 docmd.OCRImageText 本地链，引擎顺序归 GAEA_OCR_ENGINE 管
-//     （auto=uocr2→ovis→tesseract）——两链配置口径互不越界。
+//   - 腿 4 docmd.OCRImageText 本地链（Unlimited-OCR-2，2026-11-26 精简后的本地唯一
+//     引擎；GAEA_OCR_ENGINE 默认即它）——两链配置口径互不越界。
 //
 // 腿 2~4 相对顺序由 GAEA_OCR_LEG_ORDER 驱动（2026-10-29 同图三引擎实测拍板，
-// 质量优先，与 docmd 链 uocr2→ovis→tesseract 的拍板同口径）：
+// 质量优先，与 docmd 本地腿以 uocr2 为首选的拍板同口径）：
 //   - 未设置/"local-first"/"local"（默认）：腿 4 → 腿 2 → 腿 3。实测：uocr2
 //     干净文本与微信打印件价格表两素材零错字、表格保 HTML 结构；PaddleOCR 快
 //     （1~5s）但干净文本 8 处错字、表格逐格平铺丢结构；MinerU 纯文本几乎全对
@@ -59,8 +59,8 @@ func (a *App) GaeaOCRText(imagePath string) (string, error) {
 		{"herdsman parse", func() (string, error) { return a.herdsmanParseImage(imagePath) }},
 	}
 	localLeg := ocrLeg{"本地 OCR", func() (string, error) {
-		// 模型中心「设为 OCR（本地）」定点：active_ocr_local 非空时把 docmd
-		// auto 链收窄到指定引擎（仅该引擎 fail-closed，语义同 GAEA_OCR_ENGINE）。
+		// 模型中心「设为 OCR（本地）」定点：active_ocr_local 非空时显式指定本地引擎
+		// （合法值仅 uocr2，仅该引擎 fail-closed，语义同 GAEA_OCR_ENGINE）。
 		if kind := strings.TrimSpace(a.activeOCRLocal); kind != "" {
 			return docmd.OCRImageTextWithEngine(imagePath, kind)
 		}

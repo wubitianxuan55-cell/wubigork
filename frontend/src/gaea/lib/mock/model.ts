@@ -241,7 +241,7 @@ const HERDSMAN_CATALOG_SAMPLE: HerdsmanCatalogModelMock[] = [
     running: false,
     status: "installed",
     run_status: "stopped",
-    hint: "快速 OCR（约 90ms）：中文混合场景有错字，失败自动回退 OvisOCR2",
+    hint: "快速 OCR（约 90ms）：中文混合场景有错字，失败自动回退 Unlimited-OCR-2（本地）",
   },
   {
     // 非图像条目：画室目录视图应过滤掉（仅模型中心「模型库」可见）。

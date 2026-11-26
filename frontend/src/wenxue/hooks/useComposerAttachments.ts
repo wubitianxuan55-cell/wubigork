@@ -386,7 +386,7 @@ export function useComposerAttachments({ running, onSend, initialAttachments }: 
     }
   }
 
-  // ── 提取文字：本地 OvisOCR2 常驻服务识别图片中的文字，结果作为用户消息发给助手 ──
+  // ── 提取文字：本地 Unlimited-OCR-2 常驻服务识别图片中的文字，结果作为用户消息发给助手 ──
   const handleOCRText = async (att: Attachment) => {
     if (running || ocrPath) return
     setOcrPath(att.path)

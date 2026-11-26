@@ -67,13 +67,10 @@ func newChatProbeApp(t *testing.T, baseURL, model string) *App {
 	home := t.TempDir()
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
-	// OCR 引擎面隔离（防本机真拉 llama-server，同 chat_service_test 纪律）
-	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
-	t.Setenv("GAEA_UOCR2_PORT", "1")
+	// OCR 引擎面隔离（防本机真拉 llama-server，同 chat_service_test 纪律；2026-11-26
+	// 精简后本地 OCR 只有 uocr2 llama 后端）
 	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
 	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1")
-	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
-	t.Setenv("GAEA_OCR_PORT", "1")
 	root := filepath.Join(t.TempDir(), "data")
 
 	c := &core{

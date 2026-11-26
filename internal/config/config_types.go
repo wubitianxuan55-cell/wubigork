@@ -43,7 +43,7 @@ type configFile struct {
 	TTSVoice                 string            `json:"tts_voice,omitempty"`                   // 语音合成音色
 	ActiveOCREngine          string            `json:"active_ocr_engine,omitempty"`           // OCR 激活引擎
 	ActiveOCRModel           string            `json:"active_ocr_model,omitempty"`            // OCR 激活模型
-	ActiveOCRLocal           string            `json:"active_ocr_local,omitempty"`            // OCR 本地引擎定点（空=docmd auto 链）
+	ActiveOCRLocal           string            `json:"active_ocr_local,omitempty"`            // OCR 本地引擎定点（空=docmd 默认链；仅 uocr2）
 	VoicePersonality         string            `json:"voice_personality,omitempty"`           // 语音对话角色
 	FuncChatVoiceEngine      string            `json:"func_chat_voice_engine,omitempty"`      // 聊天语音合成引擎
 	FuncChatVoiceModel       string            `json:"func_chat_voice_model,omitempty"`       // 聊天语音合成模型

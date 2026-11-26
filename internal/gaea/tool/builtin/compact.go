@@ -22,7 +22,7 @@ var compactDesc = map[string]string{
 	"complete_step":      "完成计划步骤(step/result/evidence;kind=verification|diff|files|manual,禁止纯manual)",
 	"memory_search":      "记忆检索与读取(query=关键词检索,返回名称+摘要;name=按名读全文;只含当前运行模式与通用的记忆)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
-	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;preserve_images保留内嵌图片sidecar;扫描件OCR回退;子集字体乱码的PDF自动经本机WPS;回执带标题/表格/图片计数)",
+	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;PDF优先经本机WPS:文字型出真表格/扫描件走WPS在线OCR(174页约1分钟);WPS不可用退本地提取与OCR(限30页,用pages分段);preserve_images保留内嵌图片sidecar;回执带标题/表格/图片计数)",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
 	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
 	"cost_search":        "搜索成本库(关键词/分类/状态,返回单价表)",

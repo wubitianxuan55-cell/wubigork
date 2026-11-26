@@ -4,30 +4,50 @@ package docmd
 //
 //	GAEA_UOCR2_LIVE=1 go test ./internal/docmd -run TestUocr2LlamaLive -count=1 -v
 //
-// 真实链路：探测/按需拉起 C:\AI\uocr2-llama 工件（8139）→ chat 协议单页识别 +
+// 真实链路：探测/按需拉起 C:\AI\gaea-OCR\uocr2-llama 工件（8139）→ chat 协议单页识别 +
 // 2 页批识别（SR-SWA 跨页续排锚点：页 2 价格表应从第 24 行续排）。素材与
 // 2026-10-29 三引擎对比/补丁验证同源（福建价格表第 2/3 页）。
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
+// liveSamplePaths 实弹素材的候选位置：优先 uocr2-llama 目录（随引擎工件走）；
+// 兼容 11-26 退役的 python 后端目录 unlimited\testimg（退役前样本放在那里，目录
+// 删除前建议挪到 uocr2-llama\testimg）。
+func liveSamplePaths() [][2]string {
+	roots := []string{`C:\AI\gaea-OCR\uocr2-llama\testimg`, `C:\AI\gaea-OCR\unlimited\testimg`}
+	if dir := strings.TrimSpace(os.Getenv("GAEA_UOCR2_LLAMA_DIR")); dir != "" {
+		roots = append([]string{filepath.Join(dir, "testimg")}, roots...)
+	}
+	var out [][2]string
+	for _, r := range roots {
+		out = append(out, [2]string{filepath.Join(r, "fj-02.png"), filepath.Join(r, "fj-03.png")})
+	}
+	return out
+}
+
 func TestUocr2LlamaLiveSingleAndBatch(t *testing.T) {
 	if os.Getenv("GAEA_UOCR2_LIVE") != "1" {
 		t.Skip("设 GAEA_UOCR2_LIVE=1 跑实弹（真 llama 后端，分钟级以内）")
 	}
-	t.Setenv("GAEA_UOCR2_BACKEND", "llama") // 实弹只验 llama 主后端
 	p := &uocr2OCRProvider{}
 
-	fj2 := `C:\AI\gaea-OCR\unlimited\testimg\fj-02.png`
-	fj3 := `C:\AI\gaea-OCR\unlimited\testimg\fj-03.png`
-	for _, f := range []string{fj2, fj3} {
-		if _, err := os.Stat(f); err != nil {
-			t.Skipf("实弹素材缺失: %v", err)
+	var fj2, fj3 string
+	for _, pair := range liveSamplePaths() {
+		if _, err := os.Stat(pair[0]); err == nil {
+			if _, err := os.Stat(pair[1]); err == nil {
+				fj2, fj3 = pair[0], pair[1]
+				break
+			}
 		}
+	}
+	if fj2 == "" {
+		t.Skip("实弹素材缺失：fj-02.png / fj-03.png（uocr2-llama\\testimg 或 unlimited\\testimg）")
 	}
 
 	t0 := time.Now()

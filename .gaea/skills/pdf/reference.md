@@ -587,18 +587,11 @@ qpdf --replace-input corrupted.pdf
 ```
 
 ### Text Extraction Issues
-```python
-# Fallback to OCR for scanned PDFs
-import pytesseract
-from pdf2image import convert_from_path
-
-def extract_text_with_ocr(pdf_path):
-    images = convert_from_path(pdf_path)
-    text = ""
-    for i, image in enumerate(images):
-        text += pytesseract.image_to_string(image)
-    return text
-```
+Scanned PDFs (no usable text layer): use the `format_convert` tool first — it goes through
+WPS online OCR (174 pages in about 1 minute) and returns real tables. Local fallback only
+(offline): `python scripts/ocr_local.py scanned.pdf --mode auto` (Windows native OCR →
+local VLM). OvisOCR2 / RapidOCR / tesseract are not available on this machine
+(retired 2026-11-26); do not follow older recipes that call them.
 
 ## License Information
 

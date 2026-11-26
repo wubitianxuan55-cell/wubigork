@@ -15,8 +15,9 @@ import (
 const maxConvertedImageBytes = 20 << 20
 
 // ConvertPreservingImages converts DOCX/PPTX while retaining embedded image
-// data URIs for a follow-up ExternalizeDataImages call. Other formats use the
-// normal text converter and report zero images.
+// data URIs for a follow-up ExternalizeDataImages call. PDFs convert WPS-first
+// (real tables, scanned pages via WPS online OCR; see wps.go). Other formats
+// use the normal text converter and report zero images.
 func ConvertPreservingImages(path, pages string, maxPages int) (md string, total int, truncated bool, images int, err error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
@@ -41,9 +42,11 @@ func ConvertPreservingImages(path, pages string, maxPages int) (md string, total
 			md, total, truncated, err = ConvertLimit(path, pages, maxPages)
 			return md, total, truncated, 0, err
 		}
-		// PDF：文字层乱码时经本机 WPS 转换（wps.go），图片以 data URI 留在 Markdown 里，
-		// 由调用方 ExternalizeDataImages 落盘；自写提取路径不产图片，计数为 0。
-		md, total, truncated, err = pdfToMarkdownLimitImages(path, pages, maxPages, nil, true)
+		// PDF 优先经本机 WPS 转换（wps.go；用户拍板「转换解析优先用 WPS」）：文字型出
+		// 真表格、扫描件走在线 OCR，图片以 data URI 留在 Markdown 里，由调用方
+		// ExternalizeDataImages 落盘；WPS 不可用时退回自写提取 / 本地 OCR——自写提取
+		// 路径不产图片，计数为 0。
+		md, total, truncated, err = pdfToMarkdownLimitImages(path, pages, maxPages, nil, true, true)
 		return md, total, truncated, countImageDataURIs(md), err
 	}
 }

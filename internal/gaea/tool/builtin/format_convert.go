@@ -22,7 +22,7 @@ type formatConvert struct{ workDir string }
 func (formatConvert) Name() string { return "format_convert" }
 
 func (formatConvert) Description() string {
-	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注；pdf→md 提取文本（含 OCR 扫描件回退；文字层是子集字体编码的中文 PDF——Word/WPS 导出的多属此类——本机装有 WPS Office 时自动改走 WPS 转换，表格成真表格、图片保留）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。按文档大小数秒到数分钟（经 WPS 时 233 页约 1 分半）；不消耗主模型 token。"
+	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。"
 }
 
 func (formatConvert) Schema() json.RawMessage {
@@ -74,6 +74,18 @@ type fcInput struct {
 	PreserveImages bool   `json:"preserve_images,omitempty"`
 }
 
+// convertPreservingImages 转换 seam（测试打桩；单测不得真调 WPS / OCR）。
+var convertPreservingImages = docmd.ConvertPreservingImages
+
+// fcOutcome 一次转换的结果（后台 goroutine 经管道回传）。
+type fcOutcome struct {
+	md        string
+	total     int
+	truncated bool
+	images    int
+	err       error
+}
+
 func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p fcInput
 	if err := json.Unmarshal(args, &p); err != nil {
@@ -90,7 +102,22 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		p.Output = resolveIn(f.workDir, p.Output)
 	}
 
-	md, total, truncated, images, err := docmd.ConvertPreservingImages(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
+	// 转换链不看取消信号（pdftoppm / wpscli / OCR 引擎请求都是整段同步的）：用户按
+	// 停止时立即返回，让本轮收尾——否则 executeBatch 死等这个工具，下一条消息一直
+	// 「排队中」（2026-11-26 实弹：174 页扫描件 OCR 堵到重启）。转换在后台跑完即弃，
+	// 结果仍进 docmd 的进程内缓存，重试同一份可秒回；落盘在下面，取消后不会写文件。
+	ch := make(chan fcOutcome, 1)
+	go func() {
+		md, total, truncated, images, err := convertPreservingImages(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
+		ch <- fcOutcome{md: md, total: total, truncated: truncated, images: images, err: err}
+	}()
+	var r fcOutcome
+	select {
+	case r = <-ch:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	md, total, truncated, images, err := r.md, r.total, r.truncated, r.images, r.err
 	if err != nil {
 		// U1 错误码：模型按 code 路由恢复（换路径/如实告知不支持），不解析散文
 		switch {

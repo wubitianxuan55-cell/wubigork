@@ -38,7 +38,7 @@ const (
 	KeyTTSVoice            = "tts_voice"              // 语音合成音色（Herdsman / Edge）
 	KeyActiveOCREngine     = "active_ocr_engine"      // OCR 激活引擎
 	KeyActiveOCRModel      = "active_ocr_model"       // OCR 激活模型
-	KeyActiveOCRLocal      = "active_ocr_local"       // OCR 本地引擎定点（空=docmd auto 链；值=docmd kind，如 ovis/uocr2）
+	KeyActiveOCRLocal      = "active_ocr_local"       // OCR 本地引擎定点（空=docmd 默认链；值=docmd kind，仅 uocr2）
 	KeyVoicePersonality    = "voice_personality"      // 语音对话角色（首页语音固定 gaea；聊天板块内语音跟随所选人格）
 	KeyFuncChatVoiceEngine = "func_chat_voice_engine" // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	KeyFuncChatVoiceModel  = "func_chat_voice_model"  // 聊天语音合成模型

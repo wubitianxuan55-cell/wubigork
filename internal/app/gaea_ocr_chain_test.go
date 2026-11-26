@@ -42,16 +42,16 @@ func clearHerdsmanOCREnv(t *testing.T) {
 
 // killLocalOCRLeg 让本地腿 fail-closed（未知 GAEA_OCR_ENGINE kind 在
 // ocrEngineOrder 即刻报错，不探活不拉起）——默认 local-first 序下本地腿先行，
-// herdsman 腿测试必须杀本地腿，防真拉本机 uocr2/ovis 服务（8138 在跑时会真打）。
+// herdsman 腿测试必须杀本地腿，防真拉本机 uocr2 服务（8139 在跑时会真打）。
 func killLocalOCRLeg(t *testing.T) {
 	t.Helper()
 	t.Setenv("GAEA_OCR_ENGINE", "paddle") // 远端名不是本地 kind → fail-closed
 }
 
-// newFakeUocr2 起一个假 Unlimited-OCR-2 llama 后端服务（GAEA_UOCR2_LLAMA_URL 注入
-// docmd；2026-10-29 起默认 auto 腿序=llama 先行）：/health 应答 ok，
-// /v1/chat/completions 返回 <PAGE>+BLOCK 标记包裹的固定文本并计数（清洗后即
-// 预期文本）。resolveBase 探 /health 即成功并缓存，不触真实拉起。
+// newFakeUocr2 起一个假 Unlimited-OCR-2 llama 服务（GAEA_UOCR2_LLAMA_URL 注入
+// docmd；本地唯一引擎）：/health 应答 ok，/v1/chat/completions 返回 <PAGE>+BLOCK
+// 标记包裹的固定文本并计数（清洗后即预期文本）。resolveBase 探 /health 即成功并
+// 缓存，不触真实拉起。
 func newFakeUocr2(t *testing.T, text string) (*httptest.Server, *int32) {
 	t.Helper()
 	var hits int32
@@ -120,8 +120,7 @@ func TestGaeaOCRText_ActiveOCRBindingLeg1ParseRouting(t *testing.T) {
 
 // TestGaeaOCRText_GAEA_OCR_ENGINEDoesNotHijackHerdsmanLegs docmd 的
 // GAEA_OCR_ENGINE 只管本地腿的引擎选择，不得劫持腿序：显式 GAEA_OCR_ENGINE=tesseract
-// 时本地腿先行但假图必失败（tesseract 未装/坏图均报错），穿透到 herdsman 腿
-// 并返回其文本。
+// （2026-11-26 已退役）时本地腿先行但即刻 fail-closed，穿透到 herdsman 腿并返回其文本。
 func TestGaeaOCRText_GAEA_OCR_ENGINEDoesNotHijackHerdsmanLegs(t *testing.T) {
 	clearHerdsmanOCREnv(t)
 	t.Setenv("GAEA_OCR_ENGINE", "tesseract")
@@ -223,14 +222,34 @@ func TestGaeaOCRText_LocalLegHonorsGAEA_OCR_ENGINE(t *testing.T) {
 	}
 }
 
+// TestGaeaOCRText_LocalLegRetiredEngineFailsClosed 已退役引擎（GAEA_OCR_ENGINE=ovis，
+// 旧机器残留配置）：本地腿如实报「已退役」并指路 uocr2，不静默换挡、不探活不拉起。
+func TestGaeaOCRText_LocalLegRetiredEngineFailsClosed(t *testing.T) {
+	t.Setenv("GAEA_OCR_ENGINE", "ovis")
+	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1")
+
+	mgr := modelengine.NewManager("", "") // 无 herdsman 引擎
+	a := &App{core: &core{engineMgr: mgr}}
+
+	_, err := a.GaeaOCRText(newOCRTestImage(t))
+	if err == nil {
+		t.Fatal("已退役引擎应报错")
+	}
+	for _, want := range []string{"本地 OCR", "退役", "uocr2"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("错误 %q 缺少 %q", err.Error(), want)
+		}
+	}
+}
+
 // TestGaeaOCRText_LocalLegFirstByDefault 默认腿序（2026-10-29 同图三引擎实测
-// 拍板，质量优先）：本地链（uocr2 假服务经 GAEA_UOCR2_URL 注入，GAEA_OCR_ENGINE
-// 保持 auto）先于 herdsman 两腿——本地腿命中即返回，herdsman 两端点不得被调。
+// 拍板，质量优先）：本地腿（uocr2 假服务经 GAEA_UOCR2_LLAMA_URL 注入，GAEA_OCR_ENGINE
+// 保持默认）先于 herdsman 两腿——本地腿命中即返回，herdsman 两端点不得被调。
 func TestGaeaOCRText_LocalLegFirstByDefault(t *testing.T) {
 	clearHerdsmanOCREnv(t)
 	uocr2, uocr2Hits := newFakeUocr2(t, "uocr2 本地文本")
-	t.Setenv("GAEA_UOCR2_LLAMA_URL", uocr2.URL)      // llama 主后端注入假服务
-	t.Setenv("GAEA_UOCR2_URL", "http://127.0.0.1:1") // python 兜底侧死值：llama 成功即不应触达
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", uocr2.URL) // 本地引擎注入假服务
 	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
 
 	var ocrHits, parseHits int
@@ -279,7 +298,7 @@ func TestGaeaOCRText_HerdsmanFirstOptIn(t *testing.T) {
 	t.Setenv("GAEA_OCR_LEG_ORDER", "herdsman-first")
 	uocr2, uocr2Hits := newFakeUocr2(t, "uocr2 本地文本")
 	t.Setenv("GAEA_UOCR2_LLAMA_URL", uocr2.URL)
-	t.Setenv("GAEA_UOCR2_URL", "http://127.0.0.1:1")
+	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
 
 	var ocrHits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

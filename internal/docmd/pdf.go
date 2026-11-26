@@ -11,6 +11,7 @@ import (
 	"compress/zlib"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,13 +30,15 @@ func pdfToMarkdown(path string, pages string) (string, error) {
 // 分页 OCR，避免整本超大 PDF 一次渲染/识别）。返回 markdown、总页数、是否被
 // 上限截断、错误。progress 在逐页 OCR 时回调 (done, total)。
 func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, total int)) (string, int, bool, error) {
-	return pdfToMarkdownLimitImages(path, pages, maxPages, progress, false)
+	return pdfToMarkdownLimitImages(path, pages, maxPages, progress, false, false)
 }
 
-// pdfToMarkdownLimitImages 是 pdfToMarkdownLimit 的完整形态。keepImages：文字层经本机
+// pdfToMarkdownLimitImages 是 pdfToMarkdownLimit 的完整形态。keepImages：PDF 经本机
 // WPS 转换（见 wps.go）时保留 data URI 图片——format_convert 的 preserve_images 用；
-// false 时去掉，检索索引、摘要等纯文本消费方不该吃 base64。
-func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(done, total int), keepImages bool) (string, int, bool, error) {
+// false 时去掉，检索索引、摘要等纯文本消费方不该吃 base64。preferWPS：文字层干净
+// 的 PDF 也先经 WPS（format_convert：表格是真表格、图片保留）；false 时本地提取
+// 通道不变，只有乱码的才上 WPS。
+func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(done, total int), keepImages, preferWPS bool) (string, int, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", 0, false, err
@@ -106,16 +109,21 @@ func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(do
 	// （整本孟加拉文/天城文，见 wps.go）。检出的改走本机 WPS；指定了页范围而页对象又在
 	// 压缩对象流里的，自写提取分不清哪段文字属于哪一页，也交给 WPS。
 	hard := false
+	var wpsErr error // WPS 这一轮没成的原因（成了就早退了）；兜底也失败时带给用户
 	if result != "" {
 		var soft bool
 		hard, soft = pdfTextGarbled(result)
-		if hard || soft || (pages != "" && pagesHidden) {
-			if md, ok := wpsRescuePDF(path, pages, maxPages, &effSpec, &totalPages, &truncated); ok {
+		// preferWPS：文字层干净也先经 WPS——表格是真表格、图片保留，自写提取只有
+		// 平铺文字（2026-11-26 拍板「转换解析优先用 WPS」）。
+		if hard || soft || (pages != "" && pagesHidden) || preferWPS {
+			md, werr := wpsRescuePDF(path, pages, maxPages, &effSpec, &totalPages, &truncated, wpsRescueText)
+			if werr == nil {
 				if !keepImages {
 					md = stripDataImages(md)
 				}
 				return md, totalPages, truncated, nil
 			}
+			wpsErr = werr // 同一份不重复拉起 WPS
 		}
 	}
 	if hard {
@@ -126,16 +134,37 @@ func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(do
 		result = extractRawText(data)
 	}
 	if result == "" {
+		// 提取不到文字：扫描件，或字形号文字层（裸 <hex>Tj——自写提取只认 (...)Tj 与
+		// [...] TJ 两种形态，2026-11-26 实弹 174 页整本提空）。先走 WPS 在线 OCR
+		// （同一份实测 68 秒），WPS 不可用或失败才落本地 OCR——分钟到小时级、整条链
+		// 不看取消信号，所以限页数（ocrMaxPages）。
+		if wpsErr == nil { // 文字型通路没试过才试在线 OCR：同一份不重复拉起 WPS
+			md, werr := wpsRescuePDF(path, pages, maxPages, &effSpec, &totalPages, &truncated, wpsRescueScanned)
+			if werr == nil {
+				if !keepImages {
+					md = stripDataImages(md)
+				}
+				return md, totalPages, truncated, nil
+			}
+			wpsErr = werr
+		}
 		// 文本提取失败 → 回退 OCR（扫描件 PDF），只渲染 effSpec 覆盖的页。
 		// OCR 分钟级，走进程内缓存（键=内容哈希+页规格+引擎序，data 已在内存
 		// 直接哈希零重读；见 ocrcache.go）。
 		first, last := pageBounds(effSpec, totalPages)
+		slog.Warn("docmd: PDF 提取不到文字，走本地 OCR 兜底",
+			"path", path, "pages", last-first+1, "wpsErr", fmt.Sprint(wpsErr))
 		sum := sha256.Sum256(data)
 		key := "pdf:" + hex.EncodeToString(sum[:16]) + ":" + effSpec + ":" + engineOrderKey()
 		md, ocrErr := ocrCached(key, func() (string, error) {
 			return ocrPDFRange(path, effSpec, first, last, totalPages, progress)
 		})
 		if ocrErr != nil {
+			if wpsErr != nil {
+				// 真因两头都带上：WPS 为什么没成、本地 OCR 为什么没成。只报本地 OCR 的
+				// 原因会把刚失败过的路再指一遍（「请改用 WPS」），用户无从判断。
+				ocrErr = fmt.Errorf("WPS 在线 OCR 没成功（%v）；本地 OCR 兜底也没成功：%w", wpsErr, ocrErr)
+			}
 			if hard {
 				// 如实报错：以前这里会把乱码当正文返回（"做错了却报成功"）。
 				return "", totalPages, truncated, fmt.Errorf("PDF 文字层无法解码（子集字体缺字体映射，提取结果是乱码；本机 WPS 不可用或转换失败），OCR 回退也失败: %w", ocrErr)
@@ -147,18 +176,37 @@ func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(do
 	return result, totalPages, truncated, nil
 }
 
-// wpsRescuePDF 把 PDF 交给本机 WPS 转成 Markdown（带 data URI 图片）。返回 false 表示
-// WPS 不可用或转换失败——原因写日志，调用方走原有兜底。页数以 WPS 本地引擎读到的为准
-// （自写计数在压缩对象流的 PDF 上失真），页范围上限与截断标记随之重算后再转换，
-// 回报的 truncated 才与产物一致。
-func wpsRescuePDF(path, pages string, maxPages int, effSpec *string, totalPages *int, truncated *bool) (string, bool) {
+// wpsRescueMode 两条 WPS 通路，对应自写提取的两种失败形态。
+type wpsRescueMode int
+
+const (
+	// wpsRescueText：文字层读得出来但不可靠（乱码 / 页归属分不清）——让 WPS 默认
+	// 引擎读文字层，表格成真表格。
+	wpsRescueText wpsRescueMode = iota
+	// wpsRescueScanned：提取不到文字（扫描件 / 字形号文字层）——走 WPS 在线 OCR 引擎。
+	wpsRescueScanned
+)
+
+// wpsRescuePDF 把 PDF 交给本机 WPS 转成 Markdown（带 data URI 图片）。返回的 error 是
+// WPS 不可用或转换失败的原因（同时写日志）——调用方走原有兜底，兜底也失败时把它带给
+// 用户。页数以 WPS 本地引擎读到的为准（自写计数在压缩对象流的 PDF 上失真），页范围
+// 上限与截断标记随之重算后再转换，回报的 truncated 才与产物一致。
+func wpsRescuePDF(path, pages string, maxPages int, effSpec *string, totalPages *int, truncated *bool, mode wpsRescueMode) (string, error) {
 	if !wpsPDFEnabled() {
-		return "", false
+		return "", errors.New("本机 WPS 通道已关闭（GAEA_WPS_PDF=0）")
+	}
+	if wpsSuspended() {
+		slog.Debug("docmd: WPS 账号级失败后的静默期内，跳过 WPS 转换", "path", path)
+		return "", errors.New("WPS 账号级失败后的静默期内（未登录 / 无会员 / 超配额），暂不重试")
 	}
 	cli := wpsCLILookup()
 	if cli == "" {
-		slog.Debug("docmd: PDF 文字层不可靠，且本机未找到 WPS wpscli", "path", path)
-		return "", false
+		slog.Debug("docmd: 本机未找到 WPS wpscli", "path", path)
+		return "", errors.New("本机未找到 WPS（wpscli）")
+	}
+	convert, cause := wpsPDFMarkdownFn, "PDF 文字层不可靠"
+	if mode == wpsRescueScanned {
+		convert, cause = wpsScannedPDFMarkdownFn, "PDF 提取不到文字"
 	}
 	known := 0 // WPS 读到的页数（0=没读到）
 	if n := wpsPageCount(cli, path); n > 0 {
@@ -167,17 +215,17 @@ func wpsRescuePDF(path, pages string, maxPages int, effSpec *string, totalPages 
 			eff, trunc, err := capPageSpec(pages, maxPages, n)
 			if err != nil {
 				slog.Debug("docmd: 按真实页数重算页范围失败", "path", path, "pages", n, "err", err.Error())
-				return "", false
+				return "", fmt.Errorf("按 WPS 读到的页数重算页范围失败: %w", err)
 			}
 			*totalPages, *effSpec, *truncated = n, eff, trunc
 		}
 	}
-	md, err := wpsPDFMarkdownFn(cli, path, *effSpec, known)
+	md, err := convert(cli, path, *effSpec, known)
 	if err != nil {
-		slog.Warn("docmd: PDF 文字层不可靠，WPS 转换失败", "path", path, "err", err.Error())
-		return "", false
+		slog.Warn("docmd: "+cause+"，WPS 转换失败", "path", path, "err", err.Error())
+		return "", err
 	}
-	return md, true
+	return md, nil
 }
 
 // stampNoiseText 判定 BT/ET 提取结果是否只是页码戳/序号类噪声：每行去空白后

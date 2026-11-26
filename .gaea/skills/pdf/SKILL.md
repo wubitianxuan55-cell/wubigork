@@ -232,44 +232,30 @@ pdftk input.pdf rotate 1east output rotated.pdf
 
 ### Extract Text from Scanned PDFs
 
- **首选本地 OCR（离线、零外部依赖，发挥 gaea 本地模型优势）**：
+ **首选 WPS（2026-11-26 拍板：转换解析优先用 WPS）**：直接用 `format_convert` 工具转整份
+PDF——文字型出真表格，扫描件自动走 WPS 在线 OCR（174 页实测约 1 分钟），照片版 PDF 也能
+出真表格。WPS 不可用时工具自动退回本地提取 / 本地 OCR（一次最多 30 页，超限用 `pages` 分段）。
 
 ```bash
-# 扫描件 PDF / 图片 → 本地 OCR
-# 自动链路：OvisOCR2 文档解析（推荐，Markdown/表格/公式）→ RapidOCR → Windows 原生 OCR → 本地视觉模型
+# 扫描件 / 照片版 PDF → Markdown（含表格）；要图片落盘就加 output 与 preserve_images=true
+format_convert path=扫描件.pdf output=扫描件.md preserve_images=true
+```
+
+ **本地 OCR（仅 WPS 不可用时的兜底；离线）**：gaea 内建的本地 OCR 只保留 Unlimited-OCR-2
+（2026-11-26 精简；`format_convert` 的本地兜底会自动用它）。技能自带脚本只剩两条不依赖
+引擎工件的通道——Windows 原生 OCR 与本地视觉模型：
+
+```bash
+# 自动：Windows 原生 OCR 先行，文本过短/为空的页回退本地视觉模型
 python scripts/ocr_local.py 扫描件.pdf --mode auto --out 识别结果.txt
-
-# 强制只用 OvisOCR2（0.8B 端到端文档解析，GGUF + Vulkan，已装于 C:\AI\gaea-ocr）
-python scripts/ocr_local.py 扫描件.pdf --mode ovis --out 识别结果.txt
-
-# 强制只用 RapidOCR（PP-OCR 转 ONNX，需 venv：C:\AI\gaea-ocr-env\Scripts\python.exe）
-C:\AI\gaea-ocr-env\Scripts\python.exe scripts/ocr_local.py 扫描件.pdf --mode rapid --out 识别结果.txt
-
-# 强制只用本地视觉模型（版式/表格理解更强，需要 herdsman 视觉服务在 127.0.0.1:8080 运行）
-python scripts/ocr_local.py 扫描件.pdf --mode local --out 识别结果.txt
 ```
 
-> **gaea 内建链路（知识库导入/成本报价单/提取文字兜底）2026-10-29 起自动首选
-> Unlimited-OCR-2**（百度 DeepSeek-OCR 血统 3B MoE，表格/版式还原最好，已装
-> `C:\AI\unlimited-ocr2`，常驻服务 127.0.0.1:8138 按需拉起，CPU 约 1 分钟/页；
-> `GAEA_OCR_ENGINE=ovis` 可换回快速档）。直接命令行调用：
-> `C:\AI\unlimited-ocr2\venv\Scripts\python.exe C:\AI\unlimited-ocr2\ocr.py 页.png`。
+链路：PyMuPDF 渲染 PDF 页（默认 300 DPI）→ WinRT OcrEngine（离线、zh-Hans，
+`scripts/windows-ocr.ps1`）→ 本地视觉模型（herdsman，`GAEA_VISION_BASE_URL` /
+`GAEA_VISION_MODEL` 可覆盖）。输出 UTF-8 文本或 JSON（每页 + 工具来源）。
 
-链路：PyMuPDF 渲染 PDF 页（默认 300 DPI）→ **OvisOCR2**（llama.cpp Vulkan，
-`C:\AI\gaea-ocr`，路径可用 `GAEA_OCR_DIR` / `GAEA_OCR_LLAMA` / `GAEA_OCR_MODEL` / `GAEA_OCR_MMPROJ`
-覆盖）→ RapidOCR（PP-OCR，onnxruntime）→ WinRT OcrEngine（离线、zh-Hans）→
-本地视觉模型（herdsman，`GAEA_VISION_BASE_URL` / `GAEA_VISION_MODEL` 可覆盖）。
-文本过短/为空时逐级降级。输出 UTF-8 文本或 JSON（每页 + 工具来源）。
-
-可选外部方案（仅当本地通道都不可用时）：
-```python
-# Requires: pip install pytesseract pdf2image + tesseract.exe
-import pytesseract
-from pdf2image import convert_from_path
-images = convert_from_path('scanned.pdf')
-for i, image in enumerate(images):
-    print(f"Page {i+1}:\n{pytesseract.image_to_string(image)}")
-```
+> 本机未装 tesseract；OvisOCR2 / RapidOCR 两腿已于 2026-11-26 退役，不要再按旧文档去找。
+> 扫描件请优先走上面的 WPS 路径。
 
 ### Add Watermark
 ```python
@@ -359,7 +345,7 @@ df.to_excel("报表.xlsx", index=False)
 | 表格 → Excel | pdfplumber + pandas | `page.extract_tables()` → `to_excel()` |
 | Create PDFs | reportlab | Canvas or Platypus |
 | Command line merge | qpdf | `qpdf --empty --pages ...` |
-| OCR scanned PDFs | pytesseract | Convert to image first |
+| OCR scanned PDFs | `format_convert`（WPS 在线 OCR，首选）；兜底 `python scripts/ocr_local.py --mode auto` | 见「Extract Text from Scanned PDFs」 |
 | Fill PDF forms | pdf-lib or pypdf (see FORMS.md) | See FORMS.md |
 
 ## Next Steps

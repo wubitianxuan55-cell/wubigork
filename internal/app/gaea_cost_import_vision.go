@@ -36,9 +36,9 @@ const (
 )
 
 // visionExtractPDF / visionOCRImage / visionOCRPDF 是可注入的文本提取/图片
-// OCR/扫描件 PDF 强制 OCR 函数（测试替换用）。默认走 docmd 本地链路：
-// ConvertLimit 对文本 PDF 直接提取、对扫描件自动 OCR（uocr2→ovis→tesseract）；
-// OCRImageText 用本地引擎链识别图片；OCRPDFText 强制走扫描件 OCR 管线
+// OCR/扫描件 PDF 强制 OCR 函数（测试替换用）。默认走 docmd 链路：ConvertLimit
+// 对文本 PDF 直接提取、对扫描件先走 WPS 在线 OCR（不可用才本地 Unlimited-OCR-2）；
+// OCRImageText 用本地引擎识别图片；OCRPDFText 强制走扫描件 OCR 管线
 // （忽略文本层，2026-11-09 起替代此前误把 PDF 路径喂 OCRImageText 的兜底腿
 // ——按 PNG 处理 PDF 字节必然失败，形同虚设）。
 var (
@@ -113,8 +113,8 @@ func (a *App) GaeaCostImportVisionPreview(path string) (CostImportPreview, error
 }
 
 // visionExtractPDFText 提取 PDF 文本并判定来源：文本型（pdf_text）/ 扫描件
-// （pdf_scan）。ConvertLimit 对扫描件已内置 OCR，输出带 OCR 标记前缀；文本
-// 极少时再走本地 OCR 兜底（OvisOCR2）。
+// （pdf_scan）。ConvertLimit 对扫描件先走 WPS 在线 OCR（不可用才本地 OCR），输出带
+// OCR 标记前缀；文本极少时再强制走扫描件 OCR 管线兜底。
 func (a *App) visionExtractPDFText(abs string) (string, string, error) {
 	text, err := visionExtractPDF(abs)
 	if err != nil {
@@ -124,14 +124,21 @@ func (a *App) visionExtractPDFText(abs string) (string, string, error) {
 	if strings.HasPrefix(strings.TrimSpace(text), "（以下内容由 OCR 识别") {
 		source = visionSourcePDFScan
 	}
+	var ocrErr error
 	if !pdfTextUsable(text) {
 		// 文本极少/噪声 → 强制扫描件 OCR 管线（OCRPDFText，忽略文本层）。
-		if ocr, oerr := visionOCRPDF(abs, docmd.DefaultMaxPDFPages); oerr == nil && pdfTextUsable(ocr) {
+		ocr, oerr := visionOCRPDF(abs, docmd.DefaultMaxPDFPages)
+		if oerr == nil && pdfTextUsable(ocr) {
 			text, source = ocr, visionSourcePDFScan
+		} else {
+			ocrErr = oerr // 真因透传（引擎不可用 / 超 ocrMaxPages 上限…），别让用户去猜
 		}
 	}
 	if !pdfTextUsable(text) {
-		return "", "", fmt.Errorf("未能从 PDF 中识别出有效文本（扫描件请确认本地 OCR 已安装）")
+		if ocrErr != nil {
+			return "", "", fmt.Errorf("未能从 PDF 中识别出有效文本: %w", ocrErr)
+		}
+		return "", "", fmt.Errorf("未能从 PDF 中识别出有效文本（扫描件请确认已登录 WPS 会员，或本地 OCR 可用）")
 	}
 	return text, source, nil
 }

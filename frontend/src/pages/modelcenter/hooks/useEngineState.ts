@@ -100,7 +100,7 @@ export function useEngineState(category: Category): EngineState {
       const list = await getEngines()
       if (seq !== loadAllSeq.current) return // 已有更新的加载请求，丢弃过期结果
       setEngines(list)
-      // 本地服务目录（OCR 三档/本地识图/本地 STT）：被动探活，失败静默（列空即可）
+      // 本地服务目录（本地 OCR / 本地识图 / 本地 STT）：被动探活，失败静默（列空即可）
       try {
         const lm = await getLocalServiceModels()
         if (seq !== loadAllSeq.current) return

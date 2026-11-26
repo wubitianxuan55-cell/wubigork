@@ -179,7 +179,7 @@ const visionOCRTextPrompt = "请完整解读这张图片：先按原版式逐行
 // visionOCRText 微信识图（v4.8.3）：优先多模态主模型（vision 运行时，默认
 // 本机 Qwen3.6-35B——真机探针实测视觉链路完好），手写体/低质量图显著强于
 // PaddleOCR 专线；主模型失败（服务忙/冷启动超时等）回退 GaeaOCRText
-// （PaddleOCR → MinerU → OvisOCR2 三级既有链）。
+// （herdsman PaddleOCR → MinerU → 本地 Unlimited-OCR-2 的既有链）。
 // 注意：本函数是「看懂图」不是纯 OCR——文字提取+画面理解都要；纯文字提取
 // 场景（办公提取文字工具）继续走 GaeaOCRText，两者分岗。
 func (a *App) visionOCRText(imagePath string) (string, error) {

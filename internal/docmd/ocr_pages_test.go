@@ -1,16 +1,10 @@
 package docmd
 
-// ocr_pages_test.go — T7-3：OCR 逐页失败跳过（全败才报错）与 OvisOCR2
-// max_tokens=4096 + finish_reason=length 截断检测。全部为纯单测：
-// ocrPageLoop 直接注入 fake 单页 OCR 函数；ovisPageOCR 用 httptest 假服务。
+// ocr_pages_test.go — T7-3：OCR 逐页失败跳过（全败才报错）与页范围过滤。全部为纯单测：
+// ocrPageLoop 直接注入 fake 单页 OCR 函数。（OvisOCR2 单页识别的截断检测用例随
+// 2026-11-26 退役删除；uocr2 的截断检测见 ocr_uocr2_llama_test.go。）
 
 import (
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -95,61 +89,6 @@ func TestOCRPageLoopPageRangeTotal(t *testing.T) {
 	}
 	if len(totals) != 2 || totals[0] != 1 || totals[1] != 1 {
 		t.Fatalf("progress 应为起步事件+1 页，total 恒为 1: %+v", totals)
-	}
-}
-
-// TestOvisPageOCRTruncationDetected finish_reason=length → 报截断错误；
-// 且请求体 max_tokens=4096（放宽上限）。
-func TestOvisPageOCRTruncationDetected(t *testing.T) {
-	var maxTokens any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/chat/completions" {
-			http.NotFound(w, r)
-			return
-		}
-		body, _ := io.ReadAll(r.Body)
-		var req map[string]any
-		_ = json.Unmarshal(body, &req)
-		maxTokens = req["max_tokens"]
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"只识别到一半"},"finish_reason":"length"}]}`))
-	}))
-	defer srv.Close()
-
-	png := filepath.Join(t.TempDir(), "p.png")
-	if err := os.WriteFile(png, []byte("fake-png"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, err := ovisPageOCR(srv.URL, png)
-	if err == nil {
-		t.Fatal("finish_reason=length 应报截断错误")
-	}
-	if !strings.Contains(err.Error(), "截断") {
-		t.Fatalf("错误应说明截断: %v", err)
-	}
-	if mt, ok := maxTokens.(float64); !ok || mt != 4096 {
-		t.Fatalf("max_tokens 应为 4096，实际 %v", maxTokens)
-	}
-}
-
-// TestOvisPageOCRFinishReasonStop 正常 finish_reason=stop 不报错，返回识别文本。
-func TestOvisPageOCRFinishReasonStop(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"完整识别结果"},"finish_reason":"stop"}]}`))
-	}))
-	defer srv.Close()
-
-	png := filepath.Join(t.TempDir(), "p.png")
-	if err := os.WriteFile(png, []byte("fake-png"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	text, err := ovisPageOCR(srv.URL, png)
-	if err != nil {
-		t.Fatalf("stop 不应报错: %v", err)
-	}
-	if !strings.Contains(text, "完整识别结果") {
-		t.Fatalf("text = %q", text)
 	}
 }
 

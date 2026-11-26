@@ -229,7 +229,7 @@ describe('useEngineState · 本地服务目录 merge', () => {
       ] } as unknown as EngineConfig,
     ])
     vi.mocked(getLocalServiceModels).mockResolvedValue([
-      { engineId: 'local:ovis', modelId: 'ovis-ocr2', name: 'OvisOCR2（本地·8137）', kind: 'ocr', detail: 'd', ready: true },
+      { engineId: 'local:uocr2', modelId: 'unlimited-ocr2-llama', name: 'Unlimited-OCR-2（本地·8139）', kind: 'ocr', detail: 'd', ready: true },
       { engineId: 'local:vision', modelId: 'qwen35-mmproj', name: '本地识图（qwen35 mmproj）', kind: 'vision', detail: 'd', ready: false },
       { engineId: 'local:stt', modelId: 'sherpa-zipformer-int8', name: '本地语音识别（sherpa int8）', kind: 'stt', detail: 'd', ready: true },
     ])
@@ -238,10 +238,10 @@ describe('useEngineState · 本地服务目录 merge', () => {
     const spec = result.current.specialtyModels
     const ids = spec.map(m => m.engineId + ':' + m.modelId)
     expect(ids).toContain('herdsman:bge-m3')
-    expect(ids).toContain('local:ovis:ovis-ocr2')
+    expect(ids).toContain('local:uocr2:unlimited-ocr2-llama')
     expect(ids).toContain('local:vision:qwen35-mmproj')
-    const ovis = spec.find(m => m.engineId === 'local:ovis')
-    expect(ovis?.status).toBe('running')
+    const uocr2 = spec.find(m => m.engineId === 'local:uocr2')
+    expect(uocr2?.status).toBe('running')
     const stt = result.current.sttModels.map(m => m.engineId + ':' + m.modelId)
     expect(stt).toContain('local:stt:sherpa-zipformer-int8')
     expect(result.current.llmModels).toHaveLength(0)

@@ -6,11 +6,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestFormatConvertWritesOutputFile verifies that format_convert generates the
@@ -181,5 +183,53 @@ d.save(r"` + docx + `")
 	}
 	if !strings.Contains(res, "工艺流程图如下") || !strings.Contains(res, "内嵌图片 1 张未随文本返回") {
 		t.Fatalf("正文应保留并说明图片去向: %.600s", res)
+	}
+}
+
+// 用户按停止：转换还没完也要立即返回（ctx.Err），让本轮收尾——否则 executeBatch 死等
+// 这个工具，下一条消息一直「排队中」（2026-11-26 实弹：174 页扫描件 OCR 堵到重启）。
+// 取消后不落盘；后台那次转换跑完即弃。
+func TestFormatConvert_CancelReturnsImmediatelyAndWritesNothing(t *testing.T) {
+	orig := convertPreservingImages
+	release := make(chan struct{})
+	started := make(chan struct{})
+	convertPreservingImages = func(_, _ string, _ int) (string, int, bool, int, error) {
+		close(started)
+		<-release
+		return "# 慢转换的结果", 1, false, 0, nil
+	}
+	t.Cleanup(func() { convertPreservingImages = orig })
+
+	out := filepath.Join(t.TempDir(), "converted.md")
+	args, err := json.Marshal(map[string]string{"path": "a.pdf", "output": out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := (formatConvert{}).Execute(ctx, args)
+		done <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("转换没有启动")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("取消后应返回 context.Canceled，得到 %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("取消后应立即返回，不该等转换结束")
+	}
+	close(release)
+	// 给后台那次转换一点时间跑完，确认它没有补写文件。
+	time.Sleep(200 * time.Millisecond)
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Fatalf("取消后不得落盘，Stat err=%v", err)
 	}
 }

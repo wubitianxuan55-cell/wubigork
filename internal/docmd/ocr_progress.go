@@ -30,7 +30,7 @@ const (
 )
 
 // OCRProgressEvent 一次 OCR 作业的进度快照。Path 是作业键（前端按 path 去重
-// 原地更新同一张卡）；Engine 是当前引擎 kind（uocr2/ovis/tesseract），选型前
+// 原地更新同一张卡）；Engine 是当前引擎 kind（uocr2，或测试替身），选型前
 // 为空；Done/Total 是页粒度进度（图片作业恒 Total=1）。
 type OCRProgressEvent struct {
 	Path   string `json:"path"`

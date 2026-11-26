@@ -70,7 +70,7 @@ type core struct {
 	// OCR 激活引擎 + 模型（空=自动选择 Herdsman PaddleOCR/MinerU）
 	activeOCREngine string
 	activeOCRModel  string
-	activeOCRLocal  string // docmd 本地引擎定点（active_ocr_local；空=auto 链）
+	activeOCRLocal  string // docmd 本地引擎定点（active_ocr_local；空=默认链；合法值仅 uocr2）
 
 	// 统一聊天会话存储（聊天/轻语合并：话题 + 消息）
 	chatStore *chat.Store
@@ -514,7 +514,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.activeTTSVoice = a.cfg.TTSVoice
 	a.activeOCREngine = a.cfg.ActiveOCREngine
 	a.activeOCRModel = a.cfg.ActiveOCRModel
-	a.activeOCRLocal = a.cfg.ActiveOCRLocal
+	a.activeOCRLocal = normalizeLocalOCRKind(a.cfg.ActiveOCRLocal) // 残留的已退役引擎值在此清掉
 	a.setVoicePersonality(a.cfg.VoicePersonality)
 	a.chatVoiceEngine = a.cfg.FuncChatVoiceEngine
 	a.chatVoiceModel = a.cfg.FuncChatVoiceModel

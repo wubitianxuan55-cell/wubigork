@@ -1,21 +1,16 @@
 package docmd
 
-// ocr_uocr2_test.go — uocr2 引擎（Unlimited-OCR-2）单测：结构标记清洗、
-// /ocr 客户端解码与截断 fail-closed、服务拉起超时杀进程树/成功保留存活。
-// 全部为纯单测，不依赖真实 python 服务（拉起用 ocr_test.go 的 helper 假进程）。
+// ocr_uocr2_test.go — uocr2 引擎（Unlimited-OCR-2，llama 后端）单测：结构标记清洗、
+// 批识别编排（分窗 / 回退逐页）、provider 的地址缓存纪律。
+// 全部为纯单测，不依赖真实服务：HTTP 面用 ocr_uocr2_llama_test.go 的 httptest 假服务。
+// python 后端（/ocr、/ocr_batch）相关用例随 2026-11-26 退役一并删除；进程拉起的
+// 进程纪律用例见 ocr_test.go。
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
-	"time"
 )
 
 func TestUocr2CleanText(t *testing.T) {
@@ -59,133 +54,21 @@ func TestUocr2CleanTextNestedAngle(t *testing.T) {
 	}
 }
 
-// fakeUocr2Server 起 httptest 服务模拟 server.py：/health 探活 + /ocr 返回注入文本。
-func fakeUocr2Server(t *testing.T, status int, body string) *httptest.Server {
-	t.Helper()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
-	mux.HandleFunc("/ocr", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return srv
-}
-
 // mustTempPNG 写一个内容任意的临时「PNG」（客户端只读字节转发，服务端才解码）。
 func mustTempPNG(t *testing.T) string {
 	t.Helper()
-	p := filepath.Join(t.TempDir(), "page.png")
-	if err := os.WriteFile(p, []byte("fake-png-bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
-func TestUocr2PageOCRDecodesAndCleans(t *testing.T) {
-	raw := "<PAGE><BLOCK>table[1, 2, 3, 4]<FORK>水温\n<BLOCK>header[5, 6, 7, 8]<FORK>pH 值"
-	srv := fakeUocr2Server(t, http.StatusOK, mustJSON(t, map[string]string{"text": raw}))
-	got, err := uocr2PageOCR(srv.URL, mustTempPNG(t))
-	if err != nil {
-		t.Fatalf("uocr2PageOCR: %v", err)
-	}
-	if got != "水温\npH 值" {
-		t.Errorf("text = %q, want 水温\\npH 值", got)
-	}
-}
-
-func TestUocr2PageOCRTruncationFailsClosed(t *testing.T) {
-	srv := fakeUocr2Server(t, http.StatusUnprocessableEntity,
-		mustJSON(t, map[string]string{"error": "输出被 max_tokens 截断（finish_reason=length）"}))
-	_, err := uocr2PageOCR(srv.URL, mustTempPNG(t))
-	if err == nil {
-		t.Fatal("422 截断应报错（fail-closed，不把残缺文本当完整结果）")
-	}
-	if !strings.Contains(err.Error(), "截断") {
-		t.Errorf("错误应说明截断: %v", err)
-	}
-}
-
-func mustJSON(t *testing.T, v any) string {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
-// TestStartUocr2ServerTimeoutKillsProcessTree 镜像 ovis 同名测试：永不健康探针 +
-// 快速假进程 → 超时返回 false 且进程被杀（无孤儿残留）。
-func TestStartUocr2ServerTimeoutKillsProcessTree(t *testing.T) {
-	restoreUocr2Vars(t)
-
-	var started *exec.Cmd
-	uocr2BuildCmd = func() (*exec.Cmd, *os.File, bool) {
-		started = fakeOvisServer() // 同一 helper 假进程（长时间阻塞）
-		return started, nil, true
-	}
-	uocr2Healthy = func(*http.Client, string) bool { return false }
-	uocr2StartWait = 2 * time.Second
-
-	t.Cleanup(func() {
-		if started != nil && started.Process != nil && processAlive(started.Process.Pid) {
-			_ = started.Process.Kill()
-		}
-	})
-
-	if startUocr2Server(&http.Client{Timeout: 2 * time.Second}, "http://127.0.0.1:1") {
-		t.Fatal("startUocr2Server 超时后应返回 false")
-	}
-	if started == nil || started.Process == nil {
-		t.Fatal("假进程未启动")
-	}
-	waitProcessDead(t, started.Process.Pid)
-}
-
-// TestStartUocr2ServerSuccessKeepsProcessAlive 立即健康探针 → 返回 true 且进程保留存活。
-func TestStartUocr2ServerSuccessKeepsProcessAlive(t *testing.T) {
-	restoreUocr2Vars(t)
-
-	var started *exec.Cmd
-	uocr2BuildCmd = func() (*exec.Cmd, *os.File, bool) {
-		started = fakeOvisServer()
-		return started, nil, true
-	}
-	uocr2Healthy = func(*http.Client, string) bool { return true }
-	uocr2StartWait = 2 * time.Second
-
-	t.Cleanup(func() {
-		if started != nil && started.Process != nil && processAlive(started.Process.Pid) {
-			_ = started.Process.Kill()
-		}
-	})
-
-	if !startUocr2Server(&http.Client{Timeout: 2 * time.Second}, "http://127.0.0.1:1") {
-		t.Fatal("startUocr2Server 就绪后应返回 true")
-	}
-	if !processAlive(started.Process.Pid) {
-		t.Fatal("启动成功应保留进程存活")
-	}
+	return writeFakeImage(t)
 }
 
 // TestUocr2ProviderDropsCacheOnTransportErr 传输层错误（服务中途消亡）必须清缓存
 // base，让下一页重新探测/拉起；HTTP 状态错误（服务活着）不清。
 func TestUocr2ProviderDropsCacheOnTransportErr(t *testing.T) {
-	restoreUocr2Vars(t)
-	t.Setenv("GAEA_UOCR2_BACKEND", "python") // 本例钉 python 协议（默认 auto 会先探 llama）
-
-	// 1) 服务活着但返回 422：错误透传，缓存保留。
-	srv := fakeUocr2Server(t, http.StatusUnprocessableEntity,
-		mustJSON(t, map[string]string{"error": "截断"}))
-	t.Setenv("GAEA_UOCR2_URL", srv.URL) // resolveBase 探测假服务 /health 即成功并缓存
+	// 1) 服务活着但返回 500：错误透传，缓存保留。
+	srv, _ := fakeLlamaServer(t, "", "stop", http.StatusInternalServerError)
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", srv.URL) // resolveBase 探测假服务 /health 即成功并缓存
 	p := &uocr2OCRProvider{}
 	if _, err := p.ExtractImage(mustTempPNG(t)); err == nil {
-		t.Fatal("422 应报错")
+		t.Fatal("500 应报错")
 	}
 	if p.base != srv.URL {
 		t.Fatalf("HTTP 状态错误不应清缓存（服务活着），base = %q", p.base)
@@ -201,66 +84,10 @@ func TestUocr2ProviderDropsCacheOnTransportErr(t *testing.T) {
 	}
 }
 
-// restoreUocr2Vars 记录并恢复 startUocr2Server 的三个注入点。
-func restoreUocr2Vars(t *testing.T) {
-	t.Helper()
-	origWait, origHealthy, origBuild := uocr2StartWait, uocr2Healthy, uocr2BuildCmd
-	t.Cleanup(func() {
-		uocr2StartWait, uocr2Healthy, uocr2BuildCmd = origWait, origHealthy, origBuild
-	})
-}
-
-// fakeUocr2BatchServer 起假服务模拟 /ocr_batch：按注入的应答器返回。
-func fakeUocr2BatchServer(t *testing.T, handle func() (int, string)) *httptest.Server {
-	t.Helper()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
-	mux.HandleFunc("/ocr_batch", func(w http.ResponseWriter, _ *http.Request) {
-		status, body := handle()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return srv
-}
-
-func TestUocr2PagesOCRDetectsOrderAndCleans(t *testing.T) {
-	raws := []string{
-		"<PAGE><BLOCK>table[1, 2, 3, 4]<FORK>第一页表格",
-		"<PAGE><BLOCK>header[5, 6, 7, 8]<FORK>第二页标题",
-	}
-	body, _ := json.Marshal(map[string]any{"texts": raws})
-	srv := fakeUocr2BatchServer(t, func() (int, string) { return http.StatusOK, string(body) })
-	got, err := uocr2PagesOCR(srv.URL, []string{mustTempPNG(t), mustTempPNG(t)})
-	if err != nil {
-		t.Fatalf("uocr2PagesOCR: %v", err)
-	}
-	if len(got) != 2 || got[0] != "第一页表格" || got[1] != "第二页标题" {
-		t.Errorf("应与输入等长同序且已清洗: %+v", got)
-	}
-}
-
-func TestUocr2PagesOCRCountMismatchFailsClosed(t *testing.T) {
-	body, _ := json.Marshal(map[string]any{"texts": []string{"只有一页"}})
-	srv := fakeUocr2BatchServer(t, func() (int, string) { return http.StatusOK, string(body) })
-	_, err := uocr2PagesOCR(srv.URL, []string{mustTempPNG(t), mustTempPNG(t)})
-	if err == nil {
-		t.Fatal("页数不齐应报错（fail-closed，编排层整窗回退逐页）")
-	}
-	if !strings.Contains(err.Error(), "页数不齐") {
-		t.Errorf("错误应说明页数不齐: %v", err)
-	}
-}
-
+// TestUocr2ProviderExtractPagesDropsCacheOnTransportErr 批接口同款纪律。
 func TestUocr2ProviderExtractPagesDropsCacheOnTransportErr(t *testing.T) {
-	t.Setenv("GAEA_UOCR2_BACKEND", "python") // 本例钉 python 协议（默认 auto 会先探 llama）
-	body, _ := json.Marshal(map[string]any{"texts": []string{"<PAGE><BLOCK>x[1]<FORK>内容"}})
-	srv := fakeUocr2BatchServer(t, func() (int, string) { return http.StatusOK, string(body) })
-	t.Setenv("GAEA_UOCR2_URL", srv.URL)
+	srv, _ := fakeLlamaServer(t, "<PAGE><BLOCK>x[1]<FORK>内容", "stop", http.StatusOK)
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", srv.URL)
 	p := &uocr2OCRProvider{}
 	got, err := p.ExtractPages([]string{mustTempPNG(t)})
 	if err != nil || len(got) != 1 || got[0] != "内容" {

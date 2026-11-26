@@ -26,7 +26,7 @@ export function SpecialtySection() {
       <SectionHead
         icon={<FileTextOutlined />}
         title="专业模型"
-        desc="Embedding / Rerank 用于本地检索；OCR 云端模型与本地三档（OvisOCR2 / Unlimited-OCR-2）可设为办公「提取文字」默认通道；本地识图随 llama 引擎"
+        desc="Embedding / Rerank 用于本地检索；OCR 云端模型与本地 Unlimited-OCR-2 可设为办公「提取文字」默认通道；本地识图随 llama 引擎"
         extra={ocrCfg.model && (
           <Button size="small" onClick={() => handleSetOCRModel('', '')}>恢复自动选择</Button>
         )}
@@ -36,7 +36,7 @@ export function SpecialtySection() {
         <EmptyState
           icon={<SearchOutlined />}
           title="暂无专业模型"
-          hint="刷新本地 Herdsman 模型后会显示 bge-m3、bge-reranker-v2-m3 等检索模型与 glm-ocr；本地 OCR 三档与本地识图/STT 常驻列表（未就绪时状态列会标注）。2026-10-29 起 MinerU/PaddleOCR 已退役。"
+          hint="刷新本地 Herdsman 模型后会显示 bge-m3、bge-reranker-v2-m3 等检索模型与 glm-ocr；本地 OCR（Unlimited-OCR-2）与本地识图/STT 常驻列表（未就绪时状态列会标注）。2026-10-29 起 MinerU/PaddleOCR 已退役。"
         />
       ) : (
         <>

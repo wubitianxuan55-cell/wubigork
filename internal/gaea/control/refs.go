@@ -32,7 +32,7 @@ const refOfficeMaxPages = 20
 var visionRecognize = vision.RecognizeImage
 
 // ocrImageText 全文 OCR 入口（可注入以便测试）。与识图腿并联：识图管"看懂图"，
-// OCR 腿走 docmd 本地链（auto = uocr2→ovis→tesseract）管图中文字全文。
+// OCR 腿走 docmd 本地链（Unlimited-OCR-2，2026-11-26 精简后的本地唯一引擎）管图中文字全文。
 // 测试必须注入桩，否则会真拉起本地 uocr2 服务（同 internal/app 测试语义
 // 管线地雷形态：单测静默连真实引擎）。
 var ocrImageText = docmd.OCRImageText

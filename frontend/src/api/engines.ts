@@ -564,7 +564,7 @@ export async function setActiveOCRModel(engineID: string, modelID: string): Prom
   await App().SetActiveOCRModel(engineID, modelID)
 }
 
-/** 本地服务模型卡（OCR 三档/本地识图/本地 STT，被动探活） */
+/** 本地服务模型卡（本地 OCR / 本地识图 / 本地 STT，被动探活） */
 export interface LocalServiceModel {
   engineId: string
   modelId: string

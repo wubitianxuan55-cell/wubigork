@@ -47,15 +47,12 @@ func newChatServiceTestAppWithHandler(t *testing.T, handler http.Handler) *App {
 	home := t.TempDir()
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
-	// OCR 引擎面隔离：本机若装有 C:\AI\gaea-ocr / C:\AI\unlimited-ocr2，读屏/
-	// 提取链会真拉起 llama-server（Vulkan，VkCache 落测试 TempDir，进程超时被杀
-	// 后句柄未及释放 → TempDir 清理失败假红）——OCR 环境变量统一指向死值。
-	t.Setenv("GAEA_UOCR2_DIR", filepath.Join(t.TempDir(), "no-such-uocr2"))
-	t.Setenv("GAEA_UOCR2_PORT", "1")
+	// OCR 引擎面隔离：本机若装有 C:\AI\gaea-OCR\uocr2-llama，读屏/提取链会真拉起
+	// llama-server（Vulkan，VkCache 落测试 TempDir，进程超时被杀后句柄未及释放 →
+	// TempDir 清理失败假红）——本地 OCR（2026-11-26 精简后只有 uocr2 llama 后端）的
+	// 环境变量统一指向死值。
 	t.Setenv("GAEA_UOCR2_LLAMA_DIR", filepath.Join(t.TempDir(), "no-such-llama"))
-	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1") // llama 主后端（2026-10-29 起默认先行）同须死值
-	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
-	t.Setenv("GAEA_OCR_PORT", "1")
+	t.Setenv("GAEA_UOCR2_LLAMA_URL", "http://127.0.0.1:1")
 	root := filepath.Join(t.TempDir(), "data")
 
 	c := &core{

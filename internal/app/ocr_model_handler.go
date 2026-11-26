@@ -19,7 +19,10 @@ func (c *core) SetActiveOCRModel(engineID, modelID string) error {
 	if strings.HasPrefix(engineID, "local:") {
 		kind := strings.TrimPrefix(engineID, "local:")
 		switch kind {
-		case docmd.OCRKindOvis, docmd.OCRKindUocr2, docmd.OCRKindTesseract:
+		case docmd.OCRKindUocr2:
+		case "ovis", "tesseract":
+			// 2026-11-26 退役的本地引擎：如实拒绝并指路，不静默换成 uocr2。
+			return &appError{"本地 OCR 引擎 " + kind + " 已退役（本地只保留 Unlimited-OCR-2），请选 local:uocr2"}
 		default:
 			return &appError{"未知本地 OCR 引擎: " + kind}
 		}
@@ -95,4 +98,16 @@ func (c *core) GetActiveOCRModel() map[string]string {
 		"engine": c.activeOCREngine,
 		"model":  c.activeOCRModel,
 	}
+}
+
+// normalizeLocalOCRKind 本地引擎定点只认 uocr2（2026-11-26 精简后本地唯一引擎）。
+// 配置里残留的已退役值（ovis / tesseract）在启动装载时清空并如实记日志——不带着
+// 坏值去调 docmd（那会让「提取文字」的本地腿每次都报「已退役」而失效）。
+func normalizeLocalOCRKind(kind string) string {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if kind == "" || kind == docmd.OCRKindUocr2 {
+		return kind
+	}
+	slog.Warn("本地 OCR 引擎定点已失效：该引擎已退役，改回默认（Unlimited-OCR-2）", "configured", kind)
+	return ""
 }

@@ -139,19 +139,11 @@ func TestOCRCached_Singleflight(t *testing.T) {
 
 // ── 集成：OCRImageText 按内容缓存 ────────────────────────────────
 
-// TestOCRImageText_CachesByContent 同内容二次调用不重跑引擎（tesseract seam
-// 计数验证）；内容变更→新指纹→重跑。内容带时间戳避免与既有测试缓存串味。
+// TestOCRImageText_CachesByContent 同内容二次调用不重跑引擎（替身引擎调用计数
+// 验证）；内容变更→新指纹→重跑。内容带时间戳避免与既有测试缓存串味。
 func TestOCRImageText_CachesByContent(t *testing.T) {
-	t.Setenv("GAEA_OCR_ENGINE", "tesseract")
-	t.Setenv("GAEA_OCR_DIR", filepath.Join(t.TempDir(), "no-such-ocr"))
-
-	restoreTesseractVars(t)
-	var calls int32
-	tesseractLookPath = func(string) (string, error) { return `C:\fake\tesseract.exe`, nil }
-	tesseractImage = func(_, _ string) (string, error) {
-		atomic.AddInt32(&calls, 1)
-		return "缓存集成结果", nil
-	}
+	t.Setenv("GAEA_OCR_ENGINE", ocrTestKind)
+	runs := useFakeOCR(t, "缓存集成结果", nil)
 
 	img := filepath.Join(t.TempDir(), "img.png")
 	content := fmt.Sprintf("unique-%d", time.Now().UnixNano())
@@ -165,8 +157,8 @@ func TestOCRImageText_CachesByContent(t *testing.T) {
 	if _, err := OCRImageText(img); err != nil {
 		t.Fatalf("second (cached): %v", err)
 	}
-	if got := atomic.LoadInt32(&calls); got != 1 {
-		t.Fatalf("同内容引擎被调 %d 次，缓存命中不应重跑", got)
+	if *runs != 1 {
+		t.Fatalf("同内容引擎被调 %d 次，缓存命中不应重跑", *runs)
 	}
 
 	if err := os.WriteFile(img, []byte(content+"-v2"), 0o644); err != nil {
@@ -175,7 +167,7 @@ func TestOCRImageText_CachesByContent(t *testing.T) {
 	if _, err := OCRImageText(img); err != nil {
 		t.Fatalf("after rewrite: %v", err)
 	}
-	if got := atomic.LoadInt32(&calls); got != 2 {
-		t.Fatalf("内容变更后引擎应重跑，calls=%d", got)
+	if *runs != 2 {
+		t.Fatalf("内容变更后引擎应重跑，calls=%d", *runs)
 	}
 }

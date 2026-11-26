@@ -17,8 +17,11 @@ package docmd
 // 同一份报告实测：文本层 2015 处连续汉字段 100% 逐字命中、165 张真表格、108 张图片、
 // 42 秒；pdfinfo 本地读页数 0.5 秒。
 //
-// 口径与边界：
-//   - 文字层干净的 PDF 不走这里（本地快速通道不变）；只有乱码的才上 WPS。
+// 口径与边界（2026-11-26 用户拍板「转换解析优先用 WPS」）：
+//   - 提取不到文字的 PDF（扫描件 / 字形号文字层）先走 WPS 在线 OCR 引擎
+//     （wpsScannedPDFMarkdown：--scanned true），WPS 不可用才落本地 OCR；
+//   - 文字型 PDF：format_convert 也先经 WPS——表格是真表格、图片保留，自写提取只有
+//     平铺文字；检索索引 / @引用 / 预览等快速通道仍只认本地提取，乱码的才上 WPS。
 //   - 结果按「文件内容指纹 + 页范围 + 引擎版本」进进程内缓存，同一份只转一次。
 //   - wpscli 的「成功」不可信：pdf2md 实测 4 次全部 1 秒返回 success、输出 0 字节。
 //     这里一律核对产物（docx 存在且非空、Markdown 化后有文字），不达标即判失败。
@@ -52,7 +55,8 @@ import (
 
 const (
 	// wpsPDFEngineVersion 缓存键的引擎版本：转换链行为变化（合并规则、docx→md 路径）时递增。
-	wpsPDFEngineVersion = "wps1"
+	// wps2：表格纯数字单元格里被 OCR 拆开的小数并回（rejoinSplitDecimals）。
+	wpsPDFEngineVersion = "wps2"
 	// wpsPDFTimeout 单次 wpscli 调用上限（233 页实测 42 秒；留足大文档与网络余量）。
 	wpsPDFTimeout = 15 * time.Minute
 	// wpsMarkItDownTimeout WPS 转出的 docx 走 markitdown 的上限（233 页、108 张图实测 32 秒）。
@@ -66,9 +70,17 @@ var (
 	wpsCLILookup = findWpsCLI
 	// wpsPDFMarkdownFn 乱码 PDF 的 WPS 转换 seam（pdf.go 调用；测试打桩）。
 	wpsPDFMarkdownFn = wpsPDFMarkdown
-	wpsCLIMu         sync.Mutex // wpscli 一次只跑一个：WPS 自动化不支持并发
-	wpsFailMu        sync.Mutex
-	wpsFail          = map[string]time.Time{}
+	// wpsScannedPDFMarkdownFn 「提取不到文字」PDF 的 WPS 在线 OCR seam（同上）。
+	wpsScannedPDFMarkdownFn = wpsScannedPDFMarkdown
+	// wpsScannedConvertFn 在线 OCR 单段转换 seam（分段编排的单测打桩）。
+	wpsScannedConvertFn = wpsConvertScannedRange
+	wpsCLIMu            sync.Mutex // wpscli 一次只跑一个：WPS 自动化不支持并发
+	wpsFailMu           sync.Mutex
+	wpsFail             = map[string]time.Time{}
+	// wpsSuspendedUntil 账号级失败（未登录 / 无会员 / 配额）后的全局静默期截止时刻：
+	// 这类失败换哪份文件都一样，静默期内不再每份 PDF 都去撞一次。
+	wpsSuspendMu      sync.Mutex
+	wpsSuspendedUntil time.Time
 )
 
 // wpsPDFEnabled 本机 WPS 通道是否开启（默认开；GAEA_WPS_PDF=0 关）。
@@ -357,8 +369,8 @@ func wpsPDFMarkdown(cli, path, effSpec string, total int) (string, error) {
 	var parts []string
 	for _, sp := range spans {
 		key := "wpsmd:" + fp + ":" + wpsPDFEngineVersion + fmt.Sprintf(":%d-%d", sp[0], sp[1])
-		if failedAt, ok := wpsRecentlyFailed(key); ok {
-			return "", fmt.Errorf("这一份 %d 分钟前经 WPS 转换失败过（%s），暂不重试", int(wpsFailCooldown.Minutes()), failedAt.Format("15:04:05"))
+		if err := wpsRecentlyFailedError(key); err != nil {
+			return "", err
 		}
 		md, err := ocrCached(key, func() (string, error) {
 			return wpsConvertRange(cli, path, sp[0], sp[1])
@@ -392,6 +404,83 @@ func wpsMarkFailed(key string) {
 	wpsFail[key] = time.Now()
 }
 
+// wpsRecentlyFailedError 这一份刚失败过时返回给调用方的原因（静默期内不重试）。
+func wpsRecentlyFailedError(key string) error {
+	failedAt, ok := wpsRecentlyFailed(key)
+	if !ok {
+		return nil
+	}
+	return fmt.Errorf("这一份 %d 分钟前经 WPS 转换失败过（%s），暂不重试", int(wpsFailCooldown.Minutes()), failedAt.Format("15:04:05"))
+}
+
+// wpsSuspend 记一次账号级失败后的全局静默期。
+func wpsSuspend(d time.Duration) {
+	wpsSuspendMu.Lock()
+	wpsSuspendedUntil = time.Now().Add(d)
+	wpsSuspendMu.Unlock()
+}
+
+// wpsSuspended 是否仍在账号级失败的静默期内。
+func wpsSuspended() bool {
+	wpsSuspendMu.Lock()
+	defer wpsSuspendMu.Unlock()
+	return time.Now().Before(wpsSuspendedUntil)
+}
+
+// wpsScannedChunk 扫描件经在线 OCR 引擎的分段页数：--scanned true 必须带显式页范围，
+// 整本按此分段串行转换（174 页实测一次 68 秒；分段让单次调用远离 wpscli 默认 300 秒
+// 超时，失败也只损一段）。
+const wpsScannedChunk = 100
+
+// wpsScannedPDFMarkdown 用 WPS 在线 OCR 引擎转「提取不到文字的 PDF」。effSpec 为空=
+// 整本；可含多段，每段再按 wpsScannedChunk 分段，逐段转换后拼接。total<=0 时先用
+// pdfinfo 读页数（在线引擎要显式页范围，读不到即报错）。
+func wpsScannedPDFMarkdown(cli, path, effSpec string, total int) (string, error) {
+	if cli == "" {
+		return "", errors.New("本机未找到 WPS 的 wpscli")
+	}
+	if total <= 0 {
+		total = wpsPageCount(cli, path)
+	}
+	if total <= 0 {
+		return "", errors.New("读不到 PDF 页数，无法指定在线 OCR 的页范围")
+	}
+	fp, err := ocrFileFingerprint(path)
+	if err != nil {
+		return "", err
+	}
+	spans := pageSpans(effSpec, total)
+	if len(spans) == 0 {
+		return "", fmt.Errorf("页范围 %q 超出这份 PDF 的页数（共 %d 页）", effSpec, total)
+	}
+	var parts []string
+	for _, sp := range spans {
+		last := sp[1]
+		if last <= 0 { // pageSpans 的整本记法：到文件尾
+			last = total
+		}
+		for first := sp[0]; first <= last; first += wpsScannedChunk {
+			end := first + wpsScannedChunk - 1
+			if end > last {
+				end = last
+			}
+			key := "wpsscan:" + fp + ":" + wpsPDFEngineVersion + fmt.Sprintf(":%d-%d", first, end)
+			if err := wpsRecentlyFailedError(key); err != nil {
+				return "", err
+			}
+			md, err := ocrCached(key, func() (string, error) {
+				return wpsScannedConvertFn(cli, path, first, end)
+			})
+			if err != nil {
+				wpsMarkFailed(key)
+				return "", fmt.Errorf("WPS 在线 OCR 失败: %w", err)
+			}
+			parts = append(parts, md)
+		}
+	}
+	return strings.Join(parts, "\n\n"), nil
+}
+
 // pageSpans 把页规格拆成连续段 [(first,last)]；规格为空=整本（{1,0}，last=0 表示到
 // 文件尾——不把页数写进 --range，免得页数读数有偏差时截掉末页）。total<=0 表示页数未知。
 func pageSpans(spec string, total int) [][2]int {
@@ -420,21 +509,46 @@ func pageSpans(spec string, total int) [][2]int {
 
 // wpsConvertRange 单段的实际转换：pdf2word → docx → markitdown → 合并断表。
 func wpsConvertRange(cli, path string, first, last int) (string, error) {
+	return wpsConvert(cli, path, first, last, false)
+}
+
+// wpsConvertScannedRange 同上，但走 WPS 在线 OCR 引擎（扫描件 / 字形号文字层）。
+func wpsConvertScannedRange(cli, path string, first, last int) (string, error) {
+	if last < first {
+		return "", fmt.Errorf("WPS 在线 OCR 需要显式页范围（收到 %d-%d）", first, last)
+	}
+	return wpsConvert(cli, path, first, last, true)
+}
+
+// wpsConvertArgs 组一次 pdf2word 的参数。非 scanned 整本（last=0）不带 --range——
+// 不把页数读数写进去，免得读数有偏差时截掉末页；scanned 必须带显式页范围
+// （在线 OCR 引擎的要求）。
+func wpsConvertArgs(path, docx string, first, last int, scanned bool) []string {
+	args := []string{"pdf2word", path, "-o", docx, "--json"}
+	if scanned {
+		args = append(args, "--scanned", "true")
+	}
+	if scanned || last > 0 {
+		args = append(args, "--range", fmt.Sprintf("%d-%d", first, last))
+	}
+	return args
+}
+
+func wpsConvert(cli, path string, first, last int, scanned bool) (string, error) {
 	dir, err := os.MkdirTemp("", "gaea-wpspdf-")
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	docx := filepath.Join(dir, "wps.pdf2word.docx")
-	args := []string{"pdf2word", path, "-o", docx, "--json"}
-	if last > 0 { // last=0：整本，不带 --range
-		args = append(args, "--range", fmt.Sprintf("%d-%d", first, last))
-	}
-	code, _, tail, err := wpsRun(cli, args...)
+	code, _, tail, err := wpsRun(cli, wpsConvertArgs(path, docx, first, last, scanned)...)
 	if err != nil {
 		return "", fmt.Errorf("wpscli 拉起失败: %w", err)
 	}
 	if code != 0 {
+		if code == 100 || code == 101 || code == 429 { // 账号级失败：进全局静默期
+			wpsSuspend(wpsFailCooldown)
+		}
 		return "", wpsError("pdf2word", code, tail)
 	}
 	// 「成功」不可信：核对产物（pdf2md 实测会 success + 0 字节）。
@@ -453,7 +567,7 @@ func wpsConvertRange(cli, path string, first, last int) (string, error) {
 	if strings.TrimSpace(stripDataImages(md)) == "" {
 		return "", errors.New("WPS 转换结果没有文字（产物为空）")
 	}
-	return mergeSplitTables(md), nil
+	return mergeSplitTables(rejoinSplitDecimals(md)), nil
 }
 
 // ── Markdown 后处理 ─────────────────────────────────────────────────
@@ -530,6 +644,48 @@ func mergeSplitTables(md string) string {
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// splitDecimalCellRe 表格单元格里被 OCR 拆开的小数。WPS 在线 OCR 实测把 3.1 写成
+// 「3.」+空格+「1」（2026-11-26 实弹 174 页扫描件：2624 个单元格里 21 个，docx 原件
+// 即如此），规则取数会读错。只认两种形态：整个单元格就是数字，或数字后面直接贴着
+// 拉丁字母单位（115953. 12t）——带文字、加粗、中文单位的格子一律不动（「H/3, 1次」
+// 这种并了就错），正文里的数字也不动。
+var splitDecimalCellRe = regexp.MustCompile(`^(\d+(?:[.,]\d+)*[.,])[ \t\x{00a0}\x{3000}]+(\d{1,4})([A-Za-z\x{00b2}\x{00b3}\x{00b5}]+)?$`)
+
+// rejoinSplitDecimals 把表格行里被拆开的小数并回去（只动纯数字单元格）。
+func rejoinSplitDecimals(md string) string {
+	lines := strings.Split(md, "\n")
+	for i, ln := range lines {
+		if !strings.HasPrefix(ln, "|") {
+			continue
+		}
+		cells := splitMDTableRow(ln)
+		changed := false
+		for j := 1; j+1 < len(cells); j++ { // 首尾是管道外的空串
+			if m := splitDecimalCellRe.FindStringSubmatch(strings.TrimSpace(cells[j])); m != nil {
+				cells[j] = " " + m[1] + m[2] + m[3] + " "
+				changed = true
+			}
+		}
+		if changed {
+			lines[i] = strings.Join(cells, "|")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// splitMDTableRow 按未转义的 | 切分表格行；返回的切片首尾是管道外的空串。
+func splitMDTableRow(line string) []string {
+	var cells []string
+	start := 0
+	for i := 0; i < len(line); i++ {
+		if line[i] == '|' && (i == 0 || line[i-1] != '\\') {
+			cells = append(cells, line[start:i])
+			start = i + 1
+		}
+	}
+	return append(cells, line[start:])
 }
 
 // mdTableCols 一行 Markdown 表格的列数（反斜杠转义的 \| 不算分隔符）。不是表格行返回 0。

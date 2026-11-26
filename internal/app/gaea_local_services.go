@@ -3,7 +3,8 @@ package app
 // gaea_local_services.go — 模型中心「本地服务目录」（电脑操控配套刀，2026-11-20）。
 //
 // 背景：凡不走 engines.json 目录、由功能模块直连的本地服务，模型中心一律
-// 看不见——OCR 三档（docmd 环境变量直连）、本地识图（qwen35 mmproj，功能绑定
+// 看不见——本地 OCR（docmd 直连 Unlimited-OCR-2；2026-11-26 精简后只此一张卡，
+// OvisOCR2 / python 后端 / tesseract 已退役）、本地识图（qwen35 mmproj，功能绑定
 // visionRoute 内嵌）、本地 STT（语音 V2 内嵌 sherpa）。本绑定把这些以模型卡
 // 形态下发（kind 对齐既有过滤器），专业页/语音页现有 UI 零改动即可展示；
 // OCR 卡的「设为 OCR」经 SetActiveOCRModel 的 local: 分支持久化到
@@ -38,13 +39,10 @@ func localOCRServiceCard(engineID, modelID, name, base, detail string) LocalServ
 
 // GaeaLocalServiceModels 返回本机内嵌/直连服务的模型卡（模型中心合并展示）。
 func (a *App) GaeaLocalServiceModels() []LocalServiceModel {
+	// 本地 OCR：卡 ID = local:<docmd kind>，「设为 OCR」定点经 SetActiveOCRModel 的 local: 支。
 	cards := []LocalServiceModel{
-		localOCRServiceCard("local:ovis", "ovis-ocr2", "OvisOCR2（本地·8137）",
-			docmd.OvisBaseURL(), "常驻 llama-server，单页约 5×uocr2；未拉起时 OCR 链按需自动拉起"),
-		localOCRServiceCard("local:uocr2-llama", "unlimited-ocr2-llama", "Unlimited-OCR-2·llama（本地·8139）",
-			docmd.Uocr2LlamaAddr(), "本地首选引擎（版式/表格还原最好）的 llama 后端，Q8 单页 6s/15 页"),
-		localOCRServiceCard("local:uocr2-python", "unlimited-ocr2-python", "Unlimited-OCR-2·python（本地·8138）",
-			docmd.Uocr2PythonAddr(), "python transformers 后端（SR-SWA 跨页表格），CPU 约 1 分钟/页"),
+		localOCRServiceCard("local:uocr2", "unlimited-ocr2-llama", "Unlimited-OCR-2（本地·8139）",
+			docmd.Uocr2LlamaAddr(), "本地唯一 OCR 引擎（版式/表格还原最好）：llama 后端，Q8 单页 6s；未拉起时按需自动拉起"),
 	}
 	// 本地识图：qwen35 档位 mmproj（统一模型根优先、历史根回退）。
 	mmproj := managedProfileMmprojPath(llamaProfiles[0])

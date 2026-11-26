@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -56,20 +57,46 @@ func buildHiddenPagesPDF(t testing.TB) string {
 	return path
 }
 
+// wpsStubs 两条 WPS 通路的调用记录：text=文字型（wpsPDFMarkdownFn），scanned=在线 OCR
+// （wpsScannedPDFMarkdownFn）。
+type wpsStubs struct {
+	text    *bool
+	scanned *bool
+}
+
 // stubWps 堵住 WPS 通道：wpscli 指向不存在的文件（pdfinfo 立即失败、页数读数保持
-// 自写计数），转换 seam 返回给定 Markdown 并记录是否被调用。单测不得真调 WPS。
+// 自写计数），文字型转换 seam 返回给定 Markdown 并记录是否被调用；在线 OCR seam
+// 报错（= WPS 失败，调用方落本地 OCR）。单测不得真调 WPS。
 func stubWps(t *testing.T, md string) *bool {
 	t.Helper()
+	return stubWpsBoth(t, md, "").text
+}
+
+// stubWpsBoth 同时堵住两条通路并各自返回调用开关；md 为空的那条 seam 报错。
+func stubWpsBoth(t *testing.T, textMD, scanMD string) wpsStubs {
+	t.Helper()
 	t.Setenv("GAEA_WPS_PDF", "1") // 外层若关了 WPS 通道，这几条用例仍按「WPS 在」验证
-	called := new(bool)
-	origLookup, origFn := wpsCLILookup, wpsPDFMarkdownFn
+	s := wpsStubs{text: new(bool), scanned: new(bool)}
+	origLookup, origText, origScan := wpsCLILookup, wpsPDFMarkdownFn, wpsScannedPDFMarkdownFn
 	wpsCLILookup = func() string { return filepath.Join(t.TempDir(), "wpscli-missing.exe") }
 	wpsPDFMarkdownFn = func(_, _, _ string, _ int) (string, error) {
-		*called = true
-		return md, nil
+		*s.text = true
+		if textMD == "" {
+			return "", errors.New("WPS 文字型转换失败（测试桩）")
+		}
+		return textMD, nil
 	}
-	t.Cleanup(func() { wpsCLILookup, wpsPDFMarkdownFn = origLookup, origFn })
-	return called
+	wpsScannedPDFMarkdownFn = func(_, _, _ string, _ int) (string, error) {
+		*s.scanned = true
+		if scanMD == "" {
+			return "", errors.New("WPS 在线 OCR 失败（测试桩）")
+		}
+		return scanMD, nil
+	}
+	t.Cleanup(func() {
+		wpsCLILookup, wpsPDFMarkdownFn, wpsScannedPDFMarkdownFn = origLookup, origText, origScan
+	})
+	return s
 }
 
 func forbidOCR(t *testing.T) {
@@ -244,7 +271,7 @@ func TestPDFToMarkdownLimit_GarbledTextRescuedByWPS(t *testing.T) {
 	called := stubWps(t, wpsMD)
 	for _, keep := range []bool{false, true} {
 		*called = false
-		md, total, _, err := pdfToMarkdownLimitImages(buildGarbledPDF(t, true), "", 0, nil, keep)
+		md, total, _, err := pdfToMarkdownLimitImages(buildGarbledPDF(t, true), "", 0, nil, keep, false)
 		if err != nil {
 			t.Fatalf("keep=%v: %v", keep, err)
 		}
