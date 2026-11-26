@@ -230,6 +230,8 @@ export function WenxueSubagentContextView(arg1:string,arg2:string):Promise<conte
 
 export function WenxueSubagentFollowUp(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function WenxueSubagentSteer(arg1:string,arg2:string,arg3:string):Promise<string>;
+
 export function WenxueSwitchWorkspace(arg1:string):Promise<string>;
 
 export function WenxueToolSurface():Promise<app.ToolSurfaceView>;

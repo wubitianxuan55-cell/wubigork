@@ -1,8 +1,26 @@
-// CapabilitiesPanel 拆分产物：工具列表区（行为零变化，T6-10.1）
+// CapabilitiesPanel 拆分产物：工具列表区（与办公 ToolsSection 同源镜像，2026-11-26 同步审计）
 // v3「星枢」面板语言：工具卡实底收敛（图标 + 名称 + 描述 + 状态徽标），
 // 激活工具 = 主色容器底 + 左侧光条（inset shadow）+ 柔光。
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Cpu, ChevronDown, Search, X } from "../../icons";
+// 图文板块口径（渲染面与办公同源，数据面不同）：
+//  - 静态兜底表 = 图文专属 + 通用底座（办公域工具按 disabledDomains 滤除）；
+//  - 装配面取 WenxueToolSurface；分组按功能语义（沿用办公 2026-11-21 拍板：工具
+//    面板按功能分组显示，不再按装配来源），wenxue_* 前缀归「图文专属」；
+//  - 无运行模式，故不带 ToolFaceBar 与模式档徽标。
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  BookOpen,
+  Blocks,
+  ChevronDown,
+  Command,
+  Cpu,
+  FileText,
+  Globe,
+  Search,
+  Users,
+  Wand2,
+  Wrench,
+  X,
+} from "../../icons";
 import { useGSAPCollapse } from "../../lib/useGSAPCollapse";
 import { app } from "../../lib/bridge";
 import type { ToolSurfaceEntryB, ToolSurfaceViewB } from "../../lib/bridge/wenxue";
@@ -79,8 +97,7 @@ const RAW_SECTIONS: Section[] = [
   { title: "会话", items: ["session_search", "recall_archived"] },
   { title: "技能", items: ["read_skill", "run_skill", "install_skill"] },
   { title: "文档技能", items: ["docx", "xlsx", "pdf", "pptx"] },
-  { title: "本地专业模型", items: ["vision", "ocr", "image_gen", "semantic_search", "translate_text"] },
-  { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm"] },
+  { title: "本地模型", items: ["routine_llm", "vision", "ocr", "image_gen", "translate_text"] },
 ]
 
 // 图文板块：办公域工具按 disabledDomains 兜底滤除（引擎侧物理卸载在刀1），
@@ -94,63 +111,41 @@ function ToolCard({ name, count, desc, hidden = false }: { name: string; count: 
   const active = !hidden && count > 0
   return (
     <div
-      className={`flex items-start gap-1.5 px-2 py-1.5 rounded-[var(--radius-sm)] border cursor-default transition-all duration-150 ${
-        active ? "" : "hover:bg-(color:--md-sys-color-surface-container-high)"
-      }`}
-      title={desc ?? name}
-      style={{
-        background: active ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface-container)",
-        borderColor: active
-          ? "color-mix(in srgb, var(--gaea-glow) 30%, transparent)"
-          : "var(--md-sys-color-outline-variant)",
-        boxShadow: active
-          ? "inset 3px 0 0 var(--gaea-glow), inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent), var(--v3-glow-faint)"
-          : "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent)",
-      }}
+      className="tool-card"
+      data-active={active}
+      data-hidden={hidden}
+      title={desc ? `${name} — ${desc}` : name}
     >
-      {/* 状态点：语义色 + 光晕（激活/未激活三重传达之一） */}
-      <span
-        className="w-1.5 h-1.5 mt-[5px] rounded-full shrink-0"
-        style={{
-          background: active ? "var(--gaea-glow)" : "var(--md-sys-color-outline-variant)",
-          boxShadow: active ? "0 0 6px var(--gaea-glow)" : "none",
-        }}
-      />
-      <span className="flex-1 min-w-0 flex flex-col gap-0.5 leading-[1.25]">
-        <span
-          className={`font-mono text-[10.5px] truncate ${active ? "font-semibold" : ""}`}
-          style={{ color: active ? "var(--gaea-glow)" : "var(--md-sys-color-text-secondary)" }}
-        >
-          {name}
-        </span>
+      <div className="tool-card__copy">
+        <span className="tool-card__name">{name}</span>
         {desc && (
-          <span className="text-[10px] leading-[1.3] line-clamp-1" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-            {desc}
-          </span>
+          <p className="tool-card__desc">{desc}</p>
         )}
-      </span>
-      {hidden && (
-        <span
-          className="shrink-0 text-[9px] rounded-full px-1.5 py-px mt-px"
-          style={{ color: "var(--md-sys-color-text-secondary)", background: "color-mix(in srgb, var(--md-sys-color-text) 8%, transparent)" }}
-        >
-          藏
-        </span>
-      )}
-      {/* 状态徽标：次数 + 语义色容器 */}
-      <span
-        className="shrink-0 font-mono text-[11px] font-semibold mt-px rounded-full px-1.5 py-px"
-        style={{
-          color: active ? "var(--gaea-glow)" : "var(--md-sys-color-text-secondary)",
-          background: active
-            ? "color-mix(in srgb, var(--gaea-glow) 16%, transparent)"
-            : "color-mix(in srgb, var(--md-sys-color-text) 8%, transparent)",
-        }}
-      >
-        {count}
+      </div>
+      <span className="tool-card__badges">
+        {hidden && <span className="tool-card__badge tool-card__badge--hidden">本档隐藏</span>}
+        {active && <span className="tool-card__badge tool-card__badge--count">{count} 次</span>}
       </span>
     </div>
   )
+}
+
+function GroupGlyph({ groupKey }: { groupKey: string }) {
+  if (groupKey.startsWith("mcp:")) return <Globe size={12} aria-hidden />
+  if (groupKey === "__hidden__") return <Blocks size={12} aria-hidden />
+  const iconMap: Record<string, ReactNode> = {
+    "c:图文专属": <BookOpen size={12} aria-hidden />,
+    "c:文件与命令": <Command size={12} aria-hidden />,
+    "c:网络": <Globe size={12} aria-hidden />,
+    "c:任务与协作": <Users size={12} aria-hidden />,
+    "c:记忆": <BookOpen size={12} aria-hidden />,
+    "c:会话": <Search size={12} aria-hidden />,
+    "c:技能": <Wand2 size={12} aria-hidden />,
+    "c:文档与交付": <FileText size={12} aria-hidden />,
+    "c:本地模型": <Cpu size={12} aria-hidden />,
+    "c:界面": <Blocks size={12} aria-hidden />,
+  }
+  return iconMap[groupKey] ?? <Wrench size={12} aria-hidden />
 }
 
 function ToolGroup({
@@ -161,6 +156,7 @@ function ToolGroup({
   descs,
   hidden = false,
   groupNote,
+  forceOpen = false,
 }: {
   title: string
   items: string[]
@@ -168,75 +164,123 @@ function ToolGroup({
   defaultOpen: boolean
   /** 活取描述表（装配面缝）：有则优先生效，缺项回落静态 TOOL_DESC。 */
   descs?: Record<string, string>
-  /** 模式藏面组：灰显+藏徽标（图文引擎模式中立，此组常态为空；MCP deferred 藏面可达）。 */
+  /** 藏面组：灰显+藏徽标（图文引擎模式中立，此组常态为空；MCP deferred 藏面可达）。 */
   hidden?: boolean
   groupNote?: string
+  forceOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const groupId = useId()
   const ref = useRef<HTMLDivElement>(null)
   useGSAPCollapse(ref, open, { duration: 0.18 })
+  useEffect(() => {
+    if (forceOpen) setOpen(true)
+  }, [forceOpen])
 
   const activeCount = items.filter((n) => (counts[n] ?? 0) > 0).length
 
   return (
-    <div className="px-1.5 py-0.5">
+    <section className="tool-group" data-hidden={hidden}>
       <button
-        className="flex items-center gap-1 w-full px-1 py-1.5 bg-transparent border-0 text-left cursor-pointer rounded transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+        className="tool-group__toggle"
+        type="button"
+        aria-expanded={open}
+        aria-controls={groupId}
         onClick={() => setOpen((v) => !v)}
       >
-        <ChevronDown
-          size={10}
-          aria-hidden
-          className={`transition-transform duration-150 ${open ? "rotate-0" : "-rotate-90"}`}
-          style={{ color: "var(--md-sys-color-text-secondary)" }}
-        />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{title}</span>
-        {activeCount > 0 && (
-          <span className="ml-auto text-[9px] font-mono" style={{ color: "var(--gaea-glow)" }}>{activeCount}</span>
-        )}
+        <span className="tool-group__icon"><GroupGlyph groupKey={groupKeyForTitle(title, hidden)} /></span>
+        <span className="tool-group__title">{title}</span>
+        <span className="tool-group__meta">
+          {activeCount > 0 ? `${activeCount}/${items.length} 已用` : `${items.length} 项`}
+        </span>
+        <ChevronDown className="tool-group__chevron" size={11} aria-hidden />
       </button>
-      <div ref={ref} style={{ overflow: "hidden" }}>
-        <div className="flex flex-col gap-0.5 pt-0.5 pb-1">
+      <div ref={ref} className="tool-group__body" id={groupId}>
+        <div>
           {groupNote && (
-            <div className="px-2 pb-1 text-[10px] leading-[1.4]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{groupNote}</div>
+            <div className="tool-group__note">{groupNote}</div>
           )}
-          {items.map((name) => (
-            <ToolCard key={name} name={name} count={counts[name] ?? 0} desc={descs?.[name] ?? TOOL_DESC[name]} hidden={hidden} />
-          ))}
+          <div className="tool-group__cards">
+            {items.map((name) => (
+              <ToolCard key={name} name={name} count={counts[name] ?? 0} desc={descs?.[name] ?? TOOL_DESC[name]} hidden={hidden} />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
-// 装配面来源分组（2026-11-21 面板缝，与 gaea ToolsSection 同构）。
-const SOURCE_ORDER: string[] = ["builtin-domain", "extra-app", "build-internal"]
-const SOURCE_LABELS: Record<string, string> = {
-  "builtin-domain": "内置域工具",
-  "extra-app": "应用工具",
-  "build-internal": "会话元工具",
+function groupKeyForTitle(title: string, hidden: boolean): string {
+  if (hidden) return "__hidden__"
+  if (title.startsWith("MCP：")) return `mcp:${title.slice(4)}`
+  const byTitle: Record<string, string> = {
+    "图文专属": "c:图文专属",
+    "文件与命令": "c:文件与命令",
+    "网络": "c:网络",
+    "任务与协作": "c:任务与协作",
+    "记忆": "c:记忆",
+    "会话": "c:会话",
+    "技能": "c:技能",
+    "文档与交付": "c:文档与交付",
+    "本地模型": "c:本地模型",
+    "界面": "c:界面",
+  }
+  return byTitle[title] ?? ""
 }
 
-function groupSurface(tools: ToolSurfaceEntryB[]): { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }[] {
-  const bySource = new Map<string, ToolSurfaceEntryB[]>()
+// 功能分组（与办公同源：2026-11-21 用户拍板，工具面板按功能分组显示，不再按
+// 装配来源）。配置组（media 等）用组名直显；core（无组归属）按语义小节映射，
+// wenxue_* 前缀恒归「图文专属」，未命中落「其他」；MCP 按服务器分组。
+const GROUP_LABELS: Record<string, string> = {
+  media: "图面与生图",
+}
+const CORE_SECTIONS: { title: string; names: string[] }[] = [
+  { title: "图文专属", names: [] },
+  { title: "文件与命令", names: ["read_file", "write_file", "ls", "grep", "bash", "bash_output", "wait", "kill_shell"] },
+  { title: "网络", names: ["web_search", "web_fetch"] },
+  { title: "任务与协作", names: ["todo_write", "complete_step", "ask", "task", "genui_validate"] },
+  { title: "记忆", names: ["remember", "memory_search"] },
+  { title: "会话", names: ["session_search", "recall_archived"] },
+  { title: "技能", names: ["read_skill", "run_skill", "install_skill"] },
+  { title: "本地模型", names: ["routine_llm", "translate_text", "vision", "ocr", "image_gen"] },
+]
+
+type SurfaceGroup = { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }
+
+// 装配面 → 功能分组（visible 按功能语义、hidden 收尾组）。
+function groupSurface(tools: ToolSurfaceEntryB[]): SurfaceGroup[] {
+  const byKey = new Map<string, ToolSurfaceEntryB[]>()
   const hiddenList: ToolSurfaceEntryB[] = []
+  const put = (key: string, t: ToolSurfaceEntryB) => {
+    if (!byKey.has(key)) byKey.set(key, [])
+    byKey.get(key)!.push(t)
+  }
   for (const t of tools) {
     if (t.hidden) { hiddenList.push(t); continue }
-    const src = t.source || "other"
-    if (!bySource.has(src)) bySource.set(src, [])
-    bySource.get(src)!.push(t)
+    if (t.source.startsWith("mcp:")) { put(t.source, t); continue }
+    if (t.group) { put(`g:${t.group}`, t); continue }
+    if (t.name.startsWith("wenxue_")) { put("c:图文专属", t); continue }
+    const sec = CORE_SECTIONS.find((sec) => sec.names.includes(t.name))
+    put(sec ? `c:${sec.title}` : "other", t)
   }
-  const groups: { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }[] = []
-  for (const src of SOURCE_ORDER) {
-    const items = bySource.get(src)
+  const groups: SurfaceGroup[] = []
+  for (const sec of CORE_SECTIONS) {
+    const items = byKey.get(`c:${sec.title}`)
     if (items?.length) {
-      groups.push({ key: src, title: SOURCE_LABELS[src] ?? src, items, hidden: false })
-      bySource.delete(src)
+      groups.push({ key: `c:${sec.title}`, title: sec.title, items, hidden: false })
+      byKey.delete(`c:${sec.title}`)
     }
   }
-  for (const [src, items] of bySource) {
-    const title = src.startsWith("mcp:") ? `MCP：${src.slice(4)}` : src === "other" ? "其他" : src
-    groups.push({ key: src, title, items, hidden: false })
+  for (const [key, items] of byKey) {
+    const title = key.startsWith("mcp:")
+      ? `MCP：${key.slice(4)}`
+      : key === "other"
+        ? "其他"
+        : key.startsWith("g:")
+          ? (GROUP_LABELS[key.slice(2)] ?? key.slice(2))
+          : key
+    groups.push({ key, title, items, hidden: false })
   }
   if (hiddenList.length) {
     groups.push({
@@ -265,14 +309,10 @@ export function ToolsTabContent({ toolCounts, liveTools, refreshKey = 0 }: { too
     return () => { alive = false }
   }, [refreshKey])
 
-  const liveGroups = useMemo(() => (surface ? groupSurface(surface.tools) : null), [surface])
-  const liveDescs = useMemo(() => {
-    if (!surface) return undefined
-    const m: Record<string, string> = {}
-    for (const t of surface.tools) if (t.description) m[t.name] = t.description
-    return m
-  }, [surface])
-
+  const liveGroups = useMemo(
+    () => (surface ? groupSurface(surface.tools) : null),
+    [surface],
+  )
   // 兜底源（刀3 续）：引擎实时名单优先，不在任何分组的归「其他」组；
   // 实时名单也缺席（旧后端/加载前）退回静态+deny 滤。
   const sections = useMemo(() => {
@@ -291,11 +331,21 @@ export function ToolsTabContent({ toolCounts, liveTools, refreshKey = 0 }: { too
   const totalTools = surface
     ? surface.tools.length
     : sections.reduce((sum, s) => sum + s.items.length, 0)
-  const visibleCount = surface ? surface.tools.filter((t) => !t.hidden).length : null
+  const visibleTools = surface ? surface.tools.filter((t) => !t.hidden) : null
+  const visibleTotal = visibleTools?.length ?? totalTools
   const activeTotal = useMemo(
-    () => sections.reduce((sum, s) => sum + s.items.filter((n) => (toolCounts[n] ?? 0) > 0).length, 0),
-    [sections, toolCounts],
+    () => (surface
+      ? visibleTools!.filter((t) => (toolCounts[t.name] ?? 0) > 0).length
+      : sections.reduce((sum, s) => sum + s.items.filter((n) => (toolCounts[n] ?? 0) > 0).length, 0)),
+    [surface, visibleTools, toolCounts, sections],
   )
+  // 活取描述表（含 hidden——藏面卡同样给描述）。
+  const liveDescs = useMemo(() => {
+    if (!surface) return undefined
+    const m: Record<string, string> = {}
+    for (const t of surface.tools) if (t.description) m[t.name] = t.description
+    return m
+  }, [surface])
 
   const filteredGroups = useMemo(() => {
     if (liveGroups) {
@@ -327,40 +377,43 @@ export function ToolsTabContent({ toolCounts, liveTools, refreshKey = 0 }: { too
   }, [liveGroups, sections, query])
 
   const hasResults = filteredGroups !== null && filteredGroups.length > 0
+  const filteredCount = filteredGroups?.reduce((sum, group) => sum + group.items.length, 0) ?? 0
 
   return (
-    <div className="flex flex-col overflow-hidden h-full" style={{minHeight: 0}}>
-      <div className="flex items-center gap-1.5 px-2 py-2 font-semibold text-[11px] shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-        <Cpu size={12} aria-hidden className="text-(color:--gaea-glow)" />
-        <span>工具</span>
-        <span className="ml-auto text-[10px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {surface
-            ? `${visibleCount}/${totalTools}`
-            : activeTotal > 0 ? `${activeTotal}/${totalTools}` : totalTools}
-        </span>
-      </div>
-      <div
-        className="flex items-center gap-1.5 mx-2 my-1 px-2 h-7 rounded-md border shrink-0 transition-[border-color,box-shadow] duration-200 focus-within:border-[color:color-mix(in_srgb,var(--gaea-glow)_45%,var(--md-sys-color-outline-variant))] focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--gaea-glow)_14%,transparent)]"
-        style={{
-          borderColor: "var(--md-sys-color-outline-variant)",
-          background: "var(--md-sys-color-surface-container)",
-          color: "var(--md-sys-color-text-secondary)",
-        }}
-      >
-        <Search size={12} aria-hidden />
+    <div className="tools-tab">
+      <header className="tools-overview">
+        <div className="tools-overview__copy">
+          <div className="tools-overview__eyebrow"><Cpu size={11} aria-hidden /><span>能力目录</span></div>
+          <h3 className="tools-overview__title">可用工具</h3>
+          <p className="tools-overview__sub">
+            {activeTotal > 0
+              ? `${visibleTotal} 个工具可见 · ${activeTotal} 个已有调用记录`
+              : `${visibleTotal} 个工具可见 · 按功能分组浏览`}
+          </p>
+        </div>
+        <div
+          className="tools-overview__metric"
+          title={surface ? `模型可见 ${visibleTotal} / 注册表共 ${totalTools}` : `当前清单 ${totalTools}`}
+          aria-label={surface ? `可见 ${visibleTools!.length} / 共 ${totalTools}` : `当前清单 ${totalTools}`}
+        >
+          <strong>{surface ? visibleTools!.length : totalTools}</strong>
+          <span>{surface ? `/ ${totalTools}` : "项"}</span>
+        </div>
+      </header>
+
+      <div className="tools-search">
+        <Search size={13} aria-hidden />
         <input
           ref={inputRef}
-          className="flex-1 min-w-0 border-0 outline-none bg-transparent text-[11.5px] placeholder:text-(color:--md-sys-color-text-secondary)"
-          style={{ color: "var(--md-sys-color-text)" }}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜索工具…"
+          placeholder="搜索工具名或说明…"
           aria-label="搜索工具"
         />
         {query && (
           <button
-            className="border-0 bg-transparent p-0 leading-none cursor-pointer hover:opacity-80"
-            style={{ color: "var(--md-sys-color-text-secondary)" }}
+            className="tools-search__clear"
+            type="button"
             onClick={() => { setQuery(""); inputRef.current?.focus() }}
             aria-label="清除搜索"
           >
@@ -368,11 +421,24 @@ export function ToolsTabContent({ toolCounts, liveTools, refreshKey = 0 }: { too
           </button>
         )}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto pb-2">
+
+      <div className="tools-results-meta" aria-live="polite">
+        <span>{query.trim() ? `“${query.trim()}” 的匹配结果` : "按功能分组 · 展开查看用途"}</span>
+        <span><strong>{filteredCount}</strong> 项</span>
+      </div>
+
+      <div className="tools-list">
         {!hasResults ? (
-          <div className="text-xs text-center py-8" style={{ color: "var(--md-sys-color-text-secondary)" }}>无匹配工具</div>
+          <div className="tools-empty">
+            <span className="tools-empty__icon" aria-hidden="true"><Search size={17} /></span>
+            <strong>{query.trim() ? "没有找到工具" : "暂无可展示工具"}</strong>
+            <p>{query.trim() ? "试试更短的名称，或搜索“文件”“记忆”“章节”等用途关键词。" : "引擎尚未返回工具目录；稍后热加载再试。"}</p>
+            {query.trim() && (
+              <button type="button" onClick={() => { setQuery(""); inputRef.current?.focus() }}>清除搜索</button>
+            )}
+          </div>
         ) : liveGroups ? (
-          (filteredGroups as { key: string; title: string; items: ToolSurfaceEntryB[]; hidden: boolean; note?: string }[]).map((g) => (
+          (filteredGroups as SurfaceGroup[]).map((g, index) => (
             <ToolGroup
               key={g.key}
               title={g.title}
@@ -381,17 +447,19 @@ export function ToolsTabContent({ toolCounts, liveTools, refreshKey = 0 }: { too
               descs={liveDescs}
               hidden={g.hidden}
               groupNote={g.note}
-              defaultOpen={!g.hidden && (filteredGroups!.length <= 4 || g.key === "builtin-domain")}
+              forceOpen={!!query.trim()}
+              defaultOpen={!g.hidden && (!!query.trim() || index < 2 || filteredGroups.length <= 4)}
             />
           ))
         ) : (
-          (filteredGroups as Section[]).map((sec) => (
+          (filteredGroups as Section[]).map((sec, index) => (
             <ToolGroup
               key={sec.title}
               title={sec.title}
               items={sec.items}
               counts={toolCounts}
-              defaultOpen={sec.title === "文件" || filteredGroups!.length <= 3}
+              forceOpen={!!query.trim()}
+              defaultOpen={!!query.trim() || index < 2 || filteredGroups.length <= 3}
             />
           ))
         )}

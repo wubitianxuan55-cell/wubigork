@@ -43,6 +43,7 @@ import { Insights } from "./components/context/Insights";
 import { ContextModal, ContextPill } from "./components/ContextModal";
 import { TrajectoryView } from "./components/TrajectoryView";
 import { SubagentThread } from "./components/SubagentThread";
+import { SubagentCatalogButton } from "./components/SubagentCatalogButton";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
@@ -52,7 +53,7 @@ import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { exportAsMarkdown } from "./lib/export";
-import type { MemoryView, SessionMeta, TaskTemplate, WorkspaceView } from "./lib/types";
+import type { MemoryView, SessionMeta, SubagentRunView, TaskTemplate, WorkspaceView } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -209,7 +210,7 @@ export default function App() {
   const {
     subRunsCacheRef, subagentTabs, subagentTabId, openSubagentThread,
     closeSubagentTab, taskPickCandidates, setTaskPickCandidates,
-    handleChatTabSelect,
+    handleChatTabSelect, subagentRuns,
   } = useSubagentTabs({ currentSessionKey, currentSessionPath, setChatTab });
   // 会话隔离（蒸馏 dsh-better-sidebar）：右侧面板子 Tab 按会话记忆（C3）——
   // 切会话/新建/恢复时恢复该会话上次选中的子面板；显式切换（如点文件回
@@ -525,8 +526,14 @@ export default function App() {
     setEventSyncFetcher((afterSeq) => app.ResyncEvents(afterSeq));
     return () => setEventSyncFetcher(null);
   }, []);
+  // 对话流 task 卡点击 → 右栏子会话 pane（2026-11-26 文学同步批，镜像办公 06fe3ee9：
+  // 主对话不被切走；主区会话 Tab 链路 openSubagentThread 保留给目录树/面包屑）。
+  const openSubagentAside = useCallback((p: { ref: string; task?: string }) => {
+    setWorkspacePanel(true);
+    usePaneTabsStore.getState().openSubagentPane(p.ref, p.task || p.ref);
+  }, [setWorkspacePanel]);
   // 子代理 task 卡 live 预览/跳转/歧义选择器注入 → app/useTaskCards
-  useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSessionPath, openSubagentThread });
+  useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSessionPath, openSubagentAside });
 
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
@@ -675,6 +682,33 @@ export default function App() {
     [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
   const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
+  // 谱系链（2026-11-26 文学同步批，镜像办公 06b2b3fd 嵌套委派导航 dsh S1 面包屑）：
+  // 从当前子代理按 parentRef 上溯到主会话；数据=useSubagentTabs 的共享 runs 快照
+  // （零新增轮询）。
+  const activeSubagentLineage = useMemo(() => {
+    if (!activeSubagent || subagentRuns.length === 0) return [];
+    const byRef = new Map(subagentRuns.map((r) => [r.ref, r]));
+    const chain: { ref: string; task: string }[] = [];
+    let cur = byRef.get(activeSubagent.ref)?.parentRef;
+    let guard = 0;
+    while (cur && guard < 16) {
+      const r = byRef.get(cur);
+      if (!r) break;
+      chain.unshift({ ref: r.ref, task: r.task || r.ref });
+      cur = r.parentRef;
+      guard++;
+    }
+    return chain;
+  }, [activeSubagent, subagentRuns]);
+  // 子代理打开链（目录树行/面包屑祖先共用）：主区会话 tab。
+  const openRunInMain = useCallback((r: SubagentRunView) => {
+    openSubagentThread({ sessionPath: currentSessionPath ?? "", ref: r.ref, task: r.task, model: r.model, status: r.status, createdAt: r.createdAt, updatedAt: r.updatedAt });
+  }, [openSubagentThread, currentSessionPath]);
+  // 子代理右栏打开链（dsh S4「在侧边栏打开」）：pane tab + 亮出右栏。
+  const openRunInAside = useCallback((r: { ref: string; task?: string }) => {
+    setWorkspacePanel(true);
+    usePaneTabsStore.getState().openSubagentPane(r.ref, r.task || r.ref);
+  }, [setWorkspacePanel]);
   const showOfficeComposer = chatTab === "chat" && !activeSubagent && !!currentProject;
   const showWenxueHome = chatTab === "chat" && !activeSubagent && state.items.length === 0;
   const showWenxueEmptyHome = showWenxueHome && !!currentProject;
@@ -772,6 +806,13 @@ export default function App() {
             />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
+              {/* 子智能体目录树（2026-11-26 文学同步批，镜像办公 06b2b3fd dsh S2/S3/S4）：
+                  「N 个子智能体」触发器+血缘下拉树；行=主区打开，侧栏钮=右栏子会话 pane。 */}
+              <SubagentCatalogButton
+                sessionPath={currentSessionPath}
+                onOpenMain={openRunInMain}
+                onOpenAside={openRunInAside}
+              />
               <ToolbarButton onClick={toggleFocus} title={focusMode ? t("topbar.exitFocusMode") : t("topbar.focusMode")}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>
@@ -834,6 +875,11 @@ export default function App() {
                     model={activeSubagent.model}
                     createdAt={activeSubagent.createdAt}
                     updatedAt={activeSubagent.updatedAt}
+                    lineage={activeSubagentLineage}
+                    onOpenRef={(ref) => {
+                      const r = subagentRuns.find((x) => x.ref === ref);
+                      if (r) openRunInMain(r);
+                    }}
                     onBack={() => closeSubagentTab(activeSubagent.id)}
                   />
                 ) : (
@@ -864,6 +910,7 @@ export default function App() {
                       <ContextView
                         running={state.running}
                         sessionPath={currentSessionPath ?? undefined}
+                        contextWindow={state.context.window}
                         showAgentNetwork={false}
                         onViewSubagentContext={(ref) => {
                           setCtxModalRef(ref);
@@ -1147,6 +1194,7 @@ export default function App() {
         title={ctxModalRef ? `子代理上下文 · ${ctxModalRef}` : undefined}
         running={state.running}
         sessionPath={currentSessionPath ?? undefined}
+        contextWindow={state.context.window}
         sessionName={
           currentSessionPath
             ? sessionTitle(
@@ -1180,7 +1228,8 @@ export default function App() {
               aria-label={t("taskpick.rowAria", { task: r.task })}
               onClick={() => {
                 setTaskPickCandidates(null);
-                openSubagentThread({ sessionPath: currentSessionPath ?? "", ref: r.ref, task: r.task, status: r.status, model: r.model });
+                // 与整卡点击同管道：右栏子会话 pane（2026-11-26 文学同步批）。
+                openSubagentAside({ ref: r.ref, task: r.task });
               }}
               className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border-soft bg-bg-soft px-2 py-1.5 text-left transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
             >

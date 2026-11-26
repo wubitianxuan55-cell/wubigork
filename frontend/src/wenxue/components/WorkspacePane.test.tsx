@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { WorkspacePane } from "./WorkspacePane";
-import { resetPaneTabsForTest } from "../lib/paneTabs";
+import { resetPaneTabsForTest, usePaneTabsStore } from "../lib/paneTabs";
 import type { WorkspacePanelContext } from "../lib/sidebarRegistry";
+
+// 子代理会话 pane 的宿主壳（2026-11-26 文学同步批）：本体拉 runs/Transcript 轮询，
+// 这里只验证「页签 → 特例渲染 → 透传取数键」，壳换成纯展示桩。
+vi.mock("./SubagentPaneChat", () => ({
+  SubagentPaneChat: (p: { sessionPath: string; target: string; fallbackTitle: string }) => (
+    <div data-testid="subagent-pane-chat">{`${p.sessionPath}|${p.target}|${p.fallbackTitle}`}</div>
+  ),
+}));
 
 const context = {
   cwd: "C:/books/wugang",
@@ -40,5 +48,17 @@ describe("文学 WorkspacePane", () => {
     expect(gallery).toBeTruthy();
     expect(gallery?.textContent).toContain("插图");
     expect(gallery?.textContent).toContain("封面、场景插图与角色立绘");
+  });
+
+  it("子代理会话页签由 SubagentPaneChat 特例渲染，取数键原样透传", () => {
+    usePaneTabsStore.getState().openSubagentPane("sa_1", "核对第三章时间线");
+    render(
+      <WorkspacePane
+        context={{ ...context, currentSessionPath: "C:/books/wugang/.gaea/sessions/s1.jsonl" } as WorkspacePanelContext}
+      />,
+    );
+    expect(screen.getByTestId("subagent-pane-chat").textContent).toBe(
+      "C:/books/wugang/.gaea/sessions/s1.jsonl|sa_1|核对第三章时间线",
+    );
   });
 });

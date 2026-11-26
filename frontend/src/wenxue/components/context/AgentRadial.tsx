@@ -157,7 +157,7 @@ export function AgentRadial({
     ref: string;
     task?: string;
     model?: string;
-    status: "running" | "completed" | "failed";
+    status: "queued" | "running" | "completed" | "failed" | "aborted";
   }) => void;
   /** 2.5e 后半：sa_ 节点「查看上下文」入口（打开该子代理的上下文弹层）。 */
   onViewContext?: (ref: string) => void;

@@ -5,7 +5,28 @@ package app
 // 与图文专属前缀全放行。名单与 frontend/src/wenxue/lib/disabledDomains.ts
 // DISABLED_TOOL_NAMES 同源（改名单两处同批，本测试兜底引擎侧）。
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gaea/gaea/internal/gaea/tool"
+)
+
+// TestWenxueToolFilterDeniesRunModeGroups 造价 / 长文方案两组整组不装
+// （2026-11-26 工具面实测：两组里 6 件此前混进图文模型实见面）。按组反查，
+// 组成员新增自动跟随。
+func TestWenxueToolFilterDeniesRunModeGroups(t *testing.T) {
+	for _, g := range []tool.ToolGroupName{tool.ToolGroupCost, tool.ToolGroupLongdoc} {
+		members := tool.ToolGroupMembers(g)
+		if len(members) == 0 {
+			t.Fatalf("工具组 %s 无成员（单源表被清空？）", g)
+		}
+		for _, n := range members {
+			if wenxueToolFilter(n) {
+				t.Fatalf("运行模式专属组 %s 的成员 %s 应被图文引擎拒绝装配", g, n)
+			}
+		}
+	}
+}
 
 func TestWenxueToolFilterDeniesOfficeFamily(t *testing.T) {
 	denied := []string{

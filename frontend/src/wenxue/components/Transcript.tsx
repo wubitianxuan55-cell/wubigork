@@ -17,7 +17,7 @@ import { useEntranceAnimation } from "../lib/useEntranceAnimation";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { useNow } from "../lib/useNow";
 import { displayReasoningText } from "../lib/reasoningDisplay";
-import { isDelegationCall } from "../lib/taskActivity";
+import { buildDelegationNameMap, isDelegationCall } from "../lib/taskActivity";
 
 
 // ── 滚动参数 ──────────────────────────────────────────────────────────
@@ -29,6 +29,16 @@ function isNearBottom(el: HTMLElement): boolean {
 }
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
+const EMPTY_DELEGATION_NAMES: ReadonlyMap<string, string> = new Map();
+
+function isBackgroundJobStartNotice(item: Item): boolean {
+  return item.kind === "notice"
+    && /^background (?:task|bash) started:\s/i.test(item.text.trim());
+}
+
+function isSubagentReceiptMessage(item: Item): boolean {
+  return item.kind === "assistant" && !!item.subagentRef;
+}
 
 // scrollVersion: 轻量级内容变化信号
 function scrollVersion(items: Item[]): string {
@@ -139,10 +149,15 @@ function alternatingSegments(turn: Item[]): Segment[] {
 }
 
 export function buildSegments(items: Item[], _running = false): Segment[] {
+  // 后台 task/bash 的启动回执已由结构化工具/委派卡表达；子代理最终答复
+  // 也会被父代理吸收后再输出。两者都不在父对话重复成行，其他 notice 原样保留。
+  const visibleItems = items.filter(
+    (item) => !isBackgroundJobStartNotice(item) && !isSubagentReceiptMessage(item),
+  );
   // 先按用户消息切成轮
   const turns: Item[][] = [];
   let curTurn: Item[] = [];
-  for (const it of items) {
+  for (const it of visibleItems) {
     if (it.kind === "user") {
       if (curTurn.length > 0) turns.push(curTurn);
       curTurn = [it];
@@ -251,6 +266,7 @@ function renderOutsideItems(
      *  出现相同的好几个」）。 */
     textOmitPaths?: ReadonlySet<string>;
     subcalls: Map<string, ToolItem[]>;
+    delegationNames: ReadonlyMap<string, string>;
     setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
   },
 ): React.ReactNode[] {
@@ -313,7 +329,11 @@ function renderOutsideItems(
         if (it.name === "todo_write") return null;
         return (
           <div key={it.id} data-entrance={it.id}>
-            <ToolCard item={it} subcalls={ctx.subcalls.get(it.id)} />
+            <ToolCard
+              item={it}
+              subcalls={ctx.subcalls.get(it.id)}
+              delegationName={ctx.delegationNames.get(it.id)}
+            />
           </div>
         );
       case "imagegen":
@@ -360,12 +380,14 @@ function renderOutsideItems(
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
   dismissedErrors, onDismissError, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, textOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback, subcalls,
+  delegationNames = EMPTY_DELEGATION_NAMES,
 }: {
   seg: Segment;
   running: boolean;
   isLast: boolean;
   /** 轮级 subcall map（buildSubcalls，跨段吸附 parentId 子调用；身份按 sig 稳定）。 */
   subcalls: Map<string, ToolItem[]>;
+  delegationNames?: ReadonlyMap<string, string>;
   turnNo?: number;
   /** 本段是否为所属轮的最后一段（登记-only 交付卡只挂轮尾）。 */
   turnTail?: boolean;
@@ -418,9 +440,10 @@ export const TurnBlock = memo(function TurnBlock({
       renderOutsideItems(seg.outsideItems, {
         turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
         dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback,
-        deliverOmitPaths: tailOmitMentions, textOmitPaths: textOmitMentions, subcalls, setTurnEl,
+        deliverOmitPaths: tailOmitMentions, textOmitPaths: textOmitMentions, subcalls,
+        delegationNames, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, textOmitMentions, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, textOmitMentions, subcalls, delegationNames, setTurnEl],
   );
   // 轮尾无正文段（reasoning-first 回合里工具段在正文之后成为轮尾）：
   // 登记-only 交付卡原来只挂在轮尾段的 AssistantMessage 上，这里整段缺席
@@ -905,6 +928,7 @@ export function Transcript({
     if (items.length === 0) turnEls.current.clear();
   }, [items.length]);
   const merged = useMemo(() => mergeConsecutiveReasoning(items), [items]);
+  const delegationNames = useMemo(() => buildDelegationNameMap(merged), [merged]);
 
   // T7-4 轮级缓存：按「段内容签名」复用已构建的 Segment 对象。流式只改
   // 最后一轮时，已完成段的签名不变 → 引用不变 → TurnBlock memo 生效。
@@ -1159,6 +1183,7 @@ export function Transcript({
                   onFeedback={onFeedback}
                   turnElsRef={turnEls}
                   subcalls={turnSubcalls.get(turnNos.get(segIdx) ?? -1) ?? EMPTY_SUBCALLS}
+                  delegationNames={delegationNames}
                   workHeader={segIdx === lastUserSegIdx && !lastTurnHasProcess}
                   turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
                   tailOmitMentions={tailOmitBySeg.get(segIdx)}

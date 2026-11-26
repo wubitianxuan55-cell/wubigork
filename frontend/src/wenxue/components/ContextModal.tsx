@@ -58,13 +58,14 @@ export function ContextPill({ used, window: win, compactRatio, compactLeft, onCl
   );
 }
 
-export function ContextModal({ open, onClose, running, sessionPath, sessionName, model, fetchTimeline, title }: {
+export function ContextModal({ open, onClose, running, sessionPath, sessionName, model, contextWindow, fetchTimeline, title }: {
   open: boolean;
   onClose: () => void;
   running: boolean;
   sessionPath?: string;
   sessionName?: string;
   model?: string;
+  contextWindow?: number;
   /** 2.5e 后半：子代理上下文的自定义数据源（GaeaSubagentContextView）。 */
   fetchTimeline?: () => Promise<import("../lib/types").ContextTimeline>;
   /** 弹层标题（缺省「当前上下文」=contextview.currentTitle；子代理态显示 ref）。 */
@@ -88,6 +89,7 @@ export function ContextModal({ open, onClose, running, sessionPath, sessionName,
             sessionPath={sessionPath}
             sessionName={sessionName}
             model={model}
+            contextWindow={contextWindow}
             fetchTimeline={fetchTimeline}
           />
         </div>

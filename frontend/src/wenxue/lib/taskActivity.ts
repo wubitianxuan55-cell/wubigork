@@ -36,19 +36,46 @@ export function isDelegationTool(name: string): boolean {
   return DELEGATION_TOOL_NAMES.has(name);
 }
 
-// ── 委派家族收窄（2026-11-20 实测，与 gaea 同源镜像）──────────────
+// ── 委派家族收窄（2026-11-20 实测）────────────────────────────────
 // 病根：run_skill 有三种后端形态（internal/gaea/skill/tools.go）——
 // runAs=subagent 真起隔离子会话 / runAs=inline 技能正文折叠进工具结果 /
-// runAs=pipeline 走 RunDAG。旧判定按工具名整族上浮，把 inline 技能也挂上
-// 「子代理」徽标。证据：子代理形态的成功回执带 "Subagent reference: sa_…"
-// 行（RunPersistedSubAgent 附尾，与 task 回执同款；信封包裹下子串仍可达）。
+// runAs=pipeline 走 RunDAG。旧判定按工具名整族上浮，把 docx/pdf/office-edit
+// 等 inline 技能也挂上「子代理」徽标（实弹「run_skill 生成了子代理卡」）。
+// 证据：子代理形态的成功回执带 "Subagent reference: sa_…" 行
+//（RunPersistedSubAgent 附尾，与 task 回执同款；信封包裹下子串仍可达）。
 // task 不看证据恒委派；run_skill 无回执（运行中）按普通工具卡渲染，回执
-// 落地带引用行后经段签名变更自然升级为委派卡（宁迟半拍勿错标）。
+// 落地带引用行后经 segSig 变更自然升级为委派卡（不追派发期预判——inline
+// 占办公绝大多数，宁迟半拍勿错标）。pipeline 回执无引用行，按普通工具渲染。
 /** 调用级委派判定：task 恒委派；run_skill 仅当回执携带子代理引用行。 */
 export function isDelegationCall(name: string, output?: string): boolean {
   if (name === "task") return true;
   if (name !== "run_skill") return false;
   return /Subagent reference:\s*sa_[A-Za-z0-9_.-]+/.test(output ?? "");
+}
+
+/** 同一会话内的委派显示名：A、B、C…；超过 26 个后使用 A2/B2…。 */
+export function delegationNameForOrdinal(index: number): string {
+  const safe = Math.max(0, Math.floor(index));
+  const letter = String.fromCharCode(65 + (safe % 26));
+  const cycle = Math.floor(safe / 26);
+  return `子代理 ${letter}${cycle > 0 ? cycle + 1 : ""}`;
+}
+
+/**
+ * 按工具调用顺序生成稳定的委派显示名。只命名顶层委派调用（isDelegationCall，
+ * run_skill 须回执带引用行）；parentId 子调用仍归属父委派卡，不单独占用名称。
+ */
+export function buildDelegationNameMap(
+  items: readonly { id: string; name?: string; parentId?: string; output?: string }[],
+): Map<string, string> {
+  const names = new Map<string, string>();
+  let ordinal = 0;
+  for (const item of items) {
+    if (!item.name || item.parentId || !isDelegationCall(item.name, item.output)) continue;
+    names.set(item.id, delegationNameForOrdinal(ordinal));
+    ordinal++;
+  }
+  return names;
 }
 
 /** task 卡 live 预览数据（字段全部可选，缺省按现状渲染）。 */
@@ -119,9 +146,23 @@ export function resolveTaskRef(args: string, output?: string): string {
 // 完成卡此前 summarize 返回空串，除嵌套步数外没有任何结果信息）。取第一条
 // 非空行（跳过 "Subagent reference:" 引用行），超 80 字截断；error 时由
 // 卡片错误区展示，这里返回空串。
+// 2026-11-18 后台委派实弹：run_in_background 的 task 立即回 dsh-ops 信封
+// （{"ok":true,…,"data":{"result":"Started background task …"}}）——先剥
+// 信封取 data.result；回执文本不是结果（真结果随结算注记开新回合送达、在
+// 右栏会话可见），返回空串不冒充结果。
 export function taskResultSummary(output?: string, error?: string): string {
   if (error || !output) return "";
-  for (const line of output.split("\n")) {
+  let text = output;
+  try {
+    const parsed = JSON.parse(output) as { data?: { result?: unknown } };
+    if (parsed && typeof parsed === "object" && parsed.data && typeof parsed.data.result === "string") {
+      text = parsed.data.result;
+      if (text.startsWith("Started background task")) return "";
+    }
+  } catch {
+    // 非 JSON：原文本走行提取
+  }
+  for (const line of text.split("\n")) {
     const t = line.trim();
     if (!t || t.startsWith("Subagent reference:")) continue;
     return t.length > 80 ? `${t.slice(0, 80)}…` : t;
@@ -166,13 +207,16 @@ function taskDescOf(args: unknown): string {
 
 /**
  * matchRunningCandidates：args 任务描述 ↔ run.task 归一化（trim）双向包含
- * 匹配，返回全部命中的 running run（保序）。命中语义与 matchRunningRun
+ * 匹配，返回全部命中的 run（保序）。命中语义与 matchRunningRun
  * 同源：desc 包含 run.task 或 run.task 包含 desc 任一成立（覆盖模型短摘要
- * vs transcript 长首条消息两个方向）；非 running、task 空/缺失的 run 跳过。
+ * vs transcript 长首条消息两个方向）；task 空/缺失的 run 跳过。
  * Why 只有 trim：派发双方都以中文任务描述为主，大小写折叠收益极小反而
  * 扩大误配面。args 无描述文本 → 空数组（宁缺勿错，不炸）。
  * 消费方：App 侧「多候选歧义」链路（整卡可点 → 点击弹选择器人工挑一个），
  * 以及 matchRunningRun 的唯一命中判定。
+ * 2026-11-18 状态过滤上移到调用方：后台委派完成后卡要可点（实弹「对话窗
+ * 口没有智能体卡无法点击」）——打开目标解析需要在**全部运行**里唯一文本
+ * 命中，不再局限于 running；live 预览等 running-only 场景由调用方先筛。
  */
 export function matchRunningCandidates<T extends SubagentRunLike>(
   args: unknown,
@@ -182,7 +226,6 @@ export function matchRunningCandidates<T extends SubagentRunLike>(
   if (!desc) return [];
   const hits: T[] = [];
   for (const r of runs) {
-    if (r.status !== "running") continue;
     const t = typeof r.task === "string" ? r.task.trim() : "";
     if (!t) continue;
     if (t.includes(desc) || desc.includes(t)) hits.push(r);

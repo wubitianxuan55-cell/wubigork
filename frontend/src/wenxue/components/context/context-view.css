@@ -2028,23 +2028,69 @@
   opacity: 0.55;
 }
 
-
+/* ── 响应式与减弱动效（与办公 context-view.css 同源）。分叉拷贝时这五段 @media 的
+   规则体被作用域脚本写坏——每段后面跟的是泄漏出来的 JS 数组字面量而非规则，
+   且块没有闭合；2026-11-26 同步审计按办公原文补齐并清掉坏尾。────────────── */
 @media (min-width: 800px) {
-(['\n  ', '\n.wx-root .ctx-core-grid {\n\n    grid-template-columns: repeat(6, minmax(0, 1fr));\n  }\n', '\n\n  ', '\n.wx-root .ctx-core-events {\n\n    grid-column: span 2;\n  }\n', '\n'], {})}
+  .wx-root .ctx-core-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 
+  .wx-root .ctx-core-events {
+    grid-column: span 2;
+  }
+}
 
 @media (max-width: 900px) {
-(['\n  ', '\n.wx-root .ctx-cmd-card {\n\n    max-height: none;\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-body {\n\n    grid-template-columns: minmax(0, 1fr);\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-rail {\n\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-programs {\n\n    grid-column: 1 / -1;\n  }\n', '\n'], {})}
+  .wx-root .ctx-cmd-card {
+    max-height: none;
+  }
 
+  .wx-root .ctx-cmd-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wx-root .ctx-cmd-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wx-root .ctx-cmd-programs {
+    grid-column: 1 / -1;
+  }
+}
 
 @media (max-width: 620px) {
-(['\n  ', '\n.wx-root .ctx-cmd-rail {\n\n    display: none;\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-head {\n\n    align-items: flex-start;\n  }\n', '\n\n  ', '\n.wx-root .ctx-cmd-filters {\n\n    width: 100%;\n    margin-left: 0;\n  }\n', '\n'], {})}
+  .wx-root .ctx-cmd-rail {
+    display: none;
+  }
 
+  .wx-root .ctx-cmd-head {
+    align-items: flex-start;
+  }
+
+  .wx-root .ctx-cmd-filters {
+    width: 100%;
+    margin-left: 0;
+  }
+}
 
 @media (max-width: 699px) {
-(['\n  ', '\n.wx-root .ctx-stats-ledger {\n\n    grid-template-columns: minmax(0, 1fr);\n  }\n', '\n\n  ', '\n.wx-root .ctx-stat-row,\n.wx-root .ctx-fleet-summary {\n\n    grid-column: 1;\n    grid-row: auto;\n  }\n', '\n'], {})}
+  .wx-root .ctx-stats-ledger {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
+  .wx-root .ctx-stat-row,
+  .wx-root .ctx-fleet-summary {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-(['\n  ', '\n.wx-root .ctx-tile,\n.wx-root .ctx-row,\n.wx-root .ctx-browser-map-item {\n\n    transition: none;\n  }\n', '\n'], {})}
-
+  .wx-root .ctx-tile,
+  .wx-root .ctx-row,
+  .wx-root .ctx-browser-map-item {
+    transition: none;
+  }
+}

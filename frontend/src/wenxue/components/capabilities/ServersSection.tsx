@@ -8,7 +8,7 @@ import { summarizeServerError } from "../../lib/capabilities";
 import type { MCPServerInput, ServerView } from "../../lib/types";
 
 const textBtn =
-  "px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default";
+  "inline-flex min-h-[28px] items-center px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default";
 
 function OutlinedBtn({ onClick, disabled, children, title }: { onClick: () => void; disabled?: boolean; children: ReactNode; title?: string }) {
   return (
@@ -17,6 +17,7 @@ function OutlinedBtn({ onClick, disabled, children, title }: { onClick: () => vo
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={title}
       style={{
         border: "1px solid var(--md-sys-color-outline-variant)",
         background: "transparent",
@@ -97,7 +98,7 @@ export function FailedServersNotice({
   const t = useT()
   return (
     <div
-      className="mb-3 p-3 rounded-[var(--radius-md)]"
+      className="caps-failure mb-3 p-3 rounded-[var(--radius-md)]"
       role="status"
       style={{
         background: "color-mix(in srgb, var(--md-sys-color-destructive) 8%, transparent)",
@@ -209,7 +210,7 @@ function ServerRow({
     : "var(--md-sys-color-text-secondary)"
   return (
     <div
-      className={`rounded-[var(--radius-md)] transition-all duration-200 ${s.status === "disabled" ? "opacity-60" : ""}`}
+      className={`caps-server-card rounded-[var(--radius-md)] transition-all duration-200 ${s.status === "disabled" ? "opacity-60" : ""}`}
       style={{
         background: "var(--md-sys-color-surface-container)",
         border: "1px solid var(--md-sys-color-outline-variant)",
@@ -236,6 +237,9 @@ function ServerRow({
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>{s.name}</span>
             <span className="text-[11px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>{s.transport}</span>
+            <span className="caps-status-badge" data-status={s.status}>
+              {s.status === "connected" ? "在线" : s.status === "failed" ? "异常" : "已停用"}
+            </span>
           </div>
           <div
             className="text-[11px] truncate"
@@ -258,14 +262,9 @@ function ServerRow({
                 <label className="inline-flex cursor-pointer no-drag" title={s.status === "connected" ? t("caps.disable") : t("caps.enable")}>
                   <input type="checkbox" className="peer absolute opacity-0 w-0 h-0" checked={s.status === "connected"} disabled={busy} onChange={(e) => onToggle(e.target.checked)} />
                   <span
-                    className="relative w-[30px] h-[17px] rounded-full transition-colors duration-200 peer-checked:bg-(color:--md-sys-color-success) peer-disabled:opacity-50 peer-checked:[&>span]:translate-x-[13px]"
-                    style={{ background: "var(--md-sys-color-outline-variant)" }}
-                  >
-                    <span
-                      className="absolute top-0.5 left-0.5 w-[13px] h-[13px] rounded-full transition-transform duration-200"
-                      style={{ background: "var(--md-sys-color-surface-container-highest)" }}
-                    />
-                  </span>
+                    className="caps-switch"
+                    aria-hidden="true"
+                  />
                 </label>
               )}
               <OutlinedBtn onClick={onConfirm} disabled={busy} title={t("caps.remove")}>
@@ -338,6 +337,13 @@ export function AddServerForm({
       const eq = line.indexOf("=")
       if (eq > 0) envMap[line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
     }
+    // per-server 超时（秒，可留空=默认）；非法输入视为未填。
+    const optSec = (v: string): number | undefined => {
+      const n = Number(v.trim())
+      return v.trim() !== "" && Number.isFinite(n) && n > 0 ? n : undefined
+    }
+    const st = optSec(startupTimeout)
+    const tt = optSec(toolTimeout)
     onAdd({
       name: name.trim(),
       transport,
@@ -345,15 +351,14 @@ export function AddServerForm({
       args: isStdio ? parts.slice(1) : [],
       url: isStdio ? "" : url.trim(),
       env: envMap,
-      // per-server 超时（秒，可留空=默认）；非法输入视为未填。
-      ...(Number(startupTimeout.trim()) > 0 ? { startup_timeout_sec: Number(startupTimeout.trim()) } : {}),
-      ...(Number(toolTimeout.trim()) > 0 ? { tool_timeout_sec: Number(toolTimeout.trim()) } : {}),
+      ...(st !== undefined ? { startup_timeout_sec: st } : {}),
+      ...(tt !== undefined ? { tool_timeout_sec: tt } : {}),
     })
   }
 
   return (
     <div
-      className="flex flex-col gap-2 p-3 rounded-[var(--radius-md)] mb-2"
+      className="caps-add-server flex flex-col gap-2 p-3 rounded-[var(--radius-md)] mb-2"
       style={{
         background: "var(--md-sys-color-surface-container)",
         border: "1px solid var(--md-sys-color-outline-variant)",

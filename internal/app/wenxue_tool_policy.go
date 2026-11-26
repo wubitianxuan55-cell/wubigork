@@ -1,5 +1,7 @@
 package app
 
+import "github.com/gaea/gaea/internal/gaea/tool"
+
 // wenxue_tool_policy.go — 图文板块（wenxue）会话工具策略（2026-11-15 刀1，案A）。
 //
 // 图文=长篇小说创作专属板块：办公域工具（office 全族/CAD/造价/进度计划/
@@ -63,8 +65,23 @@ var wenxueDeniedTools = []string{
 	"interrupt_agent", "subagent_list", "read_subagent_result",
 }
 
+// wenxueDeniedGroups 整组不装的办公工具组：造价 / 长文方案。办公按运行模式经
+// ToolHide 显隐（composeToolHide：cost 只在造价档、longdoc 只在方案档），图文
+// 没有运行模式这一层，上面的名单又只钉了两组里的一部分成员——2026-11-26
+// 工具面实测（wenxue_toolface_test.go）：cost_project_apply / cost_project /
+// cost_audit / longdoc_manifest / longdoc_build / longdoc_verify 六件混进图文
+// 模型实见面（约 4400 字符，占当时工具面 25%）。按组反查整组拒绝，组成员
+// 新增自动跟随；名单里的 cost_* / proposal_* 条目保留作显式文档。
+var wenxueDeniedGroups = map[tool.ToolGroupName]bool{
+	tool.ToolGroupCost:    true,
+	tool.ToolGroupLongdoc: true,
+}
+
 // wenxueToolFilter 报告工具是否允许装配进图文引擎（boot.Options.ToolFilter 缝）。
 func wenxueToolFilter(name string) bool {
+	if wenxueDeniedGroups[tool.ToolGroupOf(name)] {
+		return false
+	}
 	for _, d := range wenxueDeniedTools {
 		if d != "" && d[len(d)-1] == '_' {
 			if len(name) >= len(d) && name[:len(d)] == d {

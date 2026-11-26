@@ -1,8 +1,10 @@
 // ── 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2） ──
 export interface SubagentRunView {
   ref: string; // sa_YYYYMMDD_HHMMSS_... / mt_YYYYMMDD_HHMMSS_... 稳定引用
-  // queued：有限并行闸排队中（[agent] subagent_max_parallel，超限派生等槽）
-  status: "queued" | "running" | "completed" | "failed";
+  // queued：有限并行闸排队中（[agent] subagent_max_parallel，超限派生等槽）；
+  // aborted：用户中止（D4 结算词汇——独立 Stop/interrupt_agent/回合取消，
+  // 不再冒充 failed）。
+  status: "queued" | "running" | "completed" | "failed" | "aborted";
   // kind 区分两类运行：subagent（task/run_skill 派生的真子代理）与
   // model_tool（vision/summarize_file 等本地模型工具的单轮调用）。旧数据
   // 缺省按 subagent 解析。
@@ -18,6 +20,15 @@ export interface SubagentRunView {
   // 最近一次追问的后台失败原因摘要（v4.66，meta 透传）：非空 = 该运行最近
   // 一次追问失败；空/缺省 = 无失败。
   followUpError?: string;
+  // 派生血缘盖章（D1 编队拓扑会话化，meta 透传）：parentRef 空 = 主会话直接
+  // 派生，sa_* = 父是子代理（嵌套派生）；spawnCallId 是父侧元工具调用 ID，
+  // 编队拓扑把会话节点与事件日志工具调用树按它精确联结。旧 meta 无字段 =
+  // 空（拓扑按 root 挂载降级）。
+  parentRef?: string;
+  spawnCallId?: string;
+  // 嵌套委派级别（2026-11-18 dsh 完整智能体形态，meta 透传）：主会话直派=1、
+  // 孙代=2……；缺省 = 旧 meta 未记录（读端按 1 降级）。
+  depth?: number;
   createdAt: string;
   updatedAt: string;
 }

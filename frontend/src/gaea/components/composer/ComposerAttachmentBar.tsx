@@ -4,6 +4,7 @@
 import { Eye, File as FileIcon, FileText, Image as ImageIcon, Loader, RefreshCw, X } from "../../icons";
 import { extBadge, fileIconName } from "../../lib/fileBadge";
 import { usePreviewStore } from "../../lib/store";
+import { useBoardPorts } from "../boardPorts";
 import type { Attachment, AttachmentUploadTask } from "../../hooks/useComposerAttachments";
 
 export interface ComposerAttachmentBarProps {
@@ -39,7 +40,11 @@ export function ComposerAttachmentBar({
   attachments, uploads = [], running, recognizingPath, ocrPath, onRecognize, onOCRText, onRemove,
   onRetryUpload, onRemoveUpload,
 }: ComposerAttachmentBarProps) {
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
+  // 预览入口经板块缝（见 boardPorts）：预览库两板块各一份，本条被文学板块的共享
+  // Composer 复用时须经缝开到文学那份；未提供（办公）=办公预览库，行为不变。
+  const ports = useBoardPorts();
+  const storeOpenFilePreview = usePreviewStore((s) => s.openFilePreview);
+  const openFilePreview = (path: string) => (ports ? ports.openFilePreview(path) : storeOpenFilePreview(path));
   if (attachments.length === 0 && uploads.length === 0) return null
   return (
     <div className="flex flex-wrap gap-1.5 px-1 pb-1.5">

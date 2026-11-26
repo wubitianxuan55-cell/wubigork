@@ -7,32 +7,32 @@
  * :root[data-hl="light"] 跟主应用明暗（App.tsx 主题 effect 挂 data-hl，darkMode
  * 为 store 派生实际明暗）；.hl-scope-dark = 不随主题的暗色代码面板（聊天线
  * hex-exempt 专用色面板）整体钉死暗色组——令牌随面板不随应用主题。
+ *
+ * 文学板块作用域副本（2026-11-26 与办公同源）：色值接外观系统的 --syntax-* 令牌
+ * （顶层 App.tsx 按明暗注入，两板块共用），不再写死 One Dark 十六进制；浅色
+ * 覆写选择器为 `:root[data-hl="light"] .wx-root`——分叉时的作用域脚本曾把它
+ * 写成 `.wx-root :root[data-hl="light"]`（:root 是 html、恒为祖先，永不命中），
+ * 文学浅色主题下代码块一直落在暗色配色。
  */
-
-
-
 .wx-root {
-
-
-
   /* 暗色（One Dark inspired, adjusted for new palette） */
-  --hl-dark-keyword: #C084FC;  /* purple */
-  --hl-dark-string: #22C55E;   /* run green */
-  --hl-dark-number: #FB923C;   /* orange */
-  --hl-dark-comment: #64748B;  /* slate */
-  --hl-dark-func: #60A5FA;     /* blue */
-  --hl-dark-type: #FBBF24;     /* amber */
-  --hl-dark-builtin: #38BDF8;  /* sky */
-  --hl-dark-meta: #94A3B8;     /* slate-400 */
+  --hl-dark-keyword: var(--syntax-dark-keyword);
+  --hl-dark-string: var(--syntax-dark-string);
+  --hl-dark-number: var(--syntax-dark-number);
+  --hl-dark-comment: var(--syntax-dark-comment);
+  --hl-dark-func: var(--syntax-dark-func);
+  --hl-dark-type: var(--syntax-dark-type);
+  --hl-dark-builtin: var(--syntax-dark-builtin);
+  --hl-dark-meta: var(--syntax-dark-meta);
   /* 浅色（同色相深阶） */
-  --hl-light-keyword: #7C3AED;  /* violet-600 */
-  --hl-light-string: #047857;   /* emerald-700 */
-  --hl-light-number: #C2410C;   /* orange-700 */
-  --hl-light-comment: #64748B;  /* slate-500 */
-  --hl-light-func: #1D4ED8;     /* blue-700 */
-  --hl-light-type: #A16207;     /* yellow-700 */
-  --hl-light-builtin: #0369A1;  /* sky-700 */
-  --hl-light-meta: #4B5563;     /* gray-600 */
+  --hl-light-keyword: var(--syntax-light-keyword);
+  --hl-light-string: var(--syntax-light-string);
+  --hl-light-number: var(--syntax-light-number);
+  --hl-light-comment: var(--syntax-light-comment);
+  --hl-light-func: var(--syntax-light-func);
+  --hl-light-type: var(--syntax-light-type);
+  --hl-light-builtin: var(--syntax-light-builtin);
+  --hl-light-meta: var(--syntax-light-meta);
 
   /* 生效令牌：兜底暗色 */
   --hl-keyword: var(--hl-dark-keyword);
@@ -44,17 +44,8 @@
   --hl-builtin: var(--hl-dark-builtin);
   --hl-meta: var(--hl-dark-meta);
 }
-
-
-
 /* 浅色主题覆写（data-hl 由主应用主题 effect 挂，lib/codeHighlight applyHlTheme 口径） */
-
-
-
-.wx-root :root[data-hl="light"] {
-
-
-
+:root[data-hl="light"] .wx-root {
   --hl-keyword: var(--hl-light-keyword);
   --hl-string: var(--hl-light-string);
   --hl-number: var(--hl-light-number);
@@ -64,17 +55,8 @@
   --hl-builtin: var(--hl-light-builtin);
   --hl-meta: var(--hl-light-meta);
 }
-
-
-
 /* 不随主题的暗色代码面板：元素级声明压过 :root/[data-hl]，面板内令牌恒暗色 */
-
-
-
 .wx-root .hl-scope-dark {
-
-
-
   --hl-keyword: var(--hl-dark-keyword);
   --hl-string: var(--hl-dark-string);
   --hl-number: var(--hl-dark-number);
@@ -84,9 +66,6 @@
   --hl-builtin: var(--hl-dark-builtin);
   --hl-meta: var(--hl-dark-meta);
 }
-
-
-
 
 /* ── highlight.js token theme (mapped to palette) ────────────────────────── */
 

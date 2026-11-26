@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { findFileMentions } from "../lib/fileLinks";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { FileChip } from "./FileChip";
+import { useBoardPorts } from "./boardPorts";
 
 // FileLinkText 把纯文本中的本地文件引用渲染为可点击预览 chip，
 // 用于工具输出等不经过 Markdown 管道的文本表面（保留原始空白/换行）。
@@ -16,7 +17,9 @@ export const FileLinkText = memo(function FileLinkText({
   onOpen?: (path: string) => void;
   compact?: boolean;
 }) {
-  const open = onOpen ?? openPaneFileOrPreview;
+  // 板块壳经 Context 提供自己的文件打开入口时优先（见 boardPorts）；未提供=模块单例。
+  const ports = useBoardPorts();
+  const open = onOpen ?? ports?.openPaneFile ?? openPaneFileOrPreview;
   const mentions = useMemo(() => findFileMentions(text), [text]);
 
   if (mentions.length === 0) return <>{text}</>;

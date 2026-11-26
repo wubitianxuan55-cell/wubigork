@@ -446,6 +446,10 @@ export function WenxueSubagentFollowUp(arg1, arg2, arg3) {
   return window['go']['app']['WenxueB']['WenxueSubagentFollowUp'](arg1, arg2, arg3);
 }
 
+export function WenxueSubagentSteer(arg1, arg2, arg3) {
+  return window['go']['app']['WenxueB']['WenxueSubagentSteer'](arg1, arg2, arg3);
+}
+
 export function WenxueSwitchWorkspace(arg1) {
   return window['go']['app']['WenxueB']['WenxueSwitchWorkspace'](arg1);
 }

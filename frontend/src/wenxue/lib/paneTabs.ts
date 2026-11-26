@@ -31,8 +31,8 @@ export interface PaneTab {
   path?: string;
   /** tab 条显示标题（视图名 / 文件名）。 */
   title: string;
-  /** 视图级附加状态（目前：浏览器视图当前 URL）。 */
-  meta?: { url?: string };
+  /** 视图级附加状态（浏览器当前 URL；子代理 pane=会话 ref）。 */
+  meta?: { url?: string; subagentRef?: string };
 }
 
 export interface PaneTabsState {
@@ -52,6 +52,11 @@ export interface PaneTabsState {
   reloadTicks: Record<string, number>;
   /** 打开视图 tab：同 viewId 已开则激活，否则追加激活。 */
   openView: (viewId: string, title: string) => void;
+  /** 打开子代理会话 pane tab（2026-11-26 文学同步批，镜像办公 06b2b3fd dsh S4
+      「在侧边栏打开」）：每 ref 单实例去重激活；内容=SubagentThread 右栏形态
+      （WorkspacePane 特例渲染，不走静态注册表——本 tab 由目录树/委派卡按 ref
+      动态开）。 */
+  openSubagentPane: (ref: string, title: string) => void;
   /** 打开文件 tab：同路径已开则激活，否则追加激活。 */
   openFile: (path: string, title: string) => void;
   /** 请求刷新某路径的已打开预览（App 从写类工具成功回执派生，经防抖调度器调进）。 */
@@ -100,6 +105,23 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
       return;
     }
     const tab: PaneTab = { id, kind: "view", viewId, title };
+    set({
+      tabs: [...tabs, tab],
+      active: id,
+      order: touch(order, id),
+    });
+  },
+
+  openSubagentPane: (ref, title) => {
+    if (!ref) return;
+    const { tabs, order } = get();
+    const id = `sub:${ref}`;
+    const existing = tabs.find((t) => t.id === id);
+    if (existing) {
+      set({ active: id, order: touch(order, id) });
+      return;
+    }
+    const tab: PaneTab = { id, kind: "view", viewId: "subagent", title, meta: { subagentRef: ref } };
     set({
       tabs: [...tabs, tab],
       active: id,
@@ -258,7 +280,9 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
 
 // ── 按会话持久化 ────────────────────────────────────────────────
 const PANE_STORAGE_PREFIX = "gaea.paneTabs.v1:";
-const VIEW_IDS = new Set<string>(WORKSPACE_TABS.map((t) => t.id));
+// 子代理会话页签（viewId="subagent"）是右栏一级视图：持久化净化必须认它，
+// 否则刷新/切会话回来 tab 被整条丢弃（镜像办公 73d1a906 子代理实弹修复）。
+const VIEW_IDS = new Set<string>([...WORKSPACE_TABS.map((t) => t.id), "subagent"]);
 
 export interface PaneTabsSnapshot {
   v: 1;
@@ -280,11 +304,12 @@ export function sanitizePaneTabsSnapshot(value: unknown): PaneTabsSnapshot {
     const raw = item as Record<string, unknown>;
     if (typeof raw.id !== "string" || typeof raw.title !== "string" || seen.has(raw.id)) continue;
     if (raw.kind === "view" && typeof raw.viewId === "string" && VIEW_IDS.has(raw.viewId)) {
-      const meta =
-        raw.meta !== null && typeof raw.meta === "object"
-          ? { url: typeof (raw.meta as Record<string, unknown>).url === "string" ? (raw.meta as Record<string, string>).url : undefined }
-          : undefined;
-      tabs.push({ id: raw.id, kind: "view", viewId: raw.viewId, title: raw.title, ...(meta?.url ? { meta } : {}) });
+      const rawMeta = raw.meta !== null && typeof raw.meta === "object" ? (raw.meta as Record<string, unknown>) : undefined;
+      const meta: { url?: string; subagentRef?: string } = {};
+      if (typeof rawMeta?.url === "string") meta.url = rawMeta.url;
+      // subagentRef 是 SubagentPaneChat 的取数键——净化丢它=页签在而窗渲染不出。
+      if (typeof rawMeta?.subagentRef === "string") meta.subagentRef = rawMeta.subagentRef;
+      tabs.push({ id: raw.id, kind: "view", viewId: raw.viewId, title: raw.title, ...(Object.keys(meta).length ? { meta } : {}) });
       seen.add(raw.id);
     } else if (raw.kind === "file" && typeof raw.path === "string" && raw.path !== "") {
       tabs.push({ id: raw.id, kind: "file", path: raw.path, title: raw.title });

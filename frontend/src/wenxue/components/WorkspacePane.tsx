@@ -17,6 +17,7 @@ import { FileTypeIcon } from "../lib/fileIcon";
 import { confirmDiscardEditor } from "../lib/editorDrafts";
 import { FilePreview } from "./FilePreview";
 import { BrowserPane } from "./BrowserPane";
+import { SubagentPaneChat } from "./SubagentPaneChat";
 import { ChevronRight, PanelRightClose, Plus, Settings } from "../icons";
 import "../../gaea/components/workspace-pane.css";
 
@@ -271,6 +272,19 @@ export function WorkspacePane({
         onBackToFiles={() => openView("files", "文件")}
         embedded
         reloadSignal={reloadTicks[normalizePreviewPath(activeTab.path)] ?? 0}
+      />
+    );
+  } else if (activeTab?.kind === "view" && activeTab.viewId === "subagent" && activeTab.meta?.subagentRef) {
+    // 子代理会话 pane（2026-11-26 文学同步批，镜像办公 06b2b3fd dsh S6 右侧
+    // Sidebar 聊天页）：每 ref 一个 tab（openSubagentPane 动态开），完整会话
+    // （可插话/追问/停）。特殊渲染不走注册表——注册表是静态视图清单，本 tab
+    // 由目录树/委派卡按 ref 动态开。
+    content = (
+      <SubagentPaneChat
+        sessionPath={context.currentSessionPath ?? ""}
+        target={activeTab.meta.subagentRef}
+        fallbackTitle={activeTab.title}
+        onClose={() => closeTab(activeTab.id)}
       />
     );
   } else if (activeTab?.kind === "view" && activeTab.viewId === "browser") {

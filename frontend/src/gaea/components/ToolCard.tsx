@@ -38,6 +38,7 @@ import type { Item } from "../lib/store";
 import { FileLinkText } from "./FileLinkText";
 import { ScheduleApplyRollback } from "./ScheduleApplyRollback";
 import { ToolSources } from "../../components/evidence/ToolSources";
+import { useBoardPorts } from "./boardPorts";
 
 export type ToolItem = Extract<Item, { kind: "tool" }>;
 export interface ToolCardProps {
@@ -86,6 +87,20 @@ function DiffRowsView({ rows, folded }: { rows: DiffRow[]; folded: number }) {
   );
 }
 
+// 任务卡注入点读口：板块壳经 Context 提供时走它（见 boardPorts——文学板块与
+// 办公同挂时各读各的槽位），未提供（办公）= 模块单例。
+function useTaskSlots() {
+  const ports = useBoardPorts();
+  return ports ?? {
+    activity: getTaskCardActivity,
+    fireAmbiguity: fireTaskCardAmbiguity,
+    openSession: openTaskCardSession,
+    openTarget: getTaskCardOpenTarget,
+    ambiguity: getTaskCardAmbiguity,
+    hasAmbiguityHandler: hasTaskCardAmbiguityHandler,
+  };
+}
+
 // ── 委派卡（2026-11-18 简化重设计）：一次委派 = 一行任务简报 ──
 // 只保留任务名、状态和一行结果/实时进展；点击整卡进入子代理会话查看详情，
 // 不在消息流内展开输出。活动条沿用 v4.26 注入点契约，provider 未注入时
@@ -113,7 +128,8 @@ function DelegationCard({
   // 显示状态以 runs 真态优先（2026-11-18 后台委派实弹：回执即达把卡翻成
   // done，而子代理磁盘态仍在 running——三卡假完成定罪）。provider 未注入/
   // 查不到时回退 item.status（诚实维持现状）。
-  const activity = getTaskCardActivity(ref, item.args);
+  const slots = useTaskSlots();
+  const activity = slots.activity(ref, item.args);
   const runState = activity?.state;
   const displayStatus = runState === "running" || runState === "queued"
     ? "running"
@@ -148,8 +164,8 @@ function DelegationCard({
   const clickable = !!openTarget || ambiguous;
   const headClick = clickable
     ? ambiguous
-      ? () => { fireTaskCardAmbiguity(item.args); }
-      : () => { openTaskCardSession(openTarget); }
+      ? () => { slots.fireAmbiguity(item.args); }
+      : () => { slots.openSession(openTarget); }
     : undefined;
   const elapsed = running ? formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000))) : "";
   const statusWord = running
@@ -254,6 +270,7 @@ function DelegationCard({
 export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible, delegationName }: ToolCardProps) {
   const t = useT();
   const compact = useCompact();
+  const slots = useTaskSlots();
   const diffs = useMemo(() => diffsFor(item.name, item.args), [item.name, item.args]);
   // 波3.5 实弹反馈：提炼记忆（remember/fact_add）行点击直接弹窗查看完整内容，
   // 行内主体显示记忆正文首行（不再要求展开翻 JSON args）。
@@ -328,11 +345,11 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible, 
   const isSubagentCard = isDelegationCall(item.name, item.output);
   const resolvedRef = isSubagentCard ? resolveTaskRef(item.args, item.output) : "";
   const openTarget = isSubagentCard
-    ? getTaskCardOpenTarget(resolvedRef, item.args)
+    ? slots.openTarget(resolvedRef, item.args)
     : "";
   const ambiguous = isSubagentCard && !openTarget
-    && getTaskCardAmbiguity(resolvedRef, item.args)
-    && hasTaskCardAmbiguityHandler();
+    && slots.ambiguity(resolvedRef, item.args)
+    && slots.hasAmbiguityHandler();
   const clickable = isSubagentCard && (!!openTarget || ambiguous);
   const bodyId = useId();
   const statusLabel = item.status === "running"
@@ -380,8 +397,8 @@ export const ToolCard = memo(function ToolCard({ item, subcalls, isToolVisible, 
             ? () => setPeekOpen(true)
             : clickable
               ? ambiguous
-                ? () => { fireTaskCardAmbiguity(item.args); }
-                : () => { openTaskCardSession(openTarget); }
+                ? () => { slots.fireAmbiguity(item.args); }
+                : () => { slots.openSession(openTarget); }
               : expandable
                 ? () => setOpen((v) => !v)
                 : undefined

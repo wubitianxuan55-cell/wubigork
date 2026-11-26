@@ -2,7 +2,9 @@
 // （internal/app/wenxue_tool_policy.go deny 名单，与本文目名单同源对齐）；
 // 前端在命令、工具卡、统计、能力面板四个可见面做一致过滤。
 const DISABLED_COMMAND_PREFIXES = ["schedule", "cad"] as const;
-const DISABLED_TOOL_PREFIXES = ["schedule_", "cad_"] as const;
+// 造价 / 长文方案两组整组按前缀滤（2026-11-26 工具面实测：两组 6 件曾混进图文
+// 工具面；引擎侧 wenxue_tool_policy.go 按组反查整组拒绝，此处同口径）。
+const DISABLED_TOOL_PREFIXES = ["schedule_", "cad_", "cost_", "longdoc_", "proposal_"] as const;
 
 // 办公域工具（刀1 引擎侧物理卸载的同一批；fact_* 三件为首刀收口批除名
 // 2026-11-15 众神殿）：本地面板兜底不展示。与 wenxue_tool_policy.go 同源
@@ -14,6 +16,7 @@ const DISABLED_TOOL_NAMES = [
   "office_open", "office_read", "office_edit", "office_render",
   "office_save", "office_close", "office_selection",
   "cad_ask", "cost_search", "cost_save", "cost_indicators",
+  "cost_library", // 造价库维护（2026-11-25 进引擎侧 deny 名单，此处同批补齐）
   "chart_gen", "diagram_gen", "diagram", "doc_render", "format_convert",
   "screen_capture", "semantic_search",
   "fact_add", "fact_list", "fact_clear",

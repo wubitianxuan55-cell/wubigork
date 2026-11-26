@@ -634,6 +634,7 @@ export const bindingNames = [
 	"WenxueSteer",
 	"WenxueSubagentContextView",
 	"WenxueSubagentFollowUp",
+	"WenxueSubagentSteer",
 	"WenxueSwitchWorkspace",
 	"WenxueToolSurface",
 	"WenxueTrajectory",

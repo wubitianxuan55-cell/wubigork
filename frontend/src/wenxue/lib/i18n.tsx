@@ -5,6 +5,7 @@ import { useCallback, useEffect, useReducer, useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { zh } from "../locales/zh";
 import type { DictKey } from "../locales/en";
+import { zh as officeZh } from "../../gaea/locales/zh";
 import {
   SharedI18nContext, useSharedI18n, useSharedI18nOptional, type SharedI18nValue,
 } from "../../lib/i18nContext";
@@ -13,16 +14,23 @@ export type Locale = "en" | "zh" | "zh-TW";
 export type LangPref = "" | "en" | "zh" | "zh-TW";
 
 const DICTS: Partial<Record<Locale, Record<DictKey, string>>> = { zh };
+// 办公词典兜底（2026-11-26 同步审计）：本树复用的办公单源组件（ToolCard 委派卡、
+// ApprovalModal、Composer…）查的是同一张上下文里的 t()，也就是本词典——办公
+// 后加的键在这里缺项时会渲染裸键名（实锤：委派卡等待态显示 tool.delegateWaiting）。
+// 本词典先查，缺键按同语言回落办公词典；本树自己的键面（DictKey）与覆写不变。
+const OFFICE_DICTS: Partial<Record<Locale, Record<string, string>>> = { zh: officeZh };
 const loadedLocales = new Set<Locale>(["zh"]);
 
 export async function loadLocale(lang: Locale): Promise<void> {
   if (lang === "zh" || loadedLocales.has(lang)) return;
   if (lang === "en") {
-    const mod = await import("../locales/en");
+    const [mod, office] = await Promise.all([import("../locales/en"), import("../../gaea/locales/en")]);
     DICTS.en = mod.en;
+    OFFICE_DICTS.en = office.en;
   } else {
-    const mod = await import("../locales/zh-TW");
+    const [mod, office] = await Promise.all([import("../locales/zh-TW"), import("../../gaea/locales/zh-TW")]);
     DICTS["zh-TW"] = mod.zhTW;
+    OFFICE_DICTS["zh-TW"] = office.zhTW;
   }
   loadedLocales.add(lang);
 }
@@ -52,7 +60,8 @@ function writePref(pref: LangPref): void {
 }
 
 function translate(locale: Locale, key: DictKey, vars?: Record<string, string | number>): string {
-  const s = DICTS[locale]?.[key] ?? DICTS.zh?.[key] ?? DICTS.en?.[key] ?? key;
+  const s = DICTS[locale]?.[key] ?? DICTS.zh?.[key] ?? DICTS.en?.[key]
+    ?? OFFICE_DICTS[locale]?.[key] ?? OFFICE_DICTS.zh?.[key] ?? OFFICE_DICTS.en?.[key] ?? key;
   if (!vars) return s;
   return s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : `{${k}}`));
 }

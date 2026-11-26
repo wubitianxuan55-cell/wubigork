@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 700 名（原生变参 19 名已收窄标注）。
+// 共 701 名（原生变参 19 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -677,6 +677,7 @@ export const bindingSignatures = {
   WenxueSteer: { argc: 1, variadic: false, params: "input string" },
   WenxueSubagentContextView: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   WenxueSubagentFollowUp: { argc: 3, variadic: false, params: "sessionPath string, ref string, prompt string" },
+  WenxueSubagentSteer: { argc: 3, variadic: false, params: "sessionPath string, ref string, prompt string" },
   WenxueSwitchWorkspace: { argc: 1, variadic: false, params: "path string" },
   WenxueTrajectory: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   WenxueUnarchiveSession: { argc: 1, variadic: false, params: "path string" },
@@ -709,4 +710,4 @@ export const bindingSignatures = {
 } as const;
 
 // 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 700。
-export const bindingSignatureCount = 700;
+export const bindingSignatureCount = 701;

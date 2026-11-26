@@ -491,7 +491,7 @@
 
 .wx-root .office-file-card {
 
-  --lx-file-tone: #64748b;
+  --lx-file-tone: var(--gaea-ink-tertiary);
   --lx-line: color-mix(in srgb, var(--fg) 7%, transparent);
   --lx-line-strong: color-mix(in srgb, var(--fg) 12%, transparent);
   --lx-fill: color-mix(in srgb, var(--fg) 6%, transparent);
@@ -516,35 +516,35 @@
 
 
 .wx-root .office-file-card[data-kind="word"] {
- --lx-file-tone: #1f69e0; }
+ --lx-file-tone: var(--gaea-state-info); }
 
 
 .wx-root .office-file-card[data-kind="excel"] {
- --lx-file-tone: #418f1f; }
+ --lx-file-tone: var(--gaea-state-success); }
 
 
 .wx-root .office-file-card[data-kind="ppt"] {
- --lx-file-tone: #f5670f; }
+ --lx-file-tone: var(--gaea-state-warning); }
 
 
 .wx-root .office-file-card[data-kind="pdf"] {
- --lx-file-tone: #dc3522; }
+ --lx-file-tone: var(--gaea-state-danger); }
 
 
 .wx-root .office-file-card[data-kind="image"] {
- --lx-file-tone: #1f69e0; }
+ --lx-file-tone: var(--gaea-accent); }
 
 
 .wx-root .office-file-card[data-kind="html"] {
- --lx-file-tone: #e87722; }
+ --lx-file-tone: var(--gaea-state-warning); }
 
 
 .wx-root .office-file-card[data-kind="markdown"] {
- --lx-file-tone: #6366f1; }
+ --lx-file-tone: var(--gaea-chart-5); }
 
 
 .wx-root .office-file-card[data-kind="txt"] {
- --lx-file-tone: #64748b; }
+ --lx-file-tone: var(--gaea-ink-tertiary); }
 
 
 .wx-root .office-file-card:hover,
@@ -594,7 +594,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: #fff;
+  color: var(--gaea-ink-on-accent);
   background: var(--lx-file-tone);
   font-family: var(--font-ui, var(--sans));
   font-size: 7px;

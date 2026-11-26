@@ -10,6 +10,9 @@ export interface ToolSurfaceEntryB {
   name: string;
   description: string;
   source: string;
+  /** 配置组归属（media/com/cost…，无组归属为空串）；Go 侧 control.ToolSurfaceEntry
+   *  同字段，WenxueToolSurface 与办公同构下发。 */
+  group?: string;
   hidden: boolean;
 }
 

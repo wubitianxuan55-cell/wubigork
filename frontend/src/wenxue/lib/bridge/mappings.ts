@@ -242,9 +242,12 @@ export const gaeaToGaea = {
   PriceFetchAll: "GaeaPriceFetchAll",
   TaskList: "GaeaTaskList",
   SubagentFollowUp: "WenxueSubagentFollowUp",
+  // 插话/追问双语义换锚图文绑定（2026-11-26 文学同步批）：在跑腿按 ref 全局
+  // 寻址、引擎无关，但终态腿走追问管道——绑办公会把图文子代理的追问交给办公
+  // runner（事件落办公通道、图文界面看不到），故设 Wenxue* 换锚。
+  SubagentSteer: "WenxueSubagentSteer",
   // D6 独立 Stop：中断面按 ref 全局寻址（agent 包 subRuns 同进程双引擎共用），
-  // 无会话路径锚，直用办公绑定，不设 Wenxue* 换锚。
-  SubagentSteer: "GaeaSubagentSteer",
+  // 无会话路径锚、无追问腿，直用办公绑定，不设 Wenxue* 换锚。
   SubagentStop: "GaeaSubagentStop",
   TaskCancel: "GaeaTaskCancel",
   TaskKill: "GaeaTaskKill",
