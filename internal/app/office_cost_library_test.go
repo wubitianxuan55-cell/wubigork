@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
@@ -380,8 +379,8 @@ func TestCostLibraryBulkPriceAndBillDelete(t *testing.T) {
 	}
 }
 
-// TestCostLibraryHealthAndSeed 库级健康（零价资源点名）与资料条目资源化。
-func TestCostLibraryHealthAndSeed(t *testing.T) {
+// TestCostLibraryHealth 库级健康（零价资源点名）。
+func TestCostLibraryHealth(t *testing.T) {
 	a, cleanup := workcostTestApp(t)
 	defer cleanup()
 	s := a.hubWorkcostStore()
@@ -393,20 +392,6 @@ func TestCostLibraryHealthAndSeed(t *testing.T) {
 	if !strings.Contains(out, "零价材料") {
 		t.Fatalf("健康扫描应点名零价资源：%s", out)
 	}
-	// 资料条目资源化：演练不写库 → 正式入库。
-	if err := a.hubCostStore().Save(cost.Entry{Name: "cement-42", Title: "P.O 42.5 水泥", Category: "材料", Unit: "t", Price: 380}); err != nil {
-		t.Fatalf("写资料条目失败: %v", err)
-	}
-	clMust(t, tl, map[string]any{"action": "seed", "dry_run": true}, "可资源化 1 条")
-	if list, _ := s.ListResources("", "水泥"); len(list) != 0 {
-		t.Fatal("演练不应入库")
-	}
-	clMust(t, tl, map[string]any{"action": "seed"}, "新建 1 / 更新 0")
-	if list, _ := s.ListResources("", "水泥"); len(list) != 1 {
-		t.Fatalf("资源化后应有 1 条水泥资源，得到 %d", len(list))
-	}
-	// 重复执行幂等：全部走更新。
-	clMust(t, tl, map[string]any{"action": "seed"}, "新建 0 / 更新 1")
 }
 
 // TestCostLibraryImportProject 导入五表工作簿：演练不写库并给出规模；正式导入

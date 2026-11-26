@@ -7,7 +7,7 @@ package app
 // 三级数据 清单 → 定额 → 工料机 的写入口分工：
 //   - cost_project_apply：测算编制的增量写（建项目/改费率/写清单行），只增不删；
 //   - cost_library（本文件）：导入测算工作簿（六表）、生成测算模版、定额与工料机主数据增删改价、
-//     批量调价、资源化、自生成企业定额、去重、删清单行/删项目、库级健康明细。
+//     批量调价、自生成企业定额、去重、删清单行/删项目、库级健康明细。
 //
 // 纪律：
 //   - 标 PersistWrite（子代理不继承）；删除与批量覆盖类动作逐条过用户确认卡
@@ -52,7 +52,7 @@ func (costLibraryTool) KeepSchemaDescriptions() bool { return true }
 // 「造价库维护」段）与 cost-estimate / cost-estimation-playbook 技能是出处；行
 // 字段契约随回执发放（office_cost_library_schema.go）。
 func (costLibraryTool) Description() string {
-	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【录入资料】资料格式不固定，由你读资料、整理后提交：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行 → import_check 勾稽 → 用户确认后 import_commit 写库；只有标准六表测算工作簿才走 import_project 快速通道。【新做测算】template 取测算样表（版式真源，六表契约照抄），填完过 xlsx_recalc → xlsx_audit → import_project dry_run=true 导回。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；seed/flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
+	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【录入资料】资料格式不固定，由你读资料、整理后提交：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行 → import_check 勾稽 → 用户确认后 import_commit 写库；只有标准六表测算工作簿才走 import_project 快速通道。【新做测算】template 取测算样表（版式真源，六表契约照抄），填完过 xlsx_recalc → xlsx_audit → import_project dry_run=true 导回。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块只读，改库一律经本工具或 cost_project_apply，不要直连数据库。"
 }
 
 // clActionSkeletons 各动作的正确参数骨架：UsageHint（loop guard：给刚失败的调用
@@ -231,7 +231,7 @@ var costLibraryActionLabel = map[string]string{
 	"import_project": "导入测算工作簿（六表）", "template": "生成测算模版", "save_quota": "保存定额", "delete_quota": "删除定额",
 	"save_resource": "保存工料机", "delete_resource": "删除工料机", "set_price": "工料机调价",
 	"bulk_price": "批量调价", "delete_items": "删除清单行", "delete_project": "删除项目",
-	"seed": "资料条目资源化", "flywheel": "自生成企业定额", "dedupe": "工料机去重", "health": "库级健康扫描",
+	"flywheel": "自生成企业定额", "dedupe": "工料机去重", "health": "库级健康扫描",
 	"classify": "整理归类", "borrow_quota": "借鉴生成定额", "dims": "维度盘点", "dict": "字典",
 	"import_open": "开导入", "import_add": "暂存导入行", "import_check": "导入勾稽", "import_commit": "提交导入", "import_discard": "丢弃导入",
 	"dict_add": "新增字典项", "dict_update": "修改字典项", "dict_delete": "删除字典项",
@@ -244,7 +244,7 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return "", fmt.Errorf("cost_library 参数解析失败: %w", err)
 	}
 	if _, ok := costLibraryActionLabel[p.Action]; !ok && p.Action != "help" {
-		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/seed/flywheel/dedupe/health/classify/borrow_quota/dims/dict/dict_add/dict_update/dict_delete/template；参数契约 action=help）", p.Action)
+		return "", fmt.Errorf("未知 action %q（录入资料 import_open/import_add/import_check/import_commit；import_project/save_quota/delete_quota/save_resource/delete_resource/set_price/bulk_price/delete_items/delete_project/flywheel/dedupe/health/classify/borrow_quota/dims/dict/dict_add/dict_update/dict_delete/template；参数契约 action=help）", p.Action)
 	}
 	// help 只读不碰库：不必等 store 就绪。
 	if p.Action == "help" {
@@ -277,8 +277,6 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return t.deleteItems(s, p)
 	case "delete_project":
 		return t.deleteProject(s, p)
-	case "seed":
-		return t.seed(s, p)
 	case "flywheel":
 		return t.flywheel(s, p)
 	case "dedupe":
@@ -1726,58 +1724,7 @@ func (t costLibraryTool) deleteProject(s *workcost.Store, p costLibraryArgs) (st
 	return out.String(), nil
 }
 
-// ── seed / flywheel / dedupe / health：库级维护 ─────────────────────
-
-func (t costLibraryTool) seed(s *workcost.Store, p costLibraryArgs) (string, error) {
-	inputs := t.a.workcostSeedInputs()
-	if len(inputs) == 0 {
-		return "资料条目为空（或读取失败），没有可资源化的条目。", nil
-	}
-	opt := workcost.SeedOptions{}
-	preview := workcost.PreviewSeed(inputs, opt)
-	var out strings.Builder
-	out.WriteString(clHead(p.DryRun, "seed"))
-	fmt.Fprintf(&out, "**扫描资料条目 %d 条 → 可资源化 %d 条**（人工 %d｜材料 %d｜机械 %d｜外委 %d）\n",
-		preview.Total, len(preview.Candidates), preview.Counts.Labor, preview.Counts.Material, preview.Counts.Machine, preview.Counts.Outsourced)
-	if len(preview.Skipped) > 0 {
-		keys := make([]string, 0, len(preview.Skipped))
-		for k := range preview.Skipped {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		fmt.Fprintf(&out, "**跳过原因**: ")
-		for i, k := range keys {
-			if i > 0 {
-				out.WriteString("；")
-			}
-			fmt.Fprintf(&out, "%s ×%d", k, preview.Skipped[k])
-		}
-		out.WriteString("\n")
-	}
-	if p.DryRun {
-		for i, c := range preview.Candidates {
-			if i >= clCap(len(preview.Candidates)) {
-				break
-			}
-			fmt.Fprintf(&out, "- [%s] %s（%s）%s\n", c.Kind, c.Title, c.Unit, clMoney(c.Price))
-		}
-		out.WriteString("\n演练通过。去掉 dry_run 正式资源化（同身份资源走更新，重复执行不产生重复）。")
-		return out.String(), nil
-	}
-	cands, _ := workcost.BuildSeedCandidates(inputs, opt)
-	if len(cands) == 0 {
-		return "", fmt.Errorf("没有可资源化的条目（资料条目全部不满足规则）")
-	}
-	res := s.ApplySeed(cands)
-	fmt.Fprintf(&out, "**入库**: 新建 %d / 更新 %d / 失败 %d\n", res.Created, res.Updated, len(res.Errors))
-	for i, e := range res.Errors {
-		if i >= clCap(len(res.Errors)) {
-			break
-		}
-		fmt.Fprintf(&out, "- %s\n", e)
-	}
-	return out.String(), nil
-}
+// ── flywheel / dedupe / health：库级维护 ─────────────────────
 
 func (t costLibraryTool) flywheel(s *workcost.Store, p costLibraryArgs) (string, error) {
 	prev, err := s.QuotaFlywheelPreview()

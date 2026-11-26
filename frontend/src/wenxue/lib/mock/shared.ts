@@ -3,10 +3,6 @@
 // （ESM 禁止跨模块重绑定 let），方法体语义与原实现完全一致。
 
 import type {
-  CostCategory,
-  CostSummary,
-  PriceFetchRecord,
-  PriceSource,
   TaskView,
   UpdateProgress,
   WireEvent,
@@ -19,97 +15,6 @@ export const EVENT_CHANNEL = "gaea-wenxue-event";
 export let pinnedMock: string[] = [];
 export function setPinnedMock(v: string[]) {
   pinnedMock = v;
-}
-
-// 成本库 mock：与记忆中枢 CostLibrary 同库的单价条目，供办公侧「成本库」
-// Tab 浏览/引用与产物「沉淀到成本库」流程联调。
-export const costMock: CostSummary[] = [
-  {
-    name: "hp300", title: "HP300 高频液压振动锤", category: "机械", categoryPath: "机械/桩基机械", unit: "台班",
-    code: "A1-12", price: 3200, spec: "300kW", source: "市场询价", tags: ["振动锤", "桩基"], status: "现行", updatedAt: "",
-  },
-  {
-    name: "cement", title: "P.O 42.5 水泥", category: "水泥", categoryPath: "材料/土建材料/水泥及水泥制品", unit: "吨",
-    price: 480, spec: "", source: "定额", tags: [], status: "现行", updatedAt: "",
-  },
-];
-
-// 多级分类树 mock（与后端默认树一致，供浏览器联调）。
-export let costCategoriesMock: CostCategory[] = [
-  { id: 1, parentId: 0, name: "人工", sort: 0, count: 0, children: [
-    { id: 11, parentId: 1, name: "普工", sort: 0, count: 0 },
-    { id: 12, parentId: 1, name: "技工", sort: 0, count: 0 },
-  ] },
-  { id: 2, parentId: 0, name: "材料", sort: 0, count: 0, children: [
-    { id: 21, parentId: 2, name: "土建材料", sort: 0, count: 0, children: [
-      { id: 211, parentId: 21, name: "水泥及水泥制品", sort: 0, count: 1 },
-      { id: 212, parentId: 21, name: "砂石", sort: 0, count: 0 },
-      { id: 213, parentId: 21, name: "钢材", sort: 0, count: 0 },
-    ] },
-    { id: 22, parentId: 2, name: "安装材料", sort: 0, count: 0, children: [
-      { id: 221, parentId: 22, name: "电线电缆", sort: 0, count: 0 },
-      { id: 222, parentId: 22, name: "管材管件", sort: 0, count: 0 },
-    ] },
-    { id: 23, parentId: 2, name: "周转材料", sort: 0, count: 0 },
-  ] },
-  { id: 3, parentId: 0, name: "机械", sort: 0, count: 0, children: [
-    { id: 31, parentId: 3, name: "桩基机械", sort: 0, count: 1 },
-  ] },
-  { id: 4, parentId: 0, name: "运输", sort: 0, count: 0 },
-  { id: 5, parentId: 0, name: "检测", sort: 0, count: 0 },
-  { id: 6, parentId: 0, name: "综合单价", sort: 0, count: 0 },
-  { id: 7, parentId: 0, name: "其他", sort: 0, count: 0 },
-];
-export function setCostCategoriesMock(v: CostCategory[]) {
-  costCategoriesMock = v;
-}
-
-// 价格源 mock：内置重庆/四川两个造价信息源，抓取返回样例候选（更新/新增）。
-export const initialPriceSourcesMock: PriceSource[] = [
-  {
-    id: "src-cq", name: "重庆施工造价信息网", parser: "sc_table", frequencyHours: 24, area: "重庆",
-    url: "http://www.cqsgczjxx.org/Pages/CQZJW/priceInformation.aspx",
-    enabled: true, lastFetchAt: "", createdAt: "2026-08-10T00:00:00Z",
-  },
-  {
-    id: "src-sc", name: "四川造价信息网（期 758）", parser: "sc_table", frequencyHours: 24, area: "成都市区",
-    url: "http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758",
-    enabled: true, lastFetchAt: "", createdAt: "2026-08-10T00:00:00Z",
-  },
-];
-export let priceSourcesMock: PriceSource[] = initialPriceSourcesMock.map((s) => ({ ...s }));
-export function setPriceSourcesMock(v: PriceSource[]) {
-  priceSourcesMock = v;
-}
-
-export const initialPriceFetchMock: PriceFetchRecord[] = [
-  {
-    id: "fetch-1", sourceId: "src-sc", sourceName: "四川造价信息网（期 758）",
-    url: "http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758",
-    period: "758", fetchedAt: new Date().toISOString(), status: "pending",
-    candidates: [
-      {
-        title: "热轧光圆钢筋", spec: "HPB300 Φ12", unit: "t", price: 3750, tax: "不含税",
-        existingName: "rebar", existingPrice: 3000, status: "更新", diff: 750, diffPct: 25,
-        anomaly: true, anomalyReason: "单期跳幅 +25.0%（基准 ¥3,000）",
-      },
-      {
-        title: "螺纹钢", spec: "HRB400 Φ20", unit: "t", price: 3420, tax: "不含税",
-        existingName: "", existingPrice: 0, status: "新增", diff: 0, diffPct: 0,
-        anomaly: false, anomalyReason: "",
-      },
-    ],
-  },
-];
-export let priceFetchMock: PriceFetchRecord[] = initialPriceFetchMock.map((f) => ({ ...f, fetchedAt: new Date().toISOString() }));
-export function setPriceFetchMock(v: PriceFetchRecord[]) {
-  priceFetchMock = v;
-}
-
-// 测试辅助：重置价格源/抓取记录 mock 状态（避免用例间串扰）。
-export function __resetPriceMocksForTest() {
-  priceFetchMock = initialPriceFetchMock.map((f) => ({ ...f, fetchedAt: new Date().toISOString() }));
-  priceSourcesMock = initialPriceSourcesMock.map((s) => ({ ...s }));
 }
 
 // 浏览器开发 mock 用的最小 docx（含标题/正文/表格），由 docx-preview 渲染。

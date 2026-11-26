@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
@@ -16,7 +16,7 @@ import (
 )
 
 // newUnifiedSearchEnv 搭建统一检索测试环境：临时用户目录 + mock embedding 服务
-// + 临时 Hephaestus.db；成本/办公/知识/向量索引全部注入隔离存储，避免触碰真实库。
+// + 临时 Hephaestus.db；办公记忆/文件向量/向量索引全部注入隔离存储，避免触碰真实库。
 func newUnifiedSearchEnv(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
@@ -56,17 +56,14 @@ func newUnifiedSearchEnv(t *testing.T) {
 		SetAppSemanticStoreForTest(nil)
 		SetAppEmbedderForTest(nil)
 		ResetOfficeStoreForTest()
-		ResetCostStoreForTest()
 	})
 	SetAppSemanticStoreForTest(semantic.Open(gdb))
 	SetAppEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
 	SetOfficeStoreForTest(memory.SQLiteStoreFor(gdb, home, home))
-	SetCostStoreForTest(cost.Open(gdb))
-
 }
 
 // TestGaeaUnifiedSearch_Combined 组合结果正确性：一次调用同时返回
-// 关键词全文命中（工作区文件）与跨库语义命中（成本/办公两类）。
+// 关键词全文命中（工作区文件）与跨库语义命中（两条办公记忆）。
 func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 	t.Chdir(t.TempDir())
 	if err := os.MkdirAll("docs", 0o755); err != nil {
@@ -80,9 +77,9 @@ func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 	// 显式填充嵌入的 *core：embedding 未配置时 localSearchEmbedder 会走到
 	// resolveHerdsmanSearchModel（读 a.engineMgr），零值 App 的 core 为 nil 会崩溃。
 	a := &App{core: &core{}}
-	// 成本条目（语义跨库命中：cost）
-	if err := a.hubCostStore().Save(cost.Entry{
-		Name: "pile-rent", Title: "振动锤租赁台班", Category: "机械", Unit: "台班", Price: 6500,
+	// 办公记忆（语义跨库命中：office；name 用纯 ASCII，SQLite 后端会 slug 化）
+	if _, err := a.hubOfficeStore().Save(memory.Memory{
+		Name: "office-pile-rent", Title: "振动锤租赁台班", Body: "租赁价格按台班计。",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -112,10 +109,10 @@ func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 		t.Fatalf("关键词未命中 docs/方案.md: %+v", view.Keyword)
 	}
 
-	// 语义段：跨库命中 cost/office 两种
+	// 语义段：两条办公记忆都命中
 	wantSem := map[string]bool{
-		"cost/pile-rent":       false,
-		"office/office-pile":   false,
+		"office/office-pile-rent": false,
+		"office/office-pile":      false,
 	}
 	for _, h := range view.Semantic {
 		key := h.Kind + "/" + h.Name
@@ -249,7 +246,7 @@ func (f *scopeFakeBrainAdapter) Write(string, string, string) error { return nil
 func (f *scopeFakeBrainAdapter) Search(string) ([]Hit, error)       { return f.hits, nil }
 
 // S1.2 B 读端隔离器：GaeaUnifiedSearch scope 过滤——工位搜索不见乐园记忆
-// （semantic office 按空间回查、cost/knowledge/file 恒 work、brain 右脑 play
+// （semantic office 按空间回查、file 恒 work、brain 右脑 play
 // 专属、keyword 共享工作区面不过滤）；scope 缺省 "" = 全部（旧行为）。
 func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 	t.Chdir(t.TempDir())
@@ -262,9 +259,11 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 	newUnifiedSearchEnv(t)
 
 	a := &App{core: &core{}}
-	// 成本条目（恒 work 语义源）
-	if err := a.hubCostStore().Save(cost.Entry{
-		Name: "pile-rent", Title: "振动锤租赁台班", Category: "机械", Unit: "台班", Price: 6500,
+	// 文件向量（恒 work 的共享语义源；这个角色原由旧成本库条目扮演，旧库
+	// 2026-11-26 退役后改用 file 向量。文件向量由索引任务维护，检索只查已
+	// 持久化的向量，所以这里直接预热 file kind）
+	if _, err := a.hubSemanticStore().Ensure(context.Background(), a.localSearchEmbedder(), "file", []semantic.Doc{
+		{ID: "docs/pile-rent.md", Text: "振动锤租赁台班 按台班计租"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -293,8 +292,8 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 		t.Fatalf("work scope: %v", err)
 	}
 	semWork := scopeSemNames(work.Semantic)
-	if !semWork["cost/pile-rent"] || !semWork["office/office-pile"] {
-		t.Fatalf("work scope 语义应含 cost+office-work: %v", semWork)
+	if !semWork["file/docs/pile-rent.md"] || !semWork["office/office-pile"] {
+		t.Fatalf("work scope 语义应含 file+office-work: %v", semWork)
 	}
 	if semWork["office/office-play"] {
 		t.Fatalf("work scope 不得出现 play 记忆（隔离红线）: %v", semWork)
@@ -323,7 +322,7 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 		t.Fatalf("keyword 共享面 work 应命中: %+v", work.Keyword)
 	}
 
-	// ── scope=play：office 只见 play 侧；cost/knowledge/file 不过滤（共享
+	// ── scope=play：office 只见 play 侧；file 不过滤（共享
 	// 源、无 play 侧数据可漏，锚点 5）────────────────────────────
 	play, err := a.GaeaUnifiedSearch("振动锤", 10, "play")
 	if err != nil {
@@ -333,8 +332,8 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 	if !semPlay["office/office-play"] {
 		t.Fatalf("play scope 语义应含 play 记忆: %v", semPlay)
 	}
-	if !semPlay["cost/pile-rent"] {
-		t.Fatalf("play scope cost/knowledge/file 不过滤（共享源）: %v", semPlay)
+	if !semPlay["file/docs/pile-rent.md"] {
+		t.Fatalf("play scope file 不过滤（共享源）: %v", semPlay)
 	}
 	if semPlay["office/office-pile"] {
 		t.Fatalf("play scope 不得出现 work 侧 office 记忆: %v", semPlay)
@@ -356,7 +355,7 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 		t.Fatalf("缺省 scope: %v", err)
 	}
 	semAll := scopeSemNames(all.Semantic)
-	if !semAll["office/office-pile"] || !semAll["office/office-play"] || !semAll["cost/pile-rent"] {
+	if !semAll["office/office-pile"] || !semAll["office/office-play"] || !semAll["file/docs/pile-rent.md"] {
 		t.Fatalf("缺省 scope 应全量（旧行为）: %v", semAll)
 	}
 	// 三脑全搜：主脑 1 + 左脑（work+play 事实各 1）+ 右脑 1 = 4

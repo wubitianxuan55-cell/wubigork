@@ -1076,6 +1076,15 @@ func normalizeKind(k string) string {
 	return t
 }
 
+// isKnownKind 判断是否为四类之一（normalizeKind 对未知写法原样返回）。
+func isKnownKind(k string) bool {
+	switch k {
+	case KindLabor, KindMaterial, KindMachine, KindOutsourced:
+		return true
+	}
+	return false
+}
+
 // NormalizeKind 导出归一（app/导入层复用同一口径）。
 func NormalizeKind(k string) string { return normalizeKind(k) }
 

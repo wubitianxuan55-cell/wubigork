@@ -272,7 +272,7 @@ type Options struct {
 	// （persist_allow 退化为 allow_session）。回调失败仅记日志，不阻断批准。
 	PersistAllowRule func(rule string) error
 	// HardAskTools 覆盖逐条强制审批的工具集（S1.5-A 按空间权限策略）：写入
-	// 成本库/记忆/知识库等持久化数据，任何权限级别（含 yolo）都不自动放行，
+	// 记忆/方案库/造价库等持久化数据，任何权限级别（含 yolo）都不自动放行，
 	// 且不记忆会话放行。nil = 包级默认集 hardAskTools（现状）；非 nil（可为
 	// 空集）= 按空间策略生效——play 产品默认空集（不弹审批卡，与 S1.2 play
 	// 记忆隔离配套）。硬拒绝（deny 规则）与本参数无关，始终生效。

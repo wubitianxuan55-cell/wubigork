@@ -223,7 +223,7 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 				name = "tool"
 			}
 			// 「正在做什么」的意图在参数里，结果头是回声：优先参数活动词
-			// （read_file 的 path、cost_search 的 query…），无命中回落结果头
+			// （read_file 的 path、cost_project 的 action…），无命中回落结果头
 			// （原语义不变，作兜底）。
 			if activity := liveToolDetailFromArgs(pendingArgs[m.ToolCallID]); activity != "" {
 				lastTool = truncateRunes(name+": "+activity, 80)

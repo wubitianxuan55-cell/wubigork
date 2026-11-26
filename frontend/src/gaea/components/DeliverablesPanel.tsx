@@ -21,14 +21,14 @@ import {
   isClaimableOp,
   parseOps,
 } from "../lib/verifyDiff";
-import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import { FRONTEND_EVENTS, emitFrontendEvent } from "../../events";
 import { useToast } from "./Toast";
 import { DeliverableRow } from "./deliverables/DeliverableRow";
 import { EvidenceSection } from "./deliverables/EvidenceSection";
 import { RegistrySection } from "./deliverables/RegistrySection";
-import { baseName, iconBtn } from "./deliverables/shared";
+import { iconBtn } from "./deliverables/shared";
 
 export interface SessionDeliverable {
   path: string;
@@ -188,16 +188,6 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     } catch {
       toast.show(t("deliver.copyFail"), "warn");
     }
-  }, [t, toast]);
-
-  // 沉淀到成本库：把测算/表格产物一键转为 cost_save 指令进入输入框，
-  // agent 读取文件后将单价明细写回成本库（来源标注该文件，同名覆盖）。
-  const depositToCost = useCallback((path: string) => {
-    const name = baseName(path);
-    // 发给 LLM 的指令文本（非 UI 文案），不进字典
-    const prompt = `请读取 [${name}](${path})，用 cost_save 把其中的单价明细沉淀到成本库：逐行提取科目/单位/单价/规格，来源标注该文件；同名条目覆盖更新，完成后汇报新增/更新条数。`;
-    useComposerInsertStore.getState().requestText(prompt);
-    toast.show(t("deliverPanel.depositDone"), "info");
   }, [t, toast]);
 
   // 最新在前
@@ -458,7 +448,6 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
               timelinePath={timelinePath}
               onOpen={open}
               onCopyPath={copyPath}
-              onDeposit={depositToCost}
               onLocateSource={onLocateSource}
               onRevealInTree={onRevealInTree}
               onToggleTimeline={(norm) => setTimelinePath((cur) => (cur === norm ? null : norm))}

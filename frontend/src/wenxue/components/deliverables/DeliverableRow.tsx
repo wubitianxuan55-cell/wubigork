@@ -2,7 +2,7 @@
 // 内容自 DeliverablesPanel.tsx 原文件产物列表行整体迁出，逐字节照搬；行为零变化
 // （含 data-testid / v4.28 B1 时间线 / v4.31 A1 单版本入口 / v4.32 徽标细化 / A1 验收闭环）。
 import { Fragment } from "react";
-import { AlertCircle, CheckCircle, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, MessageSquare, RefreshCw, Rollback, Sparkles } from "../../icons";
+import { AlertCircle, CheckCircle, Copy, ExternalLink, FileText, FolderTree, ListTree, MessageSquare, RefreshCw, Rollback, Sparkles } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { JournalChangeRecord } from "../../lib/types";
 import type { DeliverableAcceptance } from "../../lib/deliverableStatus";
@@ -11,13 +11,13 @@ import { normalizeVersionPath } from "../../lib/versionTimeline";
 import { useT } from "../../lib/i18n";
 import { FileThumb } from "../FileThumb";
 import { VersionTimeline } from "../VersionTimeline";
-import { SPREADSHEET_EXT_RE, baseName, extOf, iconBtn } from "./shared";
+import { baseName, extOf, iconBtn } from "./shared";
 
 // 产物行：名称按钮（新/已更新/验收徽标）+ 版本时间线入口 + 行内操作位
-// （定位消息/树中定位/复制/外部打开/定位/沉淀成本库/验收标记）。
+// （定位消息/树中定位/复制/外部打开/定位/验收标记）。
 export function DeliverableRow({
   item, fresh, updated, accept, accAvailable, journal, groupedVersions, timelinePath,
-  onOpen, onCopyPath, onDeposit, onLocateSource, onRevealInTree, onToggleTimeline,
+  onOpen, onCopyPath, onLocateSource, onRevealInTree, onToggleTimeline,
   onApplyAcceptance, onRestoreVersion,
 }: {
   item: { path: string; turn?: number; versions?: number };
@@ -30,7 +30,6 @@ export function DeliverableRow({
   timelinePath: string | null;
   onOpen: (path: string) => void;
   onCopyPath: (path: string) => void;
-  onDeposit: (path: string) => void;
   onLocateSource?: (turn: number) => void;
   onRevealInTree?: (path: string) => void;
   onToggleTimeline: (normPath: string) => void;
@@ -224,18 +223,6 @@ export function DeliverableRow({
           >
             <FolderTree size={12} />
           </button>
-          {SPREADSHEET_EXT_RE.test(ext) && (
-            <button
-              type="button"
-              className={iconBtn}
-              onClick={() => onDeposit(path)}
-              title={t("deliverPanel.depositTitle")}
-              aria-label={t("deliverPanel.deposit")}
-              style={{ color: "var(--md-sys-color-warning)" }}
-            >
-              <Coins size={12} />
-            </button>
-          )}
           {/* A1 验收操作（与行内 icon 按钮同排）：open 行出「标记已验收/
               要求修改」；已标记行换「重新查看」恢复 open（记录删除，
               操作位复原）——两段式操作位，避免已定态行排三按钮。 */}

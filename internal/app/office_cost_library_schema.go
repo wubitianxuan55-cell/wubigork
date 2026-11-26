@@ -24,7 +24,7 @@ const clSchemaCoreA = `{
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","seed","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template","help"],"description":"动作名。录入资料 import_open → import_add → import_check → import_commit；只有标准六表工作簿走 import_project。import_add 的行字段契约随 import_open 回执发放，classify 的随 dims 回执发放（或 action=help）。template 把测算样表复制到工作区；health/dims 只读；字典查看 dict，增改删 dict_add/dict_update/dict_delete"},
+  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template","help"],"description":"动作名。录入资料 import_open → import_add → import_check → import_commit；只有标准六表工作簿走 import_project。import_add 的行字段契约随 import_open 回执发放，classify 的随 dims 回执发放（或 action=help）。template 把测算样表复制到工作区；health/dims 只读；字典查看 dict，增改删 dict_add/dict_update/dict_delete"},
   "dry_run":{"type":"boolean","description":"演练：校验、匹配、统计照做，但不写库、不弹确认"},
   "path":{"type":"string","description":"测算工作簿路径（import_project 必填，.xlsx，六表模版；template 可选=模版落盘路径，工作区相对，缺省落 .gaea/exports）"},
   "kind":{"type":"string","enum":["specialty","region","category"],"description":"字典类别（dict_add/dict_update/dict_delete 用）：specialty=专业 / region=地区 / category=工料机分类"},

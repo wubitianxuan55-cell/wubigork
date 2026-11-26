@@ -160,8 +160,8 @@ func TestApprovalResolvedPaired(t *testing.T) {
 		c.SetPermLevel("yolo") // 逐条确认工具在 yolo 下仍弹卡
 		go func() { c.Approve(<-rec.approvals, DecisionAllowOnce) }()
 
-		if allow, _, _, err := (gateApprover{c}).Approve(context.Background(), "cost_save", "", []byte(`{"title":"钢材"}`)); err != nil || !allow {
-			t.Fatalf("cost_save 应放行: %v %v", allow, err)
+		if allow, _, _, err := (gateApprover{c}).Approve(context.Background(), "remember", "", []byte(`{"title":"钢材"}`)); err != nil || !allow {
+			t.Fatalf("remember 应放行: %v %v", allow, err)
 		}
 		req, res := approvalPair(t, rec.snapshot())
 		if req.Source != event.ApprovalSourceHardAsk || res.Source != event.ApprovalSourceHardAsk {

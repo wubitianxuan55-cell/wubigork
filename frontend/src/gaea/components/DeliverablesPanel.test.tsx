@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
 import { ToastProvider } from "./Toast";
 import { LocaleProvider, loadLocale } from "../lib/i18n";
-import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import type { JournalChangeRecord, VerdictView } from "../lib/types";
 import { canonicalBoards } from "../../boards/manifests";
 import { FRONTEND_EVENTS } from "../../events";
@@ -97,31 +97,6 @@ describe("DeliverablesPanel 会话产物面板", () => {
     );
     fireEvent.click(screen.getByTitle("跳转到生成它的消息"));
     expect(calls).toEqual([2]);
-  });
-
-  it("表格产物提供「沉淀到成本库」操作，指令进入输入框通道", () => {
-    useComposerInsertStore.setState({ pendingText: null });
-    renderT(
-      <DeliverablesPanel
-        items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
-        onOpenFile={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByTitle("沉淀到成本库：把单价明细用 cost_save 写回成本库"));
-    const text = useComposerInsertStore.getState().pendingText ?? "";
-    expect(text).toContain("cost_save");
-    expect(text).toContain("[成本测算.xlsx](exports/成本测算.xlsx)");
-    useComposerInsertStore.getState().consumeText();
-  });
-
-  it("非表格产物不显示「沉淀到成本库」操作", () => {
-    renderT(
-      <DeliverablesPanel
-        items={[{ path: ".gaea/exports/方案.docx", sourceId: "a2" }]}
-        onOpenFile={() => {}}
-      />,
-    );
-    expect(screen.queryByTitle("沉淀到成本库：把单价明细用 cost_save 写回成本库")).toBeNull();
   });
 
   // ── v4.25 A3 树中定位：产物行「树中定位」小按钮（→ 文件 tab 树中闪烁）──

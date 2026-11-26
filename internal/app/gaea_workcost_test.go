@@ -1,7 +1,6 @@
 package app
 
-// 工料法绑定面：核算缓存化（cost_entries.price 降级为核算结果缓存）与
-// 五表项目工作簿解析/落库的端到端验证。
+// 工料法绑定面：五表项目工作簿解析/落库的端到端验证。
 
 import (
 	"os"
@@ -10,12 +9,11 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
-// workcostTestApp 建隔离的临时库并把成本库/工料法存储都注入进去。
+// workcostTestApp 建隔离的临时库并把工料法存储注入进去。
 func workcostTestApp(t *testing.T) (*App, func()) {
 	t.Helper()
 	dir := t.TempDir()
@@ -23,94 +21,10 @@ func workcostTestApp(t *testing.T) (*App, func()) {
 	if gdb == nil {
 		t.Fatal("GetDatabase 返回 nil")
 	}
-	SetCostStoreForTest(cost.Open(gdb))
 	SetWorkcostStoreForTest(workcost.Open(gdb))
 	return &App{}, func() {
-		ResetCostStoreForTest()
 		ResetWorkcostStoreForTest()
 		db.CloseDatabase(dir)
-	}
-}
-
-// TestGaeaWorkcostRecomposeMarksDerived 核算缓存化端到端：
-// 带工料机组成的条目 price 被重算，且 price_derived 置 1；无组成的条目不被动。
-func TestGaeaWorkcostRecomposeMarksDerived(t *testing.T) {
-	a, cleanup := workcostTestApp(t)
-	defer cleanup()
-
-	// 一条带完整工料机组成的综合单价子目。
-	if err := a.hubCostStore().Save(cost.Entry{
-		Name: "ac13", Title: "细粒式沥青混凝土 AC-13", Unit: "t",
-		Category: "道路工程", CategoryPath: "综合单价/道路工程",
-		Price: 1, // 故意先写个错价，验证会被核算覆盖
-		Components: []cost.Component{
-			{Kind: "人工", Title: "普通工", Unit: "工日", Quantity: 0.048, Price: 300},
-			{Kind: "材料", Title: "改性沥青", Unit: "t", Quantity: 1, Price: 4200},
-			{Kind: "机械", Title: "摊铺机", Unit: "台班", Quantity: 0.0018, Price: 4200},
-		},
-	}); err != nil {
-		t.Fatalf("写入带组成条目失败: %v", err)
-	}
-	// 一条纯资源价条目（无组成）——不得被动。
-	if err := a.hubCostStore().Save(cost.Entry{
-		Name: "cement", Title: "P.O 42.5 水泥", Unit: "t",
-		Category: "水泥及水泥制品", CategoryPath: "材料/土建材料/水泥及水泥制品",
-		Price: 420,
-	}); err != nil {
-		t.Fatalf("写入纯资源条目失败: %v", err)
-	}
-
-	res, err := a.GaeaWorkcostRecompose()
-	if err != nil {
-		t.Fatalf("核算缓存化失败: %v", err)
-	}
-	t.Logf("扫描 %d / 有组成 %d / 已重算 %d / 错误 %v", res.Scanned, res.WithComp, res.Updated, res.Errors)
-	if res.WithComp != 1 || res.Updated != 1 {
-		t.Fatalf("应只有 1 条带组成且被重算：%+v", res)
-	}
-	if len(res.Errors) != 0 {
-		t.Fatalf("不应有错误: %v", res.Errors)
-	}
-
-	// 核：price 被重算为 Σ(含量×单价)。
-	e, err := a.hubCostStore().Get("ac13")
-	if err != nil {
-		t.Fatalf("读回失败: %v", err)
-	}
-	want := 0.048*300 + 4200 + 0.0018*4200
-	if diff := e.Price - want; diff > 0.02 || diff < -0.02 {
-		t.Errorf("重算单价 = %.2f, want %.2f", e.Price, want)
-	}
-	if diff := e.LaborFee - 14.4; diff > 0.02 || diff < -0.02 {
-		t.Errorf("人工费 = %.2f, want 14.40", e.LaborFee)
-	}
-	if diff := e.MaterialFee - 4200; diff > 0.02 || diff < -0.02 {
-		t.Errorf("材料费 = %.2f, want 4200", e.MaterialFee)
-	}
-
-	// 核：price_derived 标记。
-	derived, err := a.hubCostStore().PriceDerived("ac13")
-	if err != nil {
-		t.Fatalf("读 price_derived 失败: %v", err)
-	}
-	if !derived {
-		t.Error("重算后的条目 price_derived 应为 1（声明该价是核算缓存价）")
-	}
-
-	// 核：纯资源条目一个字不动，且标记仍为 0（旧语义）。
-	c, err := a.hubCostStore().Get("cement")
-	if err != nil {
-		t.Fatalf("读回水泥失败: %v", err)
-	}
-	if c.Price != 420 {
-		t.Errorf("纯资源条目价不应被动，得到 %.2f", c.Price)
-	}
-	cementDerived, err := a.hubCostStore().PriceDerived("cement")
-	if err != nil {
-		t.Fatalf("读水泥 price_derived 失败: %v", err)
-	}
-	if cementDerived {
-		t.Error("纯资源条目不应被标为核算价")
 	}
 }
 

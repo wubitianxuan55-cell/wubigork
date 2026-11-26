@@ -258,7 +258,6 @@ export const gaeaToGaea = {
   RollbackRecord: "GaeaRollbackRecord",
   DocumentLint: "GaeaDocumentLint",
   SemanticSearch: "GaeaSemanticSearch",
-  CostStages: "GaeaCostStages",
   // ── 工料法成本数据库（工料机资源库 + 消耗定额库 + 综合单价核算）──
   WorkcostResourceList: "GaeaWorkcostResourceList",
   WorkcostResourceDelete: "GaeaWorkcostResourceDelete",

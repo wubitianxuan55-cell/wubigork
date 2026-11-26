@@ -6,7 +6,6 @@ package app
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +40,7 @@ func ResetWorkcostStoreForTest() {
 	workcostStoreOverrideSet = false
 }
 
-// hubWorkcostStore 构造工料法存储（Hephaestus.db，与成本库同库）。
+// hubWorkcostStore 构造工料法存储（Hephaestus.db）。
 func (a *App) hubWorkcostStore() *workcost.Store {
 	workcostStoreOverrideMu.RLock()
 	if workcostStoreOverrideSet {
@@ -263,66 +262,6 @@ func (a *App) GaeaWorkcostProjectFees(directFee float64, rates workcost.RateSet,
 	}, measures, contingency, controlPrice)
 }
 
-// ── 存量资源化（干跑预览 + 应用）────────────────────────────────────
-
-// GaeaWorkcostSeedPreview 存量成本条目 → 工料机资源库的**干跑预览**（不写库）。
-// 返回候选清单、归类分布与跳过原因，供用户在入库前审阅。
-func (a *App) GaeaWorkcostSeedPreview(includeComposite bool) workcost.SeedPreview {
-	inputs := a.workcostSeedInputs()
-	return workcost.PreviewSeed(inputs, workcost.SeedOptions{IncludeComposite: includeComposite})
-}
-
-// GaeaWorkcostSeedApply 应用资源化：把存量条目归入工料机资源库。
-// 幂等——同身份资源走 UPDATE，重复调用不制造重复资源。
-func (a *App) GaeaWorkcostSeedApply(includeComposite bool) (workcost.SeedResult, error) {
-	inputs := a.workcostSeedInputs()
-	cands, _ := workcost.BuildSeedCandidates(inputs, workcost.SeedOptions{IncludeComposite: includeComposite})
-	if len(cands) == 0 {
-		return workcost.SeedResult{}, fmt.Errorf("没有可资源化的条目（库内成本条目为空或全部不满足规则）")
-	}
-	res := a.hubWorkcostStore().ApplySeed(cands)
-	// 回写成本条目：标记这些条目已成为资源（price_derived 保持 0=手填价语义，
-	// 但在 body 追加溯源标记会让同一批数据在两次运行时重复追加——故只改内存
-	// 计数，不做文本改写）。留一条 info 日志便于排查。
-	slog.Info("工料法资源化完成", "created", res.Created, "updated", res.Updated,
-		"skipped", res.Skipped, "errors", len(res.Errors))
-	return res, nil
-}
-
-// workcostSeedInputs 读取全部成本条目为资源化输入。
-// 读失败返回空切片（调用方得到「无可资源化条目」，不会把读坏装成成功）。
-func (a *App) workcostSeedInputs() []workcost.SeedInput {
-	store := a.hubCostStore()
-	if !store.Available() {
-		return nil
-	}
-	rows := store.DB()
-	if rows == nil {
-		return nil
-	}
-	q, err := rows.Query(`
-SELECT name, title, spec, unit, price, category_path, source, region, price_date, price_type, body
-FROM cost_entries`)
-	if err != nil {
-		slog.Warn("工料法资源化：读取成本条目失败", "error", err)
-		return nil
-	}
-	defer func() { _ = q.Close() }()
-	var out []workcost.SeedInput
-	for q.Next() {
-		var in workcost.SeedInput
-		if err := q.Scan(&in.Name, &in.Title, &in.Spec, &in.Unit, &in.Price,
-			&in.CategoryPath, &in.Source, &in.Region, &in.PriceDate, &in.PriceType, &in.Body); err != nil {
-			continue
-		}
-		out = append(out, in)
-	}
-	if err := q.Err(); err != nil {
-		slog.Warn("工料法资源化：成本条目迭代中断，返回部分数据", "error", err)
-	}
-	return out
-}
-
 // ── 项目工作簿（五表模版）解析与录入 ─────────────────────────────────
 
 // GaeaWorkcostProjectParse 解析一份五表项目工作簿（封面/费用汇总/综合单价/
@@ -406,59 +345,4 @@ func (a *App) GaeaWorkcostProjectExportToWorkspace(srcPath string, fileName stri
 		return "", fmt.Errorf("写出工作簿失败: %w", err)
 	}
 	return filepath.ToSlash(out), nil
-}
-
-// ── 核算缓存化（cost_entries.price 降级为核算结果）──────────────────
-// GaeaWorkcostRecompose 把成本库中**带工料机组成**的条目的 price 重算为
-// Σ(含量×单价×(1+损耗))，并置 price_derived=1（声明该价是核算缓存价）。
-//
-// 无组成的条目不参与（其 price 是查到的当期价，重算会把它抹成 0）。实测用户库
-// 组成行 0 条，故当前为 no-op——它是后续回填组成后的重算入口。
-func (a *App) GaeaWorkcostRecompose() (workcost.RecomposeResult, error) {
-	costStore := a.hubCostStore()
-	if !costStore.Available() {
-		return workcost.RecomposeResult{}, fmt.Errorf("成本库不可用")
-	}
-	return workcost.RecomposeEntries(workcost.RecomposeHooks{
-		Names: func() ([]string, error) {
-			list, err := costStore.List()
-			if err != nil {
-				return nil, err
-			}
-			names := make([]string, 0, len(list))
-			for _, s := range list {
-				names = append(names, s.Name)
-			}
-			return names, nil
-		},
-		Load: func(name string) (*workcost.RecomposeEntry, error) {
-			e, err := costStore.Get(name)
-			if err != nil || e == nil {
-				return nil, err
-			}
-			out := &workcost.RecomposeEntry{
-				Name: e.Name, Title: e.Title, Unit: e.Unit, CategoryPath: e.CategoryPath,
-			}
-			for _, c := range e.Components {
-				out.Components = append(out.Components, workcost.RecomposeComponent{
-					Kind: c.Kind, Title: c.Title, Unit: c.Unit,
-					Quantity: c.Quantity, Price: c.Price,
-				})
-			}
-			return out, nil
-		},
-		Write: func(w workcost.RecomposeWrite) error {
-			e, err := costStore.Get(w.Name)
-			if err != nil || e == nil {
-				return fmt.Errorf("条目 %q 不存在", w.Name)
-			}
-			// 只改价与三费，其余字段（规格/来源/期数/组成行）原样保留——
-			// SaveRecomposed 内部走 saveTx 会整组重写组成行，故先把组成带回去。
-			e.Price = w.Price
-			e.LaborFee = w.LaborFee
-			e.MaterialFee = w.MaterialFee
-			e.MachineFee = w.MachineFee
-			return costStore.SaveRecomposed(*e)
-		},
-	})
 }

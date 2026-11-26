@@ -73,7 +73,7 @@ describe("ApprovalModal 审批卡", () => {
   });
 
   it("硬确认卡按 3 触发中止，而不是落到被隐藏的会话授权", () => {
-    const approval: WireApproval = { id: "a5", tool: "cost_save", subject: "保存成本条目" };
+    const approval: WireApproval = { id: "a5", tool: "remember", subject: "保存记忆" };
     const onAnswer = vi.fn();
     render(wrap(<ApprovalModal approval={approval} onAnswer={onAnswer} />));
 

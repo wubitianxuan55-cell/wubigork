@@ -90,9 +90,6 @@ var RegistryMap = map[string]RegistryEntry{
 	"computer_type":      {"builtin-domain", "work", "write", "none", "注入后新树含输入效果（同闸门链）"},
 	"computer_key":       {"builtin-domain", "work", "interactive", "none", "按键后新树与动作一致（AlwaysAsk+Win 族硬拒）"},
 	"complete_step":      {"builtin-domain", "shared", "meta", "none", "步骤裁决与计划一致"},
-	"cost_indicators":    {"builtin-domain", "work", "read", "none", "指标与 SchemaV34 快照一致"},
-	"cost_save":          {"builtin-domain", "work", "write", "none", "PersistWrite：库写入可查"},
-	"cost_search":        {"builtin-domain", "work", "read", "none", "检索命中与库一致"},
 	// 运行模式专用面五件（2026-11-21 众神殿 pan_1795202763988 终案，app 层
 	// gaeaExtraTools 装配）：造价三件锚 workcost 权威面（costproject 遗留面
 	// 不接）；方案两件清单机检/组装交付。模式可见性=boot.Options.ToolHide
@@ -222,12 +219,12 @@ var PredicateClasses = map[string]PredicateClass{
 	"read-retrieval": {
 		Name:       "读取检索",
 		Definition: "命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率）",
-		Tools:      []string{"grep", "read_file", "memory_search", "cost_search"},
+		Tools:      []string{"grep", "read_file", "memory_search"},
 	},
 	"domain-compute": {
 		Name:       "领域计算",
 		Definition: "计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed",
-		Tools:      []string{"schedule_analyze", "cost_indicators"},
+		Tools:      []string{"schedule_analyze"},
 	},
 	"deliver-write": {
 		Name:       "交付写",

@@ -189,7 +189,7 @@ func TestGuardianBreakerInterrupts(t *testing.T) {
 	}
 }
 
-// ⑤ hardAsk 通道不受机器评审影响：guardian 只回 allow，cost_save 仍必须
+// ⑤ hardAsk 通道不受机器评审影响：guardian 只回 allow，remember 仍必须
 // 弹用户卡（逐条确认硬纪律）。
 func TestGuardianBypassesHardAsk(t *testing.T) {
 	fg := &fakeGuardian{results: []guardian.Review{allowReview()}}
@@ -198,7 +198,7 @@ func TestGuardianBypassesHardAsk(t *testing.T) {
 		id := <-rec.approvals
 		c.Approve(id, DecisionDeny)
 	}()
-	allow, _, err := g.Check(context.Background(), "cost_save", []byte(`{"title":"x"}`), false)
+	allow, _, err := g.Check(context.Background(), "remember", []byte(`{"title":"x"}`), false)
 	if err != nil || allow {
 		t.Fatalf("hardAsk 必须由用户卡裁决: (%v,%v)", allow, err)
 	}

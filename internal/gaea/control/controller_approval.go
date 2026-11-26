@@ -150,10 +150,9 @@ func proposalArgsDryRun(args json.RawMessage) bool {
 	return json.Unmarshal(args, &p) == nil && p.DryRun && strings.TrimSpace(p.Action) == ""
 }
 
-// hardAskTools 是必须逐条经用户确认的工具：写入成本库 / 记忆 / 方案库等
+// hardAskTools 是必须逐条经用户确认的工具：写入记忆 / 方案库 / 造价库等
 // 持久化数据，任何权限级别（含 yolo）都不自动放行，且不记忆会话放行。
 var hardAskTools = map[string]bool{
-	"cost_save": true,
 	// cost_library（2026-11-25 造价数据库推倒重建）：导入工作簿/删定额/删工料机/
 	// 批量调价/去重合并——删除与批量覆盖类逐条确认；演练与只读动作见
 	// costLibraryArgsNoWrite（不弹卡）。
@@ -192,7 +191,7 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 		g.c.emitAutoApproval(tool, subject, event.ApprovalSourceGate, event.AutoDecidedAuto)
 		return true, false, "", nil
 	}
-	// 持久化写入（成本库/记忆/方案库）必须逐条经用户确认：
+	// 持久化写入（记忆/方案库/造价库）必须逐条经用户确认：
 	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
 	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
 	if g.c.hardAskSet()[tool] {
@@ -238,8 +237,6 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 // approvalSubjectFor 为硬性审批工具生成可读的确认摘要。
 func approvalSubjectFor(tool string, args json.RawMessage) string {
 	switch tool {
-	case "cost_save":
-		return costSaveApprovalSubject(args)
 	case "cost_library":
 		return costLibraryApprovalSubject(args)
 	case "remember":
@@ -864,47 +861,6 @@ func (c *Controller) writebackAllowRule(tool, subject string) {
 	slog.Info("approval: 允许规则已回写策略文件", "rule", rule)
 }
 
-// costSaveApprovalSubject 把 cost_save 的参数整理成可读的确认摘要，
-// 让审批卡显示要写入成本库的条目名称、单价、单位、规格与来源。
-func costSaveApprovalSubject(args json.RawMessage) string {
-	if len(args) == 0 {
-		return ""
-	}
-	var p struct {
-		Title    string  `json:"title"`
-		Price    float64 `json:"price"`
-		Unit     string  `json:"unit"`
-		Spec     string  `json:"spec"`
-		Source   string  `json:"source"`
-		Category string  `json:"category"`
-		Status   string  `json:"status"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return ""
-	}
-	if strings.TrimSpace(p.Title) == "" {
-		return ""
-	}
-	parts := []string{"写入成本库：" + strings.TrimSpace(p.Title)}
-	parts = append(parts, fmt.Sprintf("单价 ¥%.2f", p.Price))
-	if s := strings.TrimSpace(p.Unit); s != "" {
-		parts = append(parts, "单位 "+s)
-	}
-	if s := strings.TrimSpace(p.Spec); s != "" {
-		parts = append(parts, "规格 "+s)
-	}
-	if s := strings.TrimSpace(p.Category); s != "" {
-		parts = append(parts, "分类 "+s)
-	}
-	if s := strings.TrimSpace(p.Source); s != "" {
-		parts = append(parts, "来源 "+s)
-	}
-	if s := strings.TrimSpace(p.Status); s != "" {
-		parts = append(parts, "状态 "+s)
-	}
-	return strings.Join(parts, " · ")
-}
-
 // costLibraryArgsNoWrite 造价库的演练与只读调用：dry_run=true，或 action=health /
 // dims（只读），或 dict 只查看（op=list），或 flywheel 没点名词干（只出预览）。
 // 这些调用不写库，不必走逐条确认。参数解析不了按「会写」处理（fail-closed）。
@@ -1029,8 +985,6 @@ func costLibraryApprovalSubject(args json.RawMessage) string {
 		label = "删除清单行"
 	case "delete_project":
 		label = "删除项目"
-	case "seed":
-		label = "资料条目资源化"
 	case "flywheel":
 		label = "自生成企业定额"
 	case "dedupe":

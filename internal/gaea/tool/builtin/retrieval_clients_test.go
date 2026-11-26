@@ -36,16 +36,16 @@ func TestCostEmbedderReranker_ConfigRouting(t *testing.T) {
 	defer srv.Close()
 
 	// 未注入 config 时：默认 kind=openai + localhost:8080 + 各自默认模型。
-	e := costEmbedder()
+	e := localEmbedder()
 	if e == nil {
-		t.Fatal("默认 config 下 costEmbedder 不应为 nil")
+		t.Fatal("默认 config 下 localEmbedder 不应为 nil")
 	}
 	if e.BaseURL != "http://localhost:8080/v1" || e.Model != "bge-m3" {
 		t.Errorf("默认 embedder = %s/%s, want localhost:8080/v1 + bge-m3", e.BaseURL, e.Model)
 	}
-	r0 := costReranker()
+	r0 := localReranker()
 	if r0 == nil {
-		t.Fatal("默认 config 下 costReranker 不应为 nil")
+		t.Fatal("默认 config 下 localReranker 不应为 nil")
 	}
 	if r0.BaseURL != "http://localhost:8080/v1" || r0.Model != "bge-reranker-v2-m3" {
 		t.Errorf("默认 reranker = %s/%s, want localhost:8080/v1 + bge-reranker-v2-m3", r0.BaseURL, r0.Model)
@@ -60,11 +60,11 @@ func TestCostEmbedderReranker_ConfigRouting(t *testing.T) {
 		RerankBaseURL: srv.URL,
 		RerankModel:   "bge-reranker-v2-m3",
 	})
-	e2 := costEmbedder()
+	e2 := localEmbedder()
 	if e2 == nil || e2.BaseURL != srv.URL+"/v1" {
 		t.Fatalf("config 路由 embedder = %+v, want base %s", e2, srv.URL+"/v1")
 	}
-	r2 := costReranker()
+	r2 := localReranker()
 	if r2 == nil || r2.BaseURL != srv.URL+"/v1" {
 		t.Fatalf("config 路由 reranker = %+v, want base %s", r2, srv.URL+"/v1")
 	}
@@ -91,11 +91,11 @@ func TestCostEmbedderReranker_ConfigRouting(t *testing.T) {
 func TestCostEmbedder_UnknownKindFailsClosed(t *testing.T) {
 	saveRetrievalRuntimeGlobal(t)
 	SetRetrievalRuntime(RetrievalRuntime{EmbedKind: "no-such-embedder"})
-	if e := costEmbedder(); e != nil {
+	if e := localEmbedder(); e != nil {
 		t.Fatalf("未知 kind 应返回 nil（fail-closed），got %+v", e)
 	}
 	SetRetrievalRuntime(RetrievalRuntime{RerankKind: "no-such-reranker"})
-	if r := costReranker(); r != nil {
+	if r := localReranker(); r != nil {
 		t.Fatalf("未知 kind 应返回 nil（fail-closed），got %+v", r)
 	}
 }

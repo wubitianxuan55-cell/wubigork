@@ -597,14 +597,12 @@ func (a *App) Startup(ctx context.Context) {
 	// （tts_handler/voice_handler）与模型中心「启动」按钮都有幂等兜底，真用语音
 	// 时按需拉起。
 
-	// 阶段 5 T5-1：通用任务调度器（价格抓取/文件索引等长任务统一异步化）。
+	// 阶段 5 T5-1：通用任务调度器（文件索引/办公批处理等长任务统一异步化）。
 	a.startTaskScheduler()
 	// 阶段 5 T5-3a/b：本地模型调度纵深——保活（keep-warm）+ 启动自动预载。
 	// 放在任务调度器之后装配（幂等；只探已 Running 模型 / 只预载一个，互不影响）。
 	a.startKeepWarm()
 	a.startAutoPreload()
-	// 价格源定时抓取调度：启动后立即检查一次，之后每 30 分钟按订阅频率轮询。
-	a.startPriceCron()
 	// v4.3c：主动关心定时推送循环（轻语会客厅，play 空间）——按配置间隔评估
 	// 已就绪轻语会话，门控/频控/作息/生日四信号齐全时推前端主动消息事件。
 	a.startProactiveTicker()

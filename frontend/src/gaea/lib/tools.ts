@@ -117,7 +117,6 @@ export function subjectOf(name: string, args: string): string {
     case "schedule_analyze":
       // 缺省路径在 Go 侧解析（当前计划），args 里可能没有——给可读回退
       return str(a, "path") || "当前计划";
-    case "cost_search":
     case "memory_search":
       return str(a, "query");
     case "read_skill":
@@ -393,9 +392,8 @@ export function summarize(name: string, args: string, output?: string, error?: s
       } catch {}
       return "";
     }
-    case "cost_search":
     case "memory_search": {
-      // memory_search 直接返回纯文本编号列表（非信封）；cost_search 信封走「### 」小节计数（同形态）
+      // memory_search 直接返回纯文本编号列表（非信封）；信封形态走「### 」小节计数（同形态）
       const text = extractOutputFromEnvelope(output);
       const sections = (text.match(/^### /gm) || []).length;
       const numbered = (output.match(/^\d+\. /gm) || []).length;

@@ -22,7 +22,7 @@ import (
 //   - proposal_save：模型只定标题层级（outline），正文由工具从源文件逐字切出；
 //     也支持直给正文（sections）。长文档分批续录。走 PersistWrite（hardAsk 审批红线）。
 //   - proposal_search：全文路（精确词）+ 语义路（段落向量）→ 本地 reranker 精排。
-//     检索一律复用现成的本地模型客户端（costEmbedder/costReranker），不另造检索工具。
+//     检索一律复用现成的本地模型客户端（localEmbedder/localReranker），不另造检索工具。
 //   - proposal_read：按需读取（整节 / 命中段落 / 连子节整读）。
 // 存储与检索内核在 internal/gaea/proposal。
 
@@ -40,15 +40,15 @@ func proposalStore() (*proposal.Store, error) {
 	return proposal.OpenWithAssets(gdb, config.MemoryUserDir())
 }
 
-// proposalSemantic 方案库混合检索的本地模型依赖：复用造价库同款客户端
+// proposalSemantic 方案库混合检索的本地模型依赖：复用工具侧本地检索客户端
 // （SetRetrievalRuntime 注入的 retrieval.Embedder / retrieval.Reranker，即 Herdsman
 // 的 OpenAI 兼容 embedding / rerank 接口）。任一不可用即跳过对应环节。
 func proposalSemantic() *proposal.Semantic {
 	sem := &proposal.Semantic{}
-	if e := costEmbedder(); e != nil {
+	if e := localEmbedder(); e != nil {
 		sem.Embed, sem.Model = e, retrievalEmbedModel()
 	}
-	if r := costReranker(); r != nil {
+	if r := localReranker(); r != nil {
 		sem.Rerank = r
 	}
 	if sem.Embed == nil && sem.Rerank == nil {
@@ -61,7 +61,7 @@ func proposalSemantic() *proposal.Semantic {
 // 与工具面同模型，向量索引才不会两边各按各的模型互相清库。
 func ProposalSemantic() *proposal.Semantic { return proposalSemantic() }
 
-// retrievalEmbedModel 生效的 embedding 模型名（与 costEmbedder 的缺省一致）。
+// retrievalEmbedModel 生效的 embedding 模型名（与 localEmbedder 的缺省一致）。
 func retrievalEmbedModel() string {
 	if m := strings.TrimSpace(retrievalRuntime.EmbedModel); m != "" {
 		return m

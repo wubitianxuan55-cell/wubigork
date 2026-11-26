@@ -30,7 +30,6 @@ var wenxueDeniedTools = []string{
 	"office_save", "office_close", "office_selection",
 	// CAD / 造价
 	"cad_ask",
-	"cost_search", "cost_save", "cost_indicators",
 	"cost_library", // 造价库维护（造价模式专属，2026-11-25）
 	// 跨库语义检索（specialist 面）
 	"semantic_search",

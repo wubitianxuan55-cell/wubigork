@@ -3,9 +3,10 @@ package app
 // gaea_cost_library_export.go — 造价库列表导出（2026-11-25 造价数据库推倒重建：
 // 板块只留浏览/检索/删除/导出，导出=把清单按当前筛选落成 xlsx）。
 //
-// 四类：分部分项清单（含原表单价与现算单价）/ 消耗定额（主表+含量明细附表）/
-// 工料机 / 资料条目。筛选与板块列表同口径（projectID / keyword / extra），
+// 三类：分部分项清单（含原表单价与现算单价）/ 消耗定额（主表+含量明细附表）/
+// 工料机。筛选与板块列表同口径（projectID / keyword / extra），
 // 现算单价走库内 ComposeQuotas 唯一权威链。目标文件已存在时拒绝覆盖。
+// （原第四类「资料条目」是旧成本库的导出口，随旧成本库退役拆除，2026-11-26。）
 
 import (
 	"fmt"
@@ -18,18 +19,17 @@ import (
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
 
-// costExportKinds 可导出的四类清单（与板块导出菜单一一对应；值为表名）。
+// costExportKinds 可导出的三类清单（与板块导出菜单一一对应；值为表名）。
 var costExportKinds = map[string]string{
 	"bill":     "分部分项清单",
 	"quota":    "消耗定额",
 	"resource": "工料机",
-	"entry":    "资料条目",
 }
 
 // GaeaCostLibraryExport 把造价库的一类清单导出为 xlsx，返回写出的路径。
 //
 // kind：bill=分部分项清单｜quota=消耗定额（主表+含量明细附表）｜resource=工料机｜
-// entry=资料条目｜template=成本测算模版。filter 与板块列表的当前筛选同口径（见
+// template=成本测算模版。filter 与板块列表的当前筛选同口径（见
 // workcost.LibraryFilter；未给的字段=不过滤）。outPath 是目标 .xlsx 的完整路径；
 // 已存在则拒绝覆盖。
 //
@@ -49,7 +49,7 @@ func (a *App) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, 
 	}
 	sheet, ok := costExportKinds[kind]
 	if !ok {
-		return "", fmt.Errorf("不支持的导出类型 %q（bill/quota/resource/entry/template）", kind)
+		return "", fmt.Errorf("不支持的导出类型 %q（bill/quota/resource/template）", kind)
 	}
 	filter.Keyword = strings.ToLower(strings.TrimSpace(filter.Keyword))
 
@@ -70,8 +70,6 @@ func (a *App) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, 
 		headers, rows, werr = a.costExportQuota(filter, f)
 	case "resource":
 		headers, rows, werr = a.costExportResource(filter)
-	default:
-		headers, rows, werr = a.costExportEntry(filter.Keyword)
 	}
 	if werr != nil {
 		return "", werr
@@ -358,34 +356,6 @@ func (a *App) costExportResource(f workcost.LibraryFilter) ([]string, [][]any, e
 			costExportPrice(r.CurrentPrice), costExportPrice(r.BasePrice), costExportPrice(r.EffectivePrice()), loss,
 			r.CategoryPath, r.Source, r.Supplier, r.Region, r.PriceDate, r.PriceType, r.ValidUntil, r.Status, r.Note,
 			counts[r.Code]})
-	}
-	return headers, rows, nil
-}
-
-// costExportEntry 资料条目全量（它没有界面了，这里是唯一的导出口）。
-func (a *App) costExportEntry(kw string) ([]string, [][]any, error) {
-	store := a.hubCostStore()
-	if !store.Available() {
-		return nil, nil, fmt.Errorf("资料条目库不可用")
-	}
-	list, err := store.List()
-	if err != nil {
-		return nil, nil, err
-	}
-	headers := []string{"名称", "标题", "编码", "分类路径", "单位", "单价（元）", "人工费", "材料费", "机械费",
-		"规格", "来源", "地区", "价格期数", "价格口径", "有效期至", "状态", "更新时间"}
-	rows := make([][]any, 0, len(list))
-	for _, e := range list {
-		if !costExportMatch(kw, e.Title, e.Name, e.Code, e.Spec) {
-			continue
-		}
-		updated := ""
-		if !e.UpdatedAt.IsZero() {
-			updated = e.UpdatedAt.Local().Format("2006-01-02 15:04")
-		}
-		rows = append(rows, []any{e.Name, e.Title, e.Code, e.CategoryPath, e.Unit,
-			costExportPrice(e.Price), costExportPrice(e.LaborFee), costExportPrice(e.MaterialFee), costExportPrice(e.MachineFee),
-			e.Spec, e.Source, e.Region, e.PriceDate, e.PriceType, e.ValidUntil, e.Status, updated})
 	}
 	return headers, rows, nil
 }

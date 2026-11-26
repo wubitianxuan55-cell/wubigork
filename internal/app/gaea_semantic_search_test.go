@@ -12,7 +12,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
@@ -73,23 +72,21 @@ func countingEmbedEnv(t *testing.T) (a *App, embedded *[]string, mu *sync.Mutex)
 		SetAppSemanticStoreForTest(nil)
 		SetAppEmbedderForTest(nil)
 		ResetOfficeStoreForTest()
-		ResetCostStoreForTest()
 	})
 	SetAppSemanticStoreForTest(semantic.Open(gdb))
 	SetAppEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
 	SetOfficeStoreForTest(memory.SQLiteStoreFor(gdb, home, home))
-	SetCostStoreForTest(cost.Open(gdb))
-
 
 	a = &App{core: &core{}}
 	return a, &recorded, &mu2
 }
 
-// seedSemanticData 灌入两类可命中「振动锤」的跨库条目（成本/办公）。
+// seedSemanticData 灌入两条可命中「振动锤」的办公记忆（name 用纯 ASCII：SQLite
+// 后端会 slug 化）。
 func seedSemanticData(t *testing.T, a *App) {
 	t.Helper()
-	if err := a.hubCostStore().Save(cost.Entry{
-		Name: "pile-rent", Title: "振动锤租赁台班", Category: "机械", Unit: "台班", Price: 6500,
+	if _, err := a.hubOfficeStore().Save(memory.Memory{
+		Name: "office-pile-rent", Title: "振动锤租赁台班", Body: "租赁价格按台班计。",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -114,15 +111,16 @@ func TestGaeaSemanticSearchNoFullEnsure(t *testing.T) {
 		t.Fatal("首查应命中跨库条目")
 	}
 
-	// 首查：Ensure 嵌入 2 个文档 + 2 个 kind 的 query 嵌入 = 4 次嵌入。
+	// 首查：Ensure 嵌入 2 个文档 + query 嵌入 = 3 次嵌入（kinds = office / file；
+	// file 在本环境没有向量，SearchReady 对空类目直接返回、不嵌 query）。
 	mu.Lock()
 	first := len(*recorded)
 	mu.Unlock()
-	if first != 4 {
-		t.Fatalf("首查嵌入次数 = %d, want 4（2 文档 + 2 query）", first)
+	if first != 3 {
+		t.Fatalf("首查嵌入次数 = %d, want 3（2 文档 + 1 query）", first)
 	}
 
-	// 二次查询：只嵌 query，绝不重嵌文档 → 2 次嵌入且全部为 query 文本。
+	// 二次查询：只嵌 query，绝不重嵌文档 → 1 次嵌入且为 query 文本。
 	mu.Lock()
 	*recorded = nil
 	mu.Unlock()
@@ -135,8 +133,8 @@ func TestGaeaSemanticSearchNoFullEnsure(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(*recorded) != 2 {
-		t.Fatalf("二次查询应只嵌 query（2 次），实际 %d 次: %v", len(*recorded), *recorded)
+	if len(*recorded) != 1 {
+		t.Fatalf("二次查询应只嵌 query（1 次），实际 %d 次: %v", len(*recorded), *recorded)
 	}
 	for _, s := range *recorded {
 		if s != "振动锤" {
@@ -170,9 +168,9 @@ func TestGaeaSemanticSearchOnDemandEnsureAfterDataChange(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	// 只应嵌入新条目正文（1 次）+ 2 个 kind 的 query = 3 次；旧文档不重嵌。
-	if len(*recorded) != 3 {
-		t.Fatalf("变更后嵌入次数 = %d, want 3（1 新文档 + 2 query）: %v", len(*recorded), *recorded)
+	// 只应嵌入新条目正文（1 次）+ query = 2 次；旧文档不重嵌。
+	if len(*recorded) != 2 {
+		t.Fatalf("变更后嵌入次数 = %d, want 2（1 新文档 + 1 query）: %v", len(*recorded), *recorded)
 	}
 	foundNew := false
 	for _, s := range *recorded {

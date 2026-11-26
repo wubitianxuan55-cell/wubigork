@@ -284,7 +284,7 @@ type Gate struct {
 	OnRemember func(rule string)
 
 	// AlwaysAsk 列出的工具无视权限级别 / 放行规则 / 会话记忆，每次调用都必须
-	// 经用户确认（如 cost_save 写入成本库）。非交互运行（Approver 为 nil）
+	// 经用户确认（如 cost_library 的删除与批量类动作）。非交互运行（Approver 为 nil）
 	// 仍保持自治放行，与既有无界面语义一致。
 	AlwaysAsk map[string]bool
 

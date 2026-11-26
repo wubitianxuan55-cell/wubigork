@@ -8,7 +8,7 @@ package builtin
 //
 // 办公四类写（office_generate/docx_apply/docx_accept/pptx_apply/xlsx_apply）的
 // 引用级验收已由 app 包 office/verify 测试族覆盖（本文件不重复），此处钉
-// 非文档代表场景：造价/知识/记忆（读取检索）、进度计划（领域计算+交付写）、
+// 非文档代表场景：记忆（读取检索）、进度计划（领域计算+交付写）、
 // 待办（任务编排）；dag_plan/task 六闸刀断言见 internal/gaea/dag 与
 // internal/app 的 gaea_dag_test（写路径/只读作用域/节点数闸）。
 
@@ -20,8 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gaea/gaea/internal/gaea/cost"
-	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -64,11 +62,12 @@ func p3Args(t *testing.T, m map[string]any) json.RawMessage {
 	return b
 }
 
-// p3ReadRetrieval 读取检索类：记忆/造价两库——命中与库实况一致；未命中
-// 如实报零不编造（谓词=检索精度与诚实缺省）。
+// p3ReadRetrieval 读取检索类：记忆库——命中与库实况一致；未命中如实报零
+// 不编造（谓词=检索精度与诚实缺省）。造价库沉淀→检索的金标例随旧成本库退役
+// 拆除（2026-11-26）。
 func p3ReadRetrieval(t *testing.T) {
 
-	// ── 金标例②：记忆库沉淀→检索命中（temp UserDir，不碰真实用户库；
+	// ── 金标例：记忆库沉淀→检索命中（temp UserDir，不碰真实用户库；
 	// Name 走 ASCII slug——记忆 Save 校验不接受纯 CJK 名）──
 	opts := memory.Options{UserDir: t.TempDir(), CWD: t.TempDir()}
 	set := memory.Load(opts)
@@ -86,34 +85,10 @@ func p3ReadRetrieval(t *testing.T) {
 	if out, err := (memorySearch{}).Execute(ctx, p3Args(t, map[string]any{"query": "客户偏好"})); err != nil || !strings.Contains(out, "客户偏好") {
 		t.Fatalf("记忆检索应命中（名称+描述形态）: %q %v", out, err)
 	}
-	// ── 缺陷例②：query 与 name 都缺正确失败（2026-11-25 memory_get 并入后二者至少给一个）（检索为模糊匹配语义——小语料下
+	// ── 缺陷例：query 与 name 都缺正确失败（2026-11-25 memory_get 并入后二者至少给一个）（检索为模糊匹配语义——小语料下
 	// 「无关查询零命中」不成立，诚实缺省以参数闸 fail-closed 为否面）──
 	if _, err := (memorySearch{}).Execute(ctx, json.RawMessage(`{}`)); err == nil || !strings.Contains(err.Error(), "至少给一个") {
 		t.Fatalf("query 与 name 都缺应正确失败: %v", err)
-	}
-
-	// ── 金标例③：造价库沉淀→检索闭环（temp db，不碰真实用户库）──
-	dir := t.TempDir()
-	gdb := db.GetDatabase(dir)
-	if gdb == nil {
-		t.Fatal("GetDatabase nil")
-	}
-	t.Cleanup(func() { db.CloseDatabase(dir) })
-	SetCostStoreForTest(cost.Open(gdb))
-	t.Cleanup(func() { SetCostStoreForTest(nil) })
-	cs := costSave{}
-	if out, err := cs.Execute(context.Background(), p3Args(t, map[string]any{
-		"title": "HP300 高频液压振动锤", "category": "机械", "unit": "台班",
-		"price": 3200, "spec": "300kW", "source": "市场询价",
-	})); err != nil || !strings.Contains(out, "3200") {
-		t.Fatalf("造价沉淀: %q %v", out, err)
-	}
-	if out, err := (costSearch{}).Execute(context.Background(), p3Args(t, map[string]any{"query": "HP300 振动锤"})); err != nil || !strings.Contains(out, "3200") {
-		t.Fatalf("造价检索应命中库实况: %q %v", out, err)
-	}
-	// ── 缺陷例③：无效参数 JSON 正确失败（模糊检索语义同上，参数闸兜底）──
-	if _, err := (costSearch{}).Execute(context.Background(), json.RawMessage(`{bad json`)); err == nil || !strings.Contains(err.Error(), "参数无效") {
-		t.Fatalf("无效参数应正确失败: %v", err)
 	}
 }
 

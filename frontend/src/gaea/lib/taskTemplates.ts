@@ -19,7 +19,7 @@ export const FALLBACK_TEMPLATES: TaskTemplate[] = [
     name: "cost-estimate",
     title: "成本测算",
     description: "生成 xlsx 成本测算表：公式 + 图表",
-    prompt: "帮我制作一份成本测算表（.xlsx）：先对齐测算范围和科目，测算前用 cost_search 查询成本库历史单价作为依据，用 xlsx 能力创建科目/单位/数量/单价/金额表格（金额用公式），生成费用构成图表，完成后用 cost_save 沉淀本次单价，保存到 .gaea/exports/。",
+    prompt: "帮我制作一份成本测算表（.xlsx）：先对齐测算范围和科目，测算前查造价库工料机价（cost_project action=resources）作为依据，用 xlsx 能力创建科目/单位/数量/单价/金额表格（金额用公式），生成费用构成图表，保存到 .gaea/exports/。",
   },
   {
     name: "proposal-outline",

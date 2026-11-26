@@ -49,49 +49,29 @@ var receiverTypes = map[string]bool{
 // facadeOrder 板块顺序（生成文件与绑定顺序一致，稳定可读）。
 var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "image", "charlib", "wenxue", "pantheon", "proposal"}
 
-// excludedBindings 绑定面排除清单（A1① 拍板，2026-10-03）：109 条零调用绑定
-// 整体摘除（绑定面 744→635；名单=check-bindings-drift.ps1 §4 knownDead 普查，
+// excludedBindings 绑定面排除清单（A1① 拍板，2026-10-03）：零调用绑定整体摘除
+// （首批 109 条，绑定面 744→635；名单=check-bindings-drift.ps1 §4 knownDead 普查，
 // 全调用面文本零命中实证）。App/子状态上的方法体保留（可能有内部调用方），
 // 仅不再生成门面转发——bindingNames/legacyBindings/signatures 同步收缩。
 // 复活方式：从本清单除名 + 重跑生成器 + check-bindings-drift §4 复检。
+//
+// 2026-11-26 旧成本库全量退役：原在册的旧库绑定（测算项目 / 复盘笔记 / 五算 / 归因 /
+// 成本库增删改查 / 导入 / 询价 / 组价 / 价格源 / 语义索引补齐 / 资源化与核算缓存化）
+// 已连方法体一起删除，不再是「零调用绑定」，从本清单除名（找回=从 git 史恢复方法体）。
 var excludedBindings = map[string]bool{
-	// 二期·退役清理（2026-10-07，规划 §二期）：测算项目写路径 9 + 复盘笔记 4 +
-	// 五算 4 + 归因 1 + CostList 1 + 清单项增删 2 = 21 个零 UI 消费绑定。
-	// 方法体保留（graph/indicators 测试种子 + 行为测试），复活=除名重跑生成器。
-	"GaeaCostProjectSave": true, "GaeaCostProjectGet": true, "GaeaCostProjectDelete": true,
-	"GaeaCostEstimateItemSave": true, "GaeaCostEstimateItemDelete": true, "GaeaCostEstimateItems": true,
-	"GaeaCostEstimateVersionSave": true, "GaeaCostEstimateVersions": true, "GaeaCostEstimateSediment": true,
-	"GaeaCostNoteSave": true, "GaeaCostNoteList": true, "GaeaCostNoteDelete": true, "GaeaCostNoteBumpRef": true,
-	"GaeaCostStageSave": true, "GaeaCostStages": true, "GaeaCostStageCompare": true, "GaeaCostStageDeviations": true,
-	"GaeaCostAttribution": true, "GaeaCostList": true,
-	// （GaeaWorkcostBillItemSave/Delete 已于 2026-10-28 复活除名：清单库行级
-	// 编辑/删除 UI 落地，方法体本就保留，见 internal/app/gaea_workcost.go。）
 	// 造价数据库推倒重建（2026-11-25）：板块只剩三级浏览面（清单 / 定额 / 工料机），
-	// 旧板块的导入 / 解析 / 编辑 / 价格源 / 询价 / 资料条目 / 对标 / 图谱界面全部下线，
-	// 它们消费的 57 个 CostB 绑定随之零界面调用；旧资料条目视图「语义索引补齐」钮的
-	// 2 个语义索引绑定同批，共 59 个。写库入口归办公「造价」运行模式（cost_library /
-	// cost_project_apply，走 store 不走绑定）。方法体全保留——Go 测试与 agent 工具仍用
-	// 得到；复活=除名重跑生成器。
+	// 旧板块的编辑 / 对标 / 维护类界面下线。下列绑定方法体仍在（Go 测试与 agent 工具
+	// 在用），只是不生成门面转发；写库入口归办公「造价」运行模式（cost_library /
+	// cost_project_apply，走 store 不走绑定）。复活=除名重跑生成器。
 	"GaeaCostAuditScan": true, "GaeaCostBulkPriceApply": true, "GaeaCostBulkPricePreview": true,
-	"GaeaCostCategories": true, "GaeaCostCategoryDelete": true, "GaeaCostCategorySave": true,
-	"GaeaCostCompare": true, "GaeaCostCompose": true, "GaeaCostComposeApply": true,
-	"GaeaCostComposeRecords": true, "GaeaCostDedupeResources": true, "GaeaCostDelete": true,
-	"GaeaCostGet": true, "GaeaCostGraph": true, "GaeaCostImportAIParse": true,
-	"GaeaCostImportApply": true, "GaeaCostImportPreview": true, "GaeaCostImportVisionPreview": true,
-	"GaeaCostIndicators": true, "GaeaCostInquiryAdjust": true, "GaeaCostInquiryDelete": true,
-	"GaeaCostInquiryExpiring": true, "GaeaCostInquiryList": true, "GaeaCostInquirySave": true,
-	"GaeaCostInquiryScan": true, "GaeaCostProjectList": true, "GaeaCostQuotaFlywheelApply": true,
-	"GaeaCostQuotaFlywheelPreview": true, "GaeaCostSave": true, "GaeaCostSearch": true,
-	"GaeaCostSearchPage": true, "GaeaPriceFetch": true, "GaeaPriceFetchAll": true,
-	"GaeaPriceFetchApply": true, "GaeaPriceFetchIgnore": true, "GaeaPriceFetches": true,
-	"GaeaPriceHistory": true, "GaeaPriceSourceDelete": true, "GaeaPriceSourceSave": true,
-	"GaeaPriceSources": true, "GaeaSemanticIndexBackfill": true, "GaeaSemanticIndexStatus": true,
+	"GaeaCostDedupeResources":    true,
+	"GaeaCostQuotaFlywheelApply": true, "GaeaCostQuotaFlywheelPreview": true,
+	"GaeaSemanticIndexStatus":  true,
 	"GaeaWorkcostBillItemSave": true, "GaeaWorkcostBillProjectRatesSave": true, "GaeaWorkcostBillQuotaAttach": true,
 	"GaeaWorkcostBillQuotaDetach": true, "GaeaWorkcostBillQuotaLinks": true, "GaeaWorkcostProjectApply": true,
 	"GaeaWorkcostProjectExport": true, "GaeaWorkcostProjectExportToWorkspace": true, "GaeaWorkcostProjectFees": true,
-	"GaeaWorkcostProjectParse": true, "GaeaWorkcostQuotaSave": true, "GaeaWorkcostRecompose": true,
+	"GaeaWorkcostProjectParse": true, "GaeaWorkcostQuotaSave": true,
 	"GaeaWorkcostResourceGet": true, "GaeaWorkcostResourceSave": true, "GaeaWorkcostResourceSetPrice": true,
-	"GaeaWorkcostSeedApply": true, "GaeaWorkcostSeedPreview": true,
 	"AddOutlineNode": true, "AnalyzeStyle": true, "BrainCrossRefs": true,
 	"BrainWrite": true, "BrainstormBranches": true, "BuildBacklinkIndex": true,
 	"BuildContextBudget": true, "BuildRichContext": true, "ChatCharacter": true,
@@ -246,8 +226,7 @@ func mapGaea(n string) string {
 	// GaeaWorkcost* 是工料法成本数据库（工料机资源库/消耗定额/综合单价核算），
 	// 属造价域 → CostB。漏掉这条前缀会静默落进默认的 office 门面：调用仍能
 	// 成功（前端 proxy 按方法名全域搜索 ns），但门面语义错位、类型面归错域。
-	case strings.HasPrefix(n, "GaeaCost"), strings.HasPrefix(n, "GaeaPrice"),
-		strings.HasPrefix(n, "GaeaWorkcost"):
+	case strings.HasPrefix(n, "GaeaCost"), strings.HasPrefix(n, "GaeaWorkcost"):
 		return "cost"
 	case strings.HasPrefix(n, "GaeaMemory"),
 		strings.HasPrefix(n, "GaeaProfile"), strings.HasPrefix(n, "GaeaSemantic"),
@@ -346,10 +325,10 @@ var explicitOverrides = map[string]string{
 	// AI 反馈库（2026-11-20）：面板消费方是记忆面板反馈区，挂 MemoryB
 	"GaeaAIFeedbackList":   "memory",
 	"GaeaAIFeedbackDelete": "memory",
-	"GaeaBenchmarkList":       "model",
-	"GaeaBenchmarkStart":      "model",
-	"GaeaBenchmarkDetail":     "model",
-	"GaeaBenchmarkExport":     "model",
+	"GaeaBenchmarkList":    "model",
+	"GaeaBenchmarkStart":   "model",
+	"GaeaBenchmarkDetail":  "model",
+	"GaeaBenchmarkExport":  "model",
 	// 3.0 Step 2：板块 manifest 查询挂 CoreB（前缀规则默认 core，显式声明对齐文档）
 	"GetBoardManifests": "core",
 	// S4 双空间：GaeaSpace* 绑定面挂 CoreB（前缀规则会落 office，设计 §6 显式覆盖）

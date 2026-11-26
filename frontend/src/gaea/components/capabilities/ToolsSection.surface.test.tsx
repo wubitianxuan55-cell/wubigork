@@ -32,7 +32,7 @@ describe("ToolsTabContent 装配面活取", () => {
     gaeaSurface.mockResolvedValue(surface("cost", [
       { name: "bash", description: "执行shell命令(合并stdout+stderr)", source: "builtin-domain", group: "", hidden: false },
       { name: "cost_project", description: "读取工料机造价库（workcost）", source: "extra-app", group: "cost", hidden: false },
-      { name: "cost_search", description: "搜索成本库", source: "builtin-domain", group: "cost", hidden: false },
+      { name: "cost_audit", description: "造价库只读机检", source: "builtin-domain", group: "cost", hidden: false },
       { name: "longdoc_build", description: "按清单组装整册", source: "extra-app", group: "longdoc", hidden: true },
     ]));
     render(<ToolsTabContent toolCounts={{ bash: 3 }} />);

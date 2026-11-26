@@ -50,7 +50,6 @@ var toolGroupMembers = map[ToolGroupName][]string{
 	},
 	ToolGroupComputer: {"computer_windows", "computer_state", "computer_launch", "computer_click", "computer_type", "computer_key"},
 	ToolGroupCost: {
-		"cost_search", "cost_save", "cost_indicators",
 		"cost_project", "cost_project_apply", "cost_audit",
 		"cost_library", // 造价库维护（2026-11-25 造价数据库推倒重建：导入/解析/维护归造价模式）
 	},

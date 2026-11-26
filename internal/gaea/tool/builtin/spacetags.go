@@ -50,15 +50,12 @@ var spaceTags = map[string]string{
 	"ai_feedback":     SpaceShared,      // AI 反馈（2026-11-20）：三板块通用，自声明同口径
 	"cad_ask":         spaces.SpaceWork, // CAD 图纸识读（只读；DWG/DXF/PDF→视觉问答）
 	"ocr":             spaces.SpaceWork,
-	"cost_search":     spaces.SpaceWork,
 	"proposal_save":   spaces.SpaceWork,
 	"proposal_search": spaces.SpaceWork,
 	"proposal_read":   spaces.SpaceWork,
 	"proposal_update": spaces.SpaceWork,
 	"proposal_delete": spaces.SpaceWork,
 	"proposal_export": spaces.SpaceWork,
-	"cost_save":       spaces.SpaceWork,
-	"cost_indicators": spaces.SpaceWork,
 	"semantic_search": spaces.SpaceWork,
 	"routine_llm":     spaces.SpaceWork,
 	"translate_text":  spaces.SpaceWork,

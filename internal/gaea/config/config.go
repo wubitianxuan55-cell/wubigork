@@ -246,8 +246,8 @@ type TasksConfig struct {
 	// （旧行为）。未列入的空间不设专项额度（仅受 worker 总数兜底）。
 	PerSpace map[string]int `toml:"per_space"`
 	// Priority 按 kind 的出队优先级（值越大越先出队，缺省 0 = FIFO）。
-	// nil/缺省 = 应用层启用默认 {price_fetch=20, price_fetch_all=20,
-	// file_index=10}：用户触发的价格抓取优先于后台文件索引维护。
+	// nil/缺省 = 应用层启用默认 {office_batch=15, file_index=10}：用户显式提交的
+	// 办公批处理优先于后台文件索引维护。
 	Priority map[string]int `toml:"priority"`
 }
 

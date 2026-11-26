@@ -12,8 +12,8 @@ package app
 //   - cost_audit：只读确定性机检。四类行级硬检（身份/单位缺失、无计价路径、
 //     定额悬空、资源悬空）+ 信息项永不进 HardCount（费率≤0=显式不计取不报、
 //     费率>1 info、BillAuditScan 跨项目查漏 info、ListPrice 快照只记不比差）；
-//     不调用 CheckComposeComponents（组价 R1–R3 不出现在本工具输出——终案
-//     Grok-r3 禁令）。
+//     组价 R1–R3 校验不出现在本工具输出（终案 Grok-r3 禁令；旧组价校验引擎已随
+//     旧成本库退役，2026-11-26）。
 //
 // 数据面红线（终案三席四源一致）：一律锚 workcost（工料机×定额=综合单价，
 // 活重算链）；costproject 是蒸馏旧面，不接（gaea_cost_projects.go 遗留面标记）。
@@ -356,7 +356,7 @@ func (t costProjectApplyTool) Name() string       { return "cost_project_apply" 
 func (t costProjectApplyTool) ReadOnly() bool     { return false }
 func (t costProjectApplyTool) PersistWrite() bool { return true }
 func (t costProjectApplyTool) Description() string {
-	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取；可带专业/地区/计价期，都是字典里的规范值），update_rates 更新项目费率（只改传入的字段），save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。quota_code 与 quota_codes 合起来就是该行的全部定额挂接（整体替换）：只改名称等字段时，把原挂接原样带回。清单套定额同专业优先：先用 cost_project action=quotas 带 specialty 检索本专业定额；本专业没有就用 cost_library borrow_quota 以外专业定额为底生成本专业的再挂——回执会点名挂了外专业定额的行。本工具只增不删；删除、导入工作簿、改定额与工料机走 cost_library。沉淀回成本库走 cost_save（用户确认门）。"
+	return "写入工料机造价库（workcost）：create_project 建测算项目（封面+四费率，费率 0=该段显式不计取；可带专业/地区/计价期，都是字典里的规范值），update_rates 更新项目费率（只改传入的字段），save_items 批量写清单行（套定额用 quota_code/quota_codes，手填价用 price_override；同批编码必须唯一——重复编码整批拒绝，不落一行）。quota_code 与 quota_codes 合起来就是该行的全部定额挂接（整体替换）：只改名称等字段时，把原挂接原样带回。清单套定额同专业优先：先用 cost_project action=quotas 带 specialty 检索本专业定额；本专业没有就用 cost_library borrow_quota 以外专业定额为底生成本专业的再挂——回执会点名挂了外专业定额的行。本工具只增不删；删除、导入工作簿、改定额与工料机走 cost_library。"
 }
 func (t costProjectApplyTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -969,7 +969,7 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 	}
 	fmt.Fprintf(&b, "信息项 %d 条（不阻塞）。", infoCount)
 	if hardCount == 0 {
-		b.WriteString("硬检全绿，可进入沉淀（cost_save）与交付。")
+		b.WriteString("硬检全绿，可进入交付。")
 	} else {
 		b.WriteString("存在硬检问题：修复后重新机检，不要带硬伤交付。")
 	}

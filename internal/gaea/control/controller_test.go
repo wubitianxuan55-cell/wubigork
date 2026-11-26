@@ -80,62 +80,14 @@ func TestApprovalSessionGrant(t *testing.T) {
 	}
 }
 
-// TestCostSaveAlwaysRequiresApproval 回归：成本库写入必须逐条确认——
-// yolo 权限级别不自动放行，且「本会话允许」不会被记忆（每次仍弹审批）。
-func TestCostSaveAlwaysRequiresApproval(t *testing.T) {
-	c, ids, prompts := approvalIDs()
-	c.SetPermLevel("yolo")
-	g := gateApprover{c}
-
-	// 第一次：yolo 下也触发审批，批准后放行
-	done := make(chan bool, 1)
-	go func() {
-		allow, _, _, err := g.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试条目","price":123.45,"unit":"台班","source":"本次测算"}`))
-		done <- allow && err == nil
-	}()
-	select {
-	case id := <-ids:
-		c.Approve(id, DecisionAllowSession) // 用户选「本会话允许」
-	case <-time.After(2 * time.Second):
-		t.Fatal("yolo 下 cost_save 未触发审批，被自动放行")
-	}
-	if !<-done {
-		t.Fatal("批准后 cost_save 应放行")
-	}
-
-	// 第二次：会话放行不应被记忆，必须再次审批
-	go func() {
-		_, _, _, _ = g.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试条目","price":123.45,"unit":"台班","source":"本次测算"}`))
-	}()
-	select {
-	case id := <-ids:
-		c.Approve(id, DecisionAllowOnce)
-	case <-time.After(2 * time.Second):
-		t.Fatal("cost_save 被会话放行记忆跳过，未再次审批")
-	}
-	if *prompts != 2 {
-		t.Fatalf("cost_save 触发审批 %d 次，want 2（每次都必须确认）", *prompts)
-	}
-}
-
-// TestCostSaveApprovalSubject 验证审批摘要包含条目名称/单价/单位/来源。
-func TestCostSaveApprovalSubject(t *testing.T) {
-	s := costSaveApprovalSubject(json.RawMessage(`{"title":"HP300 高频液压振动锤","price":4500,"unit":"台班","spec":"300kW","source":"本次测算","category":"机械"}`))
-	for _, want := range []string{"写入成本库：HP300 高频液压振动锤", "单价 ¥4500.00", "单位 台班", "规格 300kW", "来源 本次测算"} {
-		if !strings.Contains(s, want) {
-			t.Fatalf("subject %q 缺少 %q", s, want)
-		}
-	}
-}
-
-// TestMemoryWriteAlwaysRequiresApproval 回归：记忆/成本库写入也必须逐条确认——
+// TestMemoryWriteAlwaysRequiresApproval 回归：记忆写入也必须逐条确认——
 // yolo 权限级别不自动放行，会话放行不被记忆。
 func TestMemoryWriteAlwaysRequiresApproval(t *testing.T) {
 	c, ids, prompts := approvalIDs()
 	c.SetPermLevel("yolo")
 	g := gateApprover{c}
 
-	for _, tool := range []string{"remember", "cost_save"} {
+	for _, tool := range []string{"remember"} {
 		args := json.RawMessage(`{"title":"测试条目","description":"示例描述","category":"经验总结","body":"正文"}`)
 		done := make(chan bool, 1)
 		go func() {
@@ -152,8 +104,8 @@ func TestMemoryWriteAlwaysRequiresApproval(t *testing.T) {
 			t.Fatalf("%s 批准后应放行", tool)
 		}
 	}
-	if *prompts != 2 {
-		t.Fatalf("持久化写入触发审批 %d 次，want 2", *prompts)
+	if *prompts != 1 {
+		t.Fatalf("持久化写入触发审批 %d 次，want 1", *prompts)
 	}
 }
 
@@ -282,9 +234,9 @@ func TestApprovalPersistHardAskDegrades(t *testing.T) {
 	written := 0
 	c.persistAllowRule = func(rule string) error { written++; return nil }
 
-	// hardAsk（cost_save，alwaysPrompt）：persist_allow 降级为逐条确认的一次性放行
+	// hardAsk（remember，alwaysPrompt）：persist_allow 降级为逐条确认的一次性放行
 	go func() { c.Approve(<-ids, DecisionPersistAllow) }()
-	allow, remember, _, err := gateApprover{c}.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试"}`))
+	allow, remember, _, err := gateApprover{c}.Approve(context.Background(), "remember", "", json.RawMessage(`{"title":"测试"}`))
 	if err != nil || !allow || remember {
 		t.Fatalf("hardAsk persist 降级 = (%v,%v,%v), want allow-once", allow, remember, err)
 	}
@@ -300,7 +252,7 @@ func TestApprovalPersistHardAskDegrades(t *testing.T) {
 		c.Approve(id, DecisionAllowOnce)
 		done <- true
 	}()
-	allow2, _, _, _ := gateApprover{c}.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试2"}`))
+	allow2, _, _, _ := gateApprover{c}.Approve(context.Background(), "remember", "", json.RawMessage(`{"title":"测试2"}`))
 	<-done
 	if !allow2 || prompts != 1 {
 		t.Fatalf("hardAsk 第二次仍应弹审批: allow=%v prompts=%d", allow2, prompts)

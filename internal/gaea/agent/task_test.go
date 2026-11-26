@@ -309,28 +309,24 @@ func TestFilterRegistryAutoExcludesNewPersistWriteTool(t *testing.T) {
 }
 
 // TestPersistWriteSetMatchesLegacySix 断言：持久化写入工具的标记与手写禁写清单
-// 完全一致（cost_save/remember/install_skill），注册表推导出的集合一个不多一个
-// 不少。2026-11-25 办公工具梳理批：forget / promote_session_facts 并入 remember
+// 完全一致（remember/install_skill），注册表推导出的集合一个不多一个不少。
+// 2026-11-25 办公工具梳理批：forget / promote_session_facts 并入 remember
 // （action 区分），持久化写集合随之收成三项——合并后 delete/promote 仍走 remember
-// 的确认卡，子代理仍拿不到它。
+// 的确认卡，子代理仍拿不到它。2026-11-26 旧成本库退役：cost_save 随之拆除，本处
+// 再收成两项（造价库的 cost_library / cost_project_apply 由 boot 构造，不在本用例）。
 func TestPersistWriteSetMatchesLegacySix(t *testing.T) {
 	reg := tool.NewRegistry()
-	// cost_save 是内置工具（init 注册）；其余两个由 boot 构造。
+	// 两个都由 boot 构造。
 	var nilStore memory.Store
 	reg.Add(memory.NewRememberTool(nilStore, nil))
 	reg.Add(skill.NewInstallSkillTool(nil, nil))
-	if ct, ok := tool.LookupBuiltin("cost_save"); ok {
-		reg.Add(ct)
-	} else {
-		t.Fatal("cost_save 未注册为内置工具")
-	}
 
 	got := reg.PersistWriteNames()
-	want := []string{"cost_save", "remember", "install_skill"}
+	want := []string{"remember", "install_skill"}
 	sort.Strings(got)
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("持久化写工具集合 = %v, want %v（现有 5 项集合必须保持不变）", got, want)
+		t.Fatalf("持久化写工具集合 = %v, want %v（集合必须保持不变）", got, want)
 	}
 }
 

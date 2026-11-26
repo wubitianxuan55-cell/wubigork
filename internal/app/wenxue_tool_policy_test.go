@@ -39,7 +39,7 @@ func TestWenxueToolFilterDeniesOfficeFamily(t *testing.T) {
 		// xlsx 族
 		"xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
 		// 域工具
-		"cad_ask", "cost_search", "cost_save", "cost_indicators",
+		"cad_ask",
 		"semantic_search",
 		"schedule_get", "schedule_apply", "schedule_analyze",
 		"chart_gen", "diagram_gen", "diagram", "doc_render",

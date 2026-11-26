@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
@@ -81,7 +80,7 @@ func TestRetrievalEvalRecallMath(t *testing.T) {
 }
 
 // TestRetrievalEvalRunMini 端到端测评：mock embedder（关键词→确定性命中向量）+
-// 临时 semantic store（四库种子数据），迷你查询集内嵌（不依赖 docs 文件），
+// 临时 semantic store（办公记忆 + 文件种子数据），迷你查询集内嵌（不依赖 docs 文件），
 // 断言逐条 recall、recall@10、0.8 阈值 passed 判定。
 func TestRetrievalEvalRunMini(t *testing.T) {
 	dir := t.TempDir()
@@ -93,7 +92,6 @@ func TestRetrievalEvalRunMini(t *testing.T) {
 		db.CloseDatabase(dir)
 		SetAppSemanticStoreForTest(nil)
 		SetAppEmbedderForTest(nil)
-		ResetCostStoreForTest()
 		ResetOfficeStoreForTest()
 	})
 
@@ -131,20 +129,6 @@ func TestRetrievalEvalRunMini(t *testing.T) {
 	SetAppSemanticStoreForTest(st)
 	SetAppEmbedderForTest(e)
 
-	// 成本库种子：3 条
-	cs := cost.Open(gdb)
-	SetCostStoreForTest(cs)
-	seeds := []cost.Entry{
-		{Name: "hp300", Title: "HP300 高频液压振动锤", Category: "机械", Unit: "台班", Price: 3200, Spec: "300kW", Source: "市场询价", Status: "现行"},
-		{Name: "cement", Title: "P.O 42.5 水泥", Category: "材料", Unit: "吨", Price: 480, Source: "定额", Status: "现行"},
-		{Name: "digger220", Title: "挖掘机 220", Category: "机械", Unit: "台班", Price: 2600, Source: "市场询价", Status: "现行"},
-	}
-	for _, s := range seeds {
-		if err := cs.Save(s); err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	// 办公记忆种子：1 条（SQLite 后端 name 会 slug 化，用纯 ASCII name）
 	ms := memory.SQLiteStoreFor(gdb, dir, dir)
 	SetOfficeStoreForTest(ms)
@@ -168,8 +152,8 @@ func TestRetrievalEvalRunMini(t *testing.T) {
 
 	// 迷你查询集（内嵌，不依赖 docs 文件）：每条均有确定性预期命中。
 	items := []RetrievalEvalItem{
-		{Query: "打桩锤 台班 价格", Expected: []RetrievalEvalHit{{Kind: "cost", Name: "hp300"}}},
-		{Query: "P.O 42.5 水泥 多少钱", Expected: []RetrievalEvalHit{{Kind: "cost", Name: "cement"}, {Kind: "file", Name: "docs/水泥价格表.md"}}},
+		{Query: "打桩锤 台班 价格", Expected: []RetrievalEvalHit{{Kind: "office", Name: "vib-select"}}},
+		{Query: "P.O 42.5 水泥 多少钱", Expected: []RetrievalEvalHit{{Kind: "file", Name: "docs/水泥价格表.md"}}},
 		{Query: "振动锤 选型 要点", Expected: []RetrievalEvalHit{{Kind: "office", Name: "vib-select"}}},
 		{Query: "投标文件 格式 要求", Expected: []RetrievalEvalHit{{Kind: "file", Name: "docs/投标文件模板.md"}}},
 	}
@@ -211,7 +195,7 @@ func TestRetrievalEvalRunEngineUnavailable(t *testing.T) {
 	SetAppSemanticStoreForTest(nil)
 	a := &App{core: &core{}} // core 非空：engineMgr 为 nil 即「embedding 未配置」
 	_, err := a.runRetrievalEval([]RetrievalEvalItem{
-		{Query: "打桩锤", Expected: []RetrievalEvalHit{{Kind: "cost", Name: "hp300"}}},
+		{Query: "打桩锤", Expected: []RetrievalEvalHit{{Kind: "office", Name: "vib-select"}}},
 	})
 	if err == nil {
 		t.Fatal("embedding 未配置应返回 error")

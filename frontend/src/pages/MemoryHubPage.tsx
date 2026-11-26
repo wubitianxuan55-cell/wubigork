@@ -343,7 +343,7 @@ function MemoryHubPage() {
     : { profile: "…", office: "…", wenxue: "…", materials: "…", whisper: "…", database: "…" };
 
   const totalOverview = overview
-    ? overview.profileCount + overview.officeCount + overview.wenxueCount + overview.pinnedCount + overview.whisperCount + overview.costCount
+    ? overview.profileCount + overview.officeCount + overview.wenxueCount + overview.pinnedCount + overview.whisperCount
     : null;
   // 星图上的真实节点数优先（它包含成本等未单列库的域），失败时回退总览。
   const visualTotal = graphNodes.length || totalOverview;

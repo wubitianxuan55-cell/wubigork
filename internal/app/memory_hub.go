@@ -2,18 +2,14 @@ package app
 
 import (
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/pins"
 	"github.com/gaea/gaea/internal/whisper"
@@ -28,7 +24,7 @@ var hubRefRe = regexp.MustCompile(`\[\[([^\]|]+)(?:\|[^\]]+)?\]\]`)
 //
 // 记忆中枢 = 三脑架构的前端呈现：左脑办公记忆（Hephaestus.db facts）、
 // 主脑全局画像（profile）、右脑轻语记忆（hermes.db 只读）。
-// 成本库等未来库沿用同一"库管理"模式扩展。
+// 其它库沿用同一"库管理"模式扩展。
 
 // ProfileFactView 主脑全局画像事实视图（与 memory.Memory 对应）。
 type ProfileFactView struct {
@@ -70,12 +66,11 @@ type WhisperEpisodeView struct {
 
 // MemoryHubOverview 记忆中枢聚合总览（各库统计 + 最近条目）。
 type MemoryHubOverview struct {
-	ProfileCount   int `json:"profileCount"`
-	OfficeCount    int `json:"officeCount"`
-	CostCount      int `json:"costCount"`
-	WhisperCount   int `json:"whisperCount"`
-	WenxueCount    int `json:"wenxueCount"`
-	PinnedCount    int `json:"pinnedCount"` // 项目资料：工作区固定常用文件数
+	ProfileCount int `json:"profileCount"`
+	OfficeCount  int `json:"officeCount"`
+	WhisperCount int `json:"whisperCount"`
+	WenxueCount  int `json:"wenxueCount"`
+	PinnedCount  int `json:"pinnedCount"` // 项目资料：工作区固定常用文件数
 	// 数据库存档（v4.479）：本设备聊天会话总数（活跃+归档）与上传附件总数，
 	// 作用域 = 当前 + 最近工作区（GaeaDatabaseOverview 同口径）。
 	SessionCount  int    `json:"sessionCount"`
@@ -305,12 +300,6 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 
 	ov.ProfileCount = len(a.hubProfileStore().All())
 	ov.OfficeCount = len(a.hubOfficeStore().List())
-	// 审计 GA6-09：成本库读失败不得静默按空库计数（部分数据仍计入，错误留痕）。
-	costList, costErr := a.hubCostStore().List()
-	if costErr != nil {
-		slog.Warn("cost: 中枢总览成本库读取失败，计数按已读到部分", "error", costErr)
-	}
-	ov.CostCount = len(costList)
 	ov.WhisperCount = len(whisperdb.LoadFactsFromDB(a.whisperDataRoot))
 	if wenxueBrainDir() != "" {
 		ov.WenxueCount = len(a.hubWenxueBrainStore().List())
@@ -324,12 +313,18 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 		ov.UploadCount += ups
 	}
 
-	// 最近更新时间：成本库条目带 UpdatedAt；办公 facts/画像的时间由各自
-	// 后端维护（SQLite updated_at），前端按条目展示。
+	// 最近更新时间：办公 facts（与文学脑，若启用）里最近一次写入/修订的时间。
+	// 旧成本库退役（2026-11-26）前这里只看成本条目的 UpdatedAt。
 	var latest time.Time
-	for _, s := range costList {
-		if s.UpdatedAt.After(latest) {
-			latest = s.UpdatedAt
+	stores := []memory.Store{a.hubOfficeStore()}
+	if wenxueBrainDir() != "" {
+		stores = append(stores, a.hubWenxueBrainStore())
+	}
+	for _, st := range stores {
+		for _, m := range st.List() {
+			if m.UpdatedAt.After(latest) {
+				latest = m.UpdatedAt
+			}
 		}
 	}
 	if !latest.IsZero() {
@@ -464,25 +459,6 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 		addLink(subjID, objID, t.Predicate)
 	}
 
-	// 成本条目：分类/标签与知识、办公记忆共享边索引（同分类/同标签可互连）
-	// 审计 GA6-09：读取失败时用已读到的部分数据建图并留痕，不静默变空图。
-	costSummaries, costGraphErr := a.hubCostStore().List()
-	if costGraphErr != nil {
-		slog.Warn("cost: 图谱成本条目读取失败，按已读到部分建图", "error", costGraphErr)
-	}
-	for _, s := range costSummaries {
-		id := "c:" + s.Name
-		desc := strings.TrimSpace(s.Category + " · " + s.Unit + " · ¥" + strconv.FormatFloat(s.Price, 'f', -1, 64))
-		addNode(id, displayName(s.Title, s.Name), "cost", desc, 1)
-		nameID[s.Name] = id
-		if s.Category != "" {
-			catIndex[s.Category] = append(catIndex[s.Category], id)
-		}
-		for _, t := range s.Tags {
-			tagIndex[t] = append(tagIndex[t], id)
-		}
-	}
-
 	// 边：同标签（每 tag 限 15 对）
 	for _, ids := range tagIndex {
 		if len(ids) < 2 {
@@ -537,373 +513,6 @@ func displayName(title, name string) string {
 		return t
 	}
 	return strings.ReplaceAll(name, "-", " ")
-}
-
-// ── 成本库（记忆中枢扩展库）────────────────────────────────────────
-
-// CostSummary 成本条目轻量视图。
-type CostSummary struct {
-	Name         string  `json:"name"`
-	Title        string  `json:"title"`
-	Code         string  `json:"code,omitempty"` // 定额编码/清单编码（归一化；空=未录入）
-	Category     string  `json:"category"`
-	CategoryPath string  `json:"categoryPath"`
-	Unit         string  `json:"unit"`
-	Price        float64 `json:"price"`
-	// 人材机二级汇总（综合单价子目）：人工费/材料费/机械费（元）。
-	LaborFee    float64 `json:"laborFee,omitempty"`
-	MaterialFee float64 `json:"materialFee,omitempty"`
-	MachineFee  float64 `json:"machineFee,omitempty"`
-	// 人材机组成行数（二级明细规模，综合单价子目才有）。
-	ComponentCount int       `json:"componentCount,omitempty"`
-	Spec           string    `json:"spec"`
-	Source         string    `json:"source"`
-	Region         string    `json:"region,omitempty"`     // 地区（价格三要素）
-	PriceDate      string    `json:"priceDate,omitempty"`  // 价格时间/期数
-	PriceType      string    `json:"priceType,omitempty"`  // 价格口径：出厂价/到场价/安装综合价
-	ValidUntil     string    `json:"validUntil,omitempty"` // 有效期至
-	SourceRow      int       `json:"sourceRow,omitempty"`  // 导入原始行号（0=手动）
-	Tags           []string  `json:"tags"`
-	Status         string    `json:"status"`
-	UpdatedAt      time.Time `json:"updatedAt"`
-}
-
-// CostEntry 完整成本条目。
-type CostEntry struct {
-	CostSummary
-	// 费率（仅展示追溯，不参与计算）：管理费/利润/垫资 为金额（元），税率为百分比。
-	ManagementFee float64             `json:"managementFee,omitempty"`
-	ProfitFee     float64             `json:"profitFee,omitempty"`
-	AdvanceFee    float64             `json:"advanceFee,omitempty"`
-	TaxRate       float64             `json:"taxRate,omitempty"`
-	Components    []CostComponentView `json:"components,omitempty"`
-	Body          string              `json:"body"`
-	CreatedAt     time.Time           `json:"createdAt"`
-}
-
-// CostComponentView 综合单价子目的人材机组成明细行（二级）。
-type CostComponentView struct {
-	Kind     string  `json:"kind"`
-	Title    string  `json:"title"`
-	Unit     string  `json:"unit,omitempty"`
-	Quantity float64 `json:"quantity,omitempty"`
-	Price    float64 `json:"price,omitempty"`
-	Amount   float64 `json:"amount,omitempty"`
-	Note     string  `json:"note,omitempty"`
-	Sort     int     `json:"sort,omitempty"`
-}
-
-// CostCategoryView 成本分类树节点视图。
-type CostCategoryView struct {
-	ID       int                 `json:"id"`
-	ParentID int                 `json:"parentId"`
-	Name     string              `json:"name"`
-	Sort     int                 `json:"sort"`
-	Count    int                 `json:"count"`
-	Children []*CostCategoryView `json:"children,omitempty"`
-}
-
-// costStoreOverride 测试注入的隔离成本库（避免触碰真实用户库）。
-var (
-	costStoreOverride    *cost.Store
-	costStoreOverrideSet bool
-)
-
-// SetCostStoreForTest 注入隔离的成本库存储（测试用）。
-func SetCostStoreForTest(s *cost.Store) {
-	costStoreOverride = s
-	costStoreOverrideSet = true
-}
-
-// ResetCostStoreForTest 清除测试注入，恢复真实成本库存储。
-func ResetCostStoreForTest() { costStoreOverrideSet = false }
-
-// hubCostStore 构造成本库存储。
-func (a *App) hubCostStore() *cost.Store {
-	if costStoreOverrideSet {
-		return costStoreOverride
-	}
-	return cost.Open(db.GetDatabase(config.MemoryUserDir()))
-}
-
-// GaeaCostList 返回成本条目摘要列表。
-//
-// 签名保持裸切片（绑定面零变更）：读取失败经 slog.Warn + 既有 gaea-event
-// notice 通道上报（审计 GA6-09：此前完全静默，用户会误判条目丢失）。
-func (a *App) GaeaCostList() []CostSummary {
-	list, err := a.hubCostStore().List()
-	a.reportCostReadError("成本库列表", err)
-	out := make([]CostSummary, 0, len(list))
-	for _, s := range list {
-		out = append(out, toCostSummary(s))
-	}
-	return out
-}
-
-// GaeaCostSearch 检索成本条目（关键词 + 分类/状态过滤）。
-// 同 GaeaCostList：签名不变，失败走 slog.Warn + gaea-event notice。
-func (a *App) GaeaCostSearch(query, category, status string) []CostSummary {
-	out, err := a.costSearchAll(query, category, status)
-	a.reportCostReadError("成本库检索", err)
-	return out
-}
-
-// reportCostReadError 把成本库读取失败经 **既有** gaea-event/notice 通道
-// 上报用户（审计 GA6-09：GaeaCostList/GaeaCostSearch 返回裸切片无法携带
-// error，且绑定面签名不得变更）。通道与后台 panic 通知同路，不新造通道。
-func (a *App) reportCostReadError(scope string, err error) {
-	if err == nil {
-		return
-	}
-	slog.Warn("cost: 读取失败，结果可能不完整", "scope", scope, "error", err)
-	payload := gaeaEventMap(event.Event{
-		Kind:  event.Notice,
-		Level: event.LevelWarn,
-		Text:  fmt.Sprintf("%s读取失败（%v），结果可能不完整", scope, err),
-	})
-	if gaeaNoticeSink != nil {
-		gaeaNoticeSink("gaea-event", payload)
-		return
-	}
-	a.emit("gaea-event", payload)
-}
-
-// costSearchAll 完整检索管线（全量）：SQL 过滤 → 关键词包含过滤 →
-// 语义召回补召回 → 本地语义精排（后两段的编排与阈值唯一出处 cost.Enhance，
-// GA6-04：与 tool 面共用，本面不再各抄一份「<3 补召回 10 条」）。分页绑定
-// （GaeaCostSearchPage）复用本管线后再排序切片，保证分页结果与非分页口径
-// 一致。rerank limit=20、不截断——limit 语义归本面（与改前一致）。
-//
-// 第二个返回值是成本库读取错误（GA6-09）：部分数据照常返回，错误只作
-// 「结果可能不完整」的上报依据（语义补召回/精排自身的降级不在此列）。
-func (a *App) costSearchAll(query, category, status string) ([]CostSummary, error) {
-	list, err := a.hubCostStore().Search(query, category, status)
-	list, _ = cost.Enhance(query, list, cost.SearchHooks{
-		Recall: a.semanticCostRecall,
-		Rerank: a.rerankCostSearch,
-	}, 20)
-	out := make([]CostSummary, 0, len(list))
-	for _, s := range list {
-		out = append(out, toCostSummary(s))
-	}
-	return out, err
-}
-
-// CostSearchPage 分页检索结果（v4.386 造价库分页绑定）。
-type CostSearchPage struct {
-	Items []CostSummary `json:"items"`
-	Total int           `json:"total"`
-	// Error 非空表示成本库读取失败，Items/Total 可能不完整（审计 GA6-09）。
-	// 成功路径恒为空串（omitempty ⇒ 旧前端零行为变化）。
-	Error string `json:"error,omitempty"`
-}
-
-// 分页与排序钳制常量：limit 缺省/非法=100，上限 200（成本行摘要 ~300B，
-// 200 条≈60KB 单页载荷已远超人工浏览节奏；更大批量走导出/工具面）。
-const (
-	costSearchPageDefault = 100
-	costSearchPageMax     = 200
-)
-
-// GaeaCostSearchPage 分页检索成本条目（v4.386）：全量管线后按 sortKey
-// 排序再切片。sortKey ∈ title|price|updatedAt（空=管线序：BM25 精排/
-// name 序）；sortDir 1 升序 -1 降序；tie-break 恒定 name——跨页翻页时
-// 数据不漂移的前提是全序确定。limit 钳制 [1,200]（<=0 → 100），offset
-// 负数归零。Total 为过滤后总数（与分页无关）。
-func (a *App) GaeaCostSearchPage(query, category, status, sortKey string, sortDir, limit, offset int) CostSearchPage {
-	all, readErr := a.costSearchAll(query, category, status)
-	page := CostSearchPage{Items: []CostSummary{}, Total: len(all)}
-	// 审计 GA6-09：读取失败如实进 Error 字段（结果可能不完整），不静默当空结果。
-	if readErr != nil {
-		page.Error = readErr.Error()
-	}
-	if cmp := costSummaryComparator(sortKey); cmp != nil {
-		dir := 1
-		if sortDir < 0 {
-			dir = -1
-		}
-		sort.SliceStable(all, func(i, j int) bool {
-			return cmp(all[i], all[j])*dir < 0
-		})
-	}
-	if limit <= 0 {
-		limit = costSearchPageDefault
-	}
-	if limit > costSearchPageMax {
-		limit = costSearchPageMax
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	if offset >= len(all) {
-		return page
-	}
-	end := offset + limit
-	if end > len(all) {
-		end = len(all)
-	}
-	page.Items = append(page.Items, all[offset:end]...)
-	return page
-}
-
-// costSummaryComparator 返回全序比较器（负=a 前）；键名不认识返回 nil
-// （保持管线序，防御前端传错键）。同名条目以 name 收尾保证全序。
-func costSummaryComparator(sortKey string) func(a, b CostSummary) int {
-	switch sortKey {
-	case "title":
-		return func(a, b CostSummary) int {
-			if d := strings.Compare(a.Title, b.Title); d != 0 {
-				return d
-			}
-			return strings.Compare(a.Name, b.Name)
-		}
-	case "price":
-		return func(a, b CostSummary) int {
-			if a.Price != b.Price {
-				if a.Price < b.Price {
-					return -1
-				}
-				return 1
-			}
-			return strings.Compare(a.Name, b.Name)
-		}
-	case "updatedAt":
-		return func(a, b CostSummary) int {
-			if !a.UpdatedAt.Equal(b.UpdatedAt) {
-				if a.UpdatedAt.Before(b.UpdatedAt) {
-					return -1
-				}
-				return 1
-			}
-			return strings.Compare(a.Name, b.Name)
-		}
-	default:
-		return nil
-	}
-}
-
-// GaeaCostGet 返回单条成本条目（未找到返回 nil）。
-func (a *App) GaeaCostGet(name string) *CostEntry {
-	e, err := a.hubCostStore().Get(name)
-	if err != nil || e == nil {
-		return nil
-	}
-	return &CostEntry{
-		CostSummary: toCostSummary(cost.Summary{
-			Name: e.Name, Title: e.Title, Code: e.Code, Category: e.Category, CategoryPath: e.CategoryPath,
-			Unit: e.Unit, Price: e.Price,
-			LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
-			Spec: e.Spec, Source: e.Source,
-			Region: e.Region, PriceDate: e.PriceDate, PriceType: e.PriceType,
-			ValidUntil: e.ValidUntil, SourceRow: e.SourceRow,
-			Tags: e.Tags, Status: e.Status, UpdatedAt: e.UpdatedAt,
-		}),
-		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
-		AdvanceFee: e.AdvanceFee, TaxRate: e.TaxRate,
-		Components: toCostComponentViews(e.Components),
-		Body:       e.Body, CreatedAt: e.CreatedAt,
-	}
-}
-
-// GaeaCostSave 保存成本条目。
-func (a *App) GaeaCostSave(e CostEntry) error {
-	return a.hubCostStore().Save(cost.Entry{
-		Name: e.Name, Title: e.Title, Code: e.Code, Category: e.Category, CategoryPath: e.CategoryPath,
-		Unit: e.Unit, Price: e.Price,
-		LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
-		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
-		AdvanceFee: e.AdvanceFee, TaxRate: e.TaxRate,
-		Components: fromCostComponentViews(e.Components),
-		Spec:       e.Spec, Source: e.Source,
-		Region: e.Region, PriceDate: e.PriceDate, PriceType: e.PriceType,
-		ValidUntil: e.ValidUntil, SourceRow: e.SourceRow,
-		Tags: e.Tags, Status: e.Status, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
-	})
-}
-
-// GaeaCostDelete 删除成本条目。
-func (a *App) GaeaCostDelete(name string) error {
-	return a.hubCostStore().Delete(name)
-}
-
-// GaeaCostCategories 返回成本分类树（含每节点直接条目数）。
-func (a *App) GaeaCostCategories() []CostCategoryView {
-	list := a.hubCostStore().Categories()
-	out := make([]CostCategoryView, 0, len(list))
-	for _, c := range list {
-		out = append(out, toCostCategoryView(&c))
-	}
-	return out
-}
-
-// GaeaCostCategorySave 新建/更新分类节点（id<=0 新建，id>0 改名/排序）。
-func (a *App) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) {
-	return a.hubCostStore().SaveCategory(parentID, name, sort, id)
-}
-
-// GaeaCostCategoryDelete 删除分类节点（有子节点或条目时返回错误）。
-func (a *App) GaeaCostCategoryDelete(id int) error {
-	return a.hubCostStore().DeleteCategory(id)
-}
-
-func toCostSummary(s cost.Summary) CostSummary {
-	return CostSummary{
-		Name: s.Name, Title: s.Title, Code: s.Code, Category: s.Category, CategoryPath: s.CategoryPath,
-		Unit: s.Unit, Price: s.Price,
-		LaborFee: s.LaborFee, MaterialFee: s.MaterialFee, MachineFee: s.MachineFee,
-		ComponentCount: s.ComponentCount,
-		Spec:           s.Spec, Source: s.Source,
-		Region: s.Region, PriceDate: s.PriceDate, PriceType: s.PriceType,
-		ValidUntil: s.ValidUntil, SourceRow: s.SourceRow,
-		Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt,
-	}
-}
-
-func toCostComponentViews(list []cost.Component) []CostComponentView {
-	if len(list) == 0 {
-		return nil
-	}
-	out := make([]CostComponentView, 0, len(list))
-	for _, c := range list {
-		out = append(out, CostComponentView{
-			Kind: c.Kind, Title: c.Title, Unit: c.Unit,
-			Quantity: c.Quantity, Price: c.Price, Amount: c.Amount,
-			Note: c.Note, Sort: c.Sort,
-		})
-	}
-	return out
-}
-
-func fromCostComponentViews(list []CostComponentView) []cost.Component {
-	if len(list) == 0 {
-		return nil
-	}
-	out := make([]cost.Component, 0, len(list))
-	for _, c := range list {
-		if strings.TrimSpace(c.Title) == "" {
-			continue
-		}
-		out = append(out, cost.Component{
-			Kind: c.Kind, Title: c.Title, Unit: c.Unit,
-			Quantity: c.Quantity, Price: c.Price, Amount: c.Amount,
-			Note: c.Note, Sort: c.Sort,
-		})
-	}
-	return out
-}
-
-func toCostCategoryView(c *cost.CategoryView) CostCategoryView {
-	if c == nil {
-		return CostCategoryView{}
-	}
-	v := CostCategoryView{
-		ID: c.ID, ParentID: c.ParentID, Name: c.Name, Sort: c.Sort, Count: c.Count,
-	}
-	for _, ch := range c.Children {
-		child := toCostCategoryView(ch)
-		v.Children = append(v.Children, &child)
-	}
-	return v
 }
 
 // ── 画像冲突一键裁决 ───────────────────────────────────────────────

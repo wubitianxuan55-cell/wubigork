@@ -18,7 +18,7 @@ import (
 // 2026-11-16 用户拍板（工具清单瘦身）：众神殿是通用议事板块，造价/日程是
 // 办公板块域工具，对非域议题只是 system prompt 里的选择噪音；域知识改走
 // read_skill 按需加载（规范知识技能化红线）。genui_validate 是聊天板块 GenUI
-// 渲染校验，与议事无关。删：cost_search/cost_indicators/cost_compose/
+// 渲染校验，与议事无关。删：造价三件（cost_search / cost_indicators 后随旧成本库退役，cost_compose 已退役）、
 // schedule_get/schedule_analyze/genui_validate（漂移锁测试同批改）。
 // cad_ask 保留：图纸评审类议题的唯一 DWG 读图通道，与 vision 同属读材料面。
 var pantheonGrokWorkspaceTools = []string{

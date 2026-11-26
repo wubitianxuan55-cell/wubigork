@@ -1,7 +1,8 @@
 # 造价库本地模型索引 + 旧成本库全量退役（施工单与断点记录）
 
-2026-11-26 傍晚 · 状态：**进行中，未完成，全部未提交**。上下文用尽后由用户令中断。
-**下个会话从这里接着做，不要重新摸底。**
+2026-11-26 · 状态：**A1 已提交（`abd65f42`）；R 旧成本库退役已完成并单独提交（结果见 §八）**；
+B1 / B2 / A3 / V 未开工。**接续从 B1 开始（§三 设计 3、§四 B1），不要重新摸底。**
+（第一个会话傍晚开工、上下文用尽中断；第二个会话下午收尾 A1 并做完 R。）
 
 与 WPS 能力开发是两条独立的线，互不捆绑（WPS 刀 1 的记录在 `gaea-wps-capability-plan-20261126.md`）。
 
@@ -78,7 +79,7 @@
 | 刀 | 内容 | 状态 |
 |---|---|---|
 | A1 | 索引底座包 `vecindex` + `SchemaV43` | **完成并提交**（15 项单测 `-race` 全过；提交号见 §五） |
-| R | 旧成本库全量退役 | 未开工。**排在索引接线之前、单独提交**（纯删除可独立验证，且先删后接更干净） |
+| R | 旧成本库全量退役 | **完成并单独提交**（清单见 §七，结果与验证见 §八） |
 | B1 | 造价库三类索引文档 + 写入点打脏标记 | 未开工 |
 | B2 | `workcost.Searcher` 混合检索；`cost_project` 与界面列表接入 | 未开工 |
 | A3 | 应用接线：后台索引器随应用启动；索引固定 bge-m3；索引状态与补齐绑定 | 未开工 |
@@ -119,10 +120,104 @@
    `TestApply_SkipsEmptyAndClearsEmptied`、`TestSearch_RanksFiltersAndLimits`。
 5. race 检测还没跑成：`-race` 要 PATH 前置 `/c/msys64/ucrt64/bin`（vecindex 包不依赖 markitdown，前置无副作用）。
 
+## 七、R 退役义务清单（第二个会话建图，2026-11-26；施工单 §二.5 之外新发现的都标「新增」）
+
+**新增发现——都是只服务旧库的代码，随旧库一并退役（库表照旧不删）：**
+
+1. `internal/gaea/coststage`（五算对比，841 行含测试）：唯一消费方是删除清单里的 `gaea_cost_stage.go`，不碰 workcost / `gf_*`。
+2. 造价库导出 `GaeaCostLibraryExport` 的 `kind=entry`（资料条目）+ `costExportEntry`：导的就是旧库 `cost_entries`。
+3. `cost_library` 的 `seed` 动作（资料条目资源化）+ 绑定 `GaeaWorkcostSeedPreview` / `GaeaWorkcostSeedApply` + `workcost/seed.go`：
+   直接读 `cost_entries` 灌工料机库，是旧库 → 造价库的迁移桥；旧库代码删掉后没有数据源。
+4. `GaeaWorkcostRecompose` + `workcost/entrycache.go` 的 Recompose 一族：只重算旧库条目的 price。
+5. `scripts/migrate_workcost/main.go`：旧库 → 造价库的一次性迁移脚本（裸 SQL 读 `cost_entries`），同上。
+
+**要退役的绑定 53 + 3**：`memory_hub.go` 9 个（增删改查 / 分类 / 检索 / 检索页）、compose 3、graph 1、
+import 3、import_vision 2、inquiry 6、projects 10、ref 6、stage 4、price 9；桥 3 个（SeedPreview / SeedApply / Recompose）。
+
+**保留但要动的地方**：`memory_hub.go`（总览计数 / 图谱的 cost 段）、`app.go`（`startPriceCron`）、
+`gaea_tasks.go`（两个价格抓取任务 handler）、`retrieval/semantic.go`（`DocText` 的 cost 分支）、
+`gaea_semantic_index.go` / `gaea_semantic_search.go`（`kind="cost"` 分支）、提示词五处
+（`gaea_templates.go`、`office_runmode.go`、`office_runmode_skills.go`、`office_runmode_systemprompt.go`、
+`office_cost_tools.go`）、`control/controller_approval.go`、`wenxue_tool_policy.go`、`permission/permission.go`（注释）、
+登记四处（`compact.go` / `spacetags.go` / `registrymap.go` / `toolgroups.go`）、`.gaea/commands/cost-estimate.md`。
+
+**明确不动的**：`tasks.KindPriceFetch*` 常量（通用任务种类的字符串，库里的历史任务记录还认得它，测试也拿它当样例）；
+归档文档；测试里把 `cost_search` 当任意字符串用的夹具。
+
+**拿旧库条目当夹具的保留测试（逐个：删旧库功能用例，或换夹具）**：`gaea_cost_library_export_test.go`、
+`gaea_workcost_test.go`、`office_cost_library_test.go`、`gaea_specialist_tools_test.go`、`gaea_unified_search_test.go`、
+`memory_graph_test.go`、`gaea_retrieval_eval_test.go`、`gaea_semantic_search_test.go`、`gaea_semantic_index_test.go`、
+builtin `p3_predicates_test.go`。
+
+**前端**：绑定登记（`bindingNames.ts` / `legacyBindings.ts` / `mock/bindingSignatures.ts` 由 `gen_bindings` 再生）、
+`lib/bridge/mappings.ts`、`lib/tools.ts` 工具目录、`lib/taskTemplates.ts`、mock、locale（gaea + wenxue 两套）、
+相关测试、wailsjs 生成件。
+
+## 八、R 退役执行结果（第二个会话，2026-11-26 下午）
+
+**结论**：旧成本库全量退役完成并单独提交；库表与那 106 个分类节点没动（只是不再有代码读写）。
+
+**删除面**（83 个文件、约 1.9 万行）：七个后端包（施工单列的六个 + 漏列的 `coststage`）、app 旧库文件 23 个
+（含测试）、builtin 三工具（`cost_search` / `cost_save` / `cost_indicators`）及其测试、迁移脚本
+`scripts/migrate_workcost`、workcost 的 `seed.go` / `entrycache.go` 及其测试（活代码共用的 `isKnownKind` 搬进
+`store.go` 保留）、`retrieval/semantic.go`、`gaea_semantic_index.go`、死技能 `.gaea/skills/cost-compose`。
+
+**改名归位（不删）**：`gaea_cost_rerank.go → gaea_search_clients.go`（去掉两个旧库函数）；`builtin/cost_tools.go`
+里的通用检索客户端拆成 `builtin/retrieval_clients.go`（`costEmbedder` / `costReranker` → `localEmbedder` /
+`localReranker`，方案库两处调用点跟着改）；`gaea_cost_marshal_test.go → gaea_bridge_client_inject_test.go`（只留桥接注入回归）。
+
+**施工单 §二.5 之外一并退役的（都是只服务旧库的代码）**：`coststage` 包；造价导出 `kind=entry`（资料条目）；
+`cost_library` 的 `seed` 动作 + `GaeaWorkcostSeedPreview` / `Apply`；`GaeaWorkcostRecompose`；迁移脚本；
+cost-compose 技能（它描述的组价校验引擎早已不在内核里）；交付面板「沉淀到成本库」菜单项（办公 / 文学两板）；
+`GaeaSemanticIndexBackfill`（成本类向量索引补齐）；文学侧整套旧库登记（名字清单、两份签名清单、映射、空间归属、
+桥接接口 38 个方法、mock 实现、38 个类型）；两板 mock 共享状态里的旧库样例数据、办公侧 5 个旧库类型。
+
+**行为变化（用户可感，汇报时要讲）**：
+1. 模型工具面少三件（`cost_search` / `cost_save` / `cost_indicators`）。造价提示词（模板 / 运行模式 / 技能 /
+   系统提示词 / `cost_project_apply` 描述 / `cost-estimate` 命令 / 前端任务模板与 mock 模板）里「cost_search 查历史单价」
+   改为查造价库工料机价（`cost_project action=resources`），「cost_save 沉淀」整步删除。
+2. 交付面板的表格产物不再有「沉淀到成本库」按钮（两板）；三语词条 `deliverPanel.deposit*` 一并撤。
+3. 记忆中枢总览少「成本库」计数（`costCount` 字段撤）；「最近更新」改取办公记忆（含文学脑）最近一次写入时间
+   （原先只看旧库条目）。记忆图谱不再有 cost 节点。
+4. 造价库导出只剩 bill / quota / resource / template；`cost_library` 不再有 `seed` 动作。
+5. 审批：`cost_save` 不再是硬确认工具（remember / cost_library / proposal_save 等不变，相关测试样例换成 remember）。
+6. 任务调度器缺省优先级去掉价格抓取两项、启动不再拉起价格源定时抓取；`tasks.KindPriceFetch*` 常量保留
+   （历史任务记录仍可读）。
+7. `semantic_search` 工具与统一语义检索的类目只剩 办公记忆 / 工作区文件（「成本库」一类撤）；索引状态视图撤
+   `costTotal` / `costIndexed`。
+8. 文学侧 deny 名单与办公侧工具空间分类表去掉这三个工具名（它们已不存在）。
+
+**验证**（全部在本提交的工作树上实跑）：
+- Go：`go build ./...`、`go vet ./...` 过；**app 包 1363 例 4 分片全绿**；非 app 包 139 个包**零回归**——
+  剩余 5 例红在退役前提交 `abd65f42` 的独立工作树上同样红（agent `TestStaleGuardBlocksMoveFileWithoutRead`、
+  trajectory `TestFoldDeliverablesGolden`、proposal `TestMigrationFromV35`、workcost
+  `TestApplyProjectBundle_RegionsFactsAndCodeAlias`、voice/realtime `TestPipelineMultiTurnNoSnowball`）；
+  另 3 例是 ucrt64 前置 PATH 顶掉 markitdown 的环境假红（builtin 的 `format_convert` 两例 +
+  `TestProposalImageEndToEndDocxConvertAndSave`），不带前置单跑即绿。
+- 前端：`tsc -b` 过；vitest 全量 4778 例 4777 绿，唯一 1 例红是模型中心 `SchedulingSection` 的等待超时
+  （出现在与 Go 分片测试并行时；隔离单跑 8 次过 7，该文件本刀未动）；knip 退出码 0。
+- 门禁：`registry_map_doc -check` OK（地图已重导，diff 只有三个工具与两行谓词类代表工具）；`check-bindings-drift.ps1`
+  OK（665 个方法）；`check-docs.mjs` OK；`gen_bindings` 三份清单无变化，完备性测试随排除清单清理重生成。
+- wailsjs：实测漂移只有 `models.ts` 里 `MemoryHubOverview.costCount` 两行，已同步（门面文件里没有任何已删方法）。
+  下次 `wails build` 照常再生复核。
+
+**未做 / 待令**：打包、装机、push（等用户通知）；真实库不迁移、不删表。
+
 ## 六、坑与纪律
 
 - `go test -race` 在本机默认 PATH 下报 `cgo: C compiler "gcc" not found`，要先前置 ucrt64。
 - 用了 Python 的 heredoc 补丁文件，落盘后要重新 `gofmt`；Edit 工具在文件被脚本 / gofmt 改过后要先 Read。
 - 退役要守的纪律：义务清单先行；新增/退役工具要对账三处（注册 / `spacetags` / `compact.go`，守卫会拦），
   另有 `registry_map_doc.go -check`、`check-bindings-drift.ps1`、前端 knip；数据库表不删。
-- 历史存量红（与本线无关，未动）：`agent` 的 `TestStaleGuardBlocksMoveFileWithoutRead`、`trajectory` 的 multi_edit 金样本。
+- 历史存量红（与本线无关，未动；第二个会话在退役前提交的独立工作树上实证过）：`agent` 的
+  `TestStaleGuardBlocksMoveFileWithoutRead`、`trajectory` 的 multi_edit 金样本、`proposal` 的 `TestMigrationFromV35`、
+  `workcost` 的 `TestApplyProjectBundle_RegionsFactsAndCodeAlias`、`voice/realtime` 的 `TestPipelineMultiTurnNoSnowball`。
+- 存量环境假红（ucrt64 前置 PATH 顶掉系统 python → markitdown 不可用）：builtin 的 `format_convert` 两例 +
+  `TestProposalImageEndToEndDocxConvertAndSave`（注意它在 **builtin** 包，不在 proposal 包）；不带前置单跑即绿。
+- `go test -exec` 的包装器**必须给绝对路径**（`C:\AI\wubigrok\scripts\cgo_test_dll_prep.cmd`）：go 把测试进程的
+  工作目录设成包目录，相对路径从那里解析不到，表现为整盘 0.001 秒全红。app 包直接 `go test ./internal/app/`
+  不带包装器 = `0xc0000135`。
+- 基线对照别归错包：`-run` 的用例不在那个包里时输出 `ok … [no tests to run]`，看上去是绿，其实是没跑。
+- ZCode 工具：`git mv` 之后新路径要先 Read 才能 Write；同一个文件「脚本改 → 读 → 编辑」放进同一批会并行，
+  Edit 拿到的是旧快照（要分批串行）；自写上下文工具给命中加的【】是高亮，别当成原文去匹配。
+- 批量替换脚本写成「每处必须恰好命中 N 次、任一处不符整文件不改」，这次多次靠它挡住了敲错的 old 串。

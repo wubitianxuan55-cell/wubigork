@@ -1,15 +1,16 @@
 package app
 
+// gaea_search_clients.go — app 侧本地检索客户端（embedding / 精排）单例与测试注入缝。
+//
+// 原名 gaea_cost_rerank.go：最早只给成本库检索用，后来文件索引、记忆召回、统一
+// 语义搜索都走这两个客户端。旧成本库 2026-11-26 退役后本文件只剩通用部分，改名归位。
+
 import (
-	"context"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
@@ -82,6 +83,9 @@ func (a *App) localSearchEmbedder() *retrieval.Embedder {
 // resolveHerdsmanSearchModel 动态选择检索模型（P4 检索升级）：
 // 环境变量显式指定 > 引擎已装模型按优先级匹配（qwen3 系优先，回退 bge 系）> 默认名。
 // 用户下载并启动 qwen3-embedding-4b / qwen3-reranker-4b 后自动升级，无需改代码。
+//
+// 只服务旧的 semantic.Store 检索路（文件 / 记忆 / 方案类目）。造价库的向量索引
+// （internal/gaea/vecindex）不走这里——它固定读 [retrieval] 配置，默认 bge-m3。
 func (a *App) resolveHerdsmanSearchModel(envKey string, preferred []string, fallback string) (baseURL, model string) {
 	if a.engineMgr == nil {
 		return "", ""
@@ -103,97 +107,10 @@ func (a *App) resolveHerdsmanSearchModel(envKey string, preferred []string, fall
 	return eng.BaseURL, fallback
 }
 
-// semanticCostRecall 语义召回：持久化向量索引（增量向量化 + 查询只嵌 query）。
-func (a *App) semanticCostRecall(query string, have []cost.Summary, topN int) []cost.Summary {
-	e := a.localSearchEmbedder()
-	if e == nil {
-		return nil
-	}
-	// 审计 GA6-09：本函数是纯召回/排序辅助，签名不带 error，读失败只能
-	// 降级（返回 nil 让调用方保留关键词结果）——但必须留痕，不静默吞掉。
-	full, lerr := a.hubCostStore().List()
-	if lerr != nil {
-		slog.Warn("cost: 语义召回读取成本库失败，降级为关键词结果", "error", lerr)
-	}
-	if len(full) == 0 {
-		return nil
-	}
-	st := a.hubSemanticStore()
-	if st == nil || !st.Available() {
-		return nil
-	}
-	// 搜索路径加界（刀F v4.250，观察池①收尾）：Search 内含 Ensure 增量
-	// 向量化，追赶窗口内会吃满 ctx（真机实测 60s/次）。超时回落关键词
-	// 结果；追赶由导入后台钩子与显式补齐完成，收敛后本路径 Ensure 为
-	// no-op，5s 只覆盖 diff 读+单次查询嵌入。
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	docs := make([]semantic.Doc, len(full))
-	keep := make(map[string]bool, len(full))
-	for i, s := range full {
-		docs[i] = semantic.Doc{ID: s.Name, Text: retrieval.DocText(s)}
-		keep[s.Name] = true
-	}
-	_, _ = st.Stale("cost", keep)
-	hits, err := st.Search(ctx, e, "cost", docs, query, topN)
-	if err != nil || len(hits) == 0 {
-		return nil
-	}
-	haveNames := make(map[string]bool, len(have))
-	for _, s := range have {
-		haveNames[s.Name] = true
-	}
-	byName := make(map[string]cost.Summary, len(full))
-	for _, s := range full {
-		byName[s.Name] = s
-	}
-	out := append([]cost.Summary{}, have...)
-	for _, h := range hits {
-		if s, ok := byName[h.ID]; ok && !haveNames[h.ID] {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
 // hubSemanticStore 构造共享向量索引存储（Hephaestus.db SchemaV5）。
 func (a *App) hubSemanticStore() *semantic.Store {
 	if appSemanticStoreOverride != nil {
 		return appSemanticStoreOverride
 	}
 	return semantic.Open(db.GetDatabase(config.MemoryUserDir()))
-}
-
-// rerankCostSearch 对 SQL 粗召回结果做本地精排（topN）；模型不可用或失败时
-// 返回 nil，调用方回退原顺序。候选少于 9 条或空查询不精排（开销不值得）。
-func (a *App) rerankCostSearch(query string, list []cost.Summary, limit int) []cost.Summary {
-	if len(list) <= 8 || strings.TrimSpace(query) == "" || limit <= 0 {
-		return nil
-	}
-	r := a.localSearchReranker()
-	if r == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if !r.Available(ctx) {
-		return nil
-	}
-	docs := make([]string, len(list))
-	for i, e := range list {
-		// GA6-04 单源：精排文档串唯一实现在 cost.RerankDocText（与 builtin
-		// 面同一份），本文件不再持有第二份同构拼接。
-		docs[i] = cost.RerankDocText(e)
-	}
-	scored, err := r.Rerank(ctx, query, docs, limit)
-	if err != nil || len(scored) == 0 {
-		return nil
-	}
-	out := make([]cost.Summary, 0, len(scored))
-	for _, s := range scored {
-		if s.Index >= 0 && s.Index < len(list) {
-			out = append(out, list[s.Index])
-		}
-	}
-	return out
 }

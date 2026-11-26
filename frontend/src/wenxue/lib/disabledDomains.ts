@@ -15,7 +15,7 @@ const DISABLED_TOOL_NAMES = [
   "xlsx_apply", "xlsx_profile", "xlsx_recalc", "xlsx_audit",
   "office_open", "office_read", "office_edit", "office_render",
   "office_save", "office_close", "office_selection",
-  "cad_ask", "cost_search", "cost_save", "cost_indicators",
+  "cad_ask",
   "cost_library", // 造价库维护（2026-11-25 进引擎侧 deny 名单，此处同批补齐）
   "chart_gen", "diagram_gen", "diagram", "doc_render", "format_convert",
   "screen_capture", "semantic_search",

@@ -32,12 +32,9 @@
 | `computer_type` | builtin-domain | work | write | none | 注入后新树含输入效果（同闸门链） |
 | `computer_windows` | builtin-domain | work | read | none | 窗口清单与实况一致（[computer_use] enabled 才注册） |
 | `cost_audit` | builtin-domain | work | read | none | 硬检可复算（库读口同源）；信息项不混 HardCount |
-| `cost_indicators` | builtin-domain | work | read | none | 指标与 SchemaV34 快照一致 |
 | `cost_library` | builtin-domain | work | write | none | PersistWrite：三级库写入可查；被引用对象默认拒删；dry_run 不写库 |
 | `cost_project` | builtin-domain | work | read | none | 读回与 workcost 库一致 |
 | `cost_project_apply` | builtin-domain | work | write | none | PersistWrite：workcost 写入可查，同批编码唯一写前闸 |
-| `cost_save` | builtin-domain | work | write | none | PersistWrite：库写入可查 |
-| `cost_search` | builtin-domain | work | read | none | 检索命中与库一致 |
 | `diagram` | extra-app | work | produce | none | 无边 nil 切片显式 null 契约（回归钉） |
 | `diagram_gen` | builtin-workspace | work | produce | agent-produce | 图片落点存在（无边树图回归钉） |
 | `discover_tools` | build-internal | shared | meta | none | A2 动态目录：词法匹配激活≤5、下一模型步生效；可见性≠授权（仅目录开启时注册） |
@@ -139,8 +136,8 @@
 | 类 | 统一验收口径 | 代表工具 |
 |---|---|---|---|
 | deliver-write（交付写） | 声明路径=实际落点；落账可查（Journal/库）；越界与非法输入正确失败 | office_generate / docx_apply / pptx_apply / xlsx_apply / schedule_apply / write_file |
-| domain-compute（领域计算） | 计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed | schedule_analyze / cost_indicators |
-| read-retrieval（读取检索） | 命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率） | grep / read_file / memory_search / cost_search |
+| domain-compute（领域计算） | 计算结果可复算（重算/对照公式/库快照一致）；约束违反 fail-closed | schedule_analyze |
+| read-retrieval（读取检索） | 命中内容与库/文件实况一致；参数闸 fail-closed（检索为模糊匹配语义，诚实缺省=不冒充精确率） | grep / read_file / memory_search |
 | task-orchestrate（任务编排） | 编排结构与约束闸一致（节点数/写路径/只读作用域六闸刀）；进度落盘可恢复 | task / todo_write |
 
 适用条件：办公路径继续走 `boot.Build` 唯一注册表（四外部入口：builtin / ExtraTools / 插件 / Build 内部）；若出现第五装配面（如按 `boot.go` 注释绕过 Build 的自定义装配器）则本清单失效，需重新盘点。

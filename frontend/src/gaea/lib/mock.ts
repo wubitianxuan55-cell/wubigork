@@ -37,7 +37,6 @@ import { createMockState } from "./mock/state";
 
 // 既有导出（含测试辅助）原样 re-export。
 export {
-  __resetPriceMocksForTest,
   browserPlatformOverride,
   emitMock,
   mockListeners,

@@ -12,7 +12,6 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/workcost"
 )
@@ -114,7 +113,7 @@ func TestCostLibraryExportBillAndGuard(t *testing.T) {
 	}
 }
 
-func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
+func TestCostLibraryExportQuotaResource(t *testing.T) {
 	a, cleanup := workcostTestApp(t)
 	defer cleanup()
 	s := a.hubWorkcostStore()
@@ -186,22 +185,6 @@ func TestCostLibraryExportQuotaResourceEntry(t *testing.T) {
 	}
 	if rows := exportRows(t, outsideOut+".xlsx")["工料机"]; len(rows) != 1 || rows[0][0] != "NOTE-1" || rows[0][2] != "一段说明" {
 		t.Fatalf("按「类别待整理」应只导出 NOTE-1，得到 %v", rows)
-	}
-
-	// 资料条目。
-	if err := a.hubCostStore().Save(cost.Entry{Name: "sand-1", Title: "中砂", Category: "材料", Unit: "m³", Price: 110, Source: "市场询价"}); err != nil {
-		t.Fatalf("写资料条目失败: %v", err)
-	}
-	entryOut := filepath.Join(t.TempDir(), "资料条目")
-	if _, err := a.GaeaCostLibraryExport("entry", workcost.LibraryFilter{Keyword: "中砂"}, entryOut); err != nil {
-		t.Fatalf("导出资料条目失败: %v", err)
-	}
-	entryRows := exportRows(t, entryOut+".xlsx")["资料条目"]
-	if len(entryRows) != 1 || entryRows[0][1] != "中砂" || entryRows[0][5] != "110" {
-		t.Fatalf("资料条目应导出 1 行「中砂」单价 110，得到 %v", entryRows)
-	}
-	if _, err := os.Stat(entryOut + ".xlsx"); err != nil {
-		t.Fatalf("导出文件应存在: %v", err)
 	}
 }
 

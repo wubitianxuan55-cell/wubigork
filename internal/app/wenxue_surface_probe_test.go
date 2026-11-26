@@ -69,7 +69,7 @@ func TestWenxueSurfaceDeniesFactAndOfficeFamilies(t *testing.T) {
 	// 2026-11-25 起不再进办公 ExtraTools，不在本 census 枚举面。）
 	for _, n := range []string{
 		"office_generate(filter)", "office_batch(filter)", "docx_apply(filter)",
-		"xlsx_apply(filter)", "cad_ask(filter)", "cost_search(filter)",
+		"xlsx_apply(filter)", "cad_ask(filter)", "cost_library(filter)",
 		"schedule_get(filter)", "browser_navigate(filter)",
 	} {
 		if !denySet[n] {

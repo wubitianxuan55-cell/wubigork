@@ -2,18 +2,16 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
 )
 
 // SemanticHitView 是跨库统一语义检索的命中视图。
 type SemanticHitView struct {
-	Kind  string  `json:"kind"` // cost / office / file
+	Kind  string  `json:"kind"` // office / file …
 	Name  string  `json:"name"`
 	Score float64 `json:"score"`
 	Text  string  `json:"text"`
@@ -25,10 +23,6 @@ type SemanticIndexStatus struct {
 	Counts    map[string]int    `json:"counts"` // kind → 向量条数
 	Detail    map[string]string `json:"detail,omitempty"`
 	Error     string            `json:"error,omitempty"`
-	// v4.196 成本类覆盖细化：total=正文非空的成本条目数；indexed=「向量在且
-	// 正文快照一致」的数量（与 Ensure 缺失判定同口径，正文变了算未覆盖）。
-	CostTotal   int `json:"costTotal,omitempty"`
-	CostIndexed int `json:"costIndexed,omitempty"`
 }
 
 // GaeaSemanticIndexStatus 返回向量索引（semantic_vectors）各 kind 的条数，
@@ -46,14 +40,10 @@ func (a *App) GaeaSemanticIndexStatus() SemanticIndexStatus {
 	if err != nil {
 		return SemanticIndexStatus{Available: false, Error: err.Error()}
 	}
-	view := SemanticIndexStatus{Available: true, Counts: counts}
-	if cov, err := a.costIndexCoverage(); err == nil {
-		view.CostTotal, view.CostIndexed = cov.Total, cov.Indexed
-	}
-	return view
+	return SemanticIndexStatus{Available: true, Counts: counts}
 }
 
-// GaeaSemanticSearch 跨库统一语义检索（成本/知识/办公记忆/工作区资料），本地
+// GaeaSemanticSearch 跨库统一语义检索（知识/办公记忆/工作区资料），本地
 // bge-m3。向量索引持久化在 Hephaestus.db semantic_vectors；查询路径按需/缓存：
 // 索引就绪（向量条数与源文档数一致）时直接 SearchReady（只嵌 query），不再每
 // 查询先 Ensure 全量扫描比对；未就绪（首次/数据增删）才按需增量 Ensure。
@@ -108,27 +98,6 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 		return nil, err
 	}
 
-	// 成本库
-	costList, cerr := a.hubCostStore().List()
-	if cerr != nil {
-		// 审计 GA6-09：读失败如实上抛——按空库跳过会把索引面静默清空。
-		return nil, fmt.Errorf("成本库暂不可读（读取失败），可重试: %w", cerr)
-	}
-	if len(costList) > 0 {
-		docs := make([]semantic.Doc, 0, len(costList))
-		keep := make(map[string]bool, len(costList))
-		for _, s := range costList {
-			docs = append(docs, semantic.Doc{ID: s.Name, Text: retrieval.DocText(s)})
-			keep[s.Name] = true
-		}
-		if counts["cost"] != len(docs) {
-			if _, err := st.Ensure(ctx, e, "cost", docs); err != nil {
-				return nil, err
-			}
-			_, _ = st.Stale("cost", keep)
-		}
-	}
-
 	// 办公记忆 facts
 	facts := a.hubOfficeStore().List()
 	if len(facts) > 0 {
@@ -155,7 +124,7 @@ func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitV
 	if topN <= 0 {
 		topN = 20
 	}
-	kinds := []string{"cost", "office", "file"}
+	kinds := []string{"office", "file"}
 	perKind := topN / len(kinds)
 	if perKind < 1 {
 		perKind = 1

@@ -25,14 +25,12 @@ var compactDesc = map[string]string{
 	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;PDF优先经本机WPS:文字型出真表格/扫描件走WPS在线OCR(174页约1分钟);WPS不可用退本地提取与OCR(限30页,用pages分段);preserve_images保留内嵌图片sidecar;回执带标题/表格/图片计数;to=xlsx=PDF/图片/图片目录→Excel真表格(必须给output;清单定额报价单取数用;扫描件走WPS在线识别默认ai_fix;回执列疑似缺格行须对照原件抽检))",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
 	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
-	"cost_search":        "搜索成本库(关键词/分类/状态,返回单价表)",
 	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections;action=status查进度;dry_run演练不写库)",
 	"proposal_search":    "检索方案库(全文+本地语义召回+精排;scope=title查标题树;可按层级/类型/年度/方案过滤)",
 	"proposal_read":      "读方案库小节(整节自动分页;query只取相关段落;scope=subtree连子节)",
 	"proposal_update":    "改方案库方案(标题/类型/年度/摘要;或section_id+section_title/body增量修正某一节)",
 	"proposal_delete":    "删方案库方案(节点与语义索引一并清除,不可恢复;仅用户明确要求时)",
 	"proposal_export":    "方案库方案导出为Markdown(按标题层级;托管图片落到同名-assets目录)",
-	"cost_save":          "写入/更新成本库条目(同名覆盖,含单价/单位/来源;仅用户明确要求时调用)",
 	"screen_capture":     "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
 	"vision":             "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 	"cad_ask":            "读取CAD图纸(DWG/DXF/PDF)并让视觉模型回答图纸问题(自动选质量最好图框高清渲染;PDF按页),发来图纸问内容/尺寸/数量时用",
@@ -114,10 +112,6 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"proposal":{"type":"string"},"reason":{"type":"string"}},"required":["proposal"]}`),
 	"proposal_export": json.RawMessage(
 		`{"type":"object","properties":{"proposal":{"type":"string"},"output":{"type":"string"}},"required":["proposal","output"]}`),
-	"cost_search": json.RawMessage(
-		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"status":{"type":"string"},"limit":{"type":"integer"}}}`),
-	"cost_save": json.RawMessage(
-		`{"type":"object","properties":{"name":{"type":"string"},"title":{"type":"string"},"category":{"type":"string"},"unit":{"type":"string"},"price":{"type":"number"},"spec":{"type":"string"},"source":{"type":"string"},"tags":{"type":"string"},"status":{"type":"string"},"body":{"type":"string"}},"required":["title","price"]}`),
 	"screen_capture": json.RawMessage(
 		`{"type":"object","properties":{"region":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"}}}}}`),
 	"vision": json.RawMessage(

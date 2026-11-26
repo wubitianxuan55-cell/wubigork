@@ -168,7 +168,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     // ── 记忆中枢 Mock ────────────────────────────────────────
     async MemoryHubOverview() {
-      return { profileCount: 4, officeCount: 5, costCount: 3, whisperCount: 5, wenxueCount: 6, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
+      return { profileCount: 4, officeCount: 5, whisperCount: 5, wenxueCount: 6, pinnedCount: 4, sessionCount: 0, uploadCount: 0, latestUpdated: "刚刚" };
     },
     // ── 数据库存档 mock（v4.479）：浏览器开发态无设备存档，空态/no-op。──
     async DatabaseOverview() {

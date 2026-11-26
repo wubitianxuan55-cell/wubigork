@@ -1,7 +1,7 @@
 // 季度报告会话恢复回放（mock/chat.ts ResumeSession → /mock/sessions/a.jsonl）
 // 的工具卡契约：五个办公工具 dispatch/result 配对、信封 JSON 可解析、关键
 // 格式串与 lib/tools.ts summarize/subjectOf 的解析口径逐字对齐（信封 message、
-// 全角括号「（31409 字节，类型: …）」、cost_search「### 」行首小节、
+// 全角括号「（31409 字节，类型: …）」、memory_search「### 」行首小节、
 // diagram_gen 裸 JSON、multi_edit diffstat）。防止 mock 样例与前端解析器漂移。
 import { beforeAll, describe, expect, it } from "vitest";
 import { makeMockApp } from "./mock";
@@ -34,7 +34,7 @@ describe("mock 恢复回放 · 季度报告会话（a.jsonl）", () => {
   it("六个工具 dispatch/result 一一配对：全部完成态且输出就位（顺序即叙事）", async () => {
     const items = await toolItems();
     expect(items.map((t) => t.name)).toEqual([
-      "ls", "format_convert", "cost_search", "chart_gen", "diagram_gen", "multi_edit",
+      "ls", "format_convert", "memory_search", "chart_gen", "diagram_gen", "multi_edit",
     ]);
     for (const t of items) {
       expect(t.status).toBe("done");
@@ -57,14 +57,14 @@ describe("mock 恢复回放 · 季度报告会话（a.jsonl）", () => {
     expect(subjectOf("format_convert", t.args)).toBe("素材.docx");
   });
 
-  it("cost_search：信封 message 含两个「### 」行首小节，summarize 计 2 条命中", async () => {
-    const t = await toolByName("cost_search");
+  it("memory_search：信封 message 含两个「### 」行首小节，summarize 计 2 条命中", async () => {
+    const t = await toolByName("memory_search");
     const env = JSON.parse(t.output ?? "") as { ok?: boolean; message?: string };
     expect(env.ok).toBe(true);
     const sections = (env.message ?? "").match(/^### .+/gm) ?? [];
     expect(sections).toHaveLength(2);
-    expect(summarize("cost_search", t.args, t.output)).toContain("2");
-    expect(subjectOf("cost_search", t.args)).toContain("图表规范");
+    expect(summarize("memory_search", t.args, t.output)).toContain("2");
+    expect(subjectOf("memory_search", t.args)).toContain("图表规范");
   });
 
   it("chart_gen：信封可解析且格式串逐字对齐（全角括号/「类型: grouped_bar」/「系列: 2 · 类别: 3」）", async () => {

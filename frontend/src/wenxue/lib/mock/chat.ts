@@ -159,7 +159,7 @@ async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
 // → 生成对比图 → 架构图 → multi_edit 改报告 → 收尾。五个办公工具卡的输出
 // 格式与 lib/tools.ts summarize/subjectOf 的解析口径逐字对齐（信封 JSON
 // 字符串、全角括号「（31409 字节，类型: …）」、message 内换行为 JSON \n、
-// cost_search 两个「### 」行首小节、diagram_gen 裸 JSON 非信封），
+// memory_search 两个「### 」行首小节、diagram_gen 裸 JSON 非信封），
 // 供浏览器端工具卡渲染联调；契约由 mock-session-replay.test.ts 锁定。
 function quarterlyReportReplay(): HistoryMessage[] {
   return [
@@ -171,8 +171,8 @@ function quarterlyReportReplay(): HistoryMessage[] {
     { role: "tool", content: "", toolId: "mock-call-2", toolName: "format_convert", toolArgs: '{"path":"素材.docx","target":"markdown"}' },
     { role: "tool_result", toolId: "mock-call-2", toolName: "format_convert", content: '{"ok":true,"success":true,"code":0,"message":"已转换并保存为 out/季度报告.md（3210 字符）"}' },
     { role: "assistant", content: "底稿已转成 out/季度报告.md。动笔画图前，先查一下知识库里的图表与报告规范。" },
-    { role: "tool", content: "", toolId: "mock-call-3", toolName: "cost_search", toolArgs: '{"query":"季度报告 图表规范"}' },
-    { role: "tool_result", toolId: "mock-call-3", toolName: "cost_search", content: '{"ok":true,"success":true,"code":0,"message":"命中 2 条「季度报告图表」相关规范：\\n### 季度图表配色规范\\n对比图统一使用分组柱状图，主系列取品牌蓝、对比系列取中性灰，数值标签保留一位小数。\\n### 报告结构与图表标注规范\\n图表插入对应章节小节之后，标题置于图下方并按「图 N」编号。"}' },
+    { role: "tool", content: "", toolId: "mock-call-3", toolName: "memory_search", toolArgs: '{"query":"季度报告 图表规范"}' },
+    { role: "tool_result", toolId: "mock-call-3", toolName: "memory_search", content: '{"ok":true,"success":true,"code":0,"message":"命中 2 条「季度报告图表」相关规范：\\n### 季度图表配色规范\\n对比图统一使用分组柱状图，主系列取品牌蓝、对比系列取中性灰，数值标签保留一位小数。\\n### 报告结构与图表标注规范\\n图表插入对应章节小节之后，标题置于图下方并按「图 N」编号。"}' },
     { role: "assistant", content: "按规范：对比图用分组柱状图、标题置图下并编号。现在基于汇总数据生成分项单价对比图。" },
     { role: "tool", content: "", toolId: "mock-call-4", toolName: "chart_gen", toolArgs: '{"title":"分项单价对比","labels":["人力","物料","物流"],"chart_type":"grouped_bar","series":[{"name":"本季度","data":[120,86,64]},{"name":"上季度","data":[108,92,70]}]}' },
     { role: "tool_result", toolId: "mock-call-4", toolName: "chart_gen", content: '{"ok":true,"success":true,"code":0,"message":"✅ 图表已生成: charts/cost.png（31409 字节，类型: grouped_bar）\\n标题: 分项单价对比\\n系列: 2 · 类别: 3"}' },

@@ -3,7 +3,7 @@ package app
 // gaea 通用任务调度器绑定与消费者（阶段 5 T5-1）。
 //
 // officeState.tasks 是全局调度器（Hephaestus.db tasks 表，SchemaV8）：
-//   - 消费者注册：价格抓取（单源/全部+定时 cron）、工作区语义索引重建；
+//   - 消费者注册：工作区语义索引重建、办公批处理；
 //   - 前端任务中心经 GaeaTaskList/Cancel/Retry 驱动（gaea-task 事件实时推送）；
 //   - 重启续跑：Startup 把上次 running 的任务恢复 queued 重新排队。
 
@@ -21,7 +21,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/fileindex"
 	"github.com/gaea/gaea/internal/gaea/filewatch"
-	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/semantic"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tasks"
@@ -47,10 +46,9 @@ func (a *App) startTaskScheduler() {
 		m := tasks.New(gdb, func(t tasks.Task) {
 			a.emitTaskEvent(t)
 		}, taskSchedulerOptions(config.Load()))
-		m.Register(tasks.KindPriceFetch, a.priceFetchTaskHandler)
-		m.Register(tasks.KindPriceFetchAll, a.priceFetchAllTaskHandler)
 		m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
-		// tasks.KindOutlineReconstruct 处理器随小说板块退役拆除（2026-11-15）：
+		// tasks.KindOutlineReconstruct 处理器随小说板块退役拆除（2026-11-15）、
+		// tasks.KindPriceFetch / KindPriceFetchAll 处理器随旧成本库退役拆除（2026-11-26）：
 		// 存量排队任务恢复时按未知 kind 跳过。
 		// P4 持久任务中心（2026-11-10 众神殿裁决 action-7）：办公批处理进调度器。
 		m.Register(tasks.KindOfficeBatch, a.officeBatchTaskHandler)
@@ -69,8 +67,8 @@ func (a *App) startTaskScheduler() {
 //   - per_space 缺省 {work=1, play=1}（空间分账：各空间独立并发跑道，
 //     某空间额度占满不阻塞其他空间出队）；显式 `per_space = {}` 关闭分账
 //     回退全局 sem（旧行为）；
-//   - priority 缺省 {price_fetch=20, price_fetch_all=20, file_index=10}
-//     （用户触发的价格抓取优先于后台文件索引维护）。
+//   - priority 缺省 {office_batch=15, file_index=10}
+//     （用户显式提交的办公批处理优先于后台文件索引维护）。
 func taskSchedulerOptions(cfg *config.Config, err error) tasks.Options {
 	opts := tasks.Options{}
 	if err == nil && cfg != nil {
@@ -86,8 +84,6 @@ func taskSchedulerOptions(cfg *config.Config, err error) tasks.Options {
 	}
 	if opts.Priority == nil {
 		opts.Priority = map[string]int{
-			string(tasks.KindPriceFetch):    20,
-			string(tasks.KindPriceFetchAll): 20,
 			// office_batch（P4 办公批处理）：用户显式提交，优先于后台索引维护。
 			string(tasks.KindOfficeBatch): 15,
 			string(tasks.KindFileIndex):   10,
@@ -188,133 +184,6 @@ func (a *App) GaeaTaskOutput(id string) (TaskOutputView, error) {
 	return TaskOutputView{Tail: tail, Truncated: truncated}, nil
 }
 
-// ─── 消费者：价格抓取 ─────────────────────────────────────────
-
-type priceFetchPayload struct {
-	SourceID string `json:"sourceId"`
-}
-
-// priceFetchTaskHandler 单源抓取任务：解析 → 匹配成本库 → 存 pending 记录。
-func (a *App) priceFetchTaskHandler(ctx context.Context, t *tasks.Task, p *tasks.Progress) error {
-	var req priceFetchPayload
-	if err := json.Unmarshal([]byte(t.Payload), &req); err != nil || req.SourceID == "" {
-		return fmt.Errorf("任务参数缺失（sourceId）")
-	}
-	store := a.hubPriceStore()
-	src, ok := store.GetSource(req.SourceID)
-	if !ok {
-		return fmt.Errorf("价格源不存在: %s", req.SourceID)
-	}
-	p.Output(fmt.Sprintf("[%s] 抓取 %s（%s）", time.Now().Format("15:04:05"), src.Name, src.URL))
-	p.Report(5, "正在抓取 "+src.Name)
-	res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
-	if err != nil {
-		p.Output(fmt.Sprintf("[%s] 抓取失败：%v", time.Now().Format("15:04:05"), err))
-		return err
-	}
-	res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
-	a.enrichResourceMatches(res)
-	p.Output(fmt.Sprintf("[%s] 解析出 %d 条候选价格，异常检测与资源匹配完成", time.Now().Format("15:04:05"), len(res.Candidates)))
-	rec := pricefeed.FetchRecord{
-		ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
-		SourceID: src.ID, SourceName: src.Name, URL: src.URL,
-		Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
-		Candidates: res.Candidates,
-	}
-	if err := store.SaveFetch(rec); err != nil {
-		return err
-	}
-	_ = store.TouchSource(src.ID, res.FetchedAt)
-	out, _ := json.Marshal(map[string]any{"fetchId": rec.ID, "count": len(res.Candidates)})
-	p.Result(string(out))
-	p.Report(100, fmt.Sprintf("抓取完成：%d 条价格待确认", len(res.Candidates)))
-	return nil
-}
-
-type priceFetchAllPayload struct {
-	Cron bool `json:"cron"` // true=定时（只抓到期源）；false=手动（全部启用源）
-}
-
-// priceFetchAllTaskHandler 全部/定时抓取任务：逐源抓取并报告进度，单源失败
-// 不阻断其他源；全部失败返回错误（任务标记 failed），部分失败在结果里说明。
-func (a *App) priceFetchAllTaskHandler(ctx context.Context, t *tasks.Task, p *tasks.Progress) error {
-	var req priceFetchAllPayload
-	_ = json.Unmarshal([]byte(t.Payload), &req)
-
-	store := a.hubPriceStore()
-	sources := store.ListSources()
-	now := time.Now()
-	var todo []pricefeed.Source
-	for _, src := range sources {
-		if !src.Enabled {
-			continue
-		}
-		if req.Cron {
-			if src.FrequencyHours <= 0 {
-				continue
-			}
-			if src.LastFetchAt != "" {
-				if ft, err := time.Parse(time.RFC3339, src.LastFetchAt); err == nil && now.Sub(ft) < time.Duration(src.FrequencyHours)*time.Hour {
-					continue
-				}
-			}
-		}
-		todo = append(todo, src)
-	}
-	if len(todo) == 0 {
-		if req.Cron {
-			out, _ := json.Marshal(map[string]any{"fetched": 0, "failed": 0})
-			p.Result(string(out))
-			p.Report(100, "暂无到期的价格源")
-			return nil
-		}
-		return fmt.Errorf("没有启用的价格源，请先添加并启用")
-	}
-
-	var errs []string
-	fetched := 0
-	p.Output(fmt.Sprintf("[%s] 待抓取 %d 个价格源", time.Now().Format("15:04:05"), len(todo)))
-	for i, src := range todo {
-		if ctx.Err() != nil {
-			p.Output(fmt.Sprintf("[%s] 已中断（用户取消）", time.Now().Format("15:04:05")))
-			return ctx.Err()
-		}
-		p.Output(fmt.Sprintf("[%s] (%d/%d) 抓取 %s", time.Now().Format("15:04:05"), i+1, len(todo), src.Name))
-		p.Report(i*100/len(todo), fmt.Sprintf("正在抓取 %s（%d/%d）", src.Name, i+1, len(todo)))
-		res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
-		if err != nil {
-			errs = append(errs, src.Name+": "+err.Error())
-			p.Output(fmt.Sprintf("[%s]   ✗ %s：%v", time.Now().Format("15:04:05"), src.Name, err))
-			continue
-		}
-		res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
-		p.Output(fmt.Sprintf("[%s]   ✓ %s：%d 条候选", time.Now().Format("15:04:05"), src.Name, len(res.Candidates)))
-		rec := pricefeed.FetchRecord{
-			ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
-			SourceID: src.ID, SourceName: src.Name, URL: src.URL,
-			Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
-			Candidates: res.Candidates,
-		}
-		if err := store.SaveFetch(rec); err != nil {
-			errs = append(errs, src.Name+": "+err.Error())
-			continue
-		}
-		_ = store.TouchSource(src.ID, res.FetchedAt)
-		fetched++
-	}
-	out, _ := json.Marshal(map[string]any{"fetched": fetched, "failed": len(errs), "errors": errs})
-	p.Result(string(out))
-	if fetched == 0 && len(errs) > 0 {
-		return fmt.Errorf("全部 %d 个价格源抓取失败：%s", len(todo), strings.Join(errs, "；"))
-	}
-	if len(errs) > 0 {
-		p.Report(100, fmt.Sprintf("抓取完成：%d 个成功，%d 个失败", fetched, len(errs)))
-		return nil
-	}
-	p.Report(100, fmt.Sprintf("抓取完成：%d 个价格源", fetched))
-	return nil
-}
-
 // ─── 消费者：工作区语义索引 ───────────────────────────────────
 
 // fileIndexTaskHandler 扫描工作区并增量建立语义索引（分批 Ensure 报告进度，
@@ -410,10 +279,6 @@ func (a *App) submitFileIndexTaskIn(space, session, label, reason string) (*task
 // 三个入口共用本函数，保证任意时刻「去重判据的空间」与「落库的空间」同值：
 // 收敛前 manual/cron 落 work 却按全局判重、watch 按 work 判重，play 空间的
 // 在途索引对 watch 不可见（并发扫同一工作区，Stale 互相覆盖 keep 集合）。
-//
-// 与价格抓取 cron（gaea_price_sources.go 显式 work）的差别是有意的：价格源是
-// 工作空间的领域数据，而文件索引扫的是**整个工作区**，其空间归属只能跟随当前
-// 生效空间，否则 play 模式下 manual（play）与 cron（work）会各起一个并发全量扫。
 func fileIndexSpace() string {
 	return spaces.SpaceOr(strings.ToLower(gaeaEffectiveSpace()), spaces.SpaceWork)
 }

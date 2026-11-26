@@ -25,7 +25,7 @@ describe("Wenxue ToolCard shared renderer", () => {
   });
 
   it("keeps the Wenxue denied-tool filter at the shared boundary", () => {
-    const view = render(<LocaleProvider><ToolCard item={tool("cost_search")} /></LocaleProvider>);
+    const view = render(<LocaleProvider><ToolCard item={tool("cost_project")} /></LocaleProvider>);
     expect(view.container.textContent).toBe("");
   });
 });

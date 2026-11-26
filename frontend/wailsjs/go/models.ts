@@ -2203,7 +2203,6 @@ export namespace app {
 	export class MemoryHubOverview {
 	    profileCount: number;
 	    officeCount: number;
-	    costCount: number;
 	    whisperCount: number;
 	    wenxueCount: number;
 	    pinnedCount: number;
@@ -2219,7 +2218,6 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.profileCount = source["profileCount"];
 	        this.officeCount = source["officeCount"];
-	        this.costCount = source["costCount"];
 	        this.whisperCount = source["whisperCount"];
 	        this.wenxueCount = source["wenxueCount"];
 	        this.pinnedCount = source["pinnedCount"];
