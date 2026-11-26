@@ -47,25 +47,25 @@ type costProjectTool struct{ a *App }
 func (t costProjectTool) Name() string   { return "cost_project" }
 func (t costProjectTool) ReadOnly() bool { return true }
 func (t costProjectTool) Description() string {
-	return "读取工料机造价库（workcost）：测算项目（封面+四费率+控制价）、项目清单行、消耗定额（含含量行）、工料机资源。测算前先用它了解定额与资源存量；写入口用 cost_project_apply，机检用 cost_audit。"
+	return "读取工料机造价库（workcost）：测算项目（封面+四费率+控制价）、项目清单行、消耗定额（含含量行）、工料机资源。带 keyword 检索时编码精确优先，索引就绪可按同义说法召回（标〈语义〉）；bills 跨项目找清单项。测算前先用它了解定额与资源存量；写入口用 cost_project_apply，机检用 cost_audit。"
 }
 func (t costProjectTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["projects","items","summary","quotas","quota","resources"],"description":"projects=项目列表；items=某项目清单行（需 project_id）；summary=现算汇总（逐行综合单价/合价/人材机拆分+项目取费链——金额一律以它为准，不要自建 SQL 算价链）；quotas=定额检索（specialty/keyword 过滤）；quota=单个定额详情（含含量行，需 code）；resources=工料机资源检索（kind/keyword 过滤）"},
-  "project_id":{"type":"integer","description":"项目 id（action=items/summary 必填）"},
+  "action":{"type":"string","enum":["projects","items","summary","quotas","quota","resources","bills"],"description":"projects=项目列表；items=某项目清单行（需 project_id）；summary=现算汇总（逐行综合单价/合价/人材机拆分+项目取费链——金额一律以它为准，不要自建 SQL 算价链）；quotas=定额检索（specialty/keyword 过滤）；quota=单个定额详情（含含量行，需 code）；resources=工料机资源检索（kind/keyword 过滤）；bills=跨项目清单行检索（keyword/specialty 过滤，project_id 可限定项目）"},
+  "project_id":{"type":"integer","description":"项目 id（action=items/summary 必填；bills 可选）"},
   "code":{"type":"string","description":"定额编码（action=quota 必填）"},
   "specialty":{"type":"string","description":"定额专业过滤（可选）"},
   "kind":{"type":"string","description":"资源类型过滤（人工/材料/机械等，可选）"},
-  "keyword":{"type":"string","description":"关键词过滤（可选）"},
+  "keyword":{"type":"string","description":"检索词（可选）：编码精确命中优先；名称或规格含它即可召回；索引就绪时同义说法也能召回"},
   "limit":{"type":"integer","description":"返回条数上限（默认 50，最大 200）"}
 }
 }`)
 }
 
-func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
+func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Action    string `json:"action"`
 		ProjectID int64  `json:"project_id"`
@@ -146,20 +146,21 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 		}
 		return t.runSummary(p.ProjectID)
 	case "quotas":
-		quotas, err := s.ListQuotas(p.Specialty, p.Keyword)
+		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Limit: p.Limit})
 		if err != nil {
 			return "", err
 		}
-		if len(quotas) > p.Limit {
-			quotas = quotas[:p.Limit]
+		quotas := make([]workcost.Quota, len(hits))
+		for i, h := range hits {
+			quotas[i] = h.Item
 		}
 		if len(quotas) == 0 {
 			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "定额 %d 条（限 %d）:\n", len(quotas), p.Limit)
-		for _, q := range quotas {
-			fmt.Fprintf(&b, "- [%s] %s（%s，%s，含量行 %d，引用 %d 次）\n", q.Code, q.Title, q.Unit, clDim(q.Specialty, "未标注专业"), len(q.Items), q.UsageCount)
+		fmt.Fprintf(&b, "定额 %d 条（限 %d）%s:\n", len(quotas), p.Limit, clViaNote(hits))
+		for i, q := range quotas {
+			fmt.Fprintf(&b, "- [%s] %s（%s，%s，含量行 %d，引用 %d 次）%s\n", q.Code, q.Title, q.Unit, clDim(q.Specialty, "未标注专业"), len(q.Items), q.UsageCount, clViaMark(hits[i].Via))
 		}
 		if strings.TrimSpace(p.Specialty) == "" {
 			b.WriteString("清单套定额同专业优先：带上 specialty 只看本专业的定额；本专业没有匹配的，再用 cost_library borrow_quota 借鉴生成。\n")
@@ -180,28 +181,75 @@ func (t costProjectTool) Execute(_ context.Context, args json.RawMessage) (strin
 		}
 		return b.String(), nil
 	case "resources":
-		resources, err := s.ListResources(p.Kind, p.Keyword)
+		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Limit: p.Limit})
 		if err != nil {
 			return "", err
 		}
-		if len(resources) > p.Limit {
-			resources = resources[:p.Limit]
+		resources := make([]workcost.Resource, len(hits))
+		for i, h := range hits {
+			resources[i] = h.Item
 		}
 		if len(resources) == 0 {
 			return fmt.Sprintf("工料机库无匹配（kind=%q keyword=%q）。", p.Kind, p.Keyword), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "资源 %d 条（限 %d）：\n", len(resources), p.Limit)
-		for _, r := range resources {
+		fmt.Fprintf(&b, "资源 %d 条（限 %d）%s：\n", len(resources), p.Limit, clViaNote(hits))
+		for i, r := range resources {
 			// id=数字主键（铜陵反馈 #18：dedupe 的 keep_id/merge_ids 只吃数字 id，
 			// 只读口不给 id 时消歧链路当场卡死）。
-			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s，id=%d）\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
-				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"), r.ID)
+			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s，id=%d）%s\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
+				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"), r.ID, clViaMark(hits[i].Via))
+		}
+		return b.String(), nil
+	case "bills":
+		// 跨项目清单行检索：找某个清单项在哪些项目里出现过、按名称 / 项目特征找清单项。
+		hits, err := t.a.costSearcher().BillItems(ctx, workcost.SearchQuery{
+			Text: p.Keyword, Specialty: p.Specialty, ProjectID: p.ProjectID, Limit: p.Limit,
+		})
+		if err != nil {
+			return "", err
+		}
+		if len(hits) == 0 {
+			return fmt.Sprintf("清单库无匹配（specialty=%q keyword=%q project_id=%d）。", p.Specialty, p.Keyword, p.ProjectID), nil
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "清单行 %d 条（跨项目检索；限 %d）%s：\n", len(hits), p.Limit, clViaNote(hits))
+		for _, h := range hits {
+			it := h.Item
+			line := fmt.Sprintf("- 项目 #%d [%s] %s（%s）", it.ProjectID, it.Code, it.Title, it.Unit)
+			if sp := strings.TrimSpace(it.Specialty); sp != "" {
+				line += " 专业=" + sp
+			}
+			if len(it.QuotaCodes) > 0 {
+				line += " 定额=" + strings.Join(it.QuotaCodes, "+")
+			}
+			b.WriteString(line + clViaMark(h.Via) + "\n")
 		}
 		return b.String(), nil
 	default:
-		return "", fmt.Errorf("未知 action %q（projects/items/quotas/quota/resources）", p.Action)
+		return "", fmt.Errorf("未知 action %q（projects/items/quotas/quota/resources/bills）", p.Action)
 	}
+}
+
+// clViaNote / clViaMark 检索结果的命中方式标注。只有非关键词命中的才标：名称不含查询词
+// 却出现的，是向量路按同义说法召回的（〈语义〉）；查询词正好是编码 / 自有码的标〈编码〉。
+func clViaNote[T any](hits []workcost.Hit[T]) string {
+	for _, h := range hits {
+		if h.Via != workcost.ViaKeyword && h.Via != workcost.ViaList {
+			return "（标〈编码〉= 编码精确命中；标〈语义〉= 名称不含查询词、由向量路按同义说法召回）"
+		}
+	}
+	return ""
+}
+
+func clViaMark(via string) string {
+	switch via {
+	case workcost.ViaCode:
+		return "〈编码〉"
+	case workcost.ViaSemantic:
+		return "〈语义〉"
+	}
+	return ""
 }
 
 // runSummary 现算汇总口（2026-11-21 造价门实测 4.1：金额是造价的核心产出，

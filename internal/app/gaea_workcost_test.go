@@ -3,6 +3,7 @@ package app
 // 工料法绑定面：五表项目工作簿解析/落库的端到端验证。
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,13 +17,20 @@ import (
 // workcostTestApp 建隔离的临时库并把工料法存储注入进去。
 func workcostTestApp(t *testing.T) (*App, func()) {
 	t.Helper()
+	a, _, cleanup := workcostTestAppDB(t)
+	return a, cleanup
+}
+
+// workcostTestAppDB 同上，另给出底层库句柄（造价库向量索引要开在同一个库上）。
+func workcostTestAppDB(t *testing.T) (*App, *sql.DB, func()) {
+	t.Helper()
 	dir := t.TempDir()
 	gdb := db.GetDatabase(dir)
 	if gdb == nil {
 		t.Fatal("GetDatabase 返回 nil")
 	}
 	SetWorkcostStoreForTest(workcost.Open(gdb))
-	return &App{}, func() {
+	return &App{}, gdb, func() {
 		ResetWorkcostStoreForTest()
 		db.CloseDatabase(dir)
 	}

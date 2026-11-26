@@ -5,6 +5,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -86,6 +87,17 @@ func (a *App) GaeaWorkcostResourceGet(id int64) *workcost.Resource {
 
 // GaeaWorkcostResourceList 资源列表（kind/keyword 可空 = 不过滤）。
 func (a *App) GaeaWorkcostResourceList(kind string, keyword string) []workcost.Resource {
+	if a.costSearchEnabled(workcost.IndexKindResource, keyword) {
+		if hits, err := a.costSearcher().Resources(context.Background(), workcost.SearchQuery{
+			Text: keyword, Kind: kind, Limit: costSearchListLimit,
+		}); err == nil {
+			out := make([]workcost.Resource, len(hits))
+			for i, h := range hits {
+				out[i] = h.Item
+			}
+			return nonNilSlice(out)
+		}
+	}
 	list, err := a.hubWorkcostStore().ListResources(kind, keyword)
 	if err != nil {
 		return []workcost.Resource{}
@@ -144,8 +156,20 @@ func (a *App) GaeaWorkcostQuotaGet(code string) *workcost.Quota {
 	return q
 }
 
-// GaeaWorkcostQuotaList 定额列表（specialty/keyword 可空 = 不过滤）。
+// GaeaWorkcostQuotaList 定额列表（specialty/keyword 可空 = 不过滤）。索引就绪且带
+// keyword 时走混合检索（相关度序，含同义说法召回）；否则按原列表口径全量返回。
 func (a *App) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost.Quota {
+	if a.costSearchEnabled(workcost.IndexKindQuota, keyword) {
+		if hits, err := a.costSearcher().Quotas(context.Background(), workcost.SearchQuery{
+			Text: keyword, Specialty: specialty, Limit: costSearchListLimit,
+		}); err == nil {
+			out := make([]workcost.Quota, len(hits))
+			for i, h := range hits {
+				out[i] = h.Item
+			}
+			return nonNilSlice(out)
+		}
+	}
 	list, err := a.hubWorkcostStore().ListQuotas(specialty, keyword)
 	if err != nil {
 		return []workcost.Quota{}

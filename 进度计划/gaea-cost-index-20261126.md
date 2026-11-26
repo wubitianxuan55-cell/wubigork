@@ -1,8 +1,8 @@
 # 造价库本地模型索引 + 旧成本库全量退役（施工单与断点记录）
 
-2026-11-26 · 状态：**A1 已提交（`abd65f42`）；R 旧成本库退役已完成并单独提交（结果见 §八）**；
-B1 / B2 / A3 / V 未开工。**接续从 B1 开始（§三 设计 3、§四 B1），不要重新摸底。**
-（第一个会话傍晚开工、上下文用尽中断；第二个会话下午收尾 A1 并做完 R。）
+2026-11-26 · 状态：**A1 `abd65f42`、R `459723c2`、B1 `cb4e4c23`、B2（见 §九）均已提交；A3 / V 未开工。**
+**接续从 A3 开始（§三 设计 1、5 与 §四 A3，接线细节见 §九末「A3 要点」），不要重新摸底。**
+（第一个会话傍晚开工、上下文用尽中断；第二个会话下午收尾 A1 并做完 R、B1、B2。）
 
 与 WPS 能力开发是两条独立的线，互不捆绑（WPS 刀 1 的记录在 `gaea-wps-capability-plan-20261126.md`）。
 
@@ -80,8 +80,8 @@ B1 / B2 / A3 / V 未开工。**接续从 B1 开始（§三 设计 3、§四 B1�
 |---|---|---|
 | A1 | 索引底座包 `vecindex` + `SchemaV43` | **完成并提交**（15 项单测 `-race` 全过；提交号见 §五） |
 | R | 旧成本库全量退役 | **完成并单独提交**（清单见 §七，结果与验证见 §八） |
-| B1 | 造价库三类索引文档 + 写入点打脏标记 | 未开工 |
-| B2 | `workcost.Searcher` 混合检索；`cost_project` 与界面列表接入 | 未开工 |
+| B1 | 造价库三类索引文档 + 写入点打脏标记 | **完成并提交** `cb4e4c23`（见 §九） |
+| B2 | `workcost.Searcher` 混合检索；`cost_project` 与界面列表接入 | **完成并提交**（提交号见 §九） |
 | A3 | 应用接线：后台索引器随应用启动；索引固定 bge-m3；索引状态与补齐绑定 | 未开工 |
 | V | 验证：单测回归 + 真实库同义词评测（纯关键词 vs 混合）+ 性能压测 + 门禁 + 记档 + 提交 | 未开工 |
 
@@ -202,6 +202,52 @@ cost-compose 技能（它描述的组价校验引擎早已不在内核里）；�
   下次 `wails build` 照常再生复核。
 
 **未做 / 待令**：打包、装机、push（等用户通知）；真实库不迁移、不删表。
+
+## 九、B1 / B2 执行结果（第二个会话，2026-11-26 傍晚）
+
+**B1 三类索引文档 + 写入打脏标记（`cb4e4c23`，`internal/gaea/workcost/index.go`）**
+- 文档正文只放「是什么」，不放会频繁变动的数：定额 = 编码 + 名称 + 专业 + 章节 + 单位 + 分类路径 + 含量行资源名
+  （按 sort,id 排好再拼，正文哈希稳定）；工料机 = 编码 + 名称 + 规格 + 类型 + 分类路径 + 单位（不含单价）；
+  清单 = 编码 + 名称 + 项目特征 + 单位 + 项目名（不含工程量 / 综合单价；键是行 ID）。空字段整段不要。
+- 全量文档源 `Store.IndexSources()`：定额按编码键集分页，含量行资源名在 Go 侧拼（SQLite 派生表里不能引用
+  外层列，一条 SQL 做不了；含量行没填资源名时回查资源表；取含量行前先关定额游标，防单连接库自锁）。
+- **打脏标记没打在几十个写路径上，而是打在库句柄上**：`Open` 把 `*sql.DB` 包成 `dirtyDB / dirtyTx / dirtyStmt`，
+  写语句成功后按语句里的表名映射类目调 `vecindex.MarkDirty`（`gf_quotas` / `gf_quota_items` → wc_quota、
+  `gf_resources` → wc_res、`gf_bill_items` / `gf_projects` → wc_bill）。现有与将来的写路径一律覆盖；
+  事务回滚后多打的标记无害。`Store.DB()` 返回裸句柄，经它写库的调用方不经标记，靠索引器 10 分钟兜底对账。
+  三个 `backfill*GCodes` 改收 `executor` 接口。
+- 测试 4 项 `-race` 全过，含集成用例「Store 写入 → 打脏 → 索引器增量对账：只嵌新条目、调价不重嵌、删除清向量」。
+
+**B2 混合检索 `workcost.Searcher`（`internal/gaea/workcost/search.go`）**
+- 管线：编码 / 自有码精确 → 关键词（SQL LIKE：名称 / 编码 / 规格 / 章节 / 分类 / 项目特征）→ 向量（查询词向量化
+  一次，类目内存矩阵取 top-N）→ `vecindex.Order` 融合 → 候选超过 8 条且精排可用时重排 → 每条标 code / keyword /
+  semantic。编码精确命中只返回它，不再补近似。
+- 向量路任何一步不可用（模型没开 / 索引没建 / 维度对不上）一律静默让路，关键词路照常。查询词为空 = 按原
+  列表顺序返回。专业 / 类型 / 项目过滤对关键词路与向量路都生效（向量路命中的行按键回表时套过滤）。
+- 接入：
+  - `cost_project` 的 quotas / resources 带关键词一律走混合检索；非关键词命中的标〈编码〉/〈语义〉；
+    **新增 `action=bills` 跨项目清单行检索**（keyword / specialty / project_id），不新增工具。
+    造价提示词两处补了用法（查询词写自然说法、〈语义〉的含义、bills）。
+  - 界面 `GaeaWorkcostQuotaList` / `GaeaWorkcostResourceList`：只是浏览或类目索引没建时保持原列表口径
+    （全量返回，既有行为不变）；索引就绪且带关键词时走混合检索（前 200 条）。
+  - 模型依赖经 `builtin.LocalEmbedder` / `LocalReranker` 固定读 `[retrieval]` 配置（与方案库同一套客户端），
+    不走 `resolveHerdsmanSearchModel`。应用侧装配在 `internal/app/gaea_cost_search.go`（含测试注入缝
+    `SetCostIndexForTest`）。
+- 测试：workcost 6 项（关键词退化 / 编码短路 / 同义词召回 / 精排重排 / 向量路让路 / 清单跨项目）+ app 3 项
+  （工具标注与短路 / bills / 界面绑定「索引就绪才走」）全过。
+- B2 后的全量：`go build` / `go vet` 过；app 包 1366 例全绿；非 app 零回归（失败清单与 §八 相同）。
+
+**A3 要点（未开工，照此做）**：
+- 后台索引器：`app.go` 启动处按 `startFileIndexCron` 的范式（`Once` + 停止通道 + panic 恢复）起
+  `vecindex.NewIndexer(costIndexStore(), 模型名, embed 取值函数, hubWorkcostStore().IndexSources(), workcost.IndexKinds...)`，
+  `vecindex.SetDefault` 后 `go ix.Run(ctx)`；`officeState` 加 `costIndexOnce / costIndexStop / costIndexer`。
+  模型名取 `[retrieval] embed_model`（缺省 bge-m3），需要在 builtin 补一个对外取值函数。
+- 绑定：`GaeaCostIndexStatus`（各类目条数 / 已建向量数 / 模型 / 最近写入 / 最近错误；索引器是否在跑）与
+  `GaeaCostIndexBackfill(kind)`（显式补齐，空 = 全部）。`vecindex.Indexer` 要补「最近一次错误」的记录与取值。
+- 新绑定必须有人在用（`check-bindings-drift.ps1` §4 对新增死绑定 exit 1）：在造价数据库板块的工具条放一个
+  「语义索引」状态条 + 补齐按钮；配套改 `lib/bridge/cost.ts`（接口）、`mappings.ts`、`spaceBindings.ts`、mock、
+  `types/cost.ts`，`gen_bindings` 再生三份清单，wailsjs 的 `CostB.d.ts/.js` 与 `models.ts` 手工同步
+  （下次 `wails build` 再生复核）。
 
 ## 六、坑与纪律
 

@@ -23,6 +23,12 @@ func SetRerankerForTest(r *retrieval.Reranker) { rerankerOverride = r }
 // SetEmbedderForTest 注入隔离的 embedding 客户端（测试用）。
 func SetEmbedderForTest(e *retrieval.Embedder) { embedderOverride = e }
 
+// LocalEmbedder / LocalReranker 工具侧本地检索客户端的对外入口：app 的造价库混合检索
+// 复用同一套客户端与配置路由（[retrieval] 注入；零值 = localhost:8080 + 默认模型）。
+// kind 未知时为 nil，调用方按「这一路不可用」回退。
+func LocalEmbedder() *retrieval.Embedder { return localEmbedder() }
+func LocalReranker() *retrieval.Reranker { return localReranker() }
+
 // retrievalClientMu 保护两个检索客户端单例（刀D v4.247）：改前每次工具调用
 // new 一个 Embedder/Reranker（各自新建 http.Client），60s 的 Available() 探测
 // 缓存按实例存、永不命中——每次语义召回/精排都多做一次 /models 探测且
