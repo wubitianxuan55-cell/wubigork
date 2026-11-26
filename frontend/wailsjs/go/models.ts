@@ -491,6 +491,62 @@ export namespace app {
 	        this.source = source["source"];
 	    }
 	}
+	export class CostIndexKindView {
+	    kind: string;
+	    label: string;
+	    total: number;
+	    count: number;
+	    updatedAt: string;
+	    lastError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CostIndexKindView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.label = source["label"];
+	        this.total = source["total"];
+	        this.count = source["count"];
+	        this.updatedAt = source["updatedAt"];
+	        this.lastError = source["lastError"];
+	    }
+	}
+	export class CostIndexStatusView {
+	    kinds: CostIndexKindView[];
+	    model: string;
+	    running: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CostIndexStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kinds = this.convertValues(source["kinds"], CostIndexKindView);
+	        this.model = source["model"];
+	        this.running = source["running"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CrossEmbedInput {
 	    xlsxRel: string;
 	    sheet: string;
@@ -5757,46 +5813,6 @@ export namespace contextview {
 		    return a;
 		}
 	}
-	export class CostIndexKindView {
-	    kind: string;
-	    label: string;
-	    total: number;
-	    count: number;
-	    updatedAt: string;
-	    "lastError"?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new CostIndexKindView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.kind = source["kind"];
-	        this.label = source["label"];
-	        this.total = source["total"];
-	        this.count = source["count"];
-	        this.updatedAt = source["updatedAt"];
-	        this["lastError"] = source["lastError"];
-	    }
-	}
-
-	export class CostIndexStatusView {
-	    kinds: Array<CostIndexKindView>;
-	    model: string;
-	    running: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new CostIndexStatusView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.kinds = source["kinds"];
-	        this.model = source["model"];
-	        this.running = source["running"];
-	    }
-	}
-
 	export class CostRate {
 	    inputPer1M?: number;
 	    outputPer1M?: number;
