@@ -11,11 +11,14 @@ import (
 type CostB struct{ a *App }
 
 func (b *CostB) GaeaCostHealthScan() (*workcost.HealthReport, error) { return b.a.GaeaCostHealthScan() }
+func (b *CostB) GaeaCostIndexBackfill(kind string) (CostIndexStatusView, error) { return b.a.GaeaCostIndexBackfill(kind) }
+func (b *CostB) GaeaCostIndexStatus() CostIndexStatusView { return b.a.GaeaCostIndexStatus() }
 func (b *CostB) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, outPath string) (string, error) { return b.a.GaeaCostLibraryExport(kind, filter, outPath) }
 func (b *CostB) GaeaWorkcostBillItemDelete(id int64) error { return b.a.GaeaWorkcostBillItemDelete(id) }
 func (b *CostB) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillItems(projectID) }
 func (b *CostB) GaeaWorkcostBillProjectDelete(id int64) (int, error) { return b.a.GaeaWorkcostBillProjectDelete(id) }
 func (b *CostB) GaeaWorkcostBillProjects() []workcost.BillProject { return b.a.GaeaWorkcostBillProjects() }
+func (b *CostB) GaeaWorkcostBillSearch(keyword string, specialty string, projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillSearch(keyword, specialty, projectID) }
 func (b *CostB) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcost.ComposeOverride) (*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaCompose(code, overrides) }
 func (b *CostB) GaeaWorkcostQuotaComposeMany(codes []string) (map[string]*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaComposeMany(codes) }
 func (b *CostB) GaeaWorkcostQuotaDelete(code string) error { return b.a.GaeaWorkcostQuotaDelete(code) }

@@ -10,6 +10,7 @@
 import type { AppBindings } from "../bridge";
 import type { MakeMockState } from "./state";
 import type {
+  CostIndexStatusView,
   WorkcostBillItem,
   WorkcostBillProject,
   WorkcostCompose,
@@ -26,11 +27,12 @@ import type {
 
 type CostMethods = Pick<
   AppBindings,
-  | "CostHealthScan" | "CostLibraryExport"
+  | "CostHealthScan" | "CostLibraryExport" | "CostIndexStatus" | "CostIndexBackfill"
   | "WorkcostResourceList" | "WorkcostResourceDelete" | "WorkcostResourcePrices" | "WorkcostResourceUsage"
   | "WorkcostQuotaGet" | "WorkcostQuotaList" | "WorkcostQuotaDelete"
   | "WorkcostQuotaCompose" | "WorkcostQuotaComposeMany"
   | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemDelete" | "WorkcostBillProjectDelete"
+  | "WorkcostBillSearch"
 >;
 
 // ── 工料法 mock 状态（工料机资源库 + 消耗定额库 + 清单，浏览器内存态）──
@@ -259,6 +261,31 @@ export function buildCost(_s: MakeMockState): CostMethods {
         ...p,
         itemCount: mockBillItems.filter((b) => b.projectId === p.id).length,
       }));
+    },
+    // ── 语义索引（浏览器 dev 态没有本地模型：如实报未建，不假装就绪）──
+    async CostIndexStatus(): Promise<CostIndexStatusView> {
+      ensureWorkcostSeed();
+      const missing = "浏览器演示态无本地语义模型";
+      return {
+        model: "bge-m3",
+        running: false,
+        kinds: [
+          { kind: "wc_quota", label: "定额", total: mockQuotas.length, count: 0, updatedAt: "", lastError: missing },
+          { kind: "wc_res", label: "工料机", total: mockResources.length, count: 0, updatedAt: "", lastError: missing },
+          { kind: "wc_bill", label: "清单", total: mockBillItems.length, count: 0, updatedAt: "", lastError: missing },
+        ],
+      };
+    },
+    async CostIndexBackfill(_kind: string): Promise<CostIndexStatusView> {
+      throw new Error("浏览器演示态无本地语义模型，补齐不可用");
+    },
+    // WorkcostBillSearch 清单行跨项目检索（演示态只有子串匹配，没有语义路）。
+    async WorkcostBillSearch(keyword: string, _specialty: string, projectId: number): Promise<WorkcostBillItem[]> {
+      ensureWorkcostSeed();
+      const kw = keyword.trim();
+      return mockBillItems.filter((b) =>
+        (projectId === 0 || b.projectId === projectId)
+        && (kw === "" || b.title.includes(kw) || b.code.includes(kw) || (b.feature ?? "").includes(kw)));
     },
     async WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]> {
       ensureWorkcostSeed();

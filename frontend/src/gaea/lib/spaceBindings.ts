@@ -527,6 +527,8 @@ export const GAEA_METHOD_FACETS = {
   CostHealthScan: "work",
   // 造价库列表导出：写用户选定目录下的 xlsx，工位动作。
   CostLibraryExport: "work",
+  CostIndexStatus: "work",
+  CostIndexBackfill: "work",
   WorkcostResourceList: "work",
   WorkcostResourceDelete: "work",
   WorkcostResourcePrices: "work",
@@ -540,6 +542,7 @@ export const GAEA_METHOD_FACETS = {
   WorkcostBillItems: "work",
   WorkcostBillItemDelete: "work",
   WorkcostBillProjectDelete: "work",
+  WorkcostBillSearch: "work",
   RetrievalEvalRun: "work",
   MemoryDuplicates: "work",
   MemoryRecall: "work",

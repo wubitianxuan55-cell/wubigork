@@ -65,12 +65,18 @@ func (a *App) costIndexReady(kind string) bool {
 	return err == nil && m.Count > 0
 }
 
-// costIndexEmbedder 向量化能力：与方案库同一套客户端；检索后端 kind 未知时为 nil（只走关键词）。
+// costIndexEmbedder 向量化能力：与方案库同一套客户端；检索后端 kind 未知时返回 nil
+// （只走关键词）。注意别把 nil 的 *retrieval.Embedder 装进接口——那是「非 nil 的接口包着
+// nil 指针」，调用方的 nil 判断会失效、一调就崩。
 func (a *App) costIndexEmbedder() workcost.SearchEmbedder {
 	if costIndexEmbedderOverride != nil {
 		return costIndexEmbedderOverride()
 	}
-	return builtin.LocalEmbedder()
+	e := builtin.LocalEmbedder()
+	if e == nil {
+		return nil
+	}
+	return e
 }
 
 // costIndexReranker 本地精排；模型当前不可用时 Rerank 返回 nil（检索器按融合分返回）。

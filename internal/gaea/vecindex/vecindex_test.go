@@ -621,6 +621,42 @@ func TestIndexer_MarkAllAndNoDefault(t *testing.T) {
 	nilIx.Mark("a") // 不应 panic
 }
 
+// 最近一轮对账的错误记在案（模型不可用 / 出错），成功后清除；Model / Kinds 取值。
+func TestIndexer_RecordsLastError(t *testing.T) {
+	h := testDB(t)
+	var available atomic.Bool
+	emb := &charEmbedder{dim: 8}
+	ix := NewIndexer(h.st, "bge-m3", func() Embedder {
+		if !available.Load() {
+			return nil
+		}
+		return emb
+	}, map[string]Source{"k": staticSource(Doc{"a", "内容"})}, "k")
+	if ix.Model() != "bge-m3" || len(ix.Kinds()) != 1 || ix.Kinds()[0] != "k" {
+		t.Fatalf("Model / Kinds: %q %v", ix.Model(), ix.Kinds())
+	}
+	if _, ok := ix.LastError("k"); ok {
+		t.Fatal("还没对账过不该有错误记录")
+	}
+	if _, err := ix.ApplyNow(context.Background(), "k"); err == nil {
+		t.Fatal("模型不可用时 ApplyNow 应报错")
+	}
+	if err, ok := ix.LastError("k"); !ok || err == nil {
+		t.Fatalf("模型不可用应记在案: %v %v", err, ok)
+	}
+	available.Store(true)
+	if _, err := ix.ApplyNow(context.Background(), "k"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ix.LastError("k"); ok {
+		t.Fatal("成功后应清除错误记录")
+	}
+	var nilIx *Indexer
+	if nilIx.Model() != "" || nilIx.Kinds() != nil {
+		t.Fatal("nil 索引器的取值应为零值")
+	}
+}
+
 func waitFor(t *testing.T, d time.Duration, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(d)

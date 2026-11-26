@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 665 名（原生变参 18 名已收窄标注）。
+// 共 668 名（原生变参 18 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -120,6 +120,8 @@ export const bindingSignatures = {
   GaeaContextView: { argc: 1, variadic: true, params: "sessionPath string" }, // 原生变参已收窄：门面单值透传（原始 ...T）
   GaeaConvertToPdf: { argc: 1, variadic: false, params: "rel string" },
   GaeaCostHealthScan: { argc: 0, variadic: false, params: "" },
+  GaeaCostIndexBackfill: { argc: 1, variadic: false, params: "kind string" },
+  GaeaCostIndexStatus: { argc: 0, variadic: false, params: "" },
   GaeaCostLibraryExport: { argc: 3, variadic: false, params: "kind string, filter workcost.LibraryFilter, outPath string" },
   GaeaCreateProject: { argc: 2, variadic: false, params: "parent string, name string" },
   GaeaCreateWorkspaceFile: { argc: 2, variadic: false, params: "parent string, name string" },
@@ -370,6 +372,7 @@ export const bindingSignatures = {
   GaeaWorkcostBillItems: { argc: 1, variadic: false, params: "projectID int64" },
   GaeaWorkcostBillProjectDelete: { argc: 1, variadic: false, params: "id int64" },
   GaeaWorkcostBillProjects: { argc: 0, variadic: false, params: "" },
+  GaeaWorkcostBillSearch: { argc: 3, variadic: false, params: "keyword string, specialty string, projectID int64" },
   GaeaWorkcostQuotaCompose: { argc: 2, variadic: false, params: "code string, overrides map[string]workcost.ComposeOverride" },
   GaeaWorkcostQuotaComposeMany: { argc: 1, variadic: false, params: "codes []string" },
   GaeaWorkcostQuotaDelete: { argc: 1, variadic: false, params: "code string" },
@@ -686,5 +689,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 665。
-export const bindingSignatureCount = 665;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 668。
+export const bindingSignatureCount = 668;

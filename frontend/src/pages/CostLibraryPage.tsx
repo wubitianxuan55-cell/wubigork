@@ -19,12 +19,13 @@ import {
 import { app } from "../gaea/lib/bridge";
 import { copyToClipboard } from "../gaea/lib/clipboard";
 import { useBoardActive } from "../lib/boardActive";
-import type { WorkcostBillProject, WorkcostLibraryFilter, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
+import type { CostIndexStatusView, WorkcostBillProject, WorkcostLibraryFilter, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
 import { BillDetail, DetailState, QuotaDetail, ResourceDetail } from "./cost-library/Details";
 import { HealthDrawer, type HealthJump } from "./cost-library/HealthDrawer";
 import { DeleteDialog, ExportMenu, type DeleteRequest, type ExportItem } from "./cost-library/Overlays";
 import { BillTable, QuotaTable, ResourceTable } from "./cost-library/Tables";
 import { TierBar, TierRail, type TierCounts } from "./cost-library/TierRail";
+import { IndexStatus } from "./cost-library/IndexStatus";
 import {
   NONE, OUTSIDE, PENDING_PROMPT, SAMPLE_PROMPTS, TIERS, capRows, categoryTreeOf, chaptersOf, billSpecialties, dimLabel,
   emptyBillFilters, emptyQuotaFilters, emptyResourceFilters, divisionsOf, facetMatch, filterBill, filterQuotas, filterResources,
@@ -99,6 +100,9 @@ function FacetSelect({ label, allLabel, value, facets, onChange, emptyLabel, for
 }
 
 /** 行的选择键：清单用行 id，定额 / 工料机用编码。 */
+// 语义补充段最多显示的条数（补充段是「意思相近」的提示，不是主列表）。
+const SEM_CAP = 30;
+
 function rowKeyOf(tier: Tier, row: LibraryRow): SelKey {
   return tier === "bill" ? selKey("bill", (row as BillRow).id) : selKey(tier, (row as WorkcostQuota | WorkcostResource).code);
 }
@@ -245,6 +249,11 @@ function CostLibraryPage() {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportNote, setExportNote] = useState<{ text: string; isError: boolean } | null>(null);
   const [notice, setNotice] = useState("");
+  // 语义索引（2026-11-26 造价库接入本地模型索引）：状态栏的状态钮读它，三级关键词检索也靠它
+  // 判断「该级的向量索引建好没有」；semRows 是语义补充段（名称不含关键词、意思相近的条目）。
+  const [indexStatus, setIndexStatus] = useState<CostIndexStatusView | null>(null);
+  const [semRows, setSemRows] = useState<LibraryRow[]>([]);
+  const semSeq = useRef(0);
   const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
 
   // 窄窗（三栏放不下）改单栏：三级切换横排，列表与详情用页签切换。按容器宽度判定。
@@ -318,6 +327,17 @@ function CostLibraryPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // 索引状态读不到（老版本后端 / 绑定不可用）按「没有语义索引」处理，不影响本地过滤。
+  const loadIndexStatus = useCallback(async () => {
+    if (typeof app.CostIndexStatus !== "function") return;
+    try {
+      setIndexStatus(await app.CostIndexStatus());
+    } catch {
+      setIndexStatus(null);
+    }
+  }, []);
+  useEffect(() => { void loadIndexStatus(); }, [loadIndexStatus]);
+
   // 本板块 keepAlive 常驻：去造价模式录完数据再切回来，组件不会重挂，挂载时
   // 那一次读取就成了旧快照。板块由隐藏转回可见时静默重读（方案库同款修法）。
   const boardActive = useBoardActive("cost");
@@ -330,7 +350,8 @@ function CostLibraryPage() {
     if (!awayRef.current) return;
     awayRef.current = false;
     void load(true);
-  }, [boardActive, load]);
+    void loadIndexStatus();
+  }, [boardActive, load, loadIndexStatus]);
 
   // ── 派生：引用索引、筛选项、当前级的可见行 ──
   const usageIndex = useMemo(() => quotaUsageIndex(snap.rows), [snap.rows]);
@@ -370,6 +391,45 @@ function CostLibraryPage() {
   const libraryEmpty = phase === "ready" && counts.bill === 0 && counts.quota === 0 && counts.resource === 0;
   const keyword = tier === "bill" ? billF.keyword : tier === "quota" ? quotaF.keyword : resourceF.keyword;
   const tierMeta = TIERS.find((t) => t.key === tier) ?? TIERS[0];
+
+  // ── 语义检索补充 ──
+  // 搜索框照旧做本地子串过滤；关键词非空且该级向量索引已建时，另调一次后台混合检索，把「名称不含
+  // 关键词、意思相近」的条目（如「挖机」对「挖掘机」）放进补充段。索引没建 / 绑定不可用 / 请求失败：
+  // 没有补充段，本地过滤照常。其它筛选（专业 / 章节 / 类别…）对补充段同样生效。
+  useEffect(() => {
+    const kw = keyword.trim();
+    const kind = tier === "bill" ? "wc_bill" : tier === "quota" ? "wc_quota" : "wc_res";
+    const ready = (indexStatus?.kinds.find((k) => k.kind === kind)?.count ?? 0) > 0;
+    if (!kw || !ready) {
+      setSemRows([]);
+      return;
+    }
+    const seq = ++semSeq.current;
+    const timer = window.setTimeout(async () => {
+      let extra: LibraryRow[] = [];
+      try {
+        if (tier === "quota") {
+          const local = new Set(quotaRows.map((q) => q.code));
+          extra = ((await app.WorkcostQuotaList(quotaF.specialty, kw)) ?? [])
+            .filter((q) => !local.has(q.code) && filterQuotas([q], { ...quotaF, keyword: "" }).length > 0);
+        } else if (tier === "resource") {
+          const local = new Set(resourceRows.map((r) => r.code));
+          extra = ((await app.WorkcostResourceList(resourceF.kind, kw)) ?? [])
+            .filter((r) => !local.has(r.code) && filterResources([r], { ...resourceF, keyword: "" }).length > 0);
+        } else if (typeof app.WorkcostBillSearch === "function") {
+          const local = new Set(billRows.map((r) => String(r.id)));
+          extra = ((await app.WorkcostBillSearch(kw, billF.specialty, billF.projectId)) ?? [])
+            .filter((it) => !local.has(String(it.id)))
+            .map((it) => ({ ...it, projectName: snap.projects.find((p) => p.id === it.projectId)?.name ?? "" }))
+            .filter((row) => filterBill([row], { ...billF, keyword: "" }).length > 0);
+        }
+      } catch {
+        extra = [];
+      }
+      if (seq === semSeq.current) setSemRows(extra);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [tier, keyword, indexStatus, quotaRows, resourceRows, billRows, quotaF, resourceF, billF, snap.projects]);
 
   // 选择键对应的行还在不在（重读后别处被删，就不能让它继续挂在界面上）。
   const keyAlive = useCallback((key: SelKey): boolean => {
@@ -505,6 +565,19 @@ function CostLibraryPage() {
     window.setTimeout(() => setNotice(""), 4000);
   };
 
+  // 语义索引显式补齐（状态栏的钮）：模型不可用时绑定会 reject，原因留在提示里。
+  const backfillIndex = async () => {
+    if (typeof app.CostIndexBackfill !== "function") return;
+    try {
+      await app.CostIndexBackfill("");
+      await loadIndexStatus();
+      showNotice("语义索引已补齐");
+    } catch (e) {
+      await loadIndexStatus();
+      showNotice(`语义索引补齐失败：${message(e)}`);
+    }
+  };
+
   // ── 导出 ──
   const runExport = async (rawKey: string) => {
     const kind = rawKey as ExportKind;
@@ -598,6 +671,34 @@ function CostLibraryPage() {
   // 宽窗下右栏按需展开：选中了行，或清单级正看着某个项目的封面卡。
   const detailActive = !!selected || (tier === "bill" && !!currentProject);
 
+  // 一批行按当前级渲染成表（主列表与语义补充段共用同一套表组件）。
+  const renderTables = (rows: LibraryRow[]) => (
+    <>
+            {tier === "bill" && (
+              <BillTable rows={rows as BillRow[]} grouped={billF.grouped} showProject={billF.projectId === 0}
+                refPrices={snap.refPrices} checked={checked} active={activeKey} expanded={expandedGroups}
+                onToggleGroup={(key) => setExpandedGroups((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(key)) n.delete(key);
+                  else n.add(key);
+                  return n;
+                })}
+                onToggle={toggle} onToggleAll={toggleAll} onOpen={openBill} onOpenQuota={openQuota}
+                onDelete={(row) => deleteBillRows([row])} />
+            )}
+            {tier === "quota" && (
+              <QuotaTable rows={rows as WorkcostQuota[]} usage={usageCount}
+                refPrices={snap.refPrices} checked={checked} active={activeKey}
+                onToggle={toggle} onToggleAll={toggleAll} onOpen={(q) => jump("quota", selKey("quota", q.code))}
+                onDelete={(q) => deleteQuotaRows([q])} />
+            )}
+            {tier === "resource" && (
+              <ResourceTable rows={rows as WorkcostResource[]} checked={checked} active={activeKey}
+                onToggle={toggle} onToggleAll={toggleAll} onOpen={(r) => jump("resource", selKey("resource", r.code))}
+                onDelete={(r) => deleteResourceRows([r])} />
+            )}
+    </>
+  );
   const listPane = (
     <>
       <div className="cl-col-head">
@@ -647,7 +748,7 @@ function CostLibraryPage() {
         )}
       </div>
       <div className="cl-list">
-        {matched.length === 0 ? (
+        {matched.length === 0 && semRows.length === 0 ? (
           <div className="cl-state" data-testid="cost-tier-empty">
             <Inbox size={18} aria-hidden />
             <span className="cl-state-title">{totalOfTier === 0 ? `${tierMeta.label}库还是空的` : "没有匹配的行"}</span>
@@ -666,35 +767,26 @@ function CostLibraryPage() {
           </div>
         ) : (
           <>
-            {tier === "bill" && (
-              <BillTable rows={view.shown as BillRow[]} grouped={billF.grouped} showProject={billF.projectId === 0}
-                refPrices={snap.refPrices} checked={checked} active={activeKey} expanded={expandedGroups}
-                onToggleGroup={(key) => setExpandedGroups((prev) => {
-                  const n = new Set(prev);
-                  if (n.has(key)) n.delete(key);
-                  else n.add(key);
-                  return n;
-                })}
-                onToggle={toggle} onToggleAll={toggleAll} onOpen={openBill} onOpenQuota={openQuota}
-                onDelete={(row) => deleteBillRows([row])} />
-            )}
-            {tier === "quota" && (
-              <QuotaTable rows={view.shown as WorkcostQuota[]} usage={usageCount}
-                refPrices={snap.refPrices} checked={checked} active={activeKey}
-                onToggle={toggle} onToggleAll={toggleAll} onOpen={(q) => jump("quota", selKey("quota", q.code))}
-                onDelete={(q) => deleteQuotaRows([q])} />
-            )}
-            {tier === "resource" && (
-              <ResourceTable rows={view.shown as WorkcostResource[]} checked={checked} active={activeKey}
-                onToggle={toggle} onToggleAll={toggleAll} onOpen={(r) => jump("resource", selKey("resource", r.code))}
-                onDelete={(r) => deleteResourceRows([r])} />
-            )}
+            {matched.length > 0 && (
+              <>
+                {renderTables(view.shown)}
             {view.hidden > 0 && (
               <div className="cl-more">
                 <button type="button" className="cl-btn" onClick={() => setCap(cap + ROW_CAP)}>
                   再显示 {Math.min(ROW_CAP, view.hidden)} 条（余 {view.hidden} 条）
                 </button>
               </div>
+            )}
+              </>
+            )}
+            {semRows.length > 0 && (
+              <section className="cl-sem" data-testid="cost-semantic" aria-label="语义相近的条目">
+                <div className="cl-sem-head">
+                  名称不含「{keyword}」、意思相近
+                  <span>语义检索 {semRows.length} 条{semRows.length > SEM_CAP ? `，显示前 ${SEM_CAP} 条` : ""}</span>
+                </div>
+                {renderTables(semRows.slice(0, SEM_CAP))}
+              </section>
             )}
           </>
         )}
@@ -834,6 +926,7 @@ function CostLibraryPage() {
                 {copyState === "done" ? "已复制提示词" : copyState === "failed" ? "复制失败" : `待整理 ${pending.total}`}
               </button>
             )}
+            <IndexStatus status={indexStatus} onBackfill={backfillIndex} />
             {snap.failedSources.length > 0 && (
               <span className="cl-status-warn" role="alert">{snap.failedSources.join("、")}读取失败，对应内容可能不完整</span>
             )}

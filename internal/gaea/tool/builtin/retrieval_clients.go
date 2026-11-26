@@ -29,6 +29,10 @@ func SetEmbedderForTest(e *retrieval.Embedder) { embedderOverride = e }
 func LocalEmbedder() *retrieval.Embedder { return localEmbedder() }
 func LocalReranker() *retrieval.Reranker { return localReranker() }
 
+// LocalEmbedModel 工具侧生效的向量模型名（[retrieval] 未给 = bge-m3）。造价库向量索引
+// 以它为模型名落库：配置改了模型，索引器会按「模型名对不上」整类目重嵌。
+func LocalEmbedModel() string { return retrievalEmbedModel() }
+
 // retrievalClientMu 保护两个检索客户端单例（刀D v4.247）：改前每次工具调用
 // new 一个 Embedder/Reranker（各自新建 http.Client），60s 的 Available() 探测
 // 缓存按实例存、永不命中——每次语义召回/精排都多做一次 /models 探测且

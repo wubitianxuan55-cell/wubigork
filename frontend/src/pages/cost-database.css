@@ -1496,3 +1496,58 @@
 .cl-health .cl-usage-item:hover {
   background: var(--cl-wash);
 }
+
+/* 状态行的「语义索引」状态钮（2026-11-26 造价库接入本地模型索引）：一眼看出能不能按意思搜，
+   点一下立即补齐。配色随 data-tone：就绪 / 建设中用强调色，出错转警示色，未建置灰。 */
+.cl-index {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--fg);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.cl-index:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.cl-index[data-tone="warn"] {
+  border-color: color-mix(in srgb, var(--warn) 36%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--warn);
+}
+
+.cl-index[data-tone="empty"] {
+  border-color: var(--cl-line-strong);
+  background: transparent;
+  color: var(--fg-dim);
+}
+
+.cl-index:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+/* 列表尾部的语义补充段：名称不含关键词、意思相近的条目（混合检索的向量路召回）。 */
+.cl-sem {
+  margin-top: 6px;
+  border-top: 1px dashed var(--cl-line-strong);
+}
+
+.cl-sem-head {
+  padding: 9px 12px 3px;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+}
+
+.cl-sem-head span {
+  margin-left: 8px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}

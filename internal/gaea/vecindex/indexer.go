@@ -40,6 +40,7 @@ type Indexer struct {
 	pending map[string]bool
 	wake    chan struct{}
 	last    map[string]Stats
+	lastErr map[string]error // 最近一轮对账的错误；成功后清除。索引状态面读它，不用再去探测模型
 }
 
 var (
@@ -60,6 +61,7 @@ func NewIndexer(st *Store, model string, embed func() Embedder, sources map[stri
 		pending:        map[string]bool{},
 		wake:           make(chan struct{}, 1),
 		last:           map[string]Stats{},
+		lastErr:        map[string]error{},
 	}
 }
 
@@ -112,6 +114,43 @@ func (ix *Indexer) Last(kind string) (Stats, bool) {
 	return st, ok
 }
 
+// LastError 最近一轮对账的错误（模型不可用 / 向量化失败…）。返回 ok=false 表示没有
+// 记录在案的错误：要么一切正常，要么这个类目还没对账过（配 Last 一起看）。
+func (ix *Indexer) LastError(kind string) (error, bool) {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	err, ok := ix.lastErr[kind]
+	return err, ok
+}
+
+// Model 索引使用的向量模型名。
+func (ix *Indexer) Model() string {
+	if ix == nil {
+		return ""
+	}
+	return ix.model
+}
+
+// Kinds 索引器管的类目（固定顺序）。
+func (ix *Indexer) Kinds() []string {
+	if ix == nil {
+		return nil
+	}
+	return append([]string(nil), ix.kinds...)
+}
+
+// record 记下一轮对账的结果：成功清错误，失败留错误。
+func (ix *Indexer) record(kind string, st Stats, err error) {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	if err != nil {
+		ix.lastErr[kind] = err
+		return
+	}
+	delete(ix.lastErr, kind)
+	ix.last[kind] = st
+}
+
 // ApplyNow 立刻对一个类目对账（不等合并窗口；显式补齐与测试用）。模型不可用时报错。
 func (ix *Indexer) ApplyNow(ctx context.Context, kind string) (Stats, error) {
 	src := ix.sources[kind]
@@ -120,28 +159,33 @@ func (ix *Indexer) ApplyNow(ctx context.Context, kind string) (Stats, error) {
 	}
 	emb := ix.embed()
 	if emb == nil {
-		return Stats{}, errEmbedUnavailable
+		err := errEmbedUnavailable
+		ix.record(kind, Stats{}, err)
+		return Stats{}, err
 	}
 	st, err := ix.st.Apply(ctx, kind, ix.model, src, emb, EmbedBatch)
-	if err == nil {
-		ix.mu.Lock()
-		ix.last[kind] = st
-		ix.mu.Unlock()
-	}
+	ix.record(kind, st, err)
 	return st, err
 }
 
-// Run 阻塞运行到 ctx 结束。启动先对一轮；之后被脏标记唤醒（过合并窗口再动手），
-// 另按 ReconcileEvery 兜底全量对账。
+// Run 阻塞运行到 ctx 结束。启动先对一轮（立即做，不等合并窗口——开机那一刻没有需要
+// 合并的写入，索引越早可用越好）；之后被脏标记唤醒（过合并窗口再动手），另按
+// ReconcileEvery 兜底全量对账。
 func (ix *Indexer) Run(ctx context.Context) {
 	ix.Mark()
+	if ctx.Err() != nil {
+		return
+	}
+	var retryC <-chan time.Time
+	if !ix.runPending(ctx) {
+		retryC = time.After(ix.RetryAfter)
+	}
 	debounce := time.NewTimer(ix.Debounce)
 	defer debounce.Stop()
 	retry := time.NewTimer(time.Hour)
 	if !retry.Stop() {
 		<-retry.C
 	}
-	var retryC <-chan time.Time
 	var recC <-chan time.Time
 	if ix.ReconcileEvery > 0 {
 		rec := time.NewTicker(ix.ReconcileEvery)
@@ -197,6 +241,9 @@ func (ix *Indexer) runPending(ctx context.Context) bool {
 	if emb == nil {
 		ix.mu.Unlock()
 		slog.Debug("vecindex: embedding 模型不可用，索引待办保留", "kinds", todo)
+		for _, k := range todo {
+			ix.record(k, Stats{}, errEmbedUnavailable)
+		}
 		return false
 	}
 	// 取走待办：对账期间新来的脏标记留到下一轮（那一轮会看到这期间的全部改动）
@@ -218,6 +265,7 @@ func (ix *Indexer) runPending(ctx context.Context) bool {
 		st, err := ix.st.Apply(ctx, k, ix.model, src, emb, EmbedBatch)
 		if err != nil {
 			slog.Warn("vecindex: 对账失败，稍后重试", "kind", k, "error", err)
+			ix.record(k, st, err)
 			ix.Mark(k)
 			ok = false
 			continue
@@ -226,9 +274,7 @@ func (ix *Indexer) runPending(ctx context.Context) bool {
 			slog.Info("vecindex: 索引已更新", "kind", k, "total", st.Total, "embedded", st.Embedded,
 				"removed", st.Removed, "count", st.Count, "dur", st.Dur.Round(time.Millisecond))
 		}
-		ix.mu.Lock()
-		ix.last[k] = st
-		ix.mu.Unlock()
+		ix.record(k, st, nil)
 	}
 	return ok
 }

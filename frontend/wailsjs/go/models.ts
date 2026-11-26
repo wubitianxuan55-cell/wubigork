@@ -5757,6 +5757,46 @@ export namespace contextview {
 		    return a;
 		}
 	}
+	export class CostIndexKindView {
+	    kind: string;
+	    label: string;
+	    total: number;
+	    count: number;
+	    updatedAt: string;
+	    "lastError"?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CostIndexKindView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.label = source["label"];
+	        this.total = source["total"];
+	        this.count = source["count"];
+	        this.updatedAt = source["updatedAt"];
+	        this["lastError"] = source["lastError"];
+	    }
+	}
+
+	export class CostIndexStatusView {
+	    kinds: Array<CostIndexKindView>;
+	    model: string;
+	    running: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CostIndexStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kinds = source["kinds"];
+	        this.model = source["model"];
+	        this.running = source["running"];
+	    }
+	}
+
 	export class CostRate {
 	    inputPer1M?: number;
 	    outputPer1M?: number;

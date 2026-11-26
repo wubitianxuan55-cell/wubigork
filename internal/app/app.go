@@ -33,6 +33,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/telemetry"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/vecindex"
 	"github.com/gaea/gaea/internal/gaea/vision"
 	"github.com/gaea/gaea/internal/gaea/workbench"
 	"github.com/gaea/gaea/internal/httpbridge"
@@ -233,10 +234,11 @@ type officeState struct {
 	// app 反向引用：跨域调用经 App 协调。
 	app *App
 
-	// 价格源定时抓取调度（P1-⑥）：app 启动后按订阅频率检查到期源。
-	priceCronStop chan struct{}
-	priceCronOnce sync.Once
-	priceStopOnce sync.Once
+	// 造价库向量索引的后台索引器：启动先对一轮，之后写入打脏标记唤醒 + 定时兜底对账。
+	costIndexer       *vecindex.Indexer
+	costIndexOnce     sync.Once
+	costIndexStop     context.CancelFunc
+	costIndexStopOnce sync.Once
 
 	// 文件语义索引自动维护：每 10 分钟增量重建（Ensure 内容感知）。
 	fileIndexStop     chan struct{}
@@ -609,6 +611,8 @@ func (a *App) Startup(ctx context.Context) {
 	// 文件语义索引自动维护：启动后立即增量重建一次，之后每 10 分钟（实时监听
 	// 可用时轮询仅作兜底，见 startFileWatch）。
 	a.startFileIndexCron()
+	// 造价库向量索引：后台增量对账（清单 / 定额 / 工料机三类；检索走内存矩阵，不在这里建）。
+	a.startCostIndexer()
 	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，秒级可搜）。
 	// go 化（2026-09-20 审计）：startFileWatch 内部对整树同步 WalkDir+逐目录
 	// Add，大工作区拖慢 Startup 临界路径——移入 goroutine；进程退出路径
@@ -775,10 +779,10 @@ func (a *App) Shutdown(ctx context.Context) {
 	if err := characterlib.CloseDatabase(filepath.Join(a.whisperDataRoot, "characterlib")); err != nil {
 		slog.Error("关闭 characterlib.db 失败", "error", err)
 	}
-	// 停止价格源定时抓取调度。
-	a.officeState.priceStopOnce.Do(func() {
-		if a.officeState.priceCronStop != nil {
-			close(a.officeState.priceCronStop)
+	// 停止造价库向量索引的后台索引器。
+	a.officeState.costIndexStopOnce.Do(func() {
+		if a.officeState.costIndexStop != nil {
+			a.officeState.costIndexStop()
 		}
 	})
 	a.officeState.fileIndexStopOnce.Do(func() {

@@ -6,6 +6,14 @@ export function GaeaCostHealthScan() {
   return window['go']['app']['CostB']['GaeaCostHealthScan']();
 }
 
+export function GaeaCostIndexBackfill(arg1) {
+  return window['go']['app']['CostB']['GaeaCostIndexBackfill'](arg1);
+}
+
+export function GaeaCostIndexStatus() {
+  return window['go']['app']['CostB']['GaeaCostIndexStatus']();
+}
+
 export function GaeaCostLibraryExport(arg1, arg2, arg3) {
   return window['go']['app']['CostB']['GaeaCostLibraryExport'](arg1, arg2, arg3);
 }
@@ -24,6 +32,10 @@ export function GaeaWorkcostBillProjectDelete(arg1) {
 
 export function GaeaWorkcostBillProjects() {
   return window['go']['app']['CostB']['GaeaWorkcostBillProjects']();
+}
+
+export function GaeaWorkcostBillSearch(arg1, arg2, arg3) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillSearch'](arg1, arg2, arg3);
 }
 
 export function GaeaWorkcostQuotaCompose(arg1, arg2) {

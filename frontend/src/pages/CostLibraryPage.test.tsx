@@ -7,7 +7,7 @@
 // ⑪空库三步引导与去办公板块。桥接只 mock 页面消费的绑定。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { WorkcostBillProject, WorkcostCompose, WorkcostQuota, WorkcostResource } from '../gaea/lib/types'
+import type { CostIndexStatusView, WorkcostBillProject, WorkcostCompose, WorkcostQuota, WorkcostResource } from '../gaea/lib/types'
 
 const mocks = vi.hoisted(() => ({
   WorkcostBillProjects: vi.fn(),
@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => ({
   CostHealthScan: vi.fn(),
   CostLibraryExport: vi.fn(),
   PickDirectory: vi.fn(),
+  CostIndexStatus: vi.fn(),
+  CostIndexBackfill: vi.fn(),
+  WorkcostBillSearch: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 vi.mock('../gaea/lib/clipboard', () => ({ copyToClipboard: vi.fn().mockResolvedValue('plain') }))
@@ -121,6 +124,18 @@ beforeEach(() => {
   })
   mocks.CostLibraryExport.mockImplementation(async (_k: string, _f: unknown, out: string) => out)
   mocks.PickDirectory.mockResolvedValue('D:\\新工作\\导出')
+  // 语义索引默认「未建」（条数 0）：页面不出去调语义补充，本地过滤照常。
+  const unbuilt = {
+    model: 'bge-m3', running: true,
+    kinds: [
+      { kind: 'wc_quota', label: '定额', total: 0, count: 0, updatedAt: '' },
+      { kind: 'wc_res', label: '工料机', total: 0, count: 0, updatedAt: '' },
+      { kind: 'wc_bill', label: '清单', total: 0, count: 0, updatedAt: '' },
+    ],
+  }
+  mocks.CostIndexStatus.mockResolvedValue(unbuilt)
+  mocks.CostIndexBackfill.mockResolvedValue(unbuilt)
+  mocks.WorkcostBillSearch.mockResolvedValue([])
 })
 
 describe('造价数据库 · 三级浏览面', () => {
@@ -629,5 +644,110 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     fireEvent.click(within(section).getByRole('button', { name: /Z01/ }))
     await screen.findByTestId('cost-detail-resource')
     expectAriaSelected(screen.getByTestId('cost-tier-resource'))
+  })
+})
+
+describe('造价数据库 · 语义索引（2026-11-26 造价库接入本地模型索引）', () => {
+  const readyStatus = (): CostIndexStatusView => ({
+    model: 'bge-m3', running: true,
+    kinds: [
+      { kind: 'wc_quota', label: '定额', total: 2, count: 2, updatedAt: '2026-11-26T08:00:00Z' },
+      { kind: 'wc_res', label: '工料机', total: 3, count: 3, updatedAt: '' },
+      { kind: 'wc_bill', label: '清单', total: 3, count: 3, updatedAt: '' },
+    ],
+  })
+
+  it('对账数与向量数都是 0：没有可索引的东西，不出状态钮；也不出语义补充段', async () => {
+    await renderReady()
+    // 默认对账数与向量数都是 0：没有可索引的东西，不出钮
+    expect(screen.queryByTestId('cost-index-status')).toBeNull()
+    expect(mocks.WorkcostQuotaList).toHaveBeenCalledTimes(1) // 只有挂载那一次全量读取
+  })
+
+  it('索引未建但库里有条目：状态钮置灰写「未建」，搜索照旧只做本地过滤', async () => {
+    mocks.CostIndexStatus.mockResolvedValue({
+      model: 'bge-m3', running: true,
+      kinds: [
+        { kind: 'wc_quota', label: '定额', total: 2, count: 0, updatedAt: '' },
+        { kind: 'wc_res', label: '工料机', total: 3, count: 0, updatedAt: '' },
+        { kind: 'wc_bill', label: '清单', total: 3, count: 0, updatedAt: '' },
+      ],
+    })
+    await renderReady()
+    const btn = screen.getByTestId('cost-index-status')
+    expect(btn.getAttribute('data-tone')).toBe('empty')
+    expectText(btn, '语义索引 未建')
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '企业' } })
+    await new Promise((r) => setTimeout(r, 400))
+    expect(screen.queryByTestId('cost-semantic')).toBeNull()
+    expect(mocks.WorkcostQuotaList).toHaveBeenCalledTimes(1)
+  })
+
+  it('索引就绪：状态钮写「就绪」；点击调补齐、重读状态并出提示', async () => {
+    mocks.CostIndexStatus.mockResolvedValue(readyStatus())
+    mocks.CostIndexBackfill.mockResolvedValue(readyStatus())
+    await renderReady()
+    const btn = screen.getByTestId('cost-index-status')
+    expect(btn.getAttribute('data-tone')).toBe('ok')
+    expectText(btn, '语义索引 就绪')
+    fireEvent.click(btn)
+    await waitFor(() => expect(mocks.CostIndexBackfill).toHaveBeenCalledWith(''))
+    await waitFor(() => expect(screen.getByTestId('cost-notice').textContent).toContain('语义索引已补齐'))
+    // 挂载读一次 + 补齐后重读一次
+    expect(mocks.CostIndexStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('模型不可用：状态钮转警示色；补齐失败把原因留在提示里', async () => {
+    const st = readyStatus()
+    st.kinds[0] = { ...st.kinds[0], count: 1, lastError: 'embedding 模型不可用' }
+    mocks.CostIndexStatus.mockResolvedValue(st)
+    mocks.CostIndexBackfill.mockRejectedValue(new Error('定额索引补齐失败: embedding 模型不可用'))
+    await renderReady()
+    const btn = screen.getByTestId('cost-index-status')
+    expect(btn.getAttribute('data-tone')).toBe('warn')
+    expectText(btn, '语义索引 待补齐')
+    expect(btn.getAttribute('title')).toContain('embedding 模型不可用')
+    fireEvent.click(btn)
+    await waitFor(() => expect(screen.getByTestId('cost-notice').textContent).toContain('补齐失败：定额索引补齐失败'))
+  })
+
+  it('搜索定额：本地匹配在前，「名称不含关键词、意思相近」的条目进补充段', async () => {
+    mocks.CostIndexStatus.mockResolvedValue(readyStatus())
+    // 混合检索返回：本地已匹配的「施工便道」+ 名称不含「便道」的「场地平整」
+    const similar: WorkcostQuota = { ...quotaWP01, id: 3, code: 'Q9', gcode: 'D0100009', origCode: '', title: '场地平整', items: undefined, usageCount: 0 }
+    mocks.WorkcostQuotaList.mockResolvedValue([{ ...quotaWP01, items: undefined, usageCount: 2 }, similar])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '便道' } })
+    const sem = await screen.findByTestId('cost-semantic')
+    expectText(sem, '名称不含「便道」')
+    expectText(sem, '场地平整')
+    // 补充段里不该重复本地已匹配的「施工便道」
+    expect(sem.textContent).not.toContain('施工便道')
+    const tables = screen.getAllByTestId('cost-quota-rows')
+    expect(tables).toHaveLength(2) // 主表 + 补充段各一张
+    expect(within(tables[0]).getAllByRole('row')).toHaveLength(2) // 表头 + 施工便道
+    expect(mocks.WorkcostQuotaList).toHaveBeenLastCalledWith('', '便道')
+    // 清空关键词：补充段随之消失
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '' } })
+    await waitFor(() => expect(screen.queryByTestId('cost-semantic')).toBeNull())
+  })
+
+  it('本地零匹配但语义有命中：不出「没有匹配的行」空态，直接给补充段', async () => {
+    mocks.CostIndexStatus.mockResolvedValue(readyStatus())
+    const similar: WorkcostQuota = { ...quotaWP01, id: 3, code: 'Q9', gcode: 'D0100009', origCode: '', title: '场地平整', items: undefined, usageCount: 0 }
+    mocks.WorkcostQuotaList.mockResolvedValue([similar])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    // 「平地」不是「场地平整」的子串：本地零匹配；语义路把「场地平整」带进来
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '平地' } })
+    const sem = await screen.findByTestId('cost-semantic')
+    expectText(sem, '场地平整')
+    expect(screen.queryByTestId('cost-tier-empty')).toBeNull()
+    expect(within(sem).getAllByRole('row')).toHaveLength(2) // 表头 + 场地平整
   })
 })

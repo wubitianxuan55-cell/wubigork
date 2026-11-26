@@ -1,8 +1,8 @@
 # 造价库本地模型索引 + 旧成本库全量退役（施工单与断点记录）
 
-2026-11-26 · 状态：**A1 `abd65f42`、R `459723c2`、B1 `cb4e4c23`、B2（见 §九）均已提交；A3 / V 未开工。**
-**接续从 A3 开始（§三 设计 1、5 与 §四 A3，接线细节见 §九末「A3 要点」），不要重新摸底。**
-（第一个会话傍晚开工、上下文用尽中断；第二个会话下午收尾 A1 并做完 R、B1、B2。）
+2026-11-26 · 状态：**A1 `abd65f42`、R `459723c2`、B1 `cb4e4c23`、B2 `9fbf8e2e`、A3（见 §九）均已提交；只剩 V（真实库同义词评测）。**
+**接续从 V 开始（§四 V，做法见 §九末「V 要点」），不要重新摸底。**
+（第一个会话傍晚开工、上下文用尽中断；第二个会话下午收尾 A1 并做完 R、B1、B2、A3。）
 
 与 WPS 能力开发是两条独立的线，互不捆绑（WPS 刀 1 的记录在 `gaea-wps-capability-plan-20261126.md`）。
 
@@ -82,7 +82,7 @@
 | R | 旧成本库全量退役 | **完成并单独提交**（清单见 §七，结果与验证见 §八） |
 | B1 | 造价库三类索引文档 + 写入点打脏标记 | **完成并提交** `cb4e4c23`（见 §九） |
 | B2 | `workcost.Searcher` 混合检索；`cost_project` 与界面列表接入 | **完成并提交**（提交号见 §九） |
-| A3 | 应用接线：后台索引器随应用启动；索引固定 bge-m3；索引状态与补齐绑定 | 未开工 |
+| A3 | 应用接线：后台索引器随应用启动；索引固定 bge-m3；索引状态与补齐绑定 | **完成并提交**（见 §九；含界面状态钮与语义补充段） |
 | V | 验证：单测回归 + 真实库同义词评测（纯关键词 vs 混合）+ 性能压测 + 门禁 + 记档 + 提交 | 未开工 |
 
 ## 五、断点：当前工作树里的未提交改动
@@ -237,17 +237,40 @@ cost-compose 技能（它描述的组价校验引擎早已不在内核里）；�
   （工具标注与短路 / bills / 界面绑定「索引就绪才走」）全过。
 - B2 后的全量：`go build` / `go vet` 过；app 包 1366 例全绿；非 app 零回归（失败清单与 §八 相同）。
 
-**A3 要点（未开工，照此做）**：
-- 后台索引器：`app.go` 启动处按 `startFileIndexCron` 的范式（`Once` + 停止通道 + panic 恢复）起
-  `vecindex.NewIndexer(costIndexStore(), 模型名, embed 取值函数, hubWorkcostStore().IndexSources(), workcost.IndexKinds...)`，
-  `vecindex.SetDefault` 后 `go ix.Run(ctx)`；`officeState` 加 `costIndexOnce / costIndexStop / costIndexer`。
-  模型名取 `[retrieval] embed_model`（缺省 bge-m3），需要在 builtin 补一个对外取值函数。
-- 绑定：`GaeaCostIndexStatus`（各类目条数 / 已建向量数 / 模型 / 最近写入 / 最近错误；索引器是否在跑）与
-  `GaeaCostIndexBackfill(kind)`（显式补齐，空 = 全部）。`vecindex.Indexer` 要补「最近一次错误」的记录与取值。
-- 新绑定必须有人在用（`check-bindings-drift.ps1` §4 对新增死绑定 exit 1）：在造价数据库板块的工具条放一个
-  「语义索引」状态条 + 补齐按钮；配套改 `lib/bridge/cost.ts`（接口）、`mappings.ts`、`spaceBindings.ts`、mock、
-  `types/cost.ts`，`gen_bindings` 再生三份清单，wailsjs 的 `CostB.d.ts/.js` 与 `models.ts` 手工同步
-  （下次 `wails build` 再生复核）。
+**A3 应用接线（见本提交）**
+- 后台索引器：`internal/app/gaea_cost_indexer.go` 的 `startCostIndexer`（`app.go` 启动处、任务调度器之后起；
+  `Once` + 取消函数 + panic 恢复，关闭时停）。`Indexer.Run` 改成**启动首轮立即对账**（原先要等满 3 秒合并窗口——
+  开机那一刻没有可合并的写入）。`vecindex.Indexer` 补了「最近一轮对账的错误」记录（`LastError`）与 `Model` / `Kinds`。
+- 模型固定读 `[retrieval]`：`builtin.LocalEmbedModel()` 取模型名（缺省 bge-m3），`LocalEmbedder` / `LocalReranker`
+  取客户端。顺手修了 B2 留下的隐患：检索后端 kind 未知时客户端是 nil 指针，装进接口会变成「非 nil 接口包着 nil」，
+  调用方的 nil 判断失效——`costIndexEmbedder` 现在显式返回 nil。
+- 绑定三个：`GaeaCostIndexStatus`（三类各自：条数 / 已建向量数 / 模型 / 最近写入 / 最近错误；索引器是否在跑；
+  只读、不探测模型）、`GaeaCostIndexBackfill(kind)`（显式补齐，空 = 全部；模型不可用如实报错）、
+  `GaeaWorkcostBillSearch(keyword, specialty, projectId)`（清单行跨项目检索，给板块清单级用）。
+- **纠正 B2 的一处说法**：B2 给两个列表绑定加了混合检索，但造价数据库板块只在挂载时用空关键词拉全量快照、
+  搜索框是前端本地子串过滤，所以那一步对板块的搜索框**并没有生效**。A3 把真正的界面接入补上了：
+  关键词非空且该级索引已建时，页面防抖 250ms 调一次后台混合检索，把「通不过本地关键词过滤」的结果
+  （纯语义命中）作为**补充段**放在主表之后（小标题「名称不含『关键词』、意思相近」，最多 30 条）；
+  本地零匹配而语义有命中时不出空态、直接给补充段；索引没建 / 绑定不可用 / 请求失败都没有补充段，本地过滤照常。
+- 界面：状态栏的「语义索引」状态钮（`cost-library/IndexStatus.tsx`：就绪 / 建设中 已建·总数 / 待补齐 / 未建；
+  悬停给三类明细与错误；点击补齐 → 重读状态 → 提示；空库不出钮）。
+- 配套：`lib/types/cost.ts` 两个视图类型、`lib/bridge/cost.ts` 接口、`mappings.ts`、`spaceBindings.ts`、
+  `bindingNames.ts`（+3）、`mock/bindingSignatures.ts`、`legacyBindings.ts`、`mock/cost.ts`（dev 态如实报未建）；
+  wailsjs 的 `CostB.d.ts/.js` 与 `models.ts` 两个类手工同步（下次 `wails build` 再生复核）。
+  退役遗留的 `officeState.priceCron*` 三个空壳字段与关闭钩子一并清掉。
+- 测试：vecindex +1（错误记录）、app +2（索引器随启动与状态流转 / 模型不可用如实报错）、
+  页面 +6（状态钮三态与补齐 / 索引未建不出补充段 / 语义补充段 / 本地零匹配给补充段）、`IndexStatus` 8 例。
+- A3 后的全量：`go vet` 过；app 包 1368 例全绿；非 app 零回归；`tsc -b` 过；相关 vitest 13 个文件 113 例全过；
+  `check-bindings-drift`（668 个方法，无新增死绑定）/ `registry_map_doc -check` / `check-docs` / knip 均 OK。
+
+**V 要点（未开工，照此做）**：
+- 真实库同义词评测：拿真实库的**副本**（不碰活库；`Hephaestus.db` 在 `config.MemoryUserDir()`），用本机 Herdsman
+  （`127.0.0.1:8080`，bge-m3 / bge-reranker-v2-m3）对三类各建索引，挑 15~20 个同义说法（「挖机」「砼」「摊铺机」
+  这类名称里不出现的词），对比「纯关键词（LIKE）」与「混合检索」的命中；写成可复跑的 Go 测试或脚本，
+  默认跳过、带环境变量才跑（本机有模型时才跑得了）。
+- 性能压测：索引底座已有 20 万条 × 128 维单次 2.8 毫秒的护栏；补一个 1024 维（bge-m3 真实维度）量级的
+  内存占用与延迟实测，写进施工单即可。
+- 真机走查：装机后看板块状态钮与补充段（等用户通知构建装机）。
 
 ## 六、坑与纪律
 
@@ -267,3 +290,10 @@ cost-compose 技能（它描述的组价校验引擎早已不在内核里）；�
 - ZCode 工具：`git mv` 之后新路径要先 Read 才能 Write；同一个文件「脚本改 → 读 → 编辑」放进同一批会并行，
   Edit 拿到的是旧快照（要分批串行）；自写上下文工具给命中加的【】是高亮，别当成原文去匹配。
 - 批量替换脚本写成「每处必须恰好命中 N 次、任一处不符整文件不改」，这次多次靠它挡住了敲错的 old 串。
+- `registry_map_doc.go -check` 在本机是「检出任一文件就报漂移」的假红：它拿生成器的 LF 输出和工作树文件逐字节比，
+  而 `core.autocrlf=true` 让检出件是 CRLF。判真伪的办法：重导后 `git status` 无差异 = 内容一致；想让门自己变绿，
+  先把工作树那份转成 LF 再跑（提交不受影响，仓库存的就是 LF）。
+- Go 的「typed nil」坑：`*T` 为 nil 时直接赋给接口变量，接口不等于 nil（类型信息还在），调用方的 `x == nil` 判断
+  失效、一调方法就崩。工厂函数可能返回 nil 指针时，装接口前先判空再返回裸 nil（`costIndexEmbedder` 的修法）。
+- 前端手写 wailsjs 生成件要照生成器的格式：字段名是合法标识符就用普通属性（`updatedAt: string;`），带 omitempty
+  才写成 `"lastError"?: string;`，构造器里对应 `this["lastError"] = …`（`this."x"` 不是合法 TS）。

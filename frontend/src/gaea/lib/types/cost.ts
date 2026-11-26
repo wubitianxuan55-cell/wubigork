@@ -225,3 +225,26 @@ export interface WorkcostComposeOverride {
 // ── 企业定额自生成（11.6；roadmap 造价愿景#5）────────────────────
 
 // ── 跨项目对标查漏（11.3；复核增强而非替代）────────────────────
+
+/** 造价库语义索引：一个类目（定额 / 工料机 / 清单）的状态（Go app.CostIndexKindView）。 */
+export interface CostIndexKindView {
+  kind: string;
+  label: string;
+  /** 库里条目数（索引器最近一轮对账看到的）；没对账过时为 0。 */
+  total: number;
+  /** 已建向量的条数。 */
+  count: number;
+  /** 最近一次写入索引的时间（空 = 还没建过）。 */
+  updatedAt?: string;
+  /** 最近一轮对账的错误（空 = 正常）。 */
+  lastError?: string;
+}
+
+/** 造价库语义索引的状态（Go app.CostIndexStatusView）。 */
+export interface CostIndexStatusView {
+  kinds: CostIndexKindView[];
+  /** 索引使用的向量模型名。 */
+  model: string;
+  /** 后台索引器在跑。 */
+  running: boolean;
+}
