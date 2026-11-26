@@ -1,3 +1,14 @@
+## 造价反馈三批 24 条落地 + 样表两层 ROUND（2026-11-26 晚，ZCode；包 gaea-cost-fb-20261126-cfbeda3c 已装机）
+
+太原 #15 / 百锦路 #13 / 旺平 #12 三份反馈，先对码+对三场会话日志分诊（归并 16 项、纠 4 条错误归因），用户令「按你思路开始」后按四批刀单落地；样表修改经 gaea（用户改版 fa584a4b 换入内置种子），不手搓。事实源=记忆 `gaea-cost-feedback-3batch-triage-2026-11-26`。
+
+- **七个提交**：`3257f87e` bindings 同步（索引线 A3 生成件漂移）；`1a13d339` 文件工具与闸门（overwrite 进 compact schema / md_validate·cad_ask 绑工作区 / 发布边界豁免 .gaea/work+回执可行取回 / move_file 占用点名 / bash 空参话术 / office_edit 操作名归一）；`1495f811` workcost 库层（地区并入裁决收窄+暂存码别名落含量行 / 控制价两路 / 行类漏填显形 / 机检四项 / region 过滤与总数 / 落地预演 / dims 待整理明细）；`4cc6c1af` app 工具面（列表钳位与总数 / summary 取到分再乘量+分部小计+快照对账+取费链走 ComposeProjectFees / save_resource 尊重显式码 / control_price 参数 / 映射上限 60）；`2ce3a532` 交付门（empty_result 不阻塞+聚类+clear_where，顺带修「=文本」永不命中）；`96767a43` 技能与 playbook 文案；`cfbeda3c` 样表换版。
+- **新 op `xlsx_apply clear_where`**：range 内条件列为空的行连公式清掉——替代实测误删定额实算公式的手写清扫脚本。
+- **门禁**：build/vet/gofmt 净；golangci --new-from-rev 0 issues；tool/builtin/workcost/skill/xlsxedit/agent/boot 全绿；app 1380 例四分片全绿（98s）；工具面三档在线内（standard 16741/16750）；真实 LibreOffice 冒烟三条（样表 1298 公式零错误、480 空结果全记 empty_result）。
+- **打包装机**：干净树 `.worktrees/pkg-cfbeda3c`（junction node_modules）→ npm 27s + wails 12s（首跑漏 PATH 后置 build/bin → gen_bindings 0xc0000135，补上即过）→ 冒烟 200 → INSTALL OK 新壳 PID 61892（20:25:50）→ healthz ok → 包版四件回写主树 build/bin 三处哈希一致 → 工作树已回收（junction 先摘）。exe `710B33E6…`，zip `77C55CAA…`，src.zip `88FF7AA4…`。
+- **顺带**：agent 存量红 `TestStaleGuardBlocksMoveFileWithoutRead`（铜陵 #8 豁免时未同步）改钉现行口径并更名；索引线（9cc57a20 六刀）随本包一并装机。
+- **余项**：清单超 30 组仍需脚本追加（可让 gaea 把样表扩到 60 组，待令）；真实模型实弹（overwrite 是否真带上、聚类回执够不够用）；office_edit 未知名就近提示（操作名单在 C# 侧）；版本对比、工艺路线标签挂拍板池；summary 口径变化（带系数行差分~元级）与地区并入细则（旧写法地区并并规范）已告知用户。
+
 ## 造价库本地模型索引 + 旧成本库全量退役（2026-11-26，ZCode；六刀全部提交，代码面收官）
 
 用户令「成本库和造价库都要接入本地模型索引，数据库到了后期会越来越膨胀」；拍板向量模型 bge-m3、单类目 50 万条以内、清单 / 定额 / 工料机三类都进索引；随后澄清在用的只有一个造价库（旧成本库数据已清空），并令旧成本库功能「全量退役」。第一个会话傍晚开工、上下文用尽中断；第二个会话下午做完其余五刀。与 WPS 线互不捆绑。

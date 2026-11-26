@@ -1,0 +1,6 @@
+710b33e65b320c6ebd355b8adaaf37c43619de70052f8e79caa180120b3ba118 *payload/gaea.exe
+68d0d5f502be4509e2a16f932627a95137d748b2fae519027f80125c0b1f550b *payload/onnxruntime.dll
+408f9ab683d1b77cbf7f06d48bd3af543ed783cc9093c19f520c7c8524619c8f *payload/sherpa-onnx-c-api.dll
+dbac55ceca8383fe28bd7c656fd125bec60dd35d7df1a3a28ea36a503ef6c562 *payload/sherpa-onnx-cxx-api.dll
+77c55caa13fb5dd04ebf011f721b728f0091ccf198f324648836b37f3708983a *gaea-cost-fb-20261126-cfbeda3c.zip
+88ff7aa4a4d21da40f7fe7a5ce66bd7ea797c783f74e471fedd06208eabc98cf *gaea-cost-fb-20261126-cfbeda3c-src.zip
