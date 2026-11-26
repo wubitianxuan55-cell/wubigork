@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -210,13 +211,19 @@ func formatAuditWith(rep xlsxedit.AuditReport, limit int, tail auditTail) string
 	}
 	fmt.Fprintf(&b, "审计结果：%d 个工作表，%d 个公式", rep.Sheets, rep.TotalFormulas)
 
-	errs, refs, caches := splitFindings(rep.Findings)
+	errs, refs, caches, empties := splitFindings(rep.Findings)
 	if len(errs) == 0 && len(refs) == 0 && len(caches) == 0 {
+		// 没有阻塞项；空串结果的公式不算问题（2026-11-26 造价反馈三批）。
 		b.WriteString(tail.clean)
+		b.WriteString(emptyResultNote(empties))
 		return b.String()
 	}
-	fmt.Fprintf(&b, "，发现 %d 条问题（错误值 %d / 自引用 %d / 未重算 %d）\n",
+	fmt.Fprintf(&b, "，发现 %d 条问题（错误值 %d / 自引用 %d / 未重算 %d）",
 		len(errs)+len(refs)+len(caches), len(errs), len(refs), len(caches))
+	if len(empties) > 0 {
+		fmt.Fprintf(&b, "，另有 %d 个空结果公式（不阻塞）", len(empties))
+	}
+	b.WriteString("\n")
 
 	shown := 0
 	budget := limit
@@ -238,6 +245,11 @@ func formatAuditWith(rep xlsxedit.AuditReport, limit int, tail auditTail) string
 		shown++
 		budget--
 	}
+	// 未重算先给聚类（按表+列、按公式模式），再给清单：只给数量和前 N 条时，
+	// 「114 条未重算」要逐格核对才知道全是同一列的同一类公式（旺平反馈 #2）。
+	if len(caches) > 3 {
+		fmt.Fprintf(&b, "未重算分布：%s\n", clusterAuditFindings(caches))
+	}
 	for _, f := range caches {
 		if budget <= 0 {
 			break
@@ -247,6 +259,7 @@ func formatAuditWith(rep xlsxedit.AuditReport, limit int, tail auditTail) string
 		shown++
 		budget--
 	}
+	b.WriteString(emptyResultNote(empties))
 	if total := len(errs) + len(refs) + len(caches); total > shown {
 		b.WriteString(tail.rest(total, shown, limit))
 	} else if len(caches) > 0 {
@@ -257,8 +270,80 @@ func formatAuditWith(rep xlsxedit.AuditReport, limit int, tail auditTail) string
 	return b.String()
 }
 
-// splitFindings 按类分组，错误值按表内位置排序（稳定输出）。
-func splitFindings(fs []xlsxedit.AuditFinding) (errs, refs, caches []xlsxedit.AuditFinding) {
+// emptyResultNote 「重算过、结果就是空串」的公式摘要：不阻塞交付门，按位置与
+// 公式模式聚类，并给出清法。
+func emptyResultNote(empties []xlsxedit.AuditFinding) string {
+	if len(empties) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("另有 %d 个公式的结果是空串（重算过、结果就是空，不算问题，不阻塞交付）：%s——多半是未用槽位上挂着的取价公式；交付前想清掉用 xlsx_apply 的 clear_where（按条件列清空区域内的公式，条件列填了的行不碰）。\n",
+		len(empties), clusterAuditFindings(empties))
+}
+
+// clusterAuditFindings 把一类发现折成一行：按「表+列」与按公式模式（行号抹成 #）
+// 各取前几类计数。
+func clusterAuditFindings(fs []xlsxedit.AuditFinding) string {
+	if len(fs) == 0 {
+		return ""
+	}
+	cols := map[string]int{}
+	pats := map[string]int{}
+	for _, f := range fs {
+		col := f.Cell
+		if i := strings.IndexAny(f.Cell, "0123456789"); i > 0 {
+			col = f.Cell[:i]
+		}
+		cols[f.Sheet+"!"+col]++
+		pats[formulaPattern(f.Formula)]++
+	}
+	return "位置 " + topCounts(cols, 4) + "；公式 " + topCounts(pats, 3)
+}
+
+// topCounts 按次数降序（同次数按名称）取前 n 类，写成「名×次数」。
+func topCounts(m map[string]int, n int) string {
+	type kv struct {
+		k string
+		v int
+	}
+	list := make([]kv, 0, len(m))
+	for k, v := range m {
+		list = append(list, kv{k, v})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].v != list[j].v {
+			return list[i].v > list[j].v
+		}
+		return list[i].k < list[j].k
+	})
+	var b strings.Builder
+	for i, e := range list {
+		if i >= n {
+			fmt.Fprintf(&b, "…（共 %d 类）", len(list))
+			break
+		}
+		if i > 0 {
+			b.WriteString("、")
+		}
+		fmt.Fprintf(&b, "%s×%d", e.k, e.v)
+	}
+	return b.String()
+}
+
+// auditRefRowRe 单元格引用里的行号部分（聚类时抹成 #）。
+var auditRefRowRe = regexp.MustCompile(`(\$?[A-Za-z]{1,3})\$?[0-9]{1,7}`)
+
+// formulaPattern 公式模板：行号抹成 #，截到 60 字。
+func formulaPattern(f string) string {
+	p := auditRefRowRe.ReplaceAllString(strings.ReplaceAll(f, "$", ""), "${1}#")
+	if r := []rune(p); len(r) > 60 {
+		p = string(r[:60]) + "…"
+	}
+	return "`" + p + "`"
+}
+
+// splitFindings 按类分组，错误值按表内位置排序（稳定输出）。empties 是「重算过、
+// 结果就是空串」的公式格——不进交付门的阻塞面。
+func splitFindings(fs []xlsxedit.AuditFinding) (errs, refs, caches, empties []xlsxedit.AuditFinding) {
 	sort.SliceStable(fs, func(i, j int) bool {
 		if fs[i].Sheet != fs[j].Sheet {
 			return fs[i].Sheet < fs[j].Sheet
@@ -271,11 +356,13 @@ func splitFindings(fs []xlsxedit.AuditFinding) (errs, refs, caches []xlsxedit.Au
 			errs = append(errs, f)
 		case "self_ref":
 			refs = append(refs, f)
+		case "empty_result":
+			empties = append(empties, f)
 		default:
 			caches = append(caches, f)
 		}
 	}
-	return errs, refs, caches
+	return errs, refs, caches, empties
 }
 
 var _ tool.Tool = xlsxAuditTool{}

@@ -115,6 +115,17 @@ func formatRecalcReceipt(rep xlsxedit.RecalcReport, audit xlsxedit.AuditReport, 
 		}
 		b.WriteString("）")
 	}
+	// 空串结果的公式（重算过、结果就是空）不进阻塞面：测算样表的未用槽位挂着
+	// 取价公式，480 格空结果此前把交付门判成「未达」，回执又说「不算问题」
+	// （2026-11-26 造价反馈三批，三场实测 414/278/114 条）。
+	blocking, empties := 0, []xlsxedit.AuditFinding{}
+	for _, f := range audit.Findings {
+		if f.Kind == "empty_result" {
+			empties = append(empties, f)
+		} else {
+			blocking++
+		}
+	}
 	switch {
 	case auditErr != nil:
 		fmt.Fprintf(&b, "\n重算后的审计没跑成（%v）——确认前不要声称「结果已校验」，用 xlsx_audit 复核。", auditErr)
@@ -127,6 +138,9 @@ func formatRecalcReceipt(rep xlsxedit.RecalcReport, audit xlsxedit.AuditReport, 
 		} else {
 			b.WriteString("\n零错误，达到交付门（重算后审计：错误值/自引用/未重算均为零）。")
 		}
+	case rep.TotalErrors == 0 && blocking == 0:
+		b.WriteString("\n零错误，达到交付门（重算后审计：错误值/自引用/未重算均为零）。")
+		b.WriteString("\n" + emptyResultNote(empties))
 	default:
 		if n := countAuditKind(audit.Findings, "missing_cache"); n > 0 && n == len(audit.Findings) && rep.TotalErrors == 0 {
 			// 没有错误值、没有自引用，只是公式没缓存值：多半是重算没生效（文件没被

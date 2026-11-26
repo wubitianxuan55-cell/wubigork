@@ -348,7 +348,8 @@ const officeXlsxApplyDescription = "对既有 .xlsx 应用操作集（JSON 数�
 	"set_style/merge_cells/unmerge_cells/set_col_width、" +
 	"fill_blanks（填充空值：固定值/above 向上填充/mean/median/mode）、remove_duplicates（按列去重保留首条）、" +
 	"delete_rows（blank 删空行/where 条件删行/row 指定行）、insert_rows/insert_columns/delete_columns、" +
-	"sort（多键排序）、add_column（数据区右侧或 after 后加列：逐行公式或固定值）、copy_range（跨表复制值）。" +
+	"sort（多键排序）、add_column（数据区右侧或 after 后加列：逐行公式或固定值）、copy_range（跨表复制值）、" +
+	"clear_where（条件清格：range 内条件列为空的行，连公式清）。" +
 	"应用后自动公式重算，落盘前基线快照+证据卡，可复核可回滚。" +
 	"复杂改动先用 xlsx_profile 看列概况，再规划操作集整体应用，不要逐格散改。"
 
@@ -360,7 +361,7 @@ func (t officeXlsxApplyTool) Schema() json.RawMessage {
     "path":{"type":"string","description":"目标 .xlsx 工作区相对路径"},
     "ops_json":{"type":"string","description":"操作集 JSON 数组，如 [{\"sheet\":\"Sheet1\",\"target\":\"B2\",\"type\":\"set_value\",\"value\":42}]；" +
       "支持 set_value/set_formula/fill_range/transform/replace/split_column/clean（remove/noSpaces/map/to）/set_style/merge_cells/unmerge_cells/set_col_width/" +
-      "fill_blanks/remove_duplicates/delete_rows/insert_rows/insert_columns/delete_columns/sort/add_column/copy_range（详见工具描述）"}
+      "fill_blanks/remove_duplicates/delete_rows/insert_rows/insert_columns/delete_columns/sort/add_column/copy_range/clear_where（详见工具描述）"}
   }
 }`)
 }

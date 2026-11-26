@@ -150,7 +150,7 @@ func TestApplyUnmergeCellsState(t *testing.T) {
 // 并补 summary 契约例（与 Op.Type 的前端契约面同账）。
 func TestOpHandlersKeySetLocked(t *testing.T) {
 	want := []string{
-		"add_column", "clean", "copy_range", "delete_columns", "delete_rows",
+		"add_column", "clean", "clear_where", "copy_range", "delete_columns", "delete_rows",
 		"fill_blanks", "fill_range", "insert_columns", "insert_rows",
 		"merge_cells", "remove_duplicates", "replace", "set_col_width",
 		"set_formula", "set_style", "set_value", "sort", "split_column",

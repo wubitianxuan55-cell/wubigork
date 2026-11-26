@@ -318,7 +318,7 @@ func opCells(f *excelize.File, sheet string, op Op) []string {
 			return nil
 		}
 		return []string{op.Target}
-	case "fill_range", "transform", "replace", "clean":
+	case "fill_range", "transform", "replace", "clean", "clear_where":
 		if op.Range == "" {
 			return nil
 		}

@@ -8,7 +8,10 @@ package xlsxedit
 // （Recalc 的 recalc.py 会报 Err:522），这里只做无需外部进程的结构面扫描。
 
 import (
+	"archive/zip"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strconv"
@@ -25,6 +28,8 @@ const AuditMaxCells = 200000
 //   - error_value   缓存值是错误（#REF!/#DIV/0!/#VALUE!/#N/A/#NAME?/#NULL!/#NUM!）
 //   - missing_cache 有公式但无缓存值（文件由 openpyxl/excelize 写出未重算，
 //     或缓存被清）——交付前必须 xlsx_recalc
+//   - empty_result  公式重算过、结果就是空字符串（IFERROR(VLOOKUP(空键),"")
+//     一类）：不是「没重算」，不阻塞交付门（2026-11-26 造价反馈三批）
 //   - self_ref      公式直接引用自身单元格（循环引用最小面）
 type AuditFinding struct {
 	Sheet   string `json:"sheet"`
@@ -40,6 +45,175 @@ type AuditReport struct {
 	TotalFormulas int            `json:"total_formulas"`
 	Findings      []AuditFinding `json:"findings"`
 	Truncated     bool           `json:"truncated"`
+
+	// shapes 每张表里公式格的原始 XML 形态（表名小写 → 单元格 → 形态）。
+	// 读不出来时为 nil：此时空值一律按未重算报（保守），不会把没重算的放过去。
+	shapes map[string]map[string]formulaShape
+}
+
+// formulaShape 一个公式格在原始 XML 里的形态。excelize 的读值接口把「没有 <v>」
+// 和「<v></v>」都读成空串，单看读值分不出「没重算」与「重算了、结果就是空串」
+// ——实测（2026-11-26）三种写法的区别只在原始 XML：
+//
+//	excelize 写出未重算：  <c r="C1" t="str"><f>…</f></c>          （没有 <v>）
+//	openpyxl 写出未重算：  <c r="C1"><f>…</f><v></v></c>           （没有 t）
+//	LibreOffice 重算空串：<c r="C1" t="str"><f>…</f><v></v></c>
+type formulaShape struct {
+	typedStr        bool // 类型标记 t="str"
+	hasValueElement bool // 有 <v> 元素（内容可为空）
+}
+
+// isEmptyStringResult 报告该公式格是不是「重算过、结果就是空串」。
+func (r *AuditReport) isEmptyStringResult(sheet, cell string) bool {
+	if r.shapes == nil {
+		return false
+	}
+	s, ok := r.shapes[strings.ToLower(sheet)][cell]
+	return ok && s.typedStr && s.hasValueElement
+}
+
+// rawFormulaShapes 直接读 xlsx 包里每张工作表的 XML，记下公式格的形态。
+func rawFormulaShapes(path string) (map[string]map[string]formulaShape, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = zr.Close() }()
+	parts, err := sheetParts(&zr.Reader)
+	if err != nil {
+		return nil, err
+	}
+	files := map[string]*zip.File{}
+	for _, zf := range zr.File {
+		files[zf.Name] = zf
+	}
+	out := make(map[string]map[string]formulaShape, len(parts))
+	for name, part := range parts {
+		zf, ok := files[part]
+		if !ok {
+			continue
+		}
+		rc, oerr := zf.Open()
+		if oerr != nil {
+			return nil, oerr
+		}
+		shapes, serr := scanFormulaShapes(rc)
+		_ = rc.Close()
+		if serr != nil {
+			return nil, serr
+		}
+		out[strings.ToLower(name)] = shapes
+	}
+	return out, nil
+}
+
+// sheetParts 工作表名 → 包内部件路径（xl/workbook.xml 的 r:id 经 rels 解到 Target）。
+func sheetParts(zr *zip.Reader) (map[string]string, error) {
+	readPart := func(name string) ([]byte, error) {
+		for _, zf := range zr.File {
+			if zf.Name == name {
+				rc, err := zf.Open()
+				if err != nil {
+					return nil, err
+				}
+				defer func() { _ = rc.Close() }()
+				return io.ReadAll(rc)
+			}
+		}
+		return nil, fmt.Errorf("包里没有 %s", name)
+	}
+	wb, err := readPart("xl/workbook.xml")
+	if err != nil {
+		return nil, err
+	}
+	relsXML, err := readPart("xl/_rels/workbook.xml.rels")
+	if err != nil {
+		return nil, err
+	}
+	var wbSheets struct {
+		Sheets []struct {
+			Name string `xml:"name,attr"`
+			RID  string `xml:"http://schemas.openxmlformats.org/officeDocument/2006/relationships id,attr"`
+		} `xml:"sheets>sheet"`
+	}
+	if err := xml.Unmarshal(wb, &wbSheets); err != nil {
+		return nil, err
+	}
+	var rels struct {
+		Rel []struct {
+			ID     string `xml:"Id,attr"`
+			Target string `xml:"Target,attr"`
+		} `xml:"Relationship"`
+	}
+	if err := xml.Unmarshal(relsXML, &rels); err != nil {
+		return nil, err
+	}
+	target := map[string]string{}
+	for _, r := range rels.Rel {
+		t := strings.ReplaceAll(r.Target, "\\", "/")
+		switch {
+		case strings.HasPrefix(t, "/xl/"):
+		case strings.HasPrefix(t, "/"):
+			t = "xl" + t
+		default:
+			t = "xl/" + strings.TrimPrefix(t, "./")
+		}
+		target[r.ID] = t
+	}
+	out := map[string]string{}
+	for _, s := range wbSheets.Sheets {
+		if p, ok := target[s.RID]; ok {
+			out[s.Name] = p
+		}
+	}
+	return out, nil
+}
+
+// scanFormulaShapes 流式读一张工作表 XML，收公式格的形态。
+func scanFormulaShapes(r io.Reader) (map[string]formulaShape, error) {
+	dec := xml.NewDecoder(r)
+	shapes := map[string]formulaShape{}
+	var (
+		ref, ctype string
+		hasF, hasV bool
+		inCell     bool
+	)
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch {
+			case t.Name.Local == "c" && !inCell:
+				inCell, hasF, hasV, ref, ctype = true, false, false, "", ""
+				for _, a := range t.Attr {
+					switch a.Name.Local {
+					case "r":
+						ref = a.Value
+					case "t":
+						ctype = a.Value
+					}
+				}
+			case inCell && t.Name.Local == "f":
+				hasF = true
+			case inCell && t.Name.Local == "v":
+				hasV = true
+			}
+		case xml.EndElement:
+			if t.Name.Local == "c" && inCell {
+				if hasF && ref != "" {
+					shapes[ref] = formulaShape{typedStr: ctype == "str", hasValueElement: hasV}
+				}
+				inCell = false
+			}
+		}
+	}
+	return shapes, nil
 }
 
 // auditCellRefRe 抽取公式里的裸单元格引用（LOG10 这类函数名同形，只在
@@ -59,6 +233,8 @@ func Audit(path string) (AuditReport, error) {
 	defer func() { _ = f.Close() }()
 
 	rep := AuditReport{Findings: []AuditFinding{}}
+	// 形态读不出来不拦审计：只是空值公式一律按未重算报（保守）。
+	rep.shapes, _ = rawFormulaShapes(path)
 	for _, sheet := range f.GetSheetList() {
 		rep.Sheets++
 		maxRow, maxCol := rowsExtent(f, sheet)
@@ -125,11 +301,20 @@ func (r *AuditReport) scanCell(f *excelize.File, sheet, cell string) {
 		return
 	}
 
-	// ② 未重算：有公式但缓存值为空——openpyxl/excelize 写出的文件常态。
+	// ② 缓存值为空，分两种（判定依据是原始 XML 形态，见 rawFormulaShapes）：
+	//   - t="str" 且有 <v> 元素（空的）——重算引擎写过这个格，结果就是空串
+	//     （IFERROR(VLOOKUP(空键),"") 一类）。未用槽位的取价公式全是这种：测算
+	//     样表 480 格，交付门此前一律判「未重算→未达」，回执又说「结果本应为空的
+	//     不算问题」，自相矛盾（2026-11-26 造价反馈三批，三场实测 414/278/114 条）。
+	//   - 其余空值——openpyxl/excelize 写出的公式格常态，才是真的没重算。
 	v, verr := f.GetCellValue(sheet, cell)
 	if verr == nil && strings.TrimSpace(v) == "" {
+		kind := "missing_cache"
+		if r.isEmptyStringResult(sheet, cell) {
+			kind = "empty_result"
+		}
 		r.Findings = append(r.Findings, AuditFinding{
-			Sheet: sheet, Cell: cell, Kind: "missing_cache", Formula: formula,
+			Sheet: sheet, Cell: cell, Kind: kind, Formula: formula,
 		})
 	}
 

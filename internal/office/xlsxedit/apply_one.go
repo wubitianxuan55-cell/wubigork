@@ -38,6 +38,7 @@ var opHandlers = map[string]func(*excelize.File, Op) (string, error){
 	"sort":              applySort,
 	"add_column":        applyAddColumn,
 	"copy_range":        applyCopyRange,
+	"clear_where":       applyClearWhere,
 }
 
 func applySetFormula(f *excelize.File, op Op) (string, error) {
@@ -716,6 +717,59 @@ func applyRemoveDuplicates(f *excelize.File, op Op) (string, error) {
 	return fmt.Sprintf("去重 %s：删 %d 行（保留首条；行 %s）", what, len(gone), rowListText(gone)), nil
 }
 
+// applyClearWhere 条件清格：range 里的行，条件列（where.col）满足 where 的，把这些行
+// 落在 range 内的格子清空（连公式一起清）。
+//
+// 来历（2026-11-26 造价反馈三批）：测算样表的未用明细槽在资源名称 / 单价 / 合价
+// 列挂着取价公式，交付前要清掉；此前只有两个办法——整表重建，或自己写脚本——
+// 实测模型写的清扫脚本把定额行的实算公式一并误删，靠对账才发现。这里给一个
+// 「按条件列、限定区域」的结构化清法：条件列填了的行一律不碰。
+func applyClearWhere(f *excelize.File, op Op) (string, error) {
+	coords, err := parseRange(op.Range)
+	if err != nil {
+		return "", err
+	}
+	if op.Where == nil || strings.TrimSpace(op.Where.Col) == "" {
+		return "", fmt.Errorf("clear_where 需要 where.col（条件列，如 I）")
+	}
+	wh := op.Where
+	colNum, err := excelize.ColumnNameToNumber(strings.TrimSpace(wh.Col))
+	if err != nil {
+		return "", fmt.Errorf("clear_where 列 %q 无效: %w", wh.Col, err)
+	}
+	how := strings.ToLower(strings.TrimSpace(wh.Is))
+	if how == "" {
+		how = "blank"
+	}
+	switch how {
+	case "blank", "=", "==", "<>", "!=", ">", "<", ">=", "<=", "contains", "text":
+	default:
+		return "", fmt.Errorf("clear_where 的 is 仅支持 blank/=/<>/>/</>=/<=/contains/text，得到 %q", wh.Is)
+	}
+	n := 0
+	for r := coords[0]; r <= coords[2]; r++ {
+		if !rowMatches(f, op.Sheet, r, colNum, how, wh.Value) {
+			continue
+		}
+		for c := coords[1]; c <= coords[3]; c++ {
+			axis, _ := excelize.CoordinatesToCellName(c, r)
+			// 先摘公式再清值：只动值的话公式元素还留在格里。
+			if formula, ferr := f.GetCellFormula(op.Sheet, axis); ferr == nil && formula != "" {
+				if err := f.SetCellFormula(op.Sheet, axis, ""); err != nil {
+					return "", err
+				}
+			}
+			if err := f.SetCellValue(op.Sheet, axis, nil); err != nil {
+				return "", err
+			}
+			if n++; n > maxCellsPerOp {
+				return "", fmt.Errorf("清空区域过大（超过 %d 格）", maxCellsPerOp)
+			}
+		}
+	}
+	return fmt.Sprintf("清格 %s（%s 列 %s 的行）：%d 格", op.Range, strings.TrimSpace(wh.Col), how, n), nil
+}
+
 // applyDeleteRows 三种形态（字段互斥）：blank=true 删整行全空的行；
 // where 按 col 列条件删行；row(+count) 直接删指定行。统一从底往上删。
 func applyDeleteRows(f *excelize.File, op Op) (string, error) {
@@ -841,10 +895,10 @@ func rowMatches(f *excelize.File, sheet string, row, colNum int, how string, aga
 			return false
 		}
 	case "=", "==", "<>", "!=":
-		if !rightOK {
-			return false
-		}
-		if !leftOK {
+		// 比较值不是数字（或格子不是数字）→ 按文本比。此前比较值不是数字就
+		// 直接判不中：「= 某个编码」永远选不中行（2026-11-26 给 clear_where
+		// 复用本判定时暴露；delete_rows 的 where= 同病）。
+		if !rightOK || !leftOK {
 			if blank {
 				return false
 			}
