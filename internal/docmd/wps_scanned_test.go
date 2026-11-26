@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xuri/excelize/v2"
 )
 
 // TestMain 让单测默认关掉 WPS 通道（GAEA_WPS_PDF 未设时置 0）。WPS 优先后「提取不到
@@ -24,8 +26,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// fakeWpsCLI 假 wpscli（由测试二进制的子进程扮演）：pdfinfo 报 GAEAPROBE_WPS_PAGES 页；
+// fakeWpsCLI 假 wpscli（由测试二进制的子进程扮演）：pdfinfo 报 GAEAPROBE_WPS_PAGES 页
+// （GAEAPROBE_WPS_SCAN=1 时再报是扫描件）；pdf2excel / photo2excel 见 fakeWpsExcel；
 // 其余子命令把完整参数行追加到 GAEAPROBE_WPS_LOG，再按 GAEAPROBE_WPS_EXIT 退出（默认 1）。
+// GAEAPROBE_WPS_SLEEP（毫秒）让非 pdfinfo 的子命令先睡一会儿（测 gaea 侧超时用）。
 func fakeWpsCLI(args []string) int {
 	if len(args) == 0 {
 		return 201
@@ -35,8 +39,20 @@ func fakeWpsCLI(args []string) int {
 		if pages == "" {
 			pages = "0"
 		}
-		fmt.Printf("{\"type\":\"completed\",\"status\":\"success\",\"page_count\":%s}\n", pages)
+		scan := "false"
+		if os.Getenv("GAEAPROBE_WPS_SCAN") == "1" {
+			scan = "true"
+		}
+		fmt.Printf("{\"type\":\"completed\",\"status\":\"success\",\"page_count\":%s,\"is_scan_document\":%s}\n", pages, scan)
 		return 0
+	}
+	if ms := os.Getenv("GAEAPROBE_WPS_SLEEP"); ms != "" {
+		if d, err := time.ParseDuration(ms + "ms"); err == nil {
+			time.Sleep(d)
+		}
+	}
+	if args[0] == "pdf2excel" || args[0] == "photo2excel" {
+		return fakeWpsExcel(args)
 	}
 	if log := os.Getenv("GAEAPROBE_WPS_LOG"); log != "" {
 		if f, err := os.OpenFile(log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
@@ -44,6 +60,11 @@ func fakeWpsCLI(args []string) int {
 			_ = f.Close()
 		}
 	}
+	return fakeWpsExitCode()
+}
+
+// fakeWpsExitCode GAEAPROBE_WPS_EXIT 指定的退出码（未设时为 1）。
+func fakeWpsExitCode() int {
 	code := 1
 	if v := os.Getenv("GAEAPROBE_WPS_EXIT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -51,6 +72,113 @@ func fakeWpsCLI(args []string) int {
 		}
 	}
 	return code
+}
+
+// fakeWpsExcel 假 wpscli 的转表子命令（pdf2excel / photo2excel）。GAEAPROBE_WPS_EXIT 非 0 时
+// 只记参数并按码退出（失败路径）；为 0 时按 GAEAPROBE_WPS_XLSX 往 -o 指的位置产出并报成功：
+//   - table（默认）：一张带合并单元格的小表，数值格、文本数字都有；
+//   - gap：清单页替身，第 6 行的工程量空着（疑似缺格 1 行）；
+//   - rename：wpscli 不覆盖已有文件语义——产物另存成 <名>_1.xlsx，终态行报另存后的路径；
+//   - empty / missing：0 字节 / 不产出（报成功但没产物）；
+//   - garbage：写一堆不是 xlsx 的字节（产物损坏）；
+//   - blank：能打开，但一个非空格子都没有。
+func fakeWpsExcel(args []string) int {
+	if log := os.Getenv("GAEAPROBE_WPS_LOG"); log != "" {
+		if f, err := os.OpenFile(log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+			fmt.Fprintln(f, strings.Join(args, " "))
+			_ = f.Close()
+		}
+	}
+	if code := fakeWpsExitCode(); code != 0 {
+		return code
+	}
+	out := ""
+	for i := 1; i+1 < len(args); i++ {
+		if args[i] == "-o" || args[i] == "--output" {
+			out = args[i+1]
+		}
+	}
+	if out == "" {
+		return 201
+	}
+	mode := os.Getenv("GAEAPROBE_WPS_XLSX")
+	reported := out
+	if mode == "rename" {
+		reported = strings.TrimSuffix(out, filepath.Ext(out)) + "_1" + filepath.Ext(out)
+	}
+	var err error
+	switch mode {
+	case "empty":
+		err = os.WriteFile(out, nil, 0o644)
+	case "missing":
+	case "garbage":
+		err = os.WriteFile(out, []byte("not an xlsx"), 0o644)
+	default:
+		err = fakeWpsWriteXLSX(reported, mode)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 214
+	}
+	fmt.Printf("{\"type\":\"completed\",\"status\":\"success\",\"output\":%q,\"elapsed_ms\":1234}\n",
+		filepath.ToSlash(reported))
+	return 0
+}
+
+// fakeWpsWriteXLSX 用 excelize 写一份小工作簿当 wpscli 的产物。
+func fakeWpsWriteXLSX(path, mode string) error {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	if mode == "blank" {
+		return f.SaveAs(path) // 新建的工作簿没有任何格子
+	}
+	var rows [][]any
+	if mode == "gap" {
+		rows = [][]any{
+			{"序号", "项目编码", "项目名称", "单位", "工程量"},
+			{9, "030412001008", "配管", "m", 1000},
+			{10, "030409001014", "电力电缆", "m", 1000},
+			{11, "030404014004", "控制箱、同期小屏", "台", 9},
+			{12, "030409001015", "电力电缆", "m", 500},
+			{13, "030601004004", "流量仪表", "台", nil}, // 工程量「1」被在线识别漏掉
+			{14, "030409001016", "电力电缆", "m", 100},
+			{15, "030608008004", "专用线缆", "m", 100},
+		}
+	} else {
+		rows = [][]any{
+			{"序号", "项目编码", "项目名称", "单位", "工程量", "金额（元）"},
+			{9, "030412001008", "配管", "m", 1000, 5776.41},
+			{10, "030409001014", "电力电缆", "m", 1000, 4364.61},
+			{11, "030404014004", "控制箱、同期小屏", "台", 9, nil},
+		}
+	}
+	for r, row := range rows {
+		for c, v := range row {
+			if v == nil {
+				continue
+			}
+			coord, _ := excelize.CoordinatesToCellName(c+1, r+1)
+			if err := f.SetCellValue("Sheet1", coord, v); err != nil {
+				return err
+			}
+		}
+	}
+	if mode != "gap" {
+		if err := f.SetCellValue("Sheet1", "A6", "合计"); err != nil {
+			return err
+		}
+		if err := f.MergeCell("Sheet1", "A6", "B6"); err != nil {
+			return err
+		}
+	}
+	return f.SaveAs(path)
+}
+
+// fakeWpsExcelCLI 假 wpscli：转表子命令报成功并按 mode 产出 xlsx（见 fakeWpsExcel）。
+func fakeWpsExcelCLI(t *testing.T, mode string, pages int) string {
+	t.Helper()
+	t.Setenv("GAEAPROBE_WPS_XLSX", mode)
+	return fakeWpsCLIPath(t, 0, pages)
 }
 
 // fakeWpsCLIPath 让本测试二进制充当假 wpscli：返回可执行路径；子进程行为经 t.Setenv

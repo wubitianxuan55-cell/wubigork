@@ -241,6 +241,15 @@ PDF——文字型出真表格，扫描件自动走 WPS 在线 OCR（174 页实�
 format_convert path=扫描件.pdf output=扫描件.md preserve_images=true
 ```
 
+ **要 Excel 真表格（清单 / 定额表 / 报价单取数）**：`to=xlsx` 走 WPS 的转表引擎——金额是真数值，
+定额编码带前导零存成文本。扫描件 / 照片走 WPS 在线识别，默认开 `ai_fix`（数字零丢改，约 14 秒/页，
+一次最多 20 页，超出用 `pages` 分一段连续页）；回执列出的疑似缺格行须对照原件核对。
+
+```bash
+format_convert path=工程量清单.pdf to=xlsx output=工程量清单.xlsx
+format_convert path=报价单照片/ to=xlsx output=报价单.xlsx   # 目录：多张照片合成一个工作簿
+```
+
  **本地 OCR（仅 WPS 不可用时的兜底；离线）**：gaea 内建的本地 OCR 只保留 Unlimited-OCR-2
 （2026-11-26 精简；`format_convert` 的本地兜底会自动用它）。技能自带脚本只剩两条不依赖
 引擎工件的通道——Windows 原生 OCR 与本地视觉模型：

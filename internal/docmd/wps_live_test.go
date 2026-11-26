@@ -49,3 +49,54 @@ func TestLiveWPS_ScannedPDF(t *testing.T) {
 		}
 	}
 }
+
+// TestLiveWPS_Excel to=xlsx 的实弹，默认跳过（会消耗会员额度、依赖本机 WPS 登录态）。
+// GAEA_WPS_LIVE_EXCEL 指向一份 PDF / 图片 / 图片目录时走真实链路 ConvertToExcel 并打印回执。
+// 只在本机手动跑：
+//
+//	GAEA_WPS_PDF=1 GAEA_WPS_LIVE_EXCEL='D:\path\清单.pdf' go test ./internal/docmd/ -run TestLiveWPS_Excel -v -count=1
+//
+// 可选环境变量：
+//   - GAEA_WPS_LIVE_EXCEL_PAGES：页范围（一段连续页）
+//   - GAEA_WPS_LIVE_EXCEL_SCANNED：auto（默认）/ true / false
+//   - GAEA_WPS_LIVE_EXCEL_AIFIX：设 0 关掉 AI 修复（默认开）
+//   - GAEA_WPS_LIVE_EXCEL_PER_PAGE：设 1 一页一个工作表
+//   - GAEA_WPS_LIVE_EXCEL_OUT：把产物落到指定路径供人工核对
+//   - GAEA_WPS_LIVE_INSPECT：只对一个已有的 xlsx 跑产物核对（量大工作簿的耗时）
+func TestLiveWPS_Excel(t *testing.T) {
+	if path := strings.TrimSpace(os.Getenv("GAEA_WPS_LIVE_INSPECT")); path != "" {
+		start := time.Now()
+		rec, err := xlsxInspect(path)
+		t.Logf("核对耗时=%s 回执=%+v err=%v", time.Since(start), rec, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	path := strings.TrimSpace(os.Getenv("GAEA_WPS_LIVE_EXCEL"))
+	if path == "" {
+		t.Skip("GAEA_WPS_LIVE_EXCEL 未设置：默认跳过（会真调 WPS）")
+	}
+	if os.Getenv("GAEA_WPS_PDF") != "1" {
+		t.Fatal("TestMain 默认关了 WPS 通道：实弹须显式 GAEA_WPS_PDF=1")
+	}
+	opt := ExcelOptions{
+		Pages:        os.Getenv("GAEA_WPS_LIVE_EXCEL_PAGES"),
+		Scanned:      os.Getenv("GAEA_WPS_LIVE_EXCEL_SCANNED"),
+		AIFix:        os.Getenv("GAEA_WPS_LIVE_EXCEL_AIFIX") != "0",
+		PerPageSheet: os.Getenv("GAEA_WPS_LIVE_EXCEL_PER_PAGE") == "1",
+	}
+	var save func(string) error
+	if out := os.Getenv("GAEA_WPS_LIVE_EXCEL_OUT"); out != "" {
+		save = func(prod string) error { return MoveOrCopyFile(prod, out) }
+	}
+	start := time.Now()
+	rec, err := ConvertToExcel(path, opt, save)
+	t.Logf("耗时=%s 回执=%+v err=%v", time.Since(start), rec, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Sheets == 0 || rec.Cells == 0 {
+		t.Fatalf("产物不可用：%+v", rec)
+	}
+}

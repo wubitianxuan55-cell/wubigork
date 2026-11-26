@@ -273,9 +273,16 @@ type wpsCompleted struct {
 
 // wpsRun 跑一次 wpscli，返回退出码与终态行（解析不出终态行时为零值）。
 func wpsRun(cli string, args ...string) (int, wpsCompleted, string, error) {
+	return wpsRunTimed(wpsPDFTimeout, cli, args...)
+}
+
+// wpsRunTimed 是 wpsRun 的可调上限形态（to=xlsx 按页数放宽，见 wps_excel.go）。limit
+// 是这一次调用的上限，要比传给 wpscli 的 --timeout 留出余量：wpscli 自己到点会以
+// 退出码 3 收尾，能翻译成「WPS 转换超时」；这里先到点只能杀进程。
+func wpsRunTimed(limit time.Duration, cli string, args ...string) (int, wpsCompleted, string, error) {
 	wpsCLIMu.Lock()
 	defer wpsCLIMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), wpsPDFTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, cli, args...)
 	proc.HideWindow(cmd) // Windows: 防止弹出黑框
@@ -283,6 +290,16 @@ func wpsRun(cli string, args ...string) (int, wpsCompleted, string, error) {
 	cmd.Stdout, cmd.Stderr = &outBuf, &errBuf
 	runErr := cmd.Run()
 	tail := strings.TrimSpace(errBuf.String() + "\n" + stripWpsProgress(outBuf.String()))
+	if ctx.Err() != nil && runErr != nil {
+		// gaea 侧上限先到：被杀的 wpscli 在 Windows 上是退出码 1，按码翻译会误报成
+		// 「转换失败」。如实报成超时。
+		action := ""
+		if len(args) > 0 {
+			action = args[0]
+		}
+		return -1, wpsCompleted{}, tail, fmt.Errorf("WPS 转换超过 %s 仍未结束，已终止（wpscli %s）: %w",
+			limit.Round(time.Second), action, context.DeadlineExceeded)
+	}
 	code := 0
 	if runErr != nil {
 		var ee *exec.ExitError
