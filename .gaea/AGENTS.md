@@ -139,6 +139,11 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - 内置工具清单以 `docs/gaea-tool-registry-map-2026-11.md` 为准（`boot.Build` 单一 `tool.Registry`）；新增工具须同批更新契约行、自声明与文档
 - 文档能力交给 ModelScope 技能：docx / pdf / xlsx / pptx（安装在 `~/.codex/skills` 与 `.gaea/skills`），
   转换引擎共用 `internal/docmd`（format_convert 工具与预览面板同一实现）
+- **转换解析优先用 WPS**（2026-11-26 用户拍板：年会员，额度不设限）：PDF 经本机 WPS 命令行
+  `<安装根>\clitool\wpscli.exe`（无门禁；`office6\` 那个才有）——文字型出真表格，扫描件走
+  `--scanned true` 在线 OCR（174 页约 1 分钟）；WPS 不可用才退回本地提取 / 本地 OCR。
+  本地 OCR 只保留 Unlimited-OCR-2（llama 后端）做兜底，一次最多 30 页；OvisOCR2 / python
+  后端 / tesseract 已退役。WPS 更多能力的开发施工单见 `进度计划/gaea-wps-capability-plan-20261126.md`。
 - 内置子代理技能：format-convert / chart-builder / doc-assemble
 - 记忆系统：SQLite（`%APPDATA%\gaea\Hephaestus.db` facts 表，按项目 slug 隔离）+ 文档记忆（AGENTS.md 层级）
 - 环境依赖：LibreOffice（soffice）、node 全局 docx、Python 3.13（lxml/openpyxl/pypdf/pdfplumber/reportlab/pandas/matplotlib 等）

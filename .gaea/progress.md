@@ -1,3 +1,17 @@
+## PDF 转换 WPS 优先 + 本地 OCR 精简（2026-11-26，同一会话，ZCode；打包装机结果见本条末「补记」）
+
+用户报「造价模式读 PDF 用 OCR 会堵死，按停止后下一轮一直显示排队中」，问「办公板块是否需要一个专门的格式转换工具」；随后补证「WPS 很短时间就转完了」，拍板**年会员额度不设限、转换解析优先用 WPS**；另问本地 OCR 三个能否精简到最好的一个，定「先精简、后提交打包」；WPS 更多能力开发为大项，本会话只记录，下个会话进行。
+
+- **病根（对码 + 会话日志坐实）**：事发 PDF 是三明治件（174 页 JPEG 图像页 + 字形号文字层 `<11CD>Tj`）。`docmd/pdf.go` 自写提取只认 `(...)Tj` 与 `[...] TJ` 两种形态，整本提空；「空文本」分支直接落本地 OCR——WPS 此前只挂在「有文字但乱码」分支。会话日志：08:55:51 派发 `format_convert` 后无 tool_result，直到 09:35 重启。停止无效 = `format_convert` 收了 ctx 不用 + `executeBatch` 的 `wg.Wait()` 死等在途工具。
+- **WPS 优先**（`internal/docmd/wps.go` / `pdf.go` / `images.go`，`builtin/format_convert.go`）：①提不出文字的 PDF 先走 WPS 在线 OCR（`pdf2word --scanned true --range`，必须带显式页范围，100 页分段串行），所有消费方生效；②`format_convert` 对文字型 PDF 也先经 WPS（`preferWPS`，真表格 + 图片），失败退回本地提取；检索索引 / @引用 / 预览仍走本地快速通道；③退出码 100/101/429 进 10 分钟全局静默；④兜底也失败时报错带两头真因；⑤`rejoinSplitDecimals`：WPS OCR 把表格里小数拆成 `3. 1` / `115953. 12t`（docx 原件即如此，2624 格中 21 格），只并纯数字格与数字后直贴拉丁单位的格；⑥`format_convert` 收到取消即返回 `ctx.Err()`、不落盘，后台那次跑完即弃（结果仍进进程内缓存）。本地 OCR 降为兜底，`ocrMaxPages=30`。
+- **实测**：174 页扫描件经真实 Go 链路 85 秒（103 图 / 77040 汉字 / 37 表）；纯 `wpscli --scanned true --range 1-174` 68 秒。之前 = 本地 OCR 堵死 40 分钟。
+- **本地 OCR 精简**（用户确认「只留 uocr2 llama 后端，python 后端一并退役」）：`docmd` 删 OvisOCR2 / tesseract 两套 provider 与 uocr2 python 后端（`ocr.go` 909→604 行、`ocr_uocr2.go` 647→441 行）；`GAEA_OCR_ENGINE` 空 / auto / uocr2 → uocr2，`ovis` / `tesseract` 显式配置如实报「已退役」并指路，不静默换挡；模型中心本地 OCR 三张卡 → 一张（`local:uocr2`；此前两张 uocr2 卡的「设为 OCR」其实点不通——卡 ID 与 kind 对不上，顺手改成一致）；配置残留的已退役定点值启动时清掉（`normalizeLocalOCRKind`）；pdf 技能脚本 `ocr_local.py` 只剩 WinRT + 本地视觉模型两腿；前端 10 个文件的文案与 mock 同步（办公 + 文学镜像）。测试里原先拿 tesseract / ovis 当「假引擎」的用例改用专门的替身引擎 `fake-ocr`。
+- **WPS 能力开发记录**（只记录未开工）：事实源 `C:\AI\re\wps-12.1.0.29690\docs\WPSCLI-CAPABILITIES.md`（30 个子命令、实测数字、输出瑕疵、逐项开工前实测清单；**勘误：`clitool\wpscli.exe` 无门禁，11-24 报告测的「门禁」是 `office6\` 那个**），施工单 `进度计划/gaea-wps-capability-plan-20261126.md`，待办表顶行。
+- **门禁**：`go vet ./...` 0；go test docmd / tool / builtin / control / fileindex / largefile / wssearch / config / internal/ocr 全绿，app 包 OCR / 本地服务卡 / 成本导入 / 工具面预算 / 绑定完整性全绿；前端 tsc -b 0、vitest 全量 4780 例、改动文件 eslint 0；check-bindings-drift OK、check-docs OK。
+- **顺手清的既有欠账**：`TestBuildUocr2LlamaServerCmd`（夹具路径停在 11-20 钉点前，一直红）；`SettingsPage.test.tsx`「晨报预载」断言（开关 11-25 `799e9ba8` 已撤下，断言没跟；干净 HEAD 上复现同红后删）。
+- **坑**：①`grep -a -c` 数二进制 PDF 对象不可靠（196 处 `/Font` 报 0），PDF 结构用 Python 正则；②PATH 前置 ucrt64 会用 msys64 的 python 顶掉系统 python，markitdown 类测试与实弹假红——纯 Go 包别带；③`go test -exec cgo_test_dll_prep.cmd` 的 `-run` 不能含 `|`；④Git Bash 里 robocopy 的 `/L /S` 会被路径转换吃掉，走 PowerShell；⑤装了 WPS 的开发机上，没打桩的测试会真调 WPS 云——docmd 的 `TestMain` 默认 `GAEA_WPS_PDF=0`。
+- **余项**：①退役引擎的模型目录待用户确认后删除（`C:\AI\gaea-OCR\unlimited` 约 14.9 GB、`ovis` 约 0.8 GB；删前把 `unlimited\testimg` 两张实弹样本图挪到 `uocr2-llama\testimg`）；②agent 循环层对「不看 ctx 的慢工具」仍会 `wg.Wait()` 死等（本批只在 format_convert 工具级解决）；③正文汉字间 OCR 空格未归一化；④WPS `--ai-fix`、在线引擎单次页数上限未验证；⑤装机后真机走查：造价模式转那份扫描件、转换中按停止再发消息不排队；⑥**既有缺陷（本批未动）**：`internal/gaea/pricefeed/store.go` `SaveFetch` 用 `time.Now().UnixNano()` 生成记录 ID，Windows 时钟粒度下连续两次保存会撞号（`UNIQUE constraint failed: price_fetch.id`）——app 整包测试 `TestGaeaPriceFetchAllTask` 偶红（单跑在改动前后都过），真实使用中「全部抓取」也可能偶发丢一条抓取记录；建议改原子序号或随机后缀。
+
 ## 文学板块对办公优化的同步批（2026-11-26，未提交未装机；审计→施工同一会话，ZCode）
 
 用户问「办公板块进行了多次优化，文学板块相同的部分有没有同步」→ 只读审计 → 用户令「开始」。分叉点 44f8bb6b（11-15）。
