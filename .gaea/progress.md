@@ -12,6 +12,8 @@
 - **坑**：①`grep -a -c` 数二进制 PDF 对象不可靠（196 处 `/Font` 报 0），PDF 结构用 Python 正则；②PATH 前置 ucrt64 会用 msys64 的 python 顶掉系统 python，markitdown 类测试与实弹假红——纯 Go 包别带；③`go test -exec cgo_test_dll_prep.cmd` 的 `-run` 不能含 `|`；④Git Bash 里 robocopy 的 `/L /S` 会被路径转换吃掉，走 PowerShell；⑤装了 WPS 的开发机上，没打桩的测试会真调 WPS 云——docmd 的 `TestMain` 默认 `GAEA_WPS_PDF=0`。
 - **余项**：①退役引擎的模型目录待用户确认后删除（`C:\AI\gaea-OCR\unlimited` 约 14.9 GB、`ovis` 约 0.8 GB；删前把 `unlimited\testimg` 两张实弹样本图挪到 `uocr2-llama\testimg`）；②agent 循环层对「不看 ctx 的慢工具」仍会 `wg.Wait()` 死等（本批只在 format_convert 工具级解决）；③正文汉字间 OCR 空格未归一化；④WPS `--ai-fix`、在线引擎单次页数上限未验证；⑤装机后真机走查：造价模式转那份扫描件、转换中按停止再发消息不排队；⑥**既有缺陷（本批未动）**：`internal/gaea/pricefeed/store.go` `SaveFetch` 用 `time.Now().UnixNano()` 生成记录 ID，Windows 时钟粒度下连续两次保存会撞号（`UNIQUE constraint failed: price_fetch.id`）——app 整包测试 `TestGaeaPriceFetchAllTask` 偶红（单跑在改动前后都过），真实使用中「全部抓取」也可能偶发丢一条抓取记录；建议改原子序号或随机后缀。
 
+**补记（打包装机，2026-11-26 11:58）**：提交 `ac3a60bd`（代码）+ `7f8ea22b`（记录）；包 `releases/gaea-wps-ocr-20261126-7f8ea22b/`——干净工作树 `.worktrees/pkg-wps-ocr`（detached @ 7f8ea22b）构建，前端 Vite 22.3s、Wails 26.5s（bindings 未跳过，wailsjs 零漂移），payload 冒烟 200；exe `CA9B9D41…324523B`（60,085,248 B），zip `8843f578…`、src.zip `48bf3ebe…`，三个 DLL 与上一包逐字节相同；包版四件回写主树 `build/bin`（哈希对账一致）→ `gaea_install.ps1 -Launch` → INSTALL OK，装机位 `C:\AI\gaea-app`，新壳 PID 49952（11:58:27 启动，晚于构建时刻）。开机日志两条 `[NewSessionError] 办公引擎未初始化` 与今早 09:35 启动日志相同（既有开机现象）。未 push；真机走查未做（见余项⑤）。
+
 ## 文学板块对办公优化的同步批（2026-11-26，未提交未装机；审计→施工同一会话，ZCode）
 
 用户问「办公板块进行了多次优化，文学板块相同的部分有没有同步」→ 只读审计 → 用户令「开始」。分叉点 44f8bb6b（11-15）。
