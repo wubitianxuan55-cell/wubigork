@@ -42,6 +42,25 @@ func TestCostLibrarySampleGolden(t *testing.T) {
 	if len(b.Skipped) != 0 {
 		t.Errorf("样表不应有被跳过的行: %+v", b.Skipped)
 	}
+	// 两层 ROUND 预置在样表里（2026-11-26：样表由用户用 gaea 改好，换作内置种子）：
+	// 定额单价舍到分、清单综合单价舍到分。样表哪一层丢了，工作簿与库现算就又出
+	// 尾差——三场实测都为此对账了好几轮。
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatalf("打开样表失败: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	for _, tc := range []struct{ sheet, cell, want string }{
+		{"综合单价", "M5", "ROUND(SUM(N6:N9),2)"},
+		{"综合单价", "M10", "ROUND(SUM(N11:N14),2)"},
+		{"综合单价", "M324", "ROUND(SUM(N325:N328),2)"},
+		{"清单", "H4", "ROUND(综合单价!S4,2)"},
+		{"清单", "H33", "ROUND(综合单价!S323,2)"},
+	} {
+		if got, _ := f.GetCellFormula(tc.sheet, tc.cell); got != tc.want {
+			t.Errorf("样表 %s!%s 公式应为 %s，实得 %s", tc.sheet, tc.cell, tc.want, got)
+		}
+	}
 }
 
 // TestCostLibraryTemplateCopiesSample template 动作=复制样表：内嵌种子兜底、

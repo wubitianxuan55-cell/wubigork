@@ -52,7 +52,7 @@ const clSchemaCoreA = `{
   }}},
   "resource":{"type":"object","description":"工料机（save_resource 必填；按 id 或 code 定位已有资源，未给的字段保持原值）","properties":{
     "id":{"type":"integer","description":"资源 id（改已有资源时给）"},
-    "code":{"type":"string","description":"资源编码（改已有资源时给；新建可留空自动分配）"},
+    "code":{"type":"string","description":"资源编码（按它定位已有资源；新建给了就照用、须未被占用，不给自动分配）"},
     "kind":{"type":"string","description":"类别：人工/材料/机械/外委"},
     "title":{"type":"string","description":"名称"},
     "spec":{"type":"string","description":"规格"},
@@ -79,6 +79,7 @@ const clSchemaCoreA = `{
   "region":{"type":"string","description":"地区（字典值）。set_price=这条价的地区；import_project=项目所在地区，工料机按它分行"},
   "specialty":{"type":"string","description":"专业（字典值）。import_project=项目默认专业，本次新建的定额专业随它；flywheel=只生成该专业的候选（同词干多专业时必给）；borrow_quota=目标专业"},
   "note":{"type":"string","description":"调价依据（set_price 可选）"},
+  "control_price":{"type":"number","description":"import_project 可选：显式控制价（元），覆盖费用汇总里读到的值"},
   "rows":{"type":"array","description":"批量调价行（bulk_price 必填，单批 ≤500）","items":{"type":"object","properties":{
     "title":{"type":"string","description":"资源名称（精确匹配）"},
     "spec":{"type":"string","description":"规格（给了就参与精确匹配）"},

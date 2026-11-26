@@ -322,6 +322,20 @@ func (t costLibraryTool) importCommit(s *workcost.Store, p costLibraryArgs) (str
 		var out strings.Builder
 		fmt.Fprintf(&out, "🔍 演练（未写库）：提交导入 %s\n", imp.ID)
 		fmt.Fprintf(&out, "**将写入**: %s｜工料机 %d｜定额 %d｜清单 %d\n", clDim(imp.Project.Name, "（无项目）"), r, q, b)
+		// 落地预演（2026-11-26 造价反馈，百锦路 #5）：并入、分行、消歧此前
+		// 要等正式提交后才在回执里出现——届时数据已落库，想改只能再走一轮。
+		if landing, lerr := imp.LandingPreview(s); lerr != nil {
+			return "", lerr
+		} else if len(landing) > 0 {
+			fmt.Fprintf(&out, "**落地预演**（%d 条工料机的去向，提交后不可在此改；要改就重新 import_add 覆盖这一行）:\n", len(landing))
+			for i, l := range landing {
+				if i >= clCapRef(len(landing)) {
+					fmt.Fprintf(&out, "- …共 %d 条\n", len(landing))
+					break
+				}
+				fmt.Fprintf(&out, "- %s\n", l)
+			}
+		}
 		out.WriteString(report)
 		return out.String(), nil
 	}
@@ -339,11 +353,32 @@ func (t costLibraryTool) importCommit(s *workcost.Store, p costLibraryArgs) (str
 	fmt.Fprintf(&out, "**写入**: 工料机 新建 %d / 更新 %d｜定额 新建 %d / 更新 %d｜清单 %d 行｜价格事实 %d 条\n",
 		res.ResourcesNew, res.ResourcesUpd, res.QuotasNew, res.QuotasUpd, res.Bills, res.PriceFacts)
 	if len(res.RegionMerged) > 0 {
-		// 铜陵反馈 #18：四要素同、仅地区缺失/不同的既有行并入原行（更新，不消歧）。
-		fmt.Fprintf(&out, "**地区并入**: %d 条工料机按身份四要素并入既有行（更新原行地区，未新建）\n", len(res.RegionMerged))
+		// 铜陵反馈 #18 的并入面（口径收窄见 regionMergeDecision）。
+		fmt.Fprintf(&out, "**地区并入**: %d 条工料机按身份四要素并入既有行（本次没给地区→继承原行地区；原行未标地区或地区不是字典值→规范成导入地区；未新建）\n", len(res.RegionMerged))
 		for i, m := range res.RegionMerged {
-			if i >= clCap(len(res.RegionMerged)) {
+			if i >= clCapRef(len(res.RegionMerged)) {
 				fmt.Fprintf(&out, "- …共 %d 条\n", len(res.RegionMerged))
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", m)
+		}
+	}
+	if len(res.Renames) > 0 {
+		fmt.Fprintf(&out, "**编码映射**（暂存码 → 库内码，含量行已跟着改指）:\n")
+		for i, m := range res.Renames {
+			if i >= clCapRef(len(res.Renames)) {
+				fmt.Fprintf(&out, "- …共 %d 条\n", len(res.Renames))
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", m)
+		}
+	}
+	if len(res.RegionRows) > 0 {
+		// 百锦路反馈 #3：同身份在别的地区已有规范行时不再改写原行地区。
+		fmt.Fprintf(&out, "**按地区分行新建**: %d 条工料机同身份在别的地区已有行——原行不动，新建本地区行（含量行已改指新码）\n", len(res.RegionRows))
+		for i, m := range res.RegionRows {
+			if i >= clCapRef(len(res.RegionRows)) {
+				fmt.Fprintf(&out, "- …共 %d 条\n", len(res.RegionRows))
 				break
 			}
 			fmt.Fprintf(&out, "- %s\n", m)

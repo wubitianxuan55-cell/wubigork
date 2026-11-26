@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -59,8 +60,9 @@ func (t costProjectTool) Schema() json.RawMessage {
   "code":{"type":"string","description":"定额编码（action=quota 必填）"},
   "specialty":{"type":"string","description":"定额专业过滤（可选）"},
   "kind":{"type":"string","description":"资源类型过滤（人工/材料/机械等，可选）"},
+  "region":{"type":"string","description":"工料机地区过滤（resources 可选，字典值；工料机按地区分行）"},
   "keyword":{"type":"string","description":"检索词（可选）：编码精确命中优先；名称或规格含它即可召回；索引就绪时同义说法也能召回"},
-  "limit":{"type":"integer","description":"返回条数上限（默认 50，最大 200）"}
+  "limit":{"type":"integer","description":"返回条数上限（默认 50，上限 200；回执给总数与是否还有更多）"}
 }
 }`)
 }
@@ -72,14 +74,20 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		Code      string `json:"code"`
 		Specialty string `json:"specialty"`
 		Kind      string `json:"kind"`
+		Region    string `json:"region"`
 		Keyword   string `json:"keyword"`
 		Limit     int    `json:"limit"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("cost_project 参数解析失败: %w", err)
 	}
-	if p.Limit <= 0 || p.Limit > 200 {
+	// limit 钳位到 [1, 200]（2026-11-26 造价反馈，百锦路 #4）：此前 limit>200 或
+	// ≤0 一律回落 50——模型照文档给 300 反而只拿到 50 条，截断得毫无提示。
+	if p.Limit <= 0 {
 		p.Limit = 50
+	}
+	if p.Limit > 200 {
+		p.Limit = 200
 	}
 	s := t.a.hubWorkcostStore()
 	if !s.Available() {
@@ -124,7 +132,9 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 					return ""
 				}())
 			}
-			line := fmt.Sprintf("- [%s] %s（%s）量=%g", it.Code, it.Title, it.Unit, it.Quantity)
+			// 行尾带数字 id（2026-11-26 造价反馈，旺平 #6）：classify.bills / delete_items
+			// / borrow_quota 的 item_ids 都要它，契约写着「items 可查」而此处不打印。
+			line := fmt.Sprintf("- [%s] %s（%s）量=%g id=%d", it.Code, it.Title, it.Unit, it.Quantity, it.ID)
 			if sp := strings.TrimSpace(it.Specialty); sp != "" {
 				line += " 专业=" + sp
 			}
@@ -146,9 +156,14 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		}
 		return t.runSummary(p.ProjectID)
 	case "quotas":
-		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Limit: p.Limit})
+		// 多取一条判断「还有更多」；列表模式（无检索词）另给总数。
+		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Limit: p.Limit + 1})
 		if err != nil {
 			return "", err
+		}
+		hasMore := len(hits) > p.Limit
+		if hasMore {
+			hits = hits[:p.Limit]
 		}
 		quotas := make([]workcost.Quota, len(hits))
 		for i, h := range hits {
@@ -158,10 +173,14 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "定额 %d 条（限 %d）%s:\n", len(quotas), p.Limit, clViaNote(hits))
+		fmt.Fprintf(&b, "定额 %d 条%s%s:\n", len(quotas),
+			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountQuotas(p.Specialty) }), len(quotas), hasMore), clViaNote(hits))
 		for i, q := range quotas {
-			fmt.Fprintf(&b, "- [%s] %s（%s，%s，含量行 %d，引用 %d 次）%s\n", q.Code, q.Title, q.Unit, clDim(q.Specialty, "未标注专业"), len(q.Items), q.UsageCount, clViaMark(hits[i].Via))
+			// 列表是轻量查询、不带含量行：此前照样打印「含量行 N」，N 恒为 0，
+			// 模型误以为导入失败而重复补录（2026-11-26 造价反馈，旺平 #6）。
+			fmt.Fprintf(&b, "- [%s] %s（%s，%s，引用 %d 次）%s\n", q.Code, q.Title, q.Unit, clDim(q.Specialty, "未标注专业"), q.UsageCount, clViaMark(hits[i].Via))
 		}
+		b.WriteString("含量行用 action=quota 看单条详情（列表不带含量行）。\n")
 		if strings.TrimSpace(p.Specialty) == "" {
 			b.WriteString("清单套定额同专业优先：带上 specialty 只看本专业的定额；本专业没有匹配的，再用 cost_library borrow_quota 借鉴生成。\n")
 		}
@@ -181,39 +200,52 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		}
 		return b.String(), nil
 	case "resources":
-		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Limit: p.Limit})
+		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Region: p.Region, Limit: p.Limit + 1})
 		if err != nil {
 			return "", err
+		}
+		hasMore := len(hits) > p.Limit
+		if hasMore {
+			hits = hits[:p.Limit]
 		}
 		resources := make([]workcost.Resource, len(hits))
 		for i, h := range hits {
 			resources[i] = h.Item
 		}
 		if len(resources) == 0 {
-			return fmt.Sprintf("工料机库无匹配（kind=%q keyword=%q）。", p.Kind, p.Keyword), nil
+			return fmt.Sprintf("工料机库无匹配（kind=%q region=%q keyword=%q）。", p.Kind, p.Region, p.Keyword), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "资源 %d 条（限 %d）%s：\n", len(resources), p.Limit, clViaNote(hits))
+		fmt.Fprintf(&b, "资源 %d 条%s%s：\n", len(resources),
+			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountResources(p.Kind, p.Region) }), len(resources), hasMore), clViaNote(hits))
 		for i, r := range resources {
 			// id=数字主键（铜陵反馈 #18：dedupe 的 keep_id/merge_ids 只吃数字 id，
 			// 只读口不给 id 时消歧链路当场卡死）。
 			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s，id=%d）%s\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
 				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"), r.ID, clViaMark(hits[i].Via))
 		}
+		if p.Region == "" && p.Keyword == "" {
+			b.WriteString("同一种工料机按地区分行（每地区一行）：只看某地区带 region；查同身份各地区的行用 keyword=名称、不带 region。\n")
+		}
 		return b.String(), nil
 	case "bills":
 		// 跨项目清单行检索：找某个清单项在哪些项目里出现过、按名称 / 项目特征找清单项。
 		hits, err := t.a.costSearcher().BillItems(ctx, workcost.SearchQuery{
-			Text: p.Keyword, Specialty: p.Specialty, ProjectID: p.ProjectID, Limit: p.Limit,
+			Text: p.Keyword, Specialty: p.Specialty, ProjectID: p.ProjectID, Limit: p.Limit + 1,
 		})
 		if err != nil {
 			return "", err
+		}
+		hasMore := len(hits) > p.Limit
+		if hasMore {
+			hits = hits[:p.Limit]
 		}
 		if len(hits) == 0 {
 			return fmt.Sprintf("清单库无匹配（specialty=%q keyword=%q project_id=%d）。", p.Specialty, p.Keyword, p.ProjectID), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "清单行 %d 条（跨项目检索；限 %d）%s：\n", len(hits), p.Limit, clViaNote(hits))
+		fmt.Fprintf(&b, "清单行 %d 条（跨项目检索%s）%s：\n", len(hits),
+			clListScale(-1, len(hits), hasMore), clViaNote(hits))
 		for _, h := range hits {
 			it := h.Item
 			line := fmt.Sprintf("- 项目 #%d [%s] %s（%s）", it.ProjectID, it.Code, it.Title, it.Unit)
@@ -229,6 +261,35 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 	default:
 		return "", fmt.Errorf("未知 action %q（projects/items/quotas/quota/resources/bills）", p.Action)
 	}
+}
+
+// listTotal 列表模式（无检索词）给总数；关键词检索不数总数（返回 -1=未知）。
+// 数总数失败不拦列表，按未知处理。
+func (costProjectTool) listTotal(listMode bool, count func() (int, error)) int {
+	if !listMode {
+		return -1
+	}
+	n, err := count()
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// clListScale 列表回执头部的规模说明（2026-11-26 造价反馈，百锦路 #4：只给
+// 「N 条（限 M）」不给总数，模型不知道是搜全了还是被截断，只能一轮轮换词猜）。
+// total<0=总数未知；hasMore=本次没列全。
+func clListScale(total, shown int, hasMore bool) string {
+	const more = "提高 limit（上限 200）或加过滤条件缩小范围"
+	switch {
+	case hasMore && total >= 0:
+		return fmt.Sprintf("（共 %d 条，本次列 %d 条；还有更多——%s）", total, shown, more)
+	case hasMore:
+		return fmt.Sprintf("（本次列 %d 条；还有更多——%s）", shown, more)
+	case total >= 0:
+		return fmt.Sprintf("（共 %d 条）", total)
+	}
+	return ""
 }
 
 // clViaNote / clViaMark 检索结果的命中方式标注。只有非关键词命中的才标：名称不含查询词
@@ -306,6 +367,12 @@ func (t costProjectTool) runSummary(projectID int64) (string, error) {
 	var direct, sumLabor, sumMaterial, sumMachine, sumOther float64
 	unpriced := 0
 	warnSeen := map[string]bool{}
+	// 分部小计的累加器（按首次出现顺序列出）。
+	byDivision := map[string]bool{}
+	divAmount, divRows := map[string]float64{}, map[string]int{}
+	var divOrder []string
+	// 与导入快照不一致的行数与按工程量合计的差额。
+	snapDiff, snapDelta := 0, 0.0
 	for _, it := range items {
 		qty := it.Quantity
 		row := fmt.Sprintf("- [%s] %s（%s）量=%g", it.Code, it.Title, it.Unit, qty)
@@ -352,39 +419,87 @@ func (t costProjectTool) runSummary(projectID int64) (string, error) {
 			fmt.Fprintf(&b, "%s → 无现算（缺定额挂接/悬空，cost_audit 会点名）\n", row)
 			continue
 		}
+		unit := 0.0
+		if qty > 0 {
+			// 清单综合单价取到分、合价=单价×工程量（2026-11-26 造价反馈，百锦路
+			// #6 / 太原 #9）：与六表工作簿 =ROUND(综合单价!S行,2) 同口径。此前本口
+			// 用全精度 S×量，与工作簿「取到分再乘」差出按量放大的尾数，模型只能
+			// 逐行对账去反推舍入口径。
+			raw := total
+			unit = workcost.Round2(total / qty)
+			total = unit * qty
+			if raw > 0 {
+				// 三费拆分随合价等比缩放，保住 人+材+机(+其他)=合价 的恒等式。
+				k := total / raw
+				labor, material, machine, other = labor*k, material*k, machine*k, other*k
+			}
+			if it.PriceOverride > 0 {
+				material = total
+			}
+		}
 		direct += total
 		sumLabor += labor
 		sumMaterial += material
 		sumMachine += machine
 		sumOther += other
-		unit := 0.0
-		if qty > 0 {
-			unit = total / qty
+		div := strings.TrimSpace(it.Division)
+		if div == "" {
+			div = "（未分部）"
 		}
+		if _, seen := byDivision[div]; !seen {
+			byDivision[div] = true
+			divOrder = append(divOrder, div)
+		}
+		divAmount[div] += total
+		divRows[div]++
 		fmt.Fprintf(&b, "%s 综合单价=%.2f 合价=%.2f（人=%.2f 材=%.2f 机=%.2f", row, unit, total, labor, material, machine)
 		if other > 0 {
 			fmt.Fprintf(&b, " 其他=%.2f", other)
+		}
+		if d := strings.TrimSpace(it.Division); d != "" {
+			fmt.Fprintf(&b, " 分部=%s", d)
+		}
+		// 与导入快照（原表综合单价）对账（2026-11-26 造价反馈三批：三场都在
+		// 「工作簿 ↔ 库现算」的尾差上手工逐行对了几轮）。差到分就逐行点名。
+		if it.ListPrice > 0 {
+			if diff := unit - it.ListPrice; math.Abs(diff) >= 0.005 {
+				snapDiff++
+				snapDelta += diff * qty
+				fmt.Fprintf(&b, " 导入快照=%.2f（差 %+.2f）", it.ListPrice, diff)
+			}
 		}
 		b.WriteString("）\n")
 	}
 	if unpriced > 0 {
 		fmt.Fprintf(&b, "（另有 %d 行无现算，未计入合计）\n", unpriced)
 	}
-	// 取费链（五表导出同源；税率口径建筑服务一般计税 9%/简易 3% 由项目自填）。
-	mgmt := direct * proj.ManagementRate
-	profit := (direct + mgmt) * proj.ProfitRate
-	reg := direct * proj.RegulatoryRate
-	pretax := direct + mgmt + profit + reg // 显式逐项相加（勿用区间 SUM，导出层实测坑）
-	tax := pretax * proj.TaxRate
-	withTax := pretax + tax
-	fmt.Fprintf(&b, "── 项目汇总（费率 管=%g 规=%g 利=%g 税=%g）──\n", proj.ManagementRate, proj.RegulatoryRate, proj.ProfitRate, proj.TaxRate)
-	fmt.Fprintf(&b, "人材机直接费=%.2f（人=%.2f 材=%.2f 机=%.2f）\n", direct, sumLabor, sumMaterial, sumMachine)
-	fmt.Fprintf(&b, "管理费=%.2f｜利润=%.2f｜规费=%.2f｜税前=%.2f｜增值税=%.2f\n", mgmt, profit, reg, pretax, tax)
-	fmt.Fprintf(&b, "含税合计=%.2f", withTax)
-	if proj.ControlPrice > 0 {
-		fmt.Fprintf(&b, "（占控制价 %.1f%%）", withTax/proj.ControlPrice*100)
+	if snapDiff > 0 {
+		fmt.Fprintf(&b, "与导入快照（原表综合单价）不一致 %d 行，按工程量合计差 %+.2f——导入后调过资源价或含量，属正常重算；本该一致却对不上，先查工作簿两层 ROUND（定额行 M、清单 H），再逐行看定额含量。\n", snapDiff, snapDelta)
 	}
-	b.WriteString("\n口径：综合单价=人材机口径（不含管利税）；手填价行人材机归属=整价归材料；导出 xlsx（五表）以本链同源公式生成，两边金额必须一致——不一致=口径分叉，以库内现算为准排查。\n")
+	// 分部小计（2026-11-26 造价反馈，百锦路 #6）：与旧测算对账时按分部看差额，
+	// 不必逐行誊录手算。
+	if len(divOrder) > 0 {
+		fmt.Fprintf(&b, "── 分部小计（人材机直接费）──\n")
+		for _, d := range divOrder {
+			fmt.Fprintf(&b, "- %s：%.2f（%d 行）\n", d, divAmount[d], divRows[d])
+		}
+	}
+	// 取费链走库内唯一实现 ComposeProjectFees（逐段舍到分、认「利润基数含规费」
+	// 开关），与六表导出同源。此前这里手写了一遍公式：不逐段舍到分、也不认
+	// 开关——开关打开时 summary 与导出两份利润对不上。
+	fees := workcost.ComposeProjectFees(direct, workcost.RateSet{
+		ManagementRate: proj.ManagementRate, RegulatoryRate: proj.RegulatoryRate,
+		ProfitRate: proj.ProfitRate, TaxRate: proj.TaxRate,
+	}, workcost.FeePolicy{ProfitBaseIncludesRegulatory: proj.ProfitIncludesRegulatory}, 0, 0, proj.ControlPrice)
+	fmt.Fprintf(&b, "── 项目汇总（费率 管=%g 规=%g 利=%g 税=%g）──\n", proj.ManagementRate, proj.RegulatoryRate, proj.ProfitRate, proj.TaxRate)
+	fmt.Fprintf(&b, "人材机直接费=%.2f（人=%.2f 材=%.2f 机=%.2f）\n", fees.DirectFee, sumLabor, sumMaterial, sumMachine)
+	fmt.Fprintf(&b, "管理费=%.2f｜利润=%.2f｜规费=%.2f｜税前=%.2f｜增值税=%.2f\n", fees.ManagementFee, fees.ProfitFee, fees.RegulatoryFee, fees.PreTaxTotal, fees.TaxFee)
+	fmt.Fprintf(&b, "含税合计=%.2f", fees.Total)
+	if proj.ControlPrice > 0 {
+		fmt.Fprintf(&b, "（占控制价 %.1f%%）", fees.ControlUtilPct)
+	}
+	b.WriteString("\n舍入口径：每条定额单价舍到分；清单综合单价=Σ(系数×定额单价) 再舍到分；合价=综合单价×工程量；取费链逐段舍到分——与六表工作簿的 =ROUND(…,2) 同口径，两边应逐分一致。\n")
+	b.WriteString("口径：综合单价=人材机口径（不含管利税）；手填价行人材机归属=整价归材料；导出 xlsx 以本链同源公式生成，两边金额必须一致——不一致=口径分叉，以库内现算为准排查。\n")
 	if len(warnSeen) > 0 {
 		keys := make([]string, 0, len(warnSeen))
 		for w := range warnSeen {
@@ -787,7 +902,7 @@ type costAuditTool struct{ a *App }
 func (t costAuditTool) Name() string   { return "cost_audit" }
 func (t costAuditTool) ReadOnly() bool { return true }
 func (t costAuditTool) Description() string {
-	return "对测算项目跑确定性机检（只读，不改数据）：行级硬检=身份/单位缺失、无计价路径（无定额且无手填价）、定额悬空、资源悬空（HardCount>0 必须修复后再交付）；信息项不阻塞=费率>1、规格档错配、跨项目查漏（只在同专业间比）、清单与定额专业对不上（specialty_gap：清单挂着外专业定额，应先借鉴生成本专业的；code_gap：国标清单编码的专业段与清单专业不一致）、库级健康扫描。费率≤0 是显式不计取，不报错。"
+	return "对测算项目跑确定性机检（只读，不改数据）：行级硬检=身份/单位缺失、无计价路径（无定额且无手填价）、定额悬空、资源悬空（HardCount>0 必须修复后再交付；资源悬空回执附可改的回存骨架）；信息项不阻塞=费率>1、规格档错配、引用的资源属于别的地区（region_mismatch）、跨项目查漏（只在同专业间比）、清单与定额专业对不上（specialty_gap：清单挂着外专业定额，应先借鉴生成本专业的；code_gap：国标清单编码的专业段与清单专业不一致）、库级健康扫描。费率≤0 是显式不计取，不报错。"
 }
 func (t costAuditTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -846,6 +961,7 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 
 	// 硬检一/二：行级字段（终案 Grok-r3 workcost 断言表）。
 	quotaCache := map[string]*workcost.Quota{}
+	quotaOrder := []string{}              // 定额码出场序（跨地区检查按它遍历，回执稳定）
 	reportedDangling := map[string]bool{} // 同一悬空定额码只报一次（QuotaCode 与 QuotaCodes 双挂同码不去重会双报）
 	for _, it := range items {
 		row := fmt.Sprintf("#%d[%s]", it.ID, it.Code)
@@ -875,6 +991,7 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 					return "", fmt.Errorf("定额 %s 校验失败: %w", c, err)
 				}
 				quotaCache[c] = got
+				quotaOrder = append(quotaOrder, c)
 			}
 			if quotaCache[c] == nil && !reportedDangling[c] {
 				reportedDangling[c] = true
@@ -884,8 +1001,12 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 	}
 	// 硬检四：资源悬空——仅本项目已挂定额（且定额存在）的含量行，ResourceCode
 	// 非空但资源表查不到。资源缺失时快照价兜底可追溯（QuotaItem.ResourcePrice），
-	// 但引用面断裂仍是硬伤。
+	// 但引用面断裂仍是硬伤。回执附可应用的修法骨架（2026-11-26 造价反馈，百锦路
+	// #8：此前只点名，模型得先拼出整组含量行再 save_quota，每条分两次手工修）。
 	checkedRes := map[string]bool{}
+	missingRes := map[string]bool{}
+	danglingByQuota := map[string][]string{} // 定额码 → 悬空的资源码
+	var danglingQuotas []string
 	for _, it := range items {
 		codes := append([]string{it.QuotaCode}, it.QuotaCodes...)
 		for _, c := range codes {
@@ -895,14 +1016,71 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 			}
 			for _, qi := range quotaCache[c].Items {
 				rc := strings.TrimSpace(qi.ResourceCode)
-				if rc == "" || checkedRes[rc] {
+				if rc == "" {
 					continue
 				}
-				checkedRes[rc] = true
-				if _, err := s.GetResourceByCode(rc); err != nil && workcostNotFound(err) {
-					add("dangling_resource", fmt.Sprintf("定额 %s 含量行引用资源 %s 不存在", c, rc), true)
-				} else if err != nil {
-					return "", fmt.Errorf("资源 %s 校验失败: %w", rc, err)
+				if !checkedRes[rc] {
+					checkedRes[rc] = true
+					if _, err := s.GetResourceByCode(rc); err != nil && workcostNotFound(err) {
+						missingRes[rc] = true
+					} else if err != nil {
+						return "", fmt.Errorf("资源 %s 校验失败: %w", rc, err)
+					}
+				}
+				if !missingRes[rc] {
+					continue
+				}
+				if _, dup := danglingByQuota[c]; !dup || !clHas(danglingByQuota[c], rc) {
+					if !dup {
+						danglingQuotas = append(danglingQuotas, c)
+					}
+					danglingByQuota[c] = append(danglingByQuota[c], rc)
+				}
+			}
+		}
+	}
+	for _, c := range danglingQuotas {
+		add("dangling_resource", fmt.Sprintf("定额 %s 含量行引用资源 %s 不存在%s", c, strings.Join(danglingByQuota[c], "、"), clDanglingFix(quotaCache[c], danglingByQuota[c])), true)
+	}
+	// 跨地区一致性（2026-11-26 造价反馈，百锦路 #8）：定额引用的资源属于别的地区
+	// ——价是那个地区的，与本项目口径不符。算价链按编码取价、不看地区，此前只能
+	// 靠模型自己的成本经验发现（实测 ALLU 借了铜陵行 2673.30，而本地区口径是 800）。
+	// 按项目定额的出场序逐条看，同一资源只报一次。
+	type foreignRef struct {
+		res    *workcost.Resource
+		quotas []string
+	}
+	foreignOrder := []string{}
+	foreign := map[string]*foreignRef{}
+	if strings.TrimSpace(proj.Region) != "" {
+		for _, c := range quotaOrder {
+			q := quotaCache[c]
+			if q == nil {
+				continue
+			}
+			for _, qi := range q.Items {
+				rc := strings.TrimSpace(qi.ResourceCode)
+				if rc == "" || missingRes[rc] {
+					continue // 悬空的由硬检点名
+				}
+				fr, seen := foreign[rc]
+				if !seen {
+					r, err := s.GetResourceByCode(rc)
+					if err != nil {
+						if workcostNotFound(err) {
+							continue
+						}
+						return "", fmt.Errorf("资源 %s 校验失败: %w", rc, err)
+					}
+					if r == nil || strings.TrimSpace(r.Region) == "" || strings.TrimSpace(r.Region) == strings.TrimSpace(proj.Region) {
+						continue
+					}
+					fr = &foreignRef{res: r}
+					foreign[rc] = fr
+					foreignOrder = append(foreignOrder, rc)
+				}
+				if !clHas(fr.quotas, c) {
+					fr.quotas = append(fr.quotas, c)
 				}
 			}
 		}
@@ -983,9 +1161,21 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 		v    float64
 	}{{"企业管理费", proj.ManagementRate}, {"规费", proj.RegulatoryRate}, {"利润", proj.ProfitRate}, {"增值税", proj.TaxRate}} {
 		if r.v > 1 {
-			fmt.Fprintf(&b, "- [INFO] rate_over_one: %s 费率 %.2f>1，请确认口径\n", r.name, r.v)
+			fmt.Fprintf(&b, "- [INFO] rate_over_one: %s 费率 %g>1——库按「倍数」乘算（5 就是 5 倍）；本意若是 5%% 应填 0.05，确认后去 cost_project_apply 改费率\n", r.name, r.v)
 			infoCount++
 		}
+	}
+	// 跨地区：被本项目定额引用的、属于别的地区的资源。
+	for i, rc := range foreignOrder {
+		if i >= 20 {
+			fmt.Fprintf(&b, "- [INFO] region_mismatch: …另有 %d 个资源属于别的地区\n", len(foreignOrder)-20)
+			infoCount++
+			break
+		}
+		fr := foreign[rc]
+		fmt.Fprintf(&b, "- [INFO] region_mismatch: 资源 %s「%s」属「%s」，与项目地区「%s」不同，被本项目定额 %s 引用——价是那个地区的；本地区有同身份的行就换码（cost_project action=resources keyword=名称），没有就 cost_library save_resource 建本地区的行\n",
+			rc, fr.res.Title, fr.res.Region, strings.TrimSpace(proj.Region), strings.Join(fr.quotas, "、"))
+		infoCount++
 	}
 	// 跨项目查漏（BillAuditScan 只做 info，永不进 HardCount）。
 	if scan, err := s.BillAuditScan(p.ProjectID); err == nil && scan != nil {
@@ -1022,6 +1212,43 @@ func (t costAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 		b.WriteString("存在硬检问题：修复后重新机检，不要带硬伤交付。")
 	}
 	return b.String(), nil
+}
+
+// clHas 报告 s 是否含 v。
+func clHas(s []string, v string) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// clDanglingFix 资源悬空的可应用修法（2026-11-26 造价反馈，百锦路 #8）：此前只
+// 点名，模型得先把整组含量行拼出来再 save_quota，漏一行就把别的含量行冲掉。
+// 给出「整组含量行原样 + 悬空行标出」的骨架，改一个 resource_code 即可回存。
+func clDanglingFix(q *workcost.Quota, dangling []string) string {
+	if q == nil {
+		return ""
+	}
+	bad := map[string]bool{}
+	for _, d := range dangling {
+		bad[d] = true
+	}
+	items := make([]string, 0, len(q.Items))
+	for i, it := range q.Items {
+		if i >= 12 {
+			items = append(items, fmt.Sprintf("…（另有 %d 行，回存时原样带上）", len(q.Items)-12))
+			break
+		}
+		rc := strings.TrimSpace(it.ResourceCode)
+		if bad[rc] {
+			rc += "←改成在库编码"
+		}
+		items = append(items, fmt.Sprintf(`{"resource_code":"%s","quantity":%g}`, rc, it.Quantity))
+	}
+	return fmt.Sprintf("\n    修法二选一：① 资源确实要新建——cost_library action=save_resource 建 %s；② 编码写错——把下面骨架里标「←」的 resource_code 改成在库编码后整组回存（save_quota 的 items 是整组替换，其余行务必原样带上）：\n    {\"action\":\"save_quota\",\"quota\":{\"code\":\"%s\",\"items\":[%s]}}",
+		strings.Join(dangling, "、"), q.Code, strings.Join(items, ","))
 }
 
 // costSpecGrades 抽取文本里的规格强度档（2026-11-21 造价门实测 4.2：C60 充当
