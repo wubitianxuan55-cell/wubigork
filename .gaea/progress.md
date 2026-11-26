@@ -1,3 +1,16 @@
+## WPS 能力开发刀 1：format_convert 加 to=xlsx（2026-11-26 下午，ZCode；打包装机结果见本条末「补记」）
+
+用户令「开始 WPS 的能力借用」；按施工单先把第一梯队实测做完、交草案，用户「照做」后施工。
+
+- **先实测**（数字全在事实源 §2A：`C:\AI\re\wps-12.1.0.29690\docs\WPSCLI-CAPABILITIES.md`）：`pdf2excel` 文字型——清徐清单 839 页 495 秒，22 页对文字层数字召回 1198/1198，金额真数值、12 位定额编码前导零保住、0 处拆小数；扫描路线三路对照——同 22 页 392 个独立数字格，纯在线识别丢改 18（4.6%，含金额末位截断 `5776.41`→`5776.4`、工程量「1」整格丢、相邻格并格），开 `--ai-fix` 丢改 0、慢 8 倍（约 14 秒/页）；`photo2excel` 表结构好、同样丢工程量「1」格、没有 ai-fix 选项；`pdf2txt` 233 页 6.7 秒字符召回 100%（无页分隔）；`ofd2pdf` / `pdf2ofd` 本地引擎各约 1 秒（只过了合成样本）。
+- **拍板**：刀 1 扩 `format_convert`、不新开工具；扫描件 / 照片转 Excel 默认开 AI 修复；真实 OFD / CAJ / 手机实拍样本待用户提供。
+- **落地**（提交 `1b96f329`，详见施工单 §八）：`internal/docmd/wps_excel.go`（`ConvertToExcel`：分流 / 按页数超时 / 产物路径以 wpscli 终态行为准 / 在线识别单次上限 AI 修复 20 页、不开 100 页）、`internal/docmd/xlsx_inspect.go`（流式读工作表 XML 做核对，回执带疑似缺格行）、`wpsRunTimed`、`builtin/format_convert.go` 加 `to` / `scanned` / `ai_fix` / `per_page_sheet`，pdf 技能种子补用法。
+- **实弹**（经 gaea 真实链路）：清徐 291–294 页文字型 6.7 秒、201 格、疑似缺格 0；手机变体照片 5.5 秒、疑似缺格 1 行（正是工程量「1」被漏的那行）；同 4 页在线识别 + AI 修复 73 秒、疑似缺格 0；839 页工作簿核对 0.84 秒。
+- **门禁**：`go build` / `go vet ./...`；docmd、tool（含 compact 漂移钉）、builtin、config / control / skill / evidence / contextview 全绿；app 包 1431 例四分片全绿（68 秒）；check-docs、registry map 门 OK；lint 本批文件 0 条。
+- **坑**：①excelize 的 `GetCellType` 不能在 `Rows()` 迭代进行中调（查不到格子、一律报 `Unset`，把 149 个文本格数成数值），逐格调用又是平方级开销（同一份 839 页工作簿 5 分半）——产物核对改自己流式读 XML；②wpscli 不覆盖已有产物，另存 `<名>_1`（帮助文本写的是 `file(1).docx`）；③默认 `--timeout 300` 不够 839 页；④`--multi-sheet` 是一页一个 sheet；⑤Git Bash 里给函数传 `"\\$name"` 会被吃成字面量，三路产物落到同一个文件又被改名——给 wpscli 的 `-o` 用正斜杠完整路径；⑥PATH 前置 ucrt64 跑 builtin 包 = msys64 的 python 顶掉系统 python，markitdown 三例假红（上一条已记，本批又踩）。
+- **存量红与欠账（本批未动）**：agent `TestStaleGuardBlocksMoveFileWithoutRead`（在册，单跑 3/3 红）；trajectory `TestFoldDeliverablesGolden` 的 multi_edit 金样本——`multi_edit` 11-25 退役后金样本没跟，**新发现**；`builtin/computer_tools.go` 的 `computerTypeTool` / `computerKeyTool` 未注册、lint 报 24 条 unused，`bash.go` / `schedule_tools.go` gofmt 两条；control 包测试会改写受跟踪的 `internal/gaea/control/resumed.jsonl.meta`（已回退不入账）。
+- **余项**：①刀 2 OFD / CAJ 透明接入（等真实样本）；②刀 3 `pdf2txt` 替换「只要文字」的 WPS 路径；③刀 4 清单 xlsx → 造价库（现有成本导入是从 Markdown 文本抠表）；④刀 5 导出 / 渲染对测 LibreOffice、`pdf2cad`（工作区有 12 份图纸 PDF）、PDF 杂务类；⑤多段扫描产物合并成一个工作簿未做；⑥真实扫描件上的 AI 修复表现待测（本次是文字型页强制走在线识别）；⑦装机后真机走查：办公模式让模型把一份清单 PDF 转成 Excel。
+
 ## PDF 转换 WPS 优先 + 本地 OCR 精简（2026-11-26，同一会话，ZCode；打包装机结果见本条末「补记」）
 
 用户报「造价模式读 PDF 用 OCR 会堵死，按停止后下一轮一直显示排队中」，问「办公板块是否需要一个专门的格式转换工具」；随后补证「WPS 很短时间就转完了」，拍板**年会员额度不设限、转换解析优先用 WPS**；另问本地 OCR 三个能否精简到最好的一个，定「先精简、后提交打包」；WPS 更多能力开发为大项，本会话只记录，下个会话进行。
