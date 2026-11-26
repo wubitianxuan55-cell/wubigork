@@ -366,7 +366,14 @@ func (imp *ImportSession) AddResources(s *Store, rows []ImportResource) (ImportA
 					reasons = append(reasons, why)
 				}
 				if exist, err := s.GetResourceByCode(in.Code); err == nil && exist != nil && !sameResourceIdentity(*exist, *r) {
-					reasons = append(reasons, fmt.Sprintf("编码 %s 已被「%s」占用，不是同一条工料机", in.Code, exist.Title))
+					if sameResourceCore(*exist, *r) && strings.TrimSpace(exist.Region) != strings.TrimSpace(r.Region) {
+						// 同一种工料机、另一个地区的那一行占着这个码（工料机按地区
+						// 分行）：说清换码即可，别让它读成「不是同一条工料机」。
+						reasons = append(reasons, fmt.Sprintf("编码 %s 已是「%s」在「%s」的行——工料机按地区分行，换个编码再提交（落库后按新码引用）",
+							in.Code, exist.Title, clRegionOrNone(exist.Region)))
+					} else {
+						reasons = append(reasons, fmt.Sprintf("编码 %s 已被「%s」占用，不是同一条工料机", in.Code, exist.Title))
+					}
 				}
 			}
 			// 同身份已有行、入参却带了另一个码：库里的码是引用锚点，不换。
@@ -1071,8 +1078,67 @@ type ImportWriteResult struct {
 	Bills        int      `json:"bills"`
 	PriceFacts   int      `json:"priceFacts"`
 	Errors       []string `json:"errors"` // 写入中途失败的行（其余已写；修掉后重新提交即可）
-	// RegionMerged 身份四要素同、仅地区缺失/不同被并入原行的明细（铜陵反馈 #18）。
+	// RegionMerged 身份四要素同的既有行被并入的明细（铜陵反馈 #18；并入面见
+	// regionMergeDecision）。
 	RegionMerged []string `json:"regionMerged,omitempty"`
+	// RegionRows 同身份在别的地区已有规范行、按地区分行新建的明细（百锦路反馈 #3）。
+	RegionRows []string `json:"regionRows,omitempty"`
+	// Renames 暂存码 → 库内码的映射（并入沿用原码 / 分行撞码消歧），含量行已跟着
+	// 改指，不会悬空。
+	Renames []string `json:"renames,omitempty"`
+}
+
+// LandingPreview 逐条预演暂存工料机落库时的去向（只读，不写库）：并入哪一行、
+// 与哪一行分行、编码是否要消歧。commit 的 dry_run 用它把「将并入 / 将分行 /
+// 将消歧」提前摆出来（2026-11-26 造价反馈，百锦路 #5：此前这些要等正式提交后
+// 才在回执里出现，数据已落库，想改只能再走一轮）。不合规的行由 import_check
+// 点名，这里跳过。
+func (imp *ImportSession) LandingPreview(s *Store) ([]string, error) {
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, in := range imp.resources {
+		r, err := imp.resourceOf(s, in)
+		if err != nil || r == nil {
+			continue
+		}
+		prev, err := s.findResourceByIdentity(*r)
+		if err != nil {
+			return nil, err
+		}
+		if prev != nil {
+			continue // 同身份同地区：更新原行
+		}
+		p2, err := s.ResolveResourcePrev(*r)
+		if err != nil {
+			return nil, err
+		}
+		if p2 != nil {
+			existingInDict := false
+			if strings.TrimSpace(p2.Region) != "" {
+				if existingInDict, err = s.DictHas(DictRegion, p2.Region); err != nil {
+					return nil, err
+				}
+			}
+			if merge, region := regionMergeDecision(r.Region, p2.Region, existingInDict); merge {
+				out = append(out, fmt.Sprintf("%s %s：将并入既有行 %s（地区 %s→%s，不新建）",
+					in.Code, in.Title, p2.Code, clRegionOrNone(p2.Region), clRegionOrNone(region)))
+				continue
+			}
+			out = append(out, fmt.Sprintf("%s %s：同身份已有 %s 的行 %s，将按地区分行新建（原行不动）",
+				in.Code, in.Title, clRegionOrNone(p2.Region), p2.Code))
+		}
+		if cur, taken := idx[r.Code]; taken {
+			free, err := s.FreeResourceCode(r.Code)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, fmt.Sprintf("%s %s：编码已被「%s」占用，将落成 %s", in.Code, in.Title, cur.Title, free))
+		}
+	}
+	return out, nil
 }
 
 // Commit 把暂存区写进库。写前把每一行再过一遍规矩与引用完整——有任何一行不合规
@@ -1132,8 +1198,15 @@ func (imp *ImportSession) Commit(s *Store) (*ImportWriteResult, error) {
 	}
 
 	// ② 工料机：按身份 UPSERT（同身份已有行=更新，编码沿用库里的）。全等身份
-	// （含地区）没命中时走 ResolveResourcePrev 第二跳（铜陵反馈 #18）：四要素
-	// 同、仅地区缺失/不同 → 更新原行，不消歧成新行。
+	// （含地区）没命中时走第二跳：四要素同、恰好一行的既有行按
+	// regionMergeDecision 裁决并入或分行（口径同 ApplyProjectBundle）。
+	// 暂存码与库内码不一致时记别名，③ 的含量行跟着改指——此前并入后暂存定额
+	// 仍引用提交码，落库即悬空（2026-11-26 对码发现）。
+	idx, err := s.ResourceIndex()
+	if err != nil {
+		return nil, err
+	}
+	alias := map[string]string{}
 	for _, in := range imp.resources {
 		r, _ := imp.resourceOf(s, in)
 		prev, err := s.findResourceByIdentity(*r)
@@ -1141,15 +1214,47 @@ func (imp *ImportSession) Commit(s *Store) (*ImportWriteResult, error) {
 			res.Errors = append(res.Errors, fmt.Sprintf("工料机 %s「%s」身份回查失败: %v", in.Code, in.Title, err))
 			continue
 		}
+		var splitFrom *Resource
+		renamed := false
 		if prev == nil {
-			if p2, e2 := s.ResolveResourcePrev(*r); e2 == nil && p2 != nil {
-				prev = p2
-				// 继承原行 id/code（SaveResource 身份回查含地区，不继承它还会
-				// 插新行；code 是消耗行引用锚点，不换）。
-				r.ID = p2.ID
-				r.Code = p2.Code
-				res.RegionMerged = append(res.RegionMerged, fmt.Sprintf("%s %s（地区 %s→%s）",
-					p2.Code, in.Title, clRegionOrNone(p2.Region), clRegionOrNone(r.Region)))
+			p2, e2 := s.ResolveResourcePrev(*r)
+			if e2 != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("工料机 %s「%s」身份回查失败: %v", in.Code, in.Title, e2))
+				continue
+			}
+			if p2 != nil {
+				existingInDict := false
+				if strings.TrimSpace(p2.Region) != "" {
+					ok, e3 := s.DictHas(DictRegion, p2.Region)
+					if e3 != nil {
+						res.Errors = append(res.Errors, fmt.Sprintf("工料机 %s「%s」地区字典查询失败: %v", in.Code, in.Title, e3))
+						continue
+					}
+					existingInDict = ok
+				}
+				if merge, region := regionMergeDecision(r.Region, p2.Region, existingInDict); merge {
+					prev = p2
+					// 继承原行 id/code/地区（SaveResource 身份回查含地区，不继承它
+					// 还会插新行；code 是消耗行引用锚点，不换）。
+					r.ID = p2.ID
+					r.Code = p2.Code
+					r.Region = region
+					res.RegionMerged = append(res.RegionMerged, fmt.Sprintf("%s %s（地区 %s→%s）",
+						p2.Code, in.Title, clRegionOrNone(p2.Region), clRegionOrNone(region)))
+				} else {
+					splitFrom = p2
+				}
+			}
+			// 新行但编码已被别的工料机占用（分行时多半就是另一个地区那行占着）：
+			// 消歧成「码-N」，不靠 UNIQUE 约束把整行报废（与 ApplyProjectBundle 同款）。
+			if _, taken := idx[r.Code]; taken {
+				free, e := s.FreeResourceCode(r.Code)
+				if e != nil {
+					res.Errors = append(res.Errors, fmt.Sprintf("工料机 %s「%s」编码消歧失败: %v", in.Code, in.Title, e))
+					continue
+				}
+				r.Code = free
+				renamed = true
 			}
 		}
 		saved, err := s.SaveResource(*r)
@@ -1157,6 +1262,17 @@ func (imp *ImportSession) Commit(s *Store) (*ImportWriteResult, error) {
 			res.Errors = append(res.Errors, fmt.Sprintf("工料机 %s「%s」写入失败: %v", in.Code, in.Title, err))
 			continue
 		}
+		if renamed {
+			res.Renames = append(res.Renames, fmt.Sprintf("%s → %s (id=%d)", in.Code, saved.Code, saved.ID))
+		}
+		if splitFrom != nil {
+			res.RegionRows = append(res.RegionRows, fmt.Sprintf("%s %s（id=%d）：同身份已有 %s 的行 %s，按地区分行新建",
+				saved.Code, saved.Title, saved.ID, clRegionOrNone(splitFrom.Region), splitFrom.Code))
+		}
+		if saved.Code != strings.TrimSpace(in.Code) {
+			alias[strings.TrimSpace(in.Code)] = saved.Code
+		}
+		idx[saved.Code] = *saved
 		if prev != nil {
 			res.ResourcesUpd++
 		} else {
@@ -1170,13 +1286,14 @@ func (imp *ImportSession) Commit(s *Store) (*ImportWriteResult, error) {
 		}
 	}
 
-	// ③ 定额（含量行引用的工料机此时都已在库）。
-	idx, err := s.ResourceIndex()
-	if err != nil {
-		return nil, err
-	}
+	// ③ 定额（含量行引用的工料机此时都已在库；暂存码经别名落到库内码上）。
 	for _, in := range imp.quotas {
 		q, _ := imp.quotaOf(s, in)
+		for i := range q.Items {
+			if c, ok := alias[q.Items[i].ResourceCode]; ok {
+				q.Items[i].ResourceCode = c
+			}
+		}
 		_, existErr := s.GetQuota(q.Code)
 		if _, err := s.saveQuota(s.db, *q, idx); err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("定额 %s「%s」写入失败: %v", in.Code, in.Title, err))

@@ -222,3 +222,35 @@ func TestAuditQuotaGaps_MinorityResourceNotReported(t *testing.T) {
 		t.Errorf("少数派资源 R2 不得出现在结论：%+v", got[0])
 	}
 }
+
+// 同一种工料机在各项目里编码不同（NOI / NOI-A：导入撞码消歧、按地区分行各占
+// 一码）不算缺组成（2026-11-26 造价反馈，太原 #8）：资源按身份归并，不按编码硬比。
+func TestAuditQuotaGaps_SameResourceDifferentCodesNotAGap(t *testing.T) {
+	qs := []auditQuota{
+		{Code: "A", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
+		{Code: "B", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
+		{Code: "C", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI-A": "NOI 抑制剂"}},
+		{Code: "D", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
+	}
+	if got := AuditQuotaGaps(qs); len(got) != 0 {
+		t.Fatalf("同身份不同码不该互报缺组成，got %+v", got)
+	}
+	// 对照：标题确实不同的另一种资源，缺组成照报。
+	qs[2].Resource = map[string]string{"NOI-A": "另一种抑制剂"}
+	got := AuditQuotaGaps(qs)
+	if len(got) != 1 || !strings.Contains(got[0].Detail, "定额 C") {
+		t.Fatalf("真缺组成仍应报 C，got %+v", got)
+	}
+	// 没有资源标题时退回按编码比：标题空着不能把不同编码归并成一个，缺组成照报
+	// 且点名编码。
+	for i := range qs {
+		for rc := range qs[i].Resource {
+			qs[i].Resource[rc] = ""
+		}
+	}
+	qs[2].Resource = map[string]string{"R9": ""}
+	got = AuditQuotaGaps(qs)
+	if len(got) != 1 || !strings.Contains(got[0].Detail, "定额 C") || !strings.Contains(got[0].Detail, "NOI") {
+		t.Fatalf("无标题时应按编码比并点名 C 缺 NOI，got %+v", got)
+	}
+}

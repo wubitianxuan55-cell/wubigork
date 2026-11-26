@@ -33,9 +33,13 @@ type ApplyProjectResult struct {
 	// ResourceRenamed 工料机编码被别的资源占用、消歧成「码-N」的条数（含量行已
 	// 按别名落到消歧码上，不会悬空）。两份价格表各写各的 L01 时会发生。
 	ResourceRenamed int `json:"resourceRenamed"`
-	// RegionMerged 身份四要素同、仅地区缺失/不同的既有行被并入（更新原行、
-	// 不消歧成新行）的明细（铜陵反馈 #18），形如 "L01 普工（地区 安徽-铜陵→安徽省/铜陵市）"。
+	// RegionMerged 身份四要素同的既有行被并入的明细（铜陵反馈 #18；并入面见
+	// regionMergeDecision：本次没给地区、原行没标地区、或原行地区不是字典值），
+	// 形如 "L01 普工（地区 未标注→安徽省/铜陵市）"。
 	RegionMerged []string `json:"regionMerged,omitempty"`
+	// RegionRows 同身份在别的地区已有规范行、本次按地区分行新建的明细
+	// （百锦路反馈 #3：原行地区不再被改写），形如 "KWH-2 施工用电（id=2009）：同身份已有 四川省/遂宁市 的行 KWH，按地区分行新建"。
+	RegionRows []string `json:"regionRows,omitempty"`
 	// Renames 消歧明细（工作簿码 → 库内码 + 落库 id），回执给模型做后续
 	// dedupe/classify 引用（反馈 #18：只给计数时模型拿不到数字 id，链路卡死）。
 	Renames []string `json:"renames,omitempty"`
@@ -174,20 +178,36 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 			res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）身份回查失败: %v", r.Code, r.Title, err))
 			continue
 		}
+		var splitFrom *Resource // 同身份、别的地区的那一行（按地区分行新建时回执点名）
 		if prev == nil {
-			// 第二跳（铜陵反馈 #18）：四要素同、仅地区缺失/不同的既有行并入原行，
-			// 不消歧成新行。恰好一行才并；多行=真歧义，维持下方消歧路径。
-			// SaveResource 的身份回查含地区，必须显式继承原行 id/code 它才会走
-			// UPDATE（code 是库里消耗行的引用锚点，不换码）。
+			// 第二跳：四要素同、恰好一行的既有行，并不并由 regionMergeDecision
+			// 裁决（铜陵 #18 的并入面收窄到「地区缺失 / 未规范」；百锦路 #3：
+			// 地区不同的既有行不再被改写地区，改走按地区分行新建）。
+			// SaveResource 的身份回查含地区，并入时必须显式继承原行 id/code/
+			// 地区它才会走 UPDATE（code 是库里消耗行的引用锚点，不换码）。
 			if p2, e2 := s.ResolveResourcePrev(r); e2 != nil {
 				res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）身份回查失败: %v", r.Code, r.Title, e2))
 				continue
 			} else if p2 != nil {
-				prev = p2
-				r.ID = p2.ID
-				r.Code = p2.Code
-				res.RegionMerged = append(res.RegionMerged, fmt.Sprintf("%s %s（地区 %s→%s）",
-					p2.Code, r.Title, clRegionOrNone(p2.Region), clRegionOrNone(r.Region)))
+				existingInDict := false
+				if strings.TrimSpace(p2.Region) != "" {
+					ok, e3 := s.DictHas(DictRegion, p2.Region)
+					if e3 != nil {
+						res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）地区字典查询失败: %v", r.Code, r.Title, e3))
+						continue
+					}
+					existingInDict = ok
+				}
+				if merge, region := regionMergeDecision(r.Region, p2.Region, existingInDict); merge {
+					prev = p2
+					r.ID = p2.ID
+					r.Code = p2.Code
+					r.Region = region
+					res.RegionMerged = append(res.RegionMerged, fmt.Sprintf("%s %s（地区 %s→%s）",
+						p2.Code, r.Title, clRegionOrNone(p2.Region), clRegionOrNone(region)))
+				} else {
+					splitFrom = p2
+				}
 			}
 		}
 		if prev != nil {
@@ -226,6 +246,10 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 		if err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("资源 %s（%s）落库失败: %v", pr.Code, r.Title, err))
 			continue
+		}
+		if splitFrom != nil {
+			res.RegionRows = append(res.RegionRows, fmt.Sprintf("%s %s（id=%d）：同身份已有 %s 的行 %s，按地区分行新建",
+				saved.Code, saved.Title, saved.ID, clRegionOrNone(splitFrom.Region), splitFrom.Code))
 		}
 		if renamed {
 			res.Renames = append(res.Renames, fmt.Sprintf("%s → %s (id=%d)", pr.Code, saved.Code, saved.ID))

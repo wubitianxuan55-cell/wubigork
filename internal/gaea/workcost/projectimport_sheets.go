@@ -345,11 +345,40 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	// 上一行（导出文件每行都带码，继承值=本行值，两种形态一致）。
 	lastItemCode := ""
 	currentQuota := "" // 当前定额块（明细行归属；遇到汇总行清空）
+	// 漏填行类的明细行（2026-11-26 造价反馈，太原 #2）：行类空，但行上有资源
+	// 编码或非零消耗量。此前它要么被当成空行、要么被当成汇总行（继承上一条
+	// 清单码、撞「已见编码」）静默丢弃——工作簿里 N=L×M 仍计入定额单价，库内
+	// 却缺这条消耗，两边对不上还查不出为什么。返回点名用的资源与是否命中。
+	// 只认输入列：资源名称 / 单价 / 合价列在样表的未用槽位里挂着取价公式，
+	// 拿它们判「行上有东西」会把整个空骨架都报成漏填（golden 钉当场抓到）。
+	blankKindDetail := func(r int) (string, bool) {
+		if strings.TrimSpace(cellAt(f, sheet, r, cKind)) != "" {
+			return "", false
+		}
+		who := strings.TrimSpace(cellAt(f, sheet, r, cResCode))
+		qty := 0.0
+		if cQty > 0 {
+			cellQ, _ := excelize.CoordinatesToCellName(cQty, r)
+			qty = cellValue(f, sheet, cellQ)
+		}
+		if who == "" && qty != 0 {
+			if name := strings.TrimSpace(cellAt(f, sheet, r, cResTitle)); name != "" && !strings.HasPrefix(name, "=") {
+				who = name
+			}
+		}
+		return who, who != "" || qty != 0
+	}
+	skipBlankKindDetail := func(r int, who string) {
+		b.skip(f, sheet, r, fmt.Sprintf("明细行「%s」行类为空，已跳过——工作簿里它仍计入定额单价，库内会缺这条消耗；把行类填成 人工/材料/机械/外委 后重导", who))
+	}
 	for r := hdr + 1; r <= maxRow; r++ {
 		kind := strings.TrimSpace(cellAt(f, sheet, r, cKind))
 		itemCode := strings.TrimSpace(cellAt(f, sheet, r, cItemCode))
 		itemTitle := strings.TrimSpace(cellAt(f, sheet, r, cItemTitle))
 		if kind == "" && itemCode == "" && itemTitle == "" {
+			if who, bad := blankKindDetail(r); bad {
+				skipBlankKindDetail(r, who)
+			}
 			continue
 		}
 		if itemCode == "" && kind != "汇总" {
@@ -394,6 +423,14 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 			})
 			currentQuota = qCode
 			continue
+		}
+		if kind == "" {
+			// 带着清单码/名称、行类却空，且行上有资源或消耗量：同样是漏填行类
+			// 的明细行（下面的汇总分支只收真正的汇总行）。
+			if who, bad := blankKindDetail(r); bad {
+				skipBlankKindDetail(r, who)
+				continue
+			}
 		}
 		if kind == "汇总" {
 			currentQuota = "" // 新清单组：定额块清空
@@ -626,6 +663,12 @@ func parseFeeSection(f *excelize.File, sheet string, b *ProjectBundle) {
 				found = true
 			}
 		case strings.Contains(name, "控制价"):
+			// 只认纯控制价行，先到先得（2026-11-26 造价反馈，百锦路 #7）：此前
+			// 任何含「控制价」的行都命中、后行覆盖前行——「控制价利用率 62.64%」
+			// 排在真控制价之后，8,913,200 被读成了 0.63。
+			if !isControlPriceLabel(name) || b.Fee.ControlPrice > 0 {
+				continue
+			}
 			for c := 1; c <= len(vals); c++ {
 				cell, _ := excelize.CoordinatesToCellName(c, r)
 				if v := cellValue(f, sheet, cell); v > 0 {
@@ -634,6 +677,13 @@ func parseFeeSection(f *excelize.File, sheet string, b *ProjectBundle) {
 				}
 			}
 		}
+	}
+	if b.Fee.ControlPrice > 0 && b.Fee.ControlPrice < ControlPriceSuspectFloor {
+		// 读到了但小得不像一个工程的招标控制价：多半是取到了同一行/同名行
+		// 的比率。演练与正式回执都看得到告警，别等 summary 算出「占控制价
+		// 140000%」才发现。
+		b.Warnings = append(b.Warnings, fmt.Sprintf("%s %.2f，疑似误读（费用汇总里含「控制价」的行取到了非金额值）——核对费用汇总的控制价行，或 import_project 带 control_price 显式给定",
+			ControlPriceSuspectPrefix, b.Fee.ControlPrice))
 	}
 	// 封面自述兜底：实测封面会写「管理费5%、利润0%、增值税3%在费用汇总」。
 	if !found {
@@ -644,6 +694,31 @@ func parseFeeSection(f *excelize.File, sheet string, b *ProjectBundle) {
 	if b.Fee.ManagementRate == 0 && b.Fee.ProfitRate == 0 && b.Fee.TaxRate == 0 {
 		b.Warnings = append(b.Warnings, "未解析到取费费率（管理费/利润/税），取费参数待人工确认")
 	}
+}
+
+// ControlPriceSuspectPrefix 控制价疑似误读告警的前缀（调用方显式给了 control_price
+// 时按它摘掉这条告警）。
+const ControlPriceSuspectPrefix = "控制价读到了"
+
+// ControlPriceSuspectFloor 控制价低于它就提示疑似误读（元）。一个工程的招标
+// 控制价不会只有几百块；取到的是比率（0.63）或百分比读数时落在这以下。
+const ControlPriceSuspectFloor = 1000
+
+// controlPriceNoiseWords 出现在行名里就说明这一行说的是控制价的派生量
+// （利用率 / 下浮率 / 占比 / 差额），不是控制价本身。
+var controlPriceNoiseWords = []string{"率", "比", "占", "下浮", "差", "结余"}
+
+// isControlPriceLabel 报告费用汇总的行名是不是在说控制价本身。
+func isControlPriceLabel(name string) bool {
+	if !strings.Contains(name, "控制价") {
+		return false
+	}
+	for _, w := range controlPriceNoiseWords {
+		if strings.Contains(name, w) {
+			return false
+		}
+	}
+	return true
 }
 
 // feeNameInRow 在整行里找费用名（跳过序号「一/二/三」与纯数字/公式格）。

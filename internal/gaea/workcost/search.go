@@ -79,6 +79,10 @@ type SearchQuery struct {
 	Specialty string
 	// Kind 工料机的类型过滤（空或「全部」= 不过滤）。
 	Kind string
+	// Region 工料机的地区过滤（字典值；空= 不过滤）。工料机按地区分行，同一种
+	// 工料机每个地区一行——只看某个地区的行、或排查「同身份跨地区」时用
+	// （2026-11-26 造价反馈，百锦路 #4）。
+	Region string
 	// ProjectID 清单的项目过滤（0 = 跨项目）。
 	ProjectID int64
 	// Limit 返回条数上限（<=0 取 DefaultSearchLimit）。
@@ -167,15 +171,26 @@ var resourceSpec = kindSpec[Resource]{
 			sqlText += ` AND kind=?`
 			args = append(args, k)
 		}
+		if rg := filterValue(q.Region); rg != "" {
+			sqlText += ` AND region=?`
+			args = append(args, rg)
+		}
 		sqlText += ` ORDER BY kind, title, spec LIMIT ?`
 		args = append(args, searchKeywordCap)
 		return queryKeys(s, sqlText, args...)
 	},
 	load: func(s *Store, ids []string, q SearchQuery, limit int) ([]Resource, error) {
+		var rows []Resource
+		var err error
 		if ids == nil {
-			return s.ListResources(q.Kind, "")
+			rows, err = s.ListResources(q.Kind, "")
+		} else {
+			rows, err = s.resourcesByKeys(ids, filterValue(q.Kind))
 		}
-		return s.resourcesByKeys(ids, filterValue(q.Kind))
+		if err != nil {
+			return nil, err
+		}
+		return filterByRegion(rows, filterValue(q.Region)), nil
 	},
 	key: func(r Resource) string { return r.Code },
 	flags: func(r Resource, kw string) (bool, bool, bool) {
@@ -417,6 +432,21 @@ func filterValue(v string) string {
 		return ""
 	}
 	return v
+}
+
+// filterByRegion 按地区留下工料机行（region 已经过 filterValue；空=原样返回）。
+// 向量路按主键回表、列表路整表读取，两路都没把地区条件写进 SQL，在这里统一收口。
+func filterByRegion(rows []Resource, region string) []Resource {
+	if region == "" {
+		return rows
+	}
+	out := rows[:0]
+	for _, r := range rows {
+		if strings.TrimSpace(r.Region) == region {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func has(s, kw string) bool {

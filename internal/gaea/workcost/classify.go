@@ -215,6 +215,115 @@ WHERE b.division<>'' GROUP BY p.id, b.division ORDER BY p.id, 4 DESC`)
 	return d, rows.Err()
 }
 
+// PendingSamplesKey 一类待整理条目的键（与 PendingCounts 的字段一一对应）。
+type PendingSamplesKey struct {
+	Field string // PendingCounts 的字段名（回执据此取总数）
+	Title string // 回执里的类别名
+}
+
+// PendingSampleKeys 待整理明细的类别与出场顺序。
+var PendingSampleKeys = []PendingSamplesKey{
+	{"ProjectSpecialty", "项目未标专业"},
+	{"BillSpecialty", "清单无专业"},
+	{"QuotaSpecialty", "定额未标专业"},
+	{"QuotaChapter", "定额未归章节"},
+	{"ResourceRegion", "工料机未标地区"},
+	{"ResourceCategory", "工料机未细分"},
+	{"ResourcePeriod", "工料机无期数"},
+}
+
+// PendingSamples 待整理条目明细（只读）：dims 的「待整理」只给计数，模型只能逐条
+// 枚举去找是哪几条（2026-11-26 造价反馈，旺平 #6）。返回 PendingCounts 字段名 →
+// 条目摘要（每类最多 limit 条，0 取 20；没有待整理的类别不出键）。条目带 classify
+// 要用的键：清单行带数字 id，定额与工料机带编码。
+func (s *Store) PendingSamples(limit int) (map[string][]string, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	out := map[string][]string{}
+	collect := func(field, q string, scan func(rows *sql.Rows) (string, error)) error {
+		rows, err := s.db.Query(q, limit)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			item, serr := scan(rows)
+			if serr != nil {
+				return serr
+			}
+			out[field] = append(out[field], item)
+		}
+		return rows.Err()
+	}
+	text := func(v sql.NullString) string { return strings.TrimSpace(v.String) }
+	if err := collect("ProjectSpecialty", `SELECT id, name FROM gf_projects
+WHERE TRIM(COALESCE(specialty,''))='' ORDER BY id`, func(rows *sql.Rows) (string, error) {
+		var id int64
+		var name sql.NullString
+		if err := rows.Scan(&id, &name); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("#%d %s", id, text(name)), nil
+	}); err != nil {
+		return nil, err
+	}
+	// 清单专业按读取口径归一（行自身空则项目默认专业），与 Dims 的计数同口径。
+	if err := collect("BillSpecialty", `SELECT b.id, b.code, b.title, p.name
+FROM gf_bill_items b JOIN gf_projects p ON p.id=b.project_id
+WHERE COALESCE(NULLIF(b.specialty,''), NULLIF(p.specialty,''), '')='' ORDER BY b.id`, func(rows *sql.Rows) (string, error) {
+		var id int64
+		var code, title, project sql.NullString
+		if err := rows.Scan(&id, &code, &title, &project); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("#%d [%s] %s（%s）", id, text(code), text(title), text(project)), nil
+	}); err != nil {
+		return nil, err
+	}
+	if err := collect("QuotaSpecialty", `SELECT code, title FROM gf_quotas
+WHERE COALESCE(specialty,'')='' ORDER BY code`, func(rows *sql.Rows) (string, error) {
+		var code, title sql.NullString
+		if err := rows.Scan(&code, &title); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("[%s] %s", text(code), text(title)), nil
+	}); err != nil {
+		return nil, err
+	}
+	if err := collect("QuotaChapter", `SELECT code, title, COALESCE(specialty,'') FROM gf_quotas
+WHERE chapter='' ORDER BY code`, func(rows *sql.Rows) (string, error) {
+		var code, title, specialty sql.NullString
+		if err := rows.Scan(&code, &title, &specialty); err != nil {
+			return "", err
+		}
+		item := fmt.Sprintf("[%s] %s", text(code), text(title))
+		if sp := text(specialty); sp != "" {
+			item += "（专业 " + sp + "）"
+		}
+		return item, nil
+	}); err != nil {
+		return nil, err
+	}
+	resScan := func(rows *sql.Rows) (string, error) {
+		var code, kind, title sql.NullString
+		if err := rows.Scan(&code, &kind, &title); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("[%s] %s %s", text(code), text(kind), text(title)), nil
+	}
+	for field, col := range map[string]string{"ResourceRegion": "region", "ResourceCategory": "category_path", "ResourcePeriod": "price_date"} {
+		q := fmt.Sprintf(`SELECT code, kind, title FROM gf_resources WHERE COALESCE(%s,'')='' ORDER BY code`, col)
+		if err := collect(field, q, resScan); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 // ── 批量整理归类 ─────────────────────────────────────────────────────
 
 // ClassifyPlan 一次批量整理归类的输入。每个字段给了才改；没给的条目与字段不动。

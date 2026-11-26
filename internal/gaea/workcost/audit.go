@@ -181,16 +181,36 @@ func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 		if len(ms) < auditMinProjects {
 			continue // 组太小，没有「多数派」可言
 		}
+		// 资源按「身份」归并，不按编码（2026-11-26 造价反馈，太原 #8）：同一种工料机
+		// 在各项目里编码不同——导入撞码消歧成「码-N」、按地区分行各占一码——按编码
+		// 硬比会把 NOI / NOI-A 当成两种资源，同名定额互报「未含」，全是可自解释的
+		// 噪音。资源标题在就以标题为准（空标题才退回编码）。
+		resKey := func(rc, rt string) string {
+			if t := strings.ToLower(strings.TrimSpace(rt)); t != "" {
+				return "t:" + t
+			}
+			return "c:" + strings.TrimSpace(rc)
+		}
 		// 资源 → 含它的成员。
 		support := map[string][]auditQuota{}
 		rtitle := map[string]string{}
+		memberKeys := map[string]map[string]bool{} // 定额码 → 它含的资源键
 		for _, q := range ms {
+			hk := map[string]bool{}
 			for rc, rt := range q.Resource {
-				support[rc] = append(support[rc], q)
-				if _, ok := rtitle[rc]; !ok {
-					rtitle[rc] = rt
+				k := resKey(rc, rt)
+				hk[k] = true
+				support[k] = append(support[k], q)
+				if _, ok := rtitle[k]; !ok {
+					// 回执里仍写「编码「标题」」：编码是模型拿去 save_quota 的锚点。
+					if t := strings.TrimSpace(rt); t != "" {
+						rtitle[k] = strings.TrimSpace(rc) + "「" + t + "」"
+					} else {
+						rtitle[k] = strings.TrimSpace(rc)
+					}
 				}
 			}
+			memberKeys[q.Code] = hk
 		}
 		rcs := make([]string, 0, len(support))
 		for rc := range support {
@@ -208,7 +228,7 @@ func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 			}
 			// 缺它的成员 = 发现。
 			for _, q := range ms {
-				if _, has := q.Resource[rc]; has {
+				if memberKeys[q.Code][rc] {
 					continue
 				}
 				ev := make([]AuditEvidence, 0, len(hits))
@@ -219,8 +239,8 @@ func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 				out = append(out, AuditFinding{
 					Kind:   "quota_gap",
 					Target: fmt.Sprintf("%s（%s）", q.Title, q.Unit),
-					Detail: fmt.Sprintf("定额 %s「%s」未含资源 %s「%s」：同名的 %d 个定额里 %d 个都含（占 %.0f%%），疑似缺组成行",
-						q.Code, q.Title, rc, rtitle[rc], n, len(hits), 100*float64(len(hits))/float64(n)),
+					Detail: fmt.Sprintf("定额 %s「%s」未含资源 %s：同名的 %d 个定额里 %d 个都含（占 %.0f%%），疑似缺组成行",
+						q.Code, q.Title, rtitle[rc], n, len(hits), 100*float64(len(hits))/float64(n)),
 					Evidence: ev,
 				})
 			}

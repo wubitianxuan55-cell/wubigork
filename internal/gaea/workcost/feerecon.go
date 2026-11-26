@@ -68,6 +68,12 @@ func feeRowKind(vals []string) string {
 		for _, k := range feeRowKinds {
 			for _, kw := range k.keywords {
 				if strings.Contains(t, kw) {
+					if k.kind == "control" && !isControlPriceLabel(t) {
+						// 控制价的派生行（利用率 / 下浮率 / 占比）不是控制价本身：
+						// 此前照样定段成 control，金额栏的比率被当成控制价
+						// （2026-11-26 造价反馈，百锦路 #7）。
+						continue
+					}
 					return k.kind
 				}
 			}

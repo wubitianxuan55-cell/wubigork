@@ -226,11 +226,12 @@ func (s *Store) findResourceByIdentity(r Resource) (*Resource, error) {
 	return row, nil
 }
 
-// ResolveResourcePrev 全等身份（含地区）没命中时的第二跳：身份四要素
-// （类别+名称+规格+单位）相同、**仅地区缺失或不同**的既有行视为同一资源，
-// 更新原行而不是消歧成新行（铜陵反馈 #18：旧 60 行已标地区、重导入带着项目
-// 地区，全等身份查不到 → 撞码消歧落成「码-N」重复行，还得 classify+dedupe
-// 两步清理）。恰好一行命中才并；0 行或多行返回 nil（多行=真歧义，维持消歧）。
+// ResolveResourcePrev 全等身份（含地区）没命中时的第二跳候选：身份四要素
+// （类别+名称+规格+单位）相同、仅地区缺失或不同的既有行（铜陵反馈 #18：旧
+// 60 行已标地区、重导入带着项目地区，全等身份查不到 → 撞码消歧落成「码-N」
+// 重复行，还得 classify+dedupe 两步清理）。恰好一行命中才返回；0 行或多行
+// 返回 nil（多行=真歧义，维持消歧）。**查到不等于并入**——并不并由
+// regionMergeDecision 裁决。
 func (s *Store) ResolveResourcePrev(r Resource) (*Resource, error) {
 	if err := s.requireDB(); err != nil {
 		return nil, err
@@ -256,6 +257,29 @@ func (s *Store) ResolveResourcePrev(r Resource) (*Resource, error) {
 		return nil, nil
 	}
 	return &hits[0], nil
+}
+
+// regionMergeDecision 第二跳的并入裁决（2026-11-26 造价反馈三批：百锦路 #3 与
+// 铜陵 #18 对撞）。四要素相同的既有行，其地区 existing；本次导入行的地区
+// incoming：
+//   - incoming 空：并入，地区继承原行（不清空原行地区）；
+//   - 原行地区空：并入，补上导入地区（铜陵 #18 的原始场景）；
+//   - 原行地区不是字典值（existingInDict=false，旧写法如「皖A」「安徽-铜陵」）：
+//     按现规矩等于没规范标注——并入并规范成导入地区；
+//   - 两边都是规范地区且不同：那是另一个地区的那一行——按地区分行，不并入
+//     （一个地区的价不顶掉另一个地区的价；一次导入不改写别的项目引用的行）。
+//
+// 返回是否并入，以及并入后原行应取的地区。
+func regionMergeDecision(incoming, existing string, existingInDict bool) (bool, string) {
+	incoming, existing = strings.TrimSpace(incoming), strings.TrimSpace(existing)
+	switch {
+	case incoming == "":
+		return true, existing
+	case existing == "" || !existingInDict:
+		return true, incoming
+	default:
+		return false, ""
+	}
 }
 
 // FreeResourceCode 编码可用性：未被占用原样返回；已占用则返回「码-N」消歧码
@@ -297,6 +321,14 @@ func sameResourceIdentity(a, b Resource) bool {
 		strings.TrimSpace(a.Spec) == strings.TrimSpace(b.Spec) &&
 		strings.TrimSpace(a.Unit) == strings.TrimSpace(b.Unit) &&
 		strings.TrimSpace(a.Region) == strings.TrimSpace(b.Region)
+}
+
+// sameResourceCore 两行是否同一种工料机（类别+名称+规格+单位，不含地区）。
+func sameResourceCore(a, b Resource) bool {
+	return normalizeKind(a.Kind) == normalizeKind(b.Kind) &&
+		strings.TrimSpace(a.Title) == strings.TrimSpace(b.Title) &&
+		strings.TrimSpace(a.Spec) == strings.TrimSpace(b.Spec) &&
+		strings.TrimSpace(a.Unit) == strings.TrimSpace(b.Unit)
 }
 
 // nextResourceCode 分配稳定资源编码。
@@ -488,6 +520,44 @@ func (s *Store) ListResources(kind, keyword string) ([]Resource, error) {
 		out = append(out, *r)
 	}
 	return out, rows.Err()
+}
+
+// CountResources 符合过滤条件的工料机行数（列表回执的「共 N 条」）。kind / region
+// 为空或「全部」= 不过滤。2026-11-26 造价反馈（百锦路 #4）：列表只给「N 条
+// （限 50）」不给总数，模型不知道是搜全了还是被截断，只能一轮轮换词猜。
+func (s *Store) CountResources(kind, region string) (int, error) {
+	return s.countRows("gf_resources", map[string]string{"kind": kind, "region": region})
+}
+
+// CountQuotas 某专业的定额行数（专业空=全库）。
+func (s *Store) CountQuotas(specialty string) (int, error) {
+	return s.countRows("gf_quotas", map[string]string{"specialty": specialty})
+}
+
+// countRows 按若干等值过滤条件数行；空值与「全部」不过滤。table / 列名都来自
+// 调用点的字面量，不接模型输入。
+func (s *Store) countRows(table string, eq map[string]string) (int, error) {
+	if err := s.requireDB(); err != nil {
+		return 0, err
+	}
+	cols := make([]string, 0, len(eq))
+	for c := range eq {
+		cols = append(cols, c)
+	}
+	sort.Strings(cols) // 参数序确定
+	q := "SELECT COUNT(*) FROM " + table + " WHERE 1=1"
+	var args []any
+	for _, c := range cols {
+		if v := strings.TrimSpace(eq[c]); v != "" && v != "全部" {
+			q += " AND " + c + "=?"
+			args = append(args, v)
+		}
+	}
+	var n int
+	if err := s.db.QueryRow(q, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 // DeleteResource 删除资源。默认拒绝删除仍被消耗定额引用的资源（引用完整性），
