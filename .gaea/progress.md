@@ -1,3 +1,11 @@
+## 造价技能优化·众神殿终案落码（2026-11-27 晨，ZCode；提交 5b39c1cb，未打包未装机）
+
+用户令「构建众神殿关于造价技能的论证，开始优化完善造价技能」；论证已由用户侧圆桌跑完（pan_1795735011377，三场续议、codex/zcode/dsh 三席一致）：**三技能不合并、不改名**；cost-estimate 保持全局内置零差异（不得指向造价档专属内容——standard 档可见集合外指针软失效）；落盘硬规则单源进 officeRunModeLineCost；playbook/soil 只做最小语义改动。事实源=`%APPDATA%\gaea\pantheon\results\pan_1795735011377_5f4f26676579.md`。
+
+- **改动 3 文件 +15/−5**：playbook 四处（定位段「六表纯成本测算」+MeasuresFee/Contingency 预留位勿引用；第 1 步末「土壤修复/污染场地项目先读 soil-remediation-costing」；落盘条收敛为 ModeLine 指针；控制价改「占控制价%（项目设了 ControlPrice 才有）；差额结论不手算以回执为准」）；soil 两句（首段适用边界「非土壤项目不读本技能」+「五步工作流第 1 步触发」联动句）；officeRunModeLineCost 增补「交付落盘（常驻单源）：.gaea/work/ 写过程件+move_file 落正式名+隔离件按回执取回」与「涉及造价库导入、整理或维护前先读 cost-estimation-playbook」装载触发；造价身份稿交付律③改指针（消除「先落临时目录（或 .tmp 扩展名）」冲突副本）。
+- **门禁**：vet/gofmt 净；golangci --new-from-rev 0 issues；boot+skill 全绿；app 1380 例四分片全绿（67s）。旧文案断言 sweep（落盘合规/无现算链/.tmp 扩展名）零命中；ModeLine/身份稿/交付段测试均非全文 golden（DSH 席核过 office_runmode_test.go:72-78,538 与 delivery_prompt_test.go:12-64，断言子串「【运行模式】/档名/新会话生效/cad_ask」全保留）。
+- **余项（圆桌遗留台账）**：「库操作前读 playbook」触发句实际装载效果待下一场真实造价会话回放 session.json（查 run_skill 与 cost_library 调用顺序）；打包装机待令；identity 稿控制价行（54 行）未在圆桌范围、措辞与新 playbook 同义未动。
+
 ## 测算簿适配三级树表样表 v5.5 + 删旧版渲染器（2026-11-27 凌晨，ZCode；主树日常构建已装机，包见 releases/gaea-cost-tree-20261127-3db867a4）
 
 用户附 v5.5 样表与适配规范令适配造价模型与数据库导入；随后两条拍板：①旧「行类」版式退役（以后不再上传）；②**导入的硬契约只有综合单价表**（三级树表），其余五张表是参考、模型自由发挥（清单表按单项工程划分/加列/调列序都不拦）。
