@@ -1,0 +1,6 @@
+b02ef89b64c126cbac8ab70b79fbc0651ce23542302956522800b21ccee73fd1 *gaea-wenxue-sync-20261126-e6d018b6.zip
+1771fe1acd23da3163fc5a8fbe4e624bde3e946391b79c9299c3b9c5efb26c6a *gaea-wenxue-sync-20261126-e6d018b6-src.zip
+9b8f97111454e6d913cd3b80fc2bbba99bc70dcbfcd6330919d8851278d367de *payload/gaea.exe
+68d0d5f502be4509e2a16f932627a95137d748b2fae519027f80125c0b1f550b *payload/onnxruntime.dll
+408f9ab683d1b77cbf7f06d48bd3af543ed783cc9093c19f520c7c8524619c8f *payload/sherpa-onnx-c-api.dll
+dbac55ceca8383fe28bd7c656fd125bec60dd35d7df1a3a28ea36a503ef6c562 *payload/sherpa-onnx-cxx-api.dll
