@@ -726,7 +726,7 @@ func (s *Store) BorrowQuota(req BorrowRequest, write bool) (*BorrowResult, error
 	}
 	derived := "借鉴 " + strings.TrimSpace(from.Specialty) + " " + from.Code
 	var ex executor = s.db
-	var tx *sql.Tx
+	var tx *dirtyTx
 	if write {
 		var err error
 		if tx, err = s.db.Begin(); err != nil {

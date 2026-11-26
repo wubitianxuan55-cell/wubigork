@@ -505,18 +505,18 @@ func pendingRows(ex executor, query string) ([]codeRow, error) {
 }
 
 // backfillQuotaGCodes 定额：D + 专业2 + 章节2 + 流水3。
-func (s *Store) backfillQuotaGCodes(tx *sql.Tx) error {
-	batch, err := pendingRows(tx, `SELECT id, COALESCE(specialty,''), COALESCE(chapter,'') FROM gf_quotas WHERE gcode='' ORDER BY id`)
+func (s *Store) backfillQuotaGCodes(ex executor) error {
+	batch, err := pendingRows(ex, `SELECT id, COALESCE(specialty,''), COALESCE(chapter,'') FROM gf_quotas WHERE gcode='' ORDER BY id`)
 	if err != nil {
 		return err
 	}
 	for _, r := range batch {
 		q := Quota{Specialty: r.scope, Chapter: r.name}
-		code, err := s.newQuotaGCode(tx, &q)
+		code, err := s.newQuotaGCode(ex, &q)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(`UPDATE gf_quotas SET gcode=? WHERE id=?`, code, r.id); err != nil {
+		if _, err := ex.Exec(`UPDATE gf_quotas SET gcode=? WHERE id=?`, code, r.id); err != nil {
 			return err
 		}
 	}
@@ -525,8 +525,8 @@ func (s *Store) backfillQuotaGCodes(tx *sql.Tx) error {
 
 // backfillBillGCodes 清单：Q + 专业2 + 分部2 + 流水3。专业按读取口径归一
 // （行自身为空取项目默认），与详情/列表显示的专业一致。
-func (s *Store) backfillBillGCodes(tx *sql.Tx) error {
-	batch, err := pendingRows(tx, `SELECT i.id,
+func (s *Store) backfillBillGCodes(ex executor) error {
+	batch, err := pendingRows(ex, `SELECT i.id,
   COALESCE(NULLIF(i.specialty,''), NULLIF(p.specialty,''), ''), COALESCE(i.division,'')
 FROM gf_bill_items i JOIN gf_projects p ON p.id=i.project_id WHERE i.gcode='' ORDER BY i.id`)
 	if err != nil {
@@ -534,11 +534,11 @@ FROM gf_bill_items i JOIN gf_projects p ON p.id=i.project_id WHERE i.gcode='' OR
 	}
 	for _, r := range batch {
 		it := BillItem{Specialty: r.scope, Division: r.name}
-		code, err := s.newBillGCode(tx, &it)
+		code, err := s.newBillGCode(ex, &it)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(`UPDATE gf_bill_items SET gcode=? WHERE id=?`, code, r.id); err != nil {
+		if _, err := ex.Exec(`UPDATE gf_bill_items SET gcode=? WHERE id=?`, code, r.id); err != nil {
 			return err
 		}
 	}
@@ -546,18 +546,18 @@ FROM gf_bill_items i JOIN gf_projects p ON p.id=i.project_id WHERE i.gcode='' OR
 }
 
 // backfillResourceGCodes 工料机：R + 类别1 + 分类2 + 流水4。
-func (s *Store) backfillResourceGCodes(tx *sql.Tx) error {
-	batch, err := pendingRows(tx, `SELECT id, COALESCE(kind,''), COALESCE(category_path,'') FROM gf_resources WHERE gcode='' ORDER BY id`)
+func (s *Store) backfillResourceGCodes(ex executor) error {
+	batch, err := pendingRows(ex, `SELECT id, COALESCE(kind,''), COALESCE(category_path,'') FROM gf_resources WHERE gcode='' ORDER BY id`)
 	if err != nil {
 		return err
 	}
 	for _, r := range batch {
 		res := Resource{Kind: r.scope, CategoryPath: r.name}
-		code, err := s.newResourceGCode(tx, &res)
+		code, err := s.newResourceGCode(ex, &res)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(`UPDATE gf_resources SET gcode=? WHERE id=?`, code, r.id); err != nil {
+		if _, err := ex.Exec(`UPDATE gf_resources SET gcode=? WHERE id=?`, code, r.id); err != nil {
 			return err
 		}
 	}

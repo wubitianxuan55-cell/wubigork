@@ -19,13 +19,17 @@ import (
 )
 
 // Store 工料法存储（工料机资源库 + 消耗定额库共用一个句柄，语义上仍是两层）。
+// 句柄带写入打脏标记（见 index.go）：写库成功即给对应索引类目打脏。
 type Store struct {
-	db *sql.DB
+	db *dirtyDB
 }
 
 // Open 打开工料法存储；gdb 为 nil 时返回不可用 store。
 func Open(gdb *sql.DB) *Store {
-	s := &Store{db: gdb}
+	s := &Store{}
+	if gdb != nil {
+		s.db = &dirtyDB{DB: gdb}
+	}
 	// 造价自有编码存量补授（幂等；无 gcode 列的旧夹具静默跳过）。失败只记日志
 	// 不阻断开库——新行授码在各自写路径上自会走 nextGCode，下次开库再补存量。
 	if gdb != nil {
@@ -39,12 +43,13 @@ func Open(gdb *sql.DB) *Store {
 // Available 报告存储是否可用。
 func (s *Store) Available() bool { return s != nil && s.db != nil }
 
-// DB 暴露底层句柄（app 层需要跨表事务时用；正常读写仍走本包方法）。
+// DB 暴露底层句柄（app 层需要跨表事务时用；正常读写仍走本包方法）。经它写库
+// 不经打脏标记，索引要等索引器的定时兜底对账。
 func (s *Store) DB() *sql.DB {
-	if s == nil {
+	if s == nil || s.db == nil {
 		return nil
 	}
-	return s.db
+	return s.db.DB
 }
 
 func (s *Store) requireDB() error {
