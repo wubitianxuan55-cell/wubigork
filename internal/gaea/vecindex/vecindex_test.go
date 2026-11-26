@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -443,6 +444,46 @@ func TestMatrix_LargeSearchLatency(t *testing.T) {
 	t.Logf("20 万条 × 128 维单次检索 %s", per)
 	if per > 500*time.Millisecond {
 		t.Fatalf("单次检索 %s，超过 500ms", per)
+	}
+}
+
+// 性能护栏（bge-m3 的真实维度）：10 万条 × 1024 维（int8 约 100MB）单次检索应在几十毫秒量级。
+// 建矩阵的时间与内存也报出来，50 万条（用户拍板的规模上限）按线性外推。
+func TestMatrix_LargeSearchLatency1024(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short 模式跳过大表性能用例")
+	}
+	const n, dim = 100000, 1024
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	start := time.Now()
+	m := newMatrix("m", dim, n, 1)
+	v := make([]float32, dim)
+	for i := 0; i < n; i++ {
+		for k := range v {
+			v[k] = float32((i*31+k*17)%97) / 97
+		}
+		m.add(fmt.Sprintf("v%06d", i), v)
+	}
+	build := time.Since(start)
+	runtime.ReadMemStats(&after)
+	mb := func(b uint64) float64 { return float64(b) / (1 << 20) }
+	qv := make([]float32, dim)
+	for k := range qv {
+		qv[k] = float32((k*13)%89) / 89
+	}
+	m.search(qv, 50, nil, 0) // 预热
+	start = time.Now()
+	const rounds = 5
+	for i := 0; i < rounds; i++ {
+		m.search(qv, 50, nil, 0)
+	}
+	per := time.Since(start) / rounds
+	t.Logf("10 万条 × 1024 维：建矩阵 %.2fs、占内存约 %.0f MB，单次检索 %s；50 万条线性外推 建矩阵约 %.0fs、内存约 %.0f MB、单次检索约 %s",
+		build.Seconds(), mb(after.HeapAlloc-before.HeapAlloc), per,
+		5*build.Seconds(), 5*mb(after.HeapAlloc-before.HeapAlloc), 5*per)
+	if per > 300*time.Millisecond {
+		t.Fatalf("10 万条 × 1024 维单次检索 %s，超过 300ms", per)
 	}
 }
 

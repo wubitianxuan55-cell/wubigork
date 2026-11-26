@@ -32,6 +32,9 @@ const (
 	searchKeywordCap = 300
 	// searchRerankMin 候选超过这个数才值得请精排模型（少了开销不划算）。
 	searchRerankMin = 8
+	// searchRerankDocs 最多请精排模型看多少篇：耗时与篇数成正比（本机 bge-reranker-v2-m3
+	// 实测约 12 毫秒/篇），融合序靠后的候选本来就排不进前几名。
+	searchRerankDocs = 16
 	// searchLoadChunk 按键批量取行时每批的键数。
 	searchLoadChunk = 400
 )
@@ -312,15 +315,19 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 	}
 	ordered = vecindex.Order(ordered)
 
-	// ── 精排 ──
+	// ── 精排 ── 只请精排模型看融合序最靠前的若干篇，其余原序跟在后面。
 	if len(ordered) > searchRerankMin && h.rerank != nil {
 		if r := h.rerank(); r != nil {
-			docs := make([]string, len(ordered))
-			for i, c := range ordered {
+			head := ordered
+			if len(head) > searchRerankDocs {
+				head = head[:searchRerankDocs]
+			}
+			docs := make([]string, len(head))
+			for i, c := range head {
 				docs[i] = spec.text(byKey[c.ID])
 			}
 			if rank, err := r.Rerank(ctx, kw, docs, len(docs)); err == nil {
-				ordered = applyRank(ordered, rank)
+				ordered = append(applyRank(head, rank), ordered[len(head):]...)
 			} else {
 				slog.Debug("workcost: 精排失败，按融合分返回", "kind", spec.indexKind, "error", err)
 			}
