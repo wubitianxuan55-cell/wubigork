@@ -16,11 +16,11 @@ import (
 	"time"
 )
 
-// liveSamplePaths 实弹素材的候选位置：优先 uocr2-llama 目录（随引擎工件走）；
-// 兼容 11-26 退役的 python 后端目录 unlimited\testimg（退役前样本放在那里，目录
-// 删除前建议挪到 uocr2-llama\testimg）。
+// liveSamplePaths 实弹素材的候选位置：引擎工件目录下的 testimg（GAEA_UOCR2_LLAMA_DIR
+// 优先，默认 C:\AI\gaea-OCR\uocr2-llama\testimg——2026-11-26 从已删除的 python 后端
+// 目录挪来）。
 func liveSamplePaths() [][2]string {
-	roots := []string{`C:\AI\gaea-OCR\uocr2-llama\testimg`, `C:\AI\gaea-OCR\unlimited\testimg`}
+	roots := []string{`C:\AI\gaea-OCR\uocr2-llama\testimg`}
 	if dir := strings.TrimSpace(os.Getenv("GAEA_UOCR2_LLAMA_DIR")); dir != "" {
 		roots = append([]string{filepath.Join(dir, "testimg")}, roots...)
 	}
@@ -47,7 +47,7 @@ func TestUocr2LlamaLiveSingleAndBatch(t *testing.T) {
 		}
 	}
 	if fj2 == "" {
-		t.Skip("实弹素材缺失：fj-02.png / fj-03.png（uocr2-llama\\testimg 或 unlimited\\testimg）")
+		t.Skip("实弹素材缺失：fj-02.png / fj-03.png（uocr2-llama\\testimg）")
 	}
 
 	t0 := time.Now()

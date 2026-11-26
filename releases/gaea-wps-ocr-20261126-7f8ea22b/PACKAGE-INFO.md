@@ -65,10 +65,10 @@ node scripts/check-docs.mjs OK。顺手清两条既有假红（`TestBuildUocr2Ll
 ## 未做 / 余项
 - 装机后真机走查未做（要在用户工作区的会话里发消息，未替用户发）：造价模式
   `format_convert` 那份 174 页扫描件；转换中按停止再发消息不排队。
-- 退役引擎的模型目录未删，待用户确认：`C:\AI\gaea-OCR\unlimited`（python 后端，
-  70,305 文件 / 15,964,598,671 B ≈ 14.9 GB）、`C:\AI\gaea-OCR\ovis`（OvisOCR2，
-  860,116,904 B ≈ 0.8 GB）。删 `unlimited` 前先把 `testimg` 两张实弹样本图挪到
-  `uocr2-llama\testimg`（`TestUocr2LlamaLiveSingleAndBatch` 两处都会找）。
+- 退役引擎的模型目录：打包时未删；**2026-11-26 12:09 经用户确认后已送入回收站**
+  （`C:\AI\gaea-OCR\unlimited` ≈ 14.9 GB、`C:\AI\gaea-OCR\ovis` ≈ 0.8 GB；可恢复性、
+  归档与重建链见 `C:\AI\re\unlimited-ocr-2\README.md`，过程见 `.gaea/progress.md` 补记 2）。
+  原清单：`unlimited`（70,305 文件 / 15,964,598,671 B）、`ovis`（22 文件 / 860,116,904 B）。
 - agent 循环层对「不看 ctx 的慢工具」仍会 `wg.Wait()` 死等（本批只在 format_convert
   工具级解决）；正文汉字间 OCR 空格未归一化；WPS `--ai-fix`、在线引擎单次页数上限
   未验证。
