@@ -1,3 +1,22 @@
+## 2026-11-28 凌晨 AI 反馈批收口：五笔提交 + 包 gaea-ai-feedback-20261128-093c83c5 装机 PID 53224（ZCode；未 push）
+
+- 用户令「继续开始」，从接续单 §5 接手（首会话记录见下一节，事实源=进度计划/gaea-ai-feedback-20261127-batch.md §9）。
+- **补完 xlsx 健康体检**：`bash.go` 接 `xlsxCacheNotes(pub, settled)` 五处（前台终段 plain / json、提前返回、后台 job 收尾）——命令写出的 xlsx 公式格没有缓存值时回执提一句（库保存不写公式结果，Excel/WPS 打开是空值）；进程未收场不报「打不开」；隔离件按隔离后落点体检；越界时 result 仍是隔离全文 + 备注（传输契约，第一版写破被新测试逮住）。测试 `internal/app/xlsx_health_test.go` + `internal/gaea/tool/builtin/bash_xlsx_notes_test.go`；lint 两处 errcheck。
+- **门禁（全量）**：gofmt / `go build ./...` / vet 净；`golangci-lint --new-from-rev HEAD` 0 issues；纯 Go 10 包全量绿（含 agent 全量）；app **1391 例四分片 77s 全绿**；前端 `tsc -b` 过、vitest 510/511 文件（红 1 例 `modelcenter/SchedulingSection.test.tsx` 偶发，与本批零交集）。
+- **提交**：`a78c83a7` 造价线 / `1b628dc7` xlsx 体检 / `0ae43cb3` 会话检索 / `73739a34` PDF 页数 / `093c83c5` bash 与文件闸 + 本笔记档。
+- **包**：`releases/gaea-ai-feedback-20261128-093c83c5`——干净树构建（vite 63s + wails 60s，cgo 非空壳，绑定无漂移），冒烟 `/api/health` 200，INSTALL OK 新壳 **PID 53224**（00:10:16 > 构建时刻），包版四件回写主树 `build/bin`，三处哈希一致。exe `6f488036a40e626f`、zip `2c822b1e1450bef3`、src.zip `2cf64218390527d1`。构建工作树已回收。
+- **余**：push 待令；真机走查；#4 / #5' / #8 / #11 / #12 / #14 / #15② 待令；拍板池 #10 矢量图 / 277 条章节恢复 / 样表旧文案。
+
+## 2026-11-27 深夜 AI 反馈批（桌面 ai-feedback-2026-11-27.md，20 条）落码 11 条，未提交未打包（ZCode；上下文不足中断，接续单=进度计划/gaea-ai-feedback-20261127-batch.md）
+
+- 背景：用户令「修复这些问题」（模型经 ai_feedback 提交的 19 条 + 用户手写的造价技能工作流 1 条）；中途附适配规范 v5.6 令「根据现在的实际情况进行修正，补充进说明书」，随后令「做好文件记录，我们下个会话继续」。逐条对码分诊 + 翻包2/包4 两场会话日志定根因，分诊表与逐文件清单在接续单。
+- **已落码（分包测试绿）**：①造价线——`import_add` 载荷走文件（`resources_file / quotas_file / bills_file`、`classify_file`、`import_status export`）；playbook / 身份稿 / 模式行主路改为「在测算样表上编 → 两道门 → **交用户检查同意后入库**」（此前主路是库内直写，模型不知道先用样表）；样表旁绑定《使用说明书》（`internal/gaea/skill/assets/成本测算表-使用说明书.md`，v5.6 适配规范修正后并入：快速通道口径、三层 ROUND、摘要金额在 F 列、地区只到省等 12 处）；导入演练新增「疑似明细行溢出」与「工作簿内对账」（workcost/workbook_recon.go，金样夹具零误报）；确认卡提醒「请确认已检查过这份测算表」；顺手救活两个静默跳过的导入测试、板块导出菜单去掉已删的「资料条目」。②bash——长命令超 6000 字符改走临时脚本（实测 Git Bash `bash -c` 参数超约 8.2K 字符静默截断且 rc=0）；缺 command 时识别「发来的是数据对象」并指路。③文件闸——stale 闸 / 预检查改用工具自己的路径解析（此前拿相对路径按进程 cwd 读，write 后紧跟 edit 在正式环境必被拦）；预检查失配时直接给最接近位置与现行文本。④read_file 字节窗口（`byte_offset / max_bytes`，单行超长内容按字节分页）。⑤session_search——索引助手实时成稿（kind=message；此前只认 assistant_message，等于只搜得到用户的话）、多关键词三级放宽、坏行容错且不再盘上截 torn tail、query 留空列最近会话；`@会话` 快照同根修。⑥format_convert——页数上限口径改「单次页数」（`pages=501-676` 可补转）、新增 `all_pages` 自动分段转完、截断时回执与文件头尾醒目标出缺页。
+- **做到一半**：xlsx 健康体检——`xlsxedit/health.go`（打开性 / 缺缓存值 / 定义名与表级归属 / 数据验证 / 合并格）已接进 xlsx_audit、xlsx_recalc（前后结构对账）、xlsx_apply；`PublishGuard.Touched()` 已加但 **bash.go 还没接**（脚本写出 xlsx 缺缓存值的提示），app 层接线测试没补。
+- **预算**：工具面 standard 17250（实测 17156）/ cost 29250（29212）/ proposal 21750（21615）；cost_library 常驻 schema 9700。
+- **没动**：#4 发布边界合规链与覆盖留痕；#5' 方案库「共 N 份」口径；#11 outline display_title；#12 正文标题识别；#8 keyword 精确开关；#14 交接卡；#15 断点检查点。
+- **待拍板**：#10 矢量图补图（要引 PDF 库依赖）；277 条章节数据恢复；是否给测算样表配「按数据扩骨架」的填表脚本；样表三处旧文案是否用 gaea 改。
+- **验证**：`go build ./...`、改动包 vet、分包测试（含 app 的 TestCost / 工具面预算 / 运行模式 / TestXlsx 分组）全绿；**没跑** app 全量、agent 全量、前端全量、golangci-lint；未提交、未打包、未装机。
+
 ## 2026-11-27 晚 造价复盘清偿三刀 + 在途六批收口（ZCode；包 gaea-cost-review-20261127-b799f13d 已装机 PID 55360）
 
 - 背景：用户带《软件不足与改进建议——造价库「地区按省合并」批量改造实战复盘》进会话（16 条 P1–P16，证据来自实弹工具回执）。对码分诊：8 条属实、4 条大半已有（P3/P8/P12 提示与机制已在）、P5/P9/P13/P14/P16 挂拍板池；且主树正压着六个未提交小批。
