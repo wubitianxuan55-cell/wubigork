@@ -24,7 +24,7 @@ const clSchemaCoreA = `{
 "type":"object",
 "required":["action"],
 "properties":{
-  "action":{"type":"string","enum":["import_open","import_add","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template","help"],"description":"动作名。录入资料 import_open → import_add → import_check → import_commit；综合单价表是三级树表的测算簿走 import_project。import_add 的行字段契约随 import_open 回执发放，classify 的随 dims 回执发放（或 action=help）。template 把测算样表复制到工作区；health/dims 只读；字典查看 dict，增改删 dict_add/dict_update/dict_delete"},
+  "action":{"type":"string","enum":["import_open","import_add","import_status","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template","help"],"description":"动作名。录入资料 import_open → import_add → import_check → import_commit（import_status 回读暂存区）；综合单价表是三级树表的测算簿走 import_project。import_add 的行字段契约随 import_open 回执发放，classify 的随 dims 回执发放（或 action=help）。template 把测算样表复制到工作区；health/dims 只读；字典查看 dict，增改删 dict_add/dict_update/dict_delete"},
   "dry_run":{"type":"boolean","description":"演练：校验、匹配、统计照做，但不写库、不弹确认"},
   "path":{"type":"string","description":"测算工作簿路径（import_project 必填，.xlsx，综合单价表须是三级树表、其余表参考；template 可选=模版落盘路径，工作区相对，缺省落 .gaea/exports）"},
   "kind":{"type":"string","enum":["specialty","region","category"],"description":"字典类别（dict_add/dict_update/dict_delete 用）：specialty=专业 / region=地区 / category=工料机分类"},
@@ -142,7 +142,7 @@ const clClassifyStub = `  "classify":{"type":"object","description":"批量整�
 
 // clImportHeadSchema 导入会话与口径（import_open / import_commit 等的常驻参数）。
 const clImportHeadSchema = `
-  "import_id":{"type":"string","description":"导入会话 id（import_open 返回；import_add / import_check / import_commit / import_discard 必填）"},
+  "import_id":{"type":"string","description":"导入会话 id（import_open 返回；import_add / import_status / import_check / import_commit / import_discard 必填）"},
   "source":{"type":"string","description":"import_open：资料路径（工作区内）。只用来回读核对提交的数与文字，不解析它的结构；xlsx / csv 支持，其他格式无法回读"},
   "project":{"type":"object","description":"import_open：项目口径与封面（只导工料机 / 定额可以不给）。专业、地区是字典值，计价期 YYYY-MM","properties":{
     "name":{"type":"string","description":"项目名（要提交清单行就必须给）"},
@@ -186,7 +186,7 @@ const clImportRowsSchema = `  "resources":{"type":"array","description":"import_
     "src":` + clSrcSchema + `,
     "derived":{"type":"array","items":{"type":"string"},"description":"由你换算、不是照抄的字段名（如 quantity）——回读时不核这些字段"}
   }}},
-  "quotas":{"type":"array","description":"import_add：整理好的消耗定额（每批 ≤200）。同码更新=没给的头字段保持原值（2026-11-27 复盘 P1：整行覆盖曾把 277 条有章节的定额清了空）","items":{"type":"object","properties":{
+  "quotas":{"type":"array","description":"import_add：整理好的消耗定额（每批 ≤200）。同码=更新：重发只带改动的字段（没给的头字段保持原值、未给含量行保留；2026-11-27 复盘 P1/P6）","items":{"type":"object","properties":{
     "code":{"type":"string","description":"定额编码（必填；与库里的同码同专业=更新）"},
     "title":{"type":"string","description":"名称（新建必填；更新不给=保持原值）"},
     "unit":{"type":"string","description":"计量单位（更新不给=保持原值）"},

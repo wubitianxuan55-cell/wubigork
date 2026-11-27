@@ -312,8 +312,12 @@ func TestCostLibraryResourceLifecycle(t *testing.T) {
 	clMustFail(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 520, "period": "2026年第12期"}, "不是年月写法")
 	clMustFail(t, tl, map[string]any{"action": "set_price", "resource_code": res.Code, "price": 520, "region": "广东省"}, "不在地区字典里")
 
-	// 删除：被定额含量行引用 → 拒绝；未被引用的可删；force 才连带。
-	clMustFail(t, tl, map[string]any{"action": "delete_resource", "codes": []string{res.Code}}, "仍被定额含量行引用")
+	// 删除：被定额含量行引用的进冲突清单（不硬报错、不删除，2026-11-27 复盘 P10
+	// 双清单）；未被引用的可删；force 才连带。
+	clMust(t, tl, map[string]any{"action": "delete_resource", "codes": []string{res.Code}}, "被引用暂缓")
+	if again, err := s.GetResourceByCode(res.Code); err != nil || again == nil {
+		t.Fatal("冲突行不应删除")
+	}
 	clMust(t, tl, map[string]any{"action": "delete_resource", "dry_run": true, "force": true, "ids": []int64{got.ID}}, "解除 1 条含量行引用")
 	if _, err := s.GetResource(got.ID); err != nil {
 		t.Fatal("演练不应删除")

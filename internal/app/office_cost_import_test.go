@@ -640,3 +640,47 @@ func TestCostImportQuotaFactors(t *testing.T) {
 		t.Errorf("挂接量应为 清单工程量 × 系数（D-A1 150 / D-A2 50），实得 %v", got)
 	}
 }
+
+// TestCostImportStatusAndPartialAmend 暂存区回读与部分修正（2026-11-27 复盘 P6）：
+// 同码重发只带改动的字段，没给的头字段/含量行沿用上一版；import_status 能列出
+// 暂存区里已提交的行。
+func TestCostImportStatusAndPartialAmend(t *testing.T) {
+	a, cleanup := workcostTestApp(t)
+	defer cleanup()
+	s := a.hubWorkcostStore()
+	tl := costLibraryTool{a: a}
+	impDict(t, s)
+	if _, err := s.SaveResource(workcost.Resource{Code: "L01", Kind: workcost.KindLabor, Title: "普工", Unit: "工日"}); err != nil {
+		t.Fatal(err)
+	}
+	id := impOpen(t, tl, "", nil)
+	clMust(t, tl, map[string]any{"action": "import_add", "import_id": id, "quotas": []map[string]any{{
+		"code": "D-90", "title": "工序甲", "unit": "m²", "specialty": "土壤修复", "chapter": "01 场地整理",
+		"items": []map[string]any{{"resource_code": "L01", "quantity": 2}},
+	}}}, "入暂存 1")
+
+	// 部分修正：只带 chapter，其余沿用上一版。
+	out := clMust(t, tl, map[string]any{"action": "import_add", "import_id": id, "quotas": []map[string]any{{
+		"code": "D-90", "chapter": "02 路基",
+	}}}, "覆盖 1")
+	if !strings.Contains(out, "覆盖 1") {
+		t.Fatalf("同码应计覆盖：%s", out)
+	}
+	status := clMust(t, tl, map[string]any{"action": "import_status", "import_id": id}, "定额 1 条")
+	for _, want := range []string{"[D-90]", "工序甲", "02 路基", "1 条含量行"} {
+		if !strings.Contains(status, want) {
+			t.Errorf("暂存回读应含 %q：%s", want, status)
+		}
+	}
+	// 提交后库里行 = 修正后的合并结果。
+	if _, err := tl.Execute(nil, []byte(`{"action":"import_commit","import_id":"`+id+`"}`)); err != nil {
+		t.Fatalf("提交失败: %v", err)
+	}
+	gq, err := s.GetQuota("D-90")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gq.Title != "工序甲" || gq.Unit != "m²" || gq.Specialty != "土壤修复" || gq.Chapter != "02 路基" || len(gq.Items) != 1 {
+		t.Fatalf("部分修正应保留没给字段与含量行：%+v", gq)
+	}
+}

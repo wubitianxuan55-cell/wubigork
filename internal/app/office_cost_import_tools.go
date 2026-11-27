@@ -212,6 +212,52 @@ func (t costLibraryTool) importAdd(s *workcost.Store, p costLibraryArgs) (string
 	return out.String(), nil
 }
 
+// importStatus 暂存区回读（2026-11-27 复盘 P6③）：列暂存区里已提交的行，让
+// AI 能核对自己提交了什么、哪些码已占了位，不必靠记忆或反复重发。
+func (t costLibraryTool) importStatus(p costLibraryArgs) (string, error) {
+	imp, err := t.importSession(p.ImportID)
+	if err != nil {
+		return "", err
+	}
+	rs, qs, bs := imp.StagedRows()
+	var out strings.Builder
+	out.WriteString("📋 暂存区（未写库）：" + imp.ID + "\n")
+	list := func(label string, n int, render func(i int) string) {
+		fmt.Fprintf(&out, "\n**%s %d 条**", label, n)
+		if n == 0 {
+			out.WriteString("（还没有提交）")
+			return
+		}
+		capN := clCap(n)
+		out.WriteString("\n")
+		for i := 0; i < n; i++ {
+			if i >= capN {
+				fmt.Fprintf(&out, "- …共 %d 条\n", n)
+				break
+			}
+			fmt.Fprintf(&out, "- %s\n", render(i))
+		}
+	}
+	list("工料机", len(rs), func(i int) string {
+		r := rs[i]
+		price := ""
+		if r.Price != nil {
+			price = fmt.Sprintf("，价=%.2f", *r.Price)
+		}
+		return fmt.Sprintf("[%s] %s %s（%s%s）", r.Code, r.Kind, r.Title, r.Unit, price)
+	})
+	list("定额", len(qs), func(i int) string {
+		q := qs[i]
+		return fmt.Sprintf("[%s] %s（%s，%s，%d 条含量行）", q.Code, q.Title, q.Unit, clDim(q.Chapter, "未标注"), len(q.Items))
+	})
+	list("清单行", len(bs), func(i int) string {
+		b := bs[i]
+		return fmt.Sprintf("[%s] %s（%s，量=%g）", b.Code, b.Title, b.Unit, b.Quantity)
+	})
+	out.WriteString("\n下一步：import_add 补交/修正（同码只带改动的字段，没给的头字段保持原值）；import_check 勾稽；import_commit 提交。")
+	return out.String(), nil
+}
+
 // importSession 取导入会话。
 func (t costLibraryTool) importSession(id string) (*workcost.ImportSession, error) {
 	id = strings.TrimSpace(id)

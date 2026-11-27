@@ -2,6 +2,7 @@ package workcost
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -144,5 +145,40 @@ func TestResourceRegionQueryNormalized(t *testing.T) {
 	}
 	if len(hits) != 0 {
 		t.Fatalf("重庆市不应命中四川省的行")
+	}
+}
+
+// P7：显式给了不同专业才退回，文案指路「去掉 specialty 或借鉴生成」，不再说
+// 「另起编码」误导模型建重复定额；不给专业=沿用既有行，不退回。
+func TestImportQuotaSpecialtyGateWording(t *testing.T) {
+	s := importStore(t)
+	seedDict(t, s, DictSpecialty, "固废")
+	if _, err := s.SaveResource(Resource{Code: "L01", Kind: KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 100, Region: "四川省"}); err != nil {
+		t.Fatalf("建工料机失败: %v", err)
+	}
+	if _, err := s.SaveQuota(Quota{Code: "D-01", Title: "场地平整", Unit: "m²", Specialty: "土壤修复"}, nil); err != nil {
+		t.Fatalf("建既有定额失败: %v", err)
+	}
+	imp, err := s.OpenImport("", ImportProject{Name: "闸门会话"}, ImportControls{})
+	if err != nil {
+		t.Fatalf("开导入失败: %v", err)
+	}
+	res, err := imp.AddQuotas(s, []ImportQuota{{Code: "D-01", Title: "场地平整", Specialty: "固废"}})
+	if err != nil {
+		t.Fatalf("入暂存失败: %v", err)
+	}
+	if len(res.Rejected) != 1 {
+		t.Fatalf("显式改专业应退回 1 行: %+v", res)
+	}
+	msg := strings.Join(res.Rejected[0].Reasons, "；")
+	if !strings.Contains(msg, "去掉行上的 specialty") || !strings.Contains(msg, "borrow_quota") || strings.Contains(msg, "另起编码") {
+		t.Fatalf("退回文案不对：%s", msg)
+	}
+	res2, err := imp.AddQuotas(s, []ImportQuota{{Code: "D-01"}})
+	if err != nil {
+		t.Fatalf("入暂存失败: %v", err)
+	}
+	if len(res2.Rejected) != 0 || res2.Accepted != 1 {
+		t.Fatalf("不给专业应沿用既有行不退回: %+v", res2)
 	}
 }

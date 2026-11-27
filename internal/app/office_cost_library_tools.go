@@ -236,7 +236,7 @@ var costLibraryActionLabel = map[string]string{
 	"bulk_price": "批量调价", "delete_items": "删除清单行", "delete_project": "删除项目",
 	"flywheel": "自生成企业定额", "dedupe": "工料机去重", "health": "库级健康扫描",
 	"classify": "整理归类", "borrow_quota": "借鉴生成定额", "dims": "维度盘点", "dict": "字典",
-	"import_open": "开导入", "import_add": "暂存导入行", "import_check": "导入勾稽", "import_commit": "提交导入", "import_discard": "丢弃导入",
+	"import_open": "开导入", "import_add": "暂存导入行", "import_status": "暂存区回读", "import_check": "导入勾稽", "import_commit": "提交导入", "import_discard": "丢弃导入",
 	"dict_add": "新增字典项", "dict_update": "修改字典项", "dict_delete": "删除字典项",
 	"help": "参数契约",
 }
@@ -296,6 +296,8 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 		return t.importOpen(s, p)
 	case "import_add":
 		return t.importAdd(s, p)
+	case "import_status":
+		return t.importStatus(p)
 	case "import_check":
 		return t.importCheck(s, p)
 	case "import_commit":
@@ -1540,6 +1542,7 @@ func (t costLibraryTool) deleteResource(s *workcost.Store, p costLibraryArgs) (s
 		add(r)
 	}
 	var blocked []string
+	blockSet := map[int64]bool{}
 	for i := range victims {
 		refs, err := s.ResourceUsage(victims[i].r.Code)
 		if err != nil {
@@ -1547,17 +1550,27 @@ func (t costLibraryTool) deleteResource(s *workcost.Store, p costLibraryArgs) (s
 		}
 		victims[i].refs = len(refs)
 		if len(refs) > 0 && !p.Force {
+			blockSet[victims[i].r.ID] = true
 			blocked = append(blocked, fmt.Sprintf("%s「%s」（%d 条含量行引用）", victims[i].r.Code, victims[i].r.Title, len(refs)))
 		}
 	}
-	if len(blocked) > 0 {
-		return "", fmt.Errorf("以下工料机仍被定额含量行引用，未删除：%s。先改那些定额的含量行（cost_library save_quota），或确认后加 force=true（含量行引用悬空，cost_audit 会点名）", strings.Join(blocked, "、"))
+	// 双清单（2026-11-27 复盘 P10：一条引用残留曾硬报错拦住整组 58–102 条的删除
+	// 节奏）：能删的照删，被引用的进冲突清单点名出路，不再整批报废。
+	deletable := make([]victim, 0, len(victims))
+	for _, v := range victims {
+		if !blockSet[v.r.ID] {
+			deletable = append(deletable, v)
+		}
 	}
 	var out strings.Builder
 	out.WriteString(clHead(p.DryRun, "delete_resource"))
-	fmt.Fprintf(&out, "**%s工料机 %d 条**", map[bool]string{true: "将删除", false: "已删除"}[p.DryRun], len(victims))
+	if len(blocked) > 0 {
+		fmt.Fprintf(&out, "**%s工料机 %d 条，另有 %d 条被引用暂缓**", map[bool]string{true: "将删除", false: "已删除"}[p.DryRun], len(deletable), len(blocked))
+	} else {
+		fmt.Fprintf(&out, "**%s工料机 %d 条**", map[bool]string{true: "将删除", false: "已删除"}[p.DryRun], len(deletable))
+	}
 	attached := 0
-	for _, v := range victims {
+	for _, v := range deletable {
 		attached += v.refs
 		if p.DryRun {
 			fmt.Fprintf(&out, "\n- [%s] %s %s（%s）", v.r.Code, v.r.Kind, v.r.Title, v.r.Unit)
@@ -1565,6 +1578,9 @@ func (t costLibraryTool) deleteResource(s *workcost.Store, p costLibraryArgs) (s
 				fmt.Fprintf(&out, "｜解除 %d 条含量行引用", v.refs)
 			}
 		}
+	}
+	if len(blocked) > 0 {
+		fmt.Fprintf(&out, "\n\n**被引用暂缓 %d 条**（未删除；先改那些定额的含量行 cost_library save_quota，或确认后对这几条单独加 force=true）：\n- %s", len(blocked), strings.Join(blocked, "\n- "))
 	}
 	if attached > 0 {
 		fmt.Fprintf(&out, "｜%d 条含量行引用悬空（cost_audit 会点名）", attached)
@@ -1574,7 +1590,7 @@ func (t costLibraryTool) deleteResource(s *workcost.Store, p costLibraryArgs) (s
 		out.WriteString("\n删除不可恢复；确认后去掉 dry_run 正式删除。")
 		return out.String(), nil
 	}
-	for i, v := range victims {
+	for i, v := range deletable {
 		if err := s.DeleteResource(v.r.ID, p.Force); err != nil {
 			return "", fmt.Errorf("工料机 %s 删除失败（它之前的 %d 条已删除，其余未处理）: %w", v.r.Code, i, err)
 		}

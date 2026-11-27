@@ -327,6 +327,88 @@ func (imp *ImportSession) finish(r ImportAddResult) ImportAddResult {
 	return r
 }
 
+// mergeStagedQuota 暂存区同码定额行的部分修正（2026-11-27 复盘 P6：修一个字段也
+// 要手抄整行重发，转录既是体量瓶颈也是错误源）：重发行只带改动的字段，空字段与
+// 未给含量行沿用暂存区上一版。落库层「没给字段不动」是 quotaOf 的另一层兜底。
+func (imp *ImportSession) mergeStagedQuota(prev, in ImportQuota) ImportQuota {
+	pick := func(a, b string) string {
+		if v := strings.TrimSpace(b); v != "" {
+			return v
+		}
+		return a
+	}
+	out := prev
+	out.Code = strings.TrimSpace(in.Code)
+	out.Title = pick(prev.Title, in.Title)
+	out.Unit = pick(prev.Unit, in.Unit)
+	out.Specialty = pick(prev.Specialty, in.Specialty)
+	out.Chapter = pick(prev.Chapter, in.Chapter)
+	out.CategoryPath = pick(prev.CategoryPath, in.CategoryPath)
+	out.Source = pick(prev.Source, in.Source)
+	out.Region = pick(prev.Region, in.Region)
+	out.Note = pick(prev.Note, in.Note)
+	if in.Items != nil {
+		out.Items = in.Items
+	}
+	if in.Src != nil {
+		out.Src = in.Src
+	}
+	if len(in.Derived) > 0 {
+		out.Derived = in.Derived
+	}
+	return out
+}
+
+// mergeStagedResource 同码工料机行的部分修正（同 mergeStagedQuota）：价格指针
+// 不给=沿用上一版。
+func (imp *ImportSession) mergeStagedResource(prev, in ImportResource) ImportResource {
+	pick := func(a, b string) string {
+		if v := strings.TrimSpace(b); v != "" {
+			return v
+		}
+		return a
+	}
+	out := prev
+	out.Code = strings.TrimSpace(in.Code)
+	out.Kind = pick(prev.Kind, in.Kind)
+	out.Title = pick(prev.Title, in.Title)
+	out.Spec = pick(prev.Spec, in.Spec)
+	out.Unit = pick(prev.Unit, in.Unit)
+	if in.Price != nil {
+		out.Price = in.Price
+	}
+	if in.BasePrice != nil {
+		out.BasePrice = in.BasePrice
+	}
+	if in.CurrentPrice != nil {
+		out.CurrentPrice = in.CurrentPrice
+	}
+	out.CategoryPath = pick(prev.CategoryPath, in.CategoryPath)
+	out.Region = pick(prev.Region, in.Region)
+	out.Period = pick(prev.Period, in.Period)
+	out.PriceType = pick(prev.PriceType, in.PriceType)
+	out.Source = pick(prev.Source, in.Source)
+	out.Note = pick(prev.Note, in.Note)
+	if in.Src != nil {
+		out.Src = in.Src
+	}
+	if len(in.Derived) > 0 {
+		out.Derived = in.Derived
+	}
+	return out
+}
+
+// StagedRows 暂存区回读（2026-11-27 复盘 P6③：AI 校验自己提交了什么）。
+func (imp *ImportSession) StagedRows() ([]ImportResource, []ImportQuota, []ImportBill) {
+	rs := make([]ImportResource, len(imp.resources))
+	copy(rs, imp.resources)
+	qs := make([]ImportQuota, len(imp.quotas))
+	copy(qs, imp.quotas)
+	bs := make([]ImportBill, len(imp.bills))
+	copy(bs, imp.bills)
+	return rs, qs, bs
+}
+
 // resourceOf 把一行工料机整理成库里的形态并过规矩校验（地区、期数默认取项目口径）。
 func (imp *ImportSession) resourceOf(s *Store, in ImportResource) (*Resource, error) {
 	r := Resource{
@@ -374,6 +456,12 @@ func (imp *ImportSession) AddResources(s *Store, rows []ImportResource) (ImportA
 	res := imp.addResult("resource")
 	for i, in := range rows {
 		in.Code, in.Title = strings.TrimSpace(in.Code), strings.TrimSpace(in.Title)
+		// 部分修正先行（同 AddQuotas）：与暂存区上一版合并后再校验。
+		if in.Code != "" {
+			if idx, ok := imp.resIdx[in.Code]; ok {
+				in = imp.mergeStagedResource(imp.resources[idx], in)
+			}
+		}
 		var reasons []string
 		r, err := imp.resourceOf(s, in)
 		switch {
@@ -406,7 +494,7 @@ func (imp *ImportSession) AddResources(s *Store, rows []ImportResource) (ImportA
 		}
 		if in.Code != "" {
 			if idx, ok := imp.resIdx[in.Code]; ok {
-				imp.resources[idx] = in
+				imp.resources[idx] = in // 已经 mergeStagedResource 合并过
 				res.Replaced++
 				continue
 			}
@@ -479,12 +567,20 @@ func (imp *ImportSession) quotaOf(s *Store, in ImportQuota) (*Quota, []string) {
 	return &q, reasons
 }
 
-// AddQuotas 定额分批入暂存。库里的同码定额若已是别的专业则退回（定额专业固定）；
-// 同码同专业=提交时更新。含量行引用的工料机必须已在库或在暂存区。
+// AddQuotas 定额分批入暂存。库里的同码定额若已显式给了不同专业则退回（定额专业
+// 固定；不给专业=沿用既有行的，见 quotaOf）；同码=提交时更新，重发行只带改动的
+// 字段即可（mergeStagedQuota 部分修正）。含量行引用的工料机必须已在库或在暂存区。
 func (imp *ImportSession) AddQuotas(s *Store, rows []ImportQuota) (ImportAddResult, error) {
 	res := imp.addResult("quota")
 	for i, in := range rows {
 		in.Code, in.Title = strings.TrimSpace(in.Code), strings.TrimSpace(in.Title)
+		// 部分修正先行（2026-11-27 复盘 P6）：与暂存区上一版合并后再校验——只带
+		// 改动字段的行（如仅补 chapter）不该被「需要名称」这类校验拦下。
+		if in.Code != "" {
+			if idx, ok := imp.quotaIdx[in.Code]; ok {
+				in = imp.mergeStagedQuota(imp.quotas[idx], in)
+			}
+		}
 		var reasons []string
 		if ok, why := CodeWellFormed(in.Code); !ok {
 			reasons = append(reasons, why)
@@ -494,8 +590,11 @@ func (imp *ImportSession) AddQuotas(s *Store, rows []ImportQuota) (ImportAddResu
 		if len(problems) == 0 && in.Code != "" {
 			if exist, err := s.GetQuota(in.Code); err == nil && strings.TrimSpace(exist.Specialty) != "" &&
 				strings.TrimSpace(exist.Specialty) != strings.TrimSpace(q.Specialty) {
-				reasons = append(reasons, fmt.Sprintf("定额 %s 已是「%s」专业，专业固定不改——本专业（%s）的请另起编码；借鉴生成走 borrow_quota",
-					in.Code, exist.Specialty, q.Specialty))
+				// 只有显式给了不同专业才走到这（不给=沿用既有行的）——文案说清出路
+				// 是「改行上字段或借鉴生成」，不是「另起编码」（2026-11-27 复盘 P7：
+				// 旧文案括号里专业为空还误导模型去建重复定额）。
+				reasons = append(reasons, fmt.Sprintf("定额 %s 已是「%s」专业，专业固定不改——更新它请去掉行上的 specialty（或写成 %s）；要「%s」专业的定额用 borrow_quota（from_code=%s）借鉴生成",
+					in.Code, exist.Specialty, exist.Specialty, q.Specialty, in.Code))
 			}
 		}
 		if len(reasons) > 0 {
@@ -503,7 +602,7 @@ func (imp *ImportSession) AddQuotas(s *Store, rows []ImportQuota) (ImportAddResu
 			continue
 		}
 		if idx, ok := imp.quotaIdx[in.Code]; ok {
-			imp.quotas[idx] = in
+			imp.quotas[idx] = in // 已经 mergeStagedQuota 合并过
 			res.Replaced++
 		} else {
 			imp.quotaIdx[in.Code] = len(imp.quotas)
