@@ -1,3 +1,11 @@
+## 2026-11-28 上午 AI 反馈批余量七条收口：五笔提交 + 包 gaea-ai-feedback-20261128-f35fb3f4 装机 PID 35548（ZCode；未 push）
+
+- 用户令「继续」，按原指令「修复这些问题」接做没动的七条；#14 中途用户拍板「不自动注入，模型自己判断是否读取」。逐条做法与已知盲区见接续单 §10（进度计划/gaea-ai-feedback-20261127-batch.md）。
+- **五笔**：`5ddd8408` 方案库三刀（回执份数口径拆两行 / outline `display_title` 改 OCR 错字并容错定位 / `action=detect_headings` 认标题 + `outline_file` 读写草稿；查进度与认标题不再弹卡）｜`13642743` 造价检索 `exact=true` 仅字面匹配、可翻页自证穷尽｜`06780c87` `move_file` 覆盖正式 Office 件前留上一版快照到 `.gaea/versions/`，脚本改写正式件被拦后自动放回 `.gaea/work/`｜`a98861c3` 中断交接记录重启后从会话日志重建、带任务原话｜`f35fb3f4` `session_search handoff=<会话 id>` 交接卡（收尾回复、动过的文件、xlsx 体检），最近会话清单带收尾一行。
+- **门禁**：gofmt / `go build ./...` / vet 净；`golangci-lint` 0 issues；纯 Go 12 包全量绿；app **1392 例四分片 81s 全绿**；前端本轮零改动。
+- **包**：`releases/gaea-ai-feedback-20261128-f35fb3f4`——干净树构建（vite 63s + wails 66s，cgo 非空壳，绑定无漂移），冒烟 `/api/health` 200，INSTALL OK 新壳 **PID 35548**，包版四件回写主树 `build/bin`，三处哈希一致。exe `ef14ca6c6b2c9a46`、zip `a0a7f7e2d24bf4d0`、src.zip `5cd345b66b83742c`。工作树已回收。
+- **余**：push 待令；真机走查；4 个拍板项（#10 矢量图补图 / 277 条章节数据恢复 / 样表旧文案 / 样表「按数据扩骨架」脚本）；`xlsx_apply` 的 eval 判不做。
+
 ## 2026-11-28 凌晨 AI 反馈批收口：五笔提交 + 包 gaea-ai-feedback-20261128-093c83c5 装机 PID 53224（ZCode；未 push）
 
 - 用户令「继续开始」，从接续单 §5 接手（首会话记录见下一节，事实源=进度计划/gaea-ai-feedback-20261127-batch.md §9）。
