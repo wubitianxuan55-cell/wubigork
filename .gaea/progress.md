@@ -1,3 +1,28 @@
+## 2026-11-27 晚 造价复盘清偿三刀 + 在途六批收口（ZCode；包 gaea-cost-review-20261127-b799f13d 已装机 PID 55360）
+
+- 背景：用户带《软件不足与改进建议——造价库「地区按省合并」批量改造实战复盘》进会话（16 条 P1–P16，证据来自实弹工具回执）。对码分诊：8 条属实、4 条大半已有（P3/P8/P12 提示与机制已在）、P5/P9/P13/P14/P16 挂拍板池；且主树正压着六个未提交小批。
+- **收口**：六小批按线归四笔提交——①定额章节改分部·地区限省（f337ddcf：34 省级行政区归一 NormalizeRegion、定额地区与项目挂钩首标纪律、导出补地区列）②方案库导入清偿 docx 重建器+md_validate 刀2/1/4/5（d5efe65e）③前端壳面三小批（7dcb48ea：Codex 造价三级图标+页头搜索单行+导航 46px 对齐、列表排序+工料机详情、办公项目行操作常显）④绑定同步 b4a1e508（wailsjs models.ts 的 Quota.region 字段序——干净树构建检出 f337ddcf 漏带 bindings）。中间包 gaea-20261127-7dcb48ea 冒烟 200 装机 PID 28484 后，随即被终包覆盖。门禁：workcost/docmd/builtin/app(ost+ToolFace) Go 绿 + 前端 CostLibraryPage/Sidebar/logic 82/82；builtin 全包首跑 websearch_core 一例顺序依赖假红（隔离+复跑绿定性，文件未动）。
+- **拍板撤销**：P2 的 region 前缀匹配——用户令「地区已经固定到省了」，省市混写旧痛消失；只留 regionFilter 查询词归一（「四川」→「四川省」）。
+- **刀A** 0437d1e8（P1+P2+P15）：quotaOf 同码更新没给头字段保持原值（兜底链 行上显式>既有行>项目默认；专业不给=沿用既有行），未给含量行=保留原含量行（saveQuota 先删后插，nil 曾静默清空全部消耗）；quota/resources 详情回显分部/分类/地区/期；SearchQuery.Offset 列表翻页（listQuotasPaged/listResourcesPaged，ORDER BY 带编码兜底窗口稳定）+ clListScale 给 offset 续读提示。
+- **刀B** 12ec42e5（P7+P10+P6）：专业闸只有显式给不同专业才退回，文案「去掉行上的 specialty…borrow_quota 借鉴生成」（旧文案括号为空且误导另起编码）；delete_resource 可删先删+被引用暂缓双清单（一条残留不再整批报废）；暂存行部分修正 mergeStagedQuota/mergeStagedResource（重发只带改动字段；**合并必须在校验前**——曾放校验后被名称门拦）+ action=import_status 暂存区回读。
+- **刀C** 4d52d899（P11+P4+P8+P3）：AuditQuotaGaps 按专业+同码族分组（quotaFamily 迭代剥 -2/-N/A/B 变体尾缀），跨省同名版本不再池化互报；成员记账改下标制（**按 code 键记 memberKeys 被同码 fixture 打穿**——库内码唯一本就异码）；dims summary=true 跳过待整理明细抽样；import_open 无资料路径时明示 controls 第二道把关；spillNotice 前置尾部 offset 锚点（total-8KB），单行 JSON 大载荷可直取尾部核完整性。
+- **预算** b799f13d：cost 档工具面 28250→28500（三刀契约净增 110 字上取整，口径同前）。
+- **打包装机**：干净树 .worktrees/pkg-b799f13d（junction node_modules），npm 23s + wails 53s（bindings 未跳过，ucrt64 gcc，cgo 导入表含 sherpa/ORT）；冒烟 200（payload 正式路径 18999 隔离端口）；INSTALL OK 新壳 PID 55360（22:19:09 > 构建 22:18:59），18123/healthz ok；包版四件回写主树 build/bin，payload/build/bin/装机位三处哈希一致（exe `0c59f183dd6c80cc`，zip `0b08d944236be5db`，src.zip `19defed445614d5a`）；工作树已回收（junction 先摘）。
+- **余（挂拍板池）**：P5 语义检索覆盖造价库（文档明示 vs 索引覆盖）；P9+P13 载荷走文件与批量改写含量行引用原语；P14/P16 子代理结构化完成报告与孙代理通知归属；P1 数据面=277 条被清空章节的恢复（库备份或原始资料重导，代码刀不恢复历史数据，需用户令）。
+
+## 造价库三级图标重设计 + 搜索并入页头单行（2026-11-27，Codex；未提交）
+
+- **三级图标**：`cost-library/CostTierIcons.tsx` 新增造价专属 24×24 / 1.6px 描边图标——清单＝勾选台账、定额＝卡尺包围的标准单元、工料机＝人工 / 材料 / 机械资源组；替换原「分区 / 钱币 / 应用网格」通用映射。`TierRail` 保持 `tablist` 语义与键盘行为，新增 32×32 弱边界图标底座、单强调色选中态与底部指示线；窄窗 TierBar 用 28×28 紧凑底座并禁止“工料机”换行。
+- **搜索栏**：用户令「搜索栏不要单独一栏」。撤掉 `@container cost-library (max-width: 1240px)` 把 `.cl-search` 强制为 `flex-basis:100%` 的断点规则；页头固定为“品牌｜搜索｜动作”单行，搜索框只压缩宽度。实测容器页宽 760px 时三块仍在同一行，搜索框保留 180px 可用宽度。
+- **详情三费**：综合单价分析表原先把三费塞进末尾 60px 表单元格，逐项折成三行。改为跨整表宽的单一摘要行，人工 / 材料 / 机械按 `max-content` 从左紧凑排列，外委说明独占附属行；详情宽度下三项均完整可见。
+- **工料机表面**：详情根加 `cl-detail-resource`，区块改用 `--bg-elev` 66% 透明混合加极轻顶部渐变，现行价 / 基准价小块改用前景色 3% 透明叠层；清掉原 `background: var(--bg)` 实底，深色与浅色均与页面背景连续。
+- **折叠侧栏宽度**：用户令折叠后参照一级导航宽度，并指出首次按 62px 占位足迹对齐后仍偏宽。最终新增 `--v3-rail-width:46px` 表示一级导航本体，工位与文学折叠列及布局常量均改读/对齐 46px；折叠按钮、新建、当前会话与底部动作从 38px 收到 34px。真机量得一级导航与折叠侧栏均为 `width=46`。
+- **侧栏品牌去重**：用户指出左侧面板与一级导航的两个 gaea logo 挨在一起。工位与文学侧栏均移除 `office-sidebar__brand-mark` 图片节点；展开态只保留 “gaea / 当前项目” 文字与折叠按钮，折叠态只保留折叠按钮，顶部高度由 80px 收至 58px。
+- **一级导航上下对齐**：用户令导航底部与左侧面板平齐，随后补充顶部也要平齐；又纠正板块名称应在导航上方而不是 rail 内。`TelemetryRail` 折叠状态上提到 `MainLayout`，shell 暴露 `--v3-telemetry-height`；导航 dock 顶读 `--v3-strip-height:38px`、底读遥测高度，真机量得导航与侧栏均为 `y=38 / bottom=857`，遥测展开时两者同步到 `bottom=699`。板块名使用透明两字简称（办公 / 造价 / 方案 / 记忆…）悬浮在 rail 上方 62×38px 槽位，不加底色和分隔线；完整名称只放 `title`，rail 内只保留 logo 和图标，顶栏原重复名称移除。简称为 12.5px / 600 字重 / 0.1em 字距，与侧栏标题字级协调。
+- **验证**：`tsc -b` 通过；`CostLibraryPage.test.tsx` 39/39 通过；mock 真机目检默认 / 960px / 760px，深色与浅色（图标）无溢出、无标签换行。
+- **桌面构建装机**：主树前端 `npm.cmd run build` 21.59s；ucrt64 + cgo + 系统 TMP 执行 `wails build -s -ldflags "-s -w" -trimpath`，bindings 未跳过，38.017s。`build\bin\gaea.exe` 62,765,568B / SHA256 `2141A0AF9828…`；`/api/health` 200。`gaea_install.ps1 -Launch` 输出 INSTALL OK，新壳 PID 21272（13:13:23，晚于构建 13:13:04），`18123/healthz` 200；四件与 build/bin 哈希全一致，exe 导入表含 `sherpa-onnx-c-api.dll`。未制作 ZIP / 源码包。
+- **桌面重建装机（13:36）**：再次按同一链路构建；前端 27.73s，Wails 35.319s，bindings 未跳过。`gaea.exe` SHA256 `7C1B24C88BDA…`，`/api/health` 200；INSTALL OK，新壳 PID 43808（13:36:38，晚于构建 13:36:22），`18123/healthz` 200；四件与 build/bin 哈希一致，exe 导入含 `sherpa-onnx-c-api.dll`，无 wails/go 孤儿。未制作 ZIP / 源码包。
+
 ## 方案库导入硬规则：PDF 禁直转 md，经 to=docx 转 Word 修正后录入（2026-11-27，ZCode；提交 ca0b13a2，包 gaea-20261127-ca0b13a2）
 
 用户令「重新完善方案库的导入技能：PDF 原始方案要转换成 Word 修正格式后才能导入，不能直接转 Markdown——会大量出错，特别是表格位置」；随后给事实源《包1技术标方案重建复盘》（`D:\新工作\2630沿江一公里\沿江包1\`）：包1技术标 V5 当初 PDF 直转 md 录库（42 块列数矛盾表），复盘 §2.1 实证脏 Word 路线逐字同病，§3.2 点名技能缺录入前质量门禁/脏文档预期/双源对账三块。
@@ -8027,3 +8052,84 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
 - 未动/遗留：技能包那份 .gaea/skills/xlsx/scripts/recalc.py 原样——xlsx 技能
   经 bash 调它仍走默认配置目录，同一缺陷在；前端「重算」钮路径
   GaeaXlsxRecalc → renderXlsxAfterChange 连算两次（存量，未改）。
+
+## 2026-11-27 造价数据库排序 + 工料机详情优化（未提交）
+
+- 用户要求回退此前的整页视觉试验，仅保留列表排序。已恢复页面骨架、密度、
+  清单详情和定额详情；此后只继续改 `ResourceDetail`，没有再动另外两级详情。
+- 三级列表按可见列提供升序→降序→恢复默认；中文使用数字感知 Collator，
+  价格按数值排序，空值沉底，带排序图标与 `aria-sort`。
+- 工料机详情按定额详情同一套 `cl-block` 节奏实现：核算价格、引用定额、
+  各期价格都是标准信息块，不引入独立价格卡或分组视觉。核算价格块内改为
+  大号取用价 → 现行/基准价两栏 → 两列基本资料，补清层级和间距；保留与
+  定额详情一致的尾部说明。清单 / 定额详情保持原版。
+- 验证：CostLibraryPage.test.tsx 39/39 通过；`npx tsc -b` 通过；Vite mock
+  真机检查排序与工料机详情。未构建 Wails、未打包。
+- 用户令「构建桌面端」：主树（含本批未提交改动，HEAD 9f6b3805）前端
+  `npm.cmd run build` 34.77s；随后 ucrt64 + CGO + 系统 TMP 执行
+  `wails build -s -ldflags "-s -w" -trimpath`，bindings 未跳过，耗时 1m56.453s。
+  `build/bin/gaea.exe` 62,759,936B / SHA256 `63555BE5…48AA45`；
+  `/api/health` 冒烟 200。`gaea_install.ps1 -Launch` 输出 INSTALL OK，
+  安装位四件哈希与 build/bin 全一致；新壳 PID 64464，启动 12:39:55
+  （晚于构建 12:39:33）。未制作 ZIP / 源码包。
+
+## 2026-11-27 办公板块项目行会话操作常显（未提交）
+
+- 用户反馈办公板块「新建会话 / 删除」藏在 hover 后不可见，要求参照文学板块。
+  已将办公项目行操作组从 `hidden group-hover:flex` 改为常显
+  `office-project-actions`，项目行改为 flex 单行；新建、移出最近列表、归档
+  使用 27×28 图标钮，当前项目保留新建，非当前项目显示三项。
+- 删除 / 归档的无障碍名称补项目名；补充回归断言，确保操作组无 `hidden` 类
+  且按钮常驻 DOM。Sidebar.test.tsx 16/16 通过，`npx tsc -b` 通过；
+  Vite mock 真机检查按钮已与项目名并排可见。未重新构建桌面端。
+
+## 2026-11-27 午后 沿江包1 复盘落地：docx 表格重建进 gaea + md_validate 分级基线（未提交）
+
+- 背景：用户带《包1技术标方案重建_工具与流程不足复盘》进会话，指出上午装机
+  （ca0b13a2）落地的只是流程规则（禁直转/回执列缺陷/门禁拦 finalize），能力
+  没跟上——to=docx 出的 Word 三缺陷同病，修还靠项目目录自建脚本。拍板刀路：
+  刀2 重建器移植为主刀、刀1 机检分级+基线次之。
+- **刀2（T1/T3 根修）**：docmd 新增 docx_rebuild.go——Go 版重建器（算法照搬
+  方案库录入/tools/docx2md_v2.py）：轻量 XML 树解析、tblGrid 展开 gridSpan/
+  vMerge（行列数与网格严格一致）、单元格折行语义重拼（中文续接/ASCII 补空格/
+  列表项与句末 <br> 分行）、目录域(sdt)与目录残表剔除、伪表格（列数≤2 且非空
+  单元格全是图）转图片引用、图片按 rels 转 data URI（与 markitdown keep 同契约）。
+  ConvertLimitProgressReport / ConvertPreservingImagesReport 新增返回
+  DocxRebuildReport；convertDocxSmart 路由：合并网格/折行碎片/目录残表/列数
+  不一致任一签名→重建路线，干净文档仍走 markitdown，markitdown 不可用退重建。
+  format_convert 回执带结构体检（路线/源表列数一致率/合并展开/目录剔除/折行
+  重拼/剔空段）；描述与 compact 改口径。to=docx 后再转 md 无须手工修格式。
+- **刀2 实弹**：真实包1技术标V5.docx（676 页）重建对照复盘 v3 指标——标题 506、
+  合并单元格 808、目录域 10 全部与项目工具分毫不差；目录残表剔 10（跨查正文
+  标题清单交叉比对，75% 纯形态只剔 5；纯数字序号格不数防误吃真内容表）；输出
+  2488 行列数矛盾 0；「按照相关技术导+则及…」断词重拼复原。
+- **刀1（T2）**：md_validate 检出项分级（撞号/跳号/孤立引用/列数=硬伤；未引用
+  题注/跨章待核=提示），hints=false 折叠提示；baseline=旧版文档按内容主键
+  （版本无关键，表格用表头签名）差集只报新增；未引用同 key 去重（撞号题注不
+  重复报）。schema/描述/compact 同步；proposal 档预算 21250→21500（净增 15 字
+  上取整）。
+- **顺带修一个存量雷**：markitdown 无 --keep-data-uris 时输出省略号假 URI
+  （data:image/png;base64...），convertDocxSmart 保图分支误用普通转换致外置
+  报「data URI 无效」——保图请求改走 KeepImages 变体。
+- 门禁：docmd 全包（含重建器 9 用例）绿；builtin 全包绿；toolface 三档过；
+  app 全量后台跑。剩余：刀3 按题注裁图、刀4 多源对账、刀5 字数口径挂令；
+  提交/打包装机挂令。
+
+## 2026-11-27 晚 沿江包1 复盘清偿二批：md_validate 内容保真对账（刀4）+ 字数口径（刀5）；刀3 判不可行挂拍板（未提交）
+
+- **刀4（T4/P1-3）**：md_validate 增 `content` 检查与 `source` 参数——12 字滑窗
+  n-gram 对账移植（verify_vs_pdf.py 算法：去图引/<br>/空白、NFKC 全半角与上下标
+  统一、下划线视连字符；表格命中率 <98%、段落缺失 >5% 列硬伤并附缺失片段样例；
+  上限 60 条防刷屏）。`internal/docmd/pdf.go` 新增导出 `PdfTextLayer`（直读文字层
+  纯文本，不走 WPS/OCR；乱码/扫描件如实报错）。source 收 PDF/md/txt/docx——
+  **文字层乱码的原件先备基准 md/txt**（mdvLoadText 补 .pdf 分支走 PdfTextLayer）。
+- **刀4 实弹**：真实包1 v3 md 对 fitz 基准文字层——**15 条硬伤，与 python 验证版
+  （1 表+14 段）分毫不差**，对账 0.19s；WPS 转写 md 作基准时会带出 60 条形变噪声
+  （数字/标点/括号转写差异），故基准必须走纯文字层。
+- **刀5（T6）**：proposal_save 回执补「字数口径」行——库内=SUM(LENGTH(body)) 即
+  md 字符数含空白与标记，成稿去空白口径低约 8%、PDF 原件口径另计，三者不等属
+  正常（复盘：47.4/51.3/47.66 万均正确但互不相符）。
+- **刀3 判不可行**：patch_figures.py 依赖 fitz get_drawings（矢量对象包围盒），
+  Go 侧无等价库（pdfcpu 不做文本/绘图提取）；引新依赖是拍板项，挂池不硬做。
+- 门禁：builtin/docmd 全包绿、toolface 三档过、app 全量绿（前批）。余：提交/
+  打包装机挂令。
