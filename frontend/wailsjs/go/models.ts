@@ -10091,6 +10091,7 @@ export namespace workcost {
 	    title: string;
 	    specialty: string;
 	    chapter: string;
+	    region: string;
 	    derivedFrom: string;
 	    unit: string;
 	    categoryPath: string;
@@ -10098,7 +10099,6 @@ export namespace workcost {
 	    baseMaterial: number;
 	    baseMachine: number;
 	    source: string;
-	    region: string;
 	    priceDate: string;
 	    note: string;
 	    status: string;
