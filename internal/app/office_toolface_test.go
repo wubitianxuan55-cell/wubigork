@@ -153,7 +153,9 @@ var officeFaceBudget = map[string]officeFaceBudgetEntry{
 	// 实测 28876 后按口径上取整。
 	// cost 29000→29250（同批续）：read_file 字节窗口、format_convert all_pages、
 	// bash 与 xlsx 审计描述随通用件进造价档，实测 29212 后按口径上取整。
-	OfficeRunModeCost: {Tools: 66, Chars: 29250},
+	// cost 29250→29500（2026-11-28 AI 反馈批续）：cost_project 增 exact（仅字面
+	// 匹配，全量盘点用），实测 29239——离旧预算只剩 11 字符，按口径上取整。
+	OfficeRunModeCost: {Tools: 66, Chars: 29500},
 	// proposal 21000→21250（2026-11-27 沿江包1 复盘批）：md_validate 增硬伤/提示
 	// 分级与 baseline 基线差集，compact 描述净增 15 字符，实测 21265 后按口径上取整。
 	// proposal 21500→21750（2026-11-27 晚 AI 反馈批）：read_file 字节窗口、

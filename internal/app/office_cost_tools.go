@@ -62,8 +62,9 @@ func (t costProjectTool) Schema() json.RawMessage {
   "kind":{"type":"string","description":"资源类型过滤（人工/材料/机械等，可选）"},
   "region":{"type":"string","description":"工料机地区过滤（resources 可选，字典值；工料机按地区分行）"},
   "keyword":{"type":"string","description":"检索词（可选）：编码精确命中优先；名称或规格含它即可召回；索引就绪时同义说法也能召回"},
+  "exact":{"type":"boolean","description":"仅字面匹配（配合 keyword，quotas/resources）：名称/规格/编码里含这个词的才召回，不混语义近似；按编码稳定排序，可配合 offset 翻页，回执给字面匹配总数——全量盘点、批量改造前读全库用这个"},
   "limit":{"type":"integer","description":"返回条数上限（默认 50，上限 200；回执给总数与是否还有更多）"},
-  "offset":{"type":"integer","description":"翻页起点（quotas/resources 不带 keyword 的列表模式生效）：跳过前 N 条再取；回执「还有更多」时按提示的 offset 续读，翻到 hasMore 消失即拿全量"}
+  "offset":{"type":"integer","description":"翻页起点（quotas/resources 的列表模式、以及 exact=true 的字面匹配生效）：跳过前 N 条再取；回执「还有更多」时按提示的 offset 续读，翻到 hasMore 消失即拿全量"}
 }
 }`)
 }
@@ -77,6 +78,7 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		Kind      string `json:"kind"`
 		Region    string `json:"region"`
 		Keyword   string `json:"keyword"`
+		Exact     bool   `json:"exact"`
 		Limit     int    `json:"limit"`
 		Offset    int    `json:"offset"`
 	}
@@ -163,10 +165,15 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 	case "quotas":
 		// 多取一条判断「还有更多」；列表模式（无检索词）另给总数，offset 翻页续读
 		// （2026-11-27 复盘 P2/P15：列表可分页自证穷尽，不必前缀扫描）。
-		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Limit: p.Limit + 1, Offset: p.Offset})
+		// exact=true（2026-11-27 AI 反馈 #8）：只认字面匹配——检索层把全部匹配排好
+		// 交回，这里按 offset 切片，回执给匹配总数。
+		exact := clExactOn(p.Exact, p.Keyword)
+		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Exact: exact, Limit: p.Limit + 1, Offset: p.Offset})
 		if err != nil {
 			return "", err
 		}
+		var total int
+		hits, total = clExactPage(hits, exact, p.Offset)
 		hasMore := len(hits) > p.Limit
 		if hasMore {
 			hits = hits[:p.Limit]
@@ -176,15 +183,18 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 			quotas[i] = h.Item
 		}
 		if len(quotas) == 0 {
-			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q offset=%d）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword, p.Offset), nil
+			if exact && total > 0 {
+				return fmt.Sprintf("字面匹配共 %d 条，offset=%d 已到末尾。", total, p.Offset), nil
+			}
+			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q exact=%t offset=%d）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword, exact, p.Offset), nil
 		}
 		nextOffset := -1
-		if hasMore && p.Keyword == "" {
+		if hasMore && (p.Keyword == "" || exact) {
 			nextOffset = p.Offset + len(quotas)
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "定额 %d 条%s%s:\n", len(quotas),
-			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountQuotas(p.Specialty) }), len(quotas), hasMore, nextOffset), clViaNote(hits))
+			clScale(t.listTotal(p.Keyword == "" && !exact, func() (int, error) { return s.CountQuotas(p.Specialty) }), total, exact, p.Offset, len(quotas), hasMore, nextOffset), clViaNote(hits))
 		for i, q := range quotas {
 			// 列表是轻量查询、不带含量行：此前照样打印「含量行 N」，N 恒为 0，
 			// 模型误以为导入失败而重复补录（2026-11-26 造价反馈，旺平 #6）。
@@ -213,10 +223,13 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		}
 		return b.String(), nil
 	case "resources":
-		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Region: p.Region, Limit: p.Limit + 1, Offset: p.Offset})
+		exact := clExactOn(p.Exact, p.Keyword)
+		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Region: p.Region, Exact: exact, Limit: p.Limit + 1, Offset: p.Offset})
 		if err != nil {
 			return "", err
 		}
+		var total int
+		hits, total = clExactPage(hits, exact, p.Offset)
 		hasMore := len(hits) > p.Limit
 		if hasMore {
 			hits = hits[:p.Limit]
@@ -226,15 +239,18 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 			resources[i] = h.Item
 		}
 		if len(resources) == 0 {
-			return fmt.Sprintf("工料机库无匹配（kind=%q region=%q keyword=%q offset=%d）。", p.Kind, p.Region, p.Keyword, p.Offset), nil
+			if exact && total > 0 {
+				return fmt.Sprintf("字面匹配共 %d 条，offset=%d 已到末尾。", total, p.Offset), nil
+			}
+			return fmt.Sprintf("工料机库无匹配（kind=%q region=%q keyword=%q exact=%t offset=%d）。", p.Kind, p.Region, p.Keyword, exact, p.Offset), nil
 		}
 		nextOffset := -1
-		if hasMore && p.Keyword == "" {
+		if hasMore && (p.Keyword == "" || exact) {
 			nextOffset = p.Offset + len(resources)
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "资源 %d 条%s%s：\n", len(resources),
-			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountResources(p.Kind, p.Region) }), len(resources), hasMore, nextOffset), clViaNote(hits))
+			clScale(t.listTotal(p.Keyword == "" && !exact, func() (int, error) { return s.CountResources(p.Kind, p.Region) }), total, exact, p.Offset, len(resources), hasMore, nextOffset), clViaNote(hits))
 		for i, r := range resources {
 			// id=数字主键（铜陵反馈 #18：dedupe 的 keep_id/merge_ids 只吃数字 id，
 			// 只读口不给 id 时消歧链路当场卡死）。分类随详情口径回显（2026-11-27 复盘 P1）。
@@ -311,6 +327,40 @@ func clListScale(total, shown int, hasMore bool, nextOffset int) string {
 		return fmt.Sprintf("（共 %d 条）", total)
 	}
 	return ""
+}
+
+// clExactOn exact 只在带了检索词时才有意义。
+func clExactOn(exact bool, keyword string) bool {
+	return exact && strings.TrimSpace(keyword) != ""
+}
+
+// clExactPage 仅字面匹配：检索层把全部匹配按编码排好交回，这里按 offset 切片，
+// 并把匹配总数带出来（非字面匹配原样返回，总数 -1）。
+func clExactPage[T any](hits []workcost.Hit[T], exact bool, offset int) ([]workcost.Hit[T], int) {
+	if !exact {
+		return hits, -1
+	}
+	total := len(hits)
+	if offset >= len(hits) {
+		return nil, total
+	}
+	return hits[offset:], total
+}
+
+// clScale 回执头部的规模说明：列表模式给全库总数（clListScale），字面匹配给匹配
+// 总数与本次落在第几条到第几条——全量盘点据此自证穷尽。
+func clScale(listTotal, exactTotal int, exact bool, offset, shown int, hasMore bool, nextOffset int) string {
+	if !exact {
+		return clListScale(listTotal, shown, hasMore, nextOffset)
+	}
+	s := fmt.Sprintf("（字面匹配共 %d 条，本次第 %d~%d 条", exactTotal, offset+1, offset+shown)
+	if hasMore && nextOffset >= 0 {
+		s += fmt.Sprintf("；还有更多——offset=%d 续读下页", nextOffset)
+	}
+	if exactTotal >= workcost.ExactKeywordCap {
+		s += fmt.Sprintf("；已达单次上限 %d 条，换更具体的词或加过滤条件", workcost.ExactKeywordCap)
+	}
+	return s + "）"
 }
 
 // clViaNote / clViaMark 检索结果的命中方式标注。只有非关键词命中的才标：名称不含查询词

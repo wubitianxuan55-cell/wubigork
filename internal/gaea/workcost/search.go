@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,9 @@ const (
 	DefaultSearchLimit = 50
 	// searchKeywordCap 关键词路最多取多少条候选（再多的靠缩窄查询词）。
 	searchKeywordCap = 300
+	// ExactKeywordCap 仅字面匹配（SearchQuery.Exact）最多取多少条：这条路口径是
+	// 「含这个词的都列出来、可翻页自证穷尽」，上限给得宽；到了上限回执会说明。
+	ExactKeywordCap = 5000
 	// searchRerankMin 候选超过这个数才值得请精排模型（少了开销不划算）。
 	searchRerankMin = 8
 	// searchRerankDocs 最多请精排模型看多少篇：耗时与篇数成正比（本机 bge-reranker-v2-m3
@@ -91,6 +95,19 @@ type SearchQuery struct {
 	// 关键词模式忽略（那是融合排序，没有稳定全序）；窗口排序带编码兜底，翻页
 	// 稳定可复现（2026-11-27 复盘 P2：无翻页只能前缀穷举，40+ 轮仍漏 1 条）。
 	Offset int
+	// Exact 仅字面匹配（2026-11-27 AI 反馈 #8）：名称 / 规格 / 编码等字段含查询词
+	// 才召回，不走向量与精排。全量盘点要的就是「含这个词的全列出来」——语义近似
+	// 只会混进不相干的行，在条数上限内还会挤掉真命中。按编码稳定排序，把全部
+	// 匹配交给调用方切片（Limit / Offset 不生效，总数与翻页由调用方给）。
+	Exact bool
+}
+
+// kwCap 关键词路的候选上限：仅字面匹配时放宽到 ExactKeywordCap。
+func kwCap(q SearchQuery) int {
+	if q.Exact {
+		return ExactKeywordCap
+	}
+	return searchKeywordCap
 }
 
 // Hit 一条检索结果：条目 + 融合分 + 命中方式。
@@ -145,7 +162,7 @@ var quotaSpec = kindSpec[Quota]{
 			args = append(args, sp)
 		}
 		sqlText += ` ORDER BY specialty, chapter, code LIMIT ?`
-		args = append(args, searchKeywordCap)
+		args = append(args, kwCap(q))
 		return queryKeys(s, sqlText, args...)
 	},
 	load: func(s *Store, ids []string, q SearchQuery, limit int) ([]Quota, error) {
@@ -180,7 +197,7 @@ var resourceSpec = kindSpec[Resource]{
 			args = append(args, rg)
 		}
 		sqlText += ` ORDER BY kind, title, spec LIMIT ?`
-		args = append(args, searchKeywordCap)
+		args = append(args, kwCap(q))
 		return queryKeys(s, sqlText, args...)
 	},
 	load: func(s *Store, ids []string, q SearchQuery, limit int) ([]Resource, error) {
@@ -223,7 +240,7 @@ WHERE (i.title LIKE ? OR i.code LIKE ? OR COALESCE(i.gcode,'') LIKE ? OR i.featu
 			args = append(args, sp)
 		}
 		sqlText += ` ORDER BY i.project_id, i.sort, i.id LIMIT ?`
-		args = append(args, searchKeywordCap)
+		args = append(args, kwCap(q))
 		return queryKeys(s, sqlText, args...)
 	},
 	load: func(s *Store, ids []string, q SearchQuery, limit int) ([]BillItem, error) {
@@ -295,6 +312,16 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 			exact = exact[:limit]
 		}
 		return exact, nil
+	}
+
+	if q.Exact {
+		// 仅字面匹配（AI 反馈 #8）：不走向量与精排，按编码稳定排序，全部匹配交回。
+		sort.SliceStable(rows, func(i, j int) bool { return spec.key(rows[i]) < spec.key(rows[j]) })
+		out := make([]Hit[T], 0, len(rows))
+		for _, r := range rows {
+			out = append(out, Hit[T]{Item: r, Via: ViaKeyword})
+		}
+		return out, nil
 	}
 
 	// ── 向量路 ──
