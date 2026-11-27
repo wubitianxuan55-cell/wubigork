@@ -3,9 +3,9 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
-	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // precheckTool runs a fast deterministic check before a writer tool executes.
@@ -16,9 +16,16 @@ import (
 // 阻止调用时返回的消息作为本轮新的 tool_result 追加在消息末尾，
 // 不改变已有前缀。
 func (a *AgentRunner) precheckTool(name string, args json.RawMessage) string {
+	return a.precheckToolFor(nil, name, args)
+}
+
+// precheckToolFor 同 precheckTool，带工具实例：读文件要走工具自己的路径解析
+// （相对路径 → 工作区内的绝对路径，见 staleGuardPaths）。2026-11-27 AI 反馈 #5：
+// 此前按参数原始串读，正式环境里相对路径读不到，预检查整体失效。
+func (a *AgentRunner) precheckToolFor(t tool.Tool, name string, args json.RawMessage) string {
 	switch name {
 	case "edit_file":
-		return a.precheckEditFile(args)
+		return a.precheckEditFile(t, args)
 	}
 	return ""
 }
@@ -27,7 +34,11 @@ func (a *AgentRunner) precheckTool(name string, args json.RawMessage) string {
 // letting edit_file run. Uses the toolCache when available; falls back to a
 // direct read. This catches the single most common agent failure pattern:
 // the model sends an old_string that doesn't match the current file content.
-func (a *AgentRunner) precheckEditFile(raw json.RawMessage) string {
+//
+// 判定口径与 edit_file 工具一致（anchorPresent）：只是空白漂了的锚点工具自己能
+// 命中，这里不拦——闸不比工具更严。真找不到才拦，并给出最接近的位置与那里的
+// 现行文本（editMissHint），模型照着改锚点直接重试，省一轮 read_file。
+func (a *AgentRunner) precheckEditFile(tl tool.Tool, raw json.RawMessage) string {
 	var p struct {
 		Path      string `json:"path"`
 		OldString string `json:"old_string"`
@@ -35,32 +46,18 @@ func (a *AgentRunner) precheckEditFile(raw json.RawMessage) string {
 	if err := json.Unmarshal(raw, &p); err != nil || p.Path == "" || p.OldString == "" {
 		return "" // can't check — let the real Execute handle it
 	}
-
-	content, ok := a.readFileForPrecheck(p.Path)
+	readPath := p.Path
+	if paths := staleGuardPaths(tl, "edit_file", string(raw)); len(paths) > 0 {
+		readPath = paths[0]
+	}
+	content, ok := a.readFileForPrecheck(readPath)
 	if !ok {
 		return "" // can't read — let the real Execute report the error
 	}
-
-	if strings.Contains(content, p.OldString) {
+	if anchorPresent(content, p.OldString) {
 		return "" // found — let it proceed
 	}
-
-	// old_string not found — give the model actionable diagnostics
-	preview := p.OldString
-	if len(preview) > 100 {
-		preview = preview[:100] + "..."
-	}
-	filePreview := content
-	if len(filePreview) > 200 {
-		filePreview = filePreview[:200] + "..."
-	}
-	return fmt.Sprintf(
-		"precheck blocked: old_string not found in %s.\n"+
-			"  searched for: %q\n"+
-			"  file content (first 200 chars): %q\n"+
-			"  suggestion: use read_file to see the current content, then retry with the exact string.",
-		p.Path, preview, filePreview,
-	)
+	return "precheck blocked: old_string not found in " + p.Path + ".\n" + editMissHint(content, p.OldString)
 }
 
 // readFileForPrecheck returns file content for precheck purposes. Uses the

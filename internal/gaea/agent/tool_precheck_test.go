@@ -14,7 +14,7 @@ func TestPrecheckEditFileOldStringFound(t *testing.T) {
 	os.WriteFile(path, []byte(content), 0644)
 
 	a := &AgentRunner{}
-	msg := a.precheckEditFile([]byte(`{"path":"` + path + `","old_string":"func main()","new_string":"func run()"}`))
+	msg := a.precheckEditFile(nil, []byte(`{"path":"`+path+`","old_string":"func main()","new_string":"func run()"}`))
 	if msg != "" {
 		t.Fatalf("old_string found, should pass: %s", msg)
 	}
@@ -27,7 +27,7 @@ func TestPrecheckEditFileOldStringNotFound(t *testing.T) {
 	os.WriteFile(path, []byte(content), 0644)
 
 	a := &AgentRunner{}
-	msg := a.precheckEditFile([]byte(`{"path":"` + path + `","old_string":"func missing()","new_string":"func run()"}`))
+	msg := a.precheckEditFile(nil, []byte(`{"path":"`+path+`","old_string":"func missing()","new_string":"func run()"}`))
 	if msg == "" {
 		t.Fatal("old_string not in file, should block")
 	}
@@ -38,7 +38,7 @@ func TestPrecheckEditFileOldStringNotFound(t *testing.T) {
 
 func TestPrecheckEditFileMissing(t *testing.T) {
 	a := &AgentRunner{}
-	msg := a.precheckEditFile([]byte(`{"path":"/nonexistent/file.go","old_string":"x","new_string":"y"}`))
+	msg := a.precheckEditFile(nil, []byte(`{"path":"/nonexistent/file.go","old_string":"x","new_string":"y"}`))
 	if msg != "" {
 		t.Fatalf("missing file should be silent (let real Execute handle): %s", msg)
 	}
@@ -46,13 +46,13 @@ func TestPrecheckEditFileMissing(t *testing.T) {
 
 func TestPrecheckEditFileEmptyArgs(t *testing.T) {
 	a := &AgentRunner{}
-	if msg := a.precheckEditFile([]byte(`{}`)); msg != "" {
+	if msg := a.precheckEditFile(nil, []byte(`{}`)); msg != "" {
 		t.Fatal("empty args should be silent")
 	}
-	if msg := a.precheckEditFile([]byte(`{"path":"","old_string":"x"}`)); msg != "" {
+	if msg := a.precheckEditFile(nil, []byte(`{"path":"","old_string":"x"}`)); msg != "" {
 		t.Fatal("empty path should be silent")
 	}
-	if msg := a.precheckEditFile([]byte(`{"path":"/tmp/x","old_string":""}`)); msg != "" {
+	if msg := a.precheckEditFile(nil, []byte(`{"path":"/tmp/x","old_string":""}`)); msg != "" {
 		t.Fatal("empty old_string should be silent")
 	}
 }

@@ -52,6 +52,9 @@ func argsDeclareOverwrite(args string) bool {
 // 2026-11-21 沿江反馈）：edit_file 的 old_string 仍出现在当前磁盘内容上时，
 // 说明模型锚的是新鲜内容（文件是本回合自己写的），不是 stale——放行；
 // 锚点失配（内容已被同回合其他写改变）仍拦，闸的原语义不变。非 edit_file 恒 false。
+//
+// path 必须是工具解析后的目标路径（staleGuardPaths）——2026-11-27 AI 反馈 #5：
+// 此前传的是参数里的原始串，相对路径按进程 cwd 读不到，豁免在正式环境里从未生效。
 func sameTurnEditAnchorFresh(name, args, path string) bool {
 	if name != "edit_file" {
 		return false
@@ -66,7 +69,7 @@ func sameTurnEditAnchorFresh(name, args, path string) bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(content), p.OldString)
+	return anchorPresent(string(content), p.OldString)
 }
 
 func extractFilePath(name string, args string) string {

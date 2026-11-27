@@ -132,8 +132,14 @@ func emitSelected(selected []string, maxBytes, originalBytes, originalLines int,
 	}
 	notice := fmt.Sprintf("tool output truncated: %d of %d bytes, %d of %d lines elided",
 		omitted, originalBytes, omittedLines, originalLines)
-	// D3（2026-11-20 缺陷清单）：截断标记带总量与保留结构摘要—调用方
-	// 第一眼可判断「丢了多少、看到的代表什么」，不再需要二次探测。
+	if contentKept <= 1 {
+		// 单行超长（2026-11-27 AI 反馈 #5）：只留下了头部——行采样对单行不生效，
+		// 旧标记却写「保留 N 行=…」并叫模型用 offset+limit 续读（对单行无效）。
+		out.WriteString(fmt.Sprintf(
+			"\n\n[共 %d 行 / %d 字节；首行过长，只保留了它的前 %d 字节 — 用 read_file 的 byte_offset / max_bytes 按字节分页读取（行分页对单行无效）]",
+			originalLines, originalBytes, used))
+		return out.String(), notice
+	}
 	out.WriteString(fmt.Sprintf(
 		"\n\n[共 %d 行 / %d 字节；已省略 %d 行（%d 字节），保留 %d 行=%s — use read_file with offset+limit, grep with narrower pattern, or bash with head/tail for details]",
 		originalLines, originalBytes, omittedLines, omitted, contentKept, policy))

@@ -226,11 +226,14 @@ func TestStaleGuardWriteFileOverwriteEscape(t *testing.T) {
 	if err := os.WriteFile(path, []byte("one\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
+	// 记账键必须与闸的查找键同源（工具解析后的路径，staleGuardPaths）——手写键
+	// 与工具口径差一个斜杠方向时，闸查不到，用例会假绿。
+	args1 := `{"path":` + strconv.Quote(path) + `,"content":"two\n"}`
+	key := staleGuardKey(t, "write_file", args1)
 	newRunner := func() *AgentRunner {
 		return &AgentRunner{
 			tools:             editToolsRegistry(t, "write_file"),
-			staleWrittenFiles: map[string]bool{path: true},
+			staleWrittenFiles: map[string]bool{key: true},
 			sink:              event.Discard,
 			session:           NewSession("sys"),
 		}
@@ -238,7 +241,7 @@ func TestStaleGuardWriteFileOverwriteEscape(t *testing.T) {
 	// 未声明 overwrite：同回合重写仍被拦，提示必须给出分支出路。
 	blocked := newRunner().executeOne(context.Background(), provider.ToolCall{
 		ID: "c1", Name: "write_file",
-		Arguments: `{"path":` + strconv.Quote(path) + `,"content":"two\n"}`,
+		Arguments: args1,
 	})
 	if !blocked.blocked || !strings.Contains(blocked.output, `"overwrite": true`) ||
 		!strings.Contains(blocked.output, "edit_file") {
@@ -267,10 +270,12 @@ func TestStaleGuardEditFileAnchorFreshPass(t *testing.T) {
 	if err := os.WriteFile(path, []byte("one\ntwo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	args1 := `{"path":` + strconv.Quote(path) + `,"old_string":"two","new_string":"TWO"}`
+	key := staleGuardKey(t, "edit_file", args1)
 	newRunner := func() *AgentRunner {
 		return &AgentRunner{
 			tools:             editToolsRegistry(t, "edit_file"),
-			staleWrittenFiles: map[string]bool{path: true},
+			staleWrittenFiles: map[string]bool{key: true},
 			sink:              event.Discard,
 			session:           NewSession("sys"),
 		}
@@ -278,7 +283,7 @@ func TestStaleGuardEditFileAnchorFreshPass(t *testing.T) {
 	// 锚点匹配当前内容：放行且编辑生效。
 	out := newRunner().executeOne(context.Background(), provider.ToolCall{
 		ID: "c1", Name: "edit_file",
-		Arguments: `{"path":` + strconv.Quote(path) + `,"old_string":"two","new_string":"TWO"}`,
+		Arguments: args1,
 	})
 	if out.blocked || out.errMsg != "" {
 		t.Fatalf("fresh anchor should bypass same-turn guard, got %+v", out)

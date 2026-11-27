@@ -104,6 +104,62 @@ func noSectionMatchError(path, sel string, lines []string) error {
 
 func (readFile) Name() string { return "read_file" }
 
+// 字节窗口（byte_offset / max_bytes）的缺省长度、上限与文件体量上限。上限压在
+// 输出层 read_file 的 32KiB 压缩线之内——窗口若超线会被再截一次头部，白读。
+const (
+	readFileByteWindowDefault = 16 * 1024
+	readFileByteWindowMax     = 24 * 1024
+	readFileByteWindowMaxFile = 64 << 20
+)
+
+// readFileByteWindow 按字节窗口读取解码后的文本（offset 从文本头起算，非原始
+// 文件字节）：窗口两端对齐到 rune 边界，末尾给出续读游标。
+func readFileByteWindow(path string, src io.Reader, offset, max int) (string, error) {
+	if max <= 0 {
+		max = readFileByteWindowDefault
+	}
+	if max > readFileByteWindowMax {
+		max = readFileByteWindowMax
+	}
+	if info, err := os.Stat(path); err == nil && info.Size() > readFileByteWindowMaxFile {
+		return "", fmt.Errorf("byte_offset / max_bytes 只支持 ≤%d MB 的文件（%s 为 %d MB）", readFileByteWindowMaxFile>>20, path, info.Size()>>20)
+	}
+	all, err := io.ReadAll(src)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	total := len(all)
+	if offset >= total {
+		return fmt.Sprintf("(byte_offset %d is past EOF — file has %d bytes)", offset, total), nil
+	}
+	start := offset
+	for start < total && !utf8.RuneStart(all[start]) {
+		start++ // 游标落在多字节字符中间：进到下一个字符起点
+	}
+	if start >= total {
+		return fmt.Sprintf("(byte_offset %d is past EOF — file has %d bytes)", offset, total), nil
+	}
+	end := start + max
+	if end >= total {
+		end = total
+	} else {
+		for end > start && !utf8.RuneStart(all[end]) {
+			end-- // 窗口末尾退到字符边界，不切半个字
+		}
+	}
+	var b strings.Builder
+	b.Write(all[start:end])
+	if end < total {
+		fmt.Fprintf(&b, "\n[bytes %d..%d of %d; pass byte_offset=%d to continue (max_bytes up to %d)]\n", start, end, total, end, readFileByteWindowMax)
+	} else {
+		fmt.Fprintf(&b, "\n[bytes %d..%d of %d — EOF]\n", start, end, total)
+	}
+	if rev, rerr := RevisionSHA256(path); rerr == nil {
+		fmt.Fprintf(&b, "[revision sha256:%s]\n", rev)
+	}
+	return b.String(), nil
+}
+
 func (readFile) Description() string {
 	return "Read a text file with optional line offset/limit. By default each line is prefixed with its absolute 1-based line number (e.g. `   42→...`). Use a non-negative offset for forward pagination, or a negative offset to start from the end (`offset=-30` returns lines from 30 lines before EOF); `limit` still caps returned lines. Set line_numbers=false for raw text. For Markdown files, pass `section` (heading number or text, e.g. \"3.2\" or \"风险评估\") to return that whole section structurally — no sampling, exact numbers — instead of paging; offset (non-negative) then pages within the section. When no heading matches, the error lists all headings with line numbers so one call reveals the document outline."
 }
@@ -116,7 +172,9 @@ func (readFile) Schema() json.RawMessage {
   "offset":{"type":"integer","description":"0-based forward line offset (default 0). Negative values start that many lines before EOF, e.g. -30 reads the final 30-line window."},
   "limit":{"type":"integer","description":"Maximum lines to return (default 2000)","minimum":1},
   "line_numbers":{"type":"boolean","description":"Prefix each line with its 1-based line number (default true). Set false for raw text."},
-  "section":{"type":"string","description":"Markdown heading selector: substring (case-insensitive) matched against heading text, e.g. \"3.2\" or \"风险评估\". Returns the whole section (heading line through just before the next same-or-higher level heading) with exact line numbers — for precise number-checking reads of long documents. Non-negative offset pages within the section. Non-Markdown or oversized files fall back with a clear error."}
+  "section":{"type":"string","description":"Markdown heading selector: substring (case-insensitive) matched against heading text, e.g. \"3.2\" or \"风险评估\". Returns the whole section (heading line through just before the next same-or-higher level heading) with exact line numbers — for precise number-checking reads of long documents. Non-negative offset pages within the section. Non-Markdown or oversized files fall back with a clear error."},
+  "byte_offset":{"type":"integer","description":"Byte-window start (0-based, in decoded text). Use with max_bytes to page through a very long single line (e.g. one-line JSON) — strict byte paging, no sampling. Exclusive with offset/section."},
+  "max_bytes":{"type":"integer","description":"Byte-window length (default 16384, max 24576)."}
 },
 "required":["path"]
 }`)
@@ -144,6 +202,8 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		Limit       int    `json:"limit,omitempty"`
 		LineNumbers *bool  `json:"line_numbers,omitempty"`
 		Section     string `json:"section,omitempty"`
+		ByteOffset  int    `json:"byte_offset,omitempty"`
+		MaxBytes    int    `json:"max_bytes,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("read_file 参数解析失败: %w", err)
@@ -152,6 +212,13 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		return "", fmt.Errorf("path is required")
 	}
 	p.Path = resolveIn(r.workDir, p.Path)
+	byteMode := p.ByteOffset != 0 || p.MaxBytes > 0
+	if byteMode && (p.Section != "" || p.Offset != 0) {
+		return "", fmt.Errorf("byte_offset / max_bytes（字节窗口）与 offset / section（行分页）互斥：单行超长内容用字节窗口，多行文件用行分页")
+	}
+	if byteMode && p.ByteOffset < 0 {
+		return "", fmt.Errorf("byte_offset 不能为负（字节窗口从文件头起算）")
+	}
 	if p.Limit <= 0 {
 		p.Limit = readFileDefaultLimit
 	}
@@ -280,6 +347,13 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 				src = transform.NewReader(src, dec)
 			}
 		}
+	}
+
+	// 字节窗口模式（2026-11-27 AI 反馈 #5）：一行 26KB 的 JSON 之类单行超长内容，
+	// 行分页无从下手，输出层的行采样对单行也不生效、只截头部。byte_offset /
+	// max_bytes 按字节严格分页、不采样。
+	if byteMode {
+		return readFileByteWindow(p.Path, src, p.ByteOffset, p.MaxBytes)
 	}
 
 	// 1 MB per-line cap matches what other scanners in this package allow —

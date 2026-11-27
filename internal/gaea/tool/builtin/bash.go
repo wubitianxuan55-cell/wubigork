@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,9 +22,44 @@ import (
 	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/gaea/sandbox"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/office/xlsxedit"
 )
 
 const bashTimeout = 300 * time.Second
+
+// bashArgvScriptCap 经 argv 传给 bash -c 的命令体上限（rune），超过改走脚本文件。
+//
+// 2026-11-27 AI 反馈 #5 根修（实测探针）：Windows 上原生子进程拉起 Git Bash，命令行
+// 参数超过约 8.2K 字符就被静默截断——8053 字符完整通过，12043 字符起 bash 只收到
+// 前 144 行，退出码仍是 0。那场会话 22KB / 368 行的 heredoc 在第 222 行断掉，半截
+// 文件被当成成功产物。此前只有事后探测器（HEREDOC_TRUNCATED），命令体照样被截；
+// 现在超过阈值的命令写进临时脚本、由 bash 执行文件——这条路没有上限（60KB 实测
+// 完整）。阈值留一截余量（状态包装会再加几行前缀）。
+const bashArgvScriptCap = 6000
+
+// longCommandScript 把过长的命令体落成临时脚本，返回 (argv, 清理函数, 是否改道)。
+// 只在 Windows + bash + 未强制沙箱时改道（WSL / 容器要在自己的世界里重放命令，
+// 宿主的临时文件不一定可见）；落盘失败不改道，照旧走 argv（事后探测器兜着）。
+func longCommandScript(argv []string, sh sandbox.Shell, sbEnforced bool, cmdText string) ([]string, func(), bool) {
+	if runtime.GOOS != "windows" || sbEnforced || sh.Kind != sandbox.ShellBash ||
+		utf8.RuneCountInString(cmdText) <= bashArgvScriptCap {
+		return argv, func() {}, false
+	}
+	f, err := os.CreateTemp("", "gaea-bash-*.sh")
+	if err != nil {
+		slog.Warn("bash: 长命令落临时脚本失败，退回 argv（可能被命令行上限截断）", "error", err)
+		return argv, func() {}, false
+	}
+	name := f.Name()
+	_, werr := f.WriteString(cmdText)
+	_ = f.Close()
+	if werr != nil {
+		_ = os.Remove(name)
+		slog.Warn("bash: 长命令写临时脚本失败，退回 argv", "error", werr)
+		return argv, func() {}, false
+	}
+	return []string{argv[0], name}, func() { _ = os.Remove(name) }, true
+}
 
 // heredocTruncRe（D1，2026-11-20 缺陷清单）：bash 对未闭合 heredoc 的告警
 // 特征——命令文本在结束符之前结束=参数在生成侧或传输层被截断。此形态 rc=0
@@ -43,10 +79,10 @@ func heredocTruncFailure(body, command string) (string, error) {
 	return body, &tool.Failure{
 		Code:        tool.CodeExecError,
 		Subcode:     "HEREDOC_TRUNCATED",
-		Err:         fmt.Errorf("heredoc 未闭合：命令参数疑被截断（工具实际收到 %d 字节 / %d 行，bash 在结束符前结束），落盘文件可能是半截", len(command), lines),
+		Err:         fmt.Errorf("heredoc 未闭合：命令在结束符前就结束了（工具实际收到 %d 字节 / %d 行），落盘文件可能是半截", len(command), lines),
 		Retryable:   true,
 		EffectState: tool.EffectUnknown,
-		NextAction:  "退出码虽为 0，落盘内容已不完整：先核对文件行数或编译校验；改用 write_file 直接落盘全文、edit_file 做字面量补丁（JSON 参数不经 shell），或分片 cat >> 追加（每片远小于单命令体量）",
+		NextAction:  "退出码虽为 0，落盘内容已不完整：先核对文件行数或编译校验；改用 write_file 直接落盘全文、edit_file 做字面量补丁（JSON 参数不经 shell），或分片 cat >> 追加",
 	}
 }
 
@@ -87,7 +123,7 @@ func (b bash) Description() string {
 		"State is captured when a command finishes; a timed-out or interrupted command does not update it, " +
 		"and a deleted working directory falls back to the workspace root. " +
 		"Direct rm deletion is allowed for literal targets, including recursive child directories; do not detour through .trash. " +
-		"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools; heredocs add fragile shell/Python escaping layers, and a heredoc longer than a few KB is truncated outright (HEREDOC_TRUNCATED) — write the script with write_file first, then execute it by path. " +
+		"For file body writes or literal text patches containing quotes/backslashes/newlines, use write_file/edit_file JSON tools (heredocs add fragile shell/Python escaping layers). Commands over ~6000 characters run from a temp script file automatically, so a long heredoc arrives intact. " +
 		"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
 		"Set output_format=json to get structured result with separated stdout/stderr fields."
 }
@@ -102,7 +138,7 @@ func (b bash) resolved() sandbox.Shell {
 }
 
 func (b bash) Schema() json.RawMessage {
-	commandDesc := "Command passed to bash -c. Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax. Direct rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of heredoc (a heredoc longer than a few KB is truncated — write_file the script, then run it)."
+	commandDesc := "Command passed to bash -c: the whole command as one string (data belongs in a file, not in these arguments). Use POSIX/bash syntax and provide bash or Python commands, not PowerShell syntax. Direct rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of heredoc; commands over ~6000 characters run from a temp script file automatically."
 	if b.resolved().Kind == sandbox.ShellPowerShell {
 		commandDesc = "Command passed to Windows PowerShell -Command. Use PowerShell syntax, not bash syntax. Direct Remove-Item/rm deletion is allowed for literal targets; do not detour through .trash. For large file writes or literal text patches, call write_file/edit_file instead of shell escaping."
 	}
@@ -147,13 +183,82 @@ func (b bash) publishCheck(g *tool.PublishGuard) error {
 	return fmt.Errorf("%s", tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()))
 }
 
+// xlsxCacheNotes 事后体检（2026-11-27 AI 反馈 #7）：命令写出的 xlsx 里公式格没有
+// 缓存值的，回执里提一句——openpyxl / excelize 这类库保存时不写公式结果，命令
+// 本身 rc=0，不提就一路带到交付，用户用 Excel/WPS 打开是满表空值。只读体检，
+// 不改文件、不置错。settled=false（进程还在后台跑）时不报「打不开」：半写的
+// 文件不算坏。被发布边界隔离的件按隔离后的落点体检。
+func xlsxCacheNotes(pub *tool.PublishGuard, settled bool) string {
+	if pub == nil {
+		return ""
+	}
+	var lines []string
+	for _, v := range pub.Touched() {
+		if !strings.EqualFold(filepath.Ext(v.Path), ".xlsx") {
+			continue
+		}
+		path := v.Path
+		if _, serr := os.Stat(path); serr != nil {
+			path = filepath.Join(pub.LastQuarantineDest(), filepath.FromSlash(v.RelPath))
+			if _, serr = os.Stat(path); serr != nil {
+				continue // 原位与隔离位都不在：无从体检
+			}
+		}
+		h, err := xlsxedit.Inspect(path)
+		switch {
+		case err != nil:
+			if settled {
+				lines = append(lines, fmt.Sprintf("⚠ 命令写出的 %s 打不开：%v", v.RelPath, err))
+			}
+		case h.NoCachedValue > 0:
+			lines = append(lines, fmt.Sprintf("⚠ 命令写出的 %s：%s（库保存不写公式结果，用 Excel/WPS 打开是空值）——交付前先 xlsx_recalc 重算",
+				v.RelPath, h.CacheLine()))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// noteAfter 把体检备注接在一段回执后面；空备注原样返回。
+func noteAfter(base, note string) string {
+	if note == "" {
+		return base
+	}
+	return base + "\n" + note
+}
+
+// errWithNote 隔离报错带上体检备注：错误文案同时作为 result 传输（见
+// publishCheck 的传输契约），备注不另起错误。
+func errWithNote(err error, note string) error {
+	if err == nil || note == "" {
+		return err
+	}
+	return fmt.Errorf("%s\n%s", err.Error(), note)
+}
+
 func (b bash) CompactDescription() string {
 	if b.resolved().Kind == sandbox.ShellPowerShell {
 		return "执行命令(Windows PowerShell -Command;用 PowerShell 语法,如 Get-ChildItem; python --version;长任务 run_in_background)"
 	}
-	return "执行命令(bash -c;用 POSIX/bash 语法,不是 PowerShell;如 pwd; python script.py;长任务 run_in_background)"
+	return "执行命令(bash -c,不是 PowerShell;整条命令放 command 一个字符串,数据/长脚本先 write_file 落盘;长任务 run_in_background)"
 }
 func (bash) CompactSchema() json.RawMessage { return compactSchema["bash"] }
+
+// bashKnownArg bash 的合法参数名（缺 command 的报错据此区分「字段名写错」与
+// 「发来的是数据对象」）。
+var bashKnownArg = map[string]bool{"command": true, "run_in_background": true, "output_format": true}
+
+// isJSONScalar 报告一段 JSON 原文是不是标量（数字 / 字符串 / 布尔 / null）。
+func isJSONScalar(raw json.RawMessage) bool {
+	t := bytes.TrimSpace(raw)
+	if len(t) == 0 {
+		return false
+	}
+	switch t[0] {
+	case '"', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return true
+	}
+	return bytes.HasPrefix(t, []byte("true")) || bytes.HasPrefix(t, []byte("false")) || bytes.HasPrefix(t, []byte("null"))
+}
 
 // ResetSessionState 清空会话状态锚（cwd/env/探针目录）。controller 在会话
 // 切换（NewSession/Resume）时经 tool.SessionStateResetter 调用，防跨会话
@@ -174,14 +279,25 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// 实测反馈⑥：连续 3 次 "command is required" 空转（前两次参数体为空，
 		// 第 3 次才被 loop guard 拦）。把实收参数面如实报出——第一次就区分
 		// 「参数没拼上」与「拼上了但字段名错」两种形态，省往返。
+		//
+		// 2026-11-27 AI 反馈 #2（包2 会话日志实锤）：模型把一份数据字典
+		// {"BC01":15506.11,…}（37 个键）整个当成了 bash 的参数发出来，连发 4 次。
+		// 旧报错把 37 个键按 Go map 的随机遍历序罗列，模型反而以为参数被打散、
+		// 每次都不一样。现在键排序输出；键全是未知键且值都是标量 = 数据对象，
+		// 直接说出真相并指路（数据写文件、bash 执行脚本）。
 		var keys map[string]json.RawMessage
-		n, names := 0, ""
+		names := []string{}
+		dataObject := false
 		if json.Unmarshal(args, &keys) == nil && keys != nil {
-			n = len(keys)
-			for k := range keys {
-				names += k + ","
+			unknownScalars := 0
+			for k, v := range keys {
+				names = append(names, k)
+				if !bashKnownArg[k] && isJSONScalar(v) {
+					unknownScalars++
+				}
 			}
-			names = strings.TrimSuffix(names, ",")
+			sort.Strings(names)
+			dataObject = len(keys) >= 3 && unknownScalars == len(keys)
 		}
 		// 2026-11-21 反馈 P1-8 补刀：键数仍定位不了「参数在到达前就丢了」的
 		// 传输面丢参——原样回显收到的原始参数体（截断），一眼区分空串/{}/
@@ -194,12 +310,20 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// command 字段重试」是句废话——模型照做五次五空（实测 70 秒内连发），
 		// 改走「write_file 落盘脚本 + 短命令」才通。空体单列话术，直接给出这条路。
 		guide := "command 缺失或值为空，把命令字符串放进 command 字段重试。"
-		if n == 0 {
+		switch {
+		case dataObject:
+			guide = "收到的参数是一个数据对象（键不是 bash 的参数，值都是标量），不是命令——bash 只收 command（一条命令字符串）。" +
+				"要把这份数据交给脚本：先用 write_file 把它写成 JSON 文件，再用 bash 执行脚本路径；不要把数据放进参数重发。"
+		case len(keys) == 0:
 			guide = "收到的参数体就是空的——不是 command 拼错，是命令没发出来。" +
 				"原样重发多半还是空：第二次仍空就换路，用 write_file 把脚本落盘，再用短命令执行（如 python 脚本路径）。"
 		}
+		shown := strings.Join(names, ",")
+		if len(shown) > 300 {
+			shown = strings.Join(names[:12], ",") + fmt.Sprintf(" …（共 %d 个，已排序）", len(names))
+		}
 		return "", &tool.Failure{Code: tool.CodeValidationError,
-			Err:         fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——%s原始参数回显（%d 字节）：%q", n, names, guide, len(args), string(raw)),
+			Err:         fmt.Errorf("command is required：本次收到 %d 个参数键（%s）——%s原始参数回显（%d 字节）：%q", len(keys), shown, guide, len(args), string(raw)),
 			EffectState: tool.EffectNone}
 	}
 
@@ -261,10 +385,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	if probe != "" {
 		defer func() { _ = os.Remove(probe) }() // adopt/abandon 之后兜底清探针文件
 	}
+	// 长命令改走临时脚本（Windows 命令行上限约 8.2K 字符，见 bashArgvScriptCap）。
+	argv, scriptCleanup, _ := longCommandScript(argv, sh, sbEnforced, cmdText)
 
 	if p.RunInBackground {
 		jm, ok := jobs.FromContext(ctx)
 		if !ok {
+			scriptCleanup()
 			return "", &tool.Failure{Code: tool.CodeValidationError,
 				Err:         fmt.Errorf("background execution is not available in this context"),
 				EffectState: tool.EffectNone}
@@ -278,6 +405,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// StartIn：在嵌套场景（后台 task 的子会话里再开后台命令）自动挂到父 job，
 		// 父任务被杀时级联取消（2b 终止级联）。
 		job := jm.StartIn(ctx, "bash", commandPreview(p.Command), func(jobCtx context.Context, out io.Writer) (string, error) {
+			defer scriptCleanup() // job 结束才清临时脚本（bash 是边读边执行的）
 			// P1b 后台发布边界：job 启动即快照，完成（cmd.Wait 返回）再 Scan——
 			// spike 实证：前台 Scan 对未落盘的后台写恒 clean，job 完成回调才是
 			// 后台拦截点。
@@ -327,7 +455,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			// P1b：job 完成=后台 Scan 拦截点。命中即隔离 + fail-loud（job 终态
 			// 置失败，bash_output 可读说明）。
 			if pub != nil {
-				if perr := b.publishCheck(pub); perr != nil {
+				perr := b.publishCheck(pub)
+				// 备注进 job 缓冲：bash_output / wait 读的是它，不占 result 位。
+				if note := xlsxCacheNotes(pub, true); note != "" {
+					_, _ = fmt.Fprintln(out, note)
+					perr = errWithNote(perr, note)
+				}
+				if perr != nil {
 					_, _ = fmt.Fprintln(out, perr.Error())
 					return perr.Error(), perr
 				}
@@ -340,6 +474,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, bashTimeout)
 	defer cancel()
+	defer scriptCleanup()
 
 	// P1b 发布边界：启动前快照（前台窗口 Begin→执行→Scan，spike 实证）。
 	pub := b.newPublishGuard()
@@ -452,6 +587,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 						if perr := b.publishCheck(pub); perr != nil {
 							result["publish_blocked"] = perr.Error()
 						}
+						if note := xlsxCacheNotes(pub, false); note != "" {
+							result["xlsx_notes"] = note
+						}
 					}
 					_ = enc.Encode(result)
 					return strings.TrimSpace(buf2.String()), nil
@@ -465,6 +603,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 					if perr := b.publishCheck(pub); perr != nil {
 						out += "\n" + perr.Error()
 					}
+					out = noteAfter(out, xlsxCacheNotes(pub, false))
 				}
 				return out + "\n[进程仍在后台运行]", nil
 			}
@@ -530,8 +669,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		}
 		// P1b 前台发布边界：执行结束扫描（命中即隔离 + fail-loud，裁决 :23）。
 		if pub != nil {
-			if perr := b.publishCheck(pub); perr != nil {
-				return perr.Error(), perr
+			perr := b.publishCheck(pub)
+			note := xlsxCacheNotes(pub, true)
+			if note != "" {
+				result["xlsx_notes"] = note
+			}
+			if perr != nil {
+				return noteAfter(perr.Error(), note), errWithNote(perr, note)
 			}
 		}
 		_ = enc.Encode(result)
@@ -576,9 +720,13 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 
 	// P1b 前台发布边界（plain 终段：命中即隔离 + fail-loud）。
 	if pub != nil {
-		if perr := b.publishCheck(pub); perr != nil {
-			return perr.Error(), perr
+		perr := b.publishCheck(pub)
+		note := xlsxCacheNotes(pub, true)
+		if perr != nil {
+			// 越界：result 仍是隔离全文（传输契约，见 publishCheck），备注接在其后。
+			return noteAfter(perr.Error(), note), errWithNote(perr, note)
 		}
+		out = noteAfter(out, note)
 	}
 
 	// B2 失败即值（dsh-ops 蒸馏 2026-11-10）：前台失败按副作用诚实语义分类——

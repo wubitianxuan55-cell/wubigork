@@ -130,7 +130,7 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// 验证 old_string / anchor 是否存在于目标文件中。
 	// 预检查命中时返回诊断消息，阻止必然失败的操作，节省一整轮 API 调用。
 	// 缓存安全: 纯运行时判断，返回内容作为本轮新 tool_result 追加在末尾。
-	if msg := a.precheckTool(call.Name, json.RawMessage(call.Arguments)); msg != "" {
+	if msg := a.precheckToolFor(t, call.Name, json.RawMessage(call.Arguments)); msg != "" {
 		return toolOutcome{
 			output:  msg,
 			blocked: true,
@@ -143,10 +143,15 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		// 「本回合脚本 cp 覆盖临时件 → move_file 落正式名」恰是合规落盘的推荐
 		// 流程——stale 闸拦它纯属惩罚（实测换文件名绕行，留下一堆 .tmp 副本）。
 		if call.Name != "move_file" {
-			if path := extractFilePath(call.Name, call.Arguments); path != "" {
+			// 路径取工具自己的解析结果（相对路径 → 工作区内的绝对路径），见
+			// staleGuardPaths：拿原始串按进程 cwd 读，锚点豁免在正式环境从未生效。
+			if paths := staleGuardPaths(t, call.Name, call.Arguments); len(paths) > 0 {
+				path := paths[0]
 				// 刀2（Reasonix fileops observation 蒸馏）：跨轮外部修改检测——
 				// 模型观察过的版本与磁盘当前版本不一致即拦，防静默覆盖外部修改。
-				if msg := a.checkFileStale(path); msg != "" {
+				// edit_file 的锚点仍锚在当前磁盘内容上时放行：定点替换不动别处，
+				// 外部改动原样保留（口径与同回合闸的锚点豁免一致）。
+				if msg := a.checkFileStale(path); msg != "" && !sameTurnEditAnchorFresh(call.Name, call.Arguments, path) {
 					return toolOutcome{output: msg, blocked: true, errMsg: msg}
 				}
 				// turnMu guards the per-turn stale maps against the other executeOne
@@ -269,12 +274,12 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	if err == nil {
 		switch {
 		case call.Name == "read_file":
-			if p := extractFilePath(call.Name, call.Arguments); p != "" {
-				a.observeFile(p)
+			if paths := staleGuardPaths(t, call.Name, call.Arguments); len(paths) > 0 {
+				a.observeFile(paths[0])
 			}
 		case isFileWriter(call.Name):
-			if p := extractFilePath(call.Name, call.Arguments); p != "" {
-				a.observeFile(p)
+			if paths := staleGuardPaths(t, call.Name, call.Arguments); len(paths) > 0 {
+				a.observeFile(paths[0])
 			}
 		}
 	}
@@ -382,7 +387,12 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// Locked: the lazy map init + writes race with the other executeOne
 	// goroutines of this batch (audit P0 — "concurrent map writes" crash).
 	a.turnMu.Lock()
-	if path := extractFilePath(call.Name, call.Arguments); path != "" {
+	if paths := staleGuardPaths(t, call.Name, call.Arguments); len(paths) > 0 {
+		// 记账键与闸的查找键同源：工具解析后的路径（相对/绝对写法指向同一个文件）。
+		path := paths[len(paths)-1]
+		if call.Name != "move_file" {
+			path = paths[0]
+		}
 		if t.ReadOnly() && call.Name == "read_file" {
 			if a.staleReadFiles == nil {
 				a.staleReadFiles = make(map[string]bool)
