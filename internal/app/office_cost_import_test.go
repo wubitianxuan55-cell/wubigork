@@ -71,7 +71,7 @@ func impBook(t *testing.T) string {
 func impOpen(t *testing.T, tl costLibraryTool, source string, extra map[string]any) string {
 	t.Helper()
 	args := map[string]any{"action": "import_open", "source": source, "project": map[string]any{
-		"name": "某某地块修复", "specialty": "土壤修复", "region": "乐山市", "price_period": "2026年6月",
+		"name": "某某地块修复", "specialty": "土壤修复", "region": "四川省", "price_period": "2026年6月",
 	}}
 	for k, v := range extra {
 		args[k] = v
@@ -117,7 +117,7 @@ func impDict(t *testing.T, s *workcost.Store) {
 	t.Helper()
 	for _, d := range []workcost.DictItem{
 		{Kind: workcost.DictSpecialty, Name: "土壤修复"},
-		{Kind: workcost.DictRegion, Name: "乐山市"},
+		{Kind: workcost.DictRegion, Name: "四川省"},
 	} {
 		if err := s.DictAdd(d); err != nil {
 			t.Fatal(err)
@@ -143,9 +143,9 @@ func TestCostImportOpen(t *testing.T) {
 	clMustFail(t, tl, map[string]any{"action": "import_open", "source": book, "project": map[string]any{"price_period": "2026年第7期"}},
 		"不是年月写法")
 	clMustFail(t, tl, map[string]any{"action": "import_open", "source": filepath.Join(t.TempDir(), "没有这份资料.xlsx")}, "读不到资料")
-	out := clMust(t, tl, map[string]any{"action": "import_open", "source": book, "project": map[string]any{"specialty": "土壤修复", "region": "乐山市"}},
+	out := clMust(t, tl, map[string]any{"action": "import_open", "source": book, "project": map[string]any{"specialty": "土壤修复", "region": "四川省"}},
 		"回读核对可用")
-	if !strings.Contains(out, "专业 土壤修复｜地区 乐山市") {
+	if !strings.Contains(out, "专业 土壤修复｜地区 四川省") {
 		t.Fatalf("开导入回执应显形口径：%s", out)
 	}
 	// 不支持回读的格式如实说。
@@ -203,21 +203,21 @@ func TestCostImportEndToEnd(t *testing.T) {
 
 	// 正式提交。
 	out = clMust(t, tl, map[string]any{"action": "import_commit", "import_id": id}, "✅ 已完成：提交导入")
-	for _, want := range []string{"**项目**: #", "专业 土壤修复｜地区 乐山市｜计价期 2026-06",
+	for _, want := range []string{"**项目**: #", "专业 土壤修复｜地区 四川省｜计价期 2026-06",
 		"工料机 新建 3 / 更新 0｜定额 新建 1 / 更新 0｜清单 1 行｜价格事实 3 条"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("提交回执应含 %q：%s", want, out)
 		}
 	}
 	projects, _ := s.BillProjects()
-	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "乐山市" || projects[0].PricePeriod != "2026-06" {
+	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "四川省" || projects[0].PricePeriod != "2026-06" {
 		t.Fatalf("项目口径应随导入落库，得到 %+v", projects)
 	}
 	c20, err := s.GetResourceByCode("C20")
-	if err != nil || c20.Region != "乐山市" || c20.PriceDate != "2026-06" || c20.CurrentPrice != 430 {
+	if err != nil || c20.Region != "四川省" || c20.PriceDate != "2026-06" || c20.CurrentPrice != 430 {
 		t.Fatalf("工料机应带地区与计价期，得到 %+v err=%v", c20, err)
 	}
-	if facts, _ := s.ResourcePrices(c20.ID); len(facts) != 1 || facts[0].Price != 430 || facts[0].Period != "2026-06" || facts[0].Region != "乐山市" {
+	if facts, _ := s.ResourcePrices(c20.ID); len(facts) != 1 || facts[0].Price != 430 || facts[0].Period != "2026-06" || facts[0].Region != "四川省" {
 		t.Fatalf("提交应记价格事实（价 + 期 + 地区），得到 %+v", facts)
 	}
 	q, _ := s.GetQuota("WP01")
@@ -264,7 +264,7 @@ func TestCostImportAddRejectsNonConforming(t *testing.T) {
 
 	out := clMust(t, tl, map[string]any{"action": "import_add", "import_id": id, "resources": []map[string]any{
 		{"code": "X1", "kind": "一段备注", "title": "脏类别", "unit": "项", "price": 1},
-		{"code": "X2", "kind": "材料", "title": "字典外地区", "unit": "t", "region": "不在字典的地方", "price": 1},
+		{"code": "X2", "kind": "材料", "title": "字典外地区", "unit": "t", "region": "广东省", "price": 1},
 		{"code": "L01", "kind": "材料", "title": "顶替别人的编码", "unit": "t", "price": 1},
 		{"code": "C20", "kind": "材料", "title": "商品混凝土", "unit": "m³", "price": 430},
 	}}, "**本批工料机**: 提交 4 行 → 入暂存 1（其中覆盖 0）｜退回 3")
@@ -430,7 +430,7 @@ func TestCostImportCommitGate(t *testing.T) {
 	book := impBook(t)
 
 	// ① 没给项目名，却提交了清单行。
-	id0 := impOpen(t, tl, book, map[string]any{"project": map[string]any{"region": "乐山市", "specialty": "土壤修复"}})
+	id0 := impOpen(t, tl, book, map[string]any{"project": map[string]any{"region": "四川省", "specialty": "土壤修复"}})
 	impAdd(t, tl, id0, "resources", impResources())
 	impAdd(t, tl, id0, "quotas", impQuotas())
 	impAdd(t, tl, id0, "bills", []map[string]any{impBill("WP01", 100, 528.6)})
@@ -444,7 +444,7 @@ func TestCostImportCommitGate(t *testing.T) {
 	// ② 暂存之后，字典里的地区被删了：暂存行的地区（取项目口径）不再合规。
 	id := impOpen(t, tl, book, nil)
 	impAdd(t, tl, id, "resources", impResources())
-	if err := s.DictDelete(workcost.DictRegion, "乐山市"); err != nil {
+	if err := s.DictDelete(workcost.DictRegion, "四川省"); err != nil {
 		t.Fatal(err)
 	}
 	_, err := clRun(t, tl, map[string]any{"action": "import_commit", "import_id": id})
@@ -455,7 +455,7 @@ func TestCostImportCommitGate(t *testing.T) {
 		t.Fatal("闸门拦下时不应写任何数据")
 	}
 	// 会话还在：字典补回来后可以重新提交。
-	if err := s.DictAdd(workcost.DictItem{Kind: workcost.DictRegion, Name: "乐山市"}); err != nil {
+	if err := s.DictAdd(workcost.DictItem{Kind: workcost.DictRegion, Name: "四川省"}); err != nil {
 		t.Fatal(err)
 	}
 	clMust(t, tl, map[string]any{"action": "import_commit", "import_id": id}, "工料机 新建 3 / 更新 0")
@@ -480,7 +480,7 @@ func TestCostImportArgsMatchDocumentedKeys(t *testing.T) {
 	var p costLibraryArgs
 	if err := json.Unmarshal([]byte(`{
 		"action":"import_add","import_id":"imp-1","source":"a.xlsx",
-		"project":{"name":"p","region":"乐山市","specialty":"土壤修复","price_period":"2026-06","file_name":"a.xlsx","location":"乐山","duration":"x","pricing":"y"},
+		"project":{"name":"p","region":"四川省","specialty":"土壤修复","price_period":"2026-06","file_name":"a.xlsx","location":"乐山","duration":"x","pricing":"y"},
 		"controls":{"resources":3,"quotas":1,"bills":1,"bill_total":1.5,"resource_price_sum":2.5},
 		"resources":[{"code":"C20","kind":"材料","title":"商品混凝土","unit":"m³","price":430,"src":{"sheet":"工料机价格","row":3},"derived":["单价"]}],
 		"quotas":[{"code":"WP01","title":"垫层","unit":"m³","items":[{"resource_code":"C20","quantity":1.02,"loss_rate":0.03,"src":{"row":4}}]}],

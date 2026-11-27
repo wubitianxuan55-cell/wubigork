@@ -263,7 +263,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 			usage[q.Code] = len(refs)
 		}
 	}
-	headers := []string{"定额编码", "自有码", "原码", "名称", "单位", "专业", "章节", "借鉴来源", "来源", "含量行数", "被清单引用", "现算综合单价（元·人材机）"}
+	headers := []string{"定额编码", "自有码", "原码", "名称", "单位", "专业", "分部", "地区", "借鉴来源", "来源", "含量行数", "被清单引用", "现算综合单价（元·人材机）"}
 	rows := make([][]any, 0, len(picked))
 	detail := make([][]any, 0)
 	for _, q := range picked {
@@ -275,7 +275,7 @@ func (a *App) costExportQuota(f workcost.LibraryFilter, file *excelize.File) ([]
 		if cp := composes[q.Code]; cp != nil {
 			unit = cp.CompositePrice
 		}
-		rows = append(rows, []any{q.Code, q.GCode, q.OrigCode, q.Title, q.Unit, q.Specialty, q.Chapter, q.DerivedFrom, q.Source,
+		rows = append(rows, []any{q.Code, q.GCode, q.OrigCode, q.Title, q.Unit, q.Specialty, q.Chapter, q.Region, q.DerivedFrom, q.Source,
 			len(full.Items), usage[q.Code], costExportPrice(unit)})
 		for _, it := range full.Items {
 			price := 0.0

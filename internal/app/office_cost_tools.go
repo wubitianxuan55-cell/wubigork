@@ -751,10 +751,11 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 				}
 			}
 		}
-		// 项目的专业/地区/计价期是规范值（库定规矩）：专业、地区必须在字典里，期数
-		// YYYY-MM；不给=保持原值（待整理）。先过规矩再建封面——口径被拒不留半截封面。
+		// 项目的专业/地区/计价期是规范值（库定规矩）：专业在字典里，地区只到省
+		//（门口归一成省级全称），期数 YYYY-MM；不给=保持原值（待整理）。先过规矩
+		// 再建封面——口径被拒不留半截封面。
 		specialty, region := strings.TrimSpace(p.Specialty), strings.TrimSpace(p.Region)
-		period, err := s.ValidateProjectScope(specialty, region, strings.TrimSpace(p.PricePeriod))
+		period, province, err := s.ValidateProjectScope(specialty, region, strings.TrimSpace(p.PricePeriod))
 		if err != nil {
 			return "", fmt.Errorf("项目口径不合规矩，未建档：%w", err)
 		}
@@ -762,11 +763,11 @@ func (t costProjectApplyTool) Execute(_ context.Context, args json.RawMessage) (
 		if err != nil {
 			return "", err
 		}
-		if err := s.UpdateBillProjectProfile(id, specialty, region, period); err != nil {
+		if err := s.UpdateBillProjectProfile(id, specialty, province, period); err != nil {
 			return "", fmt.Errorf("项目封面已建（#%d），但专业/地区/计价期未写入：%w", id, err)
 		}
 		return fmt.Sprintf("项目已建档：#%d %s（费率按提交值落库，0=该段显式不计取）%s。下一步 action=save_items 编制清单。",
-			id, p.Name, clProjectScope(specialty, region, period)), nil
+			id, p.Name, clProjectScope(specialty, province, period)), nil
 	case "update_rates":
 		if p.ProjectID <= 0 {
 			return "", fmt.Errorf("update_rates 需要 project_id")

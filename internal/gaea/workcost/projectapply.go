@@ -403,6 +403,7 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 				OrigCode:     origCode,
 				Title:        title,
 				Specialty:    specialty,
+				Region:       region,
 				Unit:         unit,
 				CategoryPath: firstNonEmpty(it.CategoryPath, "综合单价/"+title),
 				Source:       src,
@@ -417,6 +418,17 @@ func (s *Store) ApplyProjectBundle(b *ProjectBundle) ApplyProjectResult {
 					(existing.Source == src || existing.Specialty == "") {
 					if err := s.setQuotaSpecialty(rr.Code, specialty); err == nil {
 						existing.Specialty = specialty
+					}
+				}
+				// 地区与上游项目挂钩（同专业跟随纪律的同款）：同项目重导入时项目地区
+				// 改了跟着改；未标地区的既有定额被复用时顺手补标；已标地区的跨项目
+				// 复用不动——首标纪律，不因别的项目改写。跨项目复用（同码同内容）可
+				// 以地区不同，这里必须默认保持既有值，不能被 q 字面量带的项目地区覆写。
+				q.Region = existing.Region
+				if region != "" && existing.Region != region &&
+					(existing.Source == src || existing.Region == "") {
+					if err := s.setQuotaRegion(rr.Code, region); err == nil {
+						q.Region = region
 					}
 				}
 				// 既有定额的头字段不因这次导入没带而被清空。
@@ -523,16 +535,16 @@ func (s *Store) applyBillItems(b *ProjectBundle, items []ProjectItem, resolved m
 	}
 }
 
-// ImportScope 导入口径过规矩：专业、地区必须在字典里（空=待整理，放行），计价期
-// 归一成 YYYY-MM（空=不记期）。返回归一后的三个值；不过规矩返回的 error 道出
-// 该怎么改。导入的演练与正式落库都先过它——口径不对就整份拒收，不带病入库。
+// ImportScope 导入口径过规矩：专业在字典里（空=待整理，放行），地区只到省
+// （门口归一成省级全称，不能下分），计价期归一成 YYYY-MM（空=不记期）。返回归一后
+// 的三个值；不过规矩返回的 error 道出该怎么改。导入的演练与正式落库都先过它——
+// 口径不对就整份拒收，不带病入库。
 func (s *Store) ImportScope(b *ProjectBundle) (specialty, region, period string, err error) {
 	specialty = strings.TrimSpace(b.Specialty)
-	region = strings.TrimSpace(b.Region)
 	if err = s.checkDict(DictSpecialty, specialty, "项目专业"); err != nil {
 		return "", "", "", err
 	}
-	if err = s.checkDict(DictRegion, region, "项目地区"); err != nil {
+	if region, err = s.checkRegion(b.Region, "项目地区"); err != nil {
 		return "", "", "", err
 	}
 	period, ok := NormalizePeriod(b.Period)
@@ -617,5 +629,19 @@ func (s *Store) setQuotaSpecialty(code, specialty string) error {
 		return err
 	}
 	_, err := s.db.Exec(`UPDATE gf_quotas SET specialty=?, updated_at=? WHERE code=?`, specialty, nowText(), code)
+	return err
+}
+
+// setQuotaRegion 只改定额的地区（导入链内用：与上游项目地区挂钩或顺手补标）。
+// 地区只到省：门口再归一一次，落省级全称。
+func (s *Store) setQuotaRegion(code, region string) error {
+	p, err := s.checkRegion(region, "定额地区")
+	if err != nil {
+		return err
+	}
+	if p == "" {
+		return nil
+	}
+	_, err = s.db.Exec(`UPDATE gf_quotas SET region=?, updated_at=? WHERE code=?`, p, nowText(), code)
 	return err
 }

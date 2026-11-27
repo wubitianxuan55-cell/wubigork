@@ -216,7 +216,7 @@ func TestResourceQuotaComposeFlow(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
 	seedDict(t, s, DictSpecialty, "土壤修复", "市政")
-	seedDict(t, s, DictRegion, "成都")
+	seedDict(t, s, DictRegion, "四川省")
 
 	// ① 工料机资源：三类各一。
 	labor, err := s.SaveResource(Resource{Kind: KindLabor, Title: "综合工日", Unit: "工日", BasePrice: 250, CurrentPrice: 265})
@@ -258,7 +258,7 @@ func TestResourceQuotaComposeFlow(t *testing.T) {
 	closeTo(t, "直接费", c.Subtotal, 4346.28)
 
 	// ④ 资源调价 → 同一定额的综合单价同步重算（无需改定额）。
-	if _, err := s.UpdateResourcePrice(asphalt.ID, 4600, "2026-03", "成都", "到场价", "信息价", ""); err != nil {
+	if _, err := s.UpdateResourcePrice(asphalt.ID, 4600, "2026-03", "四川省", "到场价", "信息价", ""); err != nil {
 		t.Fatalf("调价失败: %v", err)
 	}
 	c2, _, err := s.ComposeQuota("SZ-DL-001", nil)

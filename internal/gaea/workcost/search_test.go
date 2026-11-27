@@ -71,7 +71,7 @@ func searchStore(t *testing.T) (*Store, *sql.DB, func()) {
 	}
 	s := Open(gdb)
 	seedDict(t, s, DictSpecialty, "市政", "建筑工程")
-	seedDict(t, s, DictRegion, "成都")
+	seedDict(t, s, DictRegion, "四川省")
 	return s, gdb, func() {
 		vecindex.Forget(gdb)
 		db.CloseDatabase(dir)

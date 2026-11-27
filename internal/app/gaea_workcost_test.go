@@ -120,8 +120,8 @@ func TestGaeaWorkcostBillProjectProfileAndRatesBindings(t *testing.T) {
 	st := a.hubWorkcostStore()
 	for _, d := range []workcost.DictItem{
 		{Kind: workcost.DictSpecialty, Name: "土壤修复"},
-		{Kind: workcost.DictRegion, Name: "乐山"},
-		{Kind: workcost.DictRegion, Name: "成都"},
+		{Kind: workcost.DictRegion, Name: "四川省"},
+		{Kind: workcost.DictRegion, Name: "重庆市"},
 	} {
 		if err := st.DictAdd(d); err != nil {
 			t.Fatal(err)
@@ -131,18 +131,18 @@ func TestGaeaWorkcostBillProjectProfileAndRatesBindings(t *testing.T) {
 	if err := a.GaeaWorkcostBillProjectProfileSave(id, "不存在的专业", "", ""); err == nil {
 		t.Fatal("字典外专业应拒绝")
 	}
-	if err := a.GaeaWorkcostBillProjectProfileSave(id, "土壤修复", "乐山", "2026-07"); err != nil {
+	if err := a.GaeaWorkcostBillProjectProfileSave(id, "土壤修复", "四川省", "2026-07"); err != nil {
 		t.Fatal(err)
 	}
 	projects := a.GaeaWorkcostBillProjects()
-	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "乐山" || projects[0].PricePeriod != "2026-07" {
+	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "四川省" || projects[0].PricePeriod != "2026-07" {
 		t.Fatalf("口径未落: %+v", projects)
 	}
 	// 空=保持原值。
-	if err := a.GaeaWorkcostBillProjectProfileSave(id, "", "成都", ""); err != nil {
+	if err := a.GaeaWorkcostBillProjectProfileSave(id, "", "重庆市", ""); err != nil {
 		t.Fatal(err)
 	}
-	if projects = a.GaeaWorkcostBillProjects(); len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "成都" || projects[0].PricePeriod != "2026-07" {
+	if projects = a.GaeaWorkcostBillProjects(); len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "重庆市" || projects[0].PricePeriod != "2026-07" {
 		t.Fatalf("空字段应保持原值: %+v", projects)
 	}
 	// 费率档。

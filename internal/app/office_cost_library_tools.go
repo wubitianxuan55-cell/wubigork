@@ -2008,7 +2008,7 @@ func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
 			}
 			parts = append(parts, fmt.Sprintf("%s/%s %d", clDim(c.Specialty, "未标注"), c.Chapter, c.Count))
 		}
-		fmt.Fprintf(&out, "**定额章节分布**（专业/章节）: %s\n", strings.Join(parts, "｜"))
+		fmt.Fprintf(&out, "**定额分部分布**（专业/分部）: %s\n", strings.Join(parts, "｜"))
 	}
 	dist("工料机地区分布", d.Regions, 40)
 	dist("工料机期数分布", d.Periods, 24)
@@ -2036,7 +2036,7 @@ func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
 		}
 	}
 	p := d.Pending
-	fmt.Fprintf(&out, "**待整理**: 项目未标专业 %d｜清单无专业 %d｜定额未标专业 %d｜定额未归章节 %d｜工料机未标地区 %d｜工料机未细分 %d｜工料机无期数 %d\n",
+	fmt.Fprintf(&out, "**待整理**: 项目未标专业 %d｜清单无专业 %d｜定额未标专业 %d｜定额未归分部 %d｜工料机未标地区 %d｜工料机未细分 %d｜工料机无期数 %d\n",
 		p.ProjectSpecialty, p.BillSpecialty, p.QuotaSpecialty, p.QuotaChapter, p.ResourceRegion, p.ResourceCategory, p.ResourcePeriod)
 	// 待整理明细（2026-11-26 造价反馈，旺平 #6）：只给计数时，模型只能逐条枚举
 	// 去找是哪几条。每类列前若干条，清单行带数字 id（classify.bills 要用）。

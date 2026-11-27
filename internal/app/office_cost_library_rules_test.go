@@ -23,7 +23,7 @@ func ruleSeed(t *testing.T, s *workcost.Store) (int64, workcost.BillItem) {
 	for _, d := range []workcost.DictItem{
 		{Kind: workcost.DictSpecialty, Name: "土壤修复"},
 		{Kind: workcost.DictSpecialty, Name: "市政"},
-		{Kind: workcost.DictRegion, Name: "成都市区"},
+		{Kind: workcost.DictRegion, Name: "四川省"},
 	} {
 		if err := s.DictAdd(d); err != nil {
 			t.Fatalf("收进字典失败: %v", err)
@@ -126,8 +126,8 @@ func TestCostLibraryDims(t *testing.T) {
 	tl := costLibraryTool{a: a}
 	ruleSeed(t, s)
 	out := clMust(t, tl, map[string]any{"action": "dims"}, "## 造价库维度盘点（只读）")
-	for _, want := range []string{fmt.Sprintf("专业 %d 项", len(db.PlannedSpecialties)+1), "地区 1 项：成都市区", "测算P（清单 1）｜专业 未标注｜地区 未标注",
-		"定额专业分布", "土壤修复 1", "待整理", "工料机未标地区 1", "定额未归章节 1"} {
+	for _, want := range []string{fmt.Sprintf("专业 %d 项", len(db.PlannedSpecialties)+1), "地区 1 项：四川省", "测算P（清单 1）｜专业 未标注｜地区 未标注",
+		"定额专业分布", "土壤修复 1", "待整理", "工料机未标地区 1", "定额未归分部 1"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("盘点应含 %q：%s", want, out)
 		}
@@ -146,20 +146,20 @@ func TestCostLibraryClassify(t *testing.T) {
 		return map[string]any{"action": "classify", "classify": kv}
 	}
 	plan := map[string]any{
-		"projects": []map[string]any{{"id": pid, "specialty": "土壤修复", "region": "成都市区", "price_period": "2026年6月"}},
+		"projects": []map[string]any{{"id": pid, "specialty": "土壤修复", "region": "四川省", "price_period": "2026年6月"}},
 		"bills":    []map[string]any{{"id": item.ID, "division": "垫层工程"}},
 		"quotas":   []map[string]any{{"code": "A", "chapter": "混凝土工程"}, {"code": "A", "specialty": "市政"}},
 		"resources": []map[string]any{
-			{"code": "NOPE", "region": "成都市区"},
-			{"code": c20Code(t, s), "region": "不在字典的地方", "category_path": "不在字典的分类"},
+			{"code": "NOPE", "region": "四川省"},
+			{"code": c20Code(t, s), "region": "广东省", "category_path": "不在字典的分类"},
 		},
 	}
 	args := classify(plan)
 	args["dry_run"] = true
 	out := clMust(t, tl, args, "演练（未写库）：整理归类")
 	for _, want := range []string{"将改动", "项目专业「土壤修复」：1 条", "项目计价期「2026-06」：1 条",
-		"定额章节·土壤修复「混凝土工程」：1 条", "未执行 4 条", "[quota] A「垫层」 specialty → 市政", "borrow_quota",
-		"[resource] NOPE「」：工料机不存在", "region → 不在字典的地方", "category_path → 不在字典的分类", "不在地区字典里", "不在工料机分类字典里"} {
+		"定额分部·土壤修复「混凝土工程」：1 条", "未执行 4 条", "[quota] A「垫层」 specialty → 市政", "borrow_quota",
+		"[resource] NOPE「」：工料机不存在", "region → 广东省", "category_path → 不在字典的分类", "不在地区字典里", "不在工料机分类字典里"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("演练回执应含 %q：%s", want, out)
 		}
@@ -168,14 +168,14 @@ func TestCostLibraryClassify(t *testing.T) {
 		t.Fatal("演练不应写库")
 	}
 	if q, _ := s.GetQuota("A"); q.Chapter != "" {
-		t.Fatal("演练不应写定额章节")
+		t.Fatal("演练不应写定额分部")
 	}
 	out = clMust(t, tl, classify(plan), "已完成：整理归类")
 	if !strings.Contains(out, "未执行 4 条") {
 		t.Fatalf("正式执行的回执同样要点名冲突：%s", out)
 	}
 	p := findBillProject(s, pid)
-	if p.Specialty != "土壤修复" || p.Region != "成都市区" || p.PricePeriod != "2026-06" {
+	if p.Specialty != "土壤修复" || p.Region != "四川省" || p.PricePeriod != "2026-06" {
 		t.Fatalf("项目口径应已落库，得到 %+v", p)
 	}
 	// 定额 A 只被土壤修复专业的清单引用，要改成市政 → 冲突不改；章节照归。
@@ -261,12 +261,12 @@ func TestCostLibraryDryRunValidates(t *testing.T) {
 	save := func(resource map[string]any) map[string]any {
 		return map[string]any{"action": "save_resource", "dry_run": true, "resource": resource}
 	}
-	clMustFail(t, tl, save(map[string]any{"kind": "材料", "title": "新料", "unit": "t", "region": "不在字典的地方"}), "不在地区字典里")
+	clMustFail(t, tl, save(map[string]any{"kind": "材料", "title": "新料", "unit": "t", "region": "广东省"}), "不在地区字典里")
 	clMustFail(t, tl, save(map[string]any{"kind": "材料", "title": "新料", "unit": "t", "price_date": "2026年第7期"}), "不是年月写法")
 	clMustFail(t, tl, save(map[string]any{"kind": "一段备注", "title": "新料", "unit": "t"}), "工料机类别须为")
-	clMust(t, tl, save(map[string]any{"kind": "材料", "title": "新料", "unit": "t", "region": "成都市区", "price_date": "2026年12月"}), "演练通过")
+	clMust(t, tl, save(map[string]any{"kind": "材料", "title": "新料", "unit": "t", "region": "四川省", "price_date": "2026年12月"}), "演练通过")
 	clMustFail(t, tl, map[string]any{"action": "set_price", "dry_run": true, "resource_code": res[0].Code, "price": 480, "period": "2026年第7期"}, "不是年月写法")
-	clMustFail(t, tl, map[string]any{"action": "set_price", "dry_run": true, "resource_code": res[0].Code, "price": 480, "region": "不在字典的地方"}, "不在地区字典里")
+	clMustFail(t, tl, map[string]any{"action": "set_price", "dry_run": true, "resource_code": res[0].Code, "price": 480, "region": "广东省"}, "不在地区字典里")
 	// 「2026年12月」能归一；演练回执显形归一后的期数。
 	clMust(t, tl, map[string]any{"action": "set_price", "dry_run": true, "resource_code": res[0].Code, "price": 480, "period": "2026年12月"}, "期数 2026-12")
 }
@@ -285,22 +285,22 @@ func TestCostLibraryImportProjectScope(t *testing.T) {
 	clMustFail(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture, "specialty": "不存在专业"}, "导入口径不合规矩")
 	clMustFail(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture, "period": "2026年第7期"}, "不是年月写法")
 	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "specialty", "name": "土壤修复"}}, "已在字典里，无需新增") // 规划专业（SchemaV40）
-	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "region", "name": "成都市区"}}, "已新增")
+	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "region", "name": "四川省"}}, "已新增")
 	clMust(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture,
-		"specialty": "土壤修复", "region": "成都市区", "period": "2026年6月"}, "**导入口径**: 专业 土壤修复｜地区 成都市区｜计价期 2026-06")
+		"specialty": "土壤修复", "region": "四川省", "period": "2026年6月"}, "**导入口径**: 专业 土壤修复｜地区 四川省｜计价期 2026-06")
 	if projects, _ := s.BillProjects(); len(projects) != 0 {
 		t.Fatal("演练不应落库")
 	}
 	// 这份夹具的工料机价格表里有一行是整格同一段说明文字：不是工料机，演练点名、正式拒收。
 	out := clMust(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture,
-		"specialty": "土壤修复", "region": "成都市区"}, "**将被拒收的工料机行")
+		"specialty": "土壤修复", "region": "四川省"}, "**将被拒收的工料机行")
 	if !strings.Contains(out, "说明文字不是编码") {
 		t.Fatalf("演练应道出那一行为什么不是工料机：%s", out)
 	}
 	clMust(t, tl, map[string]any{"action": "import_project", "path": fixture,
-		"specialty": "土壤修复", "region": "成都市区", "period": "2026年6月"}, "**价格事实**")
+		"specialty": "土壤修复", "region": "四川省", "period": "2026年6月"}, "**价格事实**")
 	projects, _ := s.BillProjects()
-	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "成都市区" || projects[0].PricePeriod != "2026-06" {
+	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "四川省" || projects[0].PricePeriod != "2026-06" {
 		t.Fatalf("项目口径应随导入落库，得到 %+v", projects)
 	}
 	quotas, _ := s.ListQuotas("", "")
@@ -318,7 +318,7 @@ func TestCostLibraryImportProjectScope(t *testing.T) {
 		if ok, _ := workcost.CodeWellFormed(r.Code); !ok {
 			t.Fatalf("编码不像编码的行不应入库：%.40q", r.Code)
 		}
-		if r.Region != "成都市区" {
+		if r.Region != "四川省" {
 			t.Fatalf("导入的工料机应带地区，得到 %+v", r)
 		}
 		if r.EffectivePrice() > 0 {
@@ -345,7 +345,7 @@ func TestCostProjectApplySpecialty(t *testing.T) {
 	apply := costProjectApplyTool{a: a}
 	audit := costAuditTool{a: a}
 	ruleSeed(t, s)
-	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "region", "name": "重庆中心城区"}}, "已新增")
+	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "region", "name": "重庆市"}}, "已新增")
 
 	// 字典外的专业：封面不落、当场拒收。
 	b, _ := json.Marshal(map[string]any{"action": "create_project", "name": "市政项目", "specialty": "不存在专业"})
@@ -358,8 +358,8 @@ func TestCostProjectApplySpecialty(t *testing.T) {
 		}
 	}
 	out := applyRun(t, apply, map[string]any{"action": "create_project", "name": "市政项目",
-		"specialty": "市政", "region": "重庆中心城区", "price_period": "2026年6月"})
-	if !strings.Contains(out, "｜专业 市政｜地区 重庆中心城区｜计价期 2026-06") {
+		"specialty": "市政", "region": "重庆市", "price_period": "2026年6月"})
+	if !strings.Contains(out, "｜专业 市政｜地区 重庆市｜计价期 2026-06") {
 		t.Fatalf("建档回执应显形口径：%s", out)
 	}
 	var pid int64
@@ -432,12 +432,12 @@ func TestCostLibraryArgsMatchDocumentedKeys(t *testing.T) {
 	}
 	var p costLibraryArgs
 	if err := json.Unmarshal([]byte(`{
-		"action":"classify","specialty":"市政","region":"成都市区","period":"2026-06","from_code":"A","new_code":"A-9","new_title":"垫层","item_ids":[7],
+		"action":"classify","specialty":"市政","region":"四川省","period":"2026-06","from_code":"A","new_code":"A-9","new_title":"垫层","item_ids":[7],
 		"classify":{
-			"projects":[{"id":1,"specialty":"土壤修复","region":"成都市区","price_period":"2026-06"}],
+			"projects":[{"id":1,"specialty":"土壤修复","region":"四川省","price_period":"2026-06"}],
 			"bills":[{"id":2,"specialty":"市政","division":"垫层工程"}],
 			"quotas":[{"code":"A","specialty":"市政","chapter":"混凝土工程"}],
-			"resources":[{"code":"L01","kind":"人工","category_path":"人工/普工","region":"成都市区","period":"2026-06"}]
+			"resources":[{"code":"L01","kind":"人工","category_path":"人工/普工","region":"四川省","period":"2026-06"}]
 		},
 		"dict":{"op":"add","kind":"specialty","name":"市政","rename":"道路","code":"04","parent":"x","level":1,"sort":3,"note":"n"}
 	}`), &p); err != nil {
@@ -449,19 +449,19 @@ func TestCostLibraryArgsMatchDocumentedKeys(t *testing.T) {
 		want string
 	}{
 		{"specialty", p.Specialty, "市政"},
-		{"region", p.Region, "成都市区"},
+		{"region", p.Region, "四川省"},
 		{"period", p.Period, "2026-06"},
 		{"from_code", p.FromCode, "A"},
 		{"new_code", p.NewCode, "A-9"},
 		{"new_title", p.NewTitle, "垫层"},
 		{"projects[0].specialty", p.Classify.Projects[0].Specialty, "土壤修复"},
-		{"projects[0].region", p.Classify.Projects[0].Region, "成都市区"},
+		{"projects[0].region", p.Classify.Projects[0].Region, "四川省"},
 		{"projects[0].price_period", p.Classify.Projects[0].PricePeriod, "2026-06"},
 		{"bills[0].division", p.Classify.Bills[0].Division, "垫层工程"},
 		{"bills[0].specialty", p.Classify.Bills[0].Specialty, "市政"},
 		{"quotas[0].chapter", p.Classify.Quotas[0].Chapter, "混凝土工程"},
 		{"resources[0].category_path", p.Classify.Resources[0].CategoryPath, "人工/普工"},
-		{"resources[0].region", p.Classify.Resources[0].Region, "成都市区"},
+		{"resources[0].region", p.Classify.Resources[0].Region, "四川省"},
 		{"resources[0].period", p.Classify.Resources[0].Period, "2026-06"},
 		{"resources[0].kind", p.Classify.Resources[0].Kind, "人工"},
 		{"dict.op", p.Dict.Op, "add"},
@@ -484,11 +484,11 @@ func TestCostLibraryArgsMatchDocumentedKeys(t *testing.T) {
 	}
 	// cost_project_apply 同理。
 	var ap costProjectApplyArgs
-	if err := json.Unmarshal([]byte(`{"action":"create_project","specialty":"市政","region":"成都市区","price_period":"2026-06",
+	if err := json.Unmarshal([]byte(`{"action":"create_project","specialty":"市政","region":"四川省","price_period":"2026-06",
 		"items":[{"code":"A","specialty":"土壤修复"}]}`), &ap); err != nil {
 		t.Fatal(err)
 	}
-	if ap.Specialty != "市政" || ap.Region != "成都市区" || ap.PricePeriod != "2026-06" || *ap.Items[0].Specialty != "土壤修复" {
+	if ap.Specialty != "市政" || ap.Region != "四川省" || ap.PricePeriod != "2026-06" || *ap.Items[0].Specialty != "土壤修复" {
 		t.Fatalf("cost_project_apply 入参键与说明不一致： %+v", ap)
 	}
 	applySchema := string(costProjectApplyTool{}.Schema())

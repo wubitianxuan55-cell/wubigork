@@ -120,7 +120,7 @@ type ResourcePrice struct {
 type Quota struct {
 	ID   int64  `json:"id"`
 	Code string `json:"code"`
-	// GCode 库内自有码（D+专业+章节+流水，SchemaV39；见 gcode.go）。Code/OrigCode
+	// GCode 库内自有码（D+专业+分部+流水，SchemaV39；见 gcode.go）。Code/OrigCode
 	// 是外部标准码（映射列），检索两码都吃。
 	GCode string `json:"gcode"`
 	// OrigCode 工作簿里的原始清单编码（编码统一可能改写 Code，溯源靠它）。
@@ -129,7 +129,11 @@ type Quota struct {
 	// Specialty 专业——定额的固有属性：随来源定、定了不改，同样一件事各专业
 	// 各有定额，跨专业不并成一条。空=尚未标注（待整理）。
 	Specialty string `json:"specialty"`
-	Chapter   string `json:"chapter"`
+	// Chapter 分部（专业内；2026-11-27 起界面叫「分部」，字段名沿用 chapter）。
+	Chapter string `json:"chapter"`
+	// Region 地区——与上游清单项目挂钩：随来源项目落库，同项目重导入跟随项目地区；
+	// 空=尚未标注（待整理）。
+	Region string `json:"region"`
 	// DerivedFrom 借鉴生成的溯源（「借鉴 <专业> <码>」）：本专业没有可用定额时，
 	// 以外专业定额为底生成本专业的新定额，来源记在这里。空=非借鉴。
 	DerivedFrom  string      `json:"derivedFrom"`
@@ -139,7 +143,6 @@ type Quota struct {
 	BaseMaterial float64     `json:"baseMaterial"`
 	BaseMachine  float64     `json:"baseMachine"`
 	Source       string      `json:"source"`
-	Region       string      `json:"region"`
 	PriceDate    string      `json:"priceDate"`
 	Note         string      `json:"note"`
 	Status       string      `json:"status"`

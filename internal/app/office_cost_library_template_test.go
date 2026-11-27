@@ -171,7 +171,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	t.Cleanup(func() { ga.cfg = origCfg })
 
 	for _, d := range []struct{ kind, name string }{
-		{workcost.DictSpecialty, "市政"}, {workcost.DictRegion, "重庆中心城区"},
+		{workcost.DictSpecialty, "市政"}, {workcost.DictRegion, "重庆市"},
 	} {
 		clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": d.kind, "name": d.name}}, "已新增")
 	}
@@ -183,9 +183,9 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 		}
 		return got
 	}
-	labor := save(workcost.Resource{Kind: workcost.KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 300, Region: "重庆中心城区"})
-	c20 := save(workcost.Resource{Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 400, Region: "重庆中心城区"})
-	exc := save(workcost.Resource{Kind: workcost.KindMachine, Title: "挖掘机", Unit: "台班", CurrentPrice: 1000, Region: "重庆中心城区"})
+	labor := save(workcost.Resource{Kind: workcost.KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 300, Region: "重庆市"})
+	c20 := save(workcost.Resource{Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 400, Region: "重庆市"})
+	exc := save(workcost.Resource{Kind: workcost.KindMachine, Title: "挖掘机", Unit: "台班", CurrentPrice: 1000, Region: "重庆市"})
 
 	out := clMust(t, tl, map[string]any{"action": "template", "template": map[string]any{"name": "南岸测算"}}, "**测算样表**")
 	first := strings.SplitN(out, "\n", 2)[0]
@@ -265,7 +265,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	_ = f.Close()
 
 	// 导回：先演练（回执报出定额块），再正式。
-	scope := map[string]any{"specialty": "市政", "region": "重庆中心城区", "period": "2026-06"}
+	scope := map[string]any{"specialty": "市政", "region": "重庆市", "period": "2026-06"}
 	dry := map[string]any{"action": "import_project", "dry_run": true, "path": path}
 	for k, v := range scope {
 		dry[k] = v
@@ -286,7 +286,7 @@ func TestCostLibraryTemplateRoundTrip(t *testing.T) {
 	for _, p := range projects {
 		if p.Name == "南岸测算" {
 			pid = p.ID
-			if p.Specialty != "市政" || p.Region != "重庆中心城区" || p.PricePeriod != "2026-06" {
+			if p.Specialty != "市政" || p.Region != "重庆市" || p.PricePeriod != "2026-06" {
 				t.Errorf("项目口径应随导入口径落库，得到 %+v", p)
 			}
 			// 费率取自样表费用汇总的费率列（样例口径 5%/0%/4%/9%）。

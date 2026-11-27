@@ -105,6 +105,48 @@ func NormalizePeriod(s string) (string, bool) {
 // CurrentPeriod 今天的期（YYYY-MM）——导入没给计价期时的缺省。
 func CurrentPeriod() string { return time.Now().Format("2006-01") }
 
+// ── 地区（省级行政区）────────────────────────────────────────────────
+
+// provinces 省级行政区全称（34 个）。地区只到省、不能下分（2026-11-27 用户拍板）：
+// 库里带地区的行（项目 / 工料机 / 价格事实 / 定额）一律以省为地域粒度——市县差价
+// 是市场价口径，走工料机按期调价，不另开地区行。
+var provinces = []string{
+	"北京市", "天津市", "河北省", "山西省", "内蒙古自治区", "辽宁省", "吉林省", "黑龙江省",
+	"上海市", "江苏省", "浙江省", "安徽省", "福建省", "江西省", "山东省", "河南省",
+	"湖北省", "湖南省", "广东省", "广西壮族自治区", "海南省", "重庆市", "四川省", "贵州省",
+	"云南省", "西藏自治区", "陕西省", "甘肃省", "青海省", "宁夏回族自治区", "新疆维吾尔自治区",
+	"台湾省", "香港特别行政区", "澳门特别行政区",
+}
+
+// NormalizeRegion 地区归一到省级行政区。认三种写法：全称（四川省）、去尾缀简称
+// （四川 / 内蒙古 / 香港）、「省/市」两级写法取省段（四川省/成都市 → 四川省）。
+// 认不出（市县名、 别名简称）= false——地区不能下分。空串原样 ok=true（空=待整理）。
+func NormalizeRegion(value string) (string, bool) {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return "", true
+	}
+	if i := strings.IndexByte(v, '/'); i >= 0 {
+		v = strings.TrimSpace(v[:i])
+	}
+	for _, p := range provinces {
+		if v == p || v == provinceStem(p) {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// provinceStem 省级全称去行政区划尾缀的叫法（四川省→四川、新疆维吾尔自治区→新疆）。
+func provinceStem(p string) string {
+	for _, suffix := range []string{"特别行政区", "维吾尔自治区", "壮族自治区", "回族自治区", "自治区", "省", "市"} {
+		if s, ok := strings.CutSuffix(p, suffix); ok {
+			return s
+		}
+	}
+	return p
+}
+
 func allDigits(s string) bool {
 	if s == "" {
 		return false
@@ -137,6 +179,24 @@ func (s *Store) checkDict(kind, value, where string) error {
 			DictKindLabel[kind], value, DictKindLabel[kind], where)
 	}
 	return nil
+}
+
+// checkRegion 地区校验并归一（地区只到省、不能下分；空=待整理放行）。先把门口写法
+// 收成省级全称（「四川省/成都市」→「四川省」），再过字典；返回归一后的省名，
+// 调用方必须落归一值。
+func (s *Store) checkRegion(value, where string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	p, ok := NormalizeRegion(value)
+	if !ok {
+		return "", fmt.Errorf("地区「%s」不是省级行政区（%s）——地区只到省、不能下分，请写省名（如 四川省、内蒙古自治区）；新省份走 cost_library action=dict add（需用户确认）", value, where)
+	}
+	if err := s.checkDict(DictRegion, p, where); err != nil {
+		return "", err
+	}
+	return p, nil
 }
 
 // checkPeriod 期数校验并归一成 YYYY-MM；认不出的写法拒收。
@@ -193,6 +253,7 @@ FROM gf_dicts WHERE 1=1`
 }
 
 // DictAdd 新增一条字典项（已存在=幂等返回）。name 必须非空，kind 必须受支持。
+// 地区只收省级行政区（不能下分）：门口归一成省级全称再入库。
 func (s *Store) DictAdd(item DictItem) error {
 	if err := s.requireDB(); err != nil {
 		return err
@@ -204,6 +265,13 @@ func (s *Store) DictAdd(item DictItem) error {
 	}
 	if item.Name == "" {
 		return fmt.Errorf("新增%s需要名称", DictKindLabel[item.Kind])
+	}
+	if item.Kind == DictRegion {
+		p, ok := NormalizeRegion(item.Name)
+		if !ok {
+			return fmt.Errorf("地区只到省、不能下分：「%s」不是省级行政区——请写省名（如 四川省、内蒙古自治区）", item.Name)
+		}
+		item.Name = p
 	}
 	if item.Level <= 0 {
 		item.Level = 1
@@ -237,6 +305,14 @@ func (s *Store) DictUpdate(kind, name, rename, parent, code string, sort int, no
 		return nil, fmt.Errorf("%s字典里没有「%s」", DictKindLabel[kind], name)
 	}
 	if rename != "" && rename != name {
+		if kind == DictRegion {
+			// 地区改名同样只到省：新名必须是省级行政区（存归一后的全称）。
+			p, ok := NormalizeRegion(rename)
+			if !ok {
+				return nil, fmt.Errorf("地区只到省、不能下分：「%s」不是省级行政区——请写省名（如 四川省、内蒙古自治区）", rename)
+			}
+			rename = p
+		}
 		if ok, err := s.DictHas(kind, rename); err != nil {
 			return nil, err
 		} else if ok {

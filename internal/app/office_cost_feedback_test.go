@@ -72,10 +72,10 @@ func TestCostFeedbackSaveResourceHonorsCodeAndRegionRows(t *testing.T) {
 	defer cleanup()
 	s := a.hubWorkcostStore()
 	tl := costLibraryTool{a: a}
-	fbDicts(t, s, workcost.DictRegion, "四川省/遂宁市", "四川省/成都市")
-	fbSave(t, s, workcost.Resource{Code: "L01-3", Kind: workcost.KindLabor, Title: "普通工", Spec: "建安普工", Unit: "工日", CurrentPrice: 300, Region: "四川省/遂宁市"})
+	fbDicts(t, s, workcost.DictRegion, "四川省", "重庆市")
+	fbSave(t, s, workcost.Resource{Code: "L01-3", Kind: workcost.KindLabor, Title: "普通工", Spec: "建安普工", Unit: "工日", CurrentPrice: 300, Region: "四川省"})
 
-	labor := map[string]any{"kind": "人工", "title": "普通工", "spec": "建安普工", "unit": "工日", "current_price": 300.0, "region": "四川省/成都市"}
+	labor := map[string]any{"kind": "人工", "title": "普通工", "spec": "建安普工", "unit": "工日", "current_price": 300.0, "region": "重庆市"}
 	// 同身份、另一个地区：放行，且带什么码落什么码。
 	dry := toolRun(t, tl, map[string]any{"action": "save_resource", "dry_run": true,
 		"resource": mergeKeys(labor, map[string]any{"code": "L01-CD"})})
@@ -87,7 +87,7 @@ func TestCostFeedbackSaveResourceHonorsCodeAndRegionRows(t *testing.T) {
 	if !strings.Contains(out, "**编码**: L01-CD") {
 		t.Fatalf("显式给的编码应照用：%s", out)
 	}
-	for code, region := range map[string]string{"L01-CD": "四川省/成都市", "L01-3": "四川省/遂宁市"} {
+	for code, region := range map[string]string{"L01-CD": "重庆市", "L01-3": "四川省"} {
 		r, err := s.GetResourceByCode(code)
 		if err != nil || r == nil || r.Region != region {
 			t.Fatalf("%s 应是 %s 的行: %+v %v", code, region, r, err)
@@ -128,7 +128,7 @@ func TestCostFeedbackDimsListsPendingItems(t *testing.T) {
 		"- 项目未标专业：#1 百锦路",
 		fmt.Sprintf("- 清单无专业：#%d [BJ01] 垫层（百锦路）", it.ID),
 		"- 定额未标专业：[D1] 垫层",
-		"- 定额未归章节：[D1] 垫层",
+		"- 定额未归分部：[D1] 垫层",
 		"- 工料机未标地区：[M1] 材料 水泥",
 		"- 工料机未细分：[M1] 材料 水泥",
 	} {
@@ -151,9 +151,9 @@ func TestCostTemplateTrimTrailingGroupsRecipe(t *testing.T) {
 	ga.cfg = &config.Config{Workspace: ws}
 	t.Cleanup(func() { ga.cfg = origCfg })
 	fbDicts(t, s, workcost.DictSpecialty, "市政")
-	fbDicts(t, s, workcost.DictRegion, "重庆中心城区")
-	labor := fbSave(t, s, workcost.Resource{Kind: workcost.KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 300, Region: "重庆中心城区"})
-	c20 := fbSave(t, s, workcost.Resource{Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 400, Region: "重庆中心城区"})
+	fbDicts(t, s, workcost.DictRegion, "重庆市")
+	labor := fbSave(t, s, workcost.Resource{Kind: workcost.KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 300, Region: "重庆市"})
+	c20 := fbSave(t, s, workcost.Resource{Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 400, Region: "重庆市"})
 
 	out := toolRun(t, tl, map[string]any{"action": "template", "template": map[string]any{"name": "裁组"}})
 	first := strings.SplitN(out, "\n", 2)[0]
@@ -247,7 +247,7 @@ func TestCostTemplateTrimTrailingGroupsRecipe(t *testing.T) {
 		t.Errorf("裁完末尾未用组后不该再有被跳过的预置块: %+v", b.Skipped)
 	}
 	dry := toolRun(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": path,
-		"specialty": "市政", "region": "重庆中心城区", "period": "2026-06"})
+		"specialty": "市政", "region": "重庆市", "period": "2026-06"})
 	for _, want := range []string{"清单项 2 条", "定额块 2 个"} {
 		if !strings.Contains(dry, want) {
 			t.Errorf("演练回执缺 %q：\n%s", want, dry)
@@ -274,12 +274,12 @@ func TestCostFeedbackCostProjectLists(t *testing.T) {
 	defer cleanup()
 	s := a.hubWorkcostStore()
 	cp := costProjectTool{a: a}
-	fbDicts(t, s, workcost.DictRegion, "四川省/遂宁市", "四川省/成都市")
+	fbDicts(t, s, workcost.DictRegion, "四川省", "重庆市")
 	fbDicts(t, s, workcost.DictSpecialty, "土壤修复")
-	cd1 := fbSave(t, s, workcost.Resource{Code: "C20-CD", Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 430, Region: "四川省/成都市"})
-	cd2 := fbSave(t, s, workcost.Resource{Code: "SN-CD", Kind: workcost.KindMaterial, Title: "水泥", Unit: "t", CurrentPrice: 420, Region: "四川省/成都市"})
+	cd1 := fbSave(t, s, workcost.Resource{Code: "C20-CD", Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 430, Region: "四川省"})
+	cd2 := fbSave(t, s, workcost.Resource{Code: "SN-CD", Kind: workcost.KindMaterial, Title: "水泥", Unit: "t", CurrentPrice: 420, Region: "四川省"})
 	_ = cd2
-	fbSave(t, s, workcost.Resource{Code: "C20-SN", Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 455, Region: "四川省/遂宁市"})
+	fbSave(t, s, workcost.Resource{Code: "C20-SN", Kind: workcost.KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", CurrentPrice: 455, Region: "重庆市"})
 	if _, err := s.SaveQuota(workcost.Quota{Code: "D1", Title: "垫层", Unit: "m³", Specialty: "土壤修复",
 		Items: []workcost.QuotaItem{{ResourceCode: cd1.Code, Quantity: 1.02}}}, nil); err != nil {
 		t.Fatal(err)
@@ -290,9 +290,9 @@ func TestCostFeedbackCostProjectLists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	byRegion := toolRun(t, cp, map[string]any{"action": "resources", "region": "四川省/成都市"})
+	byRegion := toolRun(t, cp, map[string]any{"action": "resources", "region": "四川省"})
 	if !strings.Contains(byRegion, "资源 2 条（共 2 条）") || strings.Contains(byRegion, "C20-SN") {
-		t.Fatalf("地区过滤应只列成都的 2 条并报总数：%s", byRegion)
+		t.Fatalf("地区过滤应只列四川的 2 条并报总数：%s", byRegion)
 	}
 	limited := toolRun(t, cp, map[string]any{"action": "resources", "limit": 2})
 	if !strings.Contains(limited, "共 3 条，本次列 2 条；还有更多") {
@@ -319,16 +319,16 @@ func TestCostFeedbackCostAudit(t *testing.T) {
 	defer cleanup()
 	s := a.hubWorkcostStore()
 	ca := costAuditTool{a: a}
-	fbDicts(t, s, workcost.DictRegion, "四川省/遂宁市", "四川省/成都市")
+	fbDicts(t, s, workcost.DictRegion, "四川省", "重庆市")
 	fbDicts(t, s, workcost.DictSpecialty, "土壤修复")
-	labor := fbSave(t, s, workcost.Resource{Code: "L01-3", Kind: workcost.KindLabor, Title: "普通工", Unit: "工日", CurrentPrice: 300, Region: "四川省/遂宁市"})
+	labor := fbSave(t, s, workcost.Resource{Code: "L01-3", Kind: workcost.KindLabor, Title: "普通工", Unit: "工日", CurrentPrice: 300, Region: "四川省"})
 	if _, err := s.SaveQuota(workcost.Quota{Code: "D1", Title: "某工序", Unit: "m³", Specialty: "土壤修复",
 		Items: []workcost.QuotaItem{{ResourceCode: labor.Code, Quantity: 0.5}, {ResourceCode: "NOI", Quantity: 0.02}}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	rates := workcost.RateSet{ManagementRate: 5}
 	pid := fbProject(t, s, "旺平", rates, false)
-	if err := s.UpdateBillProjectProfile(pid, "土壤修复", "四川省/成都市", "2026-11"); err != nil {
+	if err := s.UpdateBillProjectProfile(pid, "土壤修复", "重庆市", "2026-11"); err != nil {
 		t.Fatalf("给项目标地区失败: %v", err)
 	}
 	if _, err := s.SaveBillItem(workcost.BillItem{ProjectID: pid, Code: "WP01", Title: "工序", Unit: "m³", Quantity: 10, QuotaCode: "D1"}); err != nil {
@@ -341,7 +341,7 @@ func TestCostFeedbackCostAudit(t *testing.T) {
 		`"resource_code":"L01-3","quantity":0.5`, // 其余含量行原样带上，不丢
 		`"resource_code":"NOI←改成在库编码","quantity":0.02`,
 		`{"action":"save_quota","quota":{"code":"D1","items":[`,
-		"[INFO] region_mismatch: 资源 L01-3「普通工」属「四川省/遂宁市」，与项目地区",
+		"[INFO] region_mismatch: 资源 L01-3「普通工」属「四川省」，与项目地区",
 		"rate_over_one: 企业管理费 费率 5>1",
 		"应填 0.05",
 	} {
@@ -415,14 +415,14 @@ func TestCostFeedbackImportProjectControlPriceOverride(t *testing.T) {
 	ga.cfg = &config.Config{Workspace: ws}
 	t.Cleanup(func() { ga.cfg = origCfg })
 	fbDicts(t, s, workcost.DictSpecialty, "市政")
-	fbDicts(t, s, workcost.DictRegion, "重庆中心城区")
+	fbDicts(t, s, workcost.DictRegion, "重庆市")
 	path := filepath.Join(ws, "样表.xlsx")
 	if err := os.WriteFile(path, skill.CostEstimateSampleXLSX(), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	base := map[string]any{"action": "import_project", "dry_run": true, "path": path,
-		"specialty": "市政", "region": "重庆中心城区", "period": "2026-06"}
+		"specialty": "市政", "region": "重庆市", "period": "2026-06"}
 	out := toolRun(t, tl, base)
 	if strings.Contains(out, "控制价 ¥0.") || strings.Contains(out, "疑似误读") {
 		t.Fatalf("样表的控制价行金额是「—」，不应读出数：\n%s", out)

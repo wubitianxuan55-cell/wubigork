@@ -18,10 +18,10 @@ func TestRegionMergeDecision(t *testing.T) {
 		wantMerge                bool
 		wantRegion               string
 	}{
-		{"导入没给地区：并入并继承原行地区", "", "皖A", true, true, "皖A"},
-		{"原行没标地区：并入并补上导入地区", "皖B", "", false, true, "皖B"},
-		{"原行地区不是字典值（旧写法）：并入并规范", "皖B", "安徽-铜陵", false, true, "皖B"},
-		{"两边都是规范地区且不同：分行", "皖B", "皖A", true, false, ""},
+		{"导入没给地区：并入并继承原行地区", "", "安徽省", true, true, "安徽省"},
+		{"原行没标地区：并入并补上导入地区", "重庆市", "", false, true, "重庆市"},
+		{"原行地区不是字典值（旧写法）：并入并规范", "重庆市", "安徽-铜陵", false, true, "重庆市"},
+		{"两边都是规范地区且不同：分行", "重庆市", "安徽省", true, false, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -53,18 +53,18 @@ func regionRowsOf(t *testing.T, s *Store) []Resource {
 // 两边都是规范地区且不同：按地区分行新建，原行的地区与价都不动；真撞码
 // （身份不同）照旧消歧，映射带回执。
 func TestApplyProjectRegionSplitKeepsOriginalRow(t *testing.T) {
-	s := regionStore(t, "皖A", "皖B")
-	orig, err := s.SaveResource(Resource{Code: "L01", Kind: KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 100, Region: "皖A"})
+	s := regionStore(t, "安徽省", "重庆市")
+	orig, err := s.SaveResource(Resource{Code: "L01", Kind: KindLabor, Title: "普工", Unit: "工日", CurrentPrice: 100, Region: "安徽省"})
 	if err != nil {
 		t.Fatalf("建旧行失败: %v", err)
 	}
 	// 占码者：M1 已是「瓷砖」（身份与将要导入的「水泥」不同）→ 真撞码。
-	if _, err := s.SaveResource(Resource{Code: "M1", Kind: KindMaterial, Title: "瓷砖", Unit: "m²", CurrentPrice: 80, Region: "皖A"}); err != nil {
+	if _, err := s.SaveResource(Resource{Code: "M1", Kind: KindMaterial, Title: "瓷砖", Unit: "m²", CurrentPrice: 80, Region: "安徽省"}); err != nil {
 		t.Fatalf("建占码行失败: %v", err)
 	}
 
 	res := s.ApplyProjectBundle(&ProjectBundle{
-		FileName: "重导入.xlsx", Project: "分行", Region: "皖B", Period: "2026-06",
+		FileName: "重导入.xlsx", Project: "分行", Region: "重庆市", Period: "2026-06",
 		Resources: []ProjectResource{
 			{Code: "L01", Kind: "人工", Title: "普工", Unit: "工日", Price: 110},
 			{Code: "M1", Kind: "材料", Title: "水泥", Unit: "t", Price: 420},
@@ -79,7 +79,7 @@ func TestApplyProjectRegionSplitKeepsOriginalRow(t *testing.T) {
 	if len(res.RegionMerged) != 0 {
 		t.Fatalf("地区不同的规范行不该并入: %v", res.RegionMerged)
 	}
-	if len(res.RegionRows) != 1 || !strings.Contains(res.RegionRows[0], "皖A") || !strings.Contains(res.RegionRows[0], "按地区分行新建") {
+	if len(res.RegionRows) != 1 || !strings.Contains(res.RegionRows[0], "安徽省") || !strings.Contains(res.RegionRows[0], "按地区分行新建") {
 		t.Fatalf("应点名分行新建与同身份的另一地区行: %v", res.RegionRows)
 	}
 	joined := strings.Join(res.Renames, "；")
@@ -89,17 +89,17 @@ func TestApplyProjectRegionSplitKeepsOriginalRow(t *testing.T) {
 
 	rows := regionRowsOf(t, s)
 	if len(rows) != 2 {
-		t.Fatalf("普工应有两行（皖A 原行 + 皖B 新行），实得 %d", len(rows))
+		t.Fatalf("普工应有两行（安徽省 原行 + 重庆市 新行），实得 %d", len(rows))
 	}
 	byRegion := map[string]Resource{}
 	for _, r := range rows {
 		byRegion[r.Region] = r
 	}
-	if a := byRegion["皖A"]; a.ID != orig.ID || a.Code != "L01" || a.CurrentPrice != 100 {
+	if a := byRegion["安徽省"]; a.ID != orig.ID || a.Code != "L01" || a.CurrentPrice != 100 {
 		t.Fatalf("原行应原样未动（id/编码/价/地区）: %+v", a)
 	}
-	if b := byRegion["皖B"]; b.Code != "L01-2" || b.CurrentPrice != 110 || b.ID == orig.ID {
-		t.Fatalf("新行应是 皖B / L01-2 / 110: %+v", b)
+	if b := byRegion["重庆市"]; b.Code != "L01-2" || b.CurrentPrice != 110 || b.ID == orig.ID {
+		t.Fatalf("新行应是 重庆市 / L01-2 / 110: %+v", b)
 	}
 }
 
@@ -115,9 +115,9 @@ func TestApplyProjectRegionMergeCases(t *testing.T) {
 		wantNote     string
 	}
 	cases := []tc{
-		{"原行地区是旧写法：并入并规范成导入地区", []string{"皖B"}, "皖B", "安徽-铜陵", "皖B", "皖B", "安徽-铜陵→皖B"},
-		{"本次导入没给地区：并入并继承原行地区", []string{"皖B"}, "皖B", "", "", "皖B", "皖B→皖B"},
-		{"原行没标地区：并入并补上导入地区", []string{"皖B"}, "", "", "皖B", "皖B", "未标注→皖B"},
+		{"原行地区是旧写法：并入并规范成导入地区", []string{"重庆市"}, "重庆市", "安徽-铜陵", "重庆市", "重庆市", "安徽-铜陵→重庆市"},
+		{"本次导入没给地区：并入并继承原行地区", []string{"重庆市"}, "重庆市", "", "", "重庆市", "重庆市→重庆市"},
+		{"原行没标地区：并入并补上导入地区", []string{"重庆市"}, "", "", "重庆市", "重庆市", "未标注→重庆市"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -159,9 +159,9 @@ func TestApplyProjectRegionMergeCases(t *testing.T) {
 // 暂存提交走同一裁决，且暂存码 → 库内码的别名要落到含量行上（此前并入后暂存
 // 定额仍引用提交码，落库即悬空）。
 func TestImportCommitRegionSplitKeepsOriginalAndRemaps(t *testing.T) {
-	s := regionStore(t, "四川省/遂宁市", "四川省/成都市")
+	s := regionStore(t, "四川省", "重庆市")
 	for _, code := range []string{"KWH-3", "WTR-3"} {
-		if _, err := s.SaveResource(Resource{Code: code, Kind: KindMaterial, Title: "施工用电" + code[:3], Unit: "kWh", CurrentPrice: 0.8, Region: "四川省/遂宁市"}); err != nil {
+		if _, err := s.SaveResource(Resource{Code: code, Kind: KindMaterial, Title: "施工用电" + code[:3], Unit: "kWh", CurrentPrice: 0.8, Region: "四川省"}); err != nil {
 			t.Fatalf("建遂宁行 %s 失败: %v", code, err)
 		}
 	}
@@ -211,17 +211,17 @@ func TestImportCommitRegionSplitKeepsOriginalAndRemaps(t *testing.T) {
 	}
 
 	// ① 带项目地区成都、同身份已有遂宁行：分行新建，遂宁行原样，含量行指向新行。
-	res := commit(t, "四川省/成都市", "KWH", "Q1", "将按地区分行新建")
+	res := commit(t, "重庆市", "KWH", "Q1", "将按地区分行新建")
 	if res.ResourcesNew != 1 || res.ResourcesUpd != 0 || len(res.RegionMerged) != 0 {
 		t.Fatalf("应分行新建 1 条、不并入: %+v", res)
 	}
-	if len(res.RegionRows) != 1 || !strings.Contains(res.RegionRows[0], "四川省/遂宁市") {
+	if len(res.RegionRows) != 1 || !strings.Contains(res.RegionRows[0], "四川省") {
 		t.Fatalf("应点名同身份的遂宁行: %v", res.RegionRows)
 	}
 	if got := quotaItemCode(t, "Q1"); got != "KWH" {
 		t.Fatalf("含量行应指向新行 KWH，实得 %q", got)
 	}
-	for code, wantRegion := range map[string]string{"KWH-3": "四川省/遂宁市", "KWH": "四川省/成都市"} {
+	for code, wantRegion := range map[string]string{"KWH-3": "四川省", "KWH": "重庆市"} {
 		r, err := s.GetResourceByCode(code)
 		if err != nil || r == nil || r.Region != wantRegion {
 			t.Fatalf("%s 应是 %s 的行: %+v %v", code, wantRegion, r, err)
@@ -238,5 +238,79 @@ func TestImportCommitRegionSplitKeepsOriginalAndRemaps(t *testing.T) {
 	}
 	if got := quotaItemCode(t, "Q2"); got != "WTR-3" {
 		t.Fatalf("并入后含量行应改指库内码 WTR-3（否则悬空），实得 %q", got)
+	}
+}
+
+// ── 定额地区与上游项目挂钩（2026-11-27 拍板：定额列表加地区列，地区只到省）────
+//
+// 口径：新建定额带项目地区（省名）；同项目重导入项目地区改了跟着改；未标地区的
+// 既有定额被复用时顺手补标；已标地区的跨项目复用不动——首标纪律，同专业固定。
+
+func TestApplyProjectQuotaRegionFollowsProject(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+	seedDict(t, s, DictSpecialty, "土壤修复")
+	seedDict(t, s, DictRegion, "安徽省", "四川省", "重庆市")
+
+	// 新建定额：地区随上游项目（省名）落库。
+	if res := s.ApplyProjectBundle(sampleBundle("修复项目", "a.xlsx", "土壤修复", "安徽/合肥", "", 180)); len(res.Errors) > 0 {
+		t.Fatalf("首导不应有错误: %v", res.Errors)
+	}
+	if q, _ := s.GetQuota("WP01"); q.Region != "安徽省" {
+		t.Fatalf("新建定额应带上游项目的省名（两极写法门口归一），得到 %q", q.Region)
+	}
+
+	// 同项目重导入、项目地区改省：定额地区跟着改。
+	s.ApplyProjectBundle(sampleBundle("修复项目", "a.xlsx", "土壤修复", "重庆市", "", 180))
+	if q, _ := s.GetQuota("WP01"); q.Region != "重庆市" {
+		t.Fatalf("同项目重导入项目地区改了，定额地区应跟着改，得到 %q", q.Region)
+	}
+
+	// 跨项目复用（同码同内容）：已标地区不动——首标纪律。
+	s.ApplyProjectBundle(sampleBundle("别的项目", "b.xlsx", "土壤修复", "四川省", "", 180))
+	if q, _ := s.GetQuota("WP01"); q.Region != "重庆市" {
+		t.Fatalf("跨项目复用不应改写已标地区，得到 %q", q.Region)
+	}
+
+	// 未标地区的存量定额被复用：顺手补标（同专业的顺手补标同款）。
+	if _, err := s.db.Exec(`UPDATE gf_quotas SET region='' WHERE code='WP01'`); err != nil {
+		t.Fatalf("清空地区失败: %v", err)
+	}
+	s.ApplyProjectBundle(sampleBundle("又一个项目", "c.xlsx", "土壤修复", "四川省", "", 180))
+	if q, _ := s.GetQuota("WP01"); q.Region != "四川省" {
+		t.Fatalf("未标地区的定额被复用应顺手补标，得到 %q", q.Region)
+	}
+}
+
+// 暂存导入链同款：定额没带地区时继承会话的项目地区（省名）；显式给了则以导入为准。
+func TestImportCommitQuotaRegionInheritsProject(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+	seedDict(t, s, DictRegion, "四川省", "重庆市")
+	imp, err := s.OpenImport("", ImportProject{Name: "会话地区", Region: "四川省/成都", PricePeriod: "2026-06"}, ImportControls{})
+	if err != nil {
+		t.Fatalf("开导入会话失败: %v", err)
+	}
+	defer imp.Close()
+	price := 1.0
+	added, err := imp.AddResources(s, []ImportResource{{Code: "R1", Kind: KindMaterial, Title: "中砂", Unit: "m³", Price: &price}})
+	if err != nil || added.Accepted != 1 {
+		t.Fatalf("工料机应入暂存 1 条: %+v %v", added, err)
+	}
+	if _, err := imp.AddQuotas(s, []ImportQuota{
+		{Code: "DQ1", Title: "工序一", Unit: "m³", Items: []ImportQuotaItem{{ResourceCode: "R1", Quantity: 1}}},
+		{Code: "DQ2", Title: "工序二", Unit: "m³", Region: "重庆市", Items: []ImportQuotaItem{{ResourceCode: "R1", Quantity: 2}}},
+	}); err != nil {
+		t.Fatalf("定额入暂存失败: %v", err)
+	}
+	res, err := imp.Commit(s)
+	if err != nil || len(res.Errors) > 0 {
+		t.Fatalf("提交失败: %v %v", res.Errors, err)
+	}
+	if q, _ := s.GetQuota("DQ1"); q.Region != "四川省" {
+		t.Fatalf("定额没带地区应继承项目省名，得到 %q", q.Region)
+	}
+	if q, _ := s.GetQuota("DQ2"); q.Region != "重庆市" {
+		t.Fatalf("定额显式省名应保留，得到 %q", q.Region)
 	}
 }

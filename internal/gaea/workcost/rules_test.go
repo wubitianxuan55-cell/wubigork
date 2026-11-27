@@ -64,16 +64,16 @@ func TestDictValidationOnWrite(t *testing.T) {
 		t.Fatalf("字典里的专业应通过: %v", err)
 	}
 
-	if _, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "成都市区"}); err == nil ||
+	if _, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "广东省"}); err == nil ||
 		!strings.Contains(err.Error(), "不在地区字典里") {
 		t.Fatalf("字典外的地区应被拒收，err=%v", err)
 	}
-	seedDict(t, s, DictRegion, "成都市区")
-	if _, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "成都市区",
+	seedDict(t, s, DictRegion, "四川省")
+	if _, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "四川省",
 		CategoryPath: "材料/混凝土"}); err == nil || !strings.Contains(err.Error(), "不在工料机分类字典里") {
 		t.Fatalf("字典外的分类应被拒收，err=%v", err)
 	}
-	if _, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "成都市区",
+	if _, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "四川省",
 		PriceDate: "2026年第7期"}); err == nil || !strings.Contains(err.Error(), "不是年月写法") {
 		t.Fatalf("认不出的期数应被拒收，err=%v", err)
 	}
@@ -82,7 +82,7 @@ func TestDictValidationOnWrite(t *testing.T) {
 		t.Fatalf("四类之外的类别应被拒收，err=%v", err)
 	}
 	// 认得的写法归一成 YYYY-MM 落库。
-	r, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "成都市区", PriceDate: "2026年6月"})
+	r, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Region: "四川省", PriceDate: "2026年6月"})
 	if err != nil {
 		t.Fatalf("落库失败: %v", err)
 	}
@@ -96,15 +96,15 @@ func TestDictValidationOnWrite(t *testing.T) {
 func TestResourceRegionIsIdentity(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
-	seedDict(t, s, DictRegion, "成都市区", "重庆中心城区")
+	seedDict(t, s, DictRegion, "四川省", "重庆市")
 
 	cd, err := s.SaveResource(Resource{Code: "C20", Kind: "材料", Title: "商品混凝土", Spec: "C20", Unit: "m³",
-		Region: "成都市区", CurrentPrice: 430, BasePrice: 430})
+		Region: "四川省", CurrentPrice: 430, BasePrice: 430})
 	if err != nil {
 		t.Fatalf("成都行落库失败: %v", err)
 	}
 	cq, err := s.SaveResource(Resource{Code: "CL0007", Kind: "材料", Title: "商品混凝土", Spec: "C20", Unit: "m³",
-		Region: "重庆中心城区", CurrentPrice: 455, BasePrice: 455})
+		Region: "重庆市", CurrentPrice: 455, BasePrice: 455})
 	if err != nil {
 		t.Fatalf("重庆行落库失败: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestResourceRegionIsIdentity(t *testing.T) {
 	}
 	// 同地区同身份再存：复用该行，编码保留原值（入参带另一个码也不换锚点）。
 	again, err := s.SaveResource(Resource{Code: "OTHER", Kind: "材料", Title: "商品混凝土", Spec: "C20", Unit: "m³",
-		Region: "成都市区", CurrentPrice: 435})
+		Region: "四川省", CurrentPrice: 435})
 	if err != nil || again.ID != cd.ID || again.Code != "C20" {
 		t.Fatalf("同地区同身份应复用且保留原码：id=%d code=%s err=%v", again.ID, again.Code, err)
 	}
@@ -150,5 +150,69 @@ func TestFreeResourceCode(t *testing.T) {
 	}
 	if got, _ := s.FreeResourceCode("L09"); got != "L09" {
 		t.Fatalf("未占用的码应原样返回，得到 %s", got)
+	}
+}
+
+// TestNormalizeRegion 地区只到省（2026-11-27 拍板）：全称、去尾缀简称、「省/市」两级
+// 写法收成省级；市县名与别名简称不收——不能下分。
+func TestNormalizeRegion(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"四川省", "四川省", true},
+		{"  四川  ", "四川省", true},
+		{"四川省/成都市", "四川省", true},
+		{"四川/成都/武侯区", "四川省", true},
+		{"重庆市", "重庆市", true},
+		{"内蒙古自治区", "内蒙古自治区", true},
+		{"内蒙古", "内蒙古自治区", true},
+		{"新疆", "新疆维吾尔自治区", true},
+		{"香港", "香港特别行政区", true},
+		{"黑龙江省", "黑龙江省", true},
+		{"", "", true}, // 空=待整理
+		{"成都市区", "", false},
+		{"成都", "", false},
+		{"乐山市", "", false},
+		{"皖A", "", false},
+		{"川", "", false},
+	}
+	for _, c := range cases {
+		got, ok := NormalizeRegion(c.in)
+		if ok != c.ok || got != c.want {
+			t.Errorf("NormalizeRegion(%q) = (%q, %v)，想得 (%q, %v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+// TestCheckRegionProvincesOnly checkRegion 在归一后过字典：省名不在字典里照旧拒
+// （新省份走 dict add，需用户确认）；下分写法在门口就被收掉或拒掉。
+func TestCheckRegionProvincesOnly(t *testing.T) {
+	s, cleanup := newWorkcostStore(t)
+	defer cleanup()
+	seedDict(t, s, DictRegion, "四川省")
+
+	if got, err := s.checkRegion("四川省/成都市", "测试"); err != nil || got != "四川省" {
+		t.Fatalf("下分写法应收成省名: got=%q err=%v", got, err)
+	}
+	if _, err := s.checkRegion("成都市区", "测试"); err == nil || !strings.Contains(err.Error(), "不是省级行政区") {
+		t.Fatalf("市名应被拒并道出只到省，err=%v", err)
+	}
+	if _, err := s.checkRegion("广东省", "测试"); err == nil || !strings.Contains(err.Error(), "不在地区字典里") {
+		t.Fatalf("省名不在字典里照旧拒收，err=%v", err)
+	}
+	if got, err := s.checkRegion("", "测试"); err != nil || got != "" {
+		t.Fatalf("空=待整理放行: got=%q err=%v", got, err)
+	}
+	// DictAdd 地区只收省：市名进不了字典。
+	if err := s.DictAdd(DictItem{Kind: DictRegion, Name: "乐山市"}); err == nil || !strings.Contains(err.Error(), "不能下分") {
+		t.Fatalf("字典新增市级名应被拒，err=%v", err)
+	}
+	if err := s.DictAdd(DictItem{Kind: DictRegion, Name: "广东省"}); err != nil {
+		t.Fatalf("字典新增省名应通过: %v", err)
+	}
+	if got, err := s.checkRegion("广东/广州", "测试"); err != nil || got != "广东省" {
+		t.Fatalf("入库后省名两极写法放行: got=%q err=%v", got, err)
 	}
 }

@@ -172,14 +172,15 @@ func (s *Store) ValidateResource(r *Resource) error {
 	}
 	r.Spec = strings.TrimSpace(r.Spec)
 	r.Unit = strings.TrimSpace(r.Unit)
-	r.Region = strings.TrimSpace(r.Region)
 	r.CategoryPath = strings.TrimSpace(r.CategoryPath)
 	if !isKnownKind(r.Kind) {
 		return fmt.Errorf("工料机「%s」的类别「%s」不在 人工/材料/机械/外委 之内", r.Title, r.Kind)
 	}
-	if err := s.checkDict(DictRegion, r.Region, "工料机地区"); err != nil {
+	region, err := s.checkRegion(r.Region, "工料机地区")
+	if err != nil {
 		return err
 	}
+	r.Region = region // 归一后的省级全称落行（「四川省/成都市」这类下分写法门口收掉）
 	if err := s.checkDict(DictCategory, r.CategoryPath, "工料机分类"); err != nil {
 		return err
 	}
@@ -192,20 +193,20 @@ func (s *Store) ValidateResource(r *Resource) error {
 }
 
 // CheckPrice 一次调价的口径校验（UpdateResourcePrice 与演练共用）：期数归一成
-// YYYY-MM；地区必须在字典里；工料机按地区分行，一条行只代表一个地区的价——行上
-// 已归属别的地区则拒绝。返回归一后的期数。
+// YYYY-MM；地区只到省（门口归一，见 checkRegion）；工料机按地区分行，一条行只
+// 代表一个地区的价——行上已归属别的地区则拒绝。返回归一后的期数。
 func (s *Store) CheckPrice(r *Resource, period, region string) (string, error) {
 	normalized, err := checkPeriod(period, "调价期数")
 	if err != nil {
 		return "", err
 	}
-	region = strings.TrimSpace(region)
-	if err := s.checkDict(DictRegion, region, "调价地区"); err != nil {
+	province, err := s.checkRegion(region, "调价地区")
+	if err != nil {
 		return "", err
 	}
-	if region != "" && r.Region != "" && region != r.Region {
+	if province != "" && r.Region != "" && province != r.Region {
 		return "", fmt.Errorf("工料机 %s「%s」已归属地区「%s」，不能记「%s」的价——请给「%s」的那条工料机记价（库里没有就先 save_resource 新建）",
-			r.Code, r.Title, r.Region, region, region)
+			r.Code, r.Title, r.Region, province, province)
 	}
 	return normalized, nil
 }
@@ -667,8 +668,8 @@ func (s *Store) RecordPriceFact(resourceID int64, price float64, period, region,
 		return err
 	}
 	period = normalized
-	region = strings.TrimSpace(region)
-	if err := s.checkDict(DictRegion, region, "价格地区"); err != nil {
+	region, err = s.checkRegion(region, "价格地区")
+	if err != nil {
 		return err
 	}
 	now := nowText()
@@ -763,13 +764,14 @@ func (s *Store) ValidateQuota(q *Quota) error {
 		return fmt.Errorf("消耗定额需要名称")
 	}
 	q.Specialty = strings.TrimSpace(q.Specialty)
-	q.Region = strings.TrimSpace(q.Region)
 	if err := s.checkDict(DictSpecialty, q.Specialty, "定额专业"); err != nil {
 		return err
 	}
-	if err := s.checkDict(DictRegion, q.Region, "定额地区"); err != nil {
+	region, err := s.checkRegion(q.Region, "定额地区")
+	if err != nil {
 		return err
 	}
+	q.Region = region // 归一后的省级全称落行（地区只到省，不能下分）
 	period, err := checkPeriod(q.PriceDate, "定额价格期数")
 	if err != nil {
 		return err

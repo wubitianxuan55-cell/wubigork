@@ -136,26 +136,28 @@ func boolToInt(b bool) int {
 // ValidateProjectScope 项目口径过规矩（规矩见 rules.go）：专业、地区必须在字典里
 // （空=待整理），计价期归一成 YYYY-MM。返回归一后的计价期。建项目与改口径都先过它
 // ——口径被拒时不留半截封面。
-func (s *Store) ValidateProjectScope(specialty, region, pricePeriod string) (string, error) {
-	if err := s.requireDB(); err != nil {
-		return "", err
+func (s *Store) ValidateProjectScope(specialty, region, pricePeriod string) (period, province string, err error) {
+	if err = s.requireDB(); err != nil {
+		return "", "", err
 	}
-	if err := s.checkDict(DictSpecialty, strings.TrimSpace(specialty), "项目专业"); err != nil {
-		return "", err
+	if err = s.checkDict(DictSpecialty, strings.TrimSpace(specialty), "项目专业"); err != nil {
+		return "", "", err
 	}
-	if err := s.checkDict(DictRegion, strings.TrimSpace(region), "项目地区"); err != nil {
-		return "", err
+	// 地区只到省（不能下分）：门口归一成省级全称，调用方落归一值。
+	if province, err = s.checkRegion(region, "项目地区"); err != nil {
+		return "", "", err
 	}
-	return checkPeriod(pricePeriod, "项目计价期")
+	period, err = checkPeriod(pricePeriod, "项目计价期")
+	return period, province, err
 }
 
 // UpdateBillProjectProfile 改项目的专业/地区/计价期（空=保持原值）。三个都是规范
-// 值（规矩见 rules.go）：专业、地区必须在字典里，计价期归一成 YYYY-MM。
+// 值（规矩见 rules.go）：专业在字典里，地区只到省（门口归一），计价期归一成 YYYY-MM。
 func (s *Store) UpdateBillProjectProfile(id int64, specialty, region, pricePeriod string) error {
 	if err := s.requireDB(); err != nil {
 		return err
 	}
-	period, err := s.ValidateProjectScope(specialty, region, pricePeriod)
+	period, province, err := s.ValidateProjectScope(specialty, region, pricePeriod)
 	if err != nil {
 		return err
 	}
@@ -164,7 +166,7 @@ func (s *Store) UpdateBillProjectProfile(id int64, specialty, region, pricePerio
   region=COALESCE(NULLIF(?,''), region),
   price_period=COALESCE(NULLIF(?,''), price_period),
   updated_at=?
-WHERE id=?`, specialty, region, period, time.Now().Format(time.RFC3339), id)
+WHERE id=?`, specialty, province, period, time.Now().Format(time.RFC3339), id)
 	return err
 }
 

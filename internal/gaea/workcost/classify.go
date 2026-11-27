@@ -5,7 +5,7 @@ package workcost
 //
 //   - Dims         维度盘点（只读）：字典里有什么、库里现在怎么分布、还有多少
 //                  待整理。模型归类前先看它对齐叫法，不另造新词。
-//   - Classify     批量整理归类：项目/清单/定额/工料机的专业、分部、章节、分类、
+//   - Classify     批量整理归类：项目/清单/定额/工料机的专业、分部、分类、
 //                  地区、期数。预览与落库共用同一套校验与冲突判定；落库整批一个
 //                  事务。定额专业固定——只补空值或纠错，纠错以引用它的清单项为准。
 //   - BorrowQuota  借鉴生成：本专业没有可用定额时，以外专业定额为底生成本专业的
@@ -47,7 +47,7 @@ type DimProject struct {
 	ItemCount   int    `json:"itemCount"`
 }
 
-// DimChapter 定额章节分布（专业内）。
+// DimChapter 定额分部分布（专业内）。
 type DimChapter struct {
 	Specialty string `json:"specialty"`
 	Chapter   string `json:"chapter"`
@@ -67,7 +67,7 @@ type PendingCounts struct {
 	ProjectSpecialty int `json:"projectSpecialty"` // 项目未标专业
 	BillSpecialty    int `json:"billSpecialty"`    // 清单行归一后仍无专业
 	QuotaSpecialty   int `json:"quotaSpecialty"`   // 定额未标专业
-	QuotaChapter     int `json:"quotaChapter"`     // 定额未归章节
+	QuotaChapter     int `json:"quotaChapter"`     // 定额未归分部
 	ResourceRegion   int `json:"resourceRegion"`   // 工料机未标地区
 	ResourceCategory int `json:"resourceCategory"` // 工料机未细分
 	ResourcePeriod   int `json:"resourcePeriod"`   // 工料机现行价没有期
@@ -226,7 +226,7 @@ var PendingSampleKeys = []PendingSamplesKey{
 	{"ProjectSpecialty", "项目未标专业"},
 	{"BillSpecialty", "清单无专业"},
 	{"QuotaSpecialty", "定额未标专业"},
-	{"QuotaChapter", "定额未归章节"},
+	{"QuotaChapter", "定额未归分部"},
 	{"ResourceRegion", "工料机未标地区"},
 	{"ResourceCategory", "工料机未细分"},
 	{"ResourcePeriod", "工料机无期数"},
@@ -350,7 +350,7 @@ type ClassifyBill struct {
 	Division  string `json:"division"`
 }
 
-// ClassifyQuota 定额的专业与章节。专业固定：只补空值，或按引用它的清单项纠错。
+// ClassifyQuota 定额的专业与分部。专业固定：只补空值，或按引用它的清单项纠错。
 type ClassifyQuota struct {
 	Code      string `json:"code"`
 	Specialty string `json:"specialty"`
@@ -369,7 +369,7 @@ type ClassifyResource struct {
 
 // ClassifySummary 按目标值汇总的一行（回执直接转述）。
 type ClassifySummary struct {
-	Dimension string `json:"dimension"` // 项目专业 / 清单专业 / 定额章节 / 工料机分类 …
+	Dimension string `json:"dimension"` // 项目专业 / 清单专业 / 定额分部 / 工料机分类 …
 	Value     string `json:"value"`
 	Count     int    `json:"count"`
 }
@@ -454,9 +454,20 @@ func (s *Store) classify(plan ClassifyPlan, write bool) (*ClassifyResult, error)
 			continue
 		}
 		type field struct{ col, val, dim, label string }
+		// 地区只到省：项目归类同样在门口归一成省级全称（「四川省/成都市」→「四川省」）。
+		projectRegion := strings.TrimSpace(in.Region)
+		if projectRegion != "" {
+			p, ok := NormalizeRegion(projectRegion)
+			if !ok {
+				conflict("project", fmt.Sprintf("#%d", in.ID), name, "region", projectRegion,
+					fmt.Sprintf("地区「%s」不是省级行政区——地区只到省，写省名（如 四川省、内蒙古自治区）", projectRegion))
+				continue
+			}
+			projectRegion = p
+		}
 		fields := []field{
 			{"specialty", strings.TrimSpace(in.Specialty), "项目专业", "专业"},
-			{"region", strings.TrimSpace(in.Region), "项目地区", "地区"},
+			{"region", projectRegion, "项目地区", "地区"},
 			{"price_period", strings.TrimSpace(in.PricePeriod), "项目计价期", "期数"},
 		}
 		bad := ""
@@ -573,7 +584,7 @@ func (s *Store) classify(plan ClassifyPlan, write bool) (*ClassifyResult, error)
 				return nil, err
 			}
 			if n, _ := out.RowsAffected(); n > 0 {
-				count("定额章节·"+cur, ch)
+				count("定额分部·"+cur, ch)
 				changed = true
 			}
 		}
@@ -629,23 +640,29 @@ func (s *Store) classify(plan ClassifyPlan, write bool) (*ClassifyResult, error)
 				changed = true
 			}
 		}
-		if rg := strings.TrimSpace(in.Region); rg != "" {
-			probe := *r
-			probe.Region = rg
-			switch {
-			case r.Region != "" && r.Region != rg:
-				fail("region", rg, fmt.Sprintf("工料机已归属地区「%s」——地区是身份的一部分，不改；要「%s」的请另建一条或 dedupe 合并", r.Region, rg))
-			default:
-				if reason := checkValue("地区", rg); reason != "" {
-					fail("region", rg, reason)
-				} else if reason := s.identityFree(ex, probe, r.ID); reason != "" {
-					fail("region", rg, reason)
-				} else if _, err := ex.Exec(`UPDATE gf_resources SET region=?, updated_at=? WHERE id=?`, rg, now, r.ID); err != nil {
-					return nil, err
-				} else {
-					count("工料机地区", rg)
-					r.Region = rg
-					changed = true
+		if raw := strings.TrimSpace(in.Region); raw != "" {
+			// 地区只到省（不能下分）：门口先归一成省级全称，再走身份与字典校验。
+			rg, ok := NormalizeRegion(raw)
+			if !ok {
+				fail("region", raw, fmt.Sprintf("地区「%s」不是省级行政区——地区只到省，写省名（如 四川省、内蒙古自治区）", raw))
+			} else {
+				probe := *r
+				probe.Region = rg
+				switch {
+				case r.Region != "" && r.Region != rg:
+					fail("region", rg, fmt.Sprintf("工料机已归属地区「%s」——地区是身份的一部分，不改；要「%s」的请另建一条或 dedupe 合并", r.Region, rg))
+				default:
+					if reason := checkValue("地区", rg); reason != "" {
+						fail("region", rg, reason)
+					} else if reason := s.identityFree(ex, probe, r.ID); reason != "" {
+						fail("region", rg, reason)
+					} else if _, err := ex.Exec(`UPDATE gf_resources SET region=?, updated_at=? WHERE id=?`, rg, now, r.ID); err != nil {
+						return nil, err
+					} else {
+						count("工料机地区", rg)
+						r.Region = rg
+						changed = true
+					}
 				}
 			}
 		}

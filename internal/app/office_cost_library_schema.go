@@ -31,7 +31,7 @@ const clSchemaCoreA = `{
   "name":{"type":"string","description":"字典项名称（dict_add/dict_update/dict_delete 用；分类=完整路径，如 材料/土建材料/钢材，新增分类要先有上级路径）"},
   "rename":{"type":"string","description":"dict_update：改成什么名字"},
   "code":{"type":"string","description":"专业的标准代码（dict_add/dict_update 可选，如国标清单专业代码 04=市政），机检清单编码专业段用"},
-  "parent":{"type":"string","description":"上级字典项（dict_add/dict_update 可选；地区：省→市→价格区）"},
+  "parent":{"type":"string","description":"上级字典项（dict_add/dict_update 可选；仅分类有层级；地区是平铺的省级行政区，无上级）"},
   "level":{"type":"integer","description":"层级（dict_add 可选，1=顶级）"},
   "sort":{"type":"integer","description":"排序（dict_update 可选）"},
   "quota":{"type":"object","description":"定额（save_quota 必填）","properties":{
@@ -39,7 +39,7 @@ const clSchemaCoreA = `{
     "title":{"type":"string","description":"定额名称"},
     "unit":{"type":"string","description":"计量单位"},
     "specialty":{"type":"string","description":"专业（字典值；新建定额时给。已有定额的专业固定，不改）"},
-    "chapter":{"type":"string","description":"章节（本专业内的册章，归到已有章节叫法上）"},
+    "chapter":{"type":"string","description":"分部（本专业内的分部，归到已有分部叫法上；字段名沿用 chapter）"},
     "category_path":{"type":"string","description":"分类路径"},
     "source":{"type":"string","description":"来源（手工录入/企业定额…）"},
     "note":{"type":"string","description":"备注"},
@@ -62,7 +62,7 @@ const clSchemaCoreA = `{
     "category_path":{"type":"string","description":"分类路径"},
     "source":{"type":"string","description":"来源：信息价/市场询价/企业定额"},
     "supplier":{"type":"string","description":"供应商"},
-    "region":{"type":"string","description":"地区（字典值；空=待整理。工料机按地区分行：同一种材料每个地区一行）"},
+    "region":{"type":"string","description":"省份=省级行政区（如 四川省；只到省、不能下分；空=待整理。工料机按省分行：同一种材料每个省一行）"},
     "price_date":{"type":"string","description":"现行价的期数，YYYY-MM，如 2026-06"},
     "price_type":{"type":"string","description":"价格口径：到场价/信息价/含税…"},
     "valid_until":{"type":"string","description":"有效期至（YYYY-MM-DD，可空）"},
@@ -76,7 +76,7 @@ const clSchemaCoreA = `{
   "price":{"type":"number","description":"新单价（set_price 必填，元）"},
   "price_type":{"type":"string","description":"调价口径（set_price 可选，默认 到场价）"},
   "period":{"type":"string","description":"期数，YYYY-MM（set_price/import_project 可选；import_project 不给=导入当月）。信息价期数请换算成年月"},
-  "region":{"type":"string","description":"地区（字典值）。set_price=这条价的地区；import_project=项目所在地区，工料机按它分行"},
+  "region":{"type":"string","description":"省份=省级行政区（如 四川省；只到省、不能下分）。set_price=这条价的省份；import_project=项目所在省份，工料机按它分行"},
   "specialty":{"type":"string","description":"专业（字典值）。import_project=项目默认专业，本次新建的定额专业随它；flywheel=只生成该专业的候选（同词干多专业时必给）；borrow_quota=目标专业"},
   "note":{"type":"string","description":"调价依据（set_price 可选）"},
   "control_price":{"type":"number","description":"import_project 可选：显式控制价（元），覆盖费用汇总里读到的值"},
@@ -86,7 +86,7 @@ const clSchemaCoreA = `{
     "unit":{"type":"string","description":"单位（给了就参与精确匹配）"},
     "price":{"type":"number","description":"新单价（元）"},
     "period":{"type":"string","description":"期数"},
-    "region":{"type":"string","description":"地区"},
+    "region":{"type":"string","description":"省份（省级行政区，如 四川省）"},
     "note":{"type":"string","description":"备注"}
   }}},
   "codes":{"type":"array","items":{"type":"string"},"description":"编码列表：delete_quota 填定额编码；delete_resource 填工料机编码"},
@@ -104,7 +104,7 @@ const clClassifySchema = `  "classify":{"type":"object","description":"批量整
     "projects":{"type":"array","items":{"type":"object","properties":{
       "id":{"type":"integer","description":"项目 id（必填）"},
       "specialty":{"type":"string","description":"项目默认专业（字典值）"},
-      "region":{"type":"string","description":"项目所在地区（字典值）"},
+      "region":{"type":"string","description":"项目所在省份（省级行政区，如 四川省）"},
       "price_period":{"type":"string","description":"计价期，YYYY-MM"}
     }}},
     "bills":{"type":"array","items":{"type":"object","properties":{
@@ -115,13 +115,13 @@ const clClassifySchema = `  "classify":{"type":"object","description":"批量整
     "quotas":{"type":"array","items":{"type":"object","properties":{
       "code":{"type":"string","description":"定额编码（必填）"},
       "specialty":{"type":"string","description":"专业——定额专业固定：只补空值，或按引用它的清单项纠错；对不上会进冲突清单，改用 borrow_quota"},
-      "chapter":{"type":"string","description":"章节（本专业内的册章）"}
+      "chapter":{"type":"string","description":"分部（本专业内的分部；字段名沿用 chapter）"}
     }}},
     "resources":{"type":"array","items":{"type":"object","properties":{
       "code":{"type":"string","description":"工料机编码（必填）"},
       "kind":{"type":"string","description":"类别，只在原类别不是四类之一时纠错"},
       "category_path":{"type":"string","description":"分类路径（字典值，如 材料/土建材料/钢材）"},
-      "region":{"type":"string","description":"地区（字典值；只能给未标注地区的工料机补）"},
+      "region":{"type":"string","description":"省份（省级行政区；只能给未标注地区的工料机补）"},
       "period":{"type":"string","description":"现行价的期数 YYYY-MM（只能给还没有期的工料机补）"}
     }}}
   }},
@@ -148,7 +148,7 @@ const clImportHeadSchema = `
     "name":{"type":"string","description":"项目名（要提交清单行就必须给）"},
     "file_name":{"type":"string","description":"资料文件名"},
     "location":{"type":"string","description":"封面地址（自由文本）"},
-    "region":{"type":"string","description":"项目所在地区（字典值）——工料机按地区分行，行里没给地区时用它"},
+    "region":{"type":"string","description":"项目所在省份（省级行政区，如 四川省）——工料机按省分行，行里没给地区时用它"},
     "specialty":{"type":"string","description":"项目默认专业（字典值）——定额行没给专业时用它"},
     "price_period":{"type":"string","description":"计价期 YYYY-MM——行里没给期时用它"},
     "duration":{"type":"string","description":"工期"},
@@ -178,7 +178,7 @@ const clImportRowsSchema = `  "resources":{"type":"array","description":"import_
     "unit":{"type":"string","description":"单位"},
     "price":{"type":"number","description":"单价（同时作基准价与现行价）"},
     "category_path":{"type":"string","description":"分类路径（字典值；空=待整理）"},
-    "region":{"type":"string","description":"地区（字典值；不给=项目地区）"},
+    "region":{"type":"string","description":"省份（省级行政区；不给=项目地区）"},
     "period":{"type":"string","description":"现行价的期 YYYY-MM（不给=项目计价期）"},
     "price_type":{"type":"string","description":"价格口径：到场价/信息价/含税…"},
     "source":{"type":"string","description":"价格来源"},
@@ -191,7 +191,7 @@ const clImportRowsSchema = `  "resources":{"type":"array","description":"import_
     "title":{"type":"string","description":"名称（必填）"},
     "unit":{"type":"string","description":"计量单位"},
     "specialty":{"type":"string","description":"专业（字典值；不给=项目专业）"},
-    "chapter":{"type":"string","description":"章节"},
+    "chapter":{"type":"string","description":"分部（专业内；字段名沿用 chapter）"},
     "category_path":{"type":"string","description":"分类路径"},
     "source":{"type":"string","description":"来源"},
     "note":{"type":"string","description":"备注"},

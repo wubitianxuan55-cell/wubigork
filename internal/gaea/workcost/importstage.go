@@ -89,6 +89,7 @@ type ImportQuota struct {
 	Chapter      string            `json:"chapter"`
 	CategoryPath string            `json:"category_path"`
 	Source       string            `json:"source"`
+	Region       string            `json:"region"` // 不给=项目所在地区（定额地区与上游项目挂钩）
 	Note         string            `json:"note"`
 	Items        []ImportQuotaItem `json:"items"`
 	Src          *ImportSrc        `json:"src"`
@@ -234,12 +235,12 @@ func (s *Store) OpenImport(sourcePath string, project ImportProject, controls Im
 	if err := s.requireDB(); err != nil {
 		return nil, err
 	}
-	period, err := s.ValidateProjectScope(project.Specialty, project.Region, project.PricePeriod)
+	period, region, err := s.ValidateProjectScope(project.Specialty, project.Region, project.PricePeriod)
 	if err != nil {
 		return nil, fmt.Errorf("导入口径不合规矩：%w", err)
 	}
 	project.Name = strings.TrimSpace(project.Name)
-	project.Region = strings.TrimSpace(project.Region)
+	project.Region = region // 归一后的省级全称（地区只到省）：会话与暂存落库全用省名
 	project.Specialty = strings.TrimSpace(project.Specialty)
 	return &ImportSession{
 		ID: fmt.Sprintf("imp-%d", importSeq.Add(1)), SourcePath: strings.TrimSpace(sourcePath),
@@ -427,6 +428,7 @@ func (imp *ImportSession) quotaOf(s *Store, in ImportQuota) (*Quota, []string) {
 		Chapter:      strings.TrimSpace(in.Chapter),
 		CategoryPath: strings.TrimSpace(in.CategoryPath),
 		Source:       firstNonEmpty(strings.TrimSpace(in.Source), imp.defaultSource()),
+		Region:       firstNonEmpty(strings.TrimSpace(in.Region), imp.Region),
 		Note:         strings.TrimSpace(in.Note),
 	}
 	var reasons []string

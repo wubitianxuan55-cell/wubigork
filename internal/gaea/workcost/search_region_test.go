@@ -11,10 +11,10 @@ import (
 func TestSearch_RegionFilterAndCounts(t *testing.T) {
 	s, _, cleanup := searchStore(t)
 	defer cleanup()
-	seedDict(t, s, DictRegion, "重庆")
+	seedDict(t, s, DictRegion, "四川省", "重庆市")
 	for _, r := range []Resource{
-		{Code: "C20-CD", Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "成都", CurrentPrice: 430},
-		{Code: "C20-CQ", Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "重庆", CurrentPrice: 455},
+		{Code: "C20-CD", Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "四川省", CurrentPrice: 430},
+		{Code: "C20-CQ", Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "重庆市", CurrentPrice: 455},
 	} {
 		if _, err := s.SaveResource(r); err != nil {
 			t.Fatalf("建 %s 失败: %v", r.Code, err)
@@ -34,8 +34,8 @@ func TestSearch_RegionFilterAndCounts(t *testing.T) {
 		q    SearchQuery
 		want string
 	}{
-		{"列表路按地区过滤", SearchQuery{Region: "成都"}, "C20-CD,"},
-		{"关键词路也按地区过滤", SearchQuery{Text: "混凝土", Region: "重庆"}, "C20-CQ,"},
+		{"列表路按地区过滤", SearchQuery{Region: "四川省"}, "C20-CD,"},
+		{"关键词路也按地区过滤", SearchQuery{Text: "混凝土", Region: "重庆市"}, "C20-CQ,"},
 		{"不给地区：各地区的行都在", SearchQuery{Text: "混凝土"}, "C20-CD,C20-CQ,"},
 		{"「全部」等于不过滤", SearchQuery{Region: "全部"}, "C20-CD,C20-CQ,"},
 	}
@@ -51,8 +51,8 @@ func TestSearch_RegionFilterAndCounts(t *testing.T) {
 		})
 	}
 
-	if n, err := s.CountResources("", "成都"); err != nil || n != 1 {
-		t.Fatalf("成都的工料机应 1 条: %d %v", n, err)
+	if n, err := s.CountResources("", "四川省"); err != nil || n != 1 {
+		t.Fatalf("四川省的工料机应 1 条: %d %v", n, err)
 	}
 	if n, err := s.CountResources("材料", ""); err != nil || n != 2 {
 		t.Fatalf("材料的工料机应 2 条: %d %v", n, err)

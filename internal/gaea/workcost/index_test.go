@@ -211,7 +211,7 @@ func TestIndexDirtyMarking_DriveIncrementalReconcile(t *testing.T) {
 	})
 	s := Open(gdb)
 	seedDict(t, s, DictSpecialty, "市政")
-	seedDict(t, s, DictRegion, "成都")
+	seedDict(t, s, DictRegion, "四川省")
 	emb := &indexEmbedder{}
 	ix := vecindex.NewIndexer(vecindex.Open(gdb), "bge-m3", func() vecindex.Embedder { return emb },
 		s.IndexSources(), IndexKinds...)
@@ -249,7 +249,7 @@ func TestIndexDirtyMarking_DriveIncrementalReconcile(t *testing.T) {
 
 	// 调价：写的是价格表 + 工料机表的现价列，正文没变 → 对账跑了但不重嵌
 	emb.reset()
-	if _, err := s.UpdateResourcePrice(sand.ID, 130, "2026-11", "成都", "信息价", "测试", ""); err != nil {
+	if _, err := s.UpdateResourcePrice(sand.ID, 130, "2026-11", "四川省", "信息价", "测试", ""); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(150 * time.Millisecond)

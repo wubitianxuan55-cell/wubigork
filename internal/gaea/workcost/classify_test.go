@@ -55,9 +55,9 @@ func TestApplyProjectBundle_RegionsFactsAndCodeAlias(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
 	seedDict(t, s, DictSpecialty, "土壤修复")
-	seedDict(t, s, DictRegion, "成都市区", "重庆中心城区")
+	seedDict(t, s, DictRegion, "四川省", "重庆市")
 
-	b := sampleBundle("测试项目", "t.xlsx", "土壤修复", "成都市区", "2026-06", 180)
+	b := sampleBundle("测试项目", "t.xlsx", "土壤修复", "四川省", "2026-06", 180)
 	b.Resources = append(b.Resources, ProjectResource{Code: "BAD", Kind: "一段备注文字", Title: "脏类别", Unit: "项", Price: 1})
 	res := s.ApplyProjectBundle(b)
 	if res.ResourceNew != 2 || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "已拒收") {
@@ -67,7 +67,7 @@ func TestApplyProjectBundle_RegionsFactsAndCodeAlias(t *testing.T) {
 		t.Fatalf("应记 2 条价格事实，得到 %d", res.PriceFacts)
 	}
 	projects, _ := s.BillProjects()
-	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "成都市区" || projects[0].PricePeriod != "2026-06" {
+	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "四川省" || projects[0].PricePeriod != "2026-06" {
 		t.Fatalf("项目口径应随导入落库，得到 %+v", projects)
 	}
 	items, _ := s.BillItems(projects[0].ID)
@@ -83,21 +83,21 @@ func TestApplyProjectBundle_RegionsFactsAndCodeAlias(t *testing.T) {
 	}
 	l01, _ := s.GetResourceByCode("L01")
 	facts, _ := s.ResourcePrices(l01.ID)
-	if len(facts) != 1 || facts[0].Price != 180 || facts[0].Period != "2026-06" || facts[0].Region != "成都市区" {
+	if len(facts) != 1 || facts[0].Price != 180 || facts[0].Period != "2026-06" || facts[0].Region != "四川省" {
 		t.Fatalf("价格事实应记 价 + 期 + 地区，得到 %+v", facts)
 	}
 
 	// 同一份表按重庆再导：工料机另立重庆的行，编码消歧，含量行跟着改指。
-	cq := sampleBundle("测试项目", "t.xlsx", "土壤修复", "重庆中心城区", "2026-07", 200)
+	cq := sampleBundle("测试项目", "t.xlsx", "土壤修复", "重庆市", "2026-07", 200)
 	res = s.ApplyProjectBundle(cq)
 	if res.ResourceNew != 2 || res.ResourceUpd != 0 || res.ResourceRenamed != 2 {
 		t.Fatalf("重庆再导应新立 2 行、消歧 2 个码，得到 %+v", res)
 	}
 	cqL01, err := s.GetResourceByCode("L01-2")
-	if err != nil || cqL01.Region != "重庆中心城区" || cqL01.CurrentPrice != 200 {
+	if err != nil || cqL01.Region != "重庆市" || cqL01.CurrentPrice != 200 {
 		t.Fatalf("重庆的人工应落在 L01-2，得到 %+v err=%v", cqL01, err)
 	}
-	if cd, _ := s.GetResourceByCode("L01"); cd.CurrentPrice != 180 || cd.Region != "成都市区" {
+	if cd, _ := s.GetResourceByCode("L01"); cd.CurrentPrice != 180 || cd.Region != "四川省" {
 		t.Fatalf("成都的价不应被重庆的导入顶掉，得到 %+v", cd)
 	}
 	q, _ = s.GetQuota("WP01")
@@ -111,8 +111,8 @@ func TestApplyProjectBundle_RegionsFactsAndCodeAlias(t *testing.T) {
 		t.Fatalf("换码后不应有悬挂引用，得到 %+v", hl.BrokenRef)
 	}
 	facts, _ = s.ResourcePrices(cqL01.ID)
-	if len(facts) != 1 || facts[0].Period != "2026-07" || facts[0].Region != "重庆中心城区" {
-		t.Fatalf("重庆行的价格事实应记 2026-07 / 重庆中心城区，得到 %+v", facts)
+	if len(facts) != 1 || facts[0].Period != "2026-07" || facts[0].Region != "重庆市" {
+		t.Fatalf("重庆行的价格事实应记 2026-07 / 重庆市，得到 %+v", facts)
 	}
 	// 同簿同期重导：价格事实不堆重复行。
 	total := func() int {
@@ -200,7 +200,7 @@ func TestClassify(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
 	seedDict(t, s, DictSpecialty, "土壤修复")
-	seedDict(t, s, DictRegion, "成都市区")
+	seedDict(t, s, DictRegion, "四川省")
 	seedDict(t, s, DictCategory, "人工", "材料/混凝土")
 
 	s.ApplyProjectBundle(sampleBundle("修复项目", "a.xlsx", "", "", "", 180)) // 专业留空=待整理
@@ -211,13 +211,13 @@ func TestClassify(t *testing.T) {
 	c20, _ := s.GetResourceByCode("C20")
 
 	plan := ClassifyPlan{
-		Projects: []ClassifyProject{{ID: pid, Specialty: "土壤修复", Region: "成都市区", PricePeriod: "2026年6月"}},
+		Projects: []ClassifyProject{{ID: pid, Specialty: "土壤修复", Region: "四川省", PricePeriod: "2026年6月"}},
 		Bills:    []ClassifyBill{{ID: items[0].ID, Division: "垫层工程"}, {ID: 999999, Specialty: "土壤修复"}},
 		Quotas:   []ClassifyQuota{{Code: "WP01", Specialty: "土壤修复", Chapter: "混凝土工程"}, {Code: "NOPE", Chapter: "x"}},
 		Resources: []ClassifyResource{
 			{Code: "L01", CategoryPath: "人工", Region: "不在字典的地方"},
-			{Code: "C20", CategoryPath: "材料/混凝土", Region: "成都市区", Period: "2026年6月"},
-			{Code: "MISSING", Region: "成都市区"},
+			{Code: "C20", CategoryPath: "材料/混凝土", Region: "四川省", Period: "2026年6月"},
+			{Code: "MISSING", Region: "四川省"},
 		},
 	}
 	// 演练：校验与冲突照出，一行不写。
@@ -250,8 +250,8 @@ func TestClassify(t *testing.T) {
 	for _, sm := range done.Summary {
 		summary[sm.Dimension+"="+sm.Value] += sm.Count
 	}
-	for _, k := range []string{"项目专业=土壤修复", "项目地区=成都市区", "项目计价期=2026-06", "清单分部=垫层工程",
-		"定额专业=土壤修复", "定额章节·土壤修复=混凝土工程", "工料机分类=材料/混凝土", "工料机分类=人工", "工料机地区=成都市区", "工料机期数=2026-06"} {
+	for _, k := range []string{"项目专业=土壤修复", "项目地区=四川省", "项目计价期=2026-06", "清单分部=垫层工程",
+		"定额专业=土壤修复", "定额分部·土壤修复=混凝土工程", "工料机分类=材料/混凝土", "工料机分类=人工", "工料机地区=四川省", "工料机期数=2026-06"} {
 		if summary[k] != 1 {
 			t.Errorf("方案里应有「%s」1 条，得到 %+v", k, done.Summary)
 		}
@@ -522,7 +522,7 @@ func TestFlywheelScopesBySpecialty(t *testing.T) {
 func TestHealthRuleIssues(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
-	seedDict(t, s, DictRegion, "成都市区", "重庆中心城区")
+	seedDict(t, s, DictRegion, "四川省", "重庆市")
 	// 绕过存储层校验，直接摆出升级前形态的不合规数据。
 	for _, q := range []string{
 		`INSERT INTO gf_resources(code, kind, title, unit, price_date, tags) VALUES('X1','一段备注','脏类别','项','2026.4','[]')`,
@@ -547,10 +547,10 @@ func TestHealthRuleIssues(t *testing.T) {
 		}
 	}
 	// 同名资源分布在不同地区、编码风格不同：这是按地区分行的正常形态，不报编码未统一。
-	if _, err := s.SaveResource(Resource{Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "成都市区", Code: "C20"}); err != nil {
+	if _, err := s.SaveResource(Resource{Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "四川省", Code: "C20"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveResource(Resource{Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "重庆中心城区", Code: "P001"}); err != nil {
+	if _, err := s.SaveResource(Resource{Kind: KindMaterial, Title: "商品混凝土", Spec: "C20", Unit: "m³", Region: "重庆市", Code: "P001"}); err != nil {
 		t.Fatal(err)
 	}
 	rep, _ = s.HealthScan()
@@ -566,10 +566,10 @@ func TestDims(t *testing.T) {
 	s, cleanup := newWorkcostStore(t)
 	defer cleanup()
 	seedDict(t, s, DictSpecialty, "土壤修复")
-	seedDict(t, s, DictRegion, "成都市区")
+	seedDict(t, s, DictRegion, "四川省")
 	seedDict(t, s, DictCategory, "材料/混凝土")
 	s.ApplyProjectBundle(sampleBundle("修复项目", "a.xlsx", "", "", "", 180))
-	s.ApplyClassify(ClassifyPlan{Resources: []ClassifyResource{{Code: "C20", CategoryPath: "材料/混凝土", Region: "成都市区", Period: "2026-06"}}})
+	s.ApplyClassify(ClassifyPlan{Resources: []ClassifyResource{{Code: "C20", CategoryPath: "材料/混凝土", Region: "四川省", Period: "2026-06"}}})
 	d, err := s.Dims()
 	if err != nil {
 		t.Fatal(err)
