@@ -196,10 +196,13 @@ func TestPDFOCRTruncatedRange(t *testing.T) {
 		wantLast  int
 	}{
 		{"empty spec truncated", "", 3, 5, "1-3", true, 1, 3},
-		{"range capped", "1-5", 3, 5, "1-3", true, 1, 3},
 		{"range within cap", "2-3", 10, 5, "2-3", false, 2, 3},
 		{"single page", "3", 10, 5, "3", false, 3, 3},
 		{"no cap", "", 0, 5, "", false, 1, 5},
+	}
+	// 显式超限的区间不再静默裁剪，报错并给分段写法（2026-11-27 AI 反馈 #13）。
+	if _, _, err := capPageSpec("1-5", 3, 5); err == nil {
+		t.Fatal("显式 pages 超过单次上限应报错，而不是静默裁成 1-3")
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

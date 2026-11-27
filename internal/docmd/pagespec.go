@@ -10,28 +10,71 @@ import (
 	"strings"
 )
 
-// capPageSpec 应用 maxPages 上限（<=0 不限）到页码范围规格，返回收敛后的规格
-// 与是否截断。给定规格整体超出上限时返回错误，避免静默输出空文档。
+// capPageSpec 应用单次页数上限（<=0 不限）到页码范围规格，返回收敛后的规格
+// 与是否截断。
+//
+// 口径（2026-11-27 AI 反馈 #6/#13）：上限卡的是**单次请求的页数**，不是页码
+// 大小。此前卡的是「起始页 ≤ 上限」——676 页的扫描件转完前 500 页后，想用
+// pages=501-676 补转剩余部分会被拒（「请求页码超出转换上限」），唯一绕法是自装
+// pymupdf 拆文件。现在：不给 pages → 总页数超限时取前 maxPages 页并标记截断；
+// 给了 pages → 任意区间都行，只要区间里的页数 ≤ maxPages；超了报错并给出分段
+// 写法，不静默裁剪（静默裁剪 + 回执不报 = 残缺文本被当完整文本录进库）。
 func capPageSpec(spec string, maxPages, total int) (string, bool, error) {
 	if maxPages <= 0 {
 		return spec, false, nil
 	}
-	last := total
-	if spec != "" {
-		if f, l, ok := parsePageSpecBounds(spec); ok {
-			last = l
-			if f > maxPages {
-				return "", false, fmt.Errorf("请求页码超出转换上限（最大 %d 页）", maxPages)
-			}
+	if spec == "" {
+		if total > maxPages {
+			return fmt.Sprintf("1-%d", maxPages), true, nil
 		}
-	}
-	if last <= maxPages {
 		return spec, false, nil
 	}
-	if spec == "" {
-		return fmt.Sprintf("1-%d", maxPages), true, nil
+	f, l, ok := parsePageSpecBounds(spec)
+	if !ok {
+		return spec, false, nil // 解析不了：原样交给下游，由下游报页码写法错误
 	}
-	return clampPageSpec(spec, maxPages), true, nil
+	if n := pageSpecCount(spec, total); n > maxPages {
+		return "", false, fmt.Errorf("请求的页数 %d（pages=%s）超过单次上限 %d 页：请分段转换（如 pages=%d-%d、%d-%d），或加 all_pages=true 一次转完",
+			n, spec, maxPages, f, f+maxPages-1, f+maxPages, l)
+	}
+	return spec, false, nil
+}
+
+// pageSpecCount 规格在 total 页的文档里实际覆盖的页数（越界部分不计；total<=0
+// = 页数未知，按规格字面计）。
+func pageSpecCount(spec string, total int) int {
+	n := 0
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "-") {
+			ps := strings.SplitN(part, "-", 2)
+			var s, e int
+			if _, err := fmt.Sscanf(ps[0], "%d", &s); err != nil {
+				continue
+			}
+			e = s
+			if len(ps) > 1 {
+				if _, err := fmt.Sscanf(ps[1], "%d", &e); err != nil || e < s {
+					e = s
+				}
+			}
+			if total > 0 && e > total {
+				e = total
+			}
+			if s <= e && (total <= 0 || s <= total) {
+				n += e - s + 1
+			}
+			continue
+		}
+		var p int
+		if _, err := fmt.Sscanf(part, "%d", &p); err == nil && p >= 1 && (total <= 0 || p <= total) {
+			n++
+		}
+	}
+	return n
 }
 
 // parsePageSpecBounds 解析 "1-5"/"1,3,5"/"3" 得到覆盖的 (first,last)。
@@ -79,50 +122,6 @@ func parsePageSpecBounds(spec string) (first, last int, ok bool) {
 		return 1, 0, false
 	}
 	return first, last, true
-}
-
-// clampPageSpec 把 "1-3,7-9,11" 这类规格裁到 max 页以内，丢弃越界段。
-func clampPageSpec(spec string, max int) string {
-	var parts []string
-	for _, part := range strings.Split(spec, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if strings.Contains(part, "-") {
-			ps := strings.SplitN(part, "-", 2)
-			var s, e int
-			if _, err := fmt.Sscanf(ps[0], "%d", &s); err != nil {
-				continue
-			}
-			e = s
-			if len(ps) > 1 {
-				if _, err := fmt.Sscanf(ps[1], "%d", &e); err != nil {
-					e = s
-				}
-			}
-			if s > max {
-				continue
-			}
-			if e > max {
-				e = max
-			}
-			if s == e {
-				parts = append(parts, fmt.Sprintf("%d", s))
-			} else {
-				parts = append(parts, fmt.Sprintf("%d-%d", s, e))
-			}
-		} else {
-			var p int
-			if _, err := fmt.Sscanf(part, "%d", &p); err != nil {
-				continue
-			}
-			if p <= max {
-				parts = append(parts, fmt.Sprintf("%d", p))
-			}
-		}
-	}
-	return strings.Join(parts, ",")
 }
 
 // pageBounds 返回规格覆盖的 (first,last) 页边界（OCR 渲染范围用）。

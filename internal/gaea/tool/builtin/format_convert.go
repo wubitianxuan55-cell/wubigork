@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,7 +24,7 @@ type formatConvert struct{ workDir string }
 func (formatConvert) Name() string { return "format_convert" }
 
 func (formatConvert) Description() string {
-	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 带表格重建（脏 Word 自动展开合并网格、重拼折行、剔目录，回执带结构体检）；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。to=xlsx：把 PDF（清单 / 定额表 / 报价单）或图片、装着图片的目录转成 Excel 真表格（金额是真数值，定额编码带前导零存文本），必须给 output（.xlsx）。文字型 PDF 走本地引擎（约 0.6 秒/页）；扫描件 / 照片走 WPS 在线识别，默认开 ai_fix（数字零丢改，约 14 秒/页，一次最多 20 页，超出用 pages 分一段连续页）；ai_fix=false 快 8 倍但实测约 5% 数字格会丢改，只能要快不能取数。scanned=true/false 强制路线；per_page_sheet=true 一页一个工作表。回执列出疑似缺格的行（在线识别实测会漏掉工程量为 1 的格子），须对照原件抽检。to=docx：PDF 转 Word（WPS pdf2word，必须给 output=.docx；scanned 同 to=xlsx）。录方案库的 PDF 源必经此路——直转 Markdown 表格散架；转出的 Word 再转 md 时自动表格重建（合并展开/折行重拼/目录剔除），一般无须手工修格式；错字仍须对照 PDF 原件抽检。"
+	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 带表格重建（脏 Word 自动展开合并网格、重拼折行、剔目录，回执带结构体检）；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。to=xlsx：把 PDF（清单 / 定额表 / 报价单）或图片、装着图片的目录转成 Excel 真表格（金额是真数值，定额编码带前导零存文本），必须给 output（.xlsx）。文字型 PDF 走本地引擎（约 0.6 秒/页）；扫描件 / 照片走 WPS 在线识别，默认开 ai_fix（数字零丢改，约 14 秒/页，一次最多 20 页，超出用 pages 分一段连续页）；ai_fix=false 快 8 倍但实测约 5% 数字格会丢改，只能要快不能取数。scanned=true/false 强制路线；per_page_sheet=true 一页一个工作表。回执列出疑似缺格的行（在线识别实测会漏掉工程量为 1 的格子），须对照原件抽检。to=docx：PDF 转 Word（WPS pdf2word，必须给 output=.docx；scanned 同 to=xlsx）。录方案库的 PDF 源必经此路——直转 Markdown 表格散架；转出的 Word 再转 md 时自动表格重建（合并展开/折行重拼/目录剔除），一般无须手工修格式；错字仍须对照 PDF 原件抽检。PDF 转 Markdown 单次最多 500 页：不给 pages 时超限只转前 500 页（回执与文件头尾都会醒目标出缺了哪几页），pages 可指定任意区间（如 501-676）补转，或 all_pages=true 自动分段转完。"
 }
 
 func (formatConvert) Schema() json.RawMessage {
@@ -32,7 +33,8 @@ func (formatConvert) Schema() json.RawMessage {
 "properties":{
   "path":{"type":"string","description":"源文件路径（支持 .docx/.xlsx/.pptx/.pdf）"},
   "output":{"type":"string","description":"输出文件路径：转 Markdown 时可省略（不指定则返回文本）；to=xlsx 时必填（.xlsx）；to=docx 时必填（.docx）"},
-  "pages":{"type":"string","description":"PDF页码范围，如\"1-5\"或\"1,3,5\"（仅PDF有效）；to=xlsx/to=docx 时只收一段连续页"},
+  "pages":{"type":"string","description":"PDF 页码区间（如 1-500、501-676 或 1,3,5）：任意区间都行，单次最多 500 页；超限报错并给出分段写法（或改用 all_pages）。仅 PDF 有效；to=xlsx/to=docx 时只收一段连续页"},
+  "all_pages":{"type":"boolean","description":"PDF 转 Markdown 时，超过单次上限（500 页）自动分段转完并拼接（须给 output，与 pages 互斥）；回执汇总总页数与各段页码"},
   "preserve_images":{"type":"boolean","description":"保留 DOCX/PPTX 内嵌图片：要求同时给 output，图片写入同名 -assets 目录，Markdown 改相对引用。录方案库时建议开启"},
   "to":{"type":"string","enum":["md","xlsx","docx"],"description":"md（默认）=转 Markdown；xlsx=PDF/图片转 Excel 表格（走本机 WPS，需登录会员）；docx=PDF 转 Word 文档（走本机 WPS pdf2word，需登录会员）——录方案库的 PDF 源必须先走它"},
   "scanned":{"type":"string","enum":["auto","true","false"],"description":"仅 to=xlsx/to=docx 且输入是 PDF：auto=自动判断（默认）；true=按扫描件走 WPS 在线识别；false=按文字型走本地引擎"},
@@ -89,6 +91,9 @@ type fcInput struct {
 	AIFix *bool `json:"ai_fix,omitempty"`
 	// PerPageSheet 仅 to=xlsx：一页一个工作表。
 	PerPageSheet bool `json:"per_page_sheet,omitempty"`
+	// AllPages 仅 PDF→md：超过单次上限（500 页）时自动分段转完再拼接（2026-11-27
+	// AI 反馈 #6②：676 页扫描件只转了前 500 页，补转还得自装 pymupdf 拆文件）。
+	AllPages bool `json:"all_pages,omitempty"`
 }
 
 // convertPreservingImagesReport 转换 seam（测试打桩；单测不得真调 WPS / OCR）。
@@ -109,6 +114,42 @@ type fcOutcome struct {
 	images    int
 	rep       *docmd.DocxRebuildReport
 	err       error
+	// segments 非空 = all_pages 分段转换的各段页码（整份一次转完时为空）。
+	segments []string
+}
+
+// convertAllPages all_pages=true：先按整份转一次，超过单次上限被截断时再从截断处
+// 起按上限一段段续转、拼接（各段之间放一行 HTML 注释记页码，渲染不可见）。
+func convertAllPages(p fcInput) (md string, total int, segments []string, images int, rep *docmd.DocxRebuildReport, err error) {
+	md, total, truncated, images, rep, err := convertPreservingImagesReport(p.Path, "", docmd.DefaultMaxPDFPages)
+	if err != nil || !truncated {
+		return md, total, nil, images, rep, err // 没超限：整份就是一次转完
+	}
+	cap := docmd.DefaultMaxPDFPages
+	segments = []string{fmt.Sprintf("1-%d", cap)}
+	parts := []string{md}
+	for start := cap + 1; start <= total; start += cap {
+		end := start + cap - 1
+		if end > total {
+			end = total
+		}
+		seg, _, _, n, _, serr := convertPreservingImagesReport(p.Path, fmt.Sprintf("%d-%d", start, end), cap)
+		if serr != nil {
+			return "", total, segments, images, rep, fmt.Errorf("第 %d-%d 页续转失败（前 %d 段已转出）: %w", start, end, len(segments), serr)
+		}
+		parts = append(parts, seg)
+		images += n
+		segments = append(segments, fmt.Sprintf("%d-%d", start, end))
+	}
+	return strings.Join(parts, "\n\n"), total, segments, images, rep, nil
+}
+
+// fcPageNote 截断告警（PDF→md 只转了前面一部分）：文件头尾各放一份醒目标记。
+// 此前只在正文末尾夹一行小字引用块，回执只报成功与字数——残缺文本被当完整
+// 文本录进方案库，靠人工读文件尾才发现（2026-11-27 AI 反馈 #6）。
+func fcPageNote(total, capPages int) string {
+	return fmt.Sprintf("PDF 共 %d 页，本次只转换了第 1–%d 页；第 %d–%d 页缺失。续转：format_convert 加 pages=%d-%d，或 all_pages=true 一次转完。",
+		total, capPages, capPages+1, total, capPages+1, total)
 }
 
 func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (string, error) {
@@ -127,6 +168,19 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 	if p.PreserveImages && strings.TrimSpace(p.Output) == "" {
 		return "", codedError("FORMAT_INVALID_ARGS", "preserve_images=true 需要同时给 output 路径")
 	}
+	isPDF := strings.EqualFold(filepath.Ext(strings.TrimSpace(p.Path)), ".pdf")
+	if p.AllPages && (p.To == "xlsx" || p.To == "docx") {
+		return "", codedError("FORMAT_INVALID_ARGS", "all_pages 只用于 PDF 转 Markdown（to=md）")
+	}
+	if p.AllPages && strings.TrimSpace(p.Output) == "" {
+		return "", codedError("FORMAT_INVALID_ARGS", "all_pages=true 需要同时给 output 路径（整份转完的文本很大，不直接回给模型）")
+	}
+	if p.AllPages && strings.TrimSpace(p.Pages) != "" {
+		return "", codedError("FORMAT_INVALID_ARGS", "all_pages 与 pages 互斥：all_pages=整份分段转完；pages=只转指定区间")
+	}
+	if p.AllPages && !isPDF {
+		return "", codedError("FORMAT_INVALID_ARGS", "all_pages 只对 PDF 有效（%s 不是 PDF）", filepath.Base(p.Path))
+	}
 	p.Path = resolveIn(f.workDir, p.Path)
 	if p.Output != "" {
 		p.Output = resolveIn(f.workDir, p.Output)
@@ -144,6 +198,11 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 	// 结果仍进 docmd 的进程内缓存，重试同一份可秒回；落盘在下面，取消后不会写文件。
 	ch := make(chan fcOutcome, 1)
 	go func() {
+		if p.AllPages {
+			md, total, segments, images, rep, err := convertAllPages(p)
+			ch <- fcOutcome{md: md, total: total, images: images, rep: rep, err: err, segments: segments}
+			return
+		}
 		md, total, truncated, images, rep, err := convertPreservingImagesReport(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
 		ch <- fcOutcome{md: md, total: total, truncated: truncated, images: images, rep: rep, err: err}
 	}()
@@ -169,11 +228,34 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 			return "", codedError("FORMAT_CONVERT_FAILED", "%v", err)
 		}
 	}
-	if truncated {
-		md += fmt.Sprintf("\n\n> 转换已截断：PDF 共 %d 页，本次仅处理前 %d 页。可指定 pages 参数分段转换，或使用 summarize_file 获取全文摘要。",
-			total, docmd.DefaultMaxPDFPages)
+	// 页数说明：截断 / 分段都在文件头尾放醒目标记（此前只在正文末尾夹一行小字）。
+	var topNote, endNote string
+	switch {
+	case truncated:
+		note := fcPageNote(total, docmd.DefaultMaxPDFPages)
+		topNote = "> ⚠️ **本文档不完整**：" + note + "\n\n"
+		endNote = "\n\n---\n\n> [!WARNING]\n> **转换在第 " + strconv.Itoa(docmd.DefaultMaxPDFPages) + " 页之后截断**：" + note
+	case len(r.segments) > 0:
+		topNote = fmt.Sprintf("<!-- gaea format_convert：共 %d 页，分 %d 段转换（%s），已全部转换 -->\n\n",
+			total, len(r.segments), strings.Join(r.segments, "、"))
 	}
-	md = fmt.Sprintf("# 文档转换: %s\n\n%s\n\n---\n*由 gaea format_convert 转换*", filepath.Base(p.Path), md)
+	md = fmt.Sprintf("# 文档转换: %s\n\n%s%s%s\n\n---\n*由 gaea format_convert 转换*", filepath.Base(p.Path), topNote, md, endNote)
+
+	// 回执的页数一行：总页数 / 本次处理了哪几页 / 缺了哪几页。
+	pageLine := ""
+	if isPDF {
+		switch {
+		case truncated:
+			pageLine = fmt.Sprintf("；页数：共 %d 页，⚠ 只转换了第 1–%d 页，缺第 %d–%d 页（续转 pages=%d-%d，或 all_pages=true）",
+				total, docmd.DefaultMaxPDFPages, docmd.DefaultMaxPDFPages+1, total, docmd.DefaultMaxPDFPages+1, total)
+		case len(r.segments) > 0:
+			pageLine = fmt.Sprintf("；页数：共 %d 页，分 %d 段转换（%s），已全部转换", total, len(r.segments), strings.Join(r.segments, "、"))
+		case strings.TrimSpace(p.Pages) != "":
+			pageLine = fmt.Sprintf("；页数：共 %d 页，本次 pages=%s", total, p.Pages)
+		default:
+			pageLine = fmt.Sprintf("；页数：共 %d 页（全部）", total)
+		}
+	}
 
 	if p.Output != "" {
 		// 自动创建输出文件的父目录，与 write_file 行为一致；否则输出路径
@@ -199,6 +281,7 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		// 回执带结构计数：调用方一眼判断产物可用（乱码/空转换的特征是三项全 0）。
 		st := docmd.CountStructure(md)
 		detail := fmt.Sprintf("已转换并保存为 %s（%d 字）", p.Output, utf8.RuneCountInString(md))
+		detail += pageLine
 		detail += fmt.Sprintf("；标题 %d / 表格 %d / 图片 %d", st.Headings, st.Tables, st.Images)
 		if rep != nil {
 			detail += "；" + docxStructReport(rep)
@@ -222,6 +305,9 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 	}
 	if rep != nil && rep.Rebuilt {
 		md += "\n\n---\n*" + docxStructReport(rep) + "*"
+	}
+	if pageLine != "" {
+		md += "\n\n---\n*转换回执" + pageLine + "*"
 	}
 	return tool.WrapText(md), nil
 }

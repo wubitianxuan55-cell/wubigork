@@ -23,6 +23,8 @@ func buildPagePDF(t testing.TB, pages int) string {
 	return path
 }
 
+// TestCapPageSpec 上限卡的是单次请求的页数，不是页码大小（2026-11-27 AI 反馈
+// #6/#13：676 页扫描件转完前 500 页后，pages=501-676 补转曾被拒）。
 func TestCapPageSpec(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -38,10 +40,12 @@ func TestCapPageSpec(t *testing.T) {
 		{"under cap", "", 500, 300, "", false, false},
 		{"empty spec capped", "", 500, 1500, "1-500", true, false},
 		{"spec within cap", "1-100", 500, 1500, "1-100", false, false},
-		{"spec over cap", "1-2000", 500, 1500, "1-500", true, false},
-		{"comma spec clamped", "1-3,7-9,600-700", 500, 1500, "1-3,7-9", true, false},
-		{"spec starts over cap", "600-700", 500, 1500, "", false, true},
-		{"single page over cap", "800", 500, 1500, "", false, true},
+		{"later segment within cap", "501-676", 500, 676, "501-676", false, false},
+		{"exactly at cap", "1-500", 500, 1500, "1-500", false, false},
+		{"comma spec within cap", "1-3,7-9,600-700", 500, 1500, "1-3,7-9,600-700", false, false},
+		{"spec over cap errors", "1-2000", 500, 1500, "", false, true},
+		{"comma spec over cap errors", "1-300,301-600,601-700", 500, 1500, "", false, true},
+		{"unparseable spec passes through", "abc", 500, 1500, "abc", false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -49,6 +53,9 @@ func TestCapPageSpec(t *testing.T) {
 			if c.wantErr {
 				if err == nil {
 					t.Fatalf("capPageSpec(%q,%d,%d) expected error, got %q", c.spec, c.maxPages, c.total, got)
+				}
+				if !strings.Contains(err.Error(), "超过单次上限 500 页") || !strings.Contains(err.Error(), "all_pages=true") {
+					t.Fatalf("超限报错应给出分段写法与 all_pages 出路：%v", err)
 				}
 				return
 			}
@@ -60,6 +67,25 @@ func TestCapPageSpec(t *testing.T) {
 					c.spec, c.maxPages, c.total, got, trunc, c.wantSpec, c.wantTrunc)
 			}
 		})
+	}
+}
+
+func TestPageSpecCount(t *testing.T) {
+	cases := []struct {
+		spec  string
+		total int
+		want  int
+	}{
+		{"1-5", 10, 5}, {"1,3,5", 10, 3}, {"3", 10, 1},
+		{"600-2000", 1500, 901}, // 越界部分不计
+		{"1201-2000", 1500, 300},
+		{"1-5", 0, 5}, // 页数未知：按字面计
+		{"9-3", 10, 1}, {"", 10, 0},
+	}
+	for _, c := range cases {
+		if got := pageSpecCount(c.spec, c.total); got != c.want {
+			t.Errorf("pageSpecCount(%q,%d) = %d, want %d", c.spec, c.total, got, c.want)
+		}
 	}
 }
 
@@ -82,25 +108,6 @@ func TestParsePageSpecBounds(t *testing.T) {
 		if f != c.wantFirst || l != c.wantLast || ok != c.wantOK {
 			t.Errorf("parsePageSpecBounds(%q) = (%d,%d,%v), want (%d,%d,%v)",
 				c.spec, f, l, ok, c.wantFirst, c.wantLast, c.wantOK)
-		}
-	}
-}
-
-func TestClampPageSpec(t *testing.T) {
-	cases := []struct {
-		spec string
-		max  int
-		want string
-	}{
-		{"1-3,7-9,600-700", 500, "1-3,7-9"},
-		{"1-3", 2, "1-2"},
-		{"3", 2, ""},
-		{"1,3,5", 4, "1,3"},
-		{"1-3,4-6", 5, "1-3,4-5"},
-	}
-	for _, c := range cases {
-		if got := clampPageSpec(c.spec, c.max); got != c.want {
-			t.Errorf("clampPageSpec(%q,%d) = %q, want %q", c.spec, c.max, got, c.want)
 		}
 	}
 }
