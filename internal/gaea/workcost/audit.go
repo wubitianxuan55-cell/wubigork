@@ -16,8 +16,9 @@ package workcost
 // 三类发现：
 //   bill_gap  清单缺项——被审项目缺一个「多数同行项目都有」的分部
 //             （证据=哪些同行有、各有多少清单项）
-//   quota_gap 同名定额缺组成——同专业同名同单位定额组里，多数成员都含的某种
-//             工料机资源，个别成员没有（证据=哪些成员含、含量多少）
+//   quota_gap 同码族定额缺组成——同一码族的各版本里，多数都含的某种
+//             工料机资源，个别版本没有（证据=哪些版本含、含量多少；
+//             2026-11-27 复盘 P11 起按同码族分组，不再按名池化跨省版本）
 //   specialty_gap 清单与定额专业对不上（只审被审项目，不需要语料）：
 //             清单专业 ≠ 挂接定额专业（应先借鉴生成本专业定额），或国标
 //             清单编码的专业段 ≠ 清单专业（专业字典项带 code 时才比）
@@ -27,6 +28,7 @@ package workcost
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -162,14 +164,34 @@ func AuditBillGaps(projects []auditProject, targetID int64) []AuditFinding {
 	return out
 }
 
-// AuditQuotaGaps 纯函数：同专业同名定额缺组成对标（全语料，逐组逐资源）。
+// quotaFamily 同码定额族键：剥掉变体尾缀（-2/-N 流水变体、A/B 字母变体），同族
+// =同一条定额的各来源版本（2026-11-27 复盘 P11）。跨省同名版本（D-WP07A 围挡用
+// 彩钢板 vs D-PT05 施工围挡）是不同族，永不互比——按名池化曾让每个项目固定互报
+// 6–8 条 quota_gap INFO，真缺口被同质化提示淹没。
+var quotaVariantTailRe = regexp.MustCompile(`[-]?[A-Za-z]+$|-\d+$`)
+
+func quotaFamily(code string) string {
+	c := strings.TrimSpace(code)
+	for {
+		next := quotaVariantTailRe.ReplaceAllString(c, "")
+		if next == "" || next == c {
+			return c
+		}
+		c = next // 「D-WP07A-2」这类叠尾缀迭代剥干净
+	}
+}
+
+// AuditQuotaGaps 纯函数：同码族定额缺组成对标（全语料，逐组逐资源）。
 func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 	out := []AuditFinding{}
-	// 同专业 + 同名同单位分组。
+	// 同码族分组（2026-11-27 复盘 P11，替代按名池化）；资源侧仍按「身份」归并，
+	// 不按编码（2026-11-26 造价反馈，太原 #8，见组内 resKey）。
 	groups := map[string][]auditQuota{}
 	var keys []string
 	for _, q := range quotas {
-		k := strings.TrimSpace(q.Specialty) + "\x00" + strings.TrimSpace(q.Title) + "\x00" + strings.TrimSpace(q.Unit)
+		// 族键带专业（11.3 对标只在同专业内进行；借鉴生成的跨专业版本分部与含量
+		// 本来就不同工艺）。
+		k := strings.TrimSpace(q.Specialty) + "\x00" + quotaFamily(q.Code)
 		if _, seen := groups[k]; !seen {
 			keys = append(keys, k)
 		}
@@ -191,16 +213,16 @@ func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 			}
 			return "c:" + strings.TrimSpace(rc)
 		}
-		// 资源 → 含它的成员。
-		support := map[string][]auditQuota{}
+		// 资源 → 含它的成员（成员按下标记账：族内成员各有各的码，不拿码当身份）。
+		support := map[string][]int{}
 		rtitle := map[string]string{}
-		memberKeys := map[string]map[string]bool{} // 定额码 → 它含的资源键
-		for _, q := range ms {
+		memberKeys := make([]map[string]bool, len(ms))
+		for idx, q := range ms {
 			hk := map[string]bool{}
 			for rc, rt := range q.Resource {
 				k := resKey(rc, rt)
 				hk[k] = true
-				support[k] = append(support[k], q)
+				support[k] = append(support[k], idx)
 				if _, ok := rtitle[k]; !ok {
 					// 回执里仍写「编码「标题」」：编码是模型拿去 save_quota 的锚点。
 					if t := strings.TrimSpace(rt); t != "" {
@@ -210,7 +232,7 @@ func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 					}
 				}
 			}
-			memberKeys[q.Code] = hk
+			memberKeys[idx] = hk
 		}
 		rcs := make([]string, 0, len(support))
 		for rc := range support {
@@ -227,19 +249,20 @@ func AuditQuotaGaps(quotas []auditQuota) []AuditFinding {
 				continue
 			}
 			// 缺它的成员 = 发现。
-			for _, q := range ms {
-				if memberKeys[q.Code][rc] {
+			for idx, q := range ms {
+				if memberKeys[idx][rc] {
 					continue
 				}
 				ev := make([]AuditEvidence, 0, len(hits))
-				for _, h := range hits {
+				for _, i := range hits {
+					h := ms[i]
 					ev = append(ev, AuditEvidence{Ref: h.Code, Source: h.Source,
 						Support: fmt.Sprintf("「%s」（%s）含 %s", h.Title, h.Unit, rtitle[rc])})
 				}
 				out = append(out, AuditFinding{
 					Kind:   "quota_gap",
 					Target: fmt.Sprintf("%s（%s）", q.Title, q.Unit),
-					Detail: fmt.Sprintf("定额 %s「%s」未含资源 %s：同名的 %d 个定额里 %d 个都含（占 %.0f%%），疑似缺组成行",
+					Detail: fmt.Sprintf("定额 %s「%s」未含资源 %s：同码族 %d 个版本里 %d 个都含（占 %.0f%%），疑似缺组成行",
 						q.Code, q.Title, rtitle[rc], n, len(hits), 100*float64(len(hits))/float64(n)),
 					Evidence: ev,
 				})

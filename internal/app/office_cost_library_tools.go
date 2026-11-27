@@ -151,6 +151,9 @@ type costLibraryArgs struct {
 	NewTitle string `json:"new_title"`
 	// 整理归类（classify）。
 	Classify *workcost.ClassifyPlan `json:"classify"`
+	// dims 汇总开关（2026-11-27 复盘 P4：明细抽样占大头，多数盘点只要总量——
+	// summary=true 时给字典/分布/待整理计数，不带明细）。
+	Summary bool `json:"summary"`
 	// 字典（dict）。
 	Dict *costLibraryDict `json:"dict"`
 	// Template 测算模版口径（action=template；不给=不限口径）。
@@ -289,7 +292,7 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 	case "borrow_quota":
 		return t.borrowQuota(s, p)
 	case "dims":
-		return t.dims(s)
+		return t.dims(s, p.Summary)
 	case "dict", "dict_add", "dict_update", "dict_delete":
 		return t.dict(s, p)
 	case "import_open":
@@ -1962,7 +1965,7 @@ func clExcerpt(s string, n int) string {
 }
 
 // dims 维度盘点（只读）：模型整理归类前先看它对齐叫法，不另造新词。
-func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
+func (t costLibraryTool) dims(s *workcost.Store, summary bool) (string, error) {
 	d, err := s.Dims()
 	if err != nil {
 		return "", err
@@ -2056,25 +2059,29 @@ func (t costLibraryTool) dims(s *workcost.Store) (string, error) {
 		p.ProjectSpecialty, p.BillSpecialty, p.QuotaSpecialty, p.QuotaChapter, p.ResourceRegion, p.ResourceCategory, p.ResourcePeriod)
 	// 待整理明细（2026-11-26 造价反馈，旺平 #6）：只给计数时，模型只能逐条枚举
 	// 去找是哪几条。每类列前若干条，清单行带数字 id（classify.bills 要用）。
+	// summary=true 时跳过明细（2026-11-27 复盘 P4：26KB+ 回执大头是它，多数盘点
+	// 只要总量；要明细再不带 summary 拉一次）。
 	pendingCounts := map[string]int{
 		"ProjectSpecialty": p.ProjectSpecialty, "BillSpecialty": p.BillSpecialty,
 		"QuotaSpecialty": p.QuotaSpecialty, "QuotaChapter": p.QuotaChapter,
 		"ResourceRegion": p.ResourceRegion, "ResourceCategory": p.ResourceCategory, "ResourcePeriod": p.ResourcePeriod,
 	}
-	if samples, serr := s.PendingSamples(20); serr == nil {
-		var lines []string
-		for _, k := range workcost.PendingSampleKeys {
-			items := samples[k.Field]
-			if len(items) == 0 {
-				continue
+	if !summary {
+		if samples, serr := s.PendingSamples(20); serr == nil {
+			var lines []string
+			for _, k := range workcost.PendingSampleKeys {
+				items := samples[k.Field]
+				if len(items) == 0 {
+					continue
+				}
+				if n := pendingCounts[k.Field]; n > len(items) {
+					items = append(items, fmt.Sprintf("…等 %d 条", n))
+				}
+				lines = append(lines, fmt.Sprintf("- %s：%s", k.Title, strings.Join(items, "、")))
 			}
-			if n := pendingCounts[k.Field]; n > len(items) {
-				items = append(items, fmt.Sprintf("…等 %d 条", n))
+			if len(lines) > 0 {
+				out.WriteString("**待整理明细**（每类列前 20 条；清单行的 id= 用在 classify.bills）:\n" + strings.Join(lines, "\n") + "\n")
 			}
-			lines = append(lines, fmt.Sprintf("- %s：%s", k.Title, strings.Join(items, "、")))
-		}
-		if len(lines) > 0 {
-			out.WriteString("**待整理明细**（每类列前 20 条；清单行的 id= 用在 classify.bills）:\n" + strings.Join(lines, "\n") + "\n")
 		}
 	}
 	out.WriteString("\n规矩：专业、地区、工料机分类只能用字典里的值（没有的先 dict_add，经用户确认）；期数写 YYYY-MM；地区写到最细一级（信息价发布区挂在所属市下）。定额专业固定——classify 只补空值或按引用它的清单项纠错，对不上的用 borrow_quota 借鉴生成。")

@@ -143,6 +143,7 @@ const clClassifyStub = `  "classify":{"type":"object","description":"批量整�
 // clImportHeadSchema 导入会话与口径（import_open / import_commit 等的常驻参数）。
 const clImportHeadSchema = `
   "import_id":{"type":"string","description":"导入会话 id（import_open 返回；import_add / import_status / import_check / import_commit / import_discard 必填）"},
+  "summary":{"type":"boolean","description":"dims：true=只给字典/分布/待整理计数，不带明细抽样（大库盘点先看总量，要明细再不带 summary 拉一次；2026-11-27 复盘 P4）"},
   "source":{"type":"string","description":"import_open：资料路径（工作区内）。只用来回读核对提交的数与文字，不解析它的结构；xlsx / csv 支持，其他格式无法回读"},
   "project":{"type":"object","description":"import_open：项目口径与封面（只导工料机 / 定额可以不给）。专业、地区是字典值，计价期 YYYY-MM","properties":{
     "name":{"type":"string","description":"项目名（要提交清单行就必须给）"},

@@ -132,7 +132,9 @@ func (t costLibraryTool) importOpen(s *workcost.Store, p costLibraryArgs) (strin
 			out.WriteString("这种格式不支持回读核对——行里带了 src 也按「未核对」计，数字没有第二道把关，转述时向用户说明。\n")
 		}
 	} else {
-		out.WriteString("没登记资料路径：无法回读核对，行里不必带 src。\n")
+		// 无资料的导入（库内迁移/生成类）回读核对整体跳过——明示控制数这道
+		// 确定性把关照常可用（2026-11-27 复盘 P8：此前模型以为「没有第二道把关」）。
+		out.WriteString("没登记资料路径：无法回读核对，行里不必带 src；数字的第二道把关走控制数——知道行数/合计就重新 import_open 带上 controls（工料机/定额/清单行数、单价合计、清单合计），import_check 会确定性比对。\n")
 	}
 	if p.Controls == nil {
 		out.WriteString("**控制数**: 未登记（资料上有行数、合计的话，重新 import_open 带上 controls，勾稽时能对出漏行漏项）。\n")

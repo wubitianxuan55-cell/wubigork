@@ -26,9 +26,17 @@ const spillMinBytes = 24 * 1024
 // 但首行被 snapToRuneBoundary 头部截断——尾缀指引会被切掉；head+tail 多行
 // 路径下头部行同样必保。两种截断形态下前缀 locator 都必然存活。
 func spillNotice(id string, totalBytes int) string {
+	// 尾部锚点（2026-11-27 复盘 P3）：单行 JSON 大载荷（如整批导入参数）中段被
+	// 采样略去时，模型曾无法确认尾部完整性、被迫把批次再对半切。read_spill 是
+	// 严格字节分页、对单行 JSON 照常可用——直接把「读尾部」的 offset 算好给它。
+	tailOffset := totalBytes - 8*1024
+	if tailOffset < 0 {
+		tailOffset = 0
+	}
 	return fmt.Sprintf("[spilled] full output (%d bytes) saved as spill %s — the inline copy below may be elided. "+
-		"Call read_spill(id=%q) for the start, or read_spill(id=%q, offset=N) to page through. Spills last for this session only.",
-		totalBytes, id, id, id)
+		"read_spill(id=%q) reads from the start; read_spill(id=%q, offset=N) pages strictly by byte (works for single-line JSON too); "+
+		"to check the tail, read_spill(id=%q, offset=%d). Spills last for this session only.",
+		totalBytes, id, id, id, id, tailOffset)
 }
 
 // spillCandidate 报告一个工具的成功结果是否参与泄洪。豁免=read_file（自带

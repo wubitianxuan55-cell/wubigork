@@ -150,7 +150,7 @@ func TestBillAuditScan_EvalSet(t *testing.T) {
 		}
 	}
 
-	// ② 同名定额缺组成：恰好 1 条（WP-100-4 缺 水）。
+	// ② 同码族定额缺组成：恰好 1 条（WP-100-4 缺 水；WP-100/-2/-3/-4 同族）。
 	if len(rep.QuotaGaps) != 1 {
 		t.Fatalf("quotaGaps = %d, want 1（评测集已知发现②；实际 %+v）", len(rep.QuotaGaps), rep.QuotaGaps)
 	}
@@ -203,34 +203,35 @@ func TestAuditBillGaps_TooSmallCorpus(t *testing.T) {
 }
 
 func TestAuditQuotaGaps_MinorityResourceNotReported(t *testing.T) {
-	// 4 成员组：R2 只有 D 含（1/4 < 60% → 缺 R2 的 A/B/C 不报，⑥）；
-	// R1 有 3/4（75% ≥ 60%）→ 缺 R1 的 D 报（真缺口）。
+	// 同码族 D-WP07 的 4 个来源版本：R2 只有 D-WP07-4 含（1/4 < 60% → 缺 R2 的
+	// 前三个不报，⑥）；R1 有 3/4（75% ≥ 60%）→ 缺 R1 的 D-WP07-4 报（真缺口）。
 	qs := []auditQuota{
-		{Code: "A", Title: "同工作", Unit: "m3", Resource: map[string]string{"R1": "常见资源"}},
-		{Code: "B", Title: "同工作", Unit: "m3", Resource: map[string]string{"R1": "常见资源"}},
-		{Code: "C", Title: "同工作", Unit: "m3", Resource: map[string]string{"R1": "常见资源"}},
-		{Code: "D", Title: "同工作", Unit: "m3", Resource: map[string]string{"R2": "罕见资源"}},
+		{Code: "D-WP07", Title: "同工作", Unit: "m3", Resource: map[string]string{"R1": "常见资源"}},
+		{Code: "D-WP07-2", Title: "同工作", Unit: "m3", Resource: map[string]string{"R1": "常见资源"}},
+		{Code: "D-WP07-3", Title: "同工作", Unit: "m3", Resource: map[string]string{"R1": "常见资源"}},
+		{Code: "D-WP07-4", Title: "同工作", Unit: "m3", Resource: map[string]string{"R2": "罕见资源"}},
 	}
 	got := AuditQuotaGaps(qs)
 	if len(got) != 1 {
-		t.Fatalf("应恰 1 条（D 缺多数派 R1），got %+v", got)
+		t.Fatalf("应恰 1 条（D-WP07-4 缺多数派 R1），got %+v", got)
 	}
-	if !strings.Contains(got[0].Detail, "D") || !strings.Contains(got[0].Detail, "R1") {
-		t.Errorf("发现应点名 D 缺 R1：%+v", got[0])
+	if !strings.Contains(got[0].Detail, "D-WP07-4") || !strings.Contains(got[0].Detail, "R1") {
+		t.Errorf("发现应点名 D-WP07-4 缺 R1：%+v", got[0])
 	}
 	if strings.Contains(got[0].Detail, "R2") {
 		t.Errorf("少数派资源 R2 不得出现在结论：%+v", got[0])
 	}
 }
 
-// 同一种工料机在各项目里编码不同（NOI / NOI-A：导入撞码消歧、按地区分行各占
-// 一码）不算缺组成（2026-11-26 造价反馈，太原 #8）：资源按身份归并，不按编码硬比。
+// 同一种工料机在同一码族的各版本里编码不同（NOI / NOI-A：导入撞码消歧、
+// 按地区分行各占一码）不算缺组成（2026-11-26 造价反馈，太原 #8）：资源按身份
+// 归并，不按编码硬比。
 func TestAuditQuotaGaps_SameResourceDifferentCodesNotAGap(t *testing.T) {
 	qs := []auditQuota{
-		{Code: "A", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
-		{Code: "B", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
-		{Code: "C", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI-A": "NOI 抑制剂"}},
-		{Code: "D", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
+		{Code: "D-WP07", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
+		{Code: "D-WP07-2", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
+		{Code: "D-WP07-3", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI-A": "NOI 抑制剂"}},
+		{Code: "D-WP07-4", Title: "同工作", Unit: "m3", Resource: map[string]string{"NOI": "NOI 抑制剂"}},
 	}
 	if got := AuditQuotaGaps(qs); len(got) != 0 {
 		t.Fatalf("同身份不同码不该互报缺组成，got %+v", got)
@@ -238,8 +239,8 @@ func TestAuditQuotaGaps_SameResourceDifferentCodesNotAGap(t *testing.T) {
 	// 对照：标题确实不同的另一种资源，缺组成照报。
 	qs[2].Resource = map[string]string{"NOI-A": "另一种抑制剂"}
 	got := AuditQuotaGaps(qs)
-	if len(got) != 1 || !strings.Contains(got[0].Detail, "定额 C") {
-		t.Fatalf("真缺组成仍应报 C，got %+v", got)
+	if len(got) != 1 || !strings.Contains(got[0].Detail, "D-WP07-3") {
+		t.Fatalf("真缺组成仍应报 D-WP07-3，got %+v", got)
 	}
 	// 没有资源标题时退回按编码比：标题空着不能把不同编码归并成一个，缺组成照报
 	// 且点名编码。
@@ -250,7 +251,31 @@ func TestAuditQuotaGaps_SameResourceDifferentCodesNotAGap(t *testing.T) {
 	}
 	qs[2].Resource = map[string]string{"R9": ""}
 	got = AuditQuotaGaps(qs)
-	if len(got) != 1 || !strings.Contains(got[0].Detail, "定额 C") || !strings.Contains(got[0].Detail, "NOI") {
-		t.Fatalf("无标题时应按编码比并点名 C 缺 NOI，got %+v", got)
+	if len(got) != 1 || !strings.Contains(got[0].Detail, "NOI") {
+		t.Fatalf("无标题时应按编码比并点名缺 NOI，got %+v", got)
+	}
+}
+
+// 同名不同码的定额（跨省版本）组成本就不同，不池化对标（2026-11-27 复盘 P11：
+// 按名分组时每个项目固定互报 6–8 条 quota_gap INFO，真缺口被同质化提示淹没）。
+func TestAuditQuotaGaps_SameNameDifferentCodesNotPooled(t *testing.T) {
+	qs := []auditQuota{
+		{Code: "D-WP07A", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"LB01": "围挡用彩钢板"}},
+		{Code: "D-WP07B", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"LB01": "围挡用彩钢板"}},
+		{Code: "D-PT05", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"LB01": "围挡用彩钢板"}},
+		{Code: "D-MN01", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"GJ01": "钢管"}},
+	}
+	if got := AuditQuotaGaps(qs); len(got) != 0 {
+		t.Fatalf("同名不同码不得互报缺组成，got %+v", got)
+	}
+	// 对照：同码多处使用缺多数派资源照报（P11 收的是噪声，不是信号）。
+	qs = append(qs,
+		auditQuota{Code: "D-PT05", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"LB01": "围挡用彩钢板"}},
+		auditQuota{Code: "D-PT05", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"LB01": "围挡用彩钢板"}},
+		auditQuota{Code: "D-PT05", Title: "施工围挡", Unit: "m²", Resource: map[string]string{"GJ01": "钢管"}},
+	)
+	got := AuditQuotaGaps(qs)
+	if len(got) != 1 || !strings.Contains(got[0].Detail, "D-PT05") {
+		t.Fatalf("同码真缺口仍应报 D-PT05，got %+v", got)
 	}
 }

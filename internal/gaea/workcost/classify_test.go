@@ -447,16 +447,17 @@ func TestAuditGapsStayWithinSpecialty(t *testing.T) {
 			t.Fatal("别的专业的分部不应进入比对")
 		}
 	}
-	// 同专业同名定额组缺组成才比；跨专业同名不比。
+	// 同专业同码族缺组成才比；跨专业同名（同族码）不比（2026-11-27 复盘 P11 起
+	// 分组键=专业+同码族，见 audit.go quotaFamily）。
 	quotas := []auditQuota{
 		{Code: "A", Title: "垫层", Unit: "m³", Specialty: "土壤修复", Resource: map[string]string{"C20": "混凝土", "L01": "普工"}},
-		{Code: "B", Title: "垫层", Unit: "m³", Specialty: "土壤修复", Resource: map[string]string{"C20": "混凝土", "L01": "普工"}},
-		{Code: "C", Title: "垫层", Unit: "m³", Specialty: "土壤修复", Resource: map[string]string{"C20": "混凝土"}},
-		{Code: "D", Title: "垫层", Unit: "m³", Specialty: "市政", Resource: map[string]string{}},
+		{Code: "A-2", Title: "垫层", Unit: "m³", Specialty: "土壤修复", Resource: map[string]string{"C20": "混凝土", "L01": "普工"}},
+		{Code: "A-3", Title: "垫层", Unit: "m³", Specialty: "土壤修复", Resource: map[string]string{"C20": "混凝土"}},
+		{Code: "A", Title: "垫层", Unit: "m³", Specialty: "市政", Resource: map[string]string{}},
 	}
 	qg := AuditQuotaGaps(quotas)
 	for _, g := range qg {
-		if strings.Contains(g.Detail, "定额 D ") {
+		if !strings.Contains(g.Detail, "A-3") {
 			t.Fatalf("别的专业的同名定额不应进入比对，得到 %+v", g)
 		}
 	}
