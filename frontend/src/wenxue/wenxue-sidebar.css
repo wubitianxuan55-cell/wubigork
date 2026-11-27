@@ -26,28 +26,6 @@
 
 
 
-.wx-root .office-sidebar__brand-mark {
-
-  display: inline-flex;
-  width: 38px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  isolation: isolate;
-}
-
-
-
-.wx-root .office-sidebar__brand-mark img {
-
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain;
-}
-
-
-
 .wx-root .office-sidebar__brand-copy {
 
   display: flex;
@@ -1209,14 +1187,6 @@
 
 
 
-.wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__brand-mark {
-
-  width: 34px;
-  height: 28px;
-}
-
-
-
 .wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
 
   width: 34px;
@@ -2125,20 +2095,14 @@
 }
 
 .wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__brand {
-  min-height: 80px;
-  gap: 7px;
-  padding: 7px 0 9px !important;
-}
-
-.wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__brand-mark {
-  width: 32px;
-  height: 26px;
-  opacity: 0.94;
+  min-height: 58px;
+  gap: 0;
+  padding: 6px 0 8px !important;
 }
 
 .wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
-  width: 38px;
-  min-width: 38px;
+  width: 34px;
+  min-width: 34px;
   height: 34px;
   border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft)) !important;
   border-radius: 10px !important;
@@ -2158,9 +2122,9 @@
 }
 
 .wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__new--compact {
-  width: 38px !important;
-  height: 38px !important;
-  min-height: 38px !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 1px solid var(--office-accent-line) !important;
@@ -2187,8 +2151,8 @@
 
 .wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__current {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   margin: 0;
   border: 1px solid var(--office-line) !important;
   border-radius: 10px !important;
@@ -2218,8 +2182,8 @@
 }
 
 .wx-root .office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-action {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
   color: var(--fg-dim);
 }

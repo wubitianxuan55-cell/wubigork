@@ -33,8 +33,10 @@
   --v3-telemetry: var(--gaea-glow);
   --v3-telemetry-fill: color-mix(in srgb, var(--gaea-glow) 18%, transparent);
   /* 轨道图标尺寸：--v3-rail-w = rail 常驻足迹（8px 左 margin + 46px rail + 8px 呼吸），
-     内容列经 paddingLeft 预留，rail 悬浮不遮挡 */
+     内容列经 paddingLeft 预留，rail 悬浮不遮挡；--v3-rail-width 是窄轨本体宽度。 */
   --v3-rail-w: 62px;
+  --v3-rail-width: 46px;
+  --v3-strip-height: 38px;
 }
 
 /* ── 指挥轨道 Command Rail（2026-10-27 用户拍板常驻显示：不再自动隐藏，
@@ -42,20 +44,45 @@
 .v3-rail-dock {
   position: fixed;
   left: 0;
-  top: 0;
-  bottom: 0;
+  top: var(--v3-strip-height, 38px);
+  bottom: var(--v3-telemetry-height, 36px);
   z-index: 200;
+  transition:
+    top var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1),
+    bottom var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
 }
 .v3-rail-dock .v3-rail {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  margin: 8px 0 8px 8px;
+  margin: 0 0 0 8px;
+}
+
+.v3-rail-caption {
+  position: absolute;
+  top: calc(-1 * var(--v3-strip-height, 38px));
+  left: 0;
+  display: flex;
+  width: var(--v3-rail-w, 62px);
+  height: var(--v3-strip-height, 38px);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 201;
 }
 
 .v3-rail {
-  width: 46px;
+  width: var(--v3-rail-width);
   border-radius: 16px;
   background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
   -webkit-backdrop-filter: blur(20px) saturate(150%);
@@ -82,14 +109,19 @@
 
 .v3-rail-head {
   display: flex;
+  height: 38px;
   align-items: center;
   justify-content: center;
-  height: 38px;
   flex-shrink: 0;
 }
+.v3-rail-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .v3-rail-head img {
-  width: 34px;
-  height: 27px;
+  width: 30px;
+  height: 24px;
   transition: transform var(--md-sys-transition-normal, 300ms);
 }
 .v3-rail:hover .v3-rail-head img {
@@ -192,7 +224,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 38px;
+  height: var(--v3-strip-height, 38px);
   padding: 0 14px;
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
   -webkit-backdrop-filter: blur(20px) saturate(150%);
@@ -853,7 +885,7 @@
 
 /* ── reduced-motion / ui-reduced-motion 降级 ─────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .v3-rail, .v3-telemetry { transition: none; }
+  .v3-rail-dock, .v3-rail, .v3-telemetry { transition: none; }
   .v3-telemetry-quick-track > span { transition: none; }
   .v3-rail-item:hover,
   .v3-rail-item:active { transform: none; }

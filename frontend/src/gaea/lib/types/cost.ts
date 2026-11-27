@@ -108,7 +108,7 @@ export interface WorkcostQuotaItem {
 export interface WorkcostQuota {
   id: number;
   code: string;
-  /** 库内自有码（D+专业+章节+流水；SchemaV39）。code/origCode 是外部标准码映射列。 */
+  /** 库内自有码（D+专业+分部+流水；SchemaV39）。code/origCode 是外部标准码映射列。 */
   gcode?: string;
   /** 工作簿原始清单编码（编码统一可能改写 code，溯源靠它）。 */
   origCode?: string;

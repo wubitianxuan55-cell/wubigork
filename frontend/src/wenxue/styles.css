@@ -216,7 +216,7 @@ body {
   user-select: none;
 }
 .layout--sidebar-collapsed {
-  --sidebar-width: 68px;
+  --sidebar-width: var(--v3-rail-width, 46px);
 }
 .layout--workspace-open {
   grid-template-columns: var(--sidebar-width) minmax(200px, 1fr) minmax(0, var(--workspace-width));

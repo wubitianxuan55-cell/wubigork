@@ -3,7 +3,8 @@
 
 import { loadLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 
-export const SIDEBAR_COLLAPSED_WIDTH = 68;
+/** 折叠足迹与一级导航本体 `--v3-rail-width` 对齐。 */
+export const SIDEBAR_COLLAPSED_WIDTH = 46;
 export const SIDEBAR_DEFAULT_WIDTH = 264;
 export const SIDEBAR_MIN_WIDTH = 228;
 export const SIDEBAR_MAX_WIDTH = 420;

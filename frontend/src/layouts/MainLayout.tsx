@@ -44,6 +44,24 @@ import {
 
 const { Content } = Layout
 
+const RAIL_BOARD_SHORT: Record<string, string> = {
+  chat: '聊天',
+  wenxue: '文学',
+  imagegen: '绘梦',
+  gaea: '办公',
+  cost: '造价',
+  proposal: '方案',
+  code: '编程',
+  pantheon: '众神',
+  memoryhub: '记忆',
+  modelcenter: '模型',
+  characterlib: '角色',
+  weixin: '微信',
+  schedule: '进度',
+  runtime: '监测',
+  settings: '设置',
+}
+
 // P4-H8：SearchModal 命令面板非首屏必需——React.lazy 拆独立 chunk，Ctrl+K /
 // 搜索按钮首次打开时才拉取；渲染侧 <Suspense fallback={null}> 包裹，首开微秒级
 // 加载不可感知（fallback null 不闪占位）。
@@ -133,8 +151,10 @@ const SparkCard: React.FC<{
 )
 
 // ─── 遥测轨道（底部）────────────────────────────────────────
-const TelemetryRail: React.FC = () => {
-  const [collapsed, setCollapsed] = useState(true)
+const TelemetryRail: React.FC<{
+  collapsed: boolean
+  onToggleCollapse: () => void
+}> = ({ collapsed, onToggleCollapse }) => {
   const [monitor, setMonitor] = useState<{ engines?: MonitorEngine[]; stats?: MonitorStats } | null>(null)
   const t = useT()
   // 历史缓冲：CPU/内存/GPU 各保留最近 20 点（60s @ 3s 轮询）
@@ -268,7 +288,7 @@ const TelemetryRail: React.FC = () => {
       <div className="v3-telemetry-inner">
         <button
           className="v3-telemetry-toggle"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={onToggleCollapse}
           aria-expanded={!collapsed}
           aria-label={collapsed ? t('shell.tele.expand') : t('shell.tele.collapse')}
         >
@@ -387,6 +407,8 @@ export const CommandRail: React.FC<{
   // 独立窗口板块：单独入口，不混入任一空间导航（v4.439 起暂为空集）
   const independentBoards = getActiveIndependentBoards()
   const t = useT()
+  const boardLabel = activeBoardLabel(page)
+  const railBoardLabel = RAIL_BOARD_SHORT[page] ?? boardLabel.slice(0, 2)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const moveFocus = (idx: number, dir: number) => {
@@ -395,12 +417,16 @@ export const CommandRail: React.FC<{
   }
 
   return (
+    <>
+      <div className="v3-rail-caption" title={boardLabel}>{railBoardLabel}</div>
     <nav
       className="v3-rail"
       aria-label={t('shell.rail.aria')}
     >
-      <div className="v3-rail-head" role="img" aria-label="gaea">
-        <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
+      <div className="v3-rail-head">
+        <span className="v3-rail-brand" role="img" aria-label="gaea">
+          <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
+        </span>
       </div>
       <div className="v3-rail-nav" role="menubar" aria-label={t('shell.rail.nav')}>
         {boards.map((b, i) => {
@@ -465,6 +491,7 @@ export const CommandRail: React.FC<{
         </Tooltip>
       </div>
     </nav>
+    </>
   )
 }
 
@@ -476,6 +503,7 @@ const MainLayout: React.FC = () => {
   const t = useT()
   // 首页已删除：每次启动直接落到办公工作台；其余板块仍可在 rail/快捷键直达。
   const [page, setPage] = useState<Page>(DEFAULT_BOARD_ID)
+  const [telemetryCollapsed, setTelemetryCollapsed] = useState(true)
   // v4.365：整 store 订阅改逐字段选择器——zustand 任意 set() 都会换新 state
   // 对象，粗订阅使本壳组件（及其 visitedPages 下全部 keepAlive 页元素）在
   // 任意 store 变化时全量重渲染。
@@ -639,7 +667,16 @@ const MainLayout: React.FC = () => {
     >
       <BloomStardust />
 
-      <div className="gaea-shell-content" style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+      <div
+        className="gaea-shell-content"
+        style={{
+          display: 'flex',
+          flex: 1,
+          minHeight: 0,
+          position: 'relative',
+          '--v3-telemetry-height': telemetryCollapsed ? '36px' : '194px',
+        } as React.CSSProperties}
+      >
         {/* ═══ 左侧指挥轨道（2026-10-27 常驻显示：不再自动隐藏，固定悬浮左缘） ═══ */}
         <div className="v3-rail-dock">
           <CommandRail
@@ -656,10 +693,6 @@ const MainLayout: React.FC = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 'var(--v3-rail-w)' }}>
           {/* 顶部轨道条 */}
           <header className="v3-strip">
-            <div className="v3-strip-context">
-              {/* 项目上下文 chip（projectInfo→锚点跳转）随小说板块退役拆除（2026-11-15） */}
-              <strong>{activeBoardLabel(page)}</strong>
-            </div>
             {/* 聊天模式切换条宿主（T6-10.2：ChatPage 经 portal 渲染进此容器；
                 仅聊天板块激活时可见，其他板块隐藏） */}
             <div id="v3-chatmode-host" className="v3-strip-chatmode"
@@ -748,7 +781,10 @@ const MainLayout: React.FC = () => {
           </Layout>
 
           {/* ═══ 底部遥测轨道 ═══ */}
-          <TelemetryRail />
+          <TelemetryRail
+            collapsed={telemetryCollapsed}
+            onToggleCollapse={() => setTelemetryCollapsed((collapsed) => !collapsed)}
+          />
         </div>
       </div>
 

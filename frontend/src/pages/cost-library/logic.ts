@@ -3,9 +3,9 @@
 // 板块只管看：清单 → 定额 → 工料机 三级数据的筛选、归并与引用索引都在这里，
 // 不碰桥接、不带 React，页面组件只负责取数与渲染。
 //
-// 维度（2026-11-25 库定规矩）：清单与定额按专业分，定额在专业内按章节分；工料机按
-// 种类（类别 → 分类）、地区、期数分。规范值由库说了算——这里的筛选只认库里的取值，
-// 空值归「未标注」一桶。
+// 维度（2026-11-25 库定规矩；2026-11-27 定额「章节」改叫「分部」，字段仍 chapter）：
+// 清单与定额按专业分，定额在专业内按分部分；工料机按种类（类别 → 分类）、地区、
+// 期数分。规范值由库说了算——这里的筛选只认库里的取值，空值归「未标注」一桶。
 import type {
   WorkcostBillItem, WorkcostQuota, WorkcostResource,
 } from "../../gaea/lib/types";
@@ -21,7 +21,7 @@ export interface TierMeta {
 
 export const TIERS: TierMeta[] = [
   { key: "bill", label: "清单", hint: "各专业的分部分项清单 · 工程量 × 定额", searchPlaceholder: "搜索清单：名称 / 编码 / 特征 / 定额码" },
-  { key: "quota", label: "定额", hint: "按专业分的消耗定额 · 每单位消耗多少工料机", searchPlaceholder: "搜索定额：名称 / 编码 / 章节" },
+  { key: "quota", label: "定额", hint: "按专业分的消耗定额 · 每单位消耗多少工料机", searchPlaceholder: "搜索定额：名称 / 编码 / 分部" },
   { key: "resource", label: "工料机", hint: "人工 / 材料 / 机械 / 外委 · 按种类、地区、期数分", searchPlaceholder: "搜索工料机：名称 / 规格 / 编码 / 分类" },
 ];
 
@@ -55,7 +55,7 @@ export interface BillFilters {
 }
 export interface QuotaFilters {
   specialty: string;
-  /** 章节（专业内）；"" = 全部；NONE = 未归章节。 */
+  /** 分部（专业内，字段沿用 chapter）；"" = 全部；NONE = 未归分部。 */
   chapter: string;
   keyword: string;
 }
@@ -277,7 +277,7 @@ export function specialtiesOf(quotas: WorkcostQuota[]): Facet[] {
   return sortFacets(counts);
 }
 
-/** 某个专业内的章节分布（按条数降序）；specialty 为空时按全部专业算。 */
+/** 某个专业内的分部分布（按条数降序）；specialty 为空时按全部专业算。 */
 export function chaptersOf(quotas: WorkcostQuota[], specialty: string): Facet[] {
   const counts = new Map<string, number>();
   for (const q of quotas) {
@@ -478,7 +478,7 @@ export function pendingOf(rows: BillRow[], quotas: WorkcostQuota[], resources: W
 /** 「待整理」入口的说明（逐项列出，0 的不列）。 */
 export function pendingSummary(p: PendingCounts): string {
   const parts: [string, number][] = [
-    ["清单无专业", p.billSpecialty], ["定额无专业", p.quotaSpecialty], ["定额未归章节", p.quotaChapter],
+    ["清单无专业", p.billSpecialty], ["定额无专业", p.quotaSpecialty], ["定额未归分部", p.quotaChapter],
     ["工料机类别待整理", p.resourceKind],
     ["工料机未标地区", p.resourceRegion], ["工料机未细分", p.resourceCategory], ["工料机无期数", p.resourcePeriod],
   ];

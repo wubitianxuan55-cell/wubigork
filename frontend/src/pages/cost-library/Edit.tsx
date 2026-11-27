@@ -203,20 +203,23 @@ export function BillEdit({ item, specialtyOptions, onSaved, onCancel }: {
 
 // ── 定额编辑（字段 + 含量行）────────────────────────────────────────
 
-export function QuotaEdit({ quota, specialtyOptions, chapterOptionsOf, resources, onSaved, onCancel }: {
+export function QuotaEdit({ quota, specialtyOptions, chapterOptionsOf, resources, regionOptions, onSaved, onCancel }: {
   /** 带含量行的完整定额（QuotaDetail 的 full）。 */
   quota: WorkcostQuota;
   specialtyOptions: string[];
-  /** 某专业下可选的章节（表单里换专业时随之换）。 */
+  /** 某专业下可选的分部（表单里换专业时随之换）。 */
   chapterOptionsOf: (specialty: string) => string[];
   /** 工料机全量（添加含量行时带出单位与行类）。 */
   resources: WorkcostResource[];
+  /** 库里已有的地区取值（规范值只给已有叫法）。 */
+  regionOptions: string[];
   onSaved: (msg: string) => void;
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState(quota.title);
   const [specialty, setSpecialty] = useState(quota.specialty);
   const [chapter, setChapter] = useState(quota.chapter);
+  const [region, setRegion] = useState(quota.region);
   const [unit, setUnit] = useState(quota.unit);
   const [note, setNote] = useState(quota.note);
   const [items, setItems] = useState<WorkcostQuotaItem[]>(() => (quota.items ?? []).map((it) => ({ ...it })));
@@ -237,7 +240,7 @@ export function QuotaEdit({ quota, specialtyOptions, chapterOptionsOf, resources
     try {
       await app.WorkcostQuotaSave({
         ...quota, title: title.trim(), specialty: specialty.trim(), chapter: chapter.trim(),
-        unit: unit.trim(), note: note.trim(), items,
+        region: region.trim(), unit: unit.trim(), note: note.trim(), items,
       });
       onSaved(`已保存定额「${title.trim()}」`);
       onCancel(); // 成功即退出编辑态（整组替换后回只读详情，页面静默重读跟在后面）
@@ -274,17 +277,23 @@ export function QuotaEdit({ quota, specialtyOptions, chapterOptionsOf, resources
           <select className="cl-select" value={specialty} data-testid="cost-edit-quota-specialty"
             onChange={(e) => {
               setSpecialty(e.target.value);
-              // 换专业后原章节多半不归属了：不在新专业的章节面里就落回未归。
+              // 换专业后原分部多半不归属了：不在新专业的分部面里就落回未归。
               if (!chapterOptionsOf(e.target.value).includes(chapter)) setChapter("");
             }}>
             <option value="">未标注</option>
             {specialtyOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
-        <Field label="章节" hint="随专业走；没有合适的就保持未归">
+        <Field label="分部" hint="随专业走；没有合适的就保持未归">
           <select className="cl-select" value={chapter} onChange={(e) => setChapter(e.target.value)}>
-            <option value="">未归章节</option>
+            <option value="">未归分部</option>
             {chapterOptionsOf(specialty).map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="地区" hint="省级行政区（只到省）；随上游清单项目导入带上，没有合适的就留空">
+          <select className="cl-select" value={region} onChange={(e) => setRegion(e.target.value)}>
+            <option value="">未标地区</option>
+            {regionOptions.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </Field>
       </div>
@@ -423,7 +432,7 @@ export function ResourceEdit({ resource, regionOptions, periodOptions, categoryO
             {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </Field>
-        <Field label="地区" hint="工料机按地区分行；改动会跟着身份走">
+        <Field label="地区" hint="省级行政区（只到省）；工料机按省分行，改动会跟着身份走">
           <select className="cl-select" value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="">未标注</option>
             {regionOptions.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -526,7 +535,7 @@ export function ProjectEdit({ project, specialtyOptions, regionOptions, periodOp
               {specialtyOptions.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="地区">
+          <Field label="地区" hint="省级行政区（只到省）">
             <select className="cl-select" value={region} onChange={(e) => setRegion(e.target.value)}>
               <option value="">{region ? "（保持）" : "未标注"}</option>
               {regionOptions.map((r) => <option key={r} value={r}>{r}</option>)}

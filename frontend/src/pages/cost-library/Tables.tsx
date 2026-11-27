@@ -1,8 +1,8 @@
 // Tables — 三级列表（清单 / 定额 / 工料机）。只读浏览面：行点击看详情，复选框
 // 批量删除，行尾删除。定额码是下钻入口（清单 → 定额）。状态全在页面，纯展示。
 // 列按宽度渐进披露（cl-pri-1 先收、cl-pri-2 最先收）：窄窗只留编码、名称与价。
-import { memo } from "react";
-import { ChevronDown, ChevronRight, Trash2 } from "../../gaea/icons";
+import { memo, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Trash2 } from "../../gaea/icons";
 import type { WorkcostQuota, WorkcostResource } from "../../gaea/lib/types";
 import {
   dimLabel, effectivePrice, fmtMoney, fmtPeriod, fmtQty, groupBill, linkedQuotas, selKey, unitPriceOf,
@@ -17,6 +17,78 @@ const toneOf = (kind: string): string => {
     default: return " is-material";
   }
 };
+
+type SortDirection = "asc" | "desc";
+interface SortState<K extends string> {
+  key: K;
+  dir: SortDirection;
+}
+type BillSortKey =
+  | "project" | "specialty" | "code" | "title" | "feature" | "unit"
+  | "quantity" | "quotas" | "listPrice" | "price";
+type QuotaSortKey = "code" | "title" | "unit" | "specialty" | "chapter" | "region" | "usage" | "price";
+type ResourceSortKey = "code" | "kind" | "title" | "spec" | "unit" | "region" | "period" | "price" | "basePrice";
+
+const zhCollator = new Intl.Collator("zh-Hans-CN", { numeric: true, sensitivity: "base" });
+
+/** 空值始终沉底；值为空时不随升/降序翻到顶部。 */
+function orderRows<T, K extends string>(
+  rows: T[],
+  sort: SortState<K> | null,
+  valueOf: (row: T, key: K) => string | number | null | undefined,
+): T[] {
+  if (!sort) return rows;
+  const factor = sort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = valueOf(a, sort.key);
+    const bv = valueOf(b, sort.key);
+    const aMissing = av === null || av === undefined || av === "";
+    const bMissing = bv === null || bv === undefined || bv === "";
+    if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+    const cmp = typeof av === "number" && typeof bv === "number"
+      ? av - bv
+      : zhCollator.compare(String(av), String(bv));
+    return cmp * factor;
+  });
+}
+
+function nextSort<K extends string>(current: SortState<K> | null, key: K): SortState<K> | null {
+  if (!current || current.key !== key) return { key, dir: "asc" };
+  if (current.dir === "asc") return { key, dir: "desc" };
+  return null;
+}
+
+function SortHeader<K extends string>({ sort, onSort, sortKey, label, numeric, className }: {
+  sort: SortState<K> | null;
+  onSort: (key: K) => void;
+  sortKey: K;
+  label: string;
+  numeric?: boolean;
+  className?: string;
+}) {
+  const direction: SortDirection | null = sort?.key === sortKey ? sort.dir : null;
+  const active = direction !== null;
+  const ariaSort: "none" | "ascending" | "descending" =
+    direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none";
+  return (
+    <th className={className} aria-sort={ariaSort}>
+      <button
+        type="button"
+        className={`cl-sort-head${numeric ? " is-num" : ""}${active ? " is-active" : ""}`}
+        aria-label={`按${label}排序`}
+        title={active ? `当前${direction === "asc" ? "升序" : "降序"}，再点切换` : "点击排序"}
+        onClick={() => onSort(sortKey)}
+      >
+        <span>{label}</span>
+        {active
+          ? direction === "asc"
+            ? <ArrowUp size={10} aria-hidden />
+            : <ArrowDown size={10} aria-hidden />
+          : <span className="cl-sort-pair" aria-hidden><ArrowUp size={8} /><ArrowDown size={8} /></span>}
+      </button>
+    </th>
+  );
+}
 
 export function KindBadge({ kind }: { kind: string }) {
   return <span className={`cl-kind${toneOf(kind)}`}>{kind}</span>;
@@ -60,7 +132,23 @@ export interface BillTableProps {
 
 export const BillTable = memo(function BillTable(props: BillTableProps) {
   const { rows, refPrices, checked, active } = props;
+  const [sort, setSort] = useState<SortState<BillSortKey> | null>(null);
   const allChecked = rows.length > 0 && rows.every((it) => checked.has(selKey("bill", it.id)));
+  const orderedRows = orderRows(rows, sort, (row, key) => {
+    switch (key) {
+      case "project": return row.projectName;
+      case "specialty": return row.specialty;
+      case "code": return row.code;
+      case "title": return row.title;
+      case "feature": return row.feature;
+      case "unit": return row.unit;
+      case "quantity": return row.quantity;
+      case "quotas": return linkedQuotas(row).join(" ");
+      case "listPrice": return (row.listPrice ?? 0) > 0 ? row.listPrice : null;
+      case "price": return unitPriceOf(row, refPrices);
+    }
+  });
+  const onSort = (key: BillSortKey) => setSort((current) => nextSort(current, key));
   const rowBody = (it: BillRow, withProject: boolean) => {
     const key = selKey("bill", it.id);
     const quotas = linkedQuotas(it);
@@ -119,7 +207,7 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
   };
 
   if (props.grouped) {
-    const groups = groupBill(rows);
+    const groups = groupBill(orderedRows);
     return (
       <div className="cl-groups" data-testid="cost-bill-grouped">
         {groups.map((g) => {
@@ -184,15 +272,20 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
       <thead>
         <tr>
           <th className="cl-check"><input type="checkbox" aria-label="全选当前清单" checked={allChecked} onChange={(e) => props.onToggleAll(e.target.checked)} /></th>
-          {props.showProject && <th className="cl-pri-2">项目</th>}
-          <th className="cl-pri-1">专业</th>
-          <th>编码</th><th>名称</th><th className="cl-pri-1">项目特征</th><th className="cl-pri-1">单位</th>
-          <th className="cl-num cl-pri-2">工程量</th><th>挂接定额</th>
-          <th className="cl-num">原表单价</th><th className="cl-num">现算单价</th>
+          {props.showProject && <SortHeader sort={sort} onSort={onSort} sortKey="project" label="项目" className="cl-pri-2" />}
+          <SortHeader sort={sort} onSort={onSort} sortKey="specialty" label="专业" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="code" label="编码" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="title" label="名称" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="feature" label="项目特征" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="unit" label="单位" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="quantity" label="工程量" numeric className="cl-num cl-pri-2" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="quotas" label="挂接定额" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="listPrice" label="原表单价" numeric className="cl-num" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="price" label="现算单价" numeric className="cl-num" />
           <th className="cl-act"><span className="sr-only">操作</span></th>
         </tr>
       </thead>
-      <tbody>{rows.map((it) => rowBody(it, props.showProject))}</tbody>
+      <tbody>{orderedRows.map((it) => rowBody(it, props.showProject))}</tbody>
     </table>
   );
 });
@@ -213,19 +306,39 @@ export interface QuotaTableProps {
 
 export const QuotaTable = memo(function QuotaTable(props: QuotaTableProps) {
   const { rows, usage, refPrices, checked, active } = props;
+  const [sort, setSort] = useState<SortState<QuotaSortKey> | null>(null);
   const allChecked = rows.length > 0 && rows.every((q) => checked.has(selKey("quota", q.code)));
+  const orderedRows = orderRows(rows, sort, (row, key) => {
+    switch (key) {
+      case "code": return row.code;
+      case "title": return row.title;
+      case "unit": return row.unit;
+      case "specialty": return row.specialty;
+      case "chapter": return row.chapter;
+      case "region": return row.region;
+      case "usage": return usage.get(row.code) ?? 0;
+      case "price": return typeof refPrices[row.code] === "number" ? refPrices[row.code] : null;
+    }
+  });
+  const onSort = (key: QuotaSortKey) => setSort((current) => nextSort(current, key));
   return (
     <table className="cl-table" data-testid="cost-quota-rows">
       <thead>
         <tr>
           <th className="cl-check"><input type="checkbox" aria-label="全选当前定额" checked={allChecked} onChange={(e) => props.onToggleAll(e.target.checked)} /></th>
-          <th>编码</th><th>名称</th><th className="cl-pri-1">单位</th><th className="cl-pri-1">专业</th>
-          <th className="cl-pri-2">章节</th><th className="cl-num cl-pri-2">被引用</th><th className="cl-num">综合单价</th>
+          <SortHeader sort={sort} onSort={onSort} sortKey="code" label="编码" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="title" label="名称" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="unit" label="单位" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="specialty" label="专业" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="chapter" label="分部" className="cl-pri-2" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="region" label="地区" className="cl-pri-2" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="usage" label="被引用" numeric className="cl-num cl-pri-2" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="price" label="综合单价" numeric className="cl-num" />
           <th className="cl-act"><span className="sr-only">操作</span></th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((q) => {
+        {orderedRows.map((q) => {
           const key = selKey("quota", q.code);
           const used = usage.get(q.code) ?? 0;
           const price = refPrices[q.code];
@@ -242,8 +355,12 @@ export const QuotaTable = memo(function QuotaTable(props: QuotaTableProps) {
               </td>
               <td className="cl-pri-1">{q.unit || "—"}</td>
               <td className={q.specialty ? "cl-pri-1" : "cl-pri-1 cl-dim"}>{dimLabel(q.specialty, "未标注")}</td>
-              <td className={`cl-pri-2${q.chapter ? "" : " cl-dim"}`} title={q.chapter ? `章节 ${q.chapter}` : "还没归章节（待整理）"}>
-                {dimLabel(q.chapter, "未归章节")}
+              <td className={`cl-pri-2${q.chapter ? "" : " cl-dim"}`} title={q.chapter ? `分部 ${q.chapter}` : "还没归分部（待整理）"}>
+                {dimLabel(q.chapter, "未归分部")}
+              </td>
+              {/* 地区与上游项目挂钩：随来源清单项目落库，空=还没从项目带回（待整理）。 */}
+              <td className={`cl-pri-2${q.region ? "" : " cl-dim"}`} title={q.region ? `地区 ${q.region}` : "还没标注地区（随上游项目导入带上）"}>
+                {dimLabel(q.region, "未标地区")}
               </td>
               <td className="cl-num cl-pri-2">{used > 0 ? used : <span className="cl-dim">—</span>}</td>
               <td className="cl-num cl-strong" title="按当前资源价现算（人材机，不含管理费/利润/税金）">{fmtMoney(typeof price === "number" ? price : null)}</td>
@@ -270,20 +387,44 @@ export interface ResourceTableProps {
 
 export const ResourceTable = memo(function ResourceTable(props: ResourceTableProps) {
   const { rows, checked, active } = props;
+  const [sort, setSort] = useState<SortState<ResourceSortKey> | null>(null);
   const allChecked = rows.length > 0 && rows.every((r) => checked.has(selKey("resource", r.code)));
+  const orderedRows = orderRows(rows, sort, (row, key) => {
+    switch (key) {
+      case "code": return row.code;
+      case "kind": return row.kind;
+      case "title": return row.title;
+      case "spec": return row.spec;
+      case "unit": return row.unit;
+      case "region": return row.region;
+      case "period": return row.priceDate;
+      case "price": {
+        const value = effectivePrice(row);
+        return value > 0 ? value : null;
+      }
+      case "basePrice": return row.basePrice > 0 ? row.basePrice : null;
+    }
+  });
+  const onSort = (key: ResourceSortKey) => setSort((current) => nextSort(current, key));
   return (
     <table className="cl-table" data-testid="cost-resource-rows">
       <thead>
         <tr>
           <th className="cl-check"><input type="checkbox" aria-label="全选当前工料机" checked={allChecked} onChange={(e) => props.onToggleAll(e.target.checked)} /></th>
-          <th>编码</th><th>类别</th><th>名称</th><th className="cl-pri-1">规格</th><th className="cl-pri-1">单位</th>
-          <th className="cl-pri-1">地区</th><th className="cl-pri-2">期</th>
-          <th className="cl-num">取用价</th><th className="cl-num cl-pri-2">基准价</th>
+          <SortHeader sort={sort} onSort={onSort} sortKey="code" label="编码" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="kind" label="类别" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="title" label="名称" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="spec" label="规格" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="unit" label="单位" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="region" label="地区" className="cl-pri-1" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="period" label="期" className="cl-pri-2" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="price" label="取用价" numeric className="cl-num" />
+          <SortHeader sort={sort} onSort={onSort} sortKey="basePrice" label="基准价" numeric className="cl-num cl-pri-2" />
           <th className="cl-act"><span className="sr-only">操作</span></th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => {
+        {orderedRows.map((r) => {
           const key = selKey("resource", r.code);
           const price = effectivePrice(r);
           return (

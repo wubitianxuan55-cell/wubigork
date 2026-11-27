@@ -19,22 +19,6 @@
   border-bottom: 1px solid var(--office-line);
 }
 
-.office-sidebar__brand-mark {
-  display: inline-flex;
-  width: 38px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  isolation: isolate;
-}
-
-.office-sidebar__brand-mark img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain;
-}
-
 .office-sidebar__brand-copy {
   display: flex;
   min-width: 0;
@@ -344,6 +328,67 @@
   color: var(--fg-faint) !important;
   font-size: 8.5px !important;
   opacity: 0.9;
+}
+
+.office-tree-row[data-sidebar-row="group"] {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.office-tree-row[data-sidebar-row="group"] > .office-project-row {
+  flex: 1 1 auto;
+}
+
+/* 文学面同款项目行操作：常显，不靠 hover 才发现。 */
+.office-project-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+}
+
+.office-project-action {
+  display: inline-flex;
+  width: 27px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-faint);
+  cursor: pointer;
+  opacity: 0.72;
+  transition:
+    color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    opacity var(--dur-fast) ease;
+}
+
+.office-tree-row[data-sidebar-row="group"]:hover .office-project-action,
+.office-tree-row[data-sidebar-row="group"]:has(.office-project-row.is-current) .office-project-action,
+.office-project-action:focus-visible {
+  opacity: 1;
+}
+
+.office-project-action:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: var(--office-accent-wash);
+  color: var(--accent);
+}
+
+.office-project-action--danger:hover {
+  border-color: color-mix(in srgb, var(--error) 44%, transparent);
+  background: color-mix(in srgb, var(--error) 9%, transparent);
+  color: var(--error);
+}
+
+.office-project-action:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .office-tree-row {
@@ -722,11 +767,6 @@
   padding: 8px 0 9px !important;
 }
 
-.office-sidebar[data-collapsed="true"] .office-sidebar__brand-mark {
-  width: 34px;
-  height: 28px;
-}
-
 .office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
   width: 34px;
   min-width: 34px;
@@ -759,9 +799,9 @@
 }
 
 /* ── Collapsed workbench rail ─────────────────────────────────────────────
-   The collapsed left panel is an intentional 68px dock rather than a clipped
-   copy of the expanded tree: one identity stack, one action group, and one
-   bottom utility group. */
+   The collapsed left panel follows the 46px primary-nav rail rather than
+   a clipped copy of the expanded tree: one identity stack, one action group,
+   and one bottom utility group. */
 .office-sidebar[data-collapsed="true"] {
   padding: 46px 6px 8px !important;
   background-image:
@@ -770,20 +810,14 @@
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__brand {
-  min-height: 80px;
-  gap: 7px;
-  padding: 7px 0 9px !important;
-}
-
-.office-sidebar[data-collapsed="true"] .office-sidebar__brand-mark {
-  width: 32px;
-  height: 26px;
-  opacity: 0.94;
+  min-height: 58px;
+  gap: 0;
+  padding: 6px 0 8px !important;
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__collapse {
-  width: 38px;
-  min-width: 38px;
+  width: 34px;
+  min-width: 34px;
   height: 34px;
   border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft)) !important;
   border-radius: 10px !important;
@@ -803,9 +837,9 @@
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__new--compact {
-  width: 38px !important;
-  height: 38px !important;
-  min-height: 38px !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 1px solid var(--office-accent-line) !important;
@@ -832,8 +866,8 @@
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__current {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   margin: 0;
   border: 1px solid var(--office-line) !important;
   border-radius: 10px !important;
@@ -863,8 +897,8 @@
 }
 
 .office-sidebar[data-collapsed="true"] .office-sidebar__collapsed-action {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
   color: var(--fg-dim);
 }

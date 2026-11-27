@@ -84,7 +84,7 @@ const composeWP01: WorkcostCompose = {
 
 const c20: WorkcostResource = {
   id: 101, code: 'C20', gcode: 'RC010001', kind: '材料', title: 'C20商品混凝土', spec: '泵送到场', unit: 'm³', basePrice: 345, currentPrice: 360,
-  categoryPath: '材料/混凝土', source: '成本库', supplier: '', region: '乐山', priceDate: '2026年第7期', priceType: '到场价',
+  categoryPath: '材料/混凝土', source: '成本库', supplier: '', region: '四川省', priceDate: '2026年第7期', priceType: '到场价',
   validUntil: '', lossRate: 0, note: '', tags: [], status: '现行',
 }
 const l01: WorkcostResource = { ...c20, id: 102, code: 'L01', kind: '人工', title: '普通工', spec: '', unit: '工日', basePrice: 300, currentPrice: 0 }
@@ -119,8 +119,8 @@ beforeEach(() => {
   mocks.WorkcostQuotaComposeMany.mockResolvedValue({ WP01: composeWP01 })
   mocks.WorkcostResourceList.mockResolvedValue([{ ...c20 }, { ...l01 }, { ...zero }])
   mocks.WorkcostResourcePrices.mockResolvedValue([
-    { id: 2, resourceId: 101, price: 360, period: '2026年第11期', region: '乐山', priceType: '到场价', source: '造价模式调价', fetchedAt: '2026-11-20T08:00:00Z', note: '' },
-    { id: 1, resourceId: 101, price: 345, period: '2026年第7期', region: '乐山', priceType: '到场价', source: '项目导入', fetchedAt: '2026-10-07T08:00:00Z', note: '' },
+    { id: 2, resourceId: 101, price: 360, period: '2026年第11期', region: '四川省', priceType: '到场价', source: '造价模式调价', fetchedAt: '2026-11-20T08:00:00Z', note: '' },
+    { id: 1, resourceId: 101, price: 345, period: '2026年第7期', region: '四川省', priceType: '到场价', source: '项目导入', fetchedAt: '2026-10-07T08:00:00Z', note: '' },
   ])
   mocks.WorkcostResourceUsage.mockImplementation(async (code: string) =>
     code === 'C20' ? [{ id: 1, code: 'WP01', title: '施工便道', unit: 'm', quantity: 0.45 }] : [])
@@ -167,7 +167,11 @@ describe('造价数据库 · 三级浏览面', () => {
     expectText(status, '清单')
     expectText(status, '定额')
     expectText(status, '工料机')
-    expectAriaSelected(screen.getByTestId('cost-tier-bill'))
+    const billTier = screen.getByTestId('cost-tier-bill')
+    expectAriaSelected(billTier)
+    expect(billTier.querySelector('[data-cost-tier-icon="bill"]')).toBeTruthy()
+    expect(screen.getByTestId('cost-tier-quota').querySelector('[data-cost-tier-icon="quota"]')).toBeTruthy()
+    expect(screen.getByTestId('cost-tier-resource').querySelector('[data-cost-tier-icon="resource"]')).toBeTruthy()
     // 累计清单：两个项目的行都在，带项目列。
     expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(4) // 表头 + 3 行
     expect(screen.getAllByText('什邡地块治理').length).toBeGreaterThanOrEqual(1) // 左栏项目 + 表格项目列
@@ -182,6 +186,10 @@ describe('造价数据库 · 三级浏览面', () => {
     expectText(bill, '原表单价')
     expectText(bill, 'G Q0001001') // 库内自有码与来源码并显（SchemaV39）
     expect((await within(bill).findAllByText('¥162')).length).toBeGreaterThan(0) // 0.45 × 360
+    const fees = within(bill).getByTestId('cost-fee-summary')
+    expect(Array.from(fees.querySelectorAll('.cl-fee-item'), (el) => el.textContent)).toEqual([
+      '人工 ¥9', '材料 ¥162', '机械 ¥0',
+    ])
     expect(mocks.WorkcostQuotaGet).toHaveBeenCalledWith('WP01')
 
     // 定额码下钻：切到定额级并选中该定额。
@@ -198,10 +206,13 @@ describe('造价数据库 · 三级浏览面', () => {
     fireEvent.click(within(quota).getByRole('button', { name: '下钻到工料机 C20商品混凝土' }))
     const res = await screen.findByTestId('cost-detail-resource')
     expectAriaSelected(screen.getByTestId('cost-tier-resource'))
+    expect(res.className).toContain('cl-detail-resource')
     expectText(res, '核算取用价')
     expectText(res, 'G RC010001')
     expectText(res, '¥360')
     expectText(res, '¥345') // 基准价
+    expectText(res, '核算价格')
+    expectText(res, '现行价优先')
     expect(await within(res).findByText('2026年第11期')).toBeTruthy()
     expectText(within(res).getByTestId('cost-resource-usage'), 'WP01')
 
@@ -280,6 +291,36 @@ describe('造价数据库 · 三级浏览面', () => {
     expectText(empty, '没有匹配的行')
     fireEvent.click(within(empty).getByRole('button', { name: '清除筛选' }))
     expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(4)
+  })
+
+  it('表头排序：三级列表都支持升序 / 降序 / 恢复默认，空值不乱序', async () => {
+    await renderReady()
+    const bill = screen.getByTestId('cost-bill-rows')
+    const billPrice = within(bill).getByRole('button', { name: '按现算单价排序' })
+    fireEvent.click(billPrice)
+    expect(billPrice.closest('th')?.getAttribute('aria-sort')).toBe('ascending')
+    expectText(within(bill).getAllByRole('row')[1], '施工便道')
+    fireEvent.click(billPrice)
+    expect(billPrice.closest('th')?.getAttribute('aria-sort')).toBe('descending')
+    expectText(within(bill).getAllByRole('row')[1], '外委检测')
+    fireEvent.click(billPrice)
+    expect(billPrice.closest('th')?.getAttribute('aria-sort')).toBe('none')
+
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    const quota = await screen.findByTestId('cost-quota-rows')
+    const quotaCode = within(quota).getByRole('button', { name: '按编码排序' })
+    fireEvent.click(quotaCode)
+    expectText(within(quota).getAllByRole('row')[1], 'ENT-01')
+    fireEvent.click(quotaCode)
+    expectText(within(quota).getAllByRole('row')[1], 'WP01')
+
+    fireEvent.click(screen.getByTestId('cost-tier-resource'))
+    const resource = await screen.findByTestId('cost-resource-rows')
+    const resourcePrice = within(resource).getByRole('button', { name: '按取用价排序' })
+    fireEvent.click(resourcePrice)
+    expectText(within(resource).getAllByRole('row')[1], '普通工')
+    fireEvent.click(resourcePrice)
+    expectText(within(resource).getAllByRole('row')[1], 'C20商品混凝土')
   })
 
   it('归并视图：同名同特征同单位聚成库项，展开见各项目的成员行', async () => {
@@ -457,7 +498,7 @@ describe('造价数据库 · 常驻与四态', () => {
   })
 })
 
-describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）', () => {
+describe('造价数据库 · 维度（专业 / 分部 / 分类 / 地区 / 期）', () => {
   function railBtn(testid: string, name: RegExp): HTMLElement {
     return within(screen.getByTestId(testid)).getByRole('button', { name })
   }
@@ -494,7 +535,7 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     expectText(screen.getByTestId('cost-list-count'), '匹配 1 / 3')
   })
 
-  it('定额：先选专业才出章节这一级；章节在专业内筛选，换专业时章节筛选跟着清', async () => {
+  it('定额：先选专业才出分部这一级；分部在专业内筛选，换专业时分部筛选跟着清；列表有地区列', async () => {
     const sz: WorkcostQuota = { ...quotaWP01, id: 3, code: 'SZ01', origCode: '', title: '沥青路面', specialty: '市政', chapter: '道路工程' }
     const unlabeled: WorkcostQuota = { ...quotaWP01, id: 4, code: 'Q9', origCode: '', title: '没标专业的定额', specialty: '', chapter: '' }
     mocks.WorkcostQuotaList.mockResolvedValue([
@@ -504,13 +545,14 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     await renderReady()
     fireEvent.click(screen.getByTestId('cost-tier-quota'))
     await screen.findByTestId('cost-quota-rows')
-    expect(screen.queryByTestId('cost-rail-quota-chapters')).toBeNull() // 没选专业：不出章节
+    expect(screen.queryByTestId('cost-rail-quota-chapters')).toBeNull() // 没选专业：不出分部
     expect(rowsOf('cost-quota-rows')).toBe(5) // 表头 + 4
-    expectText(screen.getByTestId('cost-quota-rows'), '章节') // 列表有章节列
+    expectText(screen.getByTestId('cost-quota-rows'), '分部') // 列表有分部列
+    expectText(screen.getByTestId('cost-quota-rows'), '地区') // 列表有地区列（随上游项目挂钩，空=未标地区）
     fireEvent.click(railBtn('cost-rail-quota-specialties', /^土壤修复/))
     const chapters = await screen.findByTestId('cost-rail-quota-chapters')
     expectText(chapters, 'A临建')
-    expectText(chapters, '未归章节')
+    expectText(chapters, '未归分部')
     expect(rowsOf('cost-quota-rows')).toBe(3) // 表头 + 土壤修复的 2 条
     fireEvent.click(railBtn('cost-rail-quota-chapters', /^A临建/))
     expect(rowsOf('cost-quota-rows')).toBe(2)
@@ -518,27 +560,27 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     fireEvent.click(railBtn('cost-rail-quota-specialties', /^市政/))
     expect(textOf(screen.getByTestId('cost-crumb'))).not.toContain('A临建')
     expectText(screen.getByTestId('cost-rail-quota-chapters'), '道路工程')
-    expect(rowsOf('cost-quota-rows')).toBe(2) // 市政的 1 条（章节筛选已清）
+    expect(rowsOf('cost-quota-rows')).toBe(2) // 市政的 1 条（分部筛选已清）
   })
 
   it('工料机：类别 → 分类（选上级连带下级）；工具条按地区、期数筛选；列表有地区与期两列', async () => {
-    const cq: WorkcostResource = { ...c20, id: 104, code: 'C30', title: 'C30商品混凝土', spec: '泵送', categoryPath: '材料/混凝土/泵送', region: '重庆中心城区', priceDate: '2025-12' }
+    const cq: WorkcostResource = { ...c20, id: 104, code: 'C30', title: 'C30商品混凝土', spec: '泵送', categoryPath: '材料/混凝土/泵送', region: '重庆市', priceDate: '2025-12' }
     const bare: WorkcostResource = { ...c20, id: 105, code: 'SAND', title: '中砂', spec: '', categoryPath: '', region: '', priceDate: '' }
     mocks.WorkcostResourceList.mockResolvedValue([
-      { ...c20, region: '成都市区', priceDate: '2026-06' }, { ...l01, region: '', priceDate: '', categoryPath: '' }, { ...cq }, { ...bare },
+      { ...c20, region: '四川省', priceDate: '2026-06' }, { ...l01, region: '', priceDate: '', categoryPath: '' }, { ...cq }, { ...bare },
     ])
     await renderReady()
     fireEvent.click(screen.getByTestId('cost-tier-resource'))
     await screen.findByTestId('cost-resource-rows')
     expect(rowsOf('cost-resource-rows')).toBe(5) // 表头 + 4
-    expectText(screen.getByTestId('cost-resource-rows'), '成都市区')
+    expectText(screen.getByTestId('cost-resource-rows'), '四川省')
     expectText(screen.getByTestId('cost-resource-rows'), '2026年6月') // 库里存 YYYY-MM，界面显示年月
     const options = (testid: string) => Array.from(screen.getByTestId(testid).querySelectorAll('option')).map((o) => o.textContent)
-    expect(options('cost-select-region')).toEqual(['全部地区', '成都市区（1）', '重庆中心城区（1）', '未标注（2）'])
+    expect(options('cost-select-region')).toEqual(['全部地区', '重庆市（1）', '四川省（1）', '未标注（2）'])
     expect(options('cost-select-period')).toEqual(['全部期', '2026年6月（1）', '2025年12月（1）', '无期（2）'])
-    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '重庆中心城区' } })
+    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '重庆市' } })
     expect(rowsOf('cost-resource-rows')).toBe(2)
-    expectText(screen.getByTestId('cost-crumb'), '重庆中心城区')
+    expectText(screen.getByTestId('cost-crumb'), '重庆市')
     fireEvent.change(screen.getByTestId('cost-select-period'), { target: { value: '__none__' } })
     expect(screen.getByTestId('cost-tier-empty')).toBeTruthy() // 重庆那条有期：加上「无期」就无匹配
     fireEvent.click(within(screen.getByTestId('cost-tier-empty')).getByRole('button', { name: '清除筛选' }))
@@ -559,7 +601,7 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
   it('类别待整理：类别不在四类之内的工料机在左栏单列一桶，能筛出来，导出同口径；当前位置里的期数显示成年月', async () => {
     const note: WorkcostResource = {
       ...c20, id: 106, code: 'NOTE-1', kind: '一段备注：地磅设备摊销为估价', title: '错记成工料机的说明行', spec: '', unit: '项',
-      categoryPath: '', region: '重庆中心城区', priceDate: '2026-06',
+      categoryPath: '', region: '重庆市', priceDate: '2026-06',
     }
     mocks.WorkcostResourceList.mockResolvedValue([{ ...c20 }, { ...note }])
     mocks.PickDirectory.mockResolvedValue('D:/导出')
@@ -621,10 +663,10 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
 
     fireEvent.click(screen.getByTestId('cost-tier-resource'))
     await screen.findByTestId('cost-resource-rows')
-    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '乐山' } })
+    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '四川省' } })
     await pickExport(3)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(2))
-    expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, region: '乐山' }])
+    expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, region: '四川省' }])
   })
 
   it('导出测算模版：kind=template，口径取当前专业与工料机级筛选，「未标注 / 类别待整理」哨兵不当口径', async () => {
@@ -638,11 +680,11 @@ describe('造价数据库 · 维度（专业 / 章节 / 分类 / 地区 / 期）
     // 工料机级：地区成为模版口径；「类别待整理」这一桶对模版=没给类别。
     fireEvent.click(screen.getByTestId('cost-tier-resource'))
     await screen.findByTestId('cost-resource-rows')
-    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '乐山' } })
+    fireEvent.change(screen.getByTestId('cost-select-region'), { target: { value: '四川省' } })
     fireEvent.click(within(screen.getByTestId('cost-rail-kinds')).getAllByRole('button', { name: /^材料/ })[0]!)
     await pickExport(0)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(2))
-    expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['template', { ...EMPTY_FILTER, kind: '材料', region: '乐山' }])
+    expect(mocks.CostLibraryExport.mock.calls[1]!.slice(0, 2)).toEqual(['template', { ...EMPTY_FILTER, kind: '材料', region: '四川省' }])
     expect(String(mocks.CostLibraryExport.mock.calls[1]![2]).startsWith('D:/导出/造价库-测算模版-')).toBe(true)
   })
 
@@ -816,7 +858,7 @@ describe('造价数据库 · 库页编辑面（2026-11-27）', () => {
     await waitFor(() => expect(mocks.WorkcostBillQuotaAttach).toHaveBeenCalledWith(11, 'WP02', 0))
   })
 
-  it('定额编辑：改含量行数量整组落库；换专业联动章节面', async () => {
+  it('定额编辑：改含量行数量整组落库；换专业联动分部面', async () => {
     await renderReady()
     fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
     const bill = await screen.findByTestId('cost-detail-bill')
@@ -851,7 +893,7 @@ describe('造价数据库 · 库页编辑面（2026-11-27）', () => {
     // 按期调价：独立登记动作（写调价历史并推进现行价），登记后留在编辑态
     fireEvent.change(within(edit).getByTestId('cost-edit-res-setprice-price'), { target: { value: '395' } })
     fireEvent.click(within(edit).getByTestId('cost-edit-res-setprice'))
-    await waitFor(() => expect(mocks.WorkcostResourceSetPrice).toHaveBeenCalledWith(101, 395, '', '乐山', '信息价', '造价库界面', ''))
+    await waitFor(() => expect(mocks.WorkcostResourceSetPrice).toHaveBeenCalledWith(101, 395, '', '四川省', '信息价', '造价库界面', ''))
     expect(screen.getByTestId('cost-notice').textContent).toContain('已调价')
     expect(screen.getByTestId('cost-resource-edit')).toBeTruthy()
     // 主数据保存：改现行价走 SaveResource，成功后退出编辑态

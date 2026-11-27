@@ -1,9 +1,10 @@
 // TierRail — 左栏：三级切换（清单 / 定额 / 工料机）+ 当前级的两级上下文。
-// 清单级：专业 → 项目；定额级：专业 → 章节；工料机级：类别 → 分类。
+// 清单级：专业 → 项目；定额级：专业 → 分部；工料机级：类别 → 分类。
 // 纯展示，状态在页面。规范值只认库里的取值；空值归「未标注」一桶。
 import type { ReactNode } from "react";
-import { Coins, ListTree, Layers, Trash2 } from "../../gaea/icons";
+import { Trash2 } from "../../gaea/icons";
 import type { WorkcostBillProject } from "../../gaea/lib/types";
+import { CostTierIcon } from "./CostTierIcons";
 import {
   NONE, OUTSIDE, dimLabel, kindLabel, type BillFilters, type CategoryNode, type Facet, type QuotaFilters, type ResourceFilters, type Tier, TIERS,
 } from "./logic";
@@ -20,12 +21,6 @@ interface BaseProps {
   onTier: (tier: Tier) => void;
 }
 
-const TIER_ICONS: Record<Tier, ReactNode> = {
-  bill: <ListTree size={14} />,
-  quota: <Coins size={14} />,
-  resource: <Layers size={14} />,
-};
-
 export function TierSwitch({ tier, counts, onTier }: BaseProps) {
   return (
     <div className="cl-tier-switch" role="tablist" aria-label="造价数据三级">
@@ -40,7 +35,9 @@ export function TierSwitch({ tier, counts, onTier }: BaseProps) {
           className={`cl-tier${tier === t.key ? " is-active" : ""}`}
           onClick={() => onTier(t.key)}
         >
-          <span className="cl-tier-icon" aria-hidden>{TIER_ICONS[t.key]}</span>
+          <span className="cl-tier-icon" aria-hidden>
+            <CostTierIcon tier={t.key} />
+          </span>
           <span className="cl-tier-label">{t.label}</span>
           <span className="cl-tier-count">{counts[t.key]}</span>
         </button>
@@ -148,9 +145,9 @@ export function TierRail(props: {
   onBillSpecialty: (specialty: string) => void;
   onProject: (id: number) => void;
   onDeleteProject: (project: WorkcostBillProject) => void;
-  // 定额级：专业 → 章节。
+  // 定额级：专业 → 分部。
   specialties: Facet[];
-  /** 当前专业下的章节分布；没选专业时为空（章节只在专业内有意义）。 */
+  /** 当前专业下的分部分布；没选专业时为空（分部只在专业内有意义）。 */
   chapters: Facet[];
   quotaFilters: QuotaFilters;
   onSpecialty: (specialty: string) => void;
@@ -212,10 +209,10 @@ export function TierRail(props: {
                 emptyLabel="未标注专业" testid="cost-rail-quota-specialties" />
             </RailSection>
             {quotaFilters.specialty && (
-              <RailSection label="章节" listId="cl-cap-quota-chapter" hint="章节在专业内划分">
-                <FacetList listId="cl-cap-quota-chapter" allLabel="全部章节" allCount={chapters.reduce((n, c) => n + c.count, 0)}
+              <RailSection label="分部" listId="cl-cap-quota-chapter" hint="分部在专业内划分">
+                <FacetList listId="cl-cap-quota-chapter" allLabel="全部分部" allCount={chapters.reduce((n, c) => n + c.count, 0)}
                   facets={chapters} value={quotaFilters.chapter} onPick={props.onChapter}
-                  emptyLabel="未归章节" testid="cost-rail-quota-chapters" />
+                  emptyLabel="未归分部" testid="cost-rail-quota-chapters" />
               </RailSection>
             )}
           </>
@@ -279,7 +276,7 @@ export function TierBar(props: {
   contextValue: string;
   onContext: (value: string) => void;
   contextLabel: string;
-  /** 第二级上下文（清单的项目 / 定额的章节 / 工料机的分类）；没有可选项时不出现。 */
+  /** 第二级上下文（清单的项目 / 定额的分部 / 工料机的分类）；没有可选项时不出现。 */
   secondOptions?: { value: string; label: string }[];
   secondValue?: string;
   onSecond?: (value: string) => void;

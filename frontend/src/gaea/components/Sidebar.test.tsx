@@ -108,6 +108,8 @@ describe("Sidebar 项目分组与会话操作", () => {
     const c = renderSidebar([group], 264, true);
     const toggle = screen.getByTestId("global-sidebar-toggle");
     expect(toggle.querySelector('[data-workspace-sidebar-toggle="expand"]')).not.toBeNull();
+    expect(c.view.container.querySelector(".office-sidebar__brand-mark")).toBeNull();
+    expect(c.view.container.querySelector(".office-sidebar__brand-name")).toBeNull();
 
     const current = screen.getByTestId("sidebar-current-session-collapsed");
     expect(current.querySelector(".office-sidebar__current-dot")).not.toBeNull();
@@ -120,6 +122,13 @@ describe("Sidebar 项目分组与会话操作", () => {
 
     expect(screen.getByRole("button", { name: "MCP 与技能" })).toBeTruthy();
     expect(c.view.container.querySelector(".office-sidebar__collapsed-actions")).not.toBeNull();
+  });
+
+  it("展开态侧栏身份只保留文字，不再重复一级导航的 logo", () => {
+    const { view } = renderSidebar();
+    expect(view.container.querySelector(".office-sidebar__brand-mark")).toBeNull();
+    expect(view.container.querySelector(".office-sidebar__brand-name")?.textContent).toContain("gaea");
+    expect(screen.getByTestId("global-sidebar-toggle")).toBeTruthy();
   });
 
   it("渲染项目名称、当前会话与当前标记", () => {
@@ -183,6 +192,12 @@ describe("Sidebar 项目分组与会话操作", () => {
       archived: [],
     };
     const c = renderSidebar([group, other]);
+    const otherActions = screen.getByTestId("sidebar-project-actions-other");
+    const currentActions = screen.getByTestId("sidebar-project-actions-ws");
+    expect(otherActions.className).toBe("office-project-actions");
+    expect(currentActions.className).toBe("office-project-actions");
+    expect(otherActions.querySelectorAll(".office-project-action")).toHaveLength(3);
+    expect(currentActions.querySelectorAll(".office-project-action")).toHaveLength(1);
     fireEvent.click(screen.getByTestId("sidebar-new-in-project-other"));
     expect(c.onNewSessionInProject).toHaveBeenCalledWith("/other", false);
     fireEvent.click(screen.getByTestId("sidebar-new-in-project-ws"));

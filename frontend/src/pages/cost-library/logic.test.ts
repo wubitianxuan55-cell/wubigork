@@ -1,7 +1,7 @@
 // cost-library/logic.test.ts — 造价数据库（三级浏览面）纯函数层。
 // 覆盖：关键词匹配与挂接码归一、清单筛选（项目/分部/专业/关键词）、库项归并、现算
 // 单价（手填优先 / 多定额求和 / 算不出给 null）、消耗量、定额被谁用的引用索引、
-// 核算行与含量行对齐、定额与工料机筛选（专业/章节/类别/分类/地区/期）、分类树、
+// 核算行与含量行对齐、定额与工料机筛选（专业/分部/类别/分类/地区/期）、分类树、
 // 期数排序与显示、待整理计数、取用价口径、渐进披露、选择键往返。
 import { describe, expect, it } from 'vitest'
 import type { WorkcostBillItem, WorkcostComposeLineView, WorkcostQuota, WorkcostQuotaItem, WorkcostResource } from '../../gaea/lib/types'
@@ -149,15 +149,15 @@ describe('定额与工料机', () => {
   ]
   const noQuotaFilter = { specialty: '', chapter: '', keyword: '' }
   const resources: WorkcostResource[] = [
-    { id: 1, code: 'C20', kind: '材料', title: 'C20商品混凝土', spec: '泵送', unit: 'm³', basePrice: 345, currentPrice: 360, categoryPath: '材料/混凝土', source: '', supplier: '', region: '成都市区', priceDate: '2026-06', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
+    { id: 1, code: 'C20', kind: '材料', title: 'C20商品混凝土', spec: '泵送', unit: 'm³', basePrice: 345, currentPrice: 360, categoryPath: '材料/混凝土', source: '', supplier: '', region: '四川省', priceDate: '2026-06', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
     { id: 2, code: 'L01', kind: '人工', title: '普通工', spec: '', unit: '工日', basePrice: 300, currentPrice: 0, categoryPath: '', source: '', supplier: '', region: '', priceDate: '', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
-    { id: 3, code: 'Z01', kind: '材料', title: '待询价', spec: '', unit: 't', basePrice: 0, currentPrice: 0, categoryPath: '', source: '', supplier: '', region: '重庆中心城区', priceDate: '2026年11月', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
-    { id: 4, code: 'C30', kind: '材料', title: 'C30商品混凝土', spec: '泵送', unit: 'm³', basePrice: 380, currentPrice: 390, categoryPath: '材料/混凝土/泵送', source: '', supplier: '', region: '重庆中心城区', priceDate: '2025-12', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
-    { id: 5, code: 'REB', kind: '材料', title: '螺纹钢筋', spec: 'HRB400', unit: 't', basePrice: 3200, currentPrice: 3300, categoryPath: '材料/钢材', source: '', supplier: '', region: '成都市区', priceDate: '2026年6月', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
+    { id: 3, code: 'Z01', kind: '材料', title: '待询价', spec: '', unit: 't', basePrice: 0, currentPrice: 0, categoryPath: '', source: '', supplier: '', region: '重庆市', priceDate: '2026年11月', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
+    { id: 4, code: 'C30', kind: '材料', title: 'C30商品混凝土', spec: '泵送', unit: 'm³', basePrice: 380, currentPrice: 390, categoryPath: '材料/混凝土/泵送', source: '', supplier: '', region: '重庆市', priceDate: '2025-12', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
+    { id: 5, code: 'REB', kind: '材料', title: '螺纹钢筋', spec: 'HRB400', unit: 't', basePrice: 3200, currentPrice: 3300, categoryPath: '材料/钢材', source: '', supplier: '', region: '四川省', priceDate: '2026年6月', priceType: '', validUntil: '', lossRate: 0, note: '', tags: [], status: '现行' },
   ]
   const noResourceFilter = { kind: '', category: '', region: '', period: '', keyword: '' }
 
-  it('定额按专业 / 章节 / 关键词筛选；专业与章节分布带条数、未标注排最后', () => {
+  it('定额按专业 / 分部 / 关键词筛选；专业与分部分布带条数、未标注排最后', () => {
     expect(specialtiesOf(quotas)).toEqual([
       { name: '地基处理', count: 2 }, { name: '土壤修复', count: 1 }, { name: NONE, count: 1 },
     ])
@@ -165,7 +165,7 @@ describe('定额与工料机', () => {
     // 原码也能搜到。
     expect(filterQuotas(quotas, { ...noQuotaFilter, keyword: 'tl-1' }).map((q) => q.code)).toEqual(['TL01'])
     expect(filterQuotas(quotas, { ...noQuotaFilter, keyword: '桩基' }).map((q) => q.code)).toEqual(['TL01'])
-    // 章节只在专业内比：地基处理下一条有章节、一条未归。
+    // 分部只在专业内比：地基处理下一条有分部、一条未归。
     expect(chaptersOf(quotas, '地基处理')).toEqual([{ name: 'B桩基', count: 1 }, { name: NONE, count: 1 }])
     expect(filterQuotas(quotas, { ...noQuotaFilter, specialty: '地基处理', chapter: NONE }).map((q) => q.code)).toEqual(['TL02'])
     expect(filterQuotas(quotas, { ...noQuotaFilter, specialty: NONE }).map((q) => q.code)).toEqual(['ZZ01'])
@@ -182,7 +182,7 @@ describe('定额与工料机', () => {
     expect(filterResources(resources, { ...noResourceFilter, category: '材料/混凝' }).map((r) => r.code)).toEqual([]) // 按段匹配，不做前缀子串
     expect(filterResources(resources, { ...noResourceFilter, category: NONE }).map((r) => r.code)).toEqual(['L01', 'Z01'])
     // 地区与期：未标注是一桶；期数按库里的规范写法比对。
-    expect(filterResources(resources, { ...noResourceFilter, region: '成都市区' }).map((r) => r.code)).toEqual(['C20', 'REB'])
+    expect(filterResources(resources, { ...noResourceFilter, region: '四川省' }).map((r) => r.code)).toEqual(['C20', 'REB'])
     expect(filterResources(resources, { ...noResourceFilter, region: NONE }).map((r) => r.code)).toEqual(['L01'])
     expect(filterResources(resources, { ...noResourceFilter, period: '2026-06' }).map((r) => r.code)).toEqual(['C20'])
     expect(filterResources(resources, { ...noResourceFilter, period: NONE }).map((r) => r.code)).toEqual(['L01'])
@@ -221,7 +221,7 @@ describe('定额与工料机', () => {
 
   it('地区与期数分布：期数新的在前、无期的在最后', () => {
     expect(regionsOf(resources)).toEqual([
-      { name: '成都市区', count: 2 }, { name: '重庆中心城区', count: 2 }, { name: NONE, count: 1 },
+      { name: '重庆市', count: 2 }, { name: '四川省', count: 2 }, { name: NONE, count: 1 },
     ])
     expect(periodsOf(resources).map((f) => f.name)).toEqual(['2026年11月', '2026-06', '2026年6月', '2025-12', NONE])
     expect(periodsOf(resources).map((f) => f.count)).toEqual([1, 1, 1, 1, 1])
@@ -283,7 +283,7 @@ describe('待整理', () => {
     }
     // 类别写成别的东西的存量行：其余维度都齐，只差类别。
     const odd: WorkcostResource = {
-      ...res, id: 2, code: 'R2', kind: '一段说明', categoryPath: '其他', region: '成都市区', priceDate: '2026-06',
+      ...res, id: 2, code: 'R2', kind: '一段说明', categoryPath: '其他', region: '四川省', priceDate: '2026-06',
     }
     const p = pendingOf(rows, [quota], [res, odd])
     expect(p.billSpecialty).toBe(2)
@@ -295,7 +295,7 @@ describe('待整理', () => {
     expect(p.resourcePeriod).toBe(1)
     // 总数把列出来的每一项都算进去（入口上的数要和它自己的说明对得上）。
     expect(p.total).toBe(2 + 1 + 1 + 1 + 1 + 1 + 1)
-    expect(pendingSummary(p)).toBe('清单无专业 2 · 定额无专业 1 · 定额未归章节 1 · 工料机类别待整理 1 · 工料机未标地区 1 · 工料机未细分 1 · 工料机无期数 1')
+    expect(pendingSummary(p)).toBe('清单无专业 2 · 定额无专业 1 · 定额未归分部 1 · 工料机类别待整理 1 · 工料机未标地区 1 · 工料机未细分 1 · 工料机无期数 1')
     const clean = pendingOf([row({ specialty: '土壤修复' })], [], [])
     expect(clean.total).toBe(0)
     expect(pendingSummary(clean)).toBe('')

@@ -171,11 +171,11 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
           )}
           <span className="office-project-count shrink-0 text-fg-faint/55 font-mono text-[10px]">{row.g.sessions.length}</span>
         </button>
-        {/* 2026-11-19 项目行操作组（文学面形态）：+ 新建会话 / 删除（移出最近列表）/
-            归档（隐藏可恢复）。当前项目只留新建。 */}
-        <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+        {/* 文学面同款：项目行操作常显，不再依赖 hover 才能发现。当前项目只留新建。 */}
+        <span className="office-project-actions" data-testid={`sidebar-project-actions-${row.g.name}`}>
           <button
-            className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+            type="button"
+            className="office-project-action"
             title={ui.running ? t("common.busyHint") : t("sidebar.newSessionInProject", { name: row.g.name })}
             aria-label={t("sidebar.newSessionInProject", { name: row.g.name })}
             data-testid={`sidebar-new-in-project-${row.g.name}`}
@@ -187,18 +187,20 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
           {!row.g.current && (
             <>
               <button
-                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-                title={t("sidebar.removeProjectTitle")}
-                aria-label={t("sidebar.removeProjectTitle")}
+                type="button"
+                className="office-project-action office-project-action--danger"
+                title={`${t("sidebar.removeProjectTitle")}：${row.g.name}`}
+                aria-label={`${t("sidebar.removeProjectTitle")}：${row.g.name}`}
                 data-testid={`sidebar-remove-project-${row.g.name}`}
                 onClick={e => { e.stopPropagation(); ui.onRemoveProject(row.g.path); }}
               >
                 <Trash2 size={12} />
               </button>
               <button
-                className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
-                title={t("sidebar.archiveProjectTitle")}
-                aria-label={t("sidebar.archiveProjectTitle")}
+                type="button"
+                className="office-project-action"
+                title={`${t("sidebar.archiveProjectTitle")}：${row.g.name}`}
+                aria-label={`${t("sidebar.archiveProjectTitle")}：${row.g.name}`}
                 data-testid={`sidebar-archive-project-${row.g.name}`}
                 onClick={e => { e.stopPropagation(); ui.onArchiveProject(row.g.path); }}
               >
@@ -821,10 +823,7 @@ export function Sidebar({
         aria-label="gaea navigation"
       >
         {/* 工作区身份：产品、当前项目与侧栏开关 */}
-        <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "flex-col gap-1.5" : ""}`}>
-          <span className="office-sidebar__brand-mark" aria-hidden>
-            <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
-          </span>
+        <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "justify-center" : ""}`}>
           {!collapsed && (
             <span className="office-sidebar__brand-copy">
               <span className="office-sidebar__brand-name">gaea</span>
@@ -837,7 +836,7 @@ export function Sidebar({
           )}
           <button
             className={`office-sidebar__collapse inline-flex items-center justify-center border-0 bg-transparent text-fg-faint cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover no-drag ${
-              collapsed ? "" : "ml-auto"
+              collapsed ? "mx-auto" : "ml-auto"
             }`}
             onClick={toggleSidebar}
             title={toggleTitle}

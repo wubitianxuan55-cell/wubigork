@@ -64,7 +64,7 @@ function ensureWorkcostSeed(): void {
       id: mockResourceSeq++, code, gcode: `R${slot}01${String(gseq[slot]).padStart(4, "0")}`,
       kind, title, spec, unit,
       basePrice: price, currentPrice: price, categoryPath: `工料机/${kind}`,
-      source, supplier: "", region: "乐山", priceDate: "2026-07", priceType: "到场价",
+      source, supplier: "", region: "四川省", priceDate: "2026-07", priceType: "到场价",
       validUntil: "", lossRate: 0, note: "", tags: [], status: "现行",
     });
   };
@@ -76,7 +76,7 @@ function ensureWorkcostSeed(): void {
     id: 1, name: "旺平矿业修复（演示）", fileName: "旺平矿业修复项目成本测算表.xlsx",
     source: "", location: "乐山", duration: "180 天", pricing: "综合单价只含人材机，管理费/利润/税金不进综合单价",
     managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09,
-    profitIncludesRegulatory: false, controlPrice: 0, specialty: "土壤修复", region: "乐山", pricePeriod: "2026-07", itemCount: 2,
+    profitIncludesRegulatory: false, controlPrice: 0, specialty: "土壤修复", region: "四川省", pricePeriod: "2026-07", itemCount: 2,
     createdAt: "2026-10-07T10:00:00Z", updatedAt: "2026-10-07T10:00:00Z",
   }];
   mockBillItems = [

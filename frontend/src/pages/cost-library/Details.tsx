@@ -94,12 +94,16 @@ function AnalysisTable({ compose, items, factor, onOpenResource }: {
         </tbody>
         <tfoot>
           <tr className="cl-tfoot-fees">
-            <td colSpan={3}>三费</td>
-            <td colSpan={withUse ? 5 : 4} className="cl-fee-line">
-              <span>人工 <b className="is-labor">{fmtMoney(compose.laborFee)}</b></span>
-              <span>材料 <b className="is-material">{fmtMoney(compose.materialFee)}</b></span>
-              <span>机械 <b className="is-machine">{fmtMoney(compose.machineFee)}</b></span>
-              {compose.outsourcedFee > 0 && <span className="cl-dim">其中外委 {fmtMoney(compose.outsourcedFee)}（已并入材料）</span>}
+            <td colSpan={withUse ? 8 : 7}>
+              <div className="cl-fee-summary" data-testid="cost-fee-summary">
+                <span className="cl-fee-summary-label">三费</span>
+                <span className="cl-fee-item">人工 <b className="is-labor">{fmtMoney(compose.laborFee)}</b></span>
+                <span className="cl-fee-item">材料 <b className="is-material">{fmtMoney(compose.materialFee)}</b></span>
+                <span className="cl-fee-item">机械 <b className="is-machine">{fmtMoney(compose.machineFee)}</b></span>
+                {compose.outsourcedFee > 0 && (
+                  <span className="cl-fee-outsourced cl-dim">其中外委 {fmtMoney(compose.outsourcedFee)}（已并入材料）</span>
+                )}
+              </div>
             </td>
           </tr>
           <tr className="cl-tfoot-total">
@@ -237,16 +241,17 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource, speci
 
 // ── 定额 ─────────────────────────────────────────────────────────────
 
-export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialtyOptions, chapterOptionsOf, resources, onSaved }: {
+export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialtyOptions, chapterOptionsOf, resources, regionOptions, onSaved }: {
   quota: WorkcostQuota;
   /** 引用它的清单行（页面按全量清单算好的引用索引）。 */
   usage: BillRow[];
   onOpenBill: (row: BillRow) => void;
   onOpenResource: (code: string) => void;
-  /** 编辑面：专业取值 / 各专业下的章节 / 工料机全量（加含量行用）。 */
+  /** 编辑面：专业取值 / 各专业下的分部 / 地区取值 / 工料机全量（加含量行用）。 */
   specialtyOptions?: string[];
   chapterOptionsOf?: (specialty: string) => string[];
   resources?: WorkcostResource[];
+  regionOptions?: string[];
   onSaved?: (msg: string) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -288,12 +293,15 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialt
         <h2 className="cl-detail-title">{quota.title}</h2>
         <div className="cl-meta">
           <span className="cl-code">{quota.code}</span>
-          {quota.gcode && <span className="cl-tag" data-testid="cost-quota-gcode" title="库内自有码（D+专业+章节+流水；与外部码一一对应）">G {quota.gcode}</span>}
+          {quota.gcode && <span className="cl-tag" data-testid="cost-quota-gcode" title="库内自有码（D+专业+分部+流水；与外部码一一对应）">G {quota.gcode}</span>}
           {quota.origCode && quota.origCode !== quota.code && <span title="工作簿原始编码">原码 {quota.origCode}</span>}
           {quota.unit && <span>计量单位 {quota.unit}</span>}
           {quota.chapter
-            ? <span>章节 {quota.chapter}</span>
-            : <span className="cl-dim" title="还没归章节——在造价模式用 cost_library classify 归类">章节 未归</span>}
+            ? <span>分部 {quota.chapter}</span>
+            : <span className="cl-dim" title="还没归分部——在造价模式用 cost_library classify 归类">分部 未归</span>}
+          {quota.region
+            ? <span title="地区与上游清单项目挂钩">地区 {quota.region}</span>
+            : <span className="cl-dim" title="还没标地区——随上游清单项目导入带上，或点编辑补标">地区 未标</span>}
           <span>被 {usage.length} 条清单项引用</span>
         </div>
         {quota.derivedFrom && (
@@ -305,7 +313,7 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialt
       </header>
       {editing && onSaved && full ? (
         <QuotaEdit quota={full} specialtyOptions={specialtyOptions ?? []} chapterOptionsOf={chapterOptionsOf ?? (() => [])}
-          resources={resources ?? []} onSaved={onSaved} onCancel={() => setEditing(false)} />
+          resources={resources ?? []} regionOptions={regionOptions ?? []} onSaved={onSaved} onCancel={() => setEditing(false)} />
       ) : (
         <>
           <DetailState phase={phase} error={error}>
@@ -402,7 +410,7 @@ export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOpt
   });
 
   return (
-    <article className="cl-detail" data-testid="cost-detail-resource">
+    <article className="cl-detail cl-detail-resource" data-testid="cost-detail-resource">
       <header className="cl-detail-head">
         <div className="cl-kicker">
           {"工料机"}
@@ -419,22 +427,31 @@ export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOpt
           categoryOptions={categoryOptions ?? []} onSaved={onSaved} onCancel={() => setEditing(false)} />
       ) : (
         <>
-          <section className="cl-price-card">
-            <div className={`cl-price-main${price <= 0 ? " is-zero" : ""}`}>
-              <span className="cl-price-label">核算取用价{resource.region || resource.priceDate ? "（现行价）" : ""}</span>
-              <span className="cl-price-value">{fmtMoney(price > 0 ? price : null)}</span>
-              {resource.unit && <span className="cl-price-unit">/ {resource.unit}</span>}
+          <section className="cl-block cl-resource-price-block">
+            <div className="cl-block-head">
+              <span className="cl-block-label">核算价格</span>
+              <span className="cl-dim">现行价优先，缺价回退基准价</span>
             </div>
-            <dl className="cl-price-facts">
+            <div className={`cl-price-main cl-resource-price-main${price <= 0 ? " is-zero" : ""}`}>
+              <span className="cl-price-label">核算取用价</span>
+              <div className="cl-resource-price-number">
+                <span className="cl-price-value">{fmtMoney(price > 0 ? price : null)}</span>
+                {resource.unit && <span className="cl-price-unit">/ {resource.unit}</span>}
+              </div>
+            </div>
+            <dl className="cl-price-facts cl-resource-price-pair">
               <div><dt>现行价</dt><dd>{fmtMoney(resource.currentPrice > 0 ? resource.currentPrice : null)}</dd></div>
               <div><dt>基准价</dt><dd>{fmtMoney(resource.basePrice > 0 ? resource.basePrice : null)}</dd></div>
             </dl>
             {price <= 0 && <p className="cl-warn-text">现行价与基准价均为 0——引用它的定额子目按 0 计入综合单价。点「编辑」直接补价或按期调价。</p>}
             {price > 0 && resource.currentPrice <= 0 && <p className="cl-note">现行价未录入，核算回退基准价。</p>}
             {facts.length > 0 && (
-              <dl className="cl-facts">
-                {facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd title={v}>{v}</dd></div>)}
-              </dl>
+              <section className="cl-resource-price-details">
+                <h3>基本资料</h3>
+                <dl className="cl-facts">
+                  {facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd title={v}>{v}</dd></div>)}
+                </dl>
+              </section>
             )}
             {missing.length > 0 && (
               <p className="cl-note" data-testid="cost-resource-pending">
@@ -487,6 +504,7 @@ export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOpt
               )}
             </section>
           </DetailState>
+          <p className="cl-foot-note">核算取用价优先采用现行价；现行价未录入时回退基准价。各期价格用于追溯调价来源，不改变定额含量。</p>
         </>
       )}
     </article>

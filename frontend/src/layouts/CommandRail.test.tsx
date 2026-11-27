@@ -44,6 +44,8 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
 
   it('空间分域残面零残留：指示徽标/切换器/竖排微章全 null', () => {
     renderRail()
+    expect(document.querySelector('.v3-rail-caption')?.textContent).toBe('办公')
+    expect(document.querySelector('.v3-rail-head')?.textContent).not.toContain('办公')
     expect(screen.queryByTestId('v3-rail-space-indicator')).toBeNull()
     expect(screen.queryByTestId('v3-rail-space-switch')).toBeNull()
     expect(document.querySelector('.v3-rail-space')).toBeNull()
@@ -77,6 +79,13 @@ describe('CommandRail 一级导航合一（2026-10-26）', () => {
     const active = document.querySelector('.v3-rail-item.is-active')
     expect(active?.getAttribute('aria-label')).toBe('办公')
     expect(active?.getAttribute('aria-current')).toBe('page')
+  })
+
+  it('顶部名称跟随当前板块，而不是固定写“板块”', () => {
+    renderRail({ page: 'cost' })
+    const caption = document.querySelector('.v3-rail-caption')
+    expect(caption?.textContent).toBe('造价')
+    expect(caption?.getAttribute('title')).toBe('造价数据库')
   })
 
   it('一级导航均渲染矢量图标，微信助手使用品牌图标', () => {

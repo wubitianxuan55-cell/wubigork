@@ -897,10 +897,7 @@ export function Sidebar({
         aria-label="gaea navigation"
       >
         {/* 工作区身份：产品、当前项目与侧栏开关 */}
-        <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "flex-col gap-1.5" : ""}`}>
-          <span className="office-sidebar__brand-mark" aria-hidden>
-            <img src="/gaea-brand-mark.webp" alt="" className="gaea-brand-art" draggable={false} />
-          </span>
+        <div className={`office-sidebar__brand flex items-center gap-2 ${collapsed ? "justify-center" : ""}`}>
           {!collapsed && (
             <span className="office-sidebar__brand-copy">
               <span className="office-sidebar__brand-name">
@@ -916,7 +913,7 @@ export function Sidebar({
           )}
           <button
             className={`office-sidebar__collapse inline-flex items-center justify-center border-0 bg-transparent text-fg-faint cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover no-drag ${
-              collapsed ? "" : "ml-auto"
+              collapsed ? "mx-auto" : "ml-auto"
             }`}
             onClick={toggleSidebar}
             title={toggleTitle}

@@ -62,7 +62,7 @@ function ensureWorkcostSeed(): void {
     mockResources.push({
       id: mockResourceSeq++, code, kind, title, spec, unit,
       basePrice: price, currentPrice: price, categoryPath: `工料机/${kind}`,
-      source, supplier: "", region: "乐山", priceDate: "2026年第7期", priceType: "到场价",
+      source, supplier: "", region: "四川省", priceDate: "2026年第7期", priceType: "到场价",
       validUntil: "", lossRate: 0, note: "", tags: [], status: "现行",
     });
   };

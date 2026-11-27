@@ -5,11 +5,12 @@
 // 这里给人看，外加导出与删除；2026-11-27 起每条数据可点「编辑」直接修正录入
 // 错误（字段 / 含量行 / 挂接 / 调价 / 口径 / 费率），修完静默重读。
 //
-// 维度：清单与定额按专业分（定额在专业内按章节），工料机按种类（类别 → 分类）、
-// 地区、期数分。规范值只认库里的取值；没标注的归「未标注」一桶，状态行的「待整理」
-// 指路去造价模式归类，也可以点编辑直接标注。
+// 维度：清单与定额按专业分（定额在专业内按分部，字段沿用 chapter；定额地区与
+// 上游清单项目挂钩），工料机按种类（类别 → 分类）、地区、期数分。规范值只认库里
+// 的取值；没标注的归「未标注」一桶，状态行的「待整理」指路去造价模式归类，
+// 也可以点编辑直接标注。
 //
-// 布局：左栏三级切换与两级上下文（专业 → 项目 / 专业 → 章节 / 类别 → 分类）→
+// 布局：左栏三级切换与两级上下文（专业 → 项目 / 专业 → 分部 / 类别 → 分类）→
 // 中栏列表（筛选、当前位置、批量删除、下钻入口）→ 右栏详情（综合单价分析与
 // 消耗量、含量行分析表、价格卡与各期价格），三级之间可以来回下钻。
 // 四态分明：加载 / 空库（三步引导）/ 无匹配 / 读取失败。
@@ -389,7 +390,7 @@ function CostLibraryPage() {
     const ids = new Set(snap.rows.filter((it) => facetMatch(billF.specialty, it.specialty)).map((it) => it.projectId));
     return snap.projects.filter((p) => ids.has(p.id));
   }, [snap.projects, snap.rows, billF.specialty]);
-  // 章节只在专业内有意义：没选专业时不出章节这一级。
+  // 分部只在专业内有意义：没选专业时不出分部这一级。
   const chapters = useMemo(() => (quotaF.specialty ? chaptersOf(snap.quotas, quotaF.specialty) : []), [snap.quotas, quotaF.specialty]);
   // 四类里有行的按固定顺序；四类外有行时末尾加一桶「类别待整理」（存量里类别不合规矩的行）。
   const kinds = useMemo(() => kindsOf(snap.resources), [snap.resources]);
@@ -418,7 +419,7 @@ function CostLibraryPage() {
   // ── 语义检索补充 ──
   // 搜索框照旧做本地子串过滤；关键词非空且该级向量索引已建时，另调一次后台混合检索，把「名称不含
   // 关键词、意思相近」的条目（如「挖机」对「挖掘机」）放进补充段。索引没建 / 绑定不可用 / 请求失败：
-  // 没有补充段，本地过滤照常。其它筛选（专业 / 章节 / 类别…）对补充段同样生效。
+  // 没有补充段，本地过滤照常。其它筛选（专业 / 分部 / 类别…）对补充段同样生效。
   useEffect(() => {
     const kw = keyword.trim();
     const kind = tier === "bill" ? "wc_bill" : tier === "quota" ? "wc_quota" : "wc_res";
@@ -695,7 +696,7 @@ function CostLibraryPage() {
   const crumbs = tier === "bill"
     ? [billF.specialty ? dimLabel(billF.specialty) : "", currentProject?.name ?? "", billF.division].filter(Boolean)
     : tier === "quota"
-      ? [quotaF.specialty ? dimLabel(quotaF.specialty) : "", quotaF.chapter ? dimLabel(quotaF.chapter, "未归章节") : ""].filter(Boolean)
+      ? [quotaF.specialty ? dimLabel(quotaF.specialty) : "", quotaF.chapter ? dimLabel(quotaF.chapter, "未归分部") : ""].filter(Boolean)
       : [
         resourceF.kind === OUTSIDE ? kindLabel(OUTSIDE) : resourceF.kind, ...categoryCrumbs,
         resourceF.region ? dimLabel(resourceF.region) : "",
@@ -856,7 +857,7 @@ function CostLibraryPage() {
             specialtyOptions={billSpecNames} onSaved={onEditSaved} />
         ) : selectedQuota ? (
           <QuotaDetail quota={selectedQuota} usage={usageIndex.get(selectedQuota.code) ?? []} onOpenBill={openBill} onOpenResource={openResource}
-            specialtyOptions={quotaSpecNames} chapterOptionsOf={chaptersOfSpec} resources={snap.resources} onSaved={onEditSaved} />
+            specialtyOptions={quotaSpecNames} chapterOptionsOf={chaptersOfSpec} resources={snap.resources} regionOptions={projectRegionNames} onSaved={onEditSaved} />
         ) : selectedResource ? (
           <ResourceDetail resource={selectedResource} onOpenQuota={openQuota}
             regionOptions={resourceRegionNames} periodOptions={resourcePeriodNames} categoryOptions={categoriesOfKind(selectedResource.kind)} onSaved={onEditSaved} />
@@ -870,7 +871,7 @@ function CostLibraryPage() {
     </>
   );
 
-  // 窄窗放不下左栏：两级上下文各一个下拉（清单：专业 → 项目；定额：专业 → 章节；
+  // 窄窗放不下左栏：两级上下文各一个下拉（清单：专业 → 项目；定额：专业 → 分部；
   // 工料机：类别 → 分类）。
   const facetOptions = (facets: Facet[], emptyLabel: string) =>
     facets.map((f) => ({ value: f.name, label: `${dimLabel(f.name, emptyLabel)}（${f.count}）` }));
@@ -887,13 +888,13 @@ function CostLibraryPage() {
     else if (tier === "quota") setQuotaF({ ...quotaF, specialty: v, chapter: "" });
     else setResourceF({ ...resourceF, kind: v, category: "" });
   };
-  // 第二级只在选了第一级后出现（章节在专业内、分类在类别内才有意义；「类别待整理」下面没有分类）；清单的项目级恒在。
+  // 第二级只在选了第一级后出现（分部在专业内、分类在类别内才有意义；「类别待整理」下面没有分类）；清单的项目级恒在。
   const firstChosen = tier === "quota" ? quotaF.specialty : resourceF.kind;
   const secondChosen = tier === "bill" || (!!firstChosen && firstChosen !== OUTSIDE);
   const secondOptions = tier === "bill"
     ? [{ value: "0", label: "全部项目" }, ...specProjects.map((p) => ({ value: String(p.id), label: `${p.name}（${p.itemCount}）` }))]
     : tier === "quota"
-      ? [{ value: "", label: "全部章节" }, ...facetOptions(chapters, "未归章节")]
+      ? [{ value: "", label: "全部分部" }, ...facetOptions(chapters, "未归分部")]
       : [
         { value: "", label: "全部分类" },
         ...(resourceCategories.uncategorized > 0 ? [{ value: NONE, label: `未细分（${resourceCategories.uncategorized}）` }] : []),
@@ -1010,7 +1011,7 @@ function CostLibraryPage() {
                 contextValue={contextValue} onContext={onContext}
                 contextLabel={tier === "bill" || tier === "quota" ? "筛选专业" : "筛选类别"}
                 secondOptions={secondChosen ? secondOptions : undefined} secondValue={secondValue} onSecond={onSecond}
-                secondLabel={tier === "bill" ? "筛选项目" : tier === "quota" ? "筛选章节" : "筛选分类"} />
+                secondLabel={tier === "bill" ? "筛选项目" : tier === "quota" ? "筛选分部" : "筛选分类"} />
               <div className="cl-seg" role="tablist" aria-label="造价库视图">
                 <button type="button" role="tab" aria-selected={pane === "list"} onClick={() => setPane("list")}>列表</button>
                 <button type="button" role="tab" aria-selected={pane === "detail"} onClick={() => setPane("detail")}>详情</button>

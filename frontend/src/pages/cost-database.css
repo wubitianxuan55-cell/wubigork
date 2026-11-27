@@ -48,9 +48,9 @@
 /* ── 页头：身份 + 检索 + 动作 ────────────────────────────────────── */
 .cl-masthead {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px 20px;
+  gap: 10px 18px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--cl-line);
 }
@@ -60,7 +60,7 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 10px;
-  min-width: 224px;
+  min-width: 200px;
 }
 
 .cl-mark {
@@ -96,8 +96,8 @@
 
 .cl-search {
   display: flex;
-  flex: 1 1 380px;
-  min-width: 240px;
+  flex: 1 1 280px;
+  min-width: 180px;
   align-items: center;
   gap: 8px;
 }
@@ -469,17 +469,21 @@
 }
 
 .cl-tier {
+  position: relative;
   display: flex;
   min-width: 0;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 10px 4px 9px;
+  gap: 4px;
+  padding: 9px 4px 8px;
   border: 0;
   border-right: 1px solid var(--cl-line);
   background: transparent;
   color: var(--fg-dim);
   cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .cl-tier:last-child {
@@ -488,17 +492,85 @@
 
 .cl-tier:hover {
   background: var(--cl-wash);
+  color: var(--fg);
 }
 
 .cl-tier.is-active {
   background: var(--cl-wash-strong);
-  box-shadow: inset 0 -2px 0 var(--accent);
   color: var(--accent);
 }
 
+.cl-tier::after {
+  position: absolute;
+  right: 16%;
+  bottom: 0;
+  left: 16%;
+  height: 2px;
+  transform: scaleX(0);
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  content: "";
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.cl-tier.is-active::after {
+  transform: scaleX(1);
+}
+
 .cl-tier-icon {
+  position: relative;
   display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
   place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 9px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-elev-2) 72%, transparent), transparent),
+    var(--cl-panel);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 5%, transparent);
+  color: var(--fg-dim);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.cl-tier-icon::before {
+  position: absolute;
+  inset: 4px;
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 25%, var(--cl-wash), transparent 72%);
+  content: "";
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.cl-tier-icon > svg {
+  position: relative;
+  z-index: 1;
+}
+
+.cl-tier:hover .cl-tier-icon {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--fg);
+}
+
+.cl-tier.is-active .cl-tier-icon {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--cl-wash-strong) 72%, var(--bg-elev));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--fg) 8%, transparent),
+    0 8px 18px -15px color-mix(in srgb, var(--accent) 72%, transparent);
+  color: var(--accent);
+}
+
+.cl-tier.is-active .cl-tier-icon::before {
+  opacity: 1;
 }
 
 .cl-tier-label {
@@ -638,7 +710,7 @@
 }
 
 .cl-tier-bar .cl-tier-switch {
-  flex: 0 1 280px;
+  flex: 0 1 318px;
   overflow: hidden;
   border: 1px solid var(--cl-line-strong);
   border-radius: 8px;
@@ -646,8 +718,23 @@
 
 .cl-tier-bar .cl-tier {
   flex-direction: row;
-  gap: 5px;
-  padding: 5px 6px;
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.cl-tier-bar .cl-tier-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.cl-tier-bar .cl-tier-icon > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.cl-tier-bar .cl-tier-label {
+  white-space: nowrap;
 }
 
 /* ── 中栏：列表 ──────────────────────────────────────────────────── */
@@ -740,6 +827,55 @@
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
+}
+
+.cl-sort-head {
+  display: flex;
+  width: 100%;
+  min-height: 20px;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cl-sort-head.is-num {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.cl-sort-head:hover,
+.cl-sort-head.is-active {
+  color: var(--fg);
+}
+
+.cl-sort-head > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.cl-sort-pair {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  margin: -2px 0;
+  color: var(--fg-faint);
+  opacity: 0.58;
+}
+
+.cl-sort-pair svg {
+  width: 7px;
+  height: 7px;
+}
+
+.cl-sort-head:not(.is-active):hover .cl-sort-pair {
+  opacity: 1;
 }
 
 .cl-table td {
@@ -1113,23 +1249,55 @@
   font-size: 11px;
 }
 
-.cl-fee-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  white-space: normal !important;
+.cl-fee-summary {
+  display: grid;
+  grid-template-columns: max-content repeat(3, max-content);
+  align-items: center;
+  justify-content: start;
+  gap: 6px 14px;
+  padding: 7px 10px;
+  white-space: nowrap;
 }
 
-.cl-fee-line .is-labor {
+.cl-fee-summary-label {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.cl-fee-item {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.cl-fee-item + .cl-fee-item {
+  padding-left: 10px;
+  border-left: 1px solid var(--cl-line);
+}
+
+.cl-fee-item b {
+  font-weight: 600;
+}
+
+.cl-fee-summary .is-labor {
   color: var(--info);
 }
 
-.cl-fee-line .is-material {
+.cl-fee-summary .is-material {
   color: var(--ok);
 }
 
-.cl-fee-line .is-machine {
+.cl-fee-summary .is-machine {
   color: var(--accent);
+}
+
+.cl-fee-outsourced {
+  grid-column: 2 / -1;
+  color: var(--fg-faint);
+  font-size: 10.5px;
 }
 
 .cl-tfoot-total td {
@@ -1275,6 +1443,100 @@
   max-width: 110px;
 }
 
+/* 工料机详情沿用定额详情的 cl-block 节奏，价格块内再分层。 */
+.cl-detail-resource {
+  --cl-resource-panel: color-mix(in srgb, var(--bg-elev) 66%, transparent);
+  --cl-resource-inset: color-mix(in srgb, var(--fg) 3%, transparent);
+}
+
+.cl-detail-resource .cl-block {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--fg) 2.5%, transparent), transparent 58%),
+    var(--cl-resource-panel);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--fg) 5%, transparent),
+    0 12px 28px -26px color-mix(in srgb, var(--fg) 38%, transparent);
+}
+
+.cl-resource-price-main {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 0 12px;
+  border-bottom: 1px solid var(--cl-line);
+}
+
+.cl-resource-price-number {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.cl-resource-price-block .cl-price-value {
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.cl-resource-price-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.cl-resource-price-pair > div {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--cl-line);
+  border-radius: 8px;
+  background: var(--cl-resource-inset);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent);
+}
+
+.cl-resource-price-pair dt {
+  font-size: 10px;
+}
+
+.cl-resource-price-pair dd {
+  margin-top: 2px;
+}
+
+.cl-resource-price-details {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--cl-line);
+}
+
+.cl-resource-price-details h3 {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.cl-resource-price-details .cl-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin-top: 9px;
+}
+
+.cl-resource-price-details .cl-facts > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cl-resource-price-details .cl-facts dd {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.cl-resource-price-block > .cl-note {
+  margin-top: 10px;
+}
+
 /* ── 空库引导：三步 + 可复制的示例提示词 ─────────────────────────── */
 .cl-empty {
   display: flex;
@@ -1411,11 +1673,6 @@
 @container cost-library (max-width: 1240px) {
   .cl-body {
     grid-template-columns: 220px minmax(0, 1.3fr) minmax(300px, 1fr);
-  }
-
-  .cl-search {
-    flex-basis: 100%;
-    order: 2;
   }
 }
 
