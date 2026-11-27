@@ -103,12 +103,14 @@
 - **仍在册的排除项**：GoalCard 系（v3.6.0 撤下，使用率低维护面大）勿再提。
 - **已被推翻的旧边界**（不要再当约束引用）：「不做算量」（现有 cad-takeoff）、「MCP 不进规划」
   （现有 MCP 服务管理）、「编程板块=DSH 独立窗口不融合」（编程板块已作为一级板块回流）。
-- **库页只读约定**（方案库 2026-11-23、造价数据库 2026-11-25 用户拍板推倒重建）：库类一级板块只管看
-  （浏览 / 检索 / 下钻 / 删除 / 导出），录入、解析、维护一律在办公板块对应运行模式里由模型经工具完成。
-  造价库=三级数据（清单 → 定额 → 工料机），写入口只有 `cost_library`（导入五表工作簿、定额与工料机增删改
-  调价、批量与删除先 dry_run 再逐条确认）与 `cost_project_apply`；不要往板块加导入或编辑按钮。
-  旧成本库（价格源 / 询价 / 资料条目 / 组价 / 五算对比）2026-11-26 全量退役：后端包、工具、绑定、前端登记
-  均已删除，库表与分类节点保留不删（要清表须用户另说）；查历史单价一律走造价库 `cost_project`。
+- **库页约定**（方案库 2026-11-23 拍板、造价数据库 2026-11-25 推倒重建；**2026-11-27 用户令加编辑按钮，只读约定已被推翻**）：
+  库类一级板块管看（浏览 / 检索 / 下钻 / 删除 / 导出）+ 直接修正入库错误（详情「编辑」钮：清单行字段与定额挂接、
+  定额含含量行、工料机主数据与按期调价、项目口径与费率、方案元数据与小节标题正文；走 `Workcost*Save`/`SetPrice`/
+  `Attach`/`Detach`/`GaeaProposalUpdate*` 既有保存入口，语义索引打脏随写自动生效）。规范值（专业/地区/期数/分类）
+  编辑面只给库里已有取值；**批量导入、解析、新取值归类仍归办公板块对应运行模式**（`cost_library` /
+  `cost_project_apply` / `proposal_save`）。造价库=三级数据（清单 → 定额 → 工料机）。旧成本库（价格源 / 询价 /
+  资料条目 / 组价 / 五算对比）2026-11-26 全量退役：后端包、工具、绑定、前端登记均已删除，库表与分类节点保留不删
+  （要清表须用户另说）；查历史单价一律走造价库 `cost_project`。
 - **造价库语义索引**（2026-11-26）：清单 / 定额 / 工料机三类进本地向量索引（`internal/gaea/vecindex`，bge-m3，
   固定读 `[retrieval]` 配置）。库的写入经 workcost 库句柄自动打脏、后台索引器增量对账，搜索路径从不建索引；
   检索入口是 `cost_project` 的 quotas / resources / bills（带关键词走混合检索，标〈语义〉的是同义召回）与
@@ -138,7 +140,7 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - **绑定面（v2.17.0 起）**：App 不再直接绑定 Wails；导出方法拆 12 个板块门面
   （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/ImageB/CharlibB/PantheonB/WenxueB/ProposalB，
   纯委托零逻辑改动）。改绑定面方法后用 `go run ./scripts/gen_bindings` 重新生成 +
-  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 668（2026-11-25，造价库重建退役 59），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
+  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 680（2026-11-27 库页编辑面解禁 10 + 方案库编辑 2），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
   api/bridge.ts 的 window.go.app.App 兼容代理；旧 wailsjs 导入走 src/wailsjsCompat 重导出；
   wails build 会重生成 wailsjs/go/app/<门面>.js
 - 单模型架构：一个 executor 完成规划与执行，无独立规划器；任务/技能子代理走 `task` / `run_skill`

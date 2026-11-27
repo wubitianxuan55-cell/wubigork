@@ -1,4 +1,32 @@
+## 方案库导入硬规则：PDF 禁直转 md，经 to=docx 转 Word 修正后录入（2026-11-27，ZCode；提交 ca0b13a2，包 gaea-20261127-ca0b13a2）
+
+用户令「重新完善方案库的导入技能：PDF 原始方案要转换成 Word 修正格式后才能导入，不能直接转 Markdown——会大量出错，特别是表格位置」；随后给事实源《包1技术标方案重建复盘》（`D:\新工作\2630沿江一公里\沿江包1\`）：包1技术标 V5 当初 PDF 直转 md 录库（42 块列数矛盾表），复盘 §2.1 实证脏 Word 路线逐字同病，§3.2 点名技能缺录入前质量门禁/脏文档预期/双源对账三块。
+
+- **刀1 to=docx**：`internal/docmd/wps_docx.go` 新增 ConvertToDocx——复用 wpscli pdf2word 但**保留 docx 产物**（此前 md 链把 docx 中间产物丢临时目录）；产物核对/终态行路径/账号级静默与 wps_excel 同纪律；扫描件在线识别上限 100 页、pages 只收单段。format_convert 增 `to=docx`（output 必填 .docx、只收 .pdf、scanned 同 xlsx 口径），**回执固定列三类必修缺陷**（单元格折行成碎片段/垂直居中空段落/目录域与目录表混正文=复盘 §2.1 清单）并指路「修正后以 docx 为源转 md 录入」。
+- **刀2 技能**：proposal-longform 录入段重写（office_runmode_skills.go）：备源步 PDF 硬规则；脏 Word「只作结构参照、文字回 PDF 原件对账」；**录入前三项机检硬门禁**（表格列数一致/占位符残留/图引文件存在，全零才准 finalize）。
+- **刀3 同步**：方案档 ModeLine + document-convert 模板同口径；不加代码拦截门（直转 md 有预览/取材正当用途）。
+- **T7**：proposal_save/update/search 的 year 收数字（metaStr 宽容 UnmarshalJSON，null 不动零值）。
+- **测试与坑**：builtin/docmd/app 三包全绿（to=docx 参数校验/回执/落盘、year 数字）。坑一：**ucrt64 前置 PATH 抢 python**——ucrt64/bin 自带 MSYS2 python.exe（无 markitdown），go test 的 LookPath("python") 命中它 → docx 图片族测试假红；测试命令把真 Python313 排 ucrt64 前（已录构建指南坑清单）。坑二：standard 档 ToolFace 预算改前仅 7 字符余量，新增描述必超——compact 文案收至最小（+32 字符）后预算 16750→17000（注释写理由）；预算面=compact 描述+schema（改完整 Description 测试数字不动）。
+- **主树构建装机（11:28）**：冒烟 /api/health 200 → INSTALL OK（exe `D6E788A6…`）；后随干净树包重装机。
+- **拍板池（复盘 P0/P1 余项，未立项勿做）**：质量机检分级+基线对比、docx→md 合并单元格网格展开、多源交叉对账工具、format_convert 回执改结构完整性指标、矢量图按题注裁回。
+
+## 库页编辑按钮：方案库与造价库直接修正入库错误（2026-11-27，ZCode；提交 603895d2，同日随包 gaea-20261127-ca0b13a2 装机）
+
+用户令「方案库与造价库增加编辑按钮，打开后可以直接编辑修改入库的资料，方便修正入库错误数据」；随后令「构建桌面端」。**这条推翻了 `.gaea/AGENTS.md` 的「库页只读约定」**（该约定及其锚测试已同步改写为「单条编辑钮 + 批量维护仍归造价模式」）；录入、批量导入、解析、新取值归类仍归办公对应运行模式，不走绑定面。
+
+- **Go**：新增 `GaeaProposalUpdateMeta`（元数据全量替换，标题即方案名、改名返回新名）与 `GaeaProposalUpdateSection`（updateTitle/updateBody 两旗显式——没改的半边不传避免白重嵌向量；两旗全 false 拒绝）于 `internal/app/gaea_proposal.go`；新增 `GaeaWorkcostBillProjectProfileSave`（项目口径档，空=保持原值）于 `gaea_workcost.go`。其余九个保存绑定（`WorkcostResourceGet/Save/SetPrice`、`QuotaSave`、`BillItemSave`、`BillQuotaLinks/Attach/Detach`、`BillProjectRatesSave`）是 App 既有方法，从 gen_bindings `excludedBindings` 除名解禁后重跑生成器。绑定面 668→**680**；四件再生（bindings_cost/proposal 门面、bindingNames、legacyBindings、bindingSignatures）+ mappings/spaceBindings 同批认领 12 名；`check-bindings-drift.ps1` OK（StrataModelStop「复活请清册」是既有提示，非本线）。
+- **造价库页四处编辑面**（`frontend/src/pages/cost-library/Edit.tsx` 新建）：详情头「编辑」钮进编辑态，保存走 store 既有入口（语义索引打脏随写自动生效）；规范值（专业/地区/期数/分类）只给库里已有取值，新取值归类仍归造价模式。①清单行：字段（名称/单位/工程量/分部/专业/手填价/特征）+ 挂接定额（读引用表，改量走幂等 Attach、解挂、按编码新挂）；②定额：字段 + 含量行整组替换（改含量/损耗、删行、按资源编码加行，缺的元数据后端按资源索引补齐）；③工料机：主数据（类别/名称/规格/单位/分类/地区/期数/损耗/基准价/现行价）+ 独立「按期调价」（SetPrice 写历史，登记后留在编辑态）；④项目封面：口径档与费率档分钮保存。保存成功退出编辑态 → 页面提示 + 静默重读（keepAlive 口径）。
+- **方案库页**：清单行「编辑」→ antd 弹窗改标题/类型/年度/摘要，选中方案改名后按返回新名重新定位（清单先重读，改名回执驱动 selectProposal）；阅读窗「编辑本节」→ 标题 + Markdown 正文两格，保存只发真正改动的半边（改标题连带子树路径 → 标题树整棵重取并定位回本节；只改正文 → 重读本节）；换节自动退出编辑态不带走草稿。
+- **提示词三处同步**（含锚测试 `TestCostLibraryPromptAnchors` 改锚 `「编辑」`+`批量导入`）：造价 ModeLine / 身份稿「造价库维护」节 / cost-estimation-playbook 技能与 cost_library 工具描述——口径改为「单条改错用户可在板块详情点编辑直接改（也可由你用工具做）；批量导入、解析、归类、批量调价只在本档；直连数据库改库仍禁止」。
+- **测试**：Go `TestProposalBindingsUpdateMetaSection` + `TestGaeaWorkcostBillProjectProfileAndRatesBindings`（字典播种后验口径档空=保持）；前端 CostLibraryPage 6 例 + ProposalLibraryPage 5 例编辑流（改名重定位/半边旗/编辑态退出/失败留在表单）。tsc 0 错。**全量门禁收官**：app 包 1380 例全绿（330s）、proposal/workcost/gen_bindings 包绿、`go build ./...`+vet 净、前端全量 vitest **511/511 文件绿**（前一轮有一例单发红，两轮复跑全绿=偶发，文件名未捕获）、mock 契约 5 例绿、漂移守卫 OK、check-docs OK。
+- **坑**：①`gen_bindings -legacy-ts` 必须在 spaceBindings/mappings 认领**之后**跑，否则锁四（legacy 重叠）tsc 红；②vitest 从仓根跑会扫进 `.worktrees/` 旧树假红（3597 文件 vs 基线 ~511，2366 失败全是旧版测试），**后台任务必须把 `cd frontend` 写进命令内**（Bash cwd 在调用间漂回仓根，连犯两次）；③详情编辑钮的重置 effect 钩 `[item.id]`——静默重读后 id 不变，编辑态不会自动退，所以 Edit 组件保存成功后自行调 onCancel 退出；④app 包测试要 ucrt64 + 主树 build/bin 双 PATH（0xc0000135）；⑤`go build ./scripts/gen_bindings/` 会在 cwd 落 gen_bindings.exe，记得删。
+- **顺手修的存量红（非本线）**：`internal/gaea/proposal/TestMigrationFromV35` 预置只拼 SchemaV1+V35，V38 起 `ALTER TABLE gf_projects` 需要中间版本的表 → 升级路上 no such table（2026-11-25 定规矩批的欠账）；改成按链预置 V1..V35，断言从钉死 user_version=37 改为跟随链尾（当前 43）。
+- **余项**：已提交 603895d2、随包 gaea-20261127-ca0b13a2 装机（2026-11-27）；真机走查待令；项目封面改名（name/location/duration/pricing）没做——UpsertBillProject 按名 upsert 会复制出新项目，改名要单开 UPDATE 刀，待用户确有需要再提。
+- **构建装机（2026-11-27 09:36 用户令「构建桌面端」）**：主树整树构建（工作树=本批改动，无外线混入）；孤儿进程零、壳未在跑；前端 npm build 22.9s → wails build 39.6s（ucrt64+build/bin 双 PATH 前置、显式系统 TMP、bindings 未跳过）→ exe 导入表含 sherpa/ORT 非空壳 → `build\bin` 冒烟 /api/health 200（PID 55436 已回收）→ `gaea_install.ps1` **INSTALL OK**（exe `6B31A2888844…`，四件与 build/bin 一致）→ 新壳 **PID 3484**（09:33:56 > 构建 09:33:25，路径=装机位）→ **18123/healthz `ok`（200）**。build/bin 即本次构建产物，无需回写。
+
 ## 造价技能优化·众神殿终案落码（2026-11-27 晨，ZCode；提交 5b39c1cb + 包 gaea-cost-skill-20261127-5b39c1cb 已装机 PID 51376）
+
+
 
 用户令「构建众神殿关于造价技能的论证，开始优化完善造价技能」；论证已由用户侧圆桌跑完（pan_1795735011377，三场续议、codex/zcode/dsh 三席一致）：**三技能不合并、不改名**；cost-estimate 保持全局内置零差异（不得指向造价档专属内容——standard 档可见集合外指针软失效）；落盘硬规则单源进 officeRunModeLineCost；playbook/soil 只做最小语义改动。事实源=`%APPDATA%\gaea\pantheon\results\pan_1795735011377_5f4f26676579.md`。用户问及本地模型检索：已含在 `cost_project` quotas/resources/bills 工具内（workcost.Searcher：编码精确短路→关键词+本地向量 bge-m3→融合 0.55/0.30/0.15→bge-reranker 精排封顶 16；无模型退关键词路），正文三处已教用法（〈语义〉标注/自然说法 keyword），不补实现细节。
 
