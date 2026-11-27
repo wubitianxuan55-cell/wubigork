@@ -1,10 +1,11 @@
 // cost.ts — CostBindings（AppBindings 分域接口之一，Go CostB 门面）。
 //
-// 2026-11-25 造价数据库推倒重建后的口径：板块只剩三级浏览面（清单 / 定额 /
-// 工料机），这里只声明它真实消费的 18 个绑定——读三级数据、现算综合单价、
-// 删除、导出、体检，以及 2026-11-26 接入的语义索引（状态 / 补齐 / 清单检索）。旧板块的导入 / 解析 / 编辑 / 价格源 / 询价 / 资料条目界面
-// 已下线，对应绑定走生成器 excludedBindings 退出绑定面（Go 方法体保留），
-// 写库一律在办公「造价」运行模式经 cost_library / cost_project_apply 完成。
+// 2026-11-25 造价数据库推倒重建后的口径：板块是三级浏览面（清单 / 定额 /
+// 工料机）——读三级数据、现算综合单价、删除、导出、体检，以及 2026-11-26 接入的
+// 语义索引（状态 / 补齐 / 清单检索）；2026-11-27 补上库页编辑面（直接修正录入
+// 数据）：清单行与定额挂接、定额含含量行、工料机与调价、项目口径与费率。
+// 走 store 的既有保存入口，语义索引打脏标记随写自动生效。批量导入 / 对标 /
+// 询价 / 资料条目仍归办公「造价」运行模式（cost_library / cost_project_apply）。
 //
 // 口径：综合单价 = Σ(消耗量×资源价)，**只含人材机**；管理费/利润/税只在项目
 // 合计层跑一次。外委独立行类但并入材料桶。
@@ -13,10 +14,12 @@ import type {
   SemanticHitView,
   WorkcostBillItem,
   WorkcostBillProject,
+  WorkcostBillQuotaLink,
   WorkcostCompose,
   WorkcostComposeOverride,
   WorkcostLibraryFilter,
   WorkcostQuota,
+  WorkcostRateSet,
   WorkcostResource,
   WorkcostResourcePrice,
   WorkcostUsageRef,
@@ -38,6 +41,8 @@ export interface CostBindings {
   ): Promise<string>;
   // WorkcostResourceList 工料机列表（kind/keyword 可空 = 不过滤）。
   WorkcostResourceList(kind: string, keyword: string): Promise<WorkcostResource[]>;
+  // WorkcostResourceGet 按 id 读工料机；不存在返回 null。
+  WorkcostResourceGet(id: number): Promise<WorkcostResource | null>;
   // WorkcostResourceDelete force=false 时拒绝删除仍被定额引用的资源。
   WorkcostResourceDelete(id: number, force: boolean): Promise<void>;
   // WorkcostResourcePrices 某资源的调价历史（新→旧）。
@@ -71,6 +76,44 @@ export interface CostBindings {
   // WorkcostBillSearch 清单行跨项目检索：带关键词走混合检索（编码精确优先，相关度序，
   // 含同义说法召回）；不带关键词按列表顺序返回前 200 条。projectId 非 0 时只看该项目。
   WorkcostBillSearch(keyword: string, specialty: string, projectId: number): Promise<WorkcostBillItem[]>;
+
+  // ── 库页编辑面（2026-11-27：直接修正录入数据，不用绕回造价模式）──
+  // WorkcostResourceSave 保存工料机（同身份更新、新身份插入；id>0 定点改那行）。
+  // 返回落库后的资源。身份（类别+名称+规格+单位+地区）撞别行时 reject。
+  WorkcostResourceSave(r: WorkcostResource): Promise<WorkcostResource>;
+  // WorkcostResourceSetPrice 登记一次调价（写调价历史 + 推进现行价）。期数归一
+  // YYYY-MM；地区须与该行的归属地区一致（或空）。
+  WorkcostResourceSetPrice(
+    id: number,
+    price: number,
+    period: string,
+    region: string,
+    priceType: string,
+    source: string,
+    note: string,
+  ): Promise<WorkcostResource>;
+  // WorkcostQuotaSave 保存定额（含含量行整组替换；items 里资源编码空缺的元数据
+  // 由后端按资源索引补齐）。专业/地区须在字典里，期数归一 YYYY-MM。
+  WorkcostQuotaSave(q: WorkcostQuota): Promise<WorkcostQuota>;
+  // WorkcostBillItemSave 保存一条清单项（同项目同编码更新；sort=0 保持原序，
+  // specialty 空=保持原值）。
+  WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem>;
+  // WorkcostBillQuotaLinks 清单项挂接的定额引用（1:N）。
+  WorkcostBillQuotaLinks(billItemId: number): Promise<WorkcostBillQuotaLink[]>;
+  // WorkcostBillQuotaAttach 挂接定额（同清单同定额幂等更新工程量；0=跟随清单）。
+  WorkcostBillQuotaAttach(billItemId: number, quotaCode: string, quantity: number): Promise<WorkcostBillQuotaLink>;
+  // WorkcostBillQuotaDetach 解挂一条定额引用（linkId 须归属该清单项）。
+  WorkcostBillQuotaDetach(billItemId: number, linkId: number): Promise<void>;
+  // WorkcostBillProjectRatesSave 保存项目费率（四费率 + 利润基数含规费开关 + 控制价）。
+  WorkcostBillProjectRatesSave(
+    id: number,
+    rates: WorkcostRateSet,
+    profitIncludesRegulatory: boolean,
+    controlPrice: number,
+  ): Promise<void>;
+  // WorkcostBillProjectProfileSave 保存项目口径（专业/地区/计价期；空=保持原值，
+  // 规范值须在字典里、期数归一 YYYY-MM）。
+  WorkcostBillProjectProfileSave(id: number, specialty: string, region: string, pricePeriod: string): Promise<void>;
 
   // ── 语义索引（2026-11-26 造价库接入本地模型索引）──
   // CostIndexStatus 造价库语义索引的状态（三类各自：条数 / 已建向量数 / 模型 / 最近错误）。

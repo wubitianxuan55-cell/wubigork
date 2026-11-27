@@ -13,3 +13,7 @@ export function GaeaProposalOutline(arg1:string):Promise<Array<app.ProposalSecti
 export function GaeaProposalRead(arg1:number):Promise<app.ProposalSectionBodyView>;
 
 export function GaeaProposalSearch(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string,arg6:string,arg7:number):Promise<app.ProposalSearchResultView>;
+
+export function GaeaProposalUpdateMeta(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<string>;
+
+export function GaeaProposalUpdateSection(arg1:number,arg2:string,arg3:boolean,arg4:string,arg5:boolean):Promise<void>;

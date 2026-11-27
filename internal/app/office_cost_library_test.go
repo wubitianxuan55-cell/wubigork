@@ -440,8 +440,8 @@ func fileMissing(p string) bool {
 }
 
 // TestCostLibraryPromptAnchors 造价档的模式行、身份稿、技能正文都必须点名
-// cost_library 与「板块只读、维护在本档」的口径——缺了就是库维护能力无声消失
-// （用户在板块里找不到导入按钮，模型也不接）。其余档不携带该句。
+// cost_library 与「板块单条编辑钮 + 批量维护在本档」的口径——缺了就是库维护能力
+// 无声消失（用户在板块里找不到批量导入按钮，模型也不接）。其余档不携带该句。
 func TestCostLibraryPromptAnchors(t *testing.T) {
 	sources := map[string]string{
 		"模式行": officeRunModeLine(OfficeRunModeCost),
@@ -449,7 +449,8 @@ func TestCostLibraryPromptAnchors(t *testing.T) {
 		"技能":  officeCostEstimationPlaybookBody,
 	}
 	for name, src := range sources {
-		for _, want := range []string{"cost_library", "dry_run", "只读"} {
+		// 2026-11-27 库页加编辑钮：三处口径同步为「单条编辑钮 + 批量维护归本档」。
+		for _, want := range []string{"cost_library", "dry_run", "「编辑」", "批量导入"} {
 			if !strings.Contains(src, want) {
 				t.Fatalf("造价档%s缺库维护锚 %q", name, want)
 			}

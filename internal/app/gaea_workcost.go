@@ -269,6 +269,13 @@ func (a *App) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet,
 	return a.hubWorkcostStore().UpdateBillProjectRates(id, rates, profitIncludesRegulatory, controlPrice)
 }
 
+// GaeaWorkcostBillProjectProfileSave 保存项目口径（专业/地区/计价期；空=保持
+// 原值），规范值校验走 store（专业、地区须在字典里，计价期归一 YYYY-MM）。
+// 造价库板块「项目封面」编辑档用——录入错了口径别再绕回造价模式归类。
+func (a *App) GaeaWorkcostBillProjectProfileSave(id int64, specialty, region, pricePeriod string) error {
+	return a.hubWorkcostStore().UpdateBillProjectProfile(id, specialty, region, pricePeriod)
+}
+
 // ── 项目层取费 ──────────────────────────────────────────────────────
 
 // GaeaWorkcostProjectFees 项目合计层取费（直接费 → 企管/利润/规费 → 税前合计

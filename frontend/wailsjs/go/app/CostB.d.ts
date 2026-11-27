@@ -13,11 +13,23 @@ export function GaeaCostLibraryExport(arg1:string,arg2:workcost.LibraryFilter,ar
 
 export function GaeaWorkcostBillItemDelete(arg1:number):Promise<void>;
 
+export function GaeaWorkcostBillItemSave(arg1:workcost.BillItem):Promise<workcost.BillItem>;
+
 export function GaeaWorkcostBillItems(arg1:number):Promise<Array<workcost.BillItem>>;
 
 export function GaeaWorkcostBillProjectDelete(arg1:number):Promise<number>;
 
+export function GaeaWorkcostBillProjectProfileSave(arg1:number,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function GaeaWorkcostBillProjectRatesSave(arg1:number,arg2:workcost.RateSet,arg3:boolean,arg4:number):Promise<void>;
+
 export function GaeaWorkcostBillProjects():Promise<Array<workcost.BillProject>>;
+
+export function GaeaWorkcostBillQuotaAttach(arg1:number,arg2:string,arg3:number):Promise<workcost.BillQuotaLink>;
+
+export function GaeaWorkcostBillQuotaDetach(arg1:number,arg2:number):Promise<void>;
+
+export function GaeaWorkcostBillQuotaLinks(arg1:number):Promise<Array<workcost.BillQuotaLink>>;
 
 export function GaeaWorkcostBillSearch(arg1:string,arg2:string,arg3:number):Promise<Array<workcost.BillItem>>;
 
@@ -31,10 +43,18 @@ export function GaeaWorkcostQuotaGet(arg1:string):Promise<workcost.Quota>;
 
 export function GaeaWorkcostQuotaList(arg1:string,arg2:string):Promise<Array<workcost.Quota>>;
 
+export function GaeaWorkcostQuotaSave(arg1:workcost.Quota):Promise<workcost.Quota>;
+
 export function GaeaWorkcostResourceDelete(arg1:number,arg2:boolean):Promise<void>;
+
+export function GaeaWorkcostResourceGet(arg1:number):Promise<workcost.Resource>;
 
 export function GaeaWorkcostResourceList(arg1:string,arg2:string):Promise<Array<workcost.Resource>>;
 
 export function GaeaWorkcostResourcePrices(arg1:number):Promise<Array<workcost.ResourcePrice>>;
+
+export function GaeaWorkcostResourceSave(arg1:workcost.Resource):Promise<workcost.Resource>;
+
+export function GaeaWorkcostResourceSetPrice(arg1:number,arg2:number,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<workcost.Resource>;
 
 export function GaeaWorkcostResourceUsage(arg1:string):Promise<Array<workcost.UsageRef>>;

@@ -1,12 +1,13 @@
 // CostLibraryPage — 一级板块「造价数据库」（2026-11-25 推倒重建；同日库定规矩）。
 //
-// 定位：三级造价数据的浏览面——清单 → 定额 → 工料机。导入、解析、维护全部在
+// 定位：三级造价数据的浏览面——清单 → 定额 → 工料机。导入、解析、批量维护在
 // 办公板块的「造价」运行模式里由模型完成（cost_library / cost_project_apply）；
-// 这里只给人看，外加导出与删除。与方案库同一模式：库页只读，改库经产品。
+// 这里给人看，外加导出与删除；2026-11-27 起每条数据可点「编辑」直接修正录入
+// 错误（字段 / 含量行 / 挂接 / 调价 / 口径 / 费率），修完静默重读。
 //
 // 维度：清单与定额按专业分（定额在专业内按章节），工料机按种类（类别 → 分类）、
 // 地区、期数分。规范值只认库里的取值；没标注的归「未标注」一桶，状态行的「待整理」
-// 指路去造价模式归类。
+// 指路去造价模式归类，也可以点编辑直接标注。
 //
 // 布局：左栏三级切换与两级上下文（专业 → 项目 / 专业 → 章节 / 类别 → 分类）→
 // 中栏列表（筛选、当前位置、批量删除、下钻入口）→ 右栏详情（综合单价分析与
@@ -14,13 +15,14 @@
 // 四态分明：加载 / 空库（三步引导）/ 无匹配 / 读取失败。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  AlertCircle, Coins, Copy, FolderOpen, Inbox, Loader2, RefreshCw, Search, Shield, Trash2, X,
+  AlertCircle, Coins, Copy, FolderOpen, Inbox, Loader2, Pencil, RefreshCw, Search, Shield, Trash2, X,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import { copyToClipboard } from "../gaea/lib/clipboard";
 import { useBoardActive } from "../lib/boardActive";
 import type { CostIndexStatusView, WorkcostBillProject, WorkcostLibraryFilter, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
 import { BillDetail, DetailState, QuotaDetail, ResourceDetail } from "./cost-library/Details";
+import { ProjectEdit } from "./cost-library/Edit";
 import { HealthDrawer, type HealthJump } from "./cost-library/HealthDrawer";
 import { DeleteDialog, ExportMenu, type DeleteRequest, type ExportItem } from "./cost-library/Overlays";
 import { BillTable, QuotaTable, ResourceTable } from "./cost-library/Tables";
@@ -186,9 +188,20 @@ function EmptyLibrary({ copyState, onCopy }: { copyState: "idle" | "done" | "fai
   );
 }
 
-/** 选中项目时的封面卡（只读）：封面信息 + 口径（专业 / 地区 / 计价期）+ 四费率 + 整体删除。 */
-function ProjectCard({ project, onDeleted }: { project: WorkcostBillProject; onDeleted: (p: WorkcostBillProject) => void }) {
-  // 口径是库里的规范值（空=还没标注，在造价模式用 cost_library classify 归类）。
+/** 选中项目时的封面卡：封面信息 + 口径（专业 / 地区 / 计价期）+ 四费率 + 编辑 + 整体删除。 */
+function ProjectCard({ project, onDeleted, specialtyOptions, regionOptions, periodOptions, onSaved }: {
+  project: WorkcostBillProject;
+  onDeleted: (p: WorkcostBillProject) => void;
+  /** 编辑面：口径与费率的可选值（库里已有的规范值）与保存回执。 */
+  specialtyOptions: string[];
+  regionOptions: string[];
+  periodOptions: string[];
+  onSaved: (msg: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  // 换项目就退出编辑态——不让上一个项目的草稿挂在新项目上。
+  useEffect(() => { setEditing(false); }, [project.id]);
+  // 口径是库里的规范值（空=还没标注，可在这里直接标注）。
   const facts: [string, string][] = [
     ["专业", project.specialty || "未标注"], ["地区", project.region || "未标注"],
     ["计价期", project.pricePeriod ? fmtPeriod(project.pricePeriod) : "未标注"],
@@ -198,6 +211,11 @@ function ProjectCard({ project, onDeleted }: { project: WorkcostBillProject; onD
     <article className="cl-detail" data-testid="cost-project-card">
       <header className="cl-detail-head">
         <div className="cl-kicker">项目案例 · {project.itemCount} 条清单</div>
+        {!editing && (
+          <button type="button" className="cl-btn cl-detail-edit" data-testid="cost-project-edit-open" onClick={() => setEditing(true)}>
+            <Pencil size={12} aria-hidden />编辑
+          </button>
+        )}
         <h2 className="cl-detail-title">{project.name}</h2>
         {facts.length > 0 && (
           <dl className="cl-facts">
@@ -205,20 +223,25 @@ function ProjectCard({ project, onDeleted }: { project: WorkcostBillProject; onD
           </dl>
         )}
       </header>
-      <section className="cl-block">
-        <div className="cl-block-head"><span className="cl-block-label">取费（录入数据，0=不计取）</span></div>
-        <dl className="cl-price-facts">
-          <div><dt>企业管理费</dt><dd>{fmtRate(project.managementRate)}</dd></div>
-          <div><dt>规费</dt><dd>{fmtRate(project.regulatoryRate)}</dd></div>
-          <div><dt>利润</dt><dd>{fmtRate(project.profitRate)}</dd></div>
-          <div><dt>增值税</dt><dd>{fmtRate(project.taxRate)}</dd></div>
-        </dl>
-        {project.controlPrice > 0 && <p className="cl-note">控制价 {project.controlPrice.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} 元</p>}
-        <p className="cl-note">点左侧清单行看综合单价分析；改费率走造价模式的 cost_project_apply update_rates。</p>
-        <button type="button" className="cl-btn cl-btn-danger-ghost" onClick={() => onDeleted(project)}>
-          <Trash2 size={12} aria-hidden />删除这个项目
-        </button>
-      </section>
+      {editing ? (
+        <ProjectEdit project={project} specialtyOptions={specialtyOptions} regionOptions={regionOptions}
+          periodOptions={periodOptions} onSaved={onSaved} onCancel={() => setEditing(false)} />
+      ) : (
+        <section className="cl-block">
+          <div className="cl-block-head"><span className="cl-block-label">取费（录入数据，0=不计取）</span></div>
+          <dl className="cl-price-facts">
+            <div><dt>企业管理费</dt><dd>{fmtRate(project.managementRate)}</dd></div>
+            <div><dt>规费</dt><dd>{fmtRate(project.regulatoryRate)}</dd></div>
+            <div><dt>利润</dt><dd>{fmtRate(project.profitRate)}</dd></div>
+            <div><dt>增值税</dt><dd>{fmtRate(project.taxRate)}</dd></div>
+          </dl>
+          {project.controlPrice > 0 && <p className="cl-note">控制价 {project.controlPrice.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} 元</p>}
+          <p className="cl-note">点「编辑」直接改口径与费率；清单行的综合单价在它的详情里。</p>
+          <button type="button" className="cl-btn cl-btn-danger-ghost" onClick={() => onDeleted(project)}>
+            <Trash2 size={12} aria-hidden />删除这个项目
+          </button>
+        </section>
+      )}
     </article>
   );
 }
@@ -565,6 +588,31 @@ function CostLibraryPage() {
     window.setTimeout(() => setNotice(""), 4000);
   };
 
+  // ── 编辑面（2026-11-27）：保存后的回执 = 提示 + 静默重读（选中行/详情保持）──
+  const onEditSaved = useCallback((msg: string) => {
+    showNotice(msg);
+    void load(true);
+    void loadIndexStatus();
+  }, [load, loadIndexStatus]);
+  // 规范值可选面：库里已有的取值（不含「未标注」哨兵）；清单专业取清单行的，定额专业取定额的。
+  const billSpecNames = useMemo(() => billSpecFacets.filter((f) => f.name !== NONE).map((f) => f.name), [billSpecFacets]);
+  const quotaSpecNames = useMemo(() => specialties.filter((f) => f.name !== NONE).map((f) => f.name), [specialties]);
+  const chaptersOfSpec = useCallback((spec: string) => chaptersOf(snap.quotas, spec).map((f) => f.name), [snap.quotas]);
+  const resourceRegionNames = useMemo(() => resourceRegions.filter((f) => f.name !== NONE).map((f) => f.name), [resourceRegions]);
+  const resourcePeriodNames = useMemo(() => resourcePeriods.filter((f) => f.name !== NONE).map((f) => f.name), [resourcePeriods]);
+  const categoriesOfKind = useCallback((kind: string) => {
+    const flat = (nodes: CategoryNode[], depth = 0): string[] =>
+      nodes.flatMap((n) => (depth === 0 ? [n.path, ...flat(n.children, 1)] : flat(n.children, depth + 1)));
+    return flat(categoryTreeOf(snap.resources, kind).tree);
+  }, [snap.resources]);
+  // 项目口径可选面：资源与项目两侧已有的取值并集。
+  const projectRegionNames = useMemo(() =>
+    [...new Set([...resourceRegionNames, ...snap.projects.map((p) => p.region).filter(Boolean)])], [resourceRegionNames, snap.projects]);
+  const projectPeriodNames = useMemo(() =>
+    [...new Set([...resourcePeriodNames, ...snap.projects.map((p) => p.pricePeriod).filter(Boolean)])], [resourcePeriodNames, snap.projects]);
+  const projectSpecNames = useMemo(() =>
+    [...new Set([...billSpecNames, ...snap.projects.map((p) => p.specialty).filter(Boolean)])], [billSpecNames, snap.projects]);
+
   // 语义索引显式补齐（状态栏的钮）：模型不可用时绑定会 reject，原因留在提示里。
   const backfillIndex = async () => {
     if (typeof app.CostIndexBackfill !== "function") return;
@@ -804,13 +852,17 @@ function CostLibraryPage() {
       </div>
       <div className="cl-detail-scroll">
         {selectedBill ? (
-          <BillDetail item={selectedBill} refPrices={snap.refPrices} onOpenQuota={openQuota} onOpenResource={openResource} />
+          <BillDetail item={selectedBill} refPrices={snap.refPrices} onOpenQuota={openQuota} onOpenResource={openResource}
+            specialtyOptions={billSpecNames} onSaved={onEditSaved} />
         ) : selectedQuota ? (
-          <QuotaDetail quota={selectedQuota} usage={usageIndex.get(selectedQuota.code) ?? []} onOpenBill={openBill} onOpenResource={openResource} />
+          <QuotaDetail quota={selectedQuota} usage={usageIndex.get(selectedQuota.code) ?? []} onOpenBill={openBill} onOpenResource={openResource}
+            specialtyOptions={quotaSpecNames} chapterOptionsOf={chaptersOfSpec} resources={snap.resources} onSaved={onEditSaved} />
         ) : selectedResource ? (
-          <ResourceDetail resource={selectedResource} onOpenQuota={openQuota} />
+          <ResourceDetail resource={selectedResource} onOpenQuota={openQuota}
+            regionOptions={resourceRegionNames} periodOptions={resourcePeriodNames} categoryOptions={categoriesOfKind(selectedResource.kind)} onSaved={onEditSaved} />
         ) : tier === "bill" && currentProject ? (
-          <ProjectCard project={currentProject} onDeleted={deleteProject} />
+          <ProjectCard project={currentProject} onDeleted={deleteProject}
+            specialtyOptions={projectSpecNames} regionOptions={projectRegionNames} periodOptions={projectPeriodNames} onSaved={onEditSaved} />
         ) : (
           <DetailState phase="idle" />
         )}

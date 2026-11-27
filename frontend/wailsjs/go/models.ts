@@ -9785,6 +9785,30 @@ export namespace workcost {
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}
+	export class BillQuotaLink {
+	    id: number;
+	    billItemId: number;
+	    quotaCode: string;
+	    quantity: number;
+	    sort: number;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BillQuotaLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.billItemId = source["billItemId"];
+	        this.quotaCode = source["quotaCode"];
+	        this.quantity = source["quantity"];
+	        this.sort = source["sort"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class HealthFinding {
 	    id: number;
 	    code: string;
@@ -10132,6 +10156,24 @@ export namespace workcost {
 		}
 	}
 	
+	export class RateSet {
+	    managementRate: number;
+	    regulatoryRate: number;
+	    profitRate: number;
+	    taxRate: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RateSet(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.managementRate = source["managementRate"];
+	        this.regulatoryRate = source["regulatoryRate"];
+	        this.profitRate = source["profitRate"];
+	        this.taxRate = source["taxRate"];
+	    }
+	}
 	export class Resource {
 	    id: number;
 	    code: string;

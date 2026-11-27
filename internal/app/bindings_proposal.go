@@ -12,3 +12,5 @@ func (b *ProposalB) GaeaProposalList() ([]ProposalSummaryView, error) { return b
 func (b *ProposalB) GaeaProposalOutline(name string) ([]ProposalSectionView, error) { return b.a.GaeaProposalOutline(name) }
 func (b *ProposalB) GaeaProposalRead(sectionID int64) (*ProposalSectionBodyView, error) { return b.a.GaeaProposalRead(sectionID) }
 func (b *ProposalB) GaeaProposalSearch(query string, scope string, level int, projectType string, year string, within string, limit int) (*ProposalSearchResultView, error) { return b.a.GaeaProposalSearch(query, scope, level, projectType, year, within, limit) }
+func (b *ProposalB) GaeaProposalUpdateMeta(name string, title string, projectType string, year string, summary string) (string, error) { return b.a.GaeaProposalUpdateMeta(name, title, projectType, year, summary) }
+func (b *ProposalB) GaeaProposalUpdateSection(sectionID int64, title string, updateTitle bool, body string, updateBody bool) error { return b.a.GaeaProposalUpdateSection(sectionID, title, updateTitle, body, updateBody) }

@@ -106,3 +106,54 @@ func TestGaeaWorkcostProjectFeesBinding(t *testing.T) {
 		t.Errorf("含税总造价 = %.2f, want 10815", f.Total)
 	}
 }
+
+// TestGaeaWorkcostBillProjectProfileAndRatesBindings 库页编辑面（2026-11-27）：
+// 项目口径档（空=保持原值，规范值校验走 store）与费率档随改随落。
+func TestGaeaWorkcostBillProjectProfileAndRatesBindings(t *testing.T) {
+	a, cleanup := workcostTestApp(t)
+	defer cleanup()
+	id, err := a.hubWorkcostStore().UpsertBillProject("口径测试项目", "a.xlsx", "", "", "", "", nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 规范值是字典制：先播种专业与地区（与 cost_library dict add 同一入口）。
+	st := a.hubWorkcostStore()
+	for _, d := range []workcost.DictItem{
+		{Kind: workcost.DictSpecialty, Name: "土壤修复"},
+		{Kind: workcost.DictRegion, Name: "乐山"},
+		{Kind: workcost.DictRegion, Name: "成都"},
+	} {
+		if err := st.DictAdd(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 口径：字典外的专业拒绝。
+	if err := a.GaeaWorkcostBillProjectProfileSave(id, "不存在的专业", "", ""); err == nil {
+		t.Fatal("字典外专业应拒绝")
+	}
+	if err := a.GaeaWorkcostBillProjectProfileSave(id, "土壤修复", "乐山", "2026-07"); err != nil {
+		t.Fatal(err)
+	}
+	projects := a.GaeaWorkcostBillProjects()
+	if len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "乐山" || projects[0].PricePeriod != "2026-07" {
+		t.Fatalf("口径未落: %+v", projects)
+	}
+	// 空=保持原值。
+	if err := a.GaeaWorkcostBillProjectProfileSave(id, "", "成都", ""); err != nil {
+		t.Fatal(err)
+	}
+	if projects = a.GaeaWorkcostBillProjects(); len(projects) != 1 || projects[0].Specialty != "土壤修复" || projects[0].Region != "成都" || projects[0].PricePeriod != "2026-07" {
+		t.Fatalf("空字段应保持原值: %+v", projects)
+	}
+	// 费率档。
+	if err := a.GaeaWorkcostBillProjectRatesSave(id, workcost.RateSet{
+		ManagementRate: 0.12, RegulatoryRate: 0.025, ProfitRate: 0.08, TaxRate: 0.09,
+	}, true, 9876543.21); err != nil {
+		t.Fatal(err)
+	}
+	p := a.GaeaWorkcostBillProjects()[0]
+	if p.ManagementRate != 0.12 || p.RegulatoryRate != 0.025 || p.ProfitRate != 0.08 || p.TaxRate != 0.09 ||
+		!p.ProfitIncludesRegulatory || p.ControlPrice != 9876543.21 {
+		t.Fatalf("费率未落: %+v", p)
+	}
+}

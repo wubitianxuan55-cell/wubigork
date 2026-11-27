@@ -817,3 +817,59 @@
     animation: none !important;
   }
 }
+
+/* ── 编辑面（2026-11-27）：清单行编辑钮与元数据/小节编辑表单 ── */
+.pl-row-edit {
+  align-self: center;
+  margin-right: 2px;
+  opacity: 0;
+}
+
+.pl-row:hover .pl-row-edit,
+.pl-row-edit:focus-visible,
+.pl-row:hover .pl-row-delete,
+.pl-row-delete:focus-visible {
+  opacity: 1;
+}
+
+.pl-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pl-edit-label {
+  color: var(--fg-faint);
+  font-size: 11.5px;
+}
+
+.pl-edit-input {
+  height: 30px;
+  width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--pl-line-strong, var(--pl-line));
+  border-radius: 8px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
+textarea.pl-edit-input {
+  height: auto;
+  padding: 6px 8px;
+  resize: vertical;
+  line-height: 1.55;
+  font-family: inherit;
+}
+
+.pl-edit-area {
+  font-family: inherit;
+}
+
+.pl-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

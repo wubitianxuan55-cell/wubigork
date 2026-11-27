@@ -13,6 +13,7 @@ import type {
   CostIndexStatusView,
   WorkcostBillItem,
   WorkcostBillProject,
+  WorkcostBillQuotaLink,
   WorkcostCompose,
   WorkcostComposeLineView,
   WorkcostComposeOverride,
@@ -20,6 +21,7 @@ import type {
   WorkcostLibraryFilter,
   WorkcostQuota,
   WorkcostQuotaItem,
+  WorkcostRateSet,
   WorkcostResource,
   WorkcostResourcePrice,
   WorkcostUsageRef,
@@ -28,10 +30,13 @@ import type {
 type CostMethods = Pick<
   AppBindings,
   | "CostHealthScan" | "CostLibraryExport" | "CostIndexStatus" | "CostIndexBackfill"
-  | "WorkcostResourceList" | "WorkcostResourceDelete" | "WorkcostResourcePrices" | "WorkcostResourceUsage"
-  | "WorkcostQuotaGet" | "WorkcostQuotaList" | "WorkcostQuotaDelete"
+  | "WorkcostResourceList" | "WorkcostResourceGet" | "WorkcostResourceDelete" | "WorkcostResourcePrices" | "WorkcostResourceUsage"
+  | "WorkcostResourceSave" | "WorkcostResourceSetPrice"
+  | "WorkcostQuotaGet" | "WorkcostQuotaList" | "WorkcostQuotaDelete" | "WorkcostQuotaSave"
   | "WorkcostQuotaCompose" | "WorkcostQuotaComposeMany"
   | "WorkcostBillProjects" | "WorkcostBillItems" | "WorkcostBillItemDelete" | "WorkcostBillProjectDelete"
+  | "WorkcostBillItemSave" | "WorkcostBillQuotaLinks" | "WorkcostBillQuotaAttach" | "WorkcostBillQuotaDetach"
+  | "WorkcostBillProjectRatesSave" | "WorkcostBillProjectProfileSave"
   | "WorkcostBillSearch"
 >;
 
@@ -43,6 +48,9 @@ let mockBillProjects: WorkcostBillProject[] = [];
 let mockBillItems: WorkcostBillItem[] = [];
 let mockQuotas: WorkcostQuota[] = [];
 let mockBillSeq = 1;
+// 清单↔定额挂接（编辑面用；由种子清单行的 quotaCodes 播种，Attach/Detach 同步维护）。
+let mockBillLinks: WorkcostBillQuotaLink[] = [];
+let mockLinkSeq = 1;
 
 // ensureWorkcostSeed 首次访问时播种演示数据（幂等）。
 function ensureWorkcostSeed(): void {
@@ -104,6 +112,12 @@ function ensureWorkcostSeed(): void {
     quota(2, "WP02", "场地平整", "A临建", "m²", "推土机平整", [item("L02", 0.002), item("EXC", 0.001)]),
     quota(3, "WP19", "水泥窑协同处置", "D外运处置", "t", "不含运 190 元/t", [item("KILN", 1)]),
   ];
+  // 挂接播种：清单行的 quotaCodes → 引用行（quantity=0 跟随清单工程量）。
+  for (const b of mockBillItems) {
+    for (const code of b.quotaCodes ?? []) {
+      mockBillLinks.push({ id: mockLinkSeq++, billItemId: b.id, quotaCode: code, quantity: 0, sort: mockLinkSeq });
+    }
+  }
 }
 
 // composeMock 按定额核算综合单价（只含人材机；外委并入材料桶）。
@@ -214,6 +228,35 @@ export function buildCost(_s: MakeMockState): CostMethods {
       }
       return refs;
     },
+    async WorkcostResourceGet(id: number): Promise<WorkcostResource | null> {
+      ensureWorkcostSeed();
+      return mockResources.find((x) => x.id === id) ?? null;
+    },
+    async WorkcostResourceSave(r: WorkcostResource): Promise<WorkcostResource> {
+      ensureWorkcostSeed();
+      const title = r.title.trim();
+      if (!title) throw new Error("工料机资源需要名称");
+      const at = mockResources.findIndex((x) => x.id === r.id);
+      if (at >= 0) {
+        // 同行更新（Go 侧另按身份防撞别行；mock 简化为按 id 定点改）。
+        mockResources[at] = { ...mockResources[at], ...r, title };
+        return mockResources[at];
+      }
+      throw new Error("浏览器演示态不支持新建工料机，请在桌面端操作");
+    },
+    async WorkcostResourceSetPrice(id, price, period, region, priceType, source, note): Promise<WorkcostResource> {
+      ensureWorkcostSeed();
+      const r = mockResources.find((x) => x.id === id);
+      if (!r) throw new Error("资源不存在");
+      if (price <= 0) throw new Error("调价需要正的价格");
+      mockResourcePrices.push({
+        id: mockResourcePrices.length + 1, resourceId: id, price,
+        period: period.trim(), region: region.trim(), priceType: priceType.trim(),
+        source: source.trim(), fetchedAt: new Date().toISOString().slice(0, 16).replace("T", " "), note: note.trim(),
+      });
+      r.currentPrice = price;
+      return r;
+    },
 
     // ── 定额 ──
     async WorkcostQuotaGet(code: string): Promise<WorkcostQuota | null> {
@@ -239,6 +282,22 @@ export function buildCost(_s: MakeMockState): CostMethods {
       const used = quotaUsedBy(code).length;
       if (used > 0) throw new Error(`该定额仍被 ${used} 条清单项引用，不能删除`);
       mockQuotas = mockQuotas.filter((q) => q.code !== code);
+    },
+    async WorkcostQuotaSave(q: WorkcostQuota): Promise<WorkcostQuota> {
+      ensureWorkcostSeed();
+      const code = q.code.trim();
+      const title = q.title.trim();
+      if (!code || !title) throw new Error("定额需要编码与名称");
+      const at = mockQuotas.findIndex((x) => x.code === code);
+      const items = (q.items ?? []).map((it, i) => ({
+        ...it, quotaCode: code, sort: i,
+        resourcePrice: it.resourcePrice ?? 0, lossRate: it.lossRate ?? 0,
+      }));
+      if (at >= 0) {
+        mockQuotas[at] = { ...mockQuotas[at], ...q, code, title, items };
+        return { ...mockQuotas[at], usageCount: quotaUsedBy(code).length };
+      }
+      throw new Error("浏览器演示态不支持新建定额，请在桌面端操作");
     },
     async WorkcostQuotaCompose(code: string, _overrides: Record<string, WorkcostComposeOverride> | null): Promise<WorkcostCompose> {
       // dev mock 不实现项目级覆盖（真机由 Go 侧 ComposeOverride 生效）。
@@ -293,12 +352,71 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async WorkcostBillItemDelete(id: number): Promise<void> {
       mockBillItems = mockBillItems.filter((b) => b.id !== id);
+      mockBillLinks = mockBillLinks.filter((l) => l.billItemId !== id);
+    },
+    async WorkcostBillItemSave(item: WorkcostBillItem): Promise<WorkcostBillItem> {
+      ensureWorkcostSeed();
+      const title = item.title.trim();
+      if (!title) throw new Error("清单项需要名称");
+      const at = mockBillItems.findIndex((b) => b.id === item.id || (b.projectId === item.projectId && b.code === item.code));
+      if (at < 0) throw new Error("浏览器演示态不支持新建清单项，请在桌面端操作");
+      mockBillItems[at] = { ...mockBillItems[at], ...item, id: mockBillItems[at].id, title };
+      return mockBillItems[at];
+    },
+    async WorkcostBillQuotaLinks(billItemId: number): Promise<WorkcostBillQuotaLink[]> {
+      ensureWorkcostSeed();
+      return mockBillLinks.filter((l) => l.billItemId === billItemId);
+    },
+    async WorkcostBillQuotaAttach(billItemId: number, quotaCode: string, quantity: number): Promise<WorkcostBillQuotaLink> {
+      ensureWorkcostSeed();
+      const code = quotaCode.trim();
+      if (!code) throw new Error("挂接需要定额编码");
+      if (!mockQuotas.some((x) => x.code === code)) throw new Error(`定额 ${code} 不存在，无法挂接`);
+      const at = mockBillLinks.findIndex((l) => l.billItemId === billItemId && l.quotaCode === code);
+      if (at >= 0) {
+        mockBillLinks[at] = { ...mockBillLinks[at], quantity: Math.max(0, quantity) };
+      } else {
+        mockBillLinks.push({ id: mockLinkSeq++, billItemId, quotaCode: code, quantity: Math.max(0, quantity), sort: mockLinkSeq });
+      }
+      // 清单行的 quotaCodes 聚合同步（读取侧口径）。
+      const b = mockBillItems.find((x) => x.id === billItemId);
+      if (b && !(b.quotaCodes ?? []).includes(code)) b.quotaCodes = [...(b.quotaCodes ?? []), code];
+      return mockBillLinks.find((l) => l.billItemId === billItemId && l.quotaCode === code)!;
+    },
+    async WorkcostBillQuotaDetach(billItemId: number, linkId: number): Promise<void> {
+      ensureWorkcostSeed();
+      const link = mockBillLinks.find((l) => l.id === linkId && l.billItemId === billItemId);
+      if (!link) throw new Error("引用不存在或不属于该清单项");
+      mockBillLinks = mockBillLinks.filter((l) => l.id !== linkId);
+      const b = mockBillItems.find((x) => x.id === billItemId);
+      if (b) b.quotaCodes = (b.quotaCodes ?? []).filter((c) => c !== link.quotaCode);
+    },
+    async WorkcostBillProjectRatesSave(id: number, rates: WorkcostRateSet, profitIncludesRegulatory: boolean, controlPrice: number): Promise<void> {
+      ensureWorkcostSeed();
+      const p = mockBillProjects.find((x) => x.id === id);
+      if (!p) throw new Error("项目不存在");
+      p.managementRate = rates.managementRate;
+      p.regulatoryRate = rates.regulatoryRate;
+      p.profitRate = rates.profitRate;
+      p.taxRate = rates.taxRate;
+      p.profitIncludesRegulatory = profitIncludesRegulatory;
+      p.controlPrice = controlPrice;
+    },
+    async WorkcostBillProjectProfileSave(id: number, specialty: string, region: string, pricePeriod: string): Promise<void> {
+      ensureWorkcostSeed();
+      const p = mockBillProjects.find((x) => x.id === id);
+      if (!p) throw new Error("项目不存在");
+      if (specialty.trim()) p.specialty = specialty.trim();
+      if (region.trim()) p.region = region.trim();
+      if (pricePeriod.trim()) p.pricePeriod = pricePeriod.trim();
     },
     async WorkcostBillProjectDelete(id: number): Promise<number> {
       ensureWorkcostSeed();
       if (!mockBillProjects.some((p) => p.id === id)) throw new Error("项目不存在");
+      const gone = new Set(mockBillItems.filter((b) => b.projectId === id).map((b) => b.id));
       mockBillProjects = mockBillProjects.filter((p) => p.id !== id);
       mockBillItems = mockBillItems.filter((b) => b.projectId !== id);
+      mockBillLinks = mockBillLinks.filter((l) => !gone.has(l.billItemId));
       // 演示定额全部是项目导入的独占定额：随项目删除。
       const removed = mockQuotas.length;
       mockQuotas = [];

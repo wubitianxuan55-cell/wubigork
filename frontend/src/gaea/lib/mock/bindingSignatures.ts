@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 668 名（原生变参 18 名已收窄标注）。
+// 共 680 名（原生变参 18 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -244,6 +244,8 @@ export const bindingSignatures = {
   GaeaProposalOutline: { argc: 1, variadic: false, params: "name string" },
   GaeaProposalRead: { argc: 1, variadic: false, params: "sectionID int64" },
   GaeaProposalSearch: { argc: 7, variadic: false, params: "query string, scope string, level int, projectType string, year string, within string, limit int" },
+  GaeaProposalUpdateMeta: { argc: 5, variadic: false, params: "name string, title string, projectType string, year string, summary string" },
+  GaeaProposalUpdateSection: { argc: 5, variadic: false, params: "sectionID int64, title string, updateTitle bool, body string, updateBody bool" },
   GaeaReadFile: { argc: 1, variadic: false, params: "rel string" },
   GaeaReadFileB64: { argc: 1, variadic: false, params: "path string" },
   GaeaReadFilePage: { argc: 2, variadic: false, params: "rel string, offset int64" },
@@ -369,18 +371,28 @@ export const bindingSignatures = {
   GaeaWhisperProactiveNow: { argc: 1, variadic: false, params: "personalityID string" },
   GaeaWhisperSetProactiveConfig: { argc: 1, variadic: false, params: "cfgJSON string" },
   GaeaWorkcostBillItemDelete: { argc: 1, variadic: false, params: "id int64" },
+  GaeaWorkcostBillItemSave: { argc: 1, variadic: false, params: "item workcost.BillItem" },
   GaeaWorkcostBillItems: { argc: 1, variadic: false, params: "projectID int64" },
   GaeaWorkcostBillProjectDelete: { argc: 1, variadic: false, params: "id int64" },
+  GaeaWorkcostBillProjectProfileSave: { argc: 4, variadic: false, params: "id int64, specialty string, region string, pricePeriod string" },
+  GaeaWorkcostBillProjectRatesSave: { argc: 4, variadic: false, params: "id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64" },
   GaeaWorkcostBillProjects: { argc: 0, variadic: false, params: "" },
+  GaeaWorkcostBillQuotaAttach: { argc: 3, variadic: false, params: "billItemID int64, quotaCode string, quantity float64" },
+  GaeaWorkcostBillQuotaDetach: { argc: 2, variadic: false, params: "billItemID int64, linkID int64" },
+  GaeaWorkcostBillQuotaLinks: { argc: 1, variadic: false, params: "billItemID int64" },
   GaeaWorkcostBillSearch: { argc: 3, variadic: false, params: "keyword string, specialty string, projectID int64" },
   GaeaWorkcostQuotaCompose: { argc: 2, variadic: false, params: "code string, overrides map[string]workcost.ComposeOverride" },
   GaeaWorkcostQuotaComposeMany: { argc: 1, variadic: false, params: "codes []string" },
   GaeaWorkcostQuotaDelete: { argc: 1, variadic: false, params: "code string" },
   GaeaWorkcostQuotaGet: { argc: 1, variadic: false, params: "code string" },
   GaeaWorkcostQuotaList: { argc: 2, variadic: false, params: "specialty string, keyword string" },
+  GaeaWorkcostQuotaSave: { argc: 1, variadic: false, params: "q workcost.Quota" },
   GaeaWorkcostResourceDelete: { argc: 2, variadic: false, params: "id int64, force bool" },
+  GaeaWorkcostResourceGet: { argc: 1, variadic: false, params: "id int64" },
   GaeaWorkcostResourceList: { argc: 2, variadic: false, params: "kind string, keyword string" },
   GaeaWorkcostResourcePrices: { argc: 1, variadic: false, params: "id int64" },
+  GaeaWorkcostResourceSave: { argc: 1, variadic: false, params: "r workcost.Resource" },
+  GaeaWorkcostResourceSetPrice: { argc: 7, variadic: false, params: "id int64, price float64, period string, region string, priceType string, source string, note string" },
   GaeaWorkcostResourceUsage: { argc: 1, variadic: false, params: "code string" },
   GaeaWorkspaceSearch: { argc: 2, variadic: false, params: "query string, limit int" },
   GaeaWorkspaceUploadAbort: { argc: 1, variadic: false, params: "token string" },
@@ -689,5 +701,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 668。
-export const bindingSignatureCount = 668;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 680。
+export const bindingSignatureCount = 680;

@@ -513,13 +513,16 @@ export const GAEA_METHOD_FACETS = {
   MemoryEvalRun: "work",
   // 晨报（做梦 2.0 主动预取）：只读 work 空间记忆，play 不渲染（双空间红线）。
   MemoryMorningBrief: "work",
-  // 方案库板块（一级板块，与造价库并列）：清单/标题树/阅读/检索/删除。工位资产；
-  // 删除经界面二次确认。录入只在办公方案模式里由模型完成，不走绑定面。
+  // 方案库板块（一级板块，与造价库并列）：清单/标题树/阅读/检索/删除，2026-11-27
+  // 补元数据与小节的编辑面。工位资产；删除经界面二次确认。
+  // 录入只在办公方案模式里由模型完成，不走绑定面。
   GaeaProposalList: "work",
   GaeaProposalOutline: "work",
   GaeaProposalRead: "work",
   GaeaProposalSearch: "work",
   GaeaProposalDelete: "work",
+  GaeaProposalUpdateMeta: "work",
+  GaeaProposalUpdateSection: "work",
   GaeaProposalAssetDataURL: "work",
   SemanticSearch: "work",
   // ── 造价数据库（2026-11-25 推倒重建为三级浏览面：清单 / 定额 / 工料机）：全归工位 ──
@@ -543,6 +546,17 @@ export const GAEA_METHOD_FACETS = {
   WorkcostBillItemDelete: "work",
   WorkcostBillProjectDelete: "work",
   WorkcostBillSearch: "work",
+  // 库页编辑面（2026-11-27）：直接修正录入数据的保存入口，工位动作。
+  WorkcostResourceGet: "work",
+  WorkcostResourceSave: "work",
+  WorkcostResourceSetPrice: "work",
+  WorkcostQuotaSave: "work",
+  WorkcostBillItemSave: "work",
+  WorkcostBillQuotaLinks: "work",
+  WorkcostBillQuotaAttach: "work",
+  WorkcostBillQuotaDetach: "work",
+  WorkcostBillProjectRatesSave: "work",
+  WorkcostBillProjectProfileSave: "work",
   RetrievalEvalRun: "work",
   MemoryDuplicates: "work",
   MemoryRecall: "work",

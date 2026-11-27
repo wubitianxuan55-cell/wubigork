@@ -15,16 +15,26 @@ func (b *CostB) GaeaCostIndexBackfill(kind string) (CostIndexStatusView, error) 
 func (b *CostB) GaeaCostIndexStatus() CostIndexStatusView { return b.a.GaeaCostIndexStatus() }
 func (b *CostB) GaeaCostLibraryExport(kind string, filter workcost.LibraryFilter, outPath string) (string, error) { return b.a.GaeaCostLibraryExport(kind, filter, outPath) }
 func (b *CostB) GaeaWorkcostBillItemDelete(id int64) error { return b.a.GaeaWorkcostBillItemDelete(id) }
+func (b *CostB) GaeaWorkcostBillItemSave(item workcost.BillItem) (*workcost.BillItem, error) { return b.a.GaeaWorkcostBillItemSave(item) }
 func (b *CostB) GaeaWorkcostBillItems(projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillItems(projectID) }
 func (b *CostB) GaeaWorkcostBillProjectDelete(id int64) (int, error) { return b.a.GaeaWorkcostBillProjectDelete(id) }
+func (b *CostB) GaeaWorkcostBillProjectProfileSave(id int64, specialty string, region string, pricePeriod string) error { return b.a.GaeaWorkcostBillProjectProfileSave(id, specialty, region, pricePeriod) }
+func (b *CostB) GaeaWorkcostBillProjectRatesSave(id int64, rates workcost.RateSet, profitIncludesRegulatory bool, controlPrice float64) error { return b.a.GaeaWorkcostBillProjectRatesSave(id, rates, profitIncludesRegulatory, controlPrice) }
 func (b *CostB) GaeaWorkcostBillProjects() []workcost.BillProject { return b.a.GaeaWorkcostBillProjects() }
+func (b *CostB) GaeaWorkcostBillQuotaAttach(billItemID int64, quotaCode string, quantity float64) (workcost.BillQuotaLink, error) { return b.a.GaeaWorkcostBillQuotaAttach(billItemID, quotaCode, quantity) }
+func (b *CostB) GaeaWorkcostBillQuotaDetach(billItemID int64, linkID int64) error { return b.a.GaeaWorkcostBillQuotaDetach(billItemID, linkID) }
+func (b *CostB) GaeaWorkcostBillQuotaLinks(billItemID int64) ([]workcost.BillQuotaLink, error) { return b.a.GaeaWorkcostBillQuotaLinks(billItemID) }
 func (b *CostB) GaeaWorkcostBillSearch(keyword string, specialty string, projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillSearch(keyword, specialty, projectID) }
 func (b *CostB) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcost.ComposeOverride) (*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaCompose(code, overrides) }
 func (b *CostB) GaeaWorkcostQuotaComposeMany(codes []string) (map[string]*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaComposeMany(codes) }
 func (b *CostB) GaeaWorkcostQuotaDelete(code string) error { return b.a.GaeaWorkcostQuotaDelete(code) }
 func (b *CostB) GaeaWorkcostQuotaGet(code string) *workcost.Quota { return b.a.GaeaWorkcostQuotaGet(code) }
 func (b *CostB) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost.Quota { return b.a.GaeaWorkcostQuotaList(specialty, keyword) }
+func (b *CostB) GaeaWorkcostQuotaSave(q workcost.Quota) (*workcost.Quota, error) { return b.a.GaeaWorkcostQuotaSave(q) }
 func (b *CostB) GaeaWorkcostResourceDelete(id int64, force bool) error { return b.a.GaeaWorkcostResourceDelete(id, force) }
+func (b *CostB) GaeaWorkcostResourceGet(id int64) *workcost.Resource { return b.a.GaeaWorkcostResourceGet(id) }
 func (b *CostB) GaeaWorkcostResourceList(kind string, keyword string) []workcost.Resource { return b.a.GaeaWorkcostResourceList(kind, keyword) }
 func (b *CostB) GaeaWorkcostResourcePrices(id int64) []workcost.ResourcePrice { return b.a.GaeaWorkcostResourcePrices(id) }
+func (b *CostB) GaeaWorkcostResourceSave(r workcost.Resource) (*workcost.Resource, error) { return b.a.GaeaWorkcostResourceSave(r) }
+func (b *CostB) GaeaWorkcostResourceSetPrice(id int64, price float64, period string, region string, priceType string, source string, note string) (*workcost.Resource, error) { return b.a.GaeaWorkcostResourceSetPrice(id, price, period, region, priceType, source, note) }
 func (b *CostB) GaeaWorkcostResourceUsage(code string) []workcost.UsageRef { return b.a.GaeaWorkcostResourceUsage(code) }

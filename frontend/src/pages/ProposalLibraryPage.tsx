@@ -1,8 +1,10 @@
 // ProposalLibraryPage — 一级板块「方案库」（与造价数据库并列）。
 //
 // 定位：历史方案的档案架。录入与索引只在办公板块的「方案」运行模式里由模型完成
-// （proposal_save：模型定标题层级，正文由工具从源文件逐字切出）；这里只给人看：
+// （proposal_save：模型定标题层级，正文由工具从源文件逐字切出）；这里给人看：
 //   方案清单 / 检索命中 → 1~4 级标题树（定位）→ 小节正文（阅读）。
+// 2026-11-27 起可直接修正入库错误：清单行「编辑」改元数据（标题/类型/年度/摘要），
+// 阅读窗「编辑」改小节标题与正文（改标题连带子树路径，改正文置空向量待重嵌）。
 // 检索与模型用的 proposal_search 同一条链：全文 + 本地语义召回 + 本地精排，
 // 命中回到小节并带命中位置摘要。
 //
@@ -10,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Modal } from "antd";
 import {
-  AlertCircle, BookOpen, ChevronDown, ChevronRight, Copy, FolderOpen, Inbox, Loader2, RefreshCw, Search, Trash2, X,
+  AlertCircle, BookOpen, ChevronDown, ChevronRight, Copy, FolderOpen, Inbox, Loader2, Pencil, RefreshCw, Search, Trash2, X,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import { copyToClipboard } from "../gaea/lib/clipboard";
@@ -115,6 +117,27 @@ export default function ProposalLibraryPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
+
+  // ── 编辑面（2026-11-27）：直接修正入库错误 ──
+  // 元数据：清单行「编辑」→ 弹窗改标题/类型/年度/摘要（标题即方案名，改名后按
+  // 返回的新名重新定位选中行）。
+  const [editTarget, setEditTarget] = useState<ProposalSummary | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", projectType: "", year: "", summary: "" });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState("");
+  // 小节：阅读窗「编辑」→ 标题 + 正文两格。保存只发真正改动的半边——没改的
+  // 半边不传，避免白重嵌语义向量。
+  const [secEditing, setSecEditing] = useState(false);
+  const [secTitle, setSecTitle] = useState("");
+  const [secBody, setSecBody] = useState("");
+  const [secBusy, setSecBusy] = useState(false);
+  const [secMsg, setSecMsg] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const openEdit = (p: ProposalSummary) => {
+    setEditTarget(p);
+    setEditForm({ title: p.title, projectType: p.projectType ?? "", year: p.year ?? "", summary: p.summary ?? "" });
+    setEditError("");
+  };
 
   // 窄窗（三栏放不下）改单栏 + 页签切换：按容器宽度判定，不看视口。
   useEffect(() => {
@@ -245,6 +268,12 @@ export default function ProposalLibraryPage() {
     el?.scrollIntoView?.({ block: "nearest" });
   }, [currentId, outlinePhase, pane, narrow]);
 
+  // 换节或重读：退出小节编辑态——不让上一节的草稿挂在新节上。
+  useEffect(() => {
+    setSecEditing(false);
+    setSecMsg(null);
+  }, [currentId, section]);
+
   const runSearch = useCallback(async () => {
     const q = input.trim();
     if (!q) {
@@ -304,6 +333,65 @@ export default function ProposalLibraryPage() {
     }
     setProposals((list) => list.filter((p) => p.name !== deleteTarget.name));
     await loadList();
+  };
+
+  const confirmMetaEdit = async () => {
+    if (!editTarget) return;
+    const title = editForm.title.trim();
+    if (!title) {
+      setEditError("标题不能为空");
+      return;
+    }
+    setEditBusy(true);
+    setEditError("");
+    try {
+      const newName = await app.GaeaProposalUpdateMeta(
+        editTarget.name, title, editForm.projectType.trim(), editForm.year.trim(), editForm.summary.trim(),
+      );
+      setEditBusy(false);
+      setEditTarget(null);
+      // 选中的方案改了名：重取清单后按新名重新定位（标题树与正文跟着走）。
+      const wasSelected = editTarget.name === selectedName || editTarget.title === selectedName;
+      await loadList();
+      if (wasSelected && newName !== selectedName) await selectProposal(newName);
+    } catch (e) {
+      setEditError(message(e));
+      setEditBusy(false);
+    }
+  };
+
+  // 进小节编辑态；换节/重读后由 effect 退出（不让上一节的草稿挂在新节上）。
+  const startSectionEdit = () => {
+    if (!section) return;
+    setSecTitle(section.title);
+    setSecBody(section.body);
+    setSecMsg(null);
+    setSecEditing(true);
+  };
+
+  const saveSectionEdit = async () => {
+    if (!section) return;
+    const title = secTitle.trim();
+    const updateTitle = !!title && title !== section.title;
+    const updateBody = secBody !== section.body;
+    if (!updateTitle && !updateBody) {
+      setSecMsg({ text: "标题与正文都没有改动", isError: false });
+      return;
+    }
+    setSecBusy(true);
+    setSecMsg(null);
+    try {
+      await app.GaeaProposalUpdateSection(section.id, updateTitle ? title : section.title, updateTitle, secBody, updateBody);
+      setSecBusy(false);
+      setSecEditing(false);
+      const cid = section.id;
+      // 改标题连带子树路径：标题树整棵重取并回到本节；只改正文：重读本节即可。
+      if (updateTitle && selectedName) await selectProposal(selectedName, cid);
+      else await openSection(cid);
+    } catch (e) {
+      setSecMsg({ text: message(e), isError: true });
+      setSecBusy(false);
+    }
   };
 
   const copyPrompt = async () => {
@@ -616,6 +704,16 @@ export default function ProposalLibraryPage() {
                         </button>
                         <button
                           type="button"
+                          className="pl-icon-btn pl-row-edit"
+                          aria-label={`编辑方案 ${p.title}`}
+                          title="编辑标题 / 类型 / 年度 / 摘要"
+                          data-testid="proposal-edit-open"
+                          onClick={() => openEdit(p)}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
                           className="pl-icon-btn pl-row-delete"
                           aria-label={`删除方案 ${p.title}`}
                           title="删除方案"
@@ -707,6 +805,33 @@ export default function ProposalLibraryPage() {
               </StateNote>
             )}
             {readPhase === "ready" && section && (
+              secEditing ? (
+                <div className="pl-reader" aria-label="编辑小节" data-testid="proposal-section-edit">
+                  <nav className="pl-crumbs" aria-label="标题路径">
+                    <span className="is-current">{section.titlePath}</span>
+                  </nav>
+                  <label className="pl-edit-field">
+                    <span className="pl-edit-label">标题（连带子节标题路径）</span>
+                    <input className="pl-edit-input" value={secTitle} data-testid="proposal-edit-title"
+                      onChange={(e) => setSecTitle(e.target.value)} />
+                  </label>
+                  <label className="pl-edit-field">
+                    <span className="pl-edit-label">正文（Markdown，整节替换）</span>
+                    <textarea className="pl-edit-input pl-edit-area" rows={18} value={secBody} data-testid="proposal-edit-body"
+                      onChange={(e) => setSecBody(e.target.value)} />
+                  </label>
+                  <div className="pl-edit-actions">
+                    <button type="button" className="pl-btn pl-btn-primary" disabled={secBusy} data-testid="proposal-edit-save"
+                      onClick={() => void saveSectionEdit()}>保存</button>
+                    <button type="button" className="pl-btn" disabled={secBusy} onClick={() => setSecEditing(false)}>取消</button>
+                    {secMsg && (
+                      <span className={secMsg.isError ? "text-[12px] text-[var(--error)]" : "text-[12px] text-fg-faint"} role={secMsg.isError ? "alert" : undefined} data-testid="proposal-edit-msg">
+                        {secMsg.text}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <article className="pl-reader" aria-labelledby="proposal-reader-title" data-testid="proposal-reader">
                 <nav className="pl-crumbs" aria-label="标题路径">
                   {section.titlePath.split(" › ").map((crumb, i, all) => (
@@ -720,6 +845,10 @@ export default function ProposalLibraryPage() {
                   <span>{section.proposalTitle}{section.status === "录入中" ? "（录入中）" : ""}</span>
                   <span>本节 {formatChars(section.chars)}</span>
                   {section.children && section.children.length > 0 && <span>子节 {section.children.length}</span>}
+                  <button type="button" className="pl-btn pl-btn-ghost" data-testid="proposal-section-edit-open"
+                    title="改这一节的标题或正文（正文原样录入的笔误在这里修）" onClick={startSectionEdit}>
+                    <Pencil size={12} aria-hidden />编辑本节
+                  </button>
                 </div>
                 {section.children && section.children.length > 0 && (
                   <div className="pl-child-chips" aria-label="子节">
@@ -754,10 +883,53 @@ export default function ProposalLibraryPage() {
                   </button>
                 </div>
               </article>
+              )
             )}
           </div>
         </section>
       )}
+
+      <Modal
+        title="编辑方案"
+        open={!!editTarget}
+        onCancel={() => { if (!editBusy) setEditTarget(null); }}
+        onOk={() => void confirmMetaEdit()}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={editBusy}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
+        width={480}
+      >
+        {editTarget && (
+          <div className="flex flex-col gap-3 pt-1 text-[13px]">
+            <label className="flex flex-col gap-1">
+              <span className="text-fg-dim">标题（方案名随之改，库里唯一）</span>
+              <input className="pl-edit-input" value={editForm.title} data-testid="proposal-meta-title"
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))} />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-fg-dim">类型（如 技术标 / 调查报告）</span>
+                <input className="pl-edit-input" value={editForm.projectType} data-testid="proposal-meta-type"
+                  onChange={(e) => setEditForm((f) => ({ ...f, projectType: e.target.value }))} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-fg-dim">年度</span>
+                <input className="pl-edit-input" value={editForm.year} data-testid="proposal-meta-year"
+                  onChange={(e) => setEditForm((f) => ({ ...f, year: e.target.value }))} />
+              </label>
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-fg-dim">摘要</span>
+              <textarea className="pl-edit-input pl-edit-area" rows={3} value={editForm.summary} data-testid="proposal-meta-summary"
+                onChange={(e) => setEditForm((f) => ({ ...f, summary: e.target.value }))} />
+            </label>
+            {editError && <div className="text-[12px] text-[var(--error)]" role="alert" data-testid="proposal-meta-error">{editError}</div>}
+          </div>
+        )}
+      </Modal>
 
       <Modal
         title="删除方案"

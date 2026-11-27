@@ -13,6 +13,7 @@ import type { MakeMockState } from "./state";
 type ProposalMethods = Pick<
   AppBindings,
   "GaeaProposalList" | "GaeaProposalOutline" | "GaeaProposalRead" | "GaeaProposalSearch" | "GaeaProposalDelete" |
+  "GaeaProposalUpdateMeta" | "GaeaProposalUpdateSection" |
   "GaeaProposalAssetDataURL"
 >;
 
@@ -183,6 +184,32 @@ export function buildProposal(state: MakeMockState): ProposalMethods {
       if (!find(name)) throw new Error(`方案 ${name} 不存在`);
       proposals = proposals.filter((p) => !(p.name === name || p.title === name));
       void nextId++;
+    },
+    async GaeaProposalUpdateMeta(name, title, projectType, year, summary) {
+      const p = find(name);
+      if (!p) throw new Error(`方案库里没有《${name}》`);
+      const t = title.trim();
+      if (!t) throw new Error("新标题不能为空");
+      const clash = find(t);
+      if (clash && clash !== p) throw new Error(`方案库里已有《${t}》，改名会撞名；换一个标题`);
+      p.title = t;
+      p.name = t; // 方案名=标题（与录入约定一致）
+      p.projectType = projectType.trim();
+      p.year = year.trim();
+      p.summary = summary.trim();
+      return p.name;
+    },
+    async GaeaProposalUpdateSection(sectionId, title, updateTitle, body, updateBody) {
+      if (!updateTitle && !updateBody) throw new Error("没有要改的内容：标题与正文至少勾选一个");
+      const p = proposals.find((x) => x.sectionsData.some((s) => s.id === sectionId));
+      const idx = p ? p.sectionsData.findIndex((s) => s.id === sectionId) : -1;
+      if (!p || idx < 0) throw new Error(`小节 ${sectionId} 不存在（方案可能已被覆盖重录）`);
+      if (updateTitle) {
+        const t = title.trim();
+        if (!t) throw new Error("新标题不能为空");
+        p.sectionsData[idx].title = t;
+      }
+      if (updateBody) p.sectionsData[idx].body = body;
     },
     async GaeaProposalAssetDataURL(ref: string) {
       if (!ref.startsWith("gaea-asset://")) throw new Error("方案图片引用无效");

@@ -166,6 +166,45 @@ func (a *App) GaeaProposalSearch(query string, scope string, level int, projectT
 	return &ProposalSearchResultView{Hits: res.Hits, Mode: res.Mode, Note: res.Note}, nil
 }
 
+// GaeaProposalUpdateMeta 修改方案元数据（标题/类型/年度/摘要）。界面编辑表单
+// 预填现值、四个字段全量替换落库（走 store.UpdateMeta：全文/语义/小节树不动）。
+// 标题即方案名，改名后唯一键随之变——返回新方案名，界面按它重新定位选中行。
+func (a *App) GaeaProposalUpdateMeta(name, title, projectType, year, summary string) (string, error) {
+	st, err := a.hubProposalStore()
+	if err != nil {
+		return "", err
+	}
+	p, err := st.UpdateMeta(name, proposal.UpdateInput{
+		Title: &title, ProjectType: &projectType, Year: &year, Summary: &summary,
+	})
+	if err != nil {
+		return "", err
+	}
+	return p.Name, nil
+}
+
+// GaeaProposalUpdateSection 增量修正一个小节（改标题连带子树标题路径；改正文
+// 整节替换并置空语义向量待重嵌）。updateTitle/updateBody 都为 false 是调用错误，
+// 如实报错；没改的那半边不传，避免白重嵌向量。
+func (a *App) GaeaProposalUpdateSection(sectionID int64, title string, updateTitle bool, body string, updateBody bool) error {
+	if !updateTitle && !updateBody {
+		return fmt.Errorf("没有要改的内容：标题与正文至少勾选一个")
+	}
+	st, err := a.hubProposalStore()
+	if err != nil {
+		return err
+	}
+	in := proposal.SectionEdit{}
+	if updateTitle {
+		in.Title = &title
+	}
+	if updateBody {
+		in.Body = &body
+	}
+	_, err = st.UpdateSection(sectionID, in)
+	return err
+}
+
 // GaeaProposalDelete 删除方案（小节/语义块/全文索引级联清理）。
 func (a *App) GaeaProposalDelete(name string) error {
 	st, err := a.hubProposalStore()

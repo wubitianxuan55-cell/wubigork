@@ -183,3 +183,72 @@ func TestProposalBindingsListOutlineReadSearchDelete(t *testing.T) {
 		t.Fatal("重复删除应报错")
 	}
 }
+
+// TestProposalBindingsUpdateMetaSection 编辑面绑定（2026-11-27）：元数据全量
+// 替换（改名后返回新方案名）、小节增量修正（改标题连带子树路径；两旗全 false
+// 拒绝；改正文后重读生效）。
+func TestProposalBindingsUpdateMetaSection(t *testing.T) {
+	a := proposalBindingEnv(t)
+	st, err := a.hubProposalStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Save(proposal.SaveInput{
+		Meta: proposal.Proposal{Title: "原题方案", ProjectType: "技术标", Year: "2025"},
+		Sections: []proposal.Section{
+			{Level: 1, Title: "第一章 施工降水", Body: "管井降水。"},
+			{Level: 2, Title: "1.1 沉降控制", Body: "超限即回灌。"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tree, err := a.GaeaProposalOutline("原题方案")
+	if err != nil || len(tree) != 2 {
+		t.Fatalf("Outline: %v %+v", err, tree)
+	}
+
+	// 两旗全 false：调用错误，如实拒绝。
+	if err := a.GaeaProposalUpdateSection(tree[0].ID, "", false, "", false); err == nil {
+		t.Fatal("全 false 应报错")
+	}
+	// 只改正文：标题树不动，重读生效。
+	if err := a.GaeaProposalUpdateSection(tree[0].ID, "", false, "管井降水，间距 12 米。", true); err != nil {
+		t.Fatal(err)
+	}
+	body, err := a.GaeaProposalRead(tree[0].ID)
+	if err != nil || body.Body != "管井降水，间距 12 米。" {
+		t.Fatalf("改正文后重读: %v %+v", err, body)
+	}
+	// 改标题：子节标题路径连带改写。
+	if err := a.GaeaProposalUpdateSection(tree[0].ID, "第二章 降水施工", true, "", false); err != nil {
+		t.Fatal(err)
+	}
+	tree2, err := a.GaeaProposalOutline("原题方案")
+	if err != nil || len(tree2) != 2 || tree2[0].Title != "第二章 降水施工" ||
+		tree2[1].TitlePath != "第二章 降水施工 › 1.1 沉降控制" {
+		t.Fatalf("改标题后标题树: %v %+v", err, tree2)
+	}
+
+	// 元数据改名：返回新方案名，旧名查不到、新名查得到；撞名拒绝。
+	newName, err := a.GaeaProposalUpdateMeta("原题方案", "改名后的方案", "调查报告", "2026", "一段摘要")
+	if err != nil || newName != "改名后的方案" {
+		t.Fatalf("UpdateMeta: %v %q", err, newName)
+	}
+	if _, err := a.GaeaProposalOutline("原题方案"); err == nil {
+		t.Fatal("旧名应查不到")
+	}
+	list, err := a.GaeaProposalList()
+	if err != nil || len(list) != 1 || list[0].ProjectType != "调查报告" || list[0].Year != "2026" || list[0].Summary != "一段摘要" {
+		t.Fatalf("改名后清单: %v %+v", err, list)
+	}
+	if _, err := st.Save(proposal.SaveInput{Meta: proposal.Proposal{Title: "另一份"}, Sections: []proposal.Section{{Level: 1, Title: "一", Body: "b"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.GaeaProposalUpdateMeta("另一份", "改名后的方案", "", "", ""); err == nil || !strings.Contains(err.Error(), "撞名") {
+		t.Fatalf("撞名应拒绝: %v", err)
+	}
+	// 空标题拒绝。
+	if _, err := a.GaeaProposalUpdateMeta("另一份", "  ", "", "", ""); err == nil {
+		t.Fatal("空标题应拒绝")
+	}
+}

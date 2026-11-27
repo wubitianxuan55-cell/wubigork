@@ -33,6 +33,13 @@ export interface ProposalBindings {
   ): Promise<ProposalSearchResult>;
   /** 删除方案（小节/语义索引级联清理）。 */
   GaeaProposalDelete(name: string): Promise<void>;
+  /** 修改方案元数据（标题/类型/年度/摘要，全量替换）。标题即方案名，改名后返回新方案名。 */
+  GaeaProposalUpdateMeta(name: string, title: string, projectType: string, year: string, summary: string): Promise<string>;
+  /**
+   * 增量修正一个小节：改标题连带子树标题路径，改正文整节替换（语义向量置空待
+   * 重嵌）。两个 update* 全 false 后端会拒绝；没改的那半边不传，避免白重嵌向量。
+   */
+  GaeaProposalUpdateSection(sectionId: number, title: string, updateTitle: boolean, body: string, updateBody: boolean): Promise<void>;
   /** 把正文里的 gaea-asset://<sha256> 解析成可显示的 data URL。 */
   GaeaProposalAssetDataURL(ref: string): Promise<string>;
 }

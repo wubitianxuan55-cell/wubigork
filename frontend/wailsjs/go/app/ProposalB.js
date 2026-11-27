@@ -25,3 +25,11 @@ export function GaeaProposalRead(arg1) {
 export function GaeaProposalSearch(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['app']['ProposalB']['GaeaProposalSearch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
+
+export function GaeaProposalUpdateMeta(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['ProposalB']['GaeaProposalUpdateMeta'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function GaeaProposalUpdateSection(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['ProposalB']['GaeaProposalUpdateSection'](arg1, arg2, arg3, arg4, arg5);
+}

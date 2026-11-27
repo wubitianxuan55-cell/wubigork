@@ -68,6 +68,26 @@ export interface WorkcostUsageRef {
   quantity: number;
 }
 
+// WorkcostRateSet 项目取费参数（企管/规费/利润/增值税四费率；Go workcost.RateSet 镜像）。
+export interface WorkcostRateSet {
+  managementRate: number;
+  regulatoryRate: number;
+  profitRate: number;
+  taxRate: number;
+}
+
+// WorkcostBillQuotaLink 清单项挂接的一条定额引用（gf_bill_quota_links；1:N 组合）。
+// quantity=该定额参与合价的工程量，0=跟随清单工程量。
+export interface WorkcostBillQuotaLink {
+  id: number;
+  billItemId: number;
+  quotaCode: string;
+  quantity: number;
+  sort: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // WorkcostQuotaItem 定额子目的一条工料机消耗行（标准含量）。
 export interface WorkcostQuotaItem {
   id?: number;

@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   GaeaProposalRead: vi.fn(),
   GaeaProposalSearch: vi.fn(),
   GaeaProposalDelete: vi.fn(),
+  GaeaProposalUpdateMeta: vi.fn(),
+  GaeaProposalUpdateSection: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
@@ -77,6 +79,8 @@ beforeEach(() => {
   mocks.GaeaProposalRead.mockImplementation(async (id: number) => bodies[id])
   mocks.GaeaProposalSearch.mockResolvedValue({ hits: [hit4, hit11], mode: 'hybrid', note: '已本地精排' } satisfies ProposalSearchResult)
   mocks.GaeaProposalDelete.mockResolvedValue(undefined)
+  mocks.GaeaProposalUpdateMeta.mockResolvedValue('n1')
+  mocks.GaeaProposalUpdateSection.mockResolvedValue(undefined)
 })
 
 describe('ProposalLibraryPage 清单 / 标题树 / 阅读窗', () => {
@@ -334,5 +338,89 @@ describe('ProposalLibraryPage 删除与窄窗', () => {
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+describe('ProposalLibraryPage 编辑面（2026-11-27 修正入库错误）', () => {
+  it('元数据编辑：弹窗预填现值，保存后重读清单；选中方案改名后按新名重新定位', async () => {
+    await renderReady()
+    // 改的是选中的那份（n1）：改名后返回新名，清单带上新名后标题树跟着重取。
+    let renamed = false
+    mocks.GaeaProposalUpdateMeta.mockImplementation(async () => { renamed = true; return 'n1改' })
+    mocks.GaeaProposalList.mockImplementation(async () => (renamed
+      ? [{ ...p1, name: 'n1改', title: '技术标 甲（修订）', projectType: '修复方案' }, p2]
+      : [p1, p2]))
+    const list = screen.getByTestId('proposal-list')
+    fireEvent.click(within(list).getByRole('button', { name: '编辑方案 技术标 甲' }))
+    const dialog = await screen.findByText('编辑方案', { selector: '.ant-modal-title' })
+    expect(dialog).toBeTruthy()
+    expect((screen.getByTestId('proposal-meta-title') as HTMLInputElement).value).toBe('技术标 甲')
+    expect((screen.getByTestId('proposal-meta-type') as HTMLInputElement).value).toBe('技术标')
+    expect((screen.getByTestId('proposal-meta-year') as HTMLInputElement).value).toBe('2026')
+    fireEvent.change(screen.getByTestId('proposal-meta-title'), { target: { value: '技术标 甲（修订）' } })
+    fireEvent.change(screen.getByTestId('proposal-meta-type'), { target: { value: '修复方案' } })
+    fireEvent.click(screen.getByRole('button', { name: '保 存' }))
+    await waitFor(() => expect(mocks.GaeaProposalUpdateMeta).toHaveBeenCalledWith('n1', '技术标 甲（修订）', '修复方案', '2026', '污染土壤修复技术标'))
+    // 清单重读 + 选中方案按新名重新定位（标题树重取）。
+    await waitFor(() => expect(mocks.GaeaProposalOutline).toHaveBeenLastCalledWith('n1改'))
+    // 弹窗收起。
+    await waitFor(() => expect(screen.queryByText('编辑方案', { selector: '.ant-modal-title' })).toBeNull())
+  })
+
+  it('元数据编辑失败：原因留在弹窗里，可改完再存', async () => {
+    await renderReady()
+    mocks.GaeaProposalUpdateMeta.mockRejectedValueOnce(new Error('方案库里已有《技术标 乙》，改名会撞名；换一个标题'))
+    const list = screen.getByTestId('proposal-list')
+    fireEvent.click(within(list).getByRole('button', { name: '编辑方案 技术标 甲' }))
+    fireEvent.change(await screen.findByTestId('proposal-meta-title'), { target: { value: '技术标 乙' } })
+    fireEvent.click(screen.getByRole('button', { name: '保 存' }))
+    const err = await screen.findByTestId('proposal-meta-error')
+    expect(err.textContent).toContain('撞名')
+    expect(mocks.GaeaProposalOutline).not.toHaveBeenCalledWith('技术标 乙')
+  })
+
+  it('小节编辑：改正文后只发 body 半边并重读本节', async () => {
+    await renderReady()
+    const reader = screen.getByTestId('proposal-reader')
+    fireEvent.click(within(reader).getByTestId('proposal-section-edit-open'))
+    const edit = await screen.findByTestId('proposal-section-edit')
+    const bodyBox = within(edit).getByTestId('proposal-edit-body') as HTMLTextAreaElement
+    expect(bodyBox.value).toContain('管井降水')
+    fireEvent.change(bodyBox, { target: { value: '基坑降水采用管井降水，间距 12 米。' } })
+    fireEvent.click(within(edit).getByTestId('proposal-edit-save'))
+    await waitFor(() => expect(mocks.GaeaProposalUpdateSection).toHaveBeenCalledWith(1, '第一章 施工降水', false, '基坑降水采用管井降水，间距 12 米。', true))
+    // 重读本节（标题没动，不整棵重取标题树）
+    await waitFor(() => expect(mocks.GaeaProposalRead).toHaveBeenLastCalledWith(1))
+    expect(screen.queryByTestId('proposal-section-edit')).toBeNull()
+  })
+
+  it('小节编辑：改标题连带子树路径，标题树整棵重取并回到本节', async () => {
+    await renderReady()
+    const reader = screen.getByTestId('proposal-reader')
+    fireEvent.click(within(reader).getByTestId('proposal-section-edit-open'))
+    const edit = await screen.findByTestId('proposal-section-edit')
+    fireEvent.change(within(edit).getByTestId('proposal-edit-title'), { target: { value: '第一章 降水施工' } })
+    fireEvent.click(within(edit).getByTestId('proposal-edit-save'))
+    await waitFor(() => expect(mocks.GaeaProposalUpdateSection).toHaveBeenCalledWith(1, '第一章 降水施工', true, bodies[1].body, false))
+    // 改标题后：标题树按选中方案重取（focusId 定位回本节由组件内部处理），并重读本节
+    await waitFor(() => expect(mocks.GaeaProposalOutline).toHaveBeenLastCalledWith('n1'))
+    await waitFor(() => expect(mocks.GaeaProposalRead).toHaveBeenLastCalledWith(1))
+  })
+
+  it('小节编辑：没有改动时保存按钮给提示不发绑定；换节退出编辑态', async () => {
+    await renderReady()
+    const reader = screen.getByTestId('proposal-reader')
+    fireEvent.click(within(reader).getByTestId('proposal-section-edit-open'))
+    const edit = await screen.findByTestId('proposal-section-edit')
+    fireEvent.click(within(edit).getByTestId('proposal-edit-save'))
+    const msg = await within(edit).findByTestId('proposal-edit-msg')
+    expect(msg.textContent).toContain('没有改动')
+    expect(mocks.GaeaProposalUpdateSection).not.toHaveBeenCalled()
+    // 取消退出编辑态；换节（点下一节）也不带走草稿。
+    fireEvent.click(within(edit).getByRole('button', { name: '取消' }))
+    await waitFor(() => expect(screen.queryByTestId('proposal-section-edit')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: /^下一节/ }))
+    await waitFor(() => expect(mocks.GaeaProposalRead).toHaveBeenLastCalledWith(2))
+    expect(screen.queryByTestId('proposal-section-edit')).toBeNull()
   })
 })

@@ -22,6 +22,10 @@ export function GaeaWorkcostBillItemDelete(arg1) {
   return window['go']['app']['CostB']['GaeaWorkcostBillItemDelete'](arg1);
 }
 
+export function GaeaWorkcostBillItemSave(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillItemSave'](arg1);
+}
+
 export function GaeaWorkcostBillItems(arg1) {
   return window['go']['app']['CostB']['GaeaWorkcostBillItems'](arg1);
 }
@@ -30,8 +34,28 @@ export function GaeaWorkcostBillProjectDelete(arg1) {
   return window['go']['app']['CostB']['GaeaWorkcostBillProjectDelete'](arg1);
 }
 
+export function GaeaWorkcostBillProjectProfileSave(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillProjectProfileSave'](arg1, arg2, arg3, arg4);
+}
+
+export function GaeaWorkcostBillProjectRatesSave(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillProjectRatesSave'](arg1, arg2, arg3, arg4);
+}
+
 export function GaeaWorkcostBillProjects() {
   return window['go']['app']['CostB']['GaeaWorkcostBillProjects']();
+}
+
+export function GaeaWorkcostBillQuotaAttach(arg1, arg2, arg3) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillQuotaAttach'](arg1, arg2, arg3);
+}
+
+export function GaeaWorkcostBillQuotaDetach(arg1, arg2) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillQuotaDetach'](arg1, arg2);
+}
+
+export function GaeaWorkcostBillQuotaLinks(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostBillQuotaLinks'](arg1);
 }
 
 export function GaeaWorkcostBillSearch(arg1, arg2, arg3) {
@@ -58,8 +82,16 @@ export function GaeaWorkcostQuotaList(arg1, arg2) {
   return window['go']['app']['CostB']['GaeaWorkcostQuotaList'](arg1, arg2);
 }
 
+export function GaeaWorkcostQuotaSave(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostQuotaSave'](arg1);
+}
+
 export function GaeaWorkcostResourceDelete(arg1, arg2) {
   return window['go']['app']['CostB']['GaeaWorkcostResourceDelete'](arg1, arg2);
+}
+
+export function GaeaWorkcostResourceGet(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostResourceGet'](arg1);
 }
 
 export function GaeaWorkcostResourceList(arg1, arg2) {
@@ -68,6 +100,14 @@ export function GaeaWorkcostResourceList(arg1, arg2) {
 
 export function GaeaWorkcostResourcePrices(arg1) {
   return window['go']['app']['CostB']['GaeaWorkcostResourcePrices'](arg1);
+}
+
+export function GaeaWorkcostResourceSave(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostResourceSave'](arg1);
+}
+
+export function GaeaWorkcostResourceSetPrice(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['app']['CostB']['GaeaWorkcostResourceSetPrice'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function GaeaWorkcostResourceUsage(arg1) {

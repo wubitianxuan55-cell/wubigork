@@ -7,7 +7,7 @@
 // ⑪空库三步引导与去办公板块。桥接只 mock 页面消费的绑定。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { CostIndexStatusView, WorkcostBillProject, WorkcostCompose, WorkcostQuota, WorkcostResource } from '../gaea/lib/types'
+import type { CostIndexStatusView, WorkcostBillItem, WorkcostBillProject, WorkcostCompose, WorkcostQuota, WorkcostResource } from '../gaea/lib/types'
 
 const mocks = vi.hoisted(() => ({
   WorkcostBillProjects: vi.fn(),
@@ -29,6 +29,16 @@ const mocks = vi.hoisted(() => ({
   CostIndexStatus: vi.fn(),
   CostIndexBackfill: vi.fn(),
   WorkcostBillSearch: vi.fn(),
+  // 库页编辑面（2026-11-27）：直接修正录入数据的保存入口。
+  WorkcostBillItemSave: vi.fn(),
+  WorkcostQuotaSave: vi.fn(),
+  WorkcostResourceSave: vi.fn(),
+  WorkcostResourceSetPrice: vi.fn(),
+  WorkcostBillQuotaLinks: vi.fn(),
+  WorkcostBillQuotaAttach: vi.fn(),
+  WorkcostBillQuotaDetach: vi.fn(),
+  WorkcostBillProjectRatesSave: vi.fn(),
+  WorkcostBillProjectProfileSave: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 vi.mock('../gaea/lib/clipboard', () => ({ copyToClipboard: vi.fn().mockResolvedValue('plain') }))
@@ -136,6 +146,17 @@ beforeEach(() => {
   mocks.CostIndexStatus.mockResolvedValue(unbuilt)
   mocks.CostIndexBackfill.mockResolvedValue(unbuilt)
   mocks.WorkcostBillSearch.mockResolvedValue([])
+  // 编辑面默认成功；入参断言在各用例里做。
+  mocks.WorkcostBillItemSave.mockImplementation(async (it: WorkcostBillItem) => it)
+  mocks.WorkcostQuotaSave.mockImplementation(async (q: WorkcostQuota) => q)
+  mocks.WorkcostResourceSave.mockImplementation(async (r: WorkcostResource) => r)
+  mocks.WorkcostResourceSetPrice.mockImplementation(async (_id: number, price: number) => ({ ...c20, currentPrice: price }))
+  mocks.WorkcostBillQuotaLinks.mockResolvedValue([{ id: 5, billItemId: 11, quotaCode: 'WP01', quantity: 0, sort: 1 }])
+  mocks.WorkcostBillQuotaAttach.mockImplementation(async (_id: number, code: string, quantity: number) =>
+    ({ id: 5, billItemId: 11, quotaCode: code, quantity, sort: 1 }))
+  mocks.WorkcostBillQuotaDetach.mockResolvedValue(undefined)
+  mocks.WorkcostBillProjectRatesSave.mockResolvedValue(undefined)
+  mocks.WorkcostBillProjectProfileSave.mockResolvedValue(undefined)
 })
 
 describe('造价数据库 · 三级浏览面', () => {
@@ -238,7 +259,7 @@ describe('造价数据库 · 三级浏览面', () => {
     expect(within(screen.getByTestId('cost-quota-rows')).getAllByRole('row')).toHaveLength(2) // 表头 + WP01
   })
 
-  it('左栏项目筛选：只看该项目的清单，详情显示项目封面卡（只读费率）', async () => {
+  it('左栏项目筛选：只看该项目的清单，详情显示项目封面卡（可编辑口径与费率）', async () => {
     await renderReady()
     fireEvent.click(screen.getByRole('button', { name: '什邡地块治理1' }))
     await waitFor(() => expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(2))
@@ -749,5 +770,128 @@ describe('造价数据库 · 语义索引（2026-11-26 造价库接入本地模�
     expectText(sem, '场地平整')
     expect(screen.queryByTestId('cost-tier-empty')).toBeNull()
     expect(within(sem).getAllByRole('row')).toHaveLength(2) // 表头 + 场地平整
+  })
+})
+
+describe('造价数据库 · 库页编辑面（2026-11-27）', () => {
+  it('清单行编辑：改工程量与特征后保存，绑定收到改动字段并静默重读', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByTestId('cost-bill-edit-open'))
+    const edit = await screen.findByTestId('cost-bill-edit')
+    fireEvent.change(within(edit).getByTestId('cost-edit-bill-quantity'), { target: { value: '999' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    await waitFor(() => expect(mocks.WorkcostBillItemSave).toHaveBeenCalledTimes(1))
+    const saved = mocks.WorkcostBillItemSave.mock.calls[0][0] as WorkcostBillItem
+    expect(saved.id).toBe(11)
+    expect(saved.quantity).toBe(999)
+    expect(saved.title).toBe('施工便道（铺筑压实）')
+    // 保存后：提示 + 静默重读（不清空正在看的内容）
+    expect(screen.getByTestId('cost-notice').textContent).toContain('已保存')
+    await waitFor(() => expect(mocks.WorkcostBillProjects.mock.calls.length).toBeGreaterThanOrEqual(2))
+    // 退出编辑态回只读视图
+    await screen.findByTestId('cost-detail-bill')
+    expect(screen.queryByTestId('cost-bill-edit')).toBeNull()
+  })
+
+  it('清单行挂接编辑：读引用表、解挂与改量走幂等挂接、按编码新挂', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByTestId('cost-bill-edit-open'))
+    const links = await screen.findByTestId('cost-edit-links')
+    expectText(links, 'WP01')
+    expect(mocks.WorkcostBillQuotaLinks).toHaveBeenCalledWith(11)
+    // 改量：跟随清单工程量(0) → 300
+    fireEvent.change(screen.getByTestId('cost-edit-link-qty-WP01'), { target: { value: '300' } })
+    fireEvent.click(within(links).getByRole('button', { name: '更新' }))
+    await waitFor(() => expect(mocks.WorkcostBillQuotaAttach).toHaveBeenCalledWith(11, 'WP01', 300))
+    // 解挂
+    fireEvent.click(within(links).getByRole('button', { name: /解挂/ }))
+    await waitFor(() => expect(mocks.WorkcostBillQuotaDetach).toHaveBeenCalledWith(11, 5))
+    // 按编码新挂
+    fireEvent.change(screen.getByLabelText('挂接定额编码'), { target: { value: 'WP02' } })
+    fireEvent.click(screen.getByTestId('cost-edit-link-attach'))
+    await waitFor(() => expect(mocks.WorkcostBillQuotaAttach).toHaveBeenCalledWith(11, 'WP02', 0))
+  })
+
+  it('定额编辑：改含量行数量整组落库；换专业联动章节面', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    // 详情里的定额码芯片（列表表格里的同名列不是详情的下钻入口，注意圈定范围）
+    fireEvent.click(within(bill).getByRole('button', { name: '下钻到定额 WP01' }))
+    const quota = await screen.findByTestId('cost-detail-quota')
+    fireEvent.click(within(quota).getByTestId('cost-quota-edit-open'))
+    const edit = await screen.findByTestId('cost-quota-edit')
+    fireEvent.change(within(edit).getByTestId('cost-edit-item-qty-C20'), { target: { value: '0.5' } })
+    // 删掉人工行（整组替换语义）
+    fireEvent.click(within(edit).getAllByRole('button', { name: /删行/ })[1]!)
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    await waitFor(() => expect(mocks.WorkcostQuotaSave).toHaveBeenCalledTimes(1))
+    const saved = mocks.WorkcostQuotaSave.mock.calls[0][0] as WorkcostQuota
+    expect(saved.code).toBe('WP01')
+    expect(saved.items!.map((it) => it.resourceCode)).toEqual(['C20'])
+    expect(saved.items![0].quantity).toBe(0.5)
+    expect(screen.getByTestId('cost-notice').textContent).toContain('已保存')
+  })
+
+  it('工料机编辑：按期调价留在编辑态并写历史；改现行价保存走 SaveResource', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByRole('button', { name: '下钻到定额 WP01' }))
+    const quota = await screen.findByTestId('cost-detail-quota')
+    // 含量行下钻到工料机（分析行的资源链接，label 用资源名）
+    fireEvent.click(within(quota).getByRole('button', { name: '下钻到工料机 C20商品混凝土' }))
+    const res = await screen.findByTestId('cost-detail-resource')
+    fireEvent.click(within(res).getByTestId('cost-resource-edit-open'))
+    const edit = await screen.findByTestId('cost-resource-edit')
+    // 按期调价：独立登记动作（写调价历史并推进现行价），登记后留在编辑态
+    fireEvent.change(within(edit).getByTestId('cost-edit-res-setprice-price'), { target: { value: '395' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-res-setprice'))
+    await waitFor(() => expect(mocks.WorkcostResourceSetPrice).toHaveBeenCalledWith(101, 395, '', '乐山', '信息价', '造价库界面', ''))
+    expect(screen.getByTestId('cost-notice').textContent).toContain('已调价')
+    expect(screen.getByTestId('cost-resource-edit')).toBeTruthy()
+    // 主数据保存：改现行价走 SaveResource，成功后退出编辑态
+    fireEvent.change(within(edit).getByTestId('cost-edit-res-price'), { target: { value: '380' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    await waitFor(() => expect(mocks.WorkcostResourceSave).toHaveBeenCalledTimes(1))
+    const saved = mocks.WorkcostResourceSave.mock.calls[0][0] as WorkcostResource
+    expect(saved.id).toBe(101)
+    expect(saved.currentPrice).toBe(380)
+    await waitFor(() => expect(screen.queryByTestId('cost-resource-edit')).toBeNull())
+  })
+
+  it('项目封面编辑：口径与费率分档保存（费率按小数落库），空值保持原口径', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: '什邡地块治理1' }))
+    const card = await screen.findByTestId('cost-project-card')
+    fireEvent.click(within(card).getByTestId('cost-project-edit-open'))
+    const edit = await screen.findByTestId('cost-project-edit')
+    fireEvent.change(within(edit).getByTestId('cost-edit-proj-specialty'), { target: { value: '土壤修复' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-proj-profile-save'))
+    await waitFor(() => expect(mocks.WorkcostBillProjectProfileSave).toHaveBeenCalledWith(2, '土壤修复', '', ''))
+    // 两档独立保存：存完口径留在编辑态，接着存费率（Go RateSet 是小数口径）
+    fireEvent.click(within(edit).getByTestId('cost-edit-proj-rates-save'))
+    await waitFor(() => expect(mocks.WorkcostBillProjectRatesSave).toHaveBeenCalledTimes(1))
+    const rates = mocks.WorkcostBillProjectRatesSave.mock.calls[0]
+    expect(rates[0]).toBe(2)
+    expect(rates[1]).toEqual({ managementRate: 0.1, regulatoryRate: 0.02, profitRate: 0.07, taxRate: 0.09 })
+  })
+
+  it('编辑失败如实报错在表单里，不退出编辑态', async () => {
+    mocks.WorkcostBillItemSave.mockRejectedValueOnce(new Error('清单项需要归属项目'))
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「外委检测」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByTestId('cost-bill-edit-open'))
+    const edit = await screen.findByTestId('cost-bill-edit')
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    const err = await within(edit).findByTestId('cost-edit-error')
+    expectText(err, '清单项需要归属项目')
+    // 编辑态还在，可改完再存
+    expect(screen.getByTestId('cost-bill-edit')).toBeTruthy()
   })
 })

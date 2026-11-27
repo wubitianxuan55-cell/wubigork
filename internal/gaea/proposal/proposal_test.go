@@ -926,7 +926,10 @@ func TestUnreadableStore(t *testing.T) {
 	}
 }
 
-// TestMigrationFromV35 已在 V35 建过方案表的库，升级时 V36/V37 必须能跑通。
+// TestMigrationFromV35 已在 V35 建过全链表的库，升级时 V36 起的迁移必须能跑通。
+// 预置必须按链跑 V1..V35（不能只拼 V1+V35）：V38 起的迁移会 ALTER 早期版本建
+// 的造价表（gf_projects 等），缺中间版本表会在升级路上「no such table」炸掉
+// ——2026-11-27 实测红，预置方式滞后于 2026-11-25 的 V38。
 func TestMigrationFromV35(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Hephaestus.db")
@@ -934,7 +937,12 @@ func TestMigrationFromV35(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stmt := range []string{db.SchemaV1, db.SchemaV35, `INSERT INTO schema_meta(key, value) VALUES('user_version', '35')`} {
+	preset := []string{db.SchemaV1, db.SchemaV2, db.SchemaV3, db.SchemaV4, db.SchemaV5, db.SchemaV6, db.SchemaV7, db.SchemaV8,
+		db.SchemaV9, db.SchemaV10, db.SchemaV11, db.SchemaV12, db.SchemaV13, db.SchemaV14, db.SchemaV15, db.SchemaV16, db.SchemaV17,
+		db.SchemaV18, db.SchemaV19, db.SchemaV20, db.SchemaV21, db.SchemaV22, db.SchemaV23, db.SchemaV24, db.SchemaV25, db.SchemaV26,
+		db.SchemaV27, db.SchemaV28, db.SchemaV29, db.SchemaV30, db.SchemaV31, db.SchemaV32, db.SchemaV33, db.SchemaV34, db.SchemaV35,
+		`INSERT INTO schema_meta(key, value) VALUES('user_version', '35')`}
+	for _, stmt := range preset {
 		if _, err := raw.Exec(stmt); err != nil {
 			t.Fatalf("预置 V35 库失败: %v", err)
 		}
@@ -944,7 +952,7 @@ func TestMigrationFromV35(t *testing.T) {
 	}
 	gdb := db.GetDatabase(dir)
 	if gdb == nil {
-		t.Fatal("V35→V37 迁移失败：GetDatabase 返回 nil")
+		t.Fatal("V35 起迁移失败：GetDatabase 返回 nil")
 	}
 	t.Cleanup(func() { _ = db.CloseDatabase(dir) })
 	st, err := Open(gdb)
@@ -954,7 +962,8 @@ func TestMigrationFromV35(t *testing.T) {
 	res := saveA(t, st, "升级后录入", []saveSection{{1, "第一章", "正文"}})
 	var v string
 	_ = gdb.QueryRow(`SELECT value FROM schema_meta WHERE key='user_version'`).Scan(&v)
-	if v != "37" || res.Stats.Sections != 1 {
+	// 链尾随迁移清单走（当前 V43）：断言升级到底，而不是钉死某个旧版本号。
+	if v != "43" || res.Stats.Sections != 1 {
 		t.Fatalf("user_version=%s sections=%d", v, res.Stats.Sections)
 	}
 }

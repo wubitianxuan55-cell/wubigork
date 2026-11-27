@@ -63,14 +63,16 @@ var excludedBindings = map[string]bool{
 	// 旧板块的编辑 / 对标 / 维护类界面下线。下列绑定方法体仍在（Go 测试与 agent 工具
 	// 在用），只是不生成门面转发；写库入口归办公「造价」运行模式（cost_library /
 	// cost_project_apply，走 store 不走绑定）。复活=除名重跑生成器。
+	//
+	// 2026-11-27 库页编辑按钮：三级浏览面补上「直接改录入数据」的编辑面，把保存类
+	// 绑定除名解禁（清单行 / 定额含含量行 / 工料机 / 项目口径与费率 / 挂接增删改、
+	// 调价）。导入推演（ProjectParse/Apply/Fees）仍走造价模式的 agent 工具，继续除名。
 	"GaeaCostAuditScan": true, "GaeaCostBulkPriceApply": true, "GaeaCostBulkPricePreview": true,
 	"GaeaCostDedupeResources":    true,
 	"GaeaCostQuotaFlywheelApply": true, "GaeaCostQuotaFlywheelPreview": true,
 	"GaeaSemanticIndexStatus":  true,
-	"GaeaWorkcostBillItemSave": true, "GaeaWorkcostBillProjectRatesSave": true, "GaeaWorkcostBillQuotaAttach": true,
-	"GaeaWorkcostBillQuotaDetach": true, "GaeaWorkcostBillQuotaLinks": true, "GaeaWorkcostProjectApply": true,
-	"GaeaWorkcostProjectFees": true, "GaeaWorkcostProjectParse": true, "GaeaWorkcostQuotaSave": true,
-	"GaeaWorkcostResourceGet": true, "GaeaWorkcostResourceSave": true, "GaeaWorkcostResourceSetPrice": true,
+	"GaeaWorkcostProjectApply": true,
+	"GaeaWorkcostProjectFees":  true, "GaeaWorkcostProjectParse": true,
 	"AddOutlineNode": true, "AnalyzeStyle": true, "BrainCrossRefs": true,
 	"BrainWrite": true, "BrainstormBranches": true, "BuildBacklinkIndex": true,
 	"BuildContextBudget": true, "BuildRichContext": true, "ChatCharacter": true,
