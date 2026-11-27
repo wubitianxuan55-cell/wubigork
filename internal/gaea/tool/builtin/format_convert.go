@@ -23,7 +23,7 @@ type formatConvert struct{ workDir string }
 func (formatConvert) Name() string { return "format_convert" }
 
 func (formatConvert) Description() string {
-	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。to=xlsx：把 PDF（清单 / 定额表 / 报价单）或图片、装着图片的目录转成 Excel 真表格（金额是真数值，定额编码带前导零存文本），必须给 output（.xlsx）。文字型 PDF 走本地引擎（约 0.6 秒/页）；扫描件 / 照片走 WPS 在线识别，默认开 ai_fix（数字零丢改，约 14 秒/页，一次最多 20 页，超出用 pages 分一段连续页）；ai_fix=false 快 8 倍但实测约 5% 数字格会丢改，只能要快不能取数。scanned=true/false 强制路线；per_page_sheet=true 一页一个工作表。回执列出疑似缺格的行（在线识别实测会漏掉工程量为 1 的格子），须对照原件抽检。to=docx：PDF 转 Word（WPS pdf2word，必须给 output=.docx；scanned 同 to=xlsx）。录方案库的 PDF 源必经此路——直转 Markdown 表格散架；转出的 Word 须用户修正格式后再转 md 录入，回执列三类必修缺陷。"
+	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 带表格重建（脏 Word 自动展开合并网格、重拼折行、剔目录，回执带结构体检）；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。to=xlsx：把 PDF（清单 / 定额表 / 报价单）或图片、装着图片的目录转成 Excel 真表格（金额是真数值，定额编码带前导零存文本），必须给 output（.xlsx）。文字型 PDF 走本地引擎（约 0.6 秒/页）；扫描件 / 照片走 WPS 在线识别，默认开 ai_fix（数字零丢改，约 14 秒/页，一次最多 20 页，超出用 pages 分一段连续页）；ai_fix=false 快 8 倍但实测约 5% 数字格会丢改，只能要快不能取数。scanned=true/false 强制路线；per_page_sheet=true 一页一个工作表。回执列出疑似缺格的行（在线识别实测会漏掉工程量为 1 的格子），须对照原件抽检。to=docx：PDF 转 Word（WPS pdf2word，必须给 output=.docx；scanned 同 to=xlsx）。录方案库的 PDF 源必经此路——直转 Markdown 表格散架；转出的 Word 再转 md 时自动表格重建（合并展开/折行重拼/目录剔除），一般无须手工修格式；错字仍须对照 PDF 原件抽检。"
 }
 
 func (formatConvert) Schema() json.RawMessage {
@@ -91,8 +91,9 @@ type fcInput struct {
 	PerPageSheet bool `json:"per_page_sheet,omitempty"`
 }
 
-// convertPreservingImages 转换 seam（测试打桩；单测不得真调 WPS / OCR）。
-var convertPreservingImages = docmd.ConvertPreservingImages
+// convertPreservingImagesReport 转换 seam（测试打桩；单测不得真调 WPS / OCR）。
+// 带报告：docx 的结构完整性指标（列数一致率/合并展开/目录剔除）随转换回执。
+var convertPreservingImagesReport = docmd.ConvertPreservingImagesReport
 
 // convertToExcel to=xlsx 的转换 seam（同上）。
 var convertToExcel = docmd.ConvertToExcel
@@ -106,6 +107,7 @@ type fcOutcome struct {
 	total     int
 	truncated bool
 	images    int
+	rep       *docmd.DocxRebuildReport
 	err       error
 }
 
@@ -142,8 +144,8 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 	// 结果仍进 docmd 的进程内缓存，重试同一份可秒回；落盘在下面，取消后不会写文件。
 	ch := make(chan fcOutcome, 1)
 	go func() {
-		md, total, truncated, images, err := convertPreservingImages(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
-		ch <- fcOutcome{md: md, total: total, truncated: truncated, images: images, err: err}
+		md, total, truncated, images, rep, err := convertPreservingImagesReport(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
+		ch <- fcOutcome{md: md, total: total, truncated: truncated, images: images, rep: rep, err: err}
 	}()
 	var r fcOutcome
 	select {
@@ -151,7 +153,7 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
-	md, total, truncated, images, err := r.md, r.total, r.truncated, r.images, r.err
+	md, total, truncated, images, rep, err := r.md, r.total, r.truncated, r.images, r.rep, r.err
 	if err != nil {
 		// U1 错误码：模型按 code 路由恢复（换路径/如实告知不支持），不解析散文
 		switch {
@@ -198,6 +200,9 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		st := docmd.CountStructure(md)
 		detail := fmt.Sprintf("已转换并保存为 %s（%d 字）", p.Output, utf8.RuneCountInString(md))
 		detail += fmt.Sprintf("；标题 %d / 表格 %d / 图片 %d", st.Headings, st.Tables, st.Images)
+		if rep != nil {
+			detail += "；" + docxStructReport(rep)
+		}
 		switch {
 		case images > 0 && p.PreserveImages:
 			detail += fmt.Sprintf("（保留图片 %d 张到 %s）", images, assetDir)
@@ -215,7 +220,21 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		md = strings.TrimSpace(docmd.StripDataImages(md)) +
 			fmt.Sprintf("\n\n---\n*内嵌图片 %d 张未随文本返回；需要图片请给 output 与 preserve_images=true 落成文件*", n)
 	}
+	if rep != nil && rep.Rebuilt {
+		md += "\n\n---\n*" + docxStructReport(rep) + "*"
+	}
 	return tool.WrapText(md), nil
+}
+
+// docxStructReport docx 结构完整性指标一行（沿江包1 复盘 P0-2）：直接回答「表格
+// 问题是源文档固有的还是转换引入的」——重建路线的输出恒列数一致，源表一致率是
+// 脏文档的量化证据。
+func docxStructReport(rep *docmd.DocxRebuildReport) string {
+	if rep.Rebuilt {
+		return fmt.Sprintf("结构体检：表格重建路线——输出列数矛盾 0；源表列数一致率 %.0f%%；合并展开 %d｜目录剔除 %d（域 %d+残表 %d）｜折行重拼 %d 格｜剔空段 %d",
+			rep.GridConformanceRate()*100, rep.MergedCells, rep.TocSkipped+rep.CatalogSkipped, rep.TocSkipped, rep.CatalogSkipped, rep.FragmentedCells, rep.EmptyParasDropped)
+	}
+	return fmt.Sprintf("结构体检：常规转换（源表列数一致率 %.0f%%，%d 行）", rep.GridConformanceRate()*100, rep.GridRows)
 }
 
 func formatConvertAssetDir(output string) string {

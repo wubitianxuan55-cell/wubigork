@@ -19,35 +19,50 @@ const maxConvertedImageBytes = 20 << 20
 // (real tables, scanned pages via WPS online OCR; see wps.go). Other formats
 // use the normal text converter and report zero images.
 func ConvertPreservingImages(path, pages string, maxPages int) (md string, total int, truncated bool, images int, err error) {
+	md, total, truncated, images, _, err = ConvertPreservingImagesReport(path, pages, maxPages)
+	return md, total, truncated, images, err
+}
+
+// ConvertPreservingImagesReport 是 ConvertPreservingImages 加回 docx 结构报告
+// （非 docx 为 nil）——format_convert 的结构完整性指标从这里出。
+func ConvertPreservingImagesReport(path, pages string, maxPages int) (md string, total int, truncated bool, images int, rep *DocxRebuildReport, err error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".docx", ".doc":
+		if ext == ".docx" {
+			// 路由同 ConvertLimitProgressReport：脏文档（合并网格/折行碎片/目录残表
+			// 签名）走重建路线原生保图（data URI 与 markitdown 同契约）；干净文档仍
+			// 走 markitdown keep-images。报告给回执的结构完整性指标。
+			if md, rep, err := convertDocxSmart(path, true); err == nil {
+				return md, 0, false, countImageDataURIs(md), rep, nil
+			}
+		}
 		md, err = convertViaMarkItDownKeepImages(path)
 		if err == nil {
-			return md, 0, false, countImageDataURIs(md), nil
+			return md, 0, false, countImageDataURIs(md), nil, nil
 		}
 		if hasOfficeMedia(path) {
-			return "", 0, false, 0, fmt.Errorf("原文档含图片，但 markitdown 不可用，无法无损保留：%w", err)
+			return "", 0, false, 0, nil, fmt.Errorf("原文档含图片，但 markitdown 不可用，无法无损保留：%w", err)
 		}
 		md, err = docxToMarkdown(path)
-		return md, 0, false, 0, err
+		return md, 0, false, 0, nil, err
 	case ".pptx", ".ppt":
 		md, err = convertViaMarkItDownKeepImages(path)
 		if err != nil {
-			return "", 0, false, 0, fmt.Errorf("pptx 保留图片需要 markitdown: %w", err)
+			return "", 0, false, 0, nil, fmt.Errorf("pptx 保留图片需要 markitdown: %w", err)
 		}
-		return md, 0, false, countImageDataURIs(md), nil
+		return md, 0, false, countImageDataURIs(md), nil, nil
 	default:
 		if ext != ".pdf" {
 			md, total, truncated, err = ConvertLimit(path, pages, maxPages)
-			return md, total, truncated, 0, err
+			return md, total, truncated, 0, nil, err
 		}
 		// PDF 优先经本机 WPS 转换（wps.go；用户拍板「转换解析优先用 WPS」）：文字型出
 		// 真表格、扫描件走在线 OCR，图片以 data URI 留在 Markdown 里，由调用方
 		// ExternalizeDataImages 落盘；WPS 不可用时退回自写提取 / 本地 OCR——自写提取
 		// 路径不产图片，计数为 0。
 		md, total, truncated, err = pdfToMarkdownLimitImages(path, pages, maxPages, nil, true, true)
-		return md, total, truncated, countImageDataURIs(md), err
+		return md, total, truncated, countImageDataURIs(md), nil, err
 	}
 }
 

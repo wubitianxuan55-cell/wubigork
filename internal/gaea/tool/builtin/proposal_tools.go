@@ -312,6 +312,7 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 		fmt.Fprintf(&b, "**本批**: 新增 %d 个标题节点（压到 4 级 %d 个）；累计 %d 个节点、%s（1 级 %d / 2 级 %d / 3 级 %d / 4 级 %d）\n",
 			res.Added, res.Clamped, stt.Sections, fmtChars(stt.Chars), stt.LevelCounts[1], stt.LevelCounts[2], stt.LevelCounts[3], stt.LevelCounts[4])
 	}
+	fmt.Fprintf(&b, "**字数口径**: 库内=%s 为 md 字符数（含空白与标记）；成稿去空白口径会低约 8%%，与 PDF 原件字数三者不等属正常\n", fmtChars(stt.Chars))
 	if res.TotalLines > 0 {
 		fmt.Fprintf(&b, "**源文件**: %s（共 %d 行，已录到第 %d 行）", in.SourceFile, res.TotalLines, res.IngestLine)
 		if res.SkippedLines > 0 {
@@ -558,6 +559,9 @@ func orDash(s string) string {
 }
 
 // fmtChars 字数的人读形式（过万折成「x.x 万字」）。
+// 口径（沿江包1 复盘 T6）：库内字数 = SUM(LENGTH(body))，即 md 字符数**含空白
+// 与标记**；成稿去空白口径会低约 8%，PDF 原件口径另计——三个数都对但不等，
+// 回执里注明防误读。
 func fmtChars(n int) string {
 	if n >= 10000 {
 		return fmt.Sprintf("%.1f 万字", float64(n)/10000)

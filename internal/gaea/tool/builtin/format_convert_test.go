@@ -192,15 +192,15 @@ d.save(r"` + docx + `")
 // 这个工具，下一条消息一直「排队中」（2026-11-26 实弹：174 页扫描件 OCR 堵到重启）。
 // 取消后不落盘；后台那次转换跑完即弃。
 func TestFormatConvert_CancelReturnsImmediatelyAndWritesNothing(t *testing.T) {
-	orig := convertPreservingImages
+	orig := convertPreservingImagesReport
 	release := make(chan struct{})
 	started := make(chan struct{})
-	convertPreservingImages = func(_, _ string, _ int) (string, int, bool, int, error) {
+	convertPreservingImagesReport = func(_, _ string, _ int) (string, int, bool, int, *docmd.DocxRebuildReport, error) {
 		close(started)
 		<-release
-		return "# 慢转换的结果", 1, false, 0, nil
+		return "# 慢转换的结果", 1, false, 0, nil, nil
 	}
-	t.Cleanup(func() { convertPreservingImages = orig })
+	t.Cleanup(func() { convertPreservingImagesReport = orig })
 
 	out := filepath.Join(t.TempDir(), "converted.md")
 	args, err := json.Marshal(map[string]string{"path": "a.pdf", "output": out})

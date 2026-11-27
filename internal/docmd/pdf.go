@@ -38,6 +38,43 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 // false 时去掉，检索索引、摘要等纯文本消费方不该吃 base64。preferWPS：文字层干净
 // 的 PDF 也先经 WPS（format_convert：表格是真表格、图片保留）；false 时本地提取
 // 通道不变，只有乱码的才上 WPS。
+// PdfTextLayer 直读 PDF 文字层的纯文本（不走 WPS/OCR，无排版重组）——内容保真
+// 对账的基准面（沿江包1 复盘刀4：对账要 fitz 式纯文字，WPS 转写会引入数字/标点
+// 形变污染 n-gram 集）。子集字体乱码时如实报错；返回值含总页数供回执。
+func PdfTextLayer(path string, maxPages int) (string, int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", 0, err
+	}
+	decoded := decodeFlateStreams(string(data))
+	content := stripNonTextStreams(decoded)
+	totalPages := pdfTotalPages(string(data), content)
+	if n := countPDFPages(string(data)) + countObjStmPages(decoded); n > totalPages {
+		totalPages = n
+	}
+	effSpec, _, err := capPageSpec("", maxPages, totalPages)
+	if err != nil {
+		return "", totalPages, err
+	}
+	var texts []string
+	for pageIdx, text := range pdfPageTexts(content) {
+		if effSpec != "" && !pageInRange(pageIdx+1, effSpec) {
+			continue
+		}
+		if strings.TrimSpace(text) != "" {
+			texts = append(texts, text)
+		}
+	}
+	result := strings.TrimSpace(strings.Join(texts, "\n"))
+	if result == "" || stampNoiseText(result) {
+		return "", totalPages, fmt.Errorf("PDF 没有可用的文字层（扫描件或空文本层）——内容对账需要带文字层的原件；扫描件请先 OCR 或换文字版原件")
+	}
+	if hard, _ := pdfTextGarbled(result); hard {
+		return "", totalPages, fmt.Errorf("PDF 文字层无法解码（子集字体缺字体映射）——内容对账需要干净文字层；可用 WPS 转出的 md 作基准，或换文字版原件")
+	}
+	return result, totalPages, nil
+}
+
 func pdfToMarkdownLimitImages(path, pages string, maxPages int, progress func(done, total int), keepImages, preferWPS bool) (string, int, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

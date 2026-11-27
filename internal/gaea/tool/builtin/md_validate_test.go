@@ -226,3 +226,111 @@ func TestMDValidate_CompoundPrefixAndEmDash(t *testing.T) {
 		t.Fatalf("长破折号应归一互认（B6）：%s", out2)
 	}
 }
+
+// ── 分级与基线（沿江包1 复盘 T2：告警分级+基线对比）─────────────────────
+
+// TestMDValidate_SeverityAndHintsOff 分级口径：撞号/跳号/列数=硬伤，未引用题注=提示；
+// hints=false 折叠提示只报总数。
+func TestMDValidate_SeverityAndHintsOff(t *testing.T) {
+	content := "# 第一章\n" +
+		"\n" +
+		"表1-4 参数一览\n| a | b |\n|---|---|\n| 1 | 2 |\n\n" +
+		"表1-4 重复题注（撞号）\n\n" +
+		"表1-9 汇总表\n\n" +
+		"| x | y |\n|---|---|\n| 1 | 2 | 3 |\n"
+	out, err := mdvRun(t, content, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "硬伤 3 / 提示 2") {
+		t.Fatalf("应报 硬伤3（撞号+跳号+列数）/提示2（表1-4/表1-9 均未引用）：\n%s", out)
+	}
+	if strings.Count(out, "·硬伤]") != 3 || strings.Count(out, "·提示]") != 2 {
+		t.Fatalf("逐条行应带分级标记：\n%s", out)
+	}
+	// hints=false：提示折叠，只报硬伤 + 一条总数。
+	dir := t.TempDir()
+	p := filepath.Join(dir, "doc.md")
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out2, err := mdValidate{workDir: dir}.Execute(context.Background(),
+		json.RawMessage(`{"path":"doc.md","hints":false}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out2, "·提示]") != 0 || !strings.Contains(out2, "提示 2 条已折叠") {
+		t.Fatalf("hints=false 应折叠提示只报总数：\n%s", out2)
+	}
+}
+
+// TestMDValidate_BaselineDiff 基线差集：旧版已有的缺陷不逐条列，只报新增——
+// 直接回答「这批问题是原有的还是转换引入的」。
+func TestMDValidate_BaselineDiff(t *testing.T) {
+	dir := t.TempDir()
+	// 基线：撞号 表1-4（原有缺陷）。
+	base := "# 第一章\n\n表1-4 参数一览\n\n表1-4 重复题注\n"
+	// 当前版：撞号未复发，新增一条孤立引用 表9-9。
+	cur := base + "\n新章节引入新缺陷：见表9-9。\n"
+	if err := os.WriteFile(filepath.Join(dir, "base.md"), []byte(base), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cur.md"), []byte(cur), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := mdValidate{workDir: dir}.Execute(context.Background(),
+		json.RawMessage(`{"path":"cur.md","baseline":"base.md"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "较基线新增") {
+		t.Fatalf("应报较基线新增口径：\n%s", out)
+	}
+	if !strings.Contains(out, "表9-9") {
+		t.Fatalf("新增的孤立引用应点名：\n%s", out)
+	}
+	// 基线里已有的撞号（dup:表1-4）不该出现在新增清单。
+	if strings.Contains(out, "撞号") {
+		t.Fatalf("基线已有的撞号不应出现在新增清单：\n%s", out)
+	}
+	// 完全没复发：报「较基线无新增」。
+	out2, err := mdValidate{workDir: dir}.Execute(context.Background(),
+		json.RawMessage(`{"path":"base.md","baseline":"base.md"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out2, "较基线无新增缺陷") {
+		t.Fatalf("同文档对同基线应报无新增：\n%s", out2)
+	}
+}
+
+// TestMDValidate_ContentCheck 内容保真对账（沿江包1 复盘刀4）：12 字滑窗对原件，
+// 改字段落列硬伤并附缺失片段；干净段落与短格不误报。
+func TestMDValidate_ContentCheck(t *testing.T) {
+	src := "本项目采用水泥窑协同处置技术对污染土壤开展治理修复，并按照相关技术导则及生态环境行政主管部门要求完成验收与备案工作，施工期间同步开展地下水监测。"
+	gramSet := mdvGramSet(src)
+	lines := []string{
+		"# 第一章",
+		"本项目采用水泥窑协同处置技术对污染土壤开展治理修复，并按照相关技术导则及生态环境行政主管部门要求完成验收与备案工作，施工期间同步开展地下水监测。",
+		"本项目采用水泥窑协同处置技术对污染土壤开展治理修复，并按照相关技术导则及生态环境主管行政部门要求完成验收与备案工作，施工期间同步开展地下水监测。",
+		"| 序号 | 名称 |",
+		"|---|---|",
+		"| 1 | 挖掘机 |",
+	}
+	issues := mdvCheckContent("doc.md", lines, gramSet)
+	var hit bool
+	for _, is := range issues {
+		if is.kind == "content" && is.severity == mdvHard && is.line == 3 {
+			hit = true
+		}
+		if strings.Contains(is.summary, "挖掘机") {
+			t.Fatalf("短格不该报：%s", is.summary)
+		}
+	}
+	if !hit {
+		t.Fatalf("改字段落（L3）应列硬伤：%+v", issues)
+	}
+	if got := len(issues); got != 1 {
+		t.Fatalf("应恰 1 条（干净段落不报），得到 %d：%+v", got, issues)
+	}
+}

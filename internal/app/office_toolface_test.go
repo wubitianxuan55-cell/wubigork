@@ -143,7 +143,9 @@ var officeFaceBudget = map[string]officeFaceBudgetEntry{
 	// （PDF→Word，录库 PDF 源必经）整段新描述塞不进原余量，实测 16775 后按口径上取整。
 	OfficeRunModeStandard: {Tools: 58, Chars: 17000},
 	OfficeRunModeCost:     {Tools: 66, Chars: 28250},
-	OfficeRunModeProposal: {Tools: 70, Chars: 21250},
+	// proposal 21000→21250（2026-11-27 沿江包1 复盘批）：md_validate 增硬伤/提示
+	// 分级与 baseline 基线差集，compact 描述净增 15 字符，实测 21265 后按口径上取整。
+	OfficeRunModeProposal: {Tools: 70, Chars: 21500},
 }
 
 // officeFaceRetired 已从模型工具面下线、不得回潮的名字（办公工具梳理两批）。
