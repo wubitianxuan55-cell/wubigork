@@ -185,12 +185,175 @@ func TestSessionSearchTool(t *testing.T) {
 	if !strings.Contains(out, "sess-e") || !strings.Contains(out, "migration plan") {
 		t.Fatalf("tool must format session id + snippet, got:\n%s", out)
 	}
-	if _, err := tl.Execute(context.Background(), json.RawMessage(`{"query":"  "}`)); err == nil {
-		t.Fatal("empty query must error")
+	// 2026-11-27 AI 反馈 #1：query 留空不再是错误——列出最近的会话（标题 / 起止 / 任务）。
+	out, err = tl.Execute(context.Background(), json.RawMessage(`{"query":"  "}`))
+	if err != nil || !strings.Contains(out, "最近的 1 场会话") || !strings.Contains(out, "sess-e") {
+		t.Fatalf("空 query 应列出最近会话，got %q / %v", out, err)
 	}
 	out, err = tl.Execute(context.Background(), json.RawMessage(`{"query":"zzz-nonexistent"}`))
-	if err != nil || !strings.Contains(out, "No past session matches") {
-		t.Fatalf("zero hits must degrade to an honest empty message, got %q / %v", out, err)
+	if err != nil || !strings.Contains(out, "No past session matches") || !strings.Contains(out, "已索引本工作区 1 个会话") {
+		t.Fatalf("零命中必须诚实报空并说明索引规模，got %q / %v", out, err)
+	}
+}
+
+// liveAssistantLine 实时落盘的助手成稿（event.Message → kind=message）。
+func liveAssistantLine(seq, ts int64, text string) logLine {
+	return logLine{Seq: seq, Ts: ts, Kind: "message", Payload: mustJSON(map[string]string{"text": text, "reasoning": ""})}
+}
+
+// 2026-11-27 AI 反馈 #1 根修：实时会话里助手的回复落盘 kind 是 message——此前只
+// 索引 assistant_message，等于只搜得到用户说过的话。
+func TestSearchIndexesLiveAssistantMessages(t *testing.T) {
+	dir := t.TempDir()
+	writeSessionLog(t, dir, "20261127-123417.443964200-gaea", []logLine{
+		userLine(1, 100, "把包2的测算书做一下"),
+		{Seq: 2, Ts: 150, Kind: "reasoning", Payload: mustJSON(map[string]string{"text": "思考碎片不入索引"})},
+		{Seq: 3, Ts: 160, Kind: "text", Payload: mustJSON(map[string]string{"text": "流式增量不入索引"})},
+		liveAssistantLine(4, 200, "包2测算书已按造价库导入，合计 675 万"),
+	})
+	s := NewStore(dbForTest(t), dir)
+	for _, q := range []string{"造价库导入", "测算书已按"} {
+		hits, err := s.Search(q, 0)
+		if err != nil || len(hits) != 1 || hits[0].Role != "assistant" {
+			t.Fatalf("助手的实时回复应可按 %q 检索到：%d hits / %v", q, len(hits), err)
+		}
+	}
+	// 流式增量与推理不入索引。
+	if hits, _ := s.Search("流式增量不入索引", 0); len(hits) != 0 {
+		t.Fatal("流式增量 text 不应入索引")
+	}
+}
+
+// 多关键词三级放宽：同一条消息里各词都出现 → 同一会话的不同消息里分别出现。
+func TestSearchMultipleKeywords(t *testing.T) {
+	dir := t.TempDir()
+	writeSessionLog(t, dir, "sess-m1", []logLine{
+		userLine(1, 100, "沿江包2的造价库导入怎么做"),
+		liveAssistantLine(2, 200, "先取测算样表"),
+	})
+	writeSessionLog(t, dir, "sess-m2", []logLine{
+		userLine(1, 300, "帮我看看沿江包2的模板"),
+		liveAssistantLine(2, 400, "模板在 .gaea/exports 下"),
+		userLine(3, 500, "造价库导入一直失败"),
+		liveAssistantLine(4, 600, "改用载荷文件再导"),
+	})
+	writeSessionLog(t, dir, "sess-m3", []logLine{
+		userLine(1, 700, "只有造价库这一个词"),
+	})
+	s := NewStore(dbForTest(t), dir)
+	// 同一条消息：只有 sess-m1。
+	hits, err := s.Search("沿江包2 造价库导入", 0)
+	if err != nil || len(hits) != 1 || hits[0].SessionID != "sess-m1" {
+		t.Fatalf("同一条消息里各词都出现应最先命中： %+v / %v", hits, err)
+	}
+	// 不同消息里分别出现：sess-m2 的两条消息各含一部分；sess-m3 缺词不算。
+	hits, err = s.Search("沿江包2 载荷文件", 0)
+	if err != nil || len(hits) != 2 {
+		t.Fatalf("同一会话不同消息里分别出现应命中两条：%+v / %v", hits, err)
+	}
+	for _, h := range hits {
+		if h.SessionID != "sess-m2" || !h.Across {
+			t.Fatalf("放宽路应只命中 sess-m2 并带 Across 标记：%+v", h)
+		}
+	}
+	if hits, _ := s.Search("沿江包2 不存在的词", 0); len(hits) != 0 {
+		t.Fatal("有词在任何消息里都没出现时不应命中")
+	}
+}
+
+// 坏行、空行与没写完的半行都不拖垮检索，且不在盘上截 torn tail（正在写的日志
+// 被截会损坏写入）。
+func TestRefreshToleratesBadLinesAndTornTail(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sess-t.gaea-log.jsonl")
+	good := mustJSON(userLine(1, 100, "完整的一行 alpha"))
+	blank := []byte("\n")
+	bad := []byte("{not json at all\n")
+	later := mustJSON(userLine(2, 200, "坏行之后的内容 beta"))
+	torn := []byte(`{"seq":3,"ts":300,"kind":"user_message","payload":{"content":"半截gamma`) // 没有换行收尾
+	data := append([]byte{}, good...)
+	data = append(data, '\n')
+	data = append(data, blank...)
+	data = append(data, bad...)
+	data = append(data, later...)
+	data = append(data, '\n')
+	data = append(data, torn...)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewStore(dbForTest(t), dir)
+	for _, q := range []string{"alpha", "beta"} {
+		if hits, err := s.Search(q, 0); err != nil || len(hits) != 1 {
+			t.Fatalf("坏行/半行不应拖垮检索（%q）：%d hits / %v", q, len(hits), err)
+		}
+	}
+	if info, err := os.Stat(path); err != nil || info.Size() != int64(len(data)) {
+		t.Fatalf("索引不得在盘上截 torn tail：size=%v want %d (%v)", info.Size(), len(data), err)
+	}
+	if n, _ := s.Skipped(); n != 1 {
+		t.Fatalf("有坏行的日志应在结果里注明（skipped=%d）", n)
+	}
+	out := s.FormatHits("alpha", nil)
+	if !strings.Contains(out, "1 份会话日志没能完整读出") {
+		t.Fatalf("结果尾部应注明有日志没完整读出：%s", out)
+	}
+	// 半行补完后再搜得到（增量刷新）。
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(`"}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatal(err)
+	}
+	if hits, err := s.Search("gamma", 0); err != nil || len(hits) != 1 {
+		t.Fatalf("补完的半行应可检索：%d hits / %v", len(hits), err)
+	}
+}
+
+// 最近会话清单：标题、起止、首条任务与消息条数，按最后活动时间倒序。
+func TestRecentListsSessions(t *testing.T) {
+	dir := t.TempDir()
+	writeSessionLog(t, dir, "20261126-080000.000000000-gaea", []logLine{
+		userLine(1, 1_000, "昨天的第一件事\n换行也算一句"),
+		liveAssistantLine(2, 1_100, "好的"),
+	})
+	writeSessionLog(t, dir, "20261127-210000.000000000-gaea", []logLine{
+		userLine(1, 2_000, "刚结束的会话：整理\n  使用情况"),
+		liveAssistantLine(2, 2_100, "整理好了"),
+		userLine(3, 2_200, "再回顾一下"),
+	})
+	if err := os.WriteFile(filepath.Join(dir, ".titles.json"), []byte(`{"20261127-210000.000000000-gaea.jsonl":"包2测算复盘"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewStore(dbForTest(t), dir)
+	list, err := s.Recent(0)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("应列出两场会话：%+v / %v", list, err)
+	}
+	newest, older := list[0], list[1]
+	if newest.ID != "20261127-210000.000000000-gaea" || newest.Title != "包2测算复盘" ||
+		newest.UserMsgs != 2 || newest.AsstMsgs != 1 || newest.FirstPrompt != "刚结束的会话：整理 使用情况" {
+		t.Fatalf("最新会话的概要不对：%+v", newest)
+	}
+	if older.Title != "" || older.FirstPrompt != "昨天的第一件事 换行也算一句" {
+		t.Fatalf("旧会话的概要不对：%+v", older)
+	}
+	if newest.Started.Format("2006-01-02 15:04") != "2026-11-27 21:00" {
+		t.Fatalf("开始时间应取会话 id 的时间戳：%v", newest.Started)
+	}
+	out := FormatRecent(list)
+	for _, want := range []string{"最近的 2 场会话", "包2测算复盘", "用户 2 条 / 助手 1 条", "任务：刚结束的会话：整理 使用情况", "（无标题）"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("清单应含 %q：\n%s", want, out)
+		}
+	}
+	if _, err := s.Search("", 0); err == nil {
+		t.Fatal("Store.Search 仍要求 query 非空（清单走 Recent）")
 	}
 }
 

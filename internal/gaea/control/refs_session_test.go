@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 func seedSessionRefEnv(t *testing.T) (string, string) {
@@ -93,6 +94,34 @@ func TestSessionRef_TitleHit(t *testing.T) {
 	}
 	if !strings.Contains(block, "共 2 条用户消息") {
 		t.Fatalf("应报用户消息数:\n%s", block)
+	}
+}
+
+// 2026-11-27 AI 反馈 #1 同根：实时会话的助手成稿落盘 kind 是 message（不是
+// assistant_message）——此前快照只投影得出 [user] 行。
+func TestSessionRef_RendersLiveAssistantMessages(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "20261127-live.gaea-log.jsonl")
+	entries := []session.LogEntry{
+		{Seq: 1, Kind: session.KindUserMessage, Payload: mustJSON(map[string]string{"content": "包2测算书做好了吗"})},
+		{Seq: 2, Kind: session.KindString(event.Message), Payload: mustJSON(map[string]string{"text": "已按造价库导入，合计 675 万", "reasoning": ""})},
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		raw, _ := json.Marshal(e)
+		b.Write(raw)
+		b.WriteString("\n")
+	}
+	if err := os.WriteFile(logPath, []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// renderSessionSnapshot 收的是会话路径（<id>.jsonl），事件日志由它自己定位。
+	snap, err := renderSessionSnapshot(filepath.Join(dir, "20261127-live.jsonl"), "实时会话")
+	if err != nil {
+		t.Fatalf("快照应成功: %v", err)
+	}
+	if !strings.Contains(snap, "[user] 包2测算书做好了吗") || !strings.Contains(snap, "[assistant] 已按造价库导入，合计 675 万") {
+		t.Fatalf("实时会话的助手回复应进入快照：\n%s", snap)
 	}
 }
 

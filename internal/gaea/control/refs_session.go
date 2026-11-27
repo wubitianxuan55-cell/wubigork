@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // sessionRefPrefix @引用会话的显式前缀（token 去掉 @ 后匹配）。
@@ -177,8 +178,12 @@ func renderSessionSnapshot(path, title string) (string, error) {
 }
 
 // sessionContentOf 会话事件 → (role, text, ok)。口径与 sessionquery 的
-// indexableContent 一致（KindUserMessage→user content / KindAssistantMessage→
-// assistant text），此处只读重投影不建索引。
+// indexableContent 一致（KindUserMessage→user content / 助手成稿→assistant
+// text），此处只读重投影不建索引。
+//
+// 助手成稿有两种落盘形态：assistant_message（迁移 / 子代理提升）与 message
+// （实时落盘的 event.Message）——只认前者时实时会话只投影得出 [user] 行
+// （2026-11-27 AI 反馈 #1 同根，与 sessionquery 一并修）。
 func sessionContentOf(e session.LogEntry) (string, string, bool) {
 	switch e.Kind {
 	case session.KindUserMessage:
@@ -189,7 +194,7 @@ func sessionContentOf(e session.LogEntry) (string, string, bool) {
 			return "", "", false
 		}
 		return "user", strings.TrimSpace(p.Content), true
-	case session.KindAssistantMessage:
+	case session.KindAssistantMessage, session.KindString(event.Message):
 		var p struct {
 			Text string `json:"text"`
 		}
