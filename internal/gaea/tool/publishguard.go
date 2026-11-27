@@ -163,6 +163,19 @@ func (g *PublishGuard) Touched() []PublishViolation {
 	return append([]PublishViolation(nil), g.lastTouched...)
 }
 
+// PublishExempt 报告一个工作区相对路径是否属过程件豁免面（.gaea/work/、_draft/、
+// 探针字样等）。调用方拿它判断「这里是不是正式交付面」——例：move_file 覆盖前
+// 只给正式交付件留版本快照，过程件不留（2026-11-27 AI 反馈 #4）。
+func PublishExempt(relPath string) bool {
+	return PublishViolation{RelPath: filepath.ToSlash(relPath)}.exempt()
+}
+
+// QuarantinePathOf 一件越界件隔离后的落点：工作区根内给工作区相对写法，否则给
+// 绝对路径（逐件隔离与整目录隔离同式）。
+func QuarantinePathOf(stamp string, v PublishViolation) string {
+	return quarantineFilePath(stamp, v)
+}
+
 // publishExemptNameTokens 探针/草稿文件名特征（小写匹配）。
 var publishExemptNameTokens = []string{"probe", "test", "tmp", "draft", "草稿", "临时"}
 

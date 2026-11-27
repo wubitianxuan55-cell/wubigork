@@ -180,7 +180,49 @@ func (b bash) publishCheck(g *tool.PublishGuard) error {
 		return fmt.Errorf("%s\n隔离失败（越界件可能仍在正式工作区）：%v",
 			tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()), qerr)
 	}
-	return fmt.Errorf("%s", tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()))
+	return fmt.Errorf("%s%s", tool.ExpectedPathsNote(vs, nil, g.LastQuarantineDest()),
+		b.restageRewritten(g.LastQuarantineDest(), vs))
+}
+
+// restageRewritten 脚本改写「已有正式件」被拦时，把隔离件自动放一份到
+// .gaea/work/<原相对路径>（2026-11-27 AI 反馈 #4）。合规链原本是「取回 → 改 →
+// 再 move_file 回正式名」，取回这一步机械且每次都要走。过程目录是豁免面，放一份
+// 在那里不违反边界；回到正式名仍只有 move_file 一个出口（durable 落盘的合法
+// 出口不变）。返回追加到拦截文案后的说明；没有改写件或放不下时返回空串。
+func (b bash) restageRewritten(stamp string, vs []tool.PublishViolation) string {
+	if b.workDir == "" || stamp == "" {
+		return ""
+	}
+	var lines []string
+	for _, v := range vs {
+		if v.Kind != "modified" {
+			continue
+		}
+		src := tool.QuarantinePathOf(stamp, v)
+		if !filepath.IsAbs(src) {
+			src = filepath.Join(v.Root, filepath.FromSlash(src))
+		}
+		rel := filepath.Join(".gaea", "work", filepath.FromSlash(v.RelPath))
+		dst := filepath.Join(b.workDir, rel)
+		fi, err := os.Stat(src)
+		if err != nil {
+			continue
+		}
+		if os.MkdirAll(filepath.Dir(dst), 0o755) != nil || copyFileContents(src, dst, fi.Mode().Perm()) != nil {
+			continue
+		}
+		line := fmt.Sprintf("- %s → %s", v.RelPath, filepath.ToSlash(rel))
+		if old := latestVersionSnapshot(b.workDir, v.RelPath); old != "" {
+			line += fmt.Sprintf("（改写前的上一版快照：%s）", old)
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "\n其中改写「已有正式件」的下列文件，隔离件已自动放一份到过程目录（.gaea/work/ 不受本边界限制），不必再手动取回：\n" +
+		strings.Join(lines, "\n") + "\n" +
+		"核对无误后一步回到正式名：move_file source=<上面的 .gaea/work/ 路径> destination=<原路径> overwrite=true。"
 }
 
 // xlsxCacheNotes 事后体检（2026-11-27 AI 反馈 #7）：命令写出的 xlsx 里公式格没有
