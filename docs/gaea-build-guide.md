@@ -56,6 +56,7 @@ PATH 前置引用源，（b）`gaea_install.ps1` 缺省 `-SourceDir`（主树构
 | 拉起验证 | 壳起来后验 PID 启动时间 > 构建时刻（CIM `CreationDate`），防旧壳假象 |
 | 挂死 wails.exe/go.exe 孤儿连环锁（2026-11-07） | 构建 Cancel/失败会遗留 wails.exe+go.exe 孤儿持句柄，后续绑定生成子进程重抽 `frontend/wailsjs/runtime/` 报「package.json: Access is denied」连环假象（文件 ACL 实为全 Allow，`cat`/改名/重建全通）；处置=CIM 找 wails.exe/go.exe/gaea.exe 孤儿 taskkill /T /F 后按本指南 `wails build` 流程走即通 |
 | 干净树打包后 `build/bin` 停在旧版（2026-11-25：装机已 0f600f5f、build/bin 还 7ccdc1cc） | 交付包收尾把包版四件回写主树 `build/bin` 并与装机位哈希对账；主树有未提交改动时禁止用主树重建代替回写（见「交付包收尾」节） |
+| 干净树 `wails build` 后 `frontend/wailsjs/*`、`go.mod` 一片 M（2026-11-28 实证） | 多半是 autocrlf 行尾幻影（检出 CRLF、生成器写 LF），不是绑定漂移。判法：`git diff --ignore-cr-at-eol --stat`——为空或只剩「同一行文本的 +/-」即无漂移，不必补绑定同步提交；有实质差异才按 `b4a1e508` 先例补「绑定再生成同步」 |
 
 ## 编程板块与 Windows 子进程
 
