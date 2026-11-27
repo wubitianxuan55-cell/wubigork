@@ -97,7 +97,7 @@ func TestProposalMaintainToolsLifecycle(t *testing.T) {
 		"title": title, "project_type": "技术标", "year": "2026", "source_file": "bao3.md", "outline": batch,
 	}))
 	first := mustExec(t, "首批", out, err)
-	mustContain(t, "首批", first, "已录入方案库", "**落点**: 工作区 "+dir, "方案库共 1 份")
+	mustContain(t, "首批", first, "已录入方案库", "**落点**: 工作区 "+dir, "**方案库**: 全库共 1 份（现行 0、录入中 1），含本方案")
 
 	// 进度：已录到第几行、下一批从哪里接
 	out, err = save.Execute(ctx, toJSON(t, map[string]any{"action": "status", "title": title}))

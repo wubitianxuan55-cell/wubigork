@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -200,6 +201,354 @@ func prefixHash(lines []string, n int) string {
 		h.Write([]byte{'\n'})
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// ── 错字容错定位（2026-11-27 AI 反馈 #11）──────────────────────────
+//
+// 扫描件 OCR 会把标题认错一两个字（「抑制异味」→「抑制您味」）。outline 条目带
+// display_title 时，title 定位不到就在标题样行里找与显示名只差一两个字的那一行：
+// 模型给的是修正后的写法，不该被源文件的错字卡住。
+
+// leadingNumber 取标题开头的编号（「5.2.5.2 」「第一章」「一、」「（一）」），没有返回空。
+func leadingNumber(s string) string {
+	if m := reChapter.FindStringSubmatch(s); m != nil {
+		return s[:len(s)-len(m[len(m)-1])]
+	}
+	if m := reSection.FindStringSubmatch(s); m != nil {
+		return s[:len(s)-len(m[len(m)-1])]
+	}
+	if m := reNumeric2.FindStringSubmatch(s); m != nil {
+		return s[:len(s)-len(m[2])]
+	}
+	if m := reCnOrd.FindStringSubmatch(s); m != nil {
+		return s[:len(s)-len(m[2])]
+	}
+	if m := reCnParen.FindStringSubmatch(s); m != nil {
+		return s[:len(s)-len(m[2])]
+	}
+	return ""
+}
+
+// headingCore 标题去掉开头编号后的正文（比对错字用）。
+func headingCore(s string) string {
+	if n := leadingNumber(s); n != "" {
+		return strings.TrimSpace(strings.TrimPrefix(s, n))
+	}
+	return s
+}
+
+// maxTitleTypos 允许的编辑距离：短标题最多差 1 个字，长一点的最多 2 个。
+func maxTitleTypos(n int) int {
+	if n < 4 {
+		return 0 // 太短的标题差一个字就是另一个标题，不容错
+	}
+	if n <= 5 {
+		return 1
+	}
+	return 2
+}
+
+// editDistance 两个 rune 串的编辑距离（插入/删除/替换各算 1）。
+func editDistance(a, b []rune) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	prev := make([]int, len(b)+1)
+	cur := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		cur[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(b)]
+}
+
+// typoDistance 报告一行标题与显示名 s 的差距：不是标题样行、或差得太远，返回 -1。
+// 两边都先去编号再比（「5.2.5.2 抑制您味」对「抑制异味」）。
+func typoDistance(line, s string) int {
+	rs := []rune(headingCore(normHeading(s)))
+	limit := maxTitleTypos(len(rs))
+	if limit == 0 {
+		return -1
+	}
+	core := []rune(headingCore(normHeading(line)))
+	if len(core) == 0 || abs(len(core)-len(rs)) > limit {
+		return -1
+	}
+	if d := editDistance(core, rs); d <= limit {
+		return d
+	}
+	return -1
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+// findHeadingByDisplay 在 lines[from:] 的标题样行里找与显示名 display 最接近的一行
+// （差距最小的；同距取最靠前的）。返回 0-based 行号与差距，找不到返回 -1。
+func findHeadingByDisplay(lines []string, from int, display string) (int, int) {
+	bestIdx, bestDist := -1, -1
+	for i := from; i < len(lines); i++ {
+		t := strings.TrimSpace(lines[i])
+		if t == "" || strings.HasPrefix(t, "|") || len([]rune(t)) > headingLikeMaxRunes || isSentenceEnd([]rune(t)) {
+			continue
+		}
+		if d := typoDistance(t, display); d >= 0 && (bestDist < 0 || d < bestDist) {
+			bestIdx, bestDist = i, d
+			if d == 0 {
+				break
+			}
+		}
+	}
+	return bestIdx, bestDist
+}
+
+// ── 认标题（2026-11-27 AI 反馈 #12）：正文没有井号标题时按编号形态找标题样行 ──
+
+const cnDigits = `[一二三四五六七八九十百千零〇两\d]+`
+
+var (
+	reATX      = regexp.MustCompile(`^(#{1,6})\s+(.+?)\s*#*$`)
+	reChapter  = regexp.MustCompile(`^第` + cnDigits + `[\s　]*(章|篇|部分|部|卷|编|册)[\s　:：、.．]*(.+)$`)
+	reSection  = regexp.MustCompile(`^第` + cnDigits + `[\s　]*节[\s　:：、.．]*(.+)$`)
+	reNumeric2 = regexp.MustCompile(`^(\d{1,4}(?:\.\d{1,4})+)[\s　:：]*(\D.+)$`)
+	reNum1     = regexp.MustCompile(`^(\d{1,3})[\s　]+([^\s\d].*)$`)
+	reCnOrd    = regexp.MustCompile(`^([一二三四五六七八九十]{1,3})[\s　]*[、.．][\s　]*(.+)$`)
+	reCnParen  = regexp.MustCompile(`^[（(][\s　]*([一二三四五六七八九十]{1,3})[\s　]*[）)][\s　]*(.+)$`)
+	reListOrd  = regexp.MustCompile(`^(?:[（(][\s　]*(\d{1,2})[\s　]*[）)]|(\d{1,2})[\s　]*[.、])[^\d\s][\s　]*(.*)$`)
+	// reTOCLead 目录行：标题后跟点线与页码（「第一章 工程概况 …… 5」）。
+	reTOCLead = regexp.MustCompile(`(?:[.…·]{3,}|[-—–]{4,})[\s　]*\d{1,4}[\s　]*$`)
+)
+
+// HeadingCandidate 认出的一个标题样行。
+type HeadingCandidate struct {
+	Line    int    // 1-based 源文件行号
+	Level   int    // 建议层级 1~4（按编号形态与上下文推的，以模型最终认定为准）
+	Kind    string // 形态：井号 / 章 / 节 / 数字 / 一、/ （一）/ 1. / 表格行
+	Title   string // 进 outline 的 title（源文件写法，带文档自带编号）
+	InTable bool   // 藏在表格行里（低置信）
+	Weak    bool   // 拿不准：单个数字开头、又对不上多级编号首位数字的行
+}
+
+// numberingOf 报告一行（已去粗体记号）的编号形态：章 / 节 / 数字 / 一、/（一）/ 1.，
+// 以及数字编号的级数。认不出返回空串。
+func numberingOf(s string) (fam string, depth int) {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "*", ""))
+	switch {
+	case reChapter.MatchString(s):
+		return "chapter", 1
+	case reSection.MatchString(s):
+		return "section", 2
+	}
+	if m := reNumeric2.FindStringSubmatch(s); m != nil {
+		return "num", strings.Count(m[1], ".") + 1
+	}
+	switch {
+	case reCnOrd.MatchString(s):
+		return "cn1", 0
+	case reCnParen.MatchString(s):
+		return "cn2", 0
+	case reListOrd.MatchString(s):
+		return "list", 0
+	case reNum1.MatchString(s):
+		return "num", 1
+	}
+	return "", 0
+}
+
+func kindName(fam string) string {
+	switch fam {
+	case "chapter":
+		return "章"
+	case "section":
+		return "节"
+	case "num":
+		return "数字"
+	case "cn1":
+		return "一、"
+	case "cn2":
+		return "（一）"
+	case "list":
+		return "1."
+	}
+	return "井号"
+}
+
+// tableHeadingCells 表格行里像编号标题的单元格（「| **6.资源配置方案** |」——
+// 扫描件的章名常藏在表格行里）。
+func tableHeadingCells(line string) []string {
+	var out []string
+	for _, cell := range strings.Split(strings.Trim(line, "|"), "|") {
+		cell = strings.TrimSpace(strings.Trim(strings.TrimSpace(cell), "*"))
+		if cell == "" {
+			continue
+		}
+		if fam, _ := numberingOf(cell); fam == "chapter" || fam == "section" || fam == "num" || fam == "list" {
+			out = append(out, normHeading(cell))
+		}
+	}
+	return out
+}
+
+// DetectHeadings 在源文件行里找标题样行并推建议层级。只认编号形态（井号 / 第X章 /
+// 第X节 / 1.1 / 一、/（一）/ 1.），不判语义——结果给模型过目，层级以模型最终
+// 认定为准。目录行（标题后跟点线页码）、代码块、表格内的正文都不算；表格行里
+// 带章节编号的单元格单列为低置信项。
+func DetectHeadings(lines []string) []HeadingCandidate {
+	type rawCand struct {
+		c      HeadingCandidate
+		fam    string // 编号形态（"" = 只有井号）
+		depth  int    // 数字编号的级数
+		hashes int    // 井号个数（非井号行为 0）
+		num    string // 单级数字编号的数字（判它是不是某章的章号）
+	}
+	var raws []rawCand
+	atxMin := 0
+	inFence := false
+	for i, line := range lines {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence || t == "" {
+			continue
+		}
+		if strings.HasPrefix(t, "|") {
+			for _, title := range tableHeadingCells(t) {
+				fam, _ := numberingOf(title)
+				raws = append(raws, rawCand{c: HeadingCandidate{Line: i + 1, Kind: "表格行", Title: title, InTable: true, Weak: true}, fam: fam})
+			}
+			continue
+		}
+		if reTOCLead.MatchString(t) || strings.HasPrefix(t, "![") || strings.HasPrefix(t, "<!--") {
+			continue
+		}
+		if m := reATX.FindStringSubmatch(t); m != nil {
+			hashes := len([]rune(m[1]))
+			if atxMin == 0 || hashes < atxMin {
+				atxMin = hashes
+			}
+			title := normHeading(m[2])
+			fam, depth := numberingOf(title)
+			raws = append(raws, rawCand{c: HeadingCandidate{Line: i + 1, Kind: kindName(fam), Title: title}, fam: fam, depth: depth, hashes: hashes})
+			continue
+		}
+		if len([]rune(t)) > headingLikeMaxRunes || isSentenceEnd([]rune(t)) {
+			continue
+		}
+		fam, depth := numberingOf(t)
+		if fam == "" {
+			continue
+		}
+		title := normHeading(t)
+		if headingCore(title) == "" {
+			continue // 只有编号没有标题文字
+		}
+		r := rawCand{c: HeadingCandidate{Line: i + 1, Kind: kindName(fam), Title: title}, fam: fam, depth: depth}
+		if fam == "num" && depth == 1 {
+			if m := reNum1.FindStringSubmatch(t); m != nil {
+				r.num = m[1]
+			}
+		}
+		raws = append(raws, r)
+	}
+
+	// 单级数字开头（「5 施工方案」）像不像章标题，看多级编号的首位数字认不认它。
+	implied := map[string]bool{}
+	for _, r := range raws {
+		if r.fam == "num" && r.depth >= 2 {
+			if i := strings.Index(r.c.Title, "."); i > 0 {
+				implied[r.c.Title[:i]] = true
+			}
+		}
+	}
+	hasChapter, hasSection := false, false
+	for _, r := range raws {
+		hasChapter = hasChapter || r.fam == "chapter"
+		hasSection = hasSection || r.fam == "section"
+	}
+
+	type frame struct {
+		fam   string
+		level int
+	}
+	var stack []frame
+	clamp := func(n int) int { return max(1, min(MaxLevels, n)) }
+	out := make([]HeadingCandidate, 0, len(raws))
+	for _, r := range raws {
+		if r.fam == "num" && r.depth == 1 && r.hashes == 0 {
+			r.c.Weak = r.c.InTable || !(implied[r.num] || (len(implied) == 0 && r.num != "" && len(r.num) <= 2))
+		}
+		// 表格行里的章名只是旁证：给层级，但不参与上下文推算。
+		if r.c.InTable {
+			r.c.Level = clamp(r.depth)
+			out = append(out, r.c)
+			continue
+		}
+		structured := r.hashes > 0 || r.fam == "chapter" || r.fam == "section" || r.fam == "num"
+		known := false // 沿用了已在上下文里的层级，不必再入栈
+		var level int
+		switch {
+		case r.hashes > 0 && r.fam == "":
+			level = clamp(r.hashes - atxMin + 1)
+		case r.fam == "chapter":
+			level = 1
+		case r.fam == "section":
+			level = 1
+			if hasChapter {
+				level = 2
+			}
+		case r.fam == "num":
+			level = clamp(r.depth)
+			if hasChapter && r.depth == 1 {
+				level = 2
+			}
+		default:
+			// 一、/（一）/1. 的深浅看上下文：同一形态沿用已推的层级，新形态落在当前层之下。
+			level = -1
+			for k := len(stack) - 1; k >= 0; k-- {
+				if stack[k].fam == r.fam {
+					level, stack, known = stack[k].level, stack[:k+1], true
+					break
+				}
+			}
+			if level < 0 {
+				level = 1
+				if n := len(stack); n > 0 {
+					level = clamp(stack[n-1].level + 1)
+				}
+			}
+		}
+		r.c.Level = level
+		out = append(out, r.c)
+		if known || r.c.Weak {
+			continue // 拿不准的行不参与推层级
+		}
+		if structured {
+			for n := len(stack); n > 0 && stack[n-1].level >= level; n-- {
+				stack = stack[:n-1]
+			}
+		}
+		stack = append(stack, frame{fam: r.fam, level: level})
+	}
+	return out
 }
 
 func truncRunes(s string, n int) string {

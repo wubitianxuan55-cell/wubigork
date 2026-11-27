@@ -150,6 +150,24 @@ func proposalArgsDryRun(args json.RawMessage) bool {
 	return json.Unmarshal(args, &p) == nil && p.DryRun && strings.TrimSpace(p.Action) == ""
 }
 
+// proposalArgsNoWrite 方案库录入的「不写库」调用：演练（dry_run）、查进度
+// （action=status）、认标题（action=detect_headings，2026-11-27 AI 反馈 #12）。
+// 此前只放行演练，查一次进度也要弹确认卡；只读动作不该走持久化写入的确认。
+func proposalArgsNoWrite(args json.RawMessage) bool {
+	var p struct {
+		DryRun bool   `json:"dry_run"`
+		Action string `json:"action"`
+	}
+	if json.Unmarshal(args, &p) != nil {
+		return false
+	}
+	switch strings.TrimSpace(p.Action) {
+	case "status", "detect_headings":
+		return true
+	}
+	return proposalArgsDryRun(args)
+}
+
 // hardAskTools 是必须逐条经用户确认的工具：写入记忆 / 方案库 / 造价库等
 // 持久化数据，任何权限级别（含 yolo）都不自动放行，且不记忆会话放行。
 var hardAskTools = map[string]bool{
@@ -181,7 +199,8 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	g.c.mu.Unlock()
 	auto := autoApprove || permLevel != "ask"
 	// 方案库演练（dry_run=true）只校验、不写库：不弹确认卡，照常记进自动放行账本。
-	if tool == "proposal_save" && proposalArgsDryRun(args) {
+	// 查进度 / 认标题两个只读动作同理（proposalArgsNoWrite）。
+	if tool == "proposal_save" && proposalArgsNoWrite(args) {
 		g.c.emitAutoApproval(tool, subject, event.ApprovalSourceGate, event.AutoDecidedAuto)
 		return true, false, "", nil
 	}

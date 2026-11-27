@@ -39,6 +39,30 @@ func TestProposalApprovalSubjectsAndDryRun(t *testing.T) {
 		t.Fatalf("续录摘要：%q", s)
 	}
 
+	// 不写库的调用（2026-11-27 AI 反馈 #12）：演练、查进度、认标题都不弹卡；带了
+	// 录入内容的照旧逐条确认。
+	for _, args := range []string{
+		`{"title":"甲","dry_run":true,"outline":[{"level":1,"title":"一"}]}`,
+		`{"title":"甲","action":"status"}`,
+		`{"source_file":"a.md","action":"detect_headings"}`,
+		`{"source_file":"a.md","action":"detect_headings","outline_file":".gaea/work/o.json"}`,
+	} {
+		if !proposalArgsNoWrite(json.RawMessage(args)) {
+			t.Fatalf("%s 应判为不写库", args)
+		}
+	}
+	for _, args := range []string{
+		`{"title":"甲","dry_run":false}`,
+		`{"title":"甲","outline":[{"level":1,"title":"一"}]}`,
+		`{"title":"甲","source_file":"a.md","outline_file":"o.json"}`,
+		`{"title":"甲"}`,
+		`not json`,
+	} {
+		if proposalArgsNoWrite(json.RawMessage(args)) {
+			t.Fatalf("%s 写库，不应放行", args)
+		}
+	}
+
 	upd := json.RawMessage(`{"proposal":"甲方案","title":"乙方案","section_id":3,"section_title":"1.1 新","body":"x"}`)
 	s := approvalSubjectFor("proposal_update", upd)
 	for _, want := range []string{"修改方案库方案：甲方案", "改标题为「乙方案」", "修正小节 #3", "标题→「1.1 新」", "整节替换正文"} {

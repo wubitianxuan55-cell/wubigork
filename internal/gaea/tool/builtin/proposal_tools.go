@@ -99,7 +99,7 @@ type proposalSaveTool struct{ workDir string }
 
 func (proposalSaveTool) Name() string { return "proposal_save" }
 func (proposalSaveTool) Description() string {
-	return "把方案录入方案库（标题 1~4 级，由你划分层级）。两种给法：①按源文件切正文（推荐，几百页的方案用这个）：先把原文件转成 Markdown（Word/PPT/PDF 用 format_convert 并设 preserve_images=true），你只列出认定的标题与层级 outline=[{level,title,line?}]，正文由工具从源文件逐字切出，不必重打；正文引用的本地图片会复制为方案托管资产并改写稳定引用。长文档分批：每批 100~200 个标题，之后各批 mode=append 续录（title 不变），最后一批 finalize=true。②直给正文 sections=[{level,title,body}]，适合短文档或你自己写的内容。outline/sections 须按文档顺序、父级在前、逐级展开（不能跳级，第一项 1 级）；title 写标题原文（可带编号），拿不准时给 line。已有同名方案时整册覆盖须 overwrite=true。分批录入中断后用 action=status（配合 title）查已录到第几行、下一批从哪里接；dry_run=true 先演练一批（校验与定位照做、不写库）。回执给出落点（工作区）与库内方案总数。仅用户明确要求沉淀方案时调用。"
+	return "把方案录入方案库（标题 1~4 级，由你划分层级）。两种给法：①按源文件切正文（推荐，几百页的方案用这个）：先把原文件转成 Markdown（Word/PPT/PDF 用 format_convert 并设 preserve_images=true），你只列出认定的标题与层级 outline=[{level,title,line?,display_title?}]，正文由工具从源文件逐字切出，不必重打；正文引用的本地图片会复制为方案托管资产并改写稳定引用。源文件标题有 OCR 错字时：title 照源文件的写法定位，display_title 写修正后的（入库用显示名；给了 display_title，title 差一两个字也能对上）。源文件没有井号标题（扫描件转出的正文很常见）：先用 action=detect_headings（配合 source_file）按「第X章 / 1.1 / 一、/（一）」编号形态列出标题样行与建议层级；再给 outline_file 就把结果写成 outline 草稿文件，改完直接用 outline_file 录入，几百个标题不必抄进参数。长文档分批：每批 100~200 个标题，之后各批 mode=append 续录（title 不变），最后一批 finalize=true。②直给正文 sections=[{level,title,body}]，适合短文档或你自己写的内容。outline/sections 须按文档顺序、父级在前、逐级展开（不能跳级，第一项 1 级）；title 写标题原文（可带编号），拿不准时给 line。已有同名方案时整册覆盖须 overwrite=true。分批录入中断后用 action=status（配合 title）查已录到第几行、下一批从哪里接；dry_run=true 先演练一批（校验与定位照做、不写库）。回执的「方案库」一行是全库份数（含录入中、含本方案），与「本批」的录入进度是两回事。仅用户明确要求沉淀方案时调用。"
 }
 func (proposalSaveTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -111,11 +111,13 @@ func (proposalSaveTool) Schema() json.RawMessage {
   "summary":{"type":"string","description":"一段话摘要"},
   "mode":{"type":"string","enum":["replace","append"],"description":"replace=新建或整册覆盖（默认）；append=续录同一份方案"},
   "overwrite":{"type":"boolean","description":"方案库已有同名方案时，整册覆盖须显式 true"},
-  "source_file":{"type":"string","description":"已转成 Markdown 的源文件路径（.md/.txt）；按 outline 录入时必填"},
-  "outline":{"type":"array","description":"你认定的标题与层级，按文档顺序（不必带正文）","items":{"type":"object","properties":{
+  "source_file":{"type":"string","description":"已转成 Markdown 的源文件路径（.md/.txt）；按 outline 录入、认标题时必填"},
+  "outline_file":{"type":"string","description":"outline 的文件形态（JSON 数组，元素同 outline 条目）：录入时从这里读，几百个标题不必抄进参数；action=detect_headings 时反过来——把认出的标题草稿写到这个路径"},
+  "outline":{"type":"array","description":"你认定的标题与层级，按文档顺序（不必带正文；与 outline_file 二选一）","items":{"type":"object","properties":{
     "level":{"type":"integer","description":"标题层级 1~4"},
-    "title":{"type":"string","description":"标题原文"},
-    "line":{"type":"integer","description":"该标题在源文件中的行号（可选，拿不准定位时给）"}
+    "title":{"type":"string","description":"定位用：源文件里标题的写法（照原文，OCR 错字也照写）"},
+    "line":{"type":"integer","description":"该标题在源文件中的行号（可选，拿不准定位时给）"},
+    "display_title":{"type":"string","description":"入库显示名（可选）：源文件标题有错字时写修正后的；给了它，title 差一两个字也能对上，源文件行自带的编号会补回去"}
   },"required":["level","title"]}},
   "sections":{"type":"array","description":"直给正文（与 outline 二选一）","items":{"type":"object","properties":{
     "level":{"type":"integer","description":"标题层级 1~4"},
@@ -123,17 +125,17 @@ func (proposalSaveTool) Schema() json.RawMessage {
     "body":{"type":"string","description":"该节正文（Markdown）"}
   },"required":["level","title","body"]}},
   "finalize":{"type":"boolean","description":"源文件形态：本批是最后一批，末节正文截至文件尾"},
-  "action":{"type":"string","enum":["status"],"description":"只查录入进度，不写库（配合 title）：已录到源文件第几行、末几个标题、下一批从哪里接"},
+  "action":{"type":"string","enum":["status","detect_headings"],"description":"都不写库：status=查录入进度（配合 title：已录到源文件第几行、下一批从哪里接）；detect_headings=认标题（配合 source_file：源文件没有井号标题时，按编号形态列出标题样行与建议层级；再给 outline_file 就把草稿写成文件）"},
   "dry_run":{"type":"boolean","description":"演练：整批校验、标题定位、切正文照做，但不写库；确认无误后去掉它正式录入"}
 }}`)
 }
 func (proposalSaveTool) ReadOnly() bool     { return false }
 func (proposalSaveTool) PersistWrite() bool { return true }
 func (proposalSaveTool) CompactDescription() string {
-	return "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections;action=status查进度;dry_run演练不写库)"
+	return "方案入库(标题1~4级;outline按源文件切正文,title定位/display_title入库,可append分批;无井号标题先action=detect_headings认标题,可outline_file读写草稿;或直给sections;action=status查进度;dry_run演练不写库)"
 }
 func (proposalSaveTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"},"action":{"type":"string","enum":["status"]},"dry_run":{"type":"boolean"}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"project_type":{"type":"string"},"year":{"type":"string"},"summary":{"type":"string"},"mode":{"type":"string","enum":["replace","append"]},"overwrite":{"type":"boolean"},"source_file":{"type":"string"},"outline_file":{"type":"string"},"outline":{"type":"array"},"sections":{"type":"array"},"finalize":{"type":"boolean"},"action":{"type":"string","enum":["status","detect_headings"]},"dry_run":{"type":"boolean"}}}`)
 }
 
 const (
@@ -149,19 +151,16 @@ const (
 
 func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Title       string  `json:"title"`
-		ProjectType string  `json:"project_type"`
-		Year        metaStr `json:"year"`
-		Summary     string  `json:"summary"`
-		Mode        string  `json:"mode"`
-		Overwrite   bool    `json:"overwrite"`
-		SourceFile  string  `json:"source_file"`
-		Outline     []struct {
-			Level int    `json:"level"`
-			Title string `json:"title"`
-			Line  int    `json:"line"`
-		} `json:"outline"`
-		Sections []struct {
+		Title       string               `json:"title"`
+		ProjectType string               `json:"project_type"`
+		Year        metaStr              `json:"year"`
+		Summary     string               `json:"summary"`
+		Mode        string               `json:"mode"`
+		Overwrite   bool                 `json:"overwrite"`
+		SourceFile  string               `json:"source_file"`
+		OutlineFile string               `json:"outline_file"`
+		Outline     []proposalOutlineArg `json:"outline"`
+		Sections    []struct {
 			Level int    `json:"level"`
 			Title string `json:"title"`
 			Body  string `json:"body"`
@@ -175,14 +174,27 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 	}
 	// 只读的进度查询走同一个工具（不另设工具占提示词位）：分批续录被打断后，模型据此
 	// 知道「已录到第几行、下一批从哪个标题接」，不必靶回执末尾的行号人工推算。
-	if action := strings.ToLower(strings.TrimSpace(p.Action)); action != "" {
-		if action != "status" {
-			return "", fmt.Errorf("action 只支持 status（查录入进度，不写库），收到 %q", p.Action)
-		}
+	switch action := strings.ToLower(strings.TrimSpace(p.Action)); action {
+	case "":
+	case "status":
 		if p.DryRun || p.Mode != "" || len(p.Outline) > 0 || len(p.Sections) > 0 {
 			return "", errors.New("action=status 只查进度，不能同时带录入内容（outline/sections/mode/dry_run）")
 		}
 		return tool.WrapText(proposalIngestStatus(t.workDir, strings.TrimSpace(p.Title))), nil
+	case "detect_headings":
+		// 认标题（2026-11-27 AI 反馈 #12）：扫描件转出的正文没有井号标题时，此前每次
+		// 导入都要手写脚本按编号形态找标题行。只读源文件、不写库；带了 outline_file
+		// 才在工作区落一份 outline 草稿（非交付件）。
+		if p.DryRun || p.Mode != "" || strings.TrimSpace(p.Title) != "" || len(p.Outline) > 0 || len(p.Sections) > 0 {
+			return "", errors.New("action=detect_headings 只认标题，不能同时带录入内容（title/outline/sections/mode/dry_run）")
+		}
+		text, err := proposalDetectHeadings(t.workDir, p.SourceFile, p.OutlineFile)
+		if err != nil {
+			return "", err
+		}
+		return tool.WrapText(text), nil
+	default:
+		return "", fmt.Errorf("action 只支持 status（查录入进度）与 detect_headings（认标题），都不写库；收到 %q", p.Action)
 	}
 	mode := strings.ToLower(strings.TrimSpace(p.Mode))
 	switch mode {
@@ -201,8 +213,18 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 		AssetBaseDir: t.workDir,
 		DryRun:       p.DryRun,
 	}
+	if p.OutlineFile != "" && len(p.Outline) > 0 {
+		return "", errors.New("outline 与 outline_file 只能给一个")
+	}
+	if p.OutlineFile != "" {
+		loaded, err := proposalOutlineFromFile(t.workDir, p.OutlineFile)
+		if err != nil {
+			return "", err
+		}
+		p.Outline = loaded
+	}
 	for _, e := range p.Outline {
-		in.Outline = append(in.Outline, proposal.OutlineEntry{Level: e.Level, Title: e.Title, Line: e.Line})
+		in.Outline = append(in.Outline, proposal.OutlineEntry{Level: e.Level, Title: e.Title, Line: e.Line, DisplayTitle: e.DisplayTitle})
 	}
 	for _, s := range p.Sections {
 		in.Sections = append(in.Sections, proposal.Section{Level: s.Level, Title: s.Title, Body: s.Body})
@@ -230,6 +252,175 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 		return "", err
 	}
 	return tool.WrapText(proposalSaveReceipt(ctx, st, in, res)), nil
+}
+
+// proposalOutlineArg outline 条目的参数形态：内联 outline 与 outline_file 文件同构。
+type proposalOutlineArg struct {
+	Level        int    `json:"level"`
+	Title        string `json:"title"`
+	Line         int    `json:"line"`
+	DisplayTitle string `json:"display_title"`
+}
+
+// proposalDetectRowCap 认标题回执最多列多少行（再多的给 outline_file 写成文件）。
+const proposalDetectRowCap = 600
+
+// proposalOutlineFromFile 读 outline_file：标准形态是 JSON 数组（元素同 outline 条目，
+// 草稿每行一条，便于逐行编辑）；每行一个对象的写法也认。
+func proposalOutlineFromFile(workDir, path string) ([]proposalOutlineArg, error) {
+	abs := resolveIn(workDir, path)
+	if SessionDirFenceRule(abs) {
+		return nil, fmt.Errorf("SESSION_DENIED: .gaea/sessions/ 是引擎内部事件流，不能当 outline 文件")
+	}
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, fmt.Errorf("读不到 outline_file %s: %w", path, err)
+	}
+	var entries []proposalOutlineArg
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		entries = nil
+		for n, line := range strings.Split(string(raw), "\n") {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			var one proposalOutlineArg
+			if jerr := json.Unmarshal([]byte(line), &one); jerr != nil {
+				return nil, fmt.Errorf("outline_file %s 第 %d 行不是 outline 条目（元素形如 {level,title,line,display_title}）：%v", path, n+1, jerr)
+			}
+			entries = append(entries, one)
+		}
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("outline_file %s 是空的", path)
+	}
+	return entries, nil
+}
+
+// proposalDetectHeadings 认标题（proposal_save action=detect_headings）：按编号形态
+// 列出标题样行与建议层级。给了 outlineFile 就把拿得准的那些写成 outline 草稿
+// （每行一条 JSON），拿不准的只在回执里列出来。
+func proposalDetectHeadings(workDir, sourceFile, outlineFile string) (string, error) {
+	_, lines, err := proposalSourceLines(workDir, sourceFile)
+	if err != nil {
+		return "", err
+	}
+	cands := proposal.DetectHeadings(lines)
+	var b strings.Builder
+	fmt.Fprintf(&b, "## 认标题：%s（共 %d 行）\n\n", strings.TrimSpace(sourceFile), len(lines))
+	if len(cands) == 0 {
+		b.WriteString("没认出编号形态的标题样行。只认井号标题与「第X章 / 第X节 / 1.1 / 一、/（一）/ 1.」；目录行、代码块、表格里的正文不算。源文件用的是别的体例时请自己列 outline（可先 dry_run=true 演练）。\n")
+		return b.String(), nil
+	}
+	var levelCount [proposal.MaxLevels + 1]int
+	kindCount := map[string]int{}
+	var kindOrder []string
+	sure := make([]proposal.HeadingCandidate, 0, len(cands))
+	unsure := make([]proposal.HeadingCandidate, 0, len(cands))
+	for _, c := range cands {
+		if kindCount[c.Kind] == 0 {
+			kindOrder = append(kindOrder, c.Kind)
+		}
+		kindCount[c.Kind]++
+		if c.Weak {
+			unsure = append(unsure, c)
+			continue
+		}
+		levelCount[c.Level]++
+		sure = append(sure, c)
+	}
+	fmt.Fprintf(&b, "**认出 %d 个标题样行**（拿得准 %d、拿不准 %d）", len(cands), len(sure), len(unsure))
+	if len(sure) > 0 {
+		var levels []string
+		for lv := 1; lv <= proposal.MaxLevels; lv++ {
+			if levelCount[lv] > 0 {
+				levels = append(levels, fmt.Sprintf("%d 级 %d", lv, levelCount[lv]))
+			}
+		}
+		fmt.Fprintf(&b, "；层级建议：%s", strings.Join(levels, "、"))
+	}
+	var kinds []string
+	for _, k := range kindOrder {
+		kinds = append(kinds, fmt.Sprintf("%s %d", k, kindCount[k]))
+	}
+	fmt.Fprintf(&b, "；形态：%s\n", strings.Join(kinds, "、"))
+
+	if outlineFile != "" {
+		out := resolveIn(workDir, outlineFile)
+		if SessionDirFenceRule(out) {
+			return "", fmt.Errorf("SESSION_DENIED: .gaea/sessions/ 是引擎内部事件流，不能把 outline 草稿写进去")
+		}
+		if workDir != "" {
+			if err := confine([]string{workDir}, out); err != nil {
+				return "", err
+			}
+		}
+		var buf strings.Builder
+		buf.WriteString("[\n")
+		for i, c := range sure {
+			one, _ := json.Marshal(map[string]any{"level": c.Level, "title": c.Title, "line": c.Line})
+			buf.Write(one)
+			if i < len(sure)-1 {
+				buf.WriteByte(',')
+			}
+			buf.WriteByte('\n')
+		}
+		buf.WriteString("]\n")
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return "", fmt.Errorf("建 outline 草稿目录失败: %w", err)
+		}
+		if err := os.WriteFile(out, []byte(buf.String()), 0o644); err != nil {
+			return "", fmt.Errorf("写 outline 草稿失败: %w", err)
+		}
+		fmt.Fprintf(&b, "\n**草稿已写出**：%s（%d 条，每行一条 level / title / line）\n", strings.TrimSpace(outlineFile), len(sure))
+		proposalListCandidates(&b, "开头", sure[:min(5, len(sure))])
+		if len(sure) > 5 {
+			proposalListCandidates(&b, "末尾", sure[max(5, len(sure)-3):])
+		}
+		if len(unsure) > 0 {
+			fmt.Fprintf(&b, "**没写进草稿的 %d 行**（像标题但拿不准：单个数字开头、或藏在表格行里；要用就自己加进草稿）：\n", len(unsure))
+			for i, c := range unsure {
+				if i >= 12 {
+					fmt.Fprintf(&b, "- …共 %d 行\n", len(unsure))
+					break
+				}
+				fmt.Fprintf(&b, "- 第 %d 行「%s」（%s）\n", c.Line, c.Title, c.Kind)
+			}
+		}
+		b.WriteString("\n下一步：层级是按编号形态与上下文推的，以你的认定为准。用 edit_file 改草稿（层级不对的、多认的删掉、错字加 display_title），再 proposal_save 带 source_file + outline_file 录入（先加 dry_run=true 演练）。\n")
+		return b.String(), nil
+	}
+
+	b.WriteString("\n| 行 | 级 | 形态 | 标题 |\n|---|---|---|---|\n")
+	for i, c := range cands {
+		if i >= proposalDetectRowCap {
+			fmt.Fprintf(&b, "…（共 %d 行，只列前 %d 行；给 outline_file 可把结果写成草稿文件）\n", len(cands), proposalDetectRowCap)
+			break
+		}
+		kind := c.Kind
+		if c.InTable {
+			kind += "·表格行"
+		} else if c.Weak {
+			kind += "·拿不准"
+		}
+		fmt.Fprintf(&b, "| %d | %d | %s | %s |\n", c.Line, c.Level, kind, cell(c.Title))
+	}
+	b.WriteString("\n下一步：层级是按编号形态与上下文推的，以你的认定为准。标题多时给 outline_file 把这份清单写成草稿再改；也可以直接抄进 outline（带 line）。先加 dry_run=true 演练。\n")
+	return b.String(), nil
+}
+
+// proposalListCandidates 回执里列几条候选：「第 12 行 1 级「…」」。
+func proposalListCandidates(b *strings.Builder, label string, cs []proposal.HeadingCandidate) {
+	if len(cs) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "**%s**：", label)
+	for i, c := range cs {
+		if i > 0 {
+			b.WriteString("、")
+		}
+		fmt.Fprintf(b, "第 %d 行 %d 级「%s」", c.Line, c.Level, c.Title)
+	}
+	b.WriteString("\n")
 }
 
 // proposalSourceLines 读源文件为行数组（行号与 read_file/grep -n 一致）。只收
@@ -294,14 +485,21 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 		fmt.Fprintf(&b, "**类型/年度**: %s / %s\n", orDash(in.Meta.ProjectType), orDash(in.Meta.Year))
 	}
 	// 落点写进回执（2026-11-24 实弹：方案归进哪个目录只字未提，界面上「少了一份」
-	// 却无从查起）。库总量一并给出，录入后一眼对得上数。
+	// 却无从查起）。2026-11-27 AI 反馈 #5'：同一方案分 4 批录入，「方案库共 N 份」
+	// 逐批 3→2→1，被读成本方案的录入进度——份数与落点拆成两行，份数写明是全库
+	// 口径（现行 / 录入中、含不含本方案），录入进度只看「本批」「源文件」两行。
 	if list, err := st.List(); err == nil {
-		n := len(list)
-		landing := proposalLanding(st, in)
+		n, ingesting := len(list), 0
+		for i := range list {
+			if list[i].Status == proposal.StatusIngesting {
+				ingesting++
+			}
+		}
+		fmt.Fprintf(&b, "**落点**: %s\n", proposalLanding(st, in))
 		if res.DryRun && res.Created {
-			fmt.Fprintf(&b, "**落点**: %s；方案库现有 %d 份（正式写入后 %d 份）\n", landing, n, n+1)
+			fmt.Fprintf(&b, "**方案库**: 现有 %d 份（现行 %d、录入中 %d），不含本方案；正式写入后 %d 份\n", n, n-ingesting, ingesting, n+1)
 		} else {
-			fmt.Fprintf(&b, "**落点**: %s；方案库共 %d 份\n", landing, n)
+			fmt.Fprintf(&b, "**方案库**: 全库共 %d 份（现行 %d、录入中 %d），含本方案\n", n, n-ingesting, ingesting)
 		}
 	}
 	stt := res.Stats
@@ -349,6 +547,16 @@ func proposalSaveReceipt(ctx context.Context, st *proposal.Store, in proposal.Sa
 				break
 			}
 			b.WriteString("- " + w + "\n")
+		}
+	}
+	if len(res.TitleFixes) > 0 {
+		b.WriteString("\n**标题修正**（title 定位到源文件行，入库用的是 display_title；请核对）：\n")
+		for i, f := range res.TitleFixes {
+			if i >= 12 {
+				fmt.Fprintf(&b, "- …共 %d 处\n", len(res.TitleFixes))
+				break
+			}
+			b.WriteString("- " + f + "\n")
 		}
 	}
 	b.WriteString("\n")

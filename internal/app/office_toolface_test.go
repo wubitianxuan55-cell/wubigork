@@ -158,7 +158,10 @@ var officeFaceBudget = map[string]officeFaceBudgetEntry{
 	// 分级与 baseline 基线差集，compact 描述净增 15 字符，实测 21265 后按口径上取整。
 	// proposal 21500→21750（2026-11-27 晚 AI 反馈批）：read_file 字节窗口、
 	// format_convert all_pages 与 xlsx 审计描述随通用件进方案档，实测 21615 后按口径上取整。
-	OfficeRunModeProposal: {Tools: 70, Chars: 21750},
+	// proposal 21750→22000（2026-11-28 AI 反馈批续）：proposal_save 增 outline_file 与
+	// action=detect_headings（认标题）、描述点明 display_title 改错字，实测 21713——
+	// 离旧预算只剩 37 字符，按口径上取整。
+	OfficeRunModeProposal: {Tools: 70, Chars: 22000},
 }
 
 // officeFaceRetired 已从模型工具面下线、不得回潮的名字（办公工具梳理两批）。

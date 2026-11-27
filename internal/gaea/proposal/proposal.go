@@ -215,8 +215,12 @@ FROM proposals p ORDER BY p.updated_at DESC, p.id DESC`)
 // OutlineEntry 是形态 B 的一项：模型认定的一个标题及其层级。
 type OutlineEntry struct {
 	Level int
-	Title string
-	Line  int // 模型给的 1-based 源文件行号；0=从上一项之后前向搜索
+	Title string // 在源文件里定位用的字面：源文件怎么写就怎么写（OCR 错字也照写）
+	Line  int    // 模型给的 1-based 源文件行号；0=从上一项之后前向搜索
+	// DisplayTitle 入库显示名（可选，2026-11-27 AI 反馈 #11）：给了就用它当标题，
+	// 修正源文件里的 OCR 错字。源文件行带编号而它没带时，编号会补回去。给了它，
+	// title 定位不到就在标题样行里找与它只差一两个字的那一行。
+	DisplayTitle string
 }
 
 // SaveInput 一次录入调用的全部输入。
@@ -263,6 +267,7 @@ type SaveResult struct {
 	Done          bool     // 是否录入完成
 	PendingTitle  string   // 未收尾时待截取正文的末节标题
 	WeakMatches   []string // 定位到「不像标题的行」的标题（模型宜核对行号）
+	TitleFixes    []string // 用 display_title 修正过的标题（「源文件写法 → 入库写法」），回执列给用户确认
 	Assets        int      // 本次托管、且正文已改写引用的图片数
 	MissingAssets []string // 正文里未能托管的图片引用（保留原写法）
 	Stats         Stats    // 写入后的结构统计
@@ -400,7 +405,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 	}
 
 	newSecs := make([]Section, 0, max(len(in.Sections), len(in.Outline)))
-	var weak []string
+	var weak, fixes []string
 	if formA {
 		for i, sec := range in.Sections {
 			t := strings.TrimSpace(sec.Title)
@@ -419,13 +424,40 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 				return nil, fmt.Errorf("outline 第 %d 项缺 title", i+1)
 			}
 			idx, grade, err := findHeading(in.Lines, searchFrom, t, e.Line)
+			display := strings.TrimSpace(e.DisplayTitle)
+			if err != nil && display != "" {
+				// 错字容错（2026-11-27 AI 反馈 #11）：模型给的是修正后的写法，源文件是
+				// OCR 错字。指了行号就认那一行（须像同一个标题），否则在标题样行里找
+				// 与显示名最接近的一行。
+				fixed := -1
+				if e.Line > 0 && e.Line-1 >= searchFrom && e.Line-1 < len(in.Lines) {
+					if typoDistance(in.Lines[e.Line-1], display) >= 0 {
+						fixed = e.Line - 1
+					}
+				} else if j, _ := findHeadingByDisplay(in.Lines, searchFrom, display); j >= 0 {
+					fixed = j
+				}
+				if fixed >= 0 {
+					idx, grade, err = fixed, 2, nil
+				}
+			}
 			if err != nil {
 				return nil, err
 			}
-			// 标题取源文件原行的标题文本（保留文档自带编号）。定位到的只是「行里提到
-			// 它」的正文句或长行时，沿用模型给的写法并点名让模型核对行号——短标题行
-			// （无 Markdown 标记的纯文本文档很常见）不算弱匹配，免得整批都是提示。
-			if src := normHeading(in.Lines[idx]); src != "" && grade >= 3 {
+			src := normHeading(in.Lines[idx])
+			switch {
+			case display != "":
+				// 入库用显示名；源文件行带编号而显示名没带时把编号补回去，标题树里
+				// 编号才齐。
+				t = display
+				if num := leadingNumber(src); num != "" && leadingNumber(normHeading(display)) == "" {
+					t = strings.Join(strings.Fields(num+" "+display), " ")
+				}
+				fixes = append(fixes, fmt.Sprintf("第 %d 项：源文件「%s」→ 入库「%s」（第 %d 行）", i+1, src, t, idx+1))
+			case src != "" && grade >= 3:
+				// 标题取源文件原行的标题文本（保留文档自带编号）。定位到的只是「行里提到
+				// 它」的正文句或长行时，沿用模型给的写法并点名让模型核对行号——短标题行
+				// （无 Markdown 标记的纯文本文档很常见）不算弱匹配，免得整批都是提示。
 				t = src
 			}
 			if grade <= 1 {
@@ -582,7 +614,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?)`,
 		res := &SaveResult{
 			ProposalID: pid, Created: created, Replaced: replaced, Added: len(newSecs), Clamped: clamped,
 			SkippedLines: skipped, IngestLine: ingestLine, TotalLines: len(in.Lines), Done: done, PendingTitle: pendingTitle,
-			WeakMatches: weak, Assets: assetCount, MissingAssets: missingAssets, DryRun: true,
+			WeakMatches: weak, TitleFixes: fixes, Assets: assetCount, MissingAssets: missingAssets, DryRun: true,
 		}
 		res.Stats = stats
 		return res, nil
@@ -594,7 +626,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?)`,
 	res := &SaveResult{
 		ProposalID: pid, Created: created, Replaced: replaced, Added: len(newSecs), Clamped: clamped,
 		SkippedLines: skipped, IngestLine: ingestLine, TotalLines: len(in.Lines), Done: done, PendingTitle: pendingTitle,
-		WeakMatches: weak, Assets: assetCount, MissingAssets: missingAssets,
+		WeakMatches: weak, TitleFixes: fixes, Assets: assetCount, MissingAssets: missingAssets,
 	}
 	res.Stats, err = s.Stats(pid)
 	if err != nil {
