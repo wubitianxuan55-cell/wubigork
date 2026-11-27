@@ -142,7 +142,10 @@ var officeFaceBudget = map[string]officeFaceBudgetEntry{
 	// standard 16750→17000（2026-11-27 方案库导入批）：format_convert 增 to=docx
 	// （PDF→Word，录库 PDF 源必经）整段新描述塞不进原余量，实测 16775 后按口径上取整。
 	OfficeRunModeStandard: {Tools: 58, Chars: 17000},
-	OfficeRunModeCost:     {Tools: 66, Chars: 28250},
+	// cost 28250→28500（2026-11-27 造价复盘刀A/B/C）：cost_project 增 offset 翻页、
+	// cost_library 增 import_status 与 dims summary、import 同码部分修正契约，
+	// 实测 28360 后按口径上取整。
+	OfficeRunModeCost:     {Tools: 66, Chars: 28500},
 	// proposal 21000→21250（2026-11-27 沿江包1 复盘批）：md_validate 增硬伤/提示
 	// 分级与 baseline 基线差集，compact 描述净增 15 字符，实测 21265 后按口径上取整。
 	OfficeRunModeProposal: {Tools: 70, Chars: 21500},
