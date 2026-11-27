@@ -153,6 +153,14 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 		}
 	} else if errors.Is(rerr, xlsxedit.ErrRecalcUnavailable) {
 		recalcNote = "；公式重算跳过（本机缺 LibreOffice 或 Python 环境）"
+	} else {
+		recalcNote = fmt.Sprintf("；公式重算失败（%v）——缓存值没刷新", rerr)
+	}
+	// 缓存值完整性守卫（2026-11-27 AI 反馈 #7）：excelize 写盘会丢公式缓存值，
+	// 重算没做成时公式格就是空的——此前只有「环境缺失」一种失败会出备注，其余
+	// 失败静默，回执照常报成功，用户打开是满表空值。
+	if h, herr := xlsxedit.Inspect(path); herr == nil && h.NoCachedValue > 0 {
+		recalcNote += fmt.Sprintf("；⚠ %d 个公式格没有缓存值——交付前必须 xlsx_recalc（否则 Excel/WPS 打开是空值）", h.NoCachedValue)
 	}
 	// D3 失败即值（dsh-ops 蒸馏 2026-11-10）：预览失败不得让已落盘的编辑报错
 	// ——ApplyOps 已成功、证据卡已记，此处报错=「副作用已发生却报失败」的

@@ -36,6 +36,7 @@ func (t xlsxRecalcTool) Description() string {
 	return "用 LibreOffice 重算 .xlsx 里全部公式并写回缓存值（公式本身不改，刷新的是结果缓存）。" +
 		"openpyxl/excelize 生成的公式没有缓存值（Excel/WPS 打开时才显示结果），交付前必须重算。" +
 		"回执直接附审计结果（公式错误值/自引用/未重算），写明是否达到交付门，不必紧接着再调 xlsx_audit；" +
+		"并带重算前后的结构对账（定义名及其表级归属、数据验证、条件格式、合并格是否被 LibreOffice 转存改掉）；" +
 		"重算后又改了文件、或只复核不改文件时才用 xlsx_audit。依赖本机 LibreOffice——未安装时报错如实说明。"
 }
 
@@ -74,6 +75,9 @@ func (t xlsxRecalcTool) Execute(_ context.Context, args json.RawMessage) (string
 	if !xlsxedit.AuditFileExists(path) {
 		return "", fmt.Errorf("文件不存在：%s", in.Path)
 	}
+	// 重算前后的结构对账（2026-11-27 AI 反馈 #7）：LibreOffice 转存会重写整包 XML，
+	// 可能剥掉定义名的工作表级归属、丢数据有效性——前后各体检一次，变了就点名。
+	before, berr := xlsxedit.Inspect(path)
 	rep, err := xlsxedit.Recalc(path)
 	if err != nil {
 		switch {
@@ -93,7 +97,23 @@ func (t xlsxRecalcTool) Execute(_ context.Context, args json.RawMessage) (string
 	// 重算已成功落盘：随后的审计只是给回执附证据，跑不成也不把这次调用
 	// 判成失败（文件确实重算过了），只在回执里如实说明并指向 xlsx_audit。
 	audit, auditErr := xlsxedit.Audit(path)
-	return formatRecalcReceipt(rep, audit, auditErr), nil
+	after, aerr := xlsxedit.Inspect(path)
+	return formatRecalcReceipt(rep, audit, auditErr) + recalcStructureNote(before, berr, after, aerr), nil
+}
+
+// recalcStructureNote 重算前后的结构对账（纯函数，便于单测）：定义名及其工作表级
+// 归属、数据验证、条件格式、合并格任一项变了就点名；都没变给一句确认；任一侧
+// 体检没跑成就不下结论。
+func recalcStructureNote(before xlsxedit.Health, berr error, after xlsxedit.Health, aerr error) string {
+	if berr != nil || aerr != nil {
+		return ""
+	}
+	diffs := xlsxedit.StructureDiff(before, after)
+	if len(diffs) == 0 {
+		return fmt.Sprintf("\n结构对账：定义名（表级 %d）、数据验证、条件格式、合并格重算前后一致。", after.SheetScopedNames)
+	}
+	return "\n⚠ 结构对账：重算（LibreOffice 转存）改写了结构——" + strings.Join(diffs, "；") +
+		"。打印标题 / 打印区域 / 下拉校验可能失效：交付前在 Excel 或 WPS 里看一眼打印预览；介意的话改用不经 LibreOffice 的重算路径，或重算后把丢掉的定义名补回去。"
 }
 
 // formatRecalcReceipt 渲染重算回执：重算报告 + 交付门结论 + 审计段（纯函数，

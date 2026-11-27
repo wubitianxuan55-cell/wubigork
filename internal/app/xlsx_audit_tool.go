@@ -31,6 +31,7 @@ func (t xlsxAuditTool) ReadOnly() bool { return true }
 func (t xlsxAuditTool) Description() string {
 	return "对既有 .xlsx 做交付前质量审计（只读，不改文件）：扫描公式错误值（#REF!/#DIV/0!/#VALUE!/#N/A/#NAME? 等）、" +
 		"自引用循环（A→B→A 深循环由 xlsx_recalc 的 LibreOffice 重算链报）、有公式但未重算的单元格，外加打印版面的确定性检查。" +
+		"回执第一行是健康体检：打开性（zip 与 XML 是否完好，坏了直接报打不开）、公式格里有多少没有缓存值、定义名（含表级归属）/ 数据验证 / 合并格等结构面。" +
 		"交付纪律：公式错误必须为零——xlsx_recalc 的回执已附同款审计，重算后零错误即达交付门，不必紧接着重复调用；" +
 		"重算后又改过文件、或要复核不是自己重算的文件时用本工具。" +
 		"生成公式表时公式优先，不要用脚本算完把数值硬编码进单元格。"
@@ -79,6 +80,16 @@ func (t xlsxAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 	if !xlsxedit.AuditFileExists(path) {
 		return "", fmt.Errorf("文件不存在：%s", in.Path)
 	}
+	// 健康体检（2026-11-27 AI 反馈 #15③）：「打不开」类问题此前排障全靠手撕 zip/XML。
+	// 先做打开性探测（zip 结构 + 工作簿/工作表 XML），坏了直接报，不去扫单元格。
+	health, herr := xlsxedit.Inspect(path)
+	if herr != nil {
+		return "", fmt.Errorf("打不开：%v——Excel/WPS 多半也打不开；先核实文件是否写完整（是否被别的程序占着、脚本是否中途退出），不要去扫单元格", herr)
+	}
+	healthLine := "健康体检：可打开｜" + health.CacheLine() + "｜" + health.StructureLine()
+	if health.NoCachedValue > 0 {
+		healthLine += "——没重算，交付前 xlsx_recalc"
+	}
 	rep, err := xlsxedit.Audit(path)
 	if err != nil {
 		return "", err
@@ -88,7 +99,7 @@ func (t xlsxAuditTool) Execute(_ context.Context, args json.RawMessage) (string,
 	if lerr != nil {
 		layout = nil // 版面检查失败不拦审计（诚实缺省，无版面段）
 	}
-	return tool.WrapText(head + formatAuditReport(rep, in.Limit) + strings.Join(layout, "")), nil
+	return tool.WrapText(head + healthLine + "\n" + formatAuditReport(rep, in.Limit) + strings.Join(layout, "")), nil
 }
 
 // xlsxFileFingerprint 文件指纹（2026-11-21 造价门实测 5.1：同轮改文件后复检，

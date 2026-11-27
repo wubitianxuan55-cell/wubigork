@@ -54,6 +54,9 @@ type PublishGuard struct {
 	source         string          // D6 账本来源标注（foreground/background）
 	commandPreview string
 	lastLedger     *quarantineLedger
+	// lastTouched 最近一次 Scan 见到的全部 durable 新增/修改（含豁免的过程件）——
+	// 调用方拿它做事后体检（脚本写出的 xlsx 有没有缓存值），与隔离判定无关。
+	lastTouched []PublishViolation
 }
 
 // WithSource 标注账本来源与命令预览（D6：归属证据——谁在何时因何命令隔离）。
@@ -131,22 +134,33 @@ func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 			return nil, err
 		}
 	}
-	var out []PublishViolation
+	var out, touched []PublishViolation
 	for path, st := range cur {
 		before, existed := g.base[path]
 		if !existed {
 			if v := g.violationFor(path, st, "created"); !v.exempt() {
 				out = append(out, v)
 			}
+			touched = append(touched, g.violationFor(path, st, "created"))
 			continue
 		}
 		if before.size != st.size || !before.mtime.Equal(st.mtime) {
 			if v := g.violationFor(path, st, "modified"); !v.exempt() {
 				out = append(out, v)
 			}
+			touched = append(touched, g.violationFor(path, st, "modified"))
 		}
 	}
+	sort.Slice(touched, func(i, j int) bool { return touched[i].Path < touched[j].Path })
+	g.lastTouched = touched
 	return out, nil
+}
+
+// Touched 最近一次 Scan 见到的全部 durable 新增/修改（含 .gaea/work/ 等豁免面）。
+// 体检用：豁免的过程件不隔离，但脚本写出的 xlsx 没缓存值这类「合法但退化」要在
+// 回执里提一句（2026-11-27 AI 反馈 #7）。
+func (g *PublishGuard) Touched() []PublishViolation {
+	return append([]PublishViolation(nil), g.lastTouched...)
 }
 
 // publishExemptNameTokens 探针/草稿文件名特征（小写匹配）。
