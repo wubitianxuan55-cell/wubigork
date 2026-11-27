@@ -186,16 +186,16 @@ const clImportRowsSchema = `  "resources":{"type":"array","description":"import_
     "src":` + clSrcSchema + `,
     "derived":{"type":"array","items":{"type":"string"},"description":"由你换算、不是照抄的字段名（如 quantity）——回读时不核这些字段"}
   }}},
-  "quotas":{"type":"array","description":"import_add：整理好的消耗定额（每批 ≤200）","items":{"type":"object","properties":{
+  "quotas":{"type":"array","description":"import_add：整理好的消耗定额（每批 ≤200）。同码更新=没给的头字段保持原值（2026-11-27 复盘 P1：整行覆盖曾把 277 条有章节的定额清了空）","items":{"type":"object","properties":{
     "code":{"type":"string","description":"定额编码（必填；与库里的同码同专业=更新）"},
-    "title":{"type":"string","description":"名称（必填）"},
-    "unit":{"type":"string","description":"计量单位"},
-    "specialty":{"type":"string","description":"专业（字典值；不给=项目专业）"},
-    "chapter":{"type":"string","description":"分部（专业内；字段名沿用 chapter）"},
-    "category_path":{"type":"string","description":"分类路径"},
-    "source":{"type":"string","description":"来源"},
-    "note":{"type":"string","description":"备注"},
-    "items":{"type":"array","description":"含量行（引用的工料机必须已在库或已在暂存区）","items":{"type":"object","properties":{
+    "title":{"type":"string","description":"名称（新建必填；更新不给=保持原值）"},
+    "unit":{"type":"string","description":"计量单位（更新不给=保持原值）"},
+    "specialty":{"type":"string","description":"专业（字典值；新建不给=项目专业；更新不给=保持原值——显式给且与既有行不同才退回）"},
+    "chapter":{"type":"string","description":"分部（专业内；字段名沿用 chapter；更新不给=保持原值）"},
+    "category_path":{"type":"string","description":"分类路径（更新不给=保持原值）"},
+    "source":{"type":"string","description":"来源（更新不给=保持原值）"},
+    "note":{"type":"string","description":"备注（更新不给=保持原值）"},
+    "items":{"type":"array","description":"含量行（引用的工料机必须已在库或已在暂存区；更新不给=保留原含量行，不会清空）","items":{"type":"object","properties":{
       "resource_code":{"type":"string","description":"工料机编码（必填）"},
       "quantity":{"type":"number","description":"含量"},
       "loss_rate":{"type":"number","description":"损耗率（0.03=3%）"},

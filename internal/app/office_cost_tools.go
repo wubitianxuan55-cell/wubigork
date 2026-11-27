@@ -62,7 +62,8 @@ func (t costProjectTool) Schema() json.RawMessage {
   "kind":{"type":"string","description":"资源类型过滤（人工/材料/机械等，可选）"},
   "region":{"type":"string","description":"工料机地区过滤（resources 可选，字典值；工料机按地区分行）"},
   "keyword":{"type":"string","description":"检索词（可选）：编码精确命中优先；名称或规格含它即可召回；索引就绪时同义说法也能召回"},
-  "limit":{"type":"integer","description":"返回条数上限（默认 50，上限 200；回执给总数与是否还有更多）"}
+  "limit":{"type":"integer","description":"返回条数上限（默认 50，上限 200；回执给总数与是否还有更多）"},
+  "offset":{"type":"integer","description":"翻页起点（quotas/resources 不带 keyword 的列表模式生效）：跳过前 N 条再取；回执「还有更多」时按提示的 offset 续读，翻到 hasMore 消失即拿全量"}
 }
 }`)
 }
@@ -77,6 +78,7 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		Region    string `json:"region"`
 		Keyword   string `json:"keyword"`
 		Limit     int    `json:"limit"`
+		Offset    int    `json:"offset"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("cost_project 参数解析失败: %w", err)
@@ -88,6 +90,9 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 	}
 	if p.Limit > 200 {
 		p.Limit = 200
+	}
+	if p.Offset < 0 {
+		p.Offset = 0
 	}
 	s := t.a.hubWorkcostStore()
 	if !s.Available() {
@@ -156,8 +161,9 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		}
 		return t.runSummary(p.ProjectID)
 	case "quotas":
-		// 多取一条判断「还有更多」；列表模式（无检索词）另给总数。
-		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Limit: p.Limit + 1})
+		// 多取一条判断「还有更多」；列表模式（无检索词）另给总数，offset 翻页续读
+		// （2026-11-27 复盘 P2/P15：列表可分页自证穷尽，不必前缀扫描）。
+		hits, err := t.a.costSearcher().Quotas(ctx, workcost.SearchQuery{Text: p.Keyword, Specialty: p.Specialty, Limit: p.Limit + 1, Offset: p.Offset})
 		if err != nil {
 			return "", err
 		}
@@ -170,11 +176,15 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 			quotas[i] = h.Item
 		}
 		if len(quotas) == 0 {
-			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword), nil
+			return fmt.Sprintf("定额库无匹配（specialty=%q keyword=%q offset=%d）。可让用户提供定额编码或改用手填价。", p.Specialty, p.Keyword, p.Offset), nil
+		}
+		nextOffset := -1
+		if hasMore && p.Keyword == "" {
+			nextOffset = p.Offset + len(quotas)
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "定额 %d 条%s%s:\n", len(quotas),
-			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountQuotas(p.Specialty) }), len(quotas), hasMore), clViaNote(hits))
+			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountQuotas(p.Specialty) }), len(quotas), hasMore, nextOffset), clViaNote(hits))
 		for i, q := range quotas {
 			// 列表是轻量查询、不带含量行：此前照样打印「含量行 N」，N 恒为 0，
 			// 模型误以为导入失败而重复补录（2026-11-26 造价反馈，旺平 #6）。
@@ -194,13 +204,16 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 			return "", err
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "定额 [%s] %s（%s，专业=%s）：\n", q.Code, q.Title, q.Unit, q.Specialty)
+		// 详情回显头字段全貌（2026-11-27 复盘 P1：详情不回显分部/分类/地区，「未给
+		// 字段不动」的更新语义没法照抄原值，import_add 一不带就整行覆盖清空）。
+		fmt.Fprintf(&b, "定额 [%s] %s（%s，专业=%s，分部=%s，分类=%s，地区=%s，期=%s）：\n", q.Code, q.Title, q.Unit,
+			clDim(q.Specialty, "未标注"), clDim(q.Chapter, "未标注"), clDim(q.CategoryPath, "未归类"), clDim(q.Region, "未标注"), clDim(q.PriceDate, "无"))
 		for _, it := range q.Items {
 			fmt.Fprintf(&b, "- %s %s（%s）含量=%g 损耗=%g%%\n", it.ResourceCode, it.Title, it.Unit, it.Quantity, it.LossRate*100)
 		}
 		return b.String(), nil
 	case "resources":
-		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Region: p.Region, Limit: p.Limit + 1})
+		hits, err := t.a.costSearcher().Resources(ctx, workcost.SearchQuery{Text: p.Keyword, Kind: p.Kind, Region: p.Region, Limit: p.Limit + 1, Offset: p.Offset})
 		if err != nil {
 			return "", err
 		}
@@ -213,16 +226,20 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 			resources[i] = h.Item
 		}
 		if len(resources) == 0 {
-			return fmt.Sprintf("工料机库无匹配（kind=%q region=%q keyword=%q）。", p.Kind, p.Region, p.Keyword), nil
+			return fmt.Sprintf("工料机库无匹配（kind=%q region=%q keyword=%q offset=%d）。", p.Kind, p.Region, p.Keyword, p.Offset), nil
+		}
+		nextOffset := -1
+		if hasMore && p.Keyword == "" {
+			nextOffset = p.Offset + len(resources)
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "资源 %d 条%s%s：\n", len(resources),
-			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountResources(p.Kind, p.Region) }), len(resources), hasMore), clViaNote(hits))
+			clListScale(t.listTotal(p.Keyword == "", func() (int, error) { return s.CountResources(p.Kind, p.Region) }), len(resources), hasMore, nextOffset), clViaNote(hits))
 		for i, r := range resources {
 			// id=数字主键（铜陵反馈 #18：dedupe 的 keep_id/merge_ids 只吃数字 id，
-			// 只读口不给 id 时消歧链路当场卡死）。
-			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s，id=%d）%s\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
-				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"), r.ID, clViaMark(hits[i].Via))
+			// 只读口不给 id 时消歧链路当场卡死）。分类随详情口径回显（2026-11-27 复盘 P1）。
+			fmt.Fprintf(&b, "- [%s] %s %s（%s，现行价=%.2f，地区=%s，期=%s，分类=%s，id=%d）%s\n", r.Code, r.Kind, r.Title, r.Unit, r.CurrentPrice,
+				clDim(r.Region, "未标注"), clDim(r.PriceDate, "无"), clDim(r.CategoryPath, "未归类"), r.ID, clViaMark(hits[i].Via))
 		}
 		if p.Region == "" && p.Keyword == "" {
 			b.WriteString("同一种工料机按地区分行（每地区一行）：只看某地区带 region；查同身份各地区的行用 keyword=名称、不带 region。\n")
@@ -245,7 +262,7 @@ func (t costProjectTool) Execute(ctx context.Context, args json.RawMessage) (str
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "清单行 %d 条（跨项目检索%s）%s：\n", len(hits),
-			clListScale(-1, len(hits), hasMore), clViaNote(hits))
+			clListScale(-1, len(hits), hasMore, -1), clViaNote(hits))
 		for _, h := range hits {
 			it := h.Item
 			line := fmt.Sprintf("- 项目 #%d [%s] %s（%s）", it.ProjectID, it.Code, it.Title, it.Unit)
@@ -278,9 +295,13 @@ func (costProjectTool) listTotal(listMode bool, count func() (int, error)) int {
 
 // clListScale 列表回执头部的规模说明（2026-11-26 造价反馈，百锦路 #4：只给
 // 「N 条（限 M）」不给总数，模型不知道是搜全了还是被截断，只能一轮轮换词猜）。
-// total<0=总数未知；hasMore=本次没列全。
-func clListScale(total, shown int, hasMore bool) string {
-	const more = "提高 limit（上限 200）或加过滤条件缩小范围"
+// total<0=总数未知；hasMore=本次没列全；nextOffset>=0 时给翻页续读参数（2026-11-27
+// 复盘 P2：无翻页只能前缀穷举，子代理 40+ 轮扫描仍漏 1 条）。
+func clListScale(total, shown int, hasMore bool, nextOffset int) string {
+	more := "提高 limit（上限 200）或加过滤条件缩小范围"
+	if nextOffset >= 0 {
+		more = fmt.Sprintf("offset=%d 续读下页，或加过滤条件缩小范围", nextOffset)
+	}
 	switch {
 	case hasMore && total >= 0:
 		return fmt.Sprintf("（共 %d 条，本次列 %d 条；还有更多——%s）", total, shown, more)

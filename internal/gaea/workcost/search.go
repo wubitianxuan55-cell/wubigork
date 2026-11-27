@@ -87,6 +87,10 @@ type SearchQuery struct {
 	ProjectID int64
 	// Limit 返回条数上限（<=0 取 DefaultSearchLimit）。
 	Limit int
+	// Offset 列表模式（Text 为空）的翻页起点：跳过前 Offset 条再取 Limit 条。
+	// 关键词模式忽略（那是融合排序，没有稳定全序）；窗口排序带编码兜底，翻页
+	// 稳定可复现（2026-11-27 复盘 P2：无翻页只能前缀穷举，40+ 轮仍漏 1 条）。
+	Offset int
 }
 
 // Hit 一条检索结果：条目 + 融合分 + 命中方式。
@@ -146,7 +150,7 @@ var quotaSpec = kindSpec[Quota]{
 	},
 	load: func(s *Store, ids []string, q SearchQuery, limit int) ([]Quota, error) {
 		if ids == nil {
-			return s.ListQuotas(q.Specialty, "")
+			return s.listQuotasPaged(filterValue(q.Specialty), q.Offset, limit)
 		}
 		return s.quotasByKeys(ids, filterValue(q.Specialty))
 	},
@@ -171,7 +175,7 @@ var resourceSpec = kindSpec[Resource]{
 			sqlText += ` AND kind=?`
 			args = append(args, k)
 		}
-		if rg := filterValue(q.Region); rg != "" {
+		if rg := regionFilter(q.Region); rg != "" {
 			sqlText += ` AND region=?`
 			args = append(args, rg)
 		}
@@ -183,7 +187,8 @@ var resourceSpec = kindSpec[Resource]{
 		var rows []Resource
 		var err error
 		if ids == nil {
-			rows, err = s.ListResources(q.Kind, "")
+			// 列表模式：地区条件必须进 SQL——offset 窗口先切后滤会把页切歪。
+			rows, err = s.listResourcesPaged(filterValue(q.Kind), filterValue(q.Region), q.Offset, limit)
 		} else {
 			rows, err = s.resourcesByKeys(ids, filterValue(q.Kind))
 		}
@@ -434,15 +439,30 @@ func filterValue(v string) string {
 	return v
 }
 
-// filterByRegion 按地区留下工料机行（region 已经过 filterValue；空=原样返回）。
-// 向量路按主键回表、列表路整表读取，两路都没把地区条件写进 SQL，在这里统一收口。
+// regionFilter 地区过滤值规整：空或「全部」= 不过滤；其余归一到省级全称（「四川」
+// 「四川省」都归一成「四川省」，见 NormalizeRegion）——地区限省后库里一律省级
+// 全称，模型偶尔给简称时兜一下；归一不动就原样返回。
+func regionFilter(v string) string {
+	rg := filterValue(v)
+	if rg == "" {
+		return ""
+	}
+	if p, ok := NormalizeRegion(rg); ok {
+		return p
+	}
+	return rg
+}
+
+// filterByRegion 按地区留下工料机行（region 已经 regionFilter 归一；空=原样返回）。
+// 关键词/向量路按主键回表不写地区 SQL，在这里统一收口。
 func filterByRegion(rows []Resource, region string) []Resource {
-	if region == "" {
+	rg := regionFilter(region)
+	if rg == "" {
 		return rows
 	}
 	out := rows[:0]
 	for _, r := range rows {
-		if strings.TrimSpace(r.Region) == region {
+		if strings.TrimSpace(r.Region) == rg {
 			out = append(out, r)
 		}
 	}

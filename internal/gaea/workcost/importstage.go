@@ -424,12 +424,39 @@ func (imp *ImportSession) quotaOf(s *Store, in ImportQuota) (*Quota, []string) {
 		Code:         strings.TrimSpace(in.Code),
 		Title:        strings.TrimSpace(in.Title),
 		Unit:         strings.TrimSpace(in.Unit),
-		Specialty:    firstNonEmpty(strings.TrimSpace(in.Specialty), imp.Specialty),
+		Specialty:    strings.TrimSpace(in.Specialty),
 		Chapter:      strings.TrimSpace(in.Chapter),
 		CategoryPath: strings.TrimSpace(in.CategoryPath),
-		Source:       firstNonEmpty(strings.TrimSpace(in.Source), imp.defaultSource()),
-		Region:       firstNonEmpty(strings.TrimSpace(in.Region), imp.Region),
+		Source:       strings.TrimSpace(in.Source),
+		Region:       strings.TrimSpace(in.Region),
 		Note:         strings.TrimSpace(in.Note),
+	}
+	// 同码更新=没给的字段保持原值（2026-11-27 复盘 P1：此前整行覆盖，不带 chapter
+	// 的更新把 277 条有章节归档的定额清了空，且读取通道不回显没法照抄恢复）。
+	// 未给含量行=保持原含量行（saveQuota 是先删后插，nil 会静默清空全部消耗）。
+	// 专业/地区的兜底序：行上显式给的 > 既有行的（行对自己权威；地区首标纪律同
+	// projectapply）> 项目默认——显式给且与既有行不同仍由 AddQuotas 的专业闸拦。
+	if q.Code != "" {
+		if existing, err := s.GetQuota(q.Code); err == nil {
+			q.Title = firstNonEmpty(q.Title, existing.Title)
+			q.Unit = firstNonEmpty(q.Unit, existing.Unit)
+			q.Specialty = firstNonEmpty(q.Specialty, existing.Specialty, imp.Specialty)
+			q.Chapter = firstNonEmpty(q.Chapter, existing.Chapter)
+			q.CategoryPath = firstNonEmpty(q.CategoryPath, existing.CategoryPath)
+			q.Source = firstNonEmpty(q.Source, existing.Source, imp.defaultSource())
+			q.Region = firstNonEmpty(q.Region, existing.Region, imp.Region)
+			q.Note = firstNonEmpty(q.Note, existing.Note)
+			q.PriceDate = existing.PriceDate
+			q.BaseLabor, q.BaseMaterial, q.BaseMachine = existing.BaseLabor, existing.BaseMaterial, existing.BaseMachine
+			q.OrigCode, q.DerivedFrom, q.Status = existing.OrigCode, existing.DerivedFrom, existing.Status
+			if in.Items == nil {
+				q.Items = existing.Items
+			}
+		} else {
+			q.Specialty = firstNonEmpty(q.Specialty, imp.Specialty)
+			q.Region = firstNonEmpty(q.Region, imp.Region)
+			q.Source = firstNonEmpty(q.Source, imp.defaultSource())
+		}
 	}
 	var reasons []string
 	if err := s.ValidateQuota(&q); err != nil {

@@ -527,12 +527,90 @@ func (s *Store) ListResources(kind, keyword string) ([]Resource, error) {
 // 为空或「全部」= 不过滤。2026-11-26 造价反馈（百锦路 #4）：列表只给「N 条
 // （限 50）」不给总数，模型不知道是搜全了还是被截断，只能一轮轮换词猜。
 func (s *Store) CountResources(kind, region string) (int, error) {
-	return s.countRows("gf_resources", map[string]string{"kind": kind, "region": region})
+	// region 与检索过滤同口径：先归一到省级全称再等值计数（「四川」→「四川省」）。
+	return s.countRows("gf_resources", map[string]string{"kind": kind, "region": regionFilter(region)})
 }
 
 // CountQuotas 某专业的定额行数（专业空=全库）。
 func (s *Store) CountQuotas(specialty string) (int, error) {
 	return s.countRows("gf_quotas", map[string]string{"specialty": specialty})
+}
+
+// listQuotasPaged 列表模式翻页读定额（ORDER BY 带编码兜底，窗口稳定可复现）。
+// 检索层列表路专用——UI 浏览面继续走 ListQuotas 整表。
+func (s *Store) listQuotasPaged(specialty string, offset, limit int) ([]Quota, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		return nil, nil
+	}
+	q := `
+SELECT id, code, COALESCE(gcode,''), COALESCE(orig_code,''), title, specialty, chapter, unit, category_path,
+  base_labor, base_material, base_machine, source, region, price_date, note, status, created_at, updated_at,
+  COALESCE(derived_from,''),
+  (SELECT COUNT(*) FROM gf_bill_items b WHERE b.quota_code=gf_quotas.code)
+FROM gf_quotas WHERE 1=1`
+	var args []any
+	if sp := strings.TrimSpace(specialty); sp != "" && sp != "全部" {
+		q += ` AND specialty=?`
+		args = append(args, sp)
+	}
+	q += ` ORDER BY specialty, chapter, code LIMIT ? OFFSET ?`
+	args = append(args, limit, max(offset, 0))
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Quota
+	for rows.Next() {
+		var it Quota
+		if e := rows.Scan(&it.ID, &it.Code, &it.GCode, &it.OrigCode, &it.Title, &it.Specialty, &it.Chapter, &it.Unit,
+			&it.CategoryPath, &it.BaseLabor, &it.BaseMaterial, &it.BaseMachine, &it.Source,
+			&it.Region, &it.PriceDate, &it.Note, &it.Status, &it.CreatedAt, &it.UpdatedAt, &it.DerivedFrom, &it.UsageCount); e != nil {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// listResourcesPaged 列表模式翻页读工料机；kind / region 精确过滤（region 已经
+// regionFilter 归一到省级全称，地区限省后库里一律省级全称）。排序带编码兜底。
+func (s *Store) listResourcesPaged(kind, region string, offset, limit int) ([]Resource, error) {
+	if err := s.requireDB(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		return nil, nil
+	}
+	q := resourceCols + ` WHERE 1=1`
+	var args []any
+	if k := strings.TrimSpace(kind); k != "" && k != "全部" {
+		q += ` AND kind=?`
+		args = append(args, k)
+	}
+	if rg := regionFilter(region); rg != "" {
+		q += ` AND region=?`
+		args = append(args, rg)
+	}
+	q += ` ORDER BY kind, title, spec, code LIMIT ? OFFSET ?`
+	args = append(args, limit, max(offset, 0))
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Resource
+	for rows.Next() {
+		r, e := scanResource(rows)
+		if e != nil {
+			continue
+		}
+		out = append(out, *r)
+	}
+	return out, rows.Err()
 }
 
 // countRows 按若干等值过滤条件数行；空值与「全部」不过滤。table / 列名都来自
