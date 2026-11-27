@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -43,13 +44,17 @@ const (
 	maxRecoveryTodos     = 20
 	maxRecoveryArtifacts = 16
 	maxRecoveryHashBytes = 16 << 20
+	// maxRecoveryTask 被打断那一轮的用户原话截到多长（rune）。
+	maxRecoveryTask = 400
 )
 
 // turnRecovery 一次中断的交接记录。
 type turnRecovery struct {
+	Task             string // 被打断那一轮的用户原话（截断）：续跑时不必翻历史找任务
 	CompletedTools   []recoveryTool
 	InterruptedTools []string
 	Todos            []recoveryTodo
+	Resumed          bool // 进程重启后从会话日志重建的（文件指纹是恢复时的现状）
 }
 
 type recoveryTool struct {
@@ -135,21 +140,85 @@ func (a *AgentRunner) drainSteerOnExit() {
 // pending（无工具对=无记录——纯文本轮中断没有「重做写入」风险）。
 func (a *AgentRunner) captureInterruptedRecovery() {
 	msgs := a.session.Messages
-	start := len(msgs)
-	for i := len(msgs) - 1; i >= 0; i-- {
-		m := msgs[i]
-		// 真实用户轮=回合起点；合成用户消息（steer/流恢复/readiness）与
-		// 压缩摘要都属回合内部，继续回扫。
-		if m.Role == provider.RoleUser && !isSyntheticUserTurn(m.Content) && !isCompactionSummary(m) {
-			start = i + 1
-			break
-		}
-	}
-	if start >= len(msgs) {
+	start := lastRealUserTurnStart(msgs)
+	if start <= 0 || start >= len(msgs) {
 		return
 	}
-	region := msgs[start:]
+	rec := foldTurnRecovery(msgs[start:], a.todoState)
+	if rec == nil {
+		return
+	}
+	rec.Task = recoveryTask(msgs[start-1])
+	a.pendingRecovery = rec
+}
 
+// lastRealUserTurnStart 最后一个真实用户轮的起点下标（用户消息的下一条）；找不到
+// 返回 0。合成用户消息（steer/流恢复/readiness）与压缩摘要都属回合内部。
+func lastRealUserTurnStart(msgs []provider.Message) int {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		if m.Role == provider.RoleUser && !isSyntheticUserTurn(m.Content) && !isCompactionSummary(m) {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// recoveryTask 用户原话压成一行并截断。
+func recoveryTask(m provider.Message) string {
+	return clipRunes(strings.Join(strings.Fields(m.Content), " "), maxRecoveryTask)
+}
+
+// rebuildInterruptedRecovery 会话换入时调用（进程重启后恢复、或检出历史）：交接记录
+// 原本只存在 AgentRunner 内存里，重启即丢——上一轮没收尾就从持久化消息里重建一份，
+// 下一条真实用户消息前照样前置交接块（2026-11-27 AI 反馈 #15②：断点恢复时翻文件
+// 现场重推状态，恢复成本高）。待办清单不在这里取：它自己会从日志重建，消费时再读。
+func (a *AgentRunner) rebuildInterruptedRecovery() {
+	a.pendingRecovery = nil
+	if a.session == nil {
+		return
+	}
+	msgs := a.session.Messages
+	start := lastRealUserTurnStart(msgs)
+	if start <= 0 || start >= len(msgs) || !turnUnfinished(msgs[start:]) {
+		return
+	}
+	rec := foldTurnRecovery(msgs[start:], nil)
+	if rec == nil {
+		return
+	}
+	rec.Task, rec.Resumed = recoveryTask(msgs[start-1]), true
+	a.pendingRecovery = rec
+}
+
+// turnUnfinished 报告一轮是否没收尾：末尾在等模型接话（最后一条是工具结果，或带
+// 工具调用的助手消息）、有调用没等到结果、结果里带中断标记、或末尾是流中断的续写
+// 提示。轮尾的合成用户消息（未消费的插话收据等）不算结尾。
+func turnUnfinished(region []provider.Message) bool {
+	end := len(region)
+	for end > 0 && region[end-1].Role == provider.RoleUser && isSyntheticUserTurn(region[end-1].Content) {
+		if strings.HasPrefix(region[end-1].Content, "The previous assistant response was interrupted during streaming.") {
+			return true
+		}
+		end--
+	}
+	if end == 0 {
+		return false
+	}
+	if last := region[end-1]; last.Role == provider.RoleTool || (last.Role == provider.RoleAssistant && len(last.ToolCalls) > 0) {
+		return true
+	}
+	for _, m := range region[:end] {
+		if m.Role == provider.RoleTool && strings.Contains(m.Content, "stream interrupted") {
+			return true
+		}
+	}
+	return false
+}
+
+// foldTurnRecovery 把一轮的消息与待办折叠成交接记录（终局捕获与重启后重建共用）。
+// 没有任何工具对返回 nil。
+func foldTurnRecovery(region []provider.Message, todos []evidence.TodoItem) *turnRecovery {
 	results := map[string]provider.Message{}
 	for _, m := range region {
 		if m.Role == provider.RoleTool && m.ToolCallID != "" {
@@ -157,7 +226,7 @@ func (a *AgentRunner) captureInterruptedRecovery() {
 		}
 	}
 	rec := &turnRecovery{}
-	for _, t := range a.todoState {
+	for _, t := range todos {
 		if len(rec.Todos) >= maxRecoveryTodos {
 			break
 		}
@@ -196,9 +265,9 @@ func (a *AgentRunner) captureInterruptedRecovery() {
 		}
 	}
 	if len(rec.CompletedTools) == 0 && len(rec.InterruptedTools) == 0 {
-		return
+		return nil
 	}
-	a.pendingRecovery = rec
+	return rec
 }
 
 // extractRecoveryPath extends the edit-tool path extractor to generation tools
@@ -228,9 +297,15 @@ func pendingRecoveryBlock(r *turnRecovery) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<%s>\n", interruptedRecoveryTag)
 	b.WriteString("The previous turn was interrupted. Treat these as host-verified recovery facts, not as a new task.\n")
+	if r.Task != "" {
+		fmt.Fprintf(&b, "task: %s\n", html.EscapeString(r.Task))
+	}
+	if r.Resumed {
+		b.WriteString("recovered_from: session_log (rebuilt after a process restart; file fingerprints reflect the workspace at resume time)\n")
+	}
 	b.WriteString("task_checkpoint:\n")
 	if len(r.Todos) == 0 {
-		b.WriteString("  not_recorded\n")
+		b.WriteString("  not_recorded (the interrupted turn never used todo_write; treat completed_tools below as the progress record)\n")
 	} else {
 		groups := map[string][]string{"completed": nil, "in_progress": nil, "pending": nil}
 		for _, todo := range r.Todos {
@@ -302,14 +377,42 @@ func pendingRecoveryBlock(r *turnRecovery) string {
 }
 
 // withInterruptedRecovery 消费 pending 记录：有则前置块到本轮输入并清零
-// （一次性——下一回合隐式消费，不原地改历史，上游同口径）。
+// （一次性——下一回合隐式消费，不原地改历史，上游同口径）。记录里没有待办时
+// 取一次现行清单——重启后重建的记录拿不到内存里的待办，清单自己会从日志重建。
 func (a *AgentRunner) withInterruptedRecovery(input string) string {
 	if a.pendingRecovery == nil {
 		return input
 	}
+	if len(a.pendingRecovery.Todos) == 0 && a.pendingRecovery.Resumed {
+		// 重启后重建的记录拿不到内存里的待办；而 Run 里「前置交接块」排在「从日志
+		// 重建待办」之前——这里先把清单从日志重建出来，用过待办工具的轮才不会被
+		// 写成未记录。终局捕获的记录在捕获时已带上当时的清单，不走这里。
+		a.rebuildTodoState(a.session.Messages)
+		a.pendingRecovery.Todos = foldRecoveryTodos(a.CanonicalTodoState())
+	}
 	block := pendingRecoveryBlock(a.pendingRecovery)
 	a.pendingRecovery = nil
 	return block + "\n\n" + input
+}
+
+// foldRecoveryTodos 待办清单折叠进交接记录（截 20 条）。
+func foldRecoveryTodos(todos []evidence.TodoItem) []recoveryTodo {
+	var out []recoveryTodo
+	for _, t := range todos {
+		if len(out) >= maxRecoveryTodos {
+			break
+		}
+		out = append(out, recoveryTodo{Content: clipRecoveryValue(t.Content), Status: canonicalTodoStatus(t.Status)})
+	}
+	return out
+}
+
+// clipRunes 按 rune 截断（不补省略号）。
+func clipRunes(s string, n int) string {
+	if rs := []rune(s); len(rs) > n {
+		return string(rs[:n])
+	}
+	return s
 }
 
 // clipRecoveryValue 值截断（240 rune + 省略号）。

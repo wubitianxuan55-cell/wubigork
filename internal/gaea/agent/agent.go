@@ -751,6 +751,9 @@ func (a *AgentRunner) SetSession(s *Session) {
 	a.sessCacheHit.Store(0)
 	a.sessCacheMiss.Store(0)
 	// cacheBreakCount removed (Phase 3)
+	// 中断交接记录严格属于被换出的那个会话：先清零，再看换入的会话最后一轮
+	// 有没有收尾——没收尾就从它的持久化消息里重建（进程重启后恢复走这里）。
+	a.rebuildInterruptedRecovery()
 }
 
 // LastUsage returns the most recent per-turn token telemetry the provider
