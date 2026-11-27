@@ -493,3 +493,101 @@ func TestFormatConvertToExcel_WritePaths(t *testing.T) {
 		t.Fatalf("write paths=%+v", paths)
 	}
 }
+
+// ── to=docx：PDF → Word ─────────────────────────────────────────────
+
+// docxCall 打桩记下的一次 to=docx 转换。
+type docxCall struct {
+	src      string
+	opt      docmd.DocxOptions
+	prodUsed bool // save 是否被调用（产物有没有走到落盘这一步）
+}
+
+// stubDocxConverter 把 to=docx 的转换 seam 换成桩：记下参数，往临时目录写一个假产物并
+// 经 save 落盘，再返回 rec；convErr 非空时不产出、直接报错。单测不得真调 WPS。
+func stubDocxConverter(t *testing.T, rec docmd.DocxReceipt, convErr error) *[]docxCall {
+	t.Helper()
+	calls := &[]docxCall{}
+	orig := convertToDocx
+	convertToDocx = func(src string, opt docmd.DocxOptions, save func(string) error) (docmd.DocxReceipt, error) {
+		*calls = append(*calls, docxCall{src: src, opt: opt})
+		if convErr != nil {
+			return docmd.DocxReceipt{}, convErr
+		}
+		prod := filepath.Join(t.TempDir(), "out.docx")
+		if err := os.WriteFile(prod, []byte("fake docx"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := save(prod); err != nil {
+			return docmd.DocxReceipt{}, err
+		}
+		(*calls)[len(*calls)-1].prodUsed = true
+		return rec, nil
+	}
+	t.Cleanup(func() { convertToDocx = orig })
+	return calls
+}
+
+// 参数不对时在拉起 WPS 之前就报错，错误码可路由。
+func TestFormatConvertToDocx_ArgumentValidation(t *testing.T) {
+	calls := stubDocxConverter(t, docmd.DocxReceipt{Pages: 3}, nil)
+	dir := t.TempDir()
+	docx := filepath.Join(dir, "x.docx")
+	if err := os.WriteFile(docx, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name, wantCode, wantMsg string
+		args                    map[string]any
+	}{
+		{"to=docx 必须给 output", "FORMAT_INVALID_ARGS", "需要同时给 output", map[string]any{"path": "a.pdf", "to": "docx"}},
+		{"output 必须是 .docx", "FORMAT_INVALID_ARGS", "必须是 .docx", map[string]any{"path": "a.pdf", "to": "docx", "output": "a.md"}},
+		{"preserve_images 与 to=docx 互斥", "FORMAT_INVALID_ARGS", "preserve_images",
+			map[string]any{"path": "a.pdf", "to": "docx", "output": "a.docx", "preserve_images": true}},
+		{"源文件不存在", "FORMAT_SOURCE_MISSING", "源文件不存在", map[string]any{"path": "missing.pdf", "to": "docx", "output": "a.docx"}},
+		{"不支持的输入", "FORMAT_UNSUPPORTED", "to=docx 只收 .pdf", map[string]any{"path": docx, "to": "docx", "output": "a.docx"}},
+	}
+	for _, c := range cases {
+		args, err := json.Marshal(c.args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := (formatConvert{workDir: dir}).Execute(context.Background(), args)
+		if err == nil || !strings.HasPrefix(err.Error(), "Error ["+c.wantCode+"]: ") || !strings.Contains(err.Error(), c.wantMsg) {
+			t.Fatalf("%s：应报 [%s] 含「%s」，得到 res=%q err=%v", c.name, c.wantCode, c.wantMsg, res, err)
+		}
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("参数不对不得触达转换: %v", *calls)
+	}
+}
+
+// 正路：产物落到 output（父目录自动建），回执列三类必修缺陷并指明下一步（以 docx 为源转 md 再录）。
+func TestFormatConvertToDocx_ReceiptListsMandatoryFixes(t *testing.T) {
+	calls := stubDocxConverter(t, docmd.DocxReceipt{Pages: 233, Elapsed: 42 * time.Second}, nil)
+	dir := t.TempDir()
+	pdf := filepath.Join(dir, "标书.pdf")
+	if err := os.WriteFile(pdf, []byte("%PDF-1.4"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "nested", "标书.docx")
+	args, err := json.Marshal(map[string]any{"path": pdf, "to": "docx", "output": out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := (formatConvert{workDir: dir}).Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(*calls) != 1 || (*calls)[0].src != pdf || !(*calls)[0].prodUsed {
+		t.Fatalf("应把源 PDF 原样交给转换且产物走到落盘: %+v", *calls)
+	}
+	if data, err := os.ReadFile(out); err != nil || string(data) != "fake docx" {
+		t.Fatalf("产物应搬到 output: %v %q", err, data)
+	}
+	for _, want := range []string{"已转换为 Word", "233 页", "单元格内每个折行", "合并单元格", "跨页续表", "空段落", "目录域", "proposal_save"} {
+		if !strings.Contains(res, want) {
+			t.Fatalf("回执缺 %q:\n%s", want, res)
+		}
+	}
+}

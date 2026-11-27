@@ -81,7 +81,7 @@ func (t proposalUpdateTool) Execute(ctx context.Context, args json.RawMessage) (
 		Proposal     string  `json:"proposal"`
 		Title        string  `json:"title"`
 		ProjectType  string  `json:"project_type"`
-		Year         string  `json:"year"`
+		Year         metaStr `json:"year"`
 		Summary      string  `json:"summary"`
 		Workspace    string  `json:"workspace"`
 		SectionID    int64   `json:"section_id"`
@@ -100,7 +100,7 @@ func (t proposalUpdateTool) Execute(ctx context.Context, args json.RawMessage) (
 		return "", err
 	}
 	meta := proposal.UpdateInput{
-		ProjectType: optString(p.ProjectType), Year: optString(p.Year),
+		ProjectType: optString(p.ProjectType), Year: optString(string(p.Year)),
 		Summary: optString(p.Summary), Workspace: optString(p.Workspace),
 	}
 	hasMeta := meta.ProjectType != nil || meta.Year != nil || meta.Summary != nil || meta.Workspace != nil

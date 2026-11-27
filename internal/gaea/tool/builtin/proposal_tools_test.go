@@ -600,3 +600,49 @@ func TestProposalDegradesWhenLocalModelsDown(t *testing.T) {
 		t.Fatalf("模型恢复后应自动补齐并走语义路:\n%s", msg)
 	}
 }
+
+// 复盘 T7（2026-11-27）：年度参数传数字不得再报「参数无效」——metaStr 按字面收。
+func TestProposalMetaYearAcceptsNumber(t *testing.T) {
+	var p struct {
+		Year metaStr `json:"year"`
+	}
+	if err := json.Unmarshal([]byte(`{"year": 2026}`), &p); err != nil {
+		t.Fatalf("数字年度应可解析: %v", err)
+	}
+	if string(p.Year) != "2026" {
+		t.Fatalf("数字年度应收成字面 2026，得到 %q", string(p.Year))
+	}
+	if err := json.Unmarshal([]byte(`{"year": "2027"}`), &p); err != nil {
+		t.Fatalf("字符串年度应可解析: %v", err)
+	}
+	if string(p.Year) != "2027" {
+		t.Fatalf("字符串年度应原样，得到 %q", string(p.Year))
+	}
+	if err := json.Unmarshal([]byte(`{"year": null}`), &p); err != nil {
+		t.Fatalf("null 应可解析: %v", err)
+	}
+	if string(p.Year) != "2027" {
+		t.Fatalf("null 应保持原值不动，得到 %q", string(p.Year))
+	}
+}
+
+// 复盘 T7 端到端：proposal_save 的 year 传数字（dry_run 演练不写库）不再报参数无效。
+func TestProposalSaveNumericYearDryRun(t *testing.T) {
+	proposalTestEnv(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "year.md"), []byte("# 第1章 演练\n\n正文。\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	save := proposalSaveTool{workDir: dir}
+	out, err := save.Execute(context.Background(), toJSON(t, map[string]any{
+		"title": "数字年度演练", "year": 2026, "source_file": "year.md", "dry_run": true,
+		"outline": []map[string]any{{"level": 1, "title": "第1章 演练"}},
+	}))
+	if err != nil {
+		t.Fatalf("数字年度应可演练: %v", err)
+	}
+	msg := toolMessage(t, out)
+	if !strings.Contains(msg, "演练") {
+		t.Fatalf("演练回执异常:\n%s", msg)
+	}
+}

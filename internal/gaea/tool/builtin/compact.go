@@ -22,7 +22,7 @@ var compactDesc = map[string]string{
 	"complete_step":      "完成计划步骤(step/result/evidence;kind=verification|diff|files|manual,禁止纯manual)",
 	"memory_search":      "记忆检索与读取(query=关键词检索,返回名称+摘要;name=按名读全文;只含当前运行模式与通用的记忆)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
-	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;PDF优先经本机WPS:文字型出真表格/扫描件走WPS在线OCR(174页约1分钟);WPS不可用退本地提取与OCR(限30页,用pages分段);preserve_images保留内嵌图片sidecar;回执带标题/表格/图片计数;to=xlsx=PDF/图片/图片目录→Excel真表格(必须给output;清单定额报价单取数用;扫描件走WPS在线识别默认ai_fix;回执列疑似缺格行须对照原件抽检))",
+	"format_convert":     "文档格式转换(docx/xlsx/pptx/pdf→Markdown;PDF优先经本机WPS:文字型出真表格/扫描件走WPS在线OCR(174页约1分钟);WPS不可用退本地提取与OCR(限30页,用pages分段);preserve_images保留内嵌图片sidecar;回执带标题/表格/图片计数;to=xlsx=PDF/图片/图片目录→Excel真表格(必须给output;清单定额报价单取数用;扫描件走WPS在线识别默认ai_fix;回执列疑似缺格行须对照原件抽检);to=docx=PDF→Word(录库PDF源必经))",
 	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
 	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
 	"proposal_save":      "方案入库(标题1~4级;outline按源文件切正文,可append分批;本地图片复制为托管资产;或直给sections;action=status查进度;dry_run演练不写库)",
@@ -95,7 +95,7 @@ var compactSchema = map[string]json.RawMessage{
 	"read_skill": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`),
 	"format_convert": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"to=xlsx 时必填（.xlsx）"},"pages":{"type":"string","description":"to=xlsx 时只收一段连续页"},"preserve_images":{"type":"boolean"},"to":{"type":"string","enum":["md","xlsx"],"description":"xlsx=PDF/图片/图片目录转 Excel 真表格（清单、定额、报价单取数用；需本机 WPS 会员）"},"scanned":{"type":"string","enum":["auto","true","false"],"description":"仅 to=xlsx：PDF 按扫描件走 WPS 在线识别还是按文字型走本地引擎"},"ai_fix":{"type":"boolean","description":"仅 to=xlsx 的在线识别：默认开（数字零丢改，约 14 秒/页，一次最多 20 页）；false 快 8 倍但约 5% 数字格会丢改"},"per_page_sheet":{"type":"boolean","description":"仅 to=xlsx：一页一个工作表"}},"required":["path"]}`),
+		`{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"to=xlsx/docx 时必填"},"pages":{"type":"string","description":"to=xlsx 时只收一段连续页"},"preserve_images":{"type":"boolean"},"to":{"type":"string","enum":["md","xlsx","docx"],"description":"xlsx=PDF/图片/图片目录转 Excel 真表格（清单、定额、报价单取数用；需本机 WPS 会员）；docx=PDF→Word"},"scanned":{"type":"string","enum":["auto","true","false"],"description":"仅 to=xlsx：PDF 按扫描件走 WPS 在线识别还是按文字型走本地引擎"},"ai_fix":{"type":"boolean","description":"仅 to=xlsx 的在线识别：默认开（数字零丢改，约 14 秒/页，一次最多 20 页）；false 快 8 倍但约 5% 数字格会丢改"},"per_page_sheet":{"type":"boolean","description":"仅 to=xlsx：一页一个工作表"}},"required":["path"]}`),
 	"chart_gen": json.RawMessage(
 		`{"type":"object","properties":{"labels":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"number"}},"series":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"values":{"type":"array","items":{"type":"number"}}},"required":["values"]}},"chart_type":{"type":"string","enum":["bar","line","pie","scatter","hbar","area","donut","grouped_bar","stacked_bar"]},"title":{"type":"string"},"output":{"type":"string"}},"required":["labels"]}`),
 	"diagram_gen": json.RawMessage(

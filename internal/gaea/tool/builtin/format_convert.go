@@ -23,7 +23,7 @@ type formatConvert struct{ workDir string }
 func (formatConvert) Name() string { return "format_convert" }
 
 func (formatConvert) Description() string {
-	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。to=xlsx：把 PDF（清单 / 定额表 / 报价单）或图片、装着图片的目录转成 Excel 真表格（金额是真数值，定额编码带前导零存文本），必须给 output（.xlsx）。文字型 PDF 走本地引擎（约 0.6 秒/页）；扫描件 / 照片走 WPS 在线识别，默认开 ai_fix（数字零丢改，约 14 秒/页，一次最多 20 页，超出用 pages 分一段连续页）；ai_fix=false 快 8 倍但实测约 5% 数字格会丢改，只能要快不能取数。scanned=true/false 强制路线；per_page_sheet=true 一页一个工作表。回执列出疑似缺格的行（在线识别实测会漏掉工程量为 1 的格子），须对照原件抽检。"
+	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注。PDF 优先经本机 WPS 转换（需已登录 WPS 会员）：文字型 PDF 表格成真表格、图片保留；扫描件走 WPS 在线 OCR（174 页约 1 分钟），照片版 PDF 也能出真表格。WPS 不可用或失败时退回本地提取 / 本地 OCR（本地 OCR 一次最多 30 页，超限报错——用 pages 分段）。preserve_images=true 时保留内嵌图片到 Markdown 同目录的 -assets 子目录并改相对引用（必须同时给 output）；录方案库时建议开启。回执附标题/表格/图片计数，三项全 0 说明产物不可用。耗时数秒到数分钟，取决于页数（233 页经 WPS 约 1 分半）；不消耗主模型 token。to=xlsx：把 PDF（清单 / 定额表 / 报价单）或图片、装着图片的目录转成 Excel 真表格（金额是真数值，定额编码带前导零存文本），必须给 output（.xlsx）。文字型 PDF 走本地引擎（约 0.6 秒/页）；扫描件 / 照片走 WPS 在线识别，默认开 ai_fix（数字零丢改，约 14 秒/页，一次最多 20 页，超出用 pages 分一段连续页）；ai_fix=false 快 8 倍但实测约 5% 数字格会丢改，只能要快不能取数。scanned=true/false 强制路线；per_page_sheet=true 一页一个工作表。回执列出疑似缺格的行（在线识别实测会漏掉工程量为 1 的格子），须对照原件抽检。to=docx：PDF 转 Word（WPS pdf2word，必须给 output=.docx；scanned 同 to=xlsx）。录方案库的 PDF 源必经此路——直转 Markdown 表格散架；转出的 Word 须用户修正格式后再转 md 录入，回执列三类必修缺陷。"
 }
 
 func (formatConvert) Schema() json.RawMessage {
@@ -31,11 +31,11 @@ func (formatConvert) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "path":{"type":"string","description":"源文件路径（支持 .docx/.xlsx/.pptx/.pdf）"},
-  "output":{"type":"string","description":"输出文件路径：转 Markdown 时可省略（不指定则返回文本）；to=xlsx 时必填（.xlsx）"},
-  "pages":{"type":"string","description":"PDF页码范围，如\"1-5\"或\"1,3,5\"（仅PDF有效）；to=xlsx 时只收一段连续页"},
+  "output":{"type":"string","description":"输出文件路径：转 Markdown 时可省略（不指定则返回文本）；to=xlsx 时必填（.xlsx）；to=docx 时必填（.docx）"},
+  "pages":{"type":"string","description":"PDF页码范围，如\"1-5\"或\"1,3,5\"（仅PDF有效）；to=xlsx/to=docx 时只收一段连续页"},
   "preserve_images":{"type":"boolean","description":"保留 DOCX/PPTX 内嵌图片：要求同时给 output，图片写入同名 -assets 目录，Markdown 改相对引用。录方案库时建议开启"},
-  "to":{"type":"string","enum":["md","xlsx"],"description":"md（默认）=转 Markdown；xlsx=PDF/图片转 Excel 表格（走本机 WPS，需登录会员）"},
-  "scanned":{"type":"string","enum":["auto","true","false"],"description":"仅 to=xlsx 且输入是 PDF：auto=自动判断（默认）；true=按扫描件走 WPS 在线识别；false=按文字型走本地引擎"},
+  "to":{"type":"string","enum":["md","xlsx","docx"],"description":"md（默认）=转 Markdown；xlsx=PDF/图片转 Excel 表格（走本机 WPS，需登录会员）；docx=PDF 转 Word 文档（走本机 WPS pdf2word，需登录会员）——录方案库的 PDF 源必须先走它"},
+  "scanned":{"type":"string","enum":["auto","true","false"],"description":"仅 to=xlsx/to=docx 且输入是 PDF：auto=自动判断（默认）；true=按扫描件走 WPS 在线识别；false=按文字型走本地引擎"},
   "ai_fix":{"type":"boolean","description":"仅 to=xlsx 的在线识别路线：AI 修复，默认开（数字零丢改，约 14 秒/页）；false 快 8 倍但约 5% 数字格会丢改"},
   "per_page_sheet":{"type":"boolean","description":"仅 to=xlsx：一页一个工作表（默认全部页堆进一个工作表）"}
 },
@@ -63,7 +63,7 @@ func (f formatConvert) WritePaths(args json.RawMessage) ([]string, error) {
 		return nil, nil
 	}
 	out := resolveIn(f.workDir, p.Output)
-	if p.To == "xlsx" { // Excel 产物只有一个文件，没有图片 sidecar
+	if p.To == "xlsx" || p.To == "docx" { // Excel / Word 产物只有一个文件，没有图片 sidecar
 		return []string{out}, nil
 	}
 	if p.PreserveImages {
@@ -80,9 +80,10 @@ type fcInput struct {
 	Output         string `json:"output,omitempty"`
 	Pages          string `json:"pages,omitempty"`
 	PreserveImages bool   `json:"preserve_images,omitempty"`
-	// To："xlsx" 走 to=xlsx（PDF / 图片 → Excel）；空 / "md" 是默认的转 Markdown。
+	// To："xlsx" 走 to=xlsx（PDF / 图片 → Excel）；"docx" 走 to=docx（PDF → Word）；
+	// 空 / "md" 是默认的转 Markdown。
 	To string `json:"to,omitempty"`
-	// Scanned 仅 to=xlsx 且输入是 PDF：空 / "auto"（默认）/ "true" / "false"。
+	// Scanned 仅 to=xlsx / to=docx 且输入是 PDF：空 / "auto"（默认）/ "true" / "false"。
 	Scanned string `json:"scanned,omitempty"`
 	// AIFix 仅 to=xlsx 的在线识别路线；nil = 默认开。
 	AIFix *bool `json:"ai_fix,omitempty"`
@@ -95,6 +96,9 @@ var convertPreservingImages = docmd.ConvertPreservingImages
 
 // convertToExcel to=xlsx 的转换 seam（同上）。
 var convertToExcel = docmd.ConvertToExcel
+
+// convertToDocx to=docx 的转换 seam（同上；单测不得真调 WPS）。
+var convertToDocx = docmd.ConvertToDocx
 
 // fcOutcome 一次转换的结果（后台 goroutine 经管道回传）。
 type fcOutcome struct {
@@ -114,9 +118,9 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		return "", codedError("FORMAT_INVALID_ARGS", "path 不能为空")
 	}
 	switch p.To {
-	case "", "md", "xlsx":
+	case "", "md", "xlsx", "docx":
 	default:
-		return "", codedError("FORMAT_INVALID_ARGS", "to 取值无效（%s）：只收 md / xlsx", p.To)
+		return "", codedError("FORMAT_INVALID_ARGS", "to 取值无效（%s）：只收 md / xlsx / docx", p.To)
 	}
 	if p.PreserveImages && strings.TrimSpace(p.Output) == "" {
 		return "", codedError("FORMAT_INVALID_ARGS", "preserve_images=true 需要同时给 output 路径")
@@ -127,6 +131,9 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 	}
 	if p.To == "xlsx" {
 		return f.toExcel(ctx, p)
+	}
+	if p.To == "docx" {
+		return f.toDocx(ctx, p)
 	}
 
 	// 转换链不看取消信号（pdftoppm / wpscli / OCR 引擎请求都是整段同步的）：用户按
@@ -331,5 +338,101 @@ func formatExcelReceipt(output string, images, aiFix bool, r docmd.ExcelReceipt)
 		}
 		b.WriteString("）：这些行的数字列是空的——在线识别实测会漏掉工程量为 1 的格子，请对照原件核对")
 	}
+	return tool.WrapText(b.String())
+}
+
+// ── to=docx：PDF → Word ─────────────────────────────────────────────
+
+// errDocxOutputWrite Word 产物搬到目标位置失败（与转换失败分开报错误码）。
+var errDocxOutputWrite = errors.New("Word 产物写入目标位置失败")
+
+// toDocx to=docx：PDF 转 Word 文档，走本机 WPS pdf2word（见 docmd/wps_docx.go）。
+//
+// 这是录方案库的 PDF 源的正路第一站：PDF 直接转 Markdown 表格会散架（包1技术标复盘
+// 实测列数矛盾 42 块），先转 Word 交用户修正格式，修正后的 docx 再走转 Markdown 录入。
+// 取消语义与 to=xlsx 一致：用户按停止立即返回，取消后不落盘。
+func (f formatConvert) toDocx(ctx context.Context, p fcInput) (string, error) {
+	if strings.TrimSpace(p.Output) == "" {
+		return "", codedError("FORMAT_INVALID_ARGS", "to=docx 需要同时给 output（.docx 文件路径）")
+	}
+	if !strings.EqualFold(filepath.Ext(p.Output), ".docx") {
+		return "", codedError("FORMAT_INVALID_ARGS", "to=docx 的 output 必须是 .docx 文件，收到 %s", p.Output)
+	}
+	if p.PreserveImages {
+		return "", codedError("FORMAT_INVALID_ARGS", "preserve_images 只用于转 Markdown，to=docx 不需要它")
+	}
+	st, statErr := os.Stat(p.Path)
+	if statErr != nil {
+		if errors.Is(statErr, os.ErrNotExist) {
+			return "", codedError("FORMAT_SOURCE_MISSING", "源文件不存在: %s（%v）", p.Path, statErr)
+		}
+		return "", codedError("FORMAT_CONVERT_FAILED", "读取源文件失败: %v", statErr)
+	}
+	if !st.IsDir() && !strings.EqualFold(filepath.Ext(p.Path), ".pdf") {
+		return "", codedError("FORMAT_UNSUPPORTED",
+			"to=docx 只收 .pdf（docx/pptx 源直接走转 Markdown 即可），收到 %s", p.Path)
+	}
+	if dir := filepath.Dir(p.Output); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "创建输出目录失败: %v", err)
+		}
+	}
+	type outcome struct {
+		rec docmd.DocxReceipt
+		err error
+	}
+	ch := make(chan outcome, 1)
+	go func() {
+		rec, err := convertToDocx(p.Path, docmd.DocxOptions{Pages: p.Pages, Scanned: p.Scanned}, func(prod string) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := docmd.MoveOrCopyFile(prod, p.Output); err != nil {
+				return fmt.Errorf("%w（目标被 Word / WPS 占用时先关闭它）: %v", errDocxOutputWrite, err)
+			}
+			return nil
+		})
+		ch <- outcome{rec, err}
+	}()
+	var o outcome
+	select {
+	case o = <-ch:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	if o.err != nil {
+		switch {
+		case errors.Is(o.err, context.Canceled), errors.Is(o.err, context.DeadlineExceeded):
+			return "", o.err
+		case errors.Is(o.err, errDocxOutputWrite):
+			return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "%v", o.err)
+		case strings.Contains(o.err.Error(), "不支持的文件格式"):
+			return "", codedError("FORMAT_UNSUPPORTED", "%v", o.err)
+		default:
+			return "", codedError("FORMAT_CONVERT_FAILED", "%v", o.err)
+		}
+	}
+	return formatDocxReceipt(p.Output, o.rec), nil
+}
+
+// formatDocxReceipt to=docx 的回执：产物位置、路线，以及机器转 Word 必须人工修正的
+// 三类结构缺陷（包1技术标复盘 §2.1 的实证清单——不提醒，调用方会把「转出成功」当
+// 「格式可录」，带病入库）。
+func formatDocxReceipt(output string, r docmd.DocxReceipt) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "已转换为 Word：%s（", output)
+	if r.Pages > 0 {
+		fmt.Fprintf(&b, "%d 页，", r.Pages)
+	}
+	fmt.Fprintf(&b, "耗时 %s）", r.Elapsed.Round(time.Second))
+	if r.OnlineOCR {
+		b.WriteString("\n扫描件走 WPS 在线识别：文字与表格均须对照原件核对")
+	}
+	b.WriteString(`
+机器转换的 Word 有三类结构性缺陷几乎必然存在，录方案库前必须先人工修正（在 Word/WPS 里逐项过）：
+1. 表格——单元格内每个折行是独立段落，连词被切断；合并单元格全部丢失；跨页续表被切成多块。重点把断行并回单元格、恢复合并表头、接回续表；
+2. 垂直居中夹出的空段落——表格里成片的空白格，删干净；
+3. 目录域与章节目录表没有目录标记——会被当正文录入，删掉或标注。
+修正完成并经用户确认后，以这份 docx 为源文件走 format_convert 转 Markdown 再 proposal_save 录入；不要绕回 PDF 直转。`)
 	return tool.WrapText(b.String())
 }

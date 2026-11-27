@@ -139,7 +139,9 @@ type officeFaceBudgetEntry struct {
 // 不必动预算，但塞不进一整段新描述）。工具面回胖没有守卫就会悄悄发生——
 // 造价档曾到 92 件 / 4.7 万字符。
 var officeFaceBudget = map[string]officeFaceBudgetEntry{
-	OfficeRunModeStandard: {Tools: 58, Chars: 16750},
+	// standard 16750→17000（2026-11-27 方案库导入批）：format_convert 增 to=docx
+	// （PDF→Word，录库 PDF 源必经）整段新描述塞不进原余量，实测 16775 后按口径上取整。
+	OfficeRunModeStandard: {Tools: 58, Chars: 17000},
 	OfficeRunModeCost:     {Tools: 66, Chars: 28250},
 	OfficeRunModeProposal: {Tools: 70, Chars: 21250},
 }

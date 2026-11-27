@@ -43,7 +43,7 @@ var taskTemplates = []TaskTemplate{
 	},
 	{
 		Name: "document-convert", Title: "文档转换", Description: "docx / xlsx / pdf 与 Markdown 互转，保留结构",
-		Prompt: "帮我转换这份文档：\n1. 用 format_convert 把 docx/xlsx/pdf 转为 Markdown；\n2. 检查转换结果：标题层级、表格、公式是否保留，缺失内容手动补齐；\n3. 保存转换结果到 .gaea/exports/，正文给出可点击的 [文件名](路径)。",
+		Prompt: "帮我转换这份文档：\n1. 用 format_convert 把 docx/xlsx/pdf 转为 Markdown（PDF 若是要录方案库的，不要直接转 Markdown——先 to=docx 转 Word，交我修正格式后再以 docx 为源转）；\n2. 检查转换结果：标题层级、表格、公式是否保留，缺失内容手动补齐；\n3. 保存转换结果到 .gaea/exports/，正文给出可点击的 [文件名](路径)。",
 	},
 	{
 		Name: "report-assemble", Title: "报告拼装", Description: "多份素材合并为完整报告：封面 / 目录 / 正文 / 附录",

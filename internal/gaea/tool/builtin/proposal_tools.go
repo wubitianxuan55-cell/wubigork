@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,29 @@ import (
 )
 
 // ── 方案库三工具（2026-11-23 用户拍板立项）────────────────────────
+
+// metaStr 方案库元数据字符串字段的宽容形态（2026-11-27 复盘 T7：模型偶尔把年度
+// 传成数字，string 字段直接报「参数无效」逼用户重试）。string 原样收；数字/布尔
+// 等 JSON 标量按字面收（2026 → "2026"）；null 与缺席同语义（不动零值）。
+type metaStr string
+
+func (s *metaStr) UnmarshalJSON(b []byte) error {
+	t := bytes.TrimSpace(b)
+	if len(t) == 0 || string(t) == "null" {
+		return nil
+	}
+	if t[0] == '"' {
+		var v string
+		if err := json.Unmarshal(t, &v); err != nil {
+			return err
+		}
+		*s = metaStr(v)
+		return nil
+	}
+	*s = metaStr(t)
+	return nil
+}
+
 // 录入与索引都在办公板块的方案模式内由模型完成，无独立解析入口：
 //   - proposal_save：模型只定标题层级（outline），正文由工具从源文件逐字切出；
 //     也支持直给正文（sections）。长文档分批续录。走 PersistWrite（hardAsk 审批红线）。
@@ -125,13 +149,13 @@ const (
 
 func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Title       string `json:"title"`
-		ProjectType string `json:"project_type"`
-		Year        string `json:"year"`
-		Summary     string `json:"summary"`
-		Mode        string `json:"mode"`
-		Overwrite   bool   `json:"overwrite"`
-		SourceFile  string `json:"source_file"`
+		Title       string  `json:"title"`
+		ProjectType string  `json:"project_type"`
+		Year        metaStr `json:"year"`
+		Summary     string  `json:"summary"`
+		Mode        string  `json:"mode"`
+		Overwrite   bool    `json:"overwrite"`
+		SourceFile  string  `json:"source_file"`
 		Outline     []struct {
 			Level int    `json:"level"`
 			Title string `json:"title"`
@@ -170,7 +194,7 @@ func (t proposalSaveTool) Execute(ctx context.Context, args json.RawMessage) (st
 	in := proposal.SaveInput{
 		Meta: proposal.Proposal{
 			Title: p.Title, ProjectType: strings.TrimSpace(p.ProjectType),
-			Year: strings.TrimSpace(p.Year), Summary: strings.TrimSpace(p.Summary),
+			Year: strings.TrimSpace(string(p.Year)), Summary: strings.TrimSpace(p.Summary),
 		},
 		Overwrite: p.Overwrite, Append: mode == "append", Finalize: p.Finalize,
 		SourceFile:   strings.TrimSpace(p.SourceFile),
@@ -477,13 +501,13 @@ func (proposalSearchTool) CompactSchema() json.RawMessage {
 
 func (proposalSearchTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Query       string `json:"query"`
-		Scope       string `json:"scope"`
-		Level       int    `json:"level"`
-		ProjectType string `json:"project_type"`
-		Year        string `json:"year"`
-		Proposal    string `json:"proposal"`
-		Limit       int    `json:"limit"`
+		Query       string  `json:"query"`
+		Scope       string  `json:"scope"`
+		Level       int     `json:"level"`
+		ProjectType string  `json:"project_type"`
+		Year        metaStr `json:"year"`
+		Proposal    string  `json:"proposal"`
+		Limit       int     `json:"limit"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)
@@ -506,7 +530,7 @@ func (proposalSearchTool) Execute(ctx context.Context, args json.RawMessage) (st
 	}
 	in := proposal.SearchInput{
 		Query: p.Query, Level: p.Level, TopN: p.Limit,
-		ProjectType: strings.TrimSpace(p.ProjectType), Year: strings.TrimSpace(p.Year),
+		ProjectType: strings.TrimSpace(p.ProjectType), Year: strings.TrimSpace(string(p.Year)),
 		Proposal: strings.TrimSpace(p.Proposal),
 	}
 	switch strings.ToLower(strings.TrimSpace(p.Scope)) {
