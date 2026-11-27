@@ -52,7 +52,7 @@ func (costLibraryTool) KeepSchemaDescriptions() bool { return true }
 // 「造价库维护」段）与 cost-estimate / cost-estimation-playbook 技能是出处；行
 // 字段契约随回执发放（office_cost_library_schema.go）。
 func (costLibraryTool) Description() string {
-	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【录入资料】资料格式不固定，由你读资料、整理后提交：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行 → import_check 勾稽 → 用户确认后 import_commit 写库；综合单价表是三级树表的测算簿走 import_project 快速通道（综合单价表是唯一硬契约，其余表参考、可自由改版式）。【新做测算】template 取测算样表（版式真源），填完过 xlsx_recalc → import_project dry_run=true 导回。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块详情有单条「编辑」钮（用户改单条错数据用）；批量导入、归类与批量维护一律经本工具或 cost_project_apply，不要直连数据库。"
+	return "维护工料机造价库（清单 → 定额 → 工料机三级数据）。【新做测算：在测算样表上编】template 取测算样表与《使用说明书》（先读）——综合单价表是唯一导入硬契约，其余表参考、可改版式；样表的「2 块 × 4 明细」只是示例槽位，数量没有上限；填完 xlsx_recalc → import_project dry_run=true（回执看工作簿内对账、疑似明细行溢出）→ 用户检查同意后才正式入库（草稿不入库）。【录入资料】非测算簿资料：import_open 开导入（回执带 import_add 的行字段契约）→ import_add 分批提交工料机/定额/清单行（行多时 resources_file/quotas_file/bills_file 给脚本生成的 JSON，不经你转录）→ import_check 勾稽 → 用户确认后 import_commit 写库。【整理归类】dims 盘点现有叫法（回执带 classify 契约）→ classify 分批给方案（条目多时 classify_file）；本专业没有的定额用 borrow_quota 以外专业定额为底生成。【维护】save_quota/delete_quota 管定额；save_resource/delete_resource/set_price/bulk_price 管工料机与价格；delete_items/delete_project；flywheel/dedupe/health；字典 dict（查看）/dict_add/dict_update/dict_delete。【规矩】专业、地区、分类必须是字典值，期数 YYYY-MM；批量与删除先 dry_run=true 演练；被引用的默认不删（force=true 才解除引用）；每次正式写入都要用户确认。字段拿不准用 action=help 取契约；口径细则见 cost-estimate 技能。造价数据库板块详情有单条「编辑」钮；批量导入、归类与批量维护一律经本工具或 cost_project_apply，不要直连数据库。"
 }
 
 // clActionSkeletons 各动作的正确参数骨架：UsageHint（loop guard：给刚失败的调用
@@ -167,6 +167,18 @@ type costLibraryArgs struct {
 	Resources []workcost.ImportResource `json:"resources"`
 	Quotas    []workcost.ImportQuota    `json:"quotas"`
 	Bills     []workcost.ImportBill     `json:"bills"`
+	// 载荷走文件（2026-11-27 AI 反馈 #9）：行由脚本从资料直接生成 JSON，不经模型
+	// 逐行转录。给了文件且没给同名数组时读文件（office_cost_payload_files.go）。
+	ResourcesFile string `json:"resources_file"`
+	QuotasFile    string `json:"quotas_file"`
+	BillsFile     string `json:"bills_file"`
+	ClassifyFile  string `json:"classify_file"`
+	// Export import_status 的导出路径（工作区相对）：把暂存区按 import_add 的行
+	// 格式写成 JSON，供脚本比对自校验。
+	Export string `json:"export"`
+	// FromFile 记下哪些组是文件读来的（单批上限放宽）；FileNote 进回执头。
+	FromFile map[string]bool `json:"-"`
+	FileNote string          `json:"-"`
 
 	// Misnamed 非空=有嵌套参数从 quota 里救回（值=参数名），回执头点名。
 	Misnamed string `json:"-"`
@@ -258,6 +270,9 @@ func (t costLibraryTool) Execute(_ context.Context, args json.RawMessage) (strin
 	}
 	p.RecvKeys = clReceivedKeys(args)
 	t.rescueMisnamedNested(&p, args)
+	if err := t.loadPayloadFiles(&p); err != nil {
+		return "", err
+	}
 	s := t.a.hubWorkcostStore()
 	if !s.Available() {
 		return "", fmt.Errorf("工料机造价库不可用（Hephaestus.db 未就绪）")
@@ -580,6 +595,17 @@ func clRecvSuffix(p costLibraryArgs) string {
 		return ""
 	}
 	return fmt.Sprintf("（本次收到键：%s——缺的键没送达，多半发进了别的键里；按骨架顶层直给）", p.RecvKeys)
+}
+
+// clWorkbookHasCache 工作簿有没有缓存金额（至少一条清单行或定额行读到金额）——没有
+// 就是没重算，工作簿内对账无从谈起。
+func clWorkbookHasCache(b *workcost.ProjectBundle) bool {
+	for i := range b.Items {
+		if b.Items[i].Amount > 0 {
+			return true
+		}
+	}
+	return b.Fee.HasAmounts
 }
 
 // clRoundingNote 舍入口径对账（铜陵反馈 #20）：库内单价按 2 位小数入库、
@@ -1049,12 +1075,48 @@ func (t costLibraryTool) importProject(s *workcost.Store, p costLibraryArgs) (st
 			fmt.Fprintf(&out, "- %s\n", line)
 		}
 	}
+	recon := workcost.WorkbookRecon(b)
 	if p.DryRun {
-		out.WriteString("\n落库口径：工料机按身份与地区 UPSERT（编码被占则消歧成「码-N」，含量行跟着落规范编码）；定额按专业内统一编码（同专业同内容复用，外专业同码另立并记借鉴来源），综合单价表的定额块逐块落成定额，一个清单挂多条定额时按 1:N 落挂接（定额行的系数进该定额的工程量）；有价的工料机各记一条价格事实（期 + 地区）。确认无误后去掉 dry_run 正式导入。\n")
+		// 疑似明细行溢出（2026-11-27 AI 反馈 #16）：定额头的位置上坐着一个工料机编码——
+		// 上一块的明细行超过 4 条顺着往下写，把这一块的定额头盖掉了。这几块整块跳过，
+		// 工作簿里公式同样没算对——会静默丢钱的结构错误，单列一段，不混在跳过行里。
+		if len(b.Overflows) > 0 {
+			fmt.Fprintf(&out, "⚠ **疑似明细行溢出 %d 处**——明细行超过 4 条时顺着往下写，覆盖了下一块的定额头（样表每块只有 4 个明细槽）。这几块整块跳过，工作簿里的金额同样偏低（公式没把它们算进去）:\n", len(b.Overflows))
+			for i, r := range b.Overflows {
+				if i >= clCap(len(b.Overflows)) {
+					fmt.Fprintf(&out, "- …共 %d 处\n", len(b.Overflows))
+					break
+				}
+				fmt.Fprintf(&out, "- %s!%d｜%s｜%s\n", r.Sheet, r.Row, clExcerpt(r.Excerpt, 60), r.Reason)
+			}
+			out.WriteString("修法：在块内插明细行（xlsx_apply insert_rows——后面的行与清单表的引用自动下移），再把定额行 H 的 SUM 区间、清单行 H / K / L / M 里该块的区间扩到新行；配方见使用说明书第三节与 5.5 节。修完 xlsx_recalc 再演练。\n")
+		}
+		// 工作簿内对账（2026-11-27 AI 反馈 #15）：拿工作簿自己的缓存值按金额链逐级
+		// 复算。公式链断了导入不会报错，只会把错的金额原样搬进库——演练就点名。
+		if len(recon) > 0 {
+			fmt.Fprintf(&out, "⚠ **工作簿内对账不平 %d 处**（定额行 = Σ明细；清单行 = Σ(定额 × 系数) 与按明细重算；三费拆分；清单表引用；直接费合计）——先回表修公式链，修完 xlsx_recalc 再演练，不要带着导入（列前 %d 条）:\n", len(recon), clCap(len(recon)))
+			for i, is := range recon {
+				if i >= clCap(len(recon)) {
+					fmt.Fprintf(&out, "- …共 %d 处\n", len(recon))
+					break
+				}
+				fmt.Fprintf(&out, "- %s\n", is.Text())
+			}
+		} else if clWorkbookHasCache(b) {
+			out.WriteString("✅ **工作簿内对账**: 金额链逐级复算一致（定额行 = Σ明细；清单行 = Σ(定额 × 系数)；三费拆分；清单表引用；直接费合计）。\n")
+		} else {
+			out.WriteString("ℹ **工作簿内对账**: 工作簿没有缓存金额（未重算），这一项没核——先 xlsx_recalc 再演练，否则公式链断了也看不出来。\n")
+		}
+		out.WriteString("\n落库口径：工料机按身份与地区 UPSERT（编码被占则消歧成「码-N」，含量行跟着落规范编码）；定额按专业内统一编码（同专业同内容复用，外专业同码另立并记借鉴来源），综合单价表的定额块逐块落成定额，一个清单挂多条定额时按 1:N 落挂接（定额行的系数进该定额的工程量）；有价的工料机各记一条价格事实（期 + 地区）。\n")
+		out.WriteString("**下一步（入库红线）**：把工作簿交用户检查——给可点击路径、直接费与含税合计、过门结论、已知遗留；**用户明确同意后才去掉 dry_run 正式导入**。演练通过不等于可以入库，半成品草稿不入库。\n")
 		return out.String(), nil
 	}
 	res := s.ApplyProjectBundle(b)
 	itemCount := 0
+	if len(recon) > 0 || len(b.Overflows) > 0 {
+		// 演练回执里点名过的问题没修就正式导了：如实说清楚，库里的金额就是工作簿的错金额。
+		fmt.Fprintf(&out, "⚠ 这份工作簿演练时还有工作簿内对账不平 %d 处、疑似明细行溢出 %d 处——已按工作簿原样导入；回表修好后可重新导入（同编码走更新）。\n", len(recon), len(b.Overflows))
+	}
 	if projects, err := s.BillProjects(); err == nil {
 		for i := range projects {
 			if projects[i].Name == projectName {
@@ -1163,25 +1225,26 @@ func (t costLibraryTool) template(_ *workcost.Store, p costLibraryArgs) (string,
 		exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
 		out = filepath.Join(exportsDir, fmt.Sprintf("%s-%s.xlsx", sanitizeFileName(name), time.Now().Format("20060102-150405")))
 	}
-	_, source, err := writeCostEstimateSample(out)
+	source, manual, err := writeCostEstimateSample(out)
 	if err != nil {
 		return "", err
 	}
-	written := out
-	if rel, rerr := filepath.Rel(gaeaCwd(), out); rerr == nil && !strings.HasPrefix(rel, "..") {
-		written = filepath.ToSlash(rel)
-	}
+	written := workspaceRelative(gaeaCwd(), out)
 
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "**测算样表**: %s（来源：%s）\n", written, source)
-	buf.WriteString("版式以此为准——样表是测算模版的版式真源（人工精修、实测可导回）。程序不渲染、不预填：工料机价格表是空白骨架，由你检索库价后逐行填（cost_project action=resources / cost_library dims 查库，明细行按「编码」列引用、价格经公式带出；填了编码与名称的行单价不能空，空价按 0 计）；费用汇总费率按项目填。\n")
+	if manual != "" {
+		fmt.Fprintf(&buf, "**使用说明书**: %s——动表前先 read_file 读它（六张表怎么填、槽位不够怎么加行、两道门、入库红线都在里面）。\n", manual)
+	}
+	buf.WriteString("**样表里的内容全是示例**：每组 2 个定额块、每块 4 行工料机明细只是占位，不是数量限制——定额块数与明细行数按清单的真实工序与消耗定，1 块合法、十几行也合法；槽位不够按说明书第三节加行，不要迁就槽位删工序或硬拆定额，也不要只写 4 行就停。程序不渲染、不预填：工料机价格表是空白骨架，由你检索库价后逐行填（cost_project action=resources / cost_library dims 查库，明细行按「编码」列引用、价格经公式带出；填了编码与名称的行单价不能空，空价按 0 计）；费用汇总费率按项目填。\n")
 	buf.WriteString("导入契约——只有综合单价表是硬约束，其余表是参考、可自由改版式（清单表按单项工程划分、加列、调列序都行）：\n")
-	buf.WriteString("- 综合单价表：表名含「综合单价」；三级树表，表头要有 层级 / 编码 / 名称 / 工程量 列；行型只看「层级」列：清单 / 定额 / 人工·材料·机械·外委；组 = 1 清单行 + 定额块（块 = 1 定额行 + 明细行）；清单编码填在清单行的编码列。样表每组预置 2 块、每块 4 行明细：定额块数按清单的真实工序构成定，1 块完全合法（第二块留空，不要删行）；要 3 块以上、一块超过 4 条明细、或清单超过 30 条，做法见 cost-estimate 技能「组与块怎么增减」。\n")
-	buf.WriteString("- 手填的列：层级 B、编码 C（清单编码 / 定额编码 / 工料机编码共用），清单行与定额行的名称 D、单位 E，明细行的含量 F（定额行的 F 是换算系数，样表预置 1）；明细行的名称 D、单位 E、单价 G 与各行的金额 / 合价 / 三费是公式，不要手填。清单条数定了先把末尾未用的组删掉再填（配方见技能），交付时没有空骨架。\n")
-	buf.WriteString("- 公式链照样表复制（VLOOKUP 取价、ROUND 金额链、SUMIF 三费、系数乘定额金额），不许用手算数值覆盖公式；两层 ROUND 都要在——定额行 H=ROUND(SUM(明细 H),2)、清单行 H=ROUND(Σ(定额 H×系数),2)、清单表综合单价=ROUND(综合单价!H<组清单行>,2)。\n")
-	buf.WriteString("- 其余表（参考）：清单表给清单项补工程量 / 分部，列名保留 编码 / 名称 / 单位 / 工程量 即可（「单项工程」列可顶替「分部」），没有这一行时工程量取综合单价「清单工程量」列（先 xlsx_recalc 才有值）；工料机价格表按 编码 / 类别 / 名称 / 单位 / 不含税单价 逐行填；封面 B2 写真实项目名（导回库即项目名，「项目名称」标签值与它同步）；费用汇总费率在 D17–D21（0 = 该段不计取）。\n")
-	buf.WriteString("交付两道门（全过才算完成）：xlsx_recalc（回执自带审计，写「零错误，达到交付门」才算过，不必再调 xlsx_audit；回执单列的「空结果」公式不算问题，未用槽位的公式可用 xlsx_apply clear_where 清）→ cost_library import_project dry_run=true（回执核对规模与口径）。\n")
-	fmt.Fprintf(&buf, "**下一步**: 按项目改内容（封面概况、清单、综合单价、费用汇总费率、工程量）；填完 import_project（path=%s，先 dry_run=true，specialty/region 给本项目口径）导回库。填法与口径见 cost-estimate 技能。", written)
+	buf.WriteString("- 综合单价表：表名含「综合单价」；三级树表，表头要有 层级 / 编码 / 名称 / 工程量 列；行型只看「层级」列：清单 / 定额 / 人工·材料·机械·外委；组 = 1 清单行 + 定额块（块 = 1 定额行 + 明细行）；清单编码填在清单行的编码列。\n")
+	buf.WriteString("- 手填的列：层级 B、编码 C（清单编码 / 定额编码 / 工料机编码共用），清单行与定额行的名称 D、单位 E，明细行的含量 F（定额行的 F 是换算系数，样表预置 1）；明细行的名称 D、单位 E、单价 G 与各行的金额 / 合价 / 三费是公式，不要手填。清单条数定了先把末尾未用的组删掉再填（配方见说明书），交付时没有空骨架。\n")
+	buf.WriteString("- 公式链照样表复制（VLOOKUP 取价、ROUND 金额链、SUMIF 三费、系数乘定额金额），不许用手算数值覆盖公式；三层 ROUND 都要在——明细行 H=ROUND(F×G,2)、定额行 H=ROUND(SUM(明细 H),2)、清单行 H=ROUND(Σ(定额 H×系数),2)、清单表综合单价=ROUND(综合单价!H<组清单行>,2)。\n")
+	buf.WriteString("- 其余表（参考）：清单表给清单项补工程量 / 分部，列名保留 编码 / 名称 / 单位 / 工程量 即可（「单项工程」列可顶替「分部」），没有这一行时工程量取综合单价「清单工程量」列（先 xlsx_recalc 才有值）；工料机价格表按 编码 / 类别 / 名称 / 单位 / 不含税单价 逐行填；封面 B2 写真实项目名（导回库即项目名）；费用汇总费率在 D17–D21（0 = 该段不计取）。\n")
+	buf.WriteString("交付两道门（全过才算完成）：xlsx_recalc（回执自带审计，写「零错误，达到交付门」才算过，不必再调 xlsx_audit；回执单列的「空结果」公式不算问题，未用槽位的公式可用 xlsx_apply clear_where 清）→ cost_library import_project dry_run=true（回执核对规模与口径；有「疑似明细行溢出」或「工作簿内对账不平」就回表修）。\n")
+	buf.WriteString("**入库红线**：测算表必须经用户检查同意后才能导入造价库——两道门过了，先把工作簿交用户（可点击路径 + 直接费 / 含税合计 + 过门结论 + 已知遗留），用户明确同意后才去掉 dry_run 正式导入；半成品草稿不入库。\n")
+	fmt.Fprintf(&buf, "**下一步**: read_file %s → 按项目改内容（封面概况、清单、综合单价、费用汇总费率、工程量）；填完 import_project（path=%s，先 dry_run=true，specialty/region 给本项目口径）→ 交用户检查。口径细则见 cost-estimate 技能。", clDim(manual, "cost-estimate 技能"), written)
 	return buf.String(), nil
 }
 
@@ -2084,7 +2147,7 @@ func (t costLibraryTool) dims(s *workcost.Store, summary bool) (string, error) {
 			}
 		}
 	}
-	out.WriteString("\n规矩：专业、地区、工料机分类只能用字典里的值（没有的先 dict_add，经用户确认）；期数写 YYYY-MM；地区写到最细一级（信息价发布区挂在所属市下）。定额专业固定——classify 只补空值或按引用它的清单项纠错，对不上的用 borrow_quota 借鉴生成。")
+	out.WriteString("\n规矩：专业、地区、工料机分类只能用字典里的值（没有的先 dict_add，经用户确认）；期数写 YYYY-MM；地区只到省（省级行政区，不下分市）。定额专业固定——classify 只补空值或按引用它的清单项纠错，对不上的用 borrow_quota 借鉴生成。")
 	out.WriteString("\n\n" + clClassifyContract)
 	return out.String(), nil
 }
@@ -2095,12 +2158,17 @@ func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string,
 		return "", fmt.Errorf("classify 需要 classify 对象（顶层参数，projects / bills / quotas / resources 四组至少给一组）。字段契约：\n%s\n先 action=dims 看现有叫法", clClassifyContract)
 	}
 	plan := *p.Classify
+	// 手写转录的数组卡 500；classify_file 读来的不经转录，放宽。
+	maxRows := costLibraryMaxRows
+	if p.FromFile["classify"] {
+		maxRows = clFileMaxRows
+	}
 	for _, g := range []struct {
 		name string
 		n    int
 	}{{"projects", len(plan.Projects)}, {"bills", len(plan.Bills)}, {"quotas", len(plan.Quotas)}, {"resources", len(plan.Resources)}} {
-		if g.n > costLibraryMaxRows {
-			return "", fmt.Errorf("classify.%s 单批最多 %d 条（当前 %d），请分批提交", g.name, costLibraryMaxRows, g.n)
+		if g.n > maxRows {
+			return "", fmt.Errorf("classify.%s 单批最多 %d 条（当前 %d），请分批提交；条目多时改走文件——classify_file=<工作区路径> 给 JSON 对象（单组 ≤%d 条）", g.name, maxRows, g.n, clFileMaxRows)
 		}
 	}
 	if len(plan.Projects)+len(plan.Bills)+len(plan.Quotas)+len(plan.Resources) == 0 {
@@ -2122,6 +2190,9 @@ func (t costLibraryTool) classify(s *workcost.Store, p costLibraryArgs) (string,
 	out.WriteString(clHead(p.DryRun, "classify"))
 	if p.Misnamed != "" {
 		fmt.Fprintf(&out, "⚠ 参数已救回：%s 原本发在 quota 里，已挪到正确位置——这些键都是顶层参数，直接顶层直给。\n", p.Misnamed)
+	}
+	if p.FileNote != "" {
+		fmt.Fprintf(&out, "**读自文件**: %s\n", p.FileNote)
 	}
 	a := res.Applied
 	fmt.Fprintf(&out, "**%s**: 项目 %d｜清单 %d｜定额 %d｜工料机 %d\n",

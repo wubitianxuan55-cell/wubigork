@@ -139,16 +139,26 @@ type officeFaceBudgetEntry struct {
 // 不必动预算，但塞不进一整段新描述）。工具面回胖没有守卫就会悄悄发生——
 // 造价档曾到 92 件 / 4.7 万字符。
 var officeFaceBudget = map[string]officeFaceBudgetEntry{
-	// standard 16750→17000（2026-11-27 方案库导入批）：format_convert 增 to=docx
-	// （PDF→Word，录库 PDF 源必经）整段新描述塞不进原余量，实测 16775 后按口径上取整。
-	OfficeRunModeStandard: {Tools: 58, Chars: 17000},
+	// standard 17000→17250（2026-11-27 晚 AI 反馈批）：read_file 增字节窗口两参
+	// （byte_offset / max_bytes，单行超长内容按字节分页）、format_convert 增
+	// all_pages（PDF 超单次上限自动分段转完）、bash 描述点明 command 是一条命令
+	// 字符串、xlsx_audit / xlsx_recalc 描述补健康体检与结构对账，实测 17156 后按口径上取整。
+	OfficeRunModeStandard: {Tools: 58, Chars: 17250},
 	// cost 28250→28500（2026-11-27 造价复盘刀A/B/C）：cost_project 增 offset 翻页、
 	// cost_library 增 import_status 与 dims summary、import 同码部分修正契约，
 	// 实测 28360 后按口径上取整。
-	OfficeRunModeCost:     {Tools: 66, Chars: 28500},
+	// cost 28500→29000（2026-11-27 晚 AI 反馈批）：cost_library 增载荷走文件四参
+	// （resources_file / quotas_file / bills_file / export，批量写库不经模型转录）、
+	// 描述重排为「新做测算在样表上编 + 用户检查同意才入库」、模式行加同口径一句，
+	// 实测 28876 后按口径上取整。
+	// cost 29000→29250（同批续）：read_file 字节窗口、format_convert all_pages、
+	// bash 与 xlsx 审计描述随通用件进造价档，实测 29212 后按口径上取整。
+	OfficeRunModeCost: {Tools: 66, Chars: 29250},
 	// proposal 21000→21250（2026-11-27 沿江包1 复盘批）：md_validate 增硬伤/提示
 	// 分级与 baseline 基线差集，compact 描述净增 15 字符，实测 21265 后按口径上取整。
-	OfficeRunModeProposal: {Tools: 70, Chars: 21500},
+	// proposal 21500→21750（2026-11-27 晚 AI 反馈批）：read_file 字节窗口、
+	// format_convert all_pages 与 xlsx 审计描述随通用件进方案档，实测 21615 后按口径上取整。
+	OfficeRunModeProposal: {Tools: 70, Chars: 21750},
 }
 
 // officeFaceRetired 已从模型工具面下线、不得回潮的名字（办公工具梳理两批）。

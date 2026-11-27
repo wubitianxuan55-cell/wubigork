@@ -41,19 +41,19 @@ import "../gaea/tailwind.css";
 import "./cost-database.css";
 
 type Phase = "loading" | "ready" | "failed";
-type ExportKind = "template" | "bill" | "quota" | "resource" | "entry";
+type ExportKind = "template" | "bill" | "quota" | "resource";
 type LibraryRow = BillRow | WorkcostQuota | WorkcostResource;
 
 const ROW_CAP = 400;
 const NARROW_WIDTH = 980;
-const EXPORT_LABEL: Record<ExportKind, string> = { template: "测算模版", bill: "清单", quota: "定额", resource: "工料机", entry: "资料条目" };
+const EXPORT_LABEL: Record<ExportKind, string> = { template: "测算模版", bill: "清单", quota: "定额", resource: "工料机" };
 const TIER_LABEL: Record<Tier, string> = { bill: "清单", quota: "定额", resource: "工料机" };
+// 「资料条目」导出口随旧成本库退役（2026-11-26 后端已删）——菜单里不再列。
 const EXPORT_ITEMS: ExportItem[] = [
-  { key: "template", label: "测算模版（按库预填）", hint: "六表空白测算表：工料机价格按当前专业/地区/期预填、费率预填最近项目口径；填完可在造价模式导回库" },
+  { key: "template", label: "测算模版（样表 + 使用说明书）", hint: "六表测算样表，旁边带一份使用说明书；版式以样表为准、程序不预填，综合单价表是唯一导入硬契约。填完经造价模式导回库" },
   { key: "bill", label: "清单（当前筛选）", hint: "项目、编码、名称、特征、挂接定额、原表单价、现算单价" },
   { key: "quota", label: "定额（当前筛选）", hint: "定额主表 + 含量明细附表" },
   { key: "resource", label: "工料机（当前筛选）", hint: "主数据与取用价、被定额引用次数" },
-  { key: "entry", label: "资料条目（全部）", hint: "资料条目没有界面了，这里是唯一的导出口" },
 ];
 
 /** 一次读取的三级数据快照（含现算参考价）。 */
@@ -654,7 +654,8 @@ function CostLibraryPage() {
             ? { ...none, keyword: resourceF.keyword, kind: resourceF.kind, category: resourceF.category, region: resourceF.region, period: resourceF.period }
             : none;
       const written = await app.CostLibraryExport(kind, filter, out);
-      setExportNote({ text: `已导出：${written}`, isError: false });
+      // 测算模版旁边绑着一份使用说明书（后端一并落盘）：提示里带上它，别让人以为只出来一个表。
+      setExportNote({ text: kind === "template" ? `已导出：${written}（使用说明书：同目录同名 -使用说明.md）` : `已导出：${written}`, isError: false });
     } catch (e) {
       setExportNote({ text: `导出失败：${message(e)}`, isError: true });
     } finally {

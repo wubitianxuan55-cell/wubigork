@@ -273,14 +273,15 @@ func TestCostLibraryDryRunValidates(t *testing.T) {
 
 // TestCostLibraryImportProjectScope 导入口径是规范值：字典外的专业、认不出的计价期演练
 // 当场拒收；口径随导入落库；新定额专业随项目；有价的工料机各记一条价格事实。
+// 夹具 = 沿江包1 三级树表（旧什邡夹具删除后这里曾 Skipf 静默跳过——缺夹具即失败）。
 func TestCostLibraryImportProjectScope(t *testing.T) {
 	a, cleanup := workcostTestApp(t)
 	defer cleanup()
 	s := a.hubWorkcostStore()
 	tl := costLibraryTool{a: a}
-	fixture, err := filepath.Abs(filepath.Join("..", "gaea", "workcost", "testdata", "什邡2个污染地块施工成本测算表_补项.xlsx"))
+	fixture, err := filepath.Abs(filepath.Join("..", "gaea", "workcost", "testdata", "沿江包1成本测算表_三级树表.xlsx"))
 	if err != nil || fileMissing(fixture) {
-		t.Skipf("夹具不可用（%v），跳过", err)
+		t.Fatalf("夹具不可用（%v）", err)
 	}
 	clMustFail(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture, "specialty": "不存在专业"}, "导入口径不合规矩")
 	clMustFail(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture, "period": "2026年第7期"}, "不是年月写法")
@@ -291,11 +292,11 @@ func TestCostLibraryImportProjectScope(t *testing.T) {
 	if projects, _ := s.BillProjects(); len(projects) != 0 {
 		t.Fatal("演练不应落库")
 	}
-	// 这份夹具的工料机价格表里有一行是整格同一段说明文字：不是工料机，演练点名、正式拒收。
+	// 干净夹具：演练不应有将被拒收的工料机行。
 	out := clMust(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture,
-		"specialty": "土壤修复", "region": "四川省"}, "**将被拒收的工料机行")
-	if !strings.Contains(out, "说明文字不是编码") {
-		t.Fatalf("演练应道出那一行为什么不是工料机：%s", out)
+		"specialty": "土壤修复", "region": "四川省"}, "🔍 演练（未写库）")
+	if strings.Contains(out, "**将被拒收的工料机行") {
+		t.Fatalf("干净夹具的演练不应有将被拒收的工料机行：%s", out)
 	}
 	clMust(t, tl, map[string]any{"action": "import_project", "path": fixture,
 		"specialty": "土壤修复", "region": "四川省", "period": "2026年6月"}, "**价格事实**")

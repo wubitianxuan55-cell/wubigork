@@ -116,6 +116,37 @@ func TestCostLibraryTemplateCopiesSample(t *testing.T) {
 	if string(got) != string(skill.CostEstimateSampleXLSX()) {
 		t.Error("复制语义：落盘样表应与内嵌种子逐字节一致")
 	}
+	// 使用说明书与样表绑定发放（2026-11-27 用户令）：落在样表旁边、回执指路先读它，
+	// 且把「示例槽位不是数量限制」与入库红线说在前面。
+	manualRel := strings.TrimSuffix(rel, ".xlsx") + "-使用说明.md"
+	for _, want := range []string{"**使用说明书**: " + manualRel, "全是示例", "不是数量限制", "入库红线", "用户明确同意后"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("回执缺 %q：%s", want, out)
+		}
+	}
+	manual, err := os.ReadFile(filepath.Join(ws, filepath.FromSlash(manualRel)))
+	if err != nil {
+		t.Fatalf("使用说明书应与样表一起落盘: %v", err)
+	}
+	if string(manual) != string(skill.CostEstimateManual()) {
+		t.Error("落盘的使用说明书应与内嵌的逐字节一致")
+	}
+	if !strings.Contains(string(manual), "入库红线") || !strings.Contains(string(manual), "槽位不够") {
+		t.Error("使用说明书应覆盖加行配方与入库红线")
+	}
+	// 说明书的工作区覆盖：同名文件优先于内嵌。
+	if err := os.MkdirAll(filepath.Join(ws, ".gaea", "skills", "cost-estimate"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, ".gaea", "skills", "cost-estimate", "成本测算表-使用说明书.md"), []byte("# 自定义说明书"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out4 := clMust(t, tl, map[string]any{"action": "template", "path": ".gaea/work/样表副本2.xlsx"}, "**使用说明书**: .gaea/work/样表副本2-使用说明.md")
+	_ = out4
+	custom, err := os.ReadFile(filepath.Join(ws, ".gaea", "work", "样表副本2-使用说明.md"))
+	if err != nil || string(custom) != "# 自定义说明书" {
+		t.Fatalf("工作区说明书应优先于内嵌： %q %v", custom, err)
+	}
 
 	// 指定路径（顶层 path 同义）。
 	out2 := clMust(t, tl, map[string]any{"action": "template", "path": ".gaea/work/样表副本.xlsx"}, "**测算样表**")

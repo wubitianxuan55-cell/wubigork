@@ -147,7 +147,9 @@ func TestCostLibraryContractRidesReceipts(t *testing.T) {
 // clResidentBudget 常驻 schema 的字符预算（rune，源文本口径含缩进）。2026-11-25
 // 梳理前 13091；行契约与 classify 契约改随回执发放、嵌套 dict 对象退场后实测
 // 8541，预算留一成余量。超了=有人把行级字段又写回了常驻面。
-const clResidentBudget = 9400
+// 2026-11-27 载荷走文件（AI 反馈 #9）：resources_file / quotas_file / bills_file /
+// export 四个常驻参数实测 9426，预算抬到 9700——行级字段仍只在回执契约里。
+const clResidentBudget = 9700
 
 func TestCostLibraryResidentSchemaBudget(t *testing.T) {
 	n := utf8.RuneCountInString(string(costLibraryResidentSchema()))

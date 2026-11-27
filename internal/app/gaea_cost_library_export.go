@@ -111,11 +111,12 @@ func costWriteFile(outPath string, save func(path string) error) error {
 }
 
 // costExportTemplate 测算样表出口（板块「导出 → 测算模版」；2026-11-25 用户拍板
-// 「删除渲染器思路，提供样本给模型，再进行约束」）：把样表复制到目标路径。
-// 版式真源=样表文件（工作区覆盖优先、内嵌种子兜底，见 office_cost_template_sample.go），
-// 不再按库渲染、不再预填——工料机价格与费率口径由模型查库填。filter 参数保留
-// 绑定签名兼容，内容不再使用。
+// 「删除渲染器思路，提供样本给模型，再进行约束」）：把样表复制到目标路径，
+// 《使用说明书》绑着落在旁边（2026-11-27）。版式真源=样表文件（工作区覆盖优先、
+// 内嵌种子兜底，见 office_cost_template_sample.go），不再按库渲染、不再预填——
+// 工料机价格与费率口径由模型查库填。filter 参数保留绑定签名兼容，内容不再使用。
 func (a *App) costExportTemplate(_ workcost.LibraryFilter, outPath string) (string, error) {
+	// 说明书路径不回传：绑定签名只回样表路径（前端提示用），说明书就在它旁边。
 	if _, _, err := writeCostEstimateSample(outPath); err != nil {
 		return "", err
 	}

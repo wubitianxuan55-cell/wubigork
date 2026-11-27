@@ -393,12 +393,12 @@ describe('造价数据库 · 导出与体检', () => {
       return el
     })
     const items = Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).map((i) => i.textContent?.trim())
-    expect(items).toEqual(['测算模版（按库预填）', '清单（当前筛选）', '定额（当前筛选）', '工料机（当前筛选）', '资料条目（全部）'])
+    expect(items).toEqual(['测算模版（样表 + 使用说明书）', '清单（当前筛选）', '定额（当前筛选）', '工料机（当前筛选）'])
     fireEvent.click(Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).at(-1)!)
     await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
     const [kind, filter, out] = mocks.CostLibraryExport.mock.calls[0]!
-    expect([kind, filter]).toEqual(['entry', EMPTY_FILTER])
-    expect(out.startsWith('D:\\新工作\\导出/造价库-资料条目-')).toBe(true)
+    expect([kind, filter]).toEqual(['resource', EMPTY_FILTER])
+    expect(out.startsWith('D:\\新工作\\导出/造价库-工料机-')).toBe(true)
     expect(out.endsWith('.xlsx')).toBe(true)
     expectText(await screen.findByTestId('cost-export-note'), '已导出')
 
@@ -410,6 +410,17 @@ describe('造价数据库 · 导出与体检', () => {
     await waitFor(() => expect(mocks.PickDirectory).toHaveBeenCalledTimes(2))
     expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1)
     expectText(screen.getByTestId('cost-export-note'), '已导出')
+  })
+
+  it('导出测算模版：回执点名旁边绑定的使用说明书', async () => {
+    await renderReady()
+    mocks.PickDirectory.mockResolvedValue('D:/导出')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '导出' })) })
+    await waitFor(() => expect(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item').length).toBeGreaterThan(0))
+    fireEvent.click(Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item')).at(0)!)
+    await waitFor(() => expect(mocks.CostLibraryExport).toHaveBeenCalledTimes(1))
+    expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['template', EMPTY_FILTER])
+    expectText(await screen.findByTestId('cost-export-note'), '使用说明书：同目录同名 -使用说明.md')
   })
 
   it('导出按当前筛选传参：清单带项目与分部，定额带专业', async () => {

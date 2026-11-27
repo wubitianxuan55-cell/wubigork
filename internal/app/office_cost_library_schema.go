@@ -100,7 +100,7 @@ const clSchemaCoreA = `{
 `
 
 // clClassifySchema classify 的完整字段契约（不常驻；随 dims 回执与 help 发放）。
-const clClassifySchema = `  "classify":{"type":"object","description":"批量整理归类（classify 用；每组 ≤500 条；没给的字段不动，值必须是字典里的）。先 dims 看现有叫法","properties":{
+const clClassifySchema = `  "classify":{"type":"object","description":"批量整理归类（classify 用；每组 ≤500 条；没给的字段不动，值必须是字典里的）。先 dims 看现有叫法；条目多时改给 classify_file","properties":{
     "projects":{"type":"array","items":{"type":"object","properties":{
       "id":{"type":"integer","description":"项目 id（必填）"},
       "specialty":{"type":"string","description":"项目默认专业（字典值）"},
@@ -125,6 +125,7 @@ const clClassifySchema = `  "classify":{"type":"object","description":"批量整
       "period":{"type":"string","description":"现行价的期数 YYYY-MM（只能给还没有期的工料机补）"}
     }}}
   }},
+  "classify_file":{"type":"string","description":"classify 的 JSON 文件（工作区相对，如 .gaea/work/plan.json）：对象，顶层键 projects / bills / quotas / resources 各给条目数组，字段同 classify，由脚本生成、不经你转录；单组 ≤2000 条。给了 classify 对象则以对象为准"},
 `
 
 // clSchemaCoreB 常驻参数后段（借鉴生成、样表出口）。
@@ -143,6 +144,10 @@ const clClassifyStub = `  "classify":{"type":"object","description":"批量整�
 // clImportHeadSchema 导入会话与口径（import_open / import_commit 等的常驻参数）。
 const clImportHeadSchema = `
   "import_id":{"type":"string","description":"导入会话 id（import_open 返回；import_add / import_status / import_check / import_commit / import_discard 必填）"},
+  "resources_file":{"type":"string","description":"import_add：工料机行的 JSON 文件（工作区相对；字段同 resources，[{…}] 或 {\"resources\":[…]}，≤2000 行）——由脚本从资料生成，不经你转录"},
+  "quotas_file":{"type":"string","description":"import_add：定额行的 JSON 文件（同 resources_file）"},
+  "bills_file":{"type":"string","description":"import_add：清单行的 JSON 文件（同 resources_file）"},
+  "export":{"type":"string","description":"import_status：把暂存区导出成 JSON 的工作区路径（与载荷文件比对自校验）"},
   "summary":{"type":"boolean","description":"dims：true=只给字典/分布/待整理计数，不带明细抽样（大库盘点先看总量，要明细再不带 summary 拉一次；2026-11-27 复盘 P4）"},
   "source":{"type":"string","description":"import_open：资料路径（工作区内）。只用来回读核对提交的数与文字，不解析它的结构；xlsx / csv 支持，其他格式无法回读"},
   "project":{"type":"object","description":"import_open：项目口径与封面（只导工料机 / 定额可以不给）。专业、地区是字典值，计价期 YYYY-MM","properties":{

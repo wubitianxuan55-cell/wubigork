@@ -406,12 +406,17 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) error
 	// 清单工程量列（清单行引清单表工程量的公式，重算后有缓存值）：清单表改了版式
 	// 或没有这一行时，工程量退回这一列。
 	cBillQty := colIndex(header, false, "清单工程量")
+	// 三费列（工作簿内对账用，workbook_recon.go）：没有这几列就不核对三费。
+	cLabor := colIndex(header, false, "人工")
+	cMaterial := colIndex(header, false, "材料")
+	cMachine := colIndex(header, false, "机械")
+	b.HasFeeSplit = cLabor > 0 && cMaterial > 0 && cMachine > 0
 	if cLevel == 0 || cCode == 0 || cQty == 0 {
 		return fmt.Errorf("「%s」表头缺 层级 / 编码 / 工程量 列，读不了三级树表", sheet)
 	}
 
 	// 明细行的名称 / 单位是取价公式（VLOOKUP 工料机价格）：取缓存值，没缓存时
-	// 回退工料机价格表里的同一编码。
+	// 回退工料机价格表里的同一编码（价格表在 ParseProjectWorkbook 里先于本表读）。
 	resByCode := make(map[string]ProjectResource, len(b.Resources))
 	for _, r := range b.Resources {
 		if r.Code != "" {
@@ -460,6 +465,8 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) error
 			it := ProjectItem{Code: code, Title: title, Unit: itemUnit, CategoryPath: "综合单价/" + firstNonEmpty(title, code)}
 			it.ListPrice, it.ListPriceExpr = num(cPrice, r), expr(cPrice, r)
 			it.Quantity, it.QuantityExpr = num(cBillQty, r), expr(cBillQty, r)
+			it.SheetQuantity = it.Quantity // 「清单工程量」列的缓存值（对账用；工程量本身以清单表为准）
+			it.Amount, it.Labor, it.Material, it.Machine = num(cAmount, r), num(cLabor, r), num(cMaterial, r), num(cMachine, r)
 			// 公式无缓存值（没用 xlsx_recalc 重算）→ 显形，不静默当 0。
 			if it.ListPrice <= 0 && it.ListPriceExpr != "" {
 				b.Warnings = append(b.Warnings,
@@ -478,6 +485,17 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) error
 				b.skip(f, sheet, r, fmt.Sprintf("定额 %s（%s）上方没有可用的清单行——清单行缺编码或被跳过，整块跳过", code, title))
 				continue
 			}
+			if _, isRes := resByCode[code]; isRes {
+				// 定额行的编码却是本簿工料机价格表里的编码：上一块的明细行超过 4 条时
+				// 顺着往下写，覆盖了这一块的定额头（样表每块只有 4 个明细槽）。实测
+				// 整块定额丢失、合计静默偏低十几万而公式不报错——单列进 Overflows，
+				// 演练回执点名；其后的明细行因上方没有可用定额行一并跳过。
+				quotaCode = ""
+				b.Overflows = append(b.Overflows, SkippedRow{Sheet: sheet, Row: r,
+					Reason:  fmt.Sprintf("定额行的编码 %s 是本簿工料机价格表里的工料机编码——上一块的明细行溢出，覆盖了这一块的定额头", code),
+					Excerpt: rowExcerpt(f, sheet, r, maxProbeCols)})
+				continue
+			}
 			factor := num(cQty, r)
 			if factor < 0 {
 				b.Warnings = append(b.Warnings,
@@ -488,6 +506,7 @@ func parseUnitPriceSheet(f *excelize.File, sheet string, b *ProjectBundle) error
 			b.QuotaBlocks = append(b.QuotaBlocks, ProjectQuotaBlock{
 				ItemCode: itemCode, Code: code, Title: title,
 				Unit: strings.TrimSpace(cellAt(f, sheet, r, cUnit)), Factor: factor,
+				Row: r, Amount: num(cAmount, r),
 			})
 		case level != "" && isKnownKind(normalizeKind(level)):
 			if code == "" && num(cQty, r) == 0 {
@@ -586,6 +605,8 @@ func parseBillSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	}
 	cQty := colIndex(header, false, "工程量")
 	cUP := colIndex(header, false, "综合单价")
+	// 合价列（工作簿内对账用）：清单表的综合单价与合价都要和综合单价表对得上。
+	cAmt := colIndex(header, false, "合价")
 	if cCode == 0 || cTitle == 0 || cQty == 0 {
 		b.Warnings = append(b.Warnings, fmt.Sprintf("清单表表头缺 编码 / 名称 / 工程量 列（认到的表头：%s），清单表未导入", strings.Join(nonEmpty(header), " | ")))
 		return
@@ -594,6 +615,23 @@ func parseBillSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 	byCode := map[string]*ProjectItem{}
 	for i := range b.Items {
 		byCode[b.Items[i].Code] = &b.Items[i]
+	}
+	// 首部「直接费合计」格（标题行右侧的合计公式）：工作簿内对账拿它对各行合价之和
+	// 与费用汇总直接费。表头上方各行里找含「合计」的格，取它右边第一个有值的格。
+	for r := 1; r < hdr && b.BillSheetTotal == 0; r++ {
+		for c := 1; c < maxProbeCols; c++ {
+			if !strings.Contains(cellAt(f, sheet, r, c), "合计") {
+				continue
+			}
+			for nc := c + 1; nc <= c+3 && nc <= maxProbeCols; nc++ {
+				cell, _ := excelize.CoordinatesToCellName(nc, r)
+				if v := cellValue(f, sheet, cell); v != 0 {
+					b.BillSheetTotal = v
+					break
+				}
+			}
+			break
+		}
 	}
 	maxRow := sheetMaxRow(f, sheet, maxSheetRows)
 	for r := hdr + 1; r <= maxRow; r++ {
@@ -632,6 +670,17 @@ func parseBillSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 				it.ListPrice = cellValue(f, sheet, cellUP)
 				it.ListPriceExpr = formulaOf(f, sheet, cellUP)
 			}
+			// 清单表这一行的缓存值留给工作簿内对账（综合单价是否等于综合单价表的
+			// 清单行、合价是否等于 工程量 × 综合单价）。
+			it.BillRow = r
+			if cUP > 0 {
+				cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
+				it.BillUnitPrice = cellValue(f, sheet, cellUP)
+			}
+			if cAmt > 0 {
+				cellAmt, _ := excelize.CoordinatesToCellName(cAmt, r)
+				it.BillAmount = cellValue(f, sheet, cellAmt)
+			}
 			it.CategoryPath = "综合单价/" + firstNonEmpty(it.Division, it.Title)
 			continue
 		}
@@ -646,6 +695,11 @@ func parseBillSheet(f *excelize.File, sheet string, b *ProjectBundle) {
 				cellUP, _ := excelize.CoordinatesToCellName(cUP, r)
 				it.ListPrice = cellValue(f, sheet, cellUP)
 				it.ListPriceExpr = formulaOf(f, sheet, cellUP)
+				it.BillUnitPrice = it.ListPrice
+			}
+			if cAmt > 0 {
+				cellAmt, _ := excelize.CoordinatesToCellName(cAmt, r)
+				it.BillAmount = cellValue(f, sheet, cellAmt)
 			}
 			b.Items = append(b.Items, it)
 			b.Warnings = append(b.Warnings, fmt.Sprintf(

@@ -68,8 +68,9 @@ func TestCostLibraryApprovalSubject(t *testing.T) {
 		b, _ := json.Marshal(args)
 		return costLibraryApprovalSubject(b)
 	}
-	if s := subject(map[string]any{"action": "import_project", "path": `D:\新工作\南岸\包3成本测算表.xlsx`}); !strings.Contains(s, "导入测算工作簿（六表）") || !strings.Contains(s, "包3成本测算表.xlsx") {
-		t.Fatalf("导入摘要应含动作与文件名，得到 %q", s)
+	// 入库红线（2026-11-27）：导入测算工作簿的卡上要提醒用户「确认已检查过这份表」。
+	if s := subject(map[string]any{"action": "import_project", "path": `D:\新工作\南岸\包3成本测算表.xlsx`}); !strings.Contains(s, "导入测算工作簿（请确认你已检查过这份测算表）") || !strings.Contains(s, "包3成本测算表.xlsx") {
+		t.Fatalf("导入摘要应含动作、检查提醒与文件名，得到 %q", s)
 	}
 	if s := subject(map[string]any{"action": "delete_quota", "codes": []string{"A", "B"}, "force": true}); !strings.Contains(s, "删除定额") || !strings.Contains(s, "2 条") || !strings.Contains(s, "连带解除引用") {
 		t.Fatalf("删除摘要应含动作、规模与强制标记，得到 %q", s)

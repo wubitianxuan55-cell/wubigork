@@ -966,7 +966,9 @@ func costLibraryApprovalSubject(args json.RawMessage) string {
 	var label string
 	switch p.Action {
 	case "import_project":
-		label = "导入测算工作簿（六表）"
+		// 入库红线（2026-11-27 用户令）：测算表须经用户检查同意才入库——卡上把
+		// 「请确认已检查过这份表」说在明处，别让人以为这只是例行确认。
+		label = "导入测算工作簿（请确认你已检查过这份测算表）"
 	case "template":
 		label = "生成测算模版"
 	case "save_quota":

@@ -97,6 +97,18 @@ type ProjectItem struct {
 	ListPrice     float64 `json:"listPrice"`
 	ListPriceExpr string  `json:"listPriceExpr"` // 综合单价计算式原文（公式无缓存值时告警用）
 	CategoryPath  string  `json:"categoryPath"`  // 综合单价/分部
+
+	// 工作簿缓存值（2026-11-27 工作簿内对账，workbook_recon.go）：综合单价表清单行
+	// 的金额 H 与三费 K/L/M，「清单工程量」列 I 的缓存值；清单表同一行的综合单价、
+	// 合价与行号。没重算的簿金额恒 0。
+	Amount        float64 `json:"amount"`
+	Labor         float64 `json:"labor"`
+	Material      float64 `json:"material"`
+	Machine       float64 `json:"machine"`
+	SheetQuantity float64 `json:"sheetQuantity"`
+	BillUnitPrice float64 `json:"billUnitPrice"`
+	BillAmount    float64 `json:"billAmount"`
+	BillRow       int     `json:"billRow"` // 清单表里的行号（不在清单表=0）
 }
 
 // ProjectQuotaBlock 三级行组里的一个定额块：清单项下挂的一条定额（编码/名称/
@@ -111,6 +123,9 @@ type ProjectQuotaBlock struct {
 	// 清单 m³、定额 100m³ 时 =0.01）。0=跟随清单工程量（即按 1 计）；系数必须进
 	// 金额链：清单综合单价 = Σ(定额单价 × 系数)。
 	Factor float64 `json:"factor"`
+	// Row 定额行在综合单价表里的行号；Amount 定额行金额 H 的缓存值（对账用）。
+	Row    int     `json:"row"`
+	Amount float64 `json:"amount"`
 }
 
 // ProjectFeeParams 解析出的取费参数（费用汇总下半段）。费率之外带各段金额
@@ -177,8 +192,17 @@ type ProjectBundle struct {
 	Fee              ProjectFeeParams  `json:"fee"`
 	Quantities       []ProjectQuantity `json:"quantities"`
 	Skipped          []SkippedRow      `json:"skipped"`
-	Warnings         []string          `json:"warnings"`
-	Sheets           []string          `json:"sheets"`
+	// Overflows 疑似「明细行溢出覆盖定额头」的行（2026-11-27 AI 反馈 #16）：定额行的
+	// 编码却是本簿工料机价格表里的编码。它们已整块跳过、不进 Skipped——演练回执
+	// 单列一段，这是会静默丢钱的结构错误，不能混在普通跳过行里。
+	Overflows []SkippedRow `json:"overflows"`
+	// HasFeeSplit 综合单价表带 人工 / 材料 / 机械 三费列——工作簿内对账才核对
+	// K+L+M = 金额；没有这三列的簿不核对这一条。
+	HasFeeSplit bool `json:"hasFeeSplit"`
+	// BillSheetTotal 清单表首部「直接费合计」格的缓存值（I1）；没有或未重算为 0。
+	BillSheetTotal float64  `json:"billSheetTotal"`
+	Warnings       []string `json:"warnings"`
+	Sheets         []string `json:"sheets"`
 	// 导入口径——规范值，由调用方给（规矩见 rules.go）；文件里没有就不猜，空=待整理：
 	// Specialty 项目默认专业（字典值），本次新建的定额专业随它；Region 项目所在
 	// 地区（字典值），工料机按它分行；Period 计价期（YYYY-MM），工料机价格事实的期。
@@ -265,6 +289,7 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 		Lines:      []ProjectConsumption{},
 		Quantities: []ProjectQuantity{},
 		Skipped:    []SkippedRow{},
+		Overflows:  []SkippedRow{},
 		Warnings:   []string{},
 	}
 	// taken 已经认领的表：一张表只当一种用途（「清单综合单价」先归综合单价）。
@@ -280,13 +305,18 @@ func ParseProjectWorkbook(path string) (*ProjectBundle, error) {
 			sheetUnitPrice, b.Sheets)
 	}
 	// 综合单价读不了 = 整份拒收：定额与消耗行是工作簿的主体，缺了它们清单行
-	// 会全部「无消耗」入库，带病入库比不入更糟。
+	// 会全部「无消耗」入库，带病入库比不入更糟。表先认下来（防歧义表名被别的
+	// 用途抢走），但工料机价格表要先读：综合单价明细行没缓存值时名称 / 单位回退
+	// 价格表里的同一编码，定额头的溢出识别与工作簿内对账也靠价格表的编码与价——
+	// 此前综合单价先读，那张回退表在读取时恒空（2026-11-27 顺手根修）。
+	resSheet := pick(sheetResourcePr)
+	if resSheet != "" {
+		parseResourceSheet(f, resSheet, b)
+	}
 	if err := parseUnitPriceSheet(f, upSheet, b); err != nil {
 		return nil, err
 	}
-	if sn := pick(sheetResourcePr); sn != "" {
-		parseResourceSheet(f, sn, b)
-	} else {
+	if resSheet == "" {
 		b.Warnings = append(b.Warnings, "工作簿没有工料机价格表：消耗行引用的工料机按库内既有编码解析，库内没有的按零价核算")
 	}
 	if sn := pick(sheetBill); sn != "" {

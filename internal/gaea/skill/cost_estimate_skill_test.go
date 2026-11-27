@@ -56,6 +56,28 @@ func TestCostEstimateSkill_CoversKeyClauses(t *testing.T) {
 			t.Fatalf("正文缺关键条款 %q", c)
 		}
 	}
+	// 2026-11-27 用户令「优化造价技能」：新做测算优先在样表上编、样表槽位只是示例、
+	// 测算表须经用户检查同意才入库、说明书随样表发放。
+	for _, c := range []string{"在测算样表上编", "使用说明书", "不是数量限制", "不要只写 4 行就停", "入库红线", "用户明确说可以入库", "工作簿内对账", "疑似明细行溢出"} {
+		if !strings.Contains(sk.Body, c) {
+			t.Fatalf("正文缺工作流条款 %q", c)
+		}
+	}
+	// 使用说明书随程序带一份（取代旧适配规范 v5.6）：要覆盖加行配方、结构规范、
+	// 入库红线，并把 v5.6 里已被推翻的说法改正。
+	manual := string(CostEstimateManual())
+	for _, c := range []string{"入库红线", "用户明确说可以入库", "槽位不够", "不是数量限制", "公式模板", "三层 ROUND", "import_project",
+		"疑似明细行溢出", "工作簿内对账", "附录 B", "地区只到省", "清单工程量"} {
+		if !strings.Contains(manual, c) {
+			t.Fatalf("使用说明书缺 %q", c)
+		}
+	}
+	if strings.Contains(manual, "两层 ROUND（定额金额、清单小计）必须保留") {
+		t.Fatal("使用说明书不应再保留 v5.6「两层 ROUND」的旧口径")
+	}
+	if CostEstimateManualOverrideRel == "" {
+		t.Fatal("工作区说明书覆盖路径未定义")
+	}
 	// 样表资产在位（版式真源随程序带一份种子；工作区可覆盖）。
 	if len(CostEstimateSampleXLSX()) == 0 {
 		t.Fatal("内嵌测算样表缺失")

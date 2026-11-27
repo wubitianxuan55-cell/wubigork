@@ -10,6 +10,7 @@ package app
 // import_add 即可。
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/workcost"
+	"github.com/gaea/gaea/internal/gaea/wspath"
 )
 
 // clSrcSchema import_* 各行的来源位置（回读核对的锚点）在说明里的写法。
@@ -139,7 +141,7 @@ func (t costLibraryTool) importOpen(s *workcost.Store, p costLibraryArgs) (strin
 	if p.Controls == nil {
 		out.WriteString("**控制数**: 未登记（资料上有行数、合计的话，重新 import_open 带上 controls，勾稽时能对出漏行漏项）。\n")
 	}
-	out.WriteString("\n下一步：读资料、整理成工料机 / 定额 / 清单行，action=import_add 分批提交（先工料机、再定额、后清单；每批 ≤200 行，每行带 src）。")
+	out.WriteString("\n下一步：读资料、整理成工料机 / 定额 / 清单行，action=import_add 分批提交（先工料机、再定额、后清单；每批 ≤200 行，每行带 src）。**行多时走文件**：让脚本从资料直接生成行 JSON（字段同 import_add），import_add 带 resources_file / quotas_file / bills_file=<文件路径>（单文件 ≤2000 行）——数字不经你转录，最稳；导入会话只在内存里，两小时内要提交。")
 	// 行字段契约不常驻 schema（省每轮上下文），在这个流程必经节点随身发放。
 	out.WriteString("\n\n" + clImportRowsContract)
 	return out.String(), nil
@@ -155,12 +157,20 @@ func (t costLibraryTool) importAdd(s *workcost.Store, p costLibraryArgs) (string
 		return "", fmt.Errorf("import_add 需要 resources / quotas / bills 至少一组（行字段契约见 import_open 回执，或 action=help）")
 	}
 	var results []workcost.ImportAddResult
+	// 单批上限：手写转录的数组卡 ImportMaxPerBatch；文件读来的行不经转录，放宽。
+	limit := func(kind string) int {
+		if p.FromFile[kind] {
+			return clFileMaxRows
+		}
+		return workcost.ImportMaxPerBatch
+	}
 	add := func(kind string, n int, run func() (workcost.ImportAddResult, error)) error {
 		if n == 0 {
 			return nil
 		}
-		if n > workcost.ImportMaxPerBatch {
-			return fmt.Errorf("%s 一批最多 %d 行（本次 %d），请分批提交", clImportKindLabel[kind], workcost.ImportMaxPerBatch, n)
+		if max := limit(kind); n > max {
+			return fmt.Errorf("%s 一批最多 %d 行（本次 %d），请分批提交；行多时改走文件——用脚本从资料直接生成 JSON，%s_file=<工作区路径> 提交（单文件 ≤%d 行，字段与数组相同，数字不经你转录）",
+				clImportKindLabel[kind], max, n, map[string]string{"resource": "resources", "quota": "quotas", "bill": "bills"}[kind], clFileMaxRows)
 		}
 		r, err := run()
 		if err != nil {
@@ -182,6 +192,9 @@ func (t costLibraryTool) importAdd(s *workcost.Store, p costLibraryArgs) (string
 	rejected := 0
 	var out strings.Builder
 	fmt.Fprintf(&out, "🔍 暂存（未写库）：导入 %s\n", imp.ID)
+	if p.FileNote != "" {
+		fmt.Fprintf(&out, "**读自文件**: %s行号按文件里的顺序计\n", p.FileNote)
+	}
 	for _, r := range results {
 		rejected += len(r.Rejected)
 		fmt.Fprintf(&out, "**本批%s**: 提交 %d 行 → 入暂存 %d（其中覆盖 %d）｜退回 %d\n",
@@ -222,6 +235,29 @@ func (t costLibraryTool) importStatus(p costLibraryArgs) (string, error) {
 		return "", err
 	}
 	rs, qs, bs := imp.StagedRows()
+	if want := strings.TrimSpace(p.Export); want != "" {
+		// 导出成 JSON（与 import_add 的行格式逐字相同）：模型拿自己的载荷文件与它
+		// 比对，程序化确认「提交的都进了暂存区」，不必靠回执里的抽样清单。
+		abs, rerr := wspath.ResolveRelWithin(gaeaCwd(), want)
+		if rerr != nil {
+			return "", fmt.Errorf("export 必须是工作区相对路径（拒 .. 穿越）：%s", want)
+		}
+		data, merr := json.MarshalIndent(map[string]any{"resources": rs, "quotas": qs, "bills": bs}, "", " ")
+		if merr != nil {
+			return "", merr
+		}
+		if merr := os.MkdirAll(filepath.Dir(abs), 0o755); merr != nil {
+			return "", fmt.Errorf("创建导出目录失败: %w", merr)
+		}
+		if werr := os.WriteFile(abs, append(data, '\n'), 0o644); werr != nil {
+			return "", fmt.Errorf("写出暂存区导出失败: %w", werr)
+		}
+		shown := filepath.ToSlash(want)
+		if rel, rerr := filepath.Rel(gaeaCwd(), abs); rerr == nil && !strings.HasPrefix(rel, "..") {
+			shown = filepath.ToSlash(rel)
+		}
+		return fmt.Sprintf("✅ 已完成：导出暂存区 %s（工料机 %d｜定额 %d｜清单 %d）——与你的载荷文件逐行比对即可自校验；字段与 import_add 相同", shown, len(rs), len(qs), len(bs)), nil
+	}
 	var out strings.Builder
 	out.WriteString("📋 暂存区（未写库）：" + imp.ID + "\n")
 	list := func(label string, n int, render func(i int) string) {
@@ -256,7 +292,7 @@ func (t costLibraryTool) importStatus(p costLibraryArgs) (string, error) {
 		b := bs[i]
 		return fmt.Sprintf("[%s] %s（%s，量=%g）", b.Code, b.Title, b.Unit, b.Quantity)
 	})
-	out.WriteString("\n下一步：import_add 补交/修正（同码只带改动的字段，没给的头字段保持原值）；import_check 勾稽；import_commit 提交。")
+	out.WriteString("\n下一步：import_add 补交/修正（同码只带改动的字段，没给的头字段保持原值）；import_check 勾稽；import_commit 提交。要程序化核对暂存区，加 export=<工作区路径> 导出成 JSON（行格式与 import_add 相同）。")
 	return out.String(), nil
 }
 

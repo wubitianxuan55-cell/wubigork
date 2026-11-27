@@ -9,8 +9,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/workcost"
@@ -398,16 +401,19 @@ func TestCostLibraryHealth(t *testing.T) {
 	}
 }
 
-// TestCostLibraryImportProject 导入五表工作簿：演练不写库并给出规模；正式导入
-// 落项目、清单、工料机与定额；非 xlsx 与越界路径被拒。
+// TestCostLibraryImportProject 导入测算簿：演练不写库并给出规模；正式导入落项目、
+// 清单、工料机与定额；非 xlsx 与越界路径被拒；重导入幂等。
+//
+// 夹具 = 沿江包1 三级树表（旧什邡五表夹具随「行类」版式退役删除后，这里曾因
+// Skipf 静默跳过了两天——缺夹具即失败）。
 func TestCostLibraryImportProject(t *testing.T) {
 	a, cleanup := workcostTestApp(t)
 	defer cleanup()
 	s := a.hubWorkcostStore()
 	tl := costLibraryTool{a: a}
-	fixture, err := filepath.Abs(filepath.Join("..", "gaea", "workcost", "testdata", "什邡2个污染地块施工成本测算表_补项.xlsx"))
+	fixture, err := filepath.Abs(filepath.Join("..", "gaea", "workcost", "testdata", "沿江包1成本测算表_三级树表.xlsx"))
 	if err != nil || fileMissing(fixture) {
-		t.Skipf("夹具不可用（%v），跳过", err)
+		t.Fatalf("夹具不可用（%v）", err)
 	}
 	clMustFail(t, tl, map[string]any{"action": "import_project", "path": "报价单.csv"}, "只收 .xlsx")
 	clMustFail(t, tl, map[string]any{"action": "import_project", "path": "不存在的成本测算表.xlsx"}, "读不到工作簿")
@@ -441,6 +447,81 @@ func TestCostLibraryImportProject(t *testing.T) {
 func fileMissing(p string) bool {
 	_, err := os.Stat(p)
 	return err != nil
+}
+
+// TestCostLibraryImportProjectDryRunRecon 导入演练的工作簿内对账与入库红线
+// （2026-11-27 AI 反馈 #15/#16/#18）：干净的测算簿对账打勾；明细溢出盖住定额头的簿
+// 点名；回执指路「交用户检查同意后再入库」；带着问题正式导入时如实说明。
+func TestCostLibraryImportProjectDryRunRecon(t *testing.T) {
+	a, cleanup := workcostTestApp(t)
+	defer cleanup()
+	tl := costLibraryTool{a: a}
+	clMust(t, tl, map[string]any{"action": "dict", "dict": map[string]any{"op": "add", "kind": "region", "name": "四川省"}}, "已新增")
+	fixture, err := filepath.Abs(filepath.Join("..", "gaea", "workcost", "testdata", "沿江包1成本测算表_三级树表.xlsx"))
+	if err != nil || fileMissing(fixture) {
+		t.Fatalf("夹具不可用（%v）", err)
+	}
+	out := clMust(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": fixture,
+		"specialty": "土壤修复", "region": "四川省"}, "✅ **工作簿内对账**")
+	for _, want := range []string{"金额链逐级复算一致", "入库红线", "用户明确同意后才去掉 dry_run 正式导入"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("演练回执应含 %q：%s", want, out)
+		}
+	}
+
+	// 溢出簿：样表上填一组，第 5 条明细写进了第 10 行（B 列仍是预置的「定额」）。
+	src, err := filepath.Abs(filepath.Join("..", "gaea", "skill", "assets", "cost-estimate-sample.xlsx"))
+	if err != nil || fileMissing(src) {
+		t.Fatalf("样表不可用（%v）", err)
+	}
+	f, err := excelize.OpenFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := func(sheet, cell string, v any) {
+		t.Helper()
+		if err := f.SetCellValue(sheet, cell, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set("封面", "B2", "溢出测试")
+	set("工料机价格", "A4", "L01")
+	set("工料机价格", "C4", "人工")
+	set("工料机价格", "D4", "普工")
+	set("工料机价格", "F4", "工日")
+	set("工料机价格", "G4", 180)
+	set("综合单价", "C4", "Q01")
+	set("综合单价", "D4", "垫层")
+	set("综合单价", "C5", "D-A1")
+	set("综合单价", "D5", "垫层浇筑")
+	for i := 0; i < 4; i++ {
+		r := strconv.Itoa(6 + i)
+		set("综合单价", "B"+r, "人工")
+		set("综合单价", "C"+r, "L01")
+		set("综合单价", "F"+r, 0.1)
+	}
+	set("综合单价", "C10", "L01")
+	set("综合单价", "F10", 0.3)
+	path := filepath.Join(t.TempDir(), "溢出测算簿.xlsx")
+	if err := f.SaveAs(path); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	out = clMust(t, tl, map[string]any{"action": "import_project", "dry_run": true, "path": path}, "⚠ **疑似明细行溢出 1 处**")
+	for _, want := range []string{"综合单价!10", "没有缓存金额（未重算）", "配方见使用说明书第三节与 5.5 节"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("溢出簿的演练回执应含 %q：%s", want, out)
+		}
+	}
+	// 正式导入：库里只落那一块定额（4 条含量行），回执如实说明溢出没修。
+	clMust(t, tl, map[string]any{"action": "import_project", "path": path}, "疑似明细行溢出 1 处——已按工作簿原样导入")
+	quotas, _ := a.hubWorkcostStore().ListQuotas("", "")
+	if len(quotas) != 1 {
+		t.Fatalf("溢出的工料机编码不应落成定额，得到 %d 条：%+v", len(quotas), quotas)
+	}
+	if q, err := a.hubWorkcostStore().GetQuota(quotas[0].Code); err != nil || len(q.Items) != 4 {
+		t.Fatalf("溢出簿只应落 1 块定额、4 条含量行：%+v %v", q, err)
+	}
 }
 
 // TestCostLibraryPromptAnchors 造价档的模式行、身份稿、技能正文都必须点名
