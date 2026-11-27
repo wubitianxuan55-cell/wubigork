@@ -545,7 +545,7 @@ func FormatHits(query string, hits []Hit) string {
 
 // ── 最近会话清单 ───────────────────────────────────────────────────────
 
-// SessionMeta 一场会话的概要（标题 / 起止 / 首条任务 / 消息条数）。
+// SessionMeta 一场会话的概要（标题 / 起止 / 首条任务 / 收尾回复 / 消息条数）。
 type SessionMeta struct {
 	ID          string
 	Title       string
@@ -554,6 +554,9 @@ type SessionMeta struct {
 	UserMsgs    int
 	AsstMsgs    int
 	FirstPrompt string
+	// LastReply 最后一条助手成稿的开头（压成一行）：这场会话是怎么收的尾
+	// （2026-11-27 AI 反馈 #14：跨会话接力时下一场先看上一场的结论）。
+	LastReply string
 }
 
 // Recent 列出最近的会话（按最后活动时间倒序），数据来自索引：一场会话至少
@@ -603,6 +606,11 @@ func (s *Store) Recent(limit int) ([]SessionMeta, error) {
 		var first string
 		if err := s.db.QueryRow(`SELECT content FROM session_fts WHERE session_id = ? AND role = 'user' ORDER BY seq ASC LIMIT 1`, r.id).Scan(&first); err == nil {
 			m.FirstPrompt = oneLine(first, 80)
+		}
+		// 最后一条助手成稿的开头 = 这场会话怎么收的尾；要看全文用 handoff。
+		var last string
+		if err := s.db.QueryRow(`SELECT content FROM session_fts WHERE session_id = ? AND role = 'assistant' ORDER BY seq DESC LIMIT 1`, r.id).Scan(&last); err == nil {
+			m.LastReply = oneLine(last, 160)
 		}
 		out = append(out, m)
 	}
@@ -660,7 +668,7 @@ func FormatRecent(list []SessionMeta) string {
 		return "本工作区还没有可列的过往会话（索引为空）。"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "最近的 %d 场会话（按最后活动时间倒序；要回顾某一场用 session_search 带关键词检索，或 @会话:<标题或文件名> 注入快照）：\n", len(list))
+	fmt.Fprintf(&b, "最近的 %d 场会话（按最后活动时间倒序；要回顾某一场用 session_search 带关键词检索，或 @会话:<标题或文件名> 注入快照；接续上一场的工作先看它的交接卡：session_search handoff=<会话 id>）：\n", len(list))
 	for i, m := range list {
 		title := m.Title
 		if title == "" {
@@ -674,6 +682,9 @@ func FormatRecent(list []SessionMeta) string {
 			i+1, m.ID, title,
 			m.Started.Format("01-02 15:04"), m.LastActive.Format("01-02 15:04"), m.UserMsgs, m.AsstMsgs,
 			task)
+		if m.LastReply != "" {
+			fmt.Fprintf(&b, "   收尾：%s\n", m.LastReply)
+		}
 	}
 	return b.String()
 }

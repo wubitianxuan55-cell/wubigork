@@ -40,10 +40,10 @@ func SessionDirDenied(toolName, p string) error {
 		Code: tool.CodeDenied,
 		Err: fmt.Errorf("SESSION_DENIED: 会话件围栏拒绝 %s 读取 %s。"+
 			".gaea/sessions/ 下是内部事件流（逐行巨大必撞输出预算截断，且混系统事件非可读会话原文）。"+
-			"读历史会话请走正规通道：① session_search 不带 query——列出最近的会话（标题 / 起止 / 首条任务，含刚结束的那场）；带关键词则检索用户与助手的消息；"+
+			"读历史会话请走正规通道：① session_search 不带 query——列出最近的会话（标题 / 起止 / 首条任务 / 怎么收的尾，含刚结束的那场），接续某场的工作再 session_search handoff=<会话 id> 看它的交接卡（收尾回复、动过的文件及体检）；带关键词则检索用户与助手的消息；"+
 			"② @会话:<标题或文件名> 引用——注入该场会话的快照；诊断确需原始件时用 bash head/tail 分页取窗口。", toolName, p),
 		EffectState: tool.EffectNone,
-		NextAction:  "先 session_search 不带 query 列最近会话，再带关键词检索或 @会话:<标题> 引用；诊断原始件用 bash head/tail 分页",
+		NextAction:  "先 session_search 不带 query 列最近会话（接续某场的工作用 handoff=<会话 id> 看交接卡），再带关键词检索或 @会话:<标题> 引用；诊断原始件用 bash head/tail 分页",
 	}
 }
 

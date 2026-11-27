@@ -538,6 +538,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。
 	if gdb := db.GetDatabase(memUserDir); gdb != nil {
 		addGated(reg, opts.ToolFilter, sessionquery.NewSearchTool(gdb, orDefault(opts.SessionDir, config.SessionDir())))
+		// 交接卡逐件体检（xlsx 打开性 / 缓存值），2026-11-27 AI 反馈 #14。
+		wireArtifactHealth()
 	}
 	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
 	// （此前 WithTranscripts 只有测试调用，真机子代理 tab 无数据可显示）。

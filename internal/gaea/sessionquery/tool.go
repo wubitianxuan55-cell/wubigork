@@ -29,26 +29,40 @@ func NewSearchTool(db *sql.DB, sessionDir string) tool.Tool {
 func (searchTool) Name() string { return "session_search" }
 
 func (searchTool) Description() string {
-	return "Search past conversation transcripts of this workspace (user and assistant messages across earlier sessions, including the one that just ended). " +
-		"Use to recall what was discussed/done before: prior decisions, past errors and fixes, earlier versions of a plan. " +
-		"Multiple keywords all need to appear in the same session (same message first, then anywhere in that session). " +
-		"Leave query empty to list the most recent sessions with title, time span and first task. " +
-		"Complements memory: memory holds distilled facts, this searches the raw conversations."
+	return "Search this workspace's past session transcripts (user and assistant messages, including the session that just ended) " +
+		"to recall prior decisions, errors and fixes. Multiple keywords must all appear in the same session. " +
+		"Empty query: list recent sessions with first task and how each ended. " +
+		"handoff=<session id>: that session's handoff card (last reply, files it wrote, file health) — read it before continuing another session's work. " +
+		"Complements memory: memory holds distilled facts, this searches raw conversations."
 }
 
 func (searchTool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"Keywords to search in past conversations (space-separated; all must appear in the same session). Empty = list the most recent sessions (title / time span / first task)."},"limit":{"type":"integer","description":"Max matches (or sessions) to return (default 8, max 32)."}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"Keywords (space-separated; all must appear in the same session). Empty = list recent sessions."},"handoff":{"type":"string","description":"Session id from that list: return its handoff card (last reply, files written, file health)."},"limit":{"type":"integer","description":"Max matches (or sessions) to return (default 8, max 32)."}}}`)
 }
 
 func (searchTool) ReadOnly() bool { return true }
 
 func (t searchTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Query string `json:"query"`
-		Limit int    `json:"limit"`
+		Query   string `json:"query"`
+		Handoff string `json:"handoff"`
+		Limit   int    `json:"limit"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
+	}
+	// 交接卡（2026-11-27 AI 反馈 #14）：接续另一场会话的工作之前，先看它怎么收的
+	// 尾、动过哪些文件、文件现在健不健康。按需取，不自动注入。
+	if strings.TrimSpace(p.Handoff) != "" {
+		var card *HandoffCard
+		if err := t.withBusyRetry(ctx, func() error {
+			var rerr error
+			card, rerr = t.store.Handoff(p.Handoff)
+			return rerr
+		}); err != nil {
+			return "", err
+		}
+		return FormatHandoff(card), nil
 	}
 	if strings.TrimSpace(p.Query) == "" {
 		var list []SessionMeta
