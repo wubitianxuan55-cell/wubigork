@@ -108,9 +108,18 @@ func buildSystemPrompt(cfg *config.Config, cwd, space, memMode string, stderrPat
 	// （两空间各自的空间收窄视图都注入——activation 与 scope 正交）；排序
 	// Name 升序保证 touch 不翻动前缀；空集合零注入。
 	if cfg.Memory.Enabled {
-		if block := memory.BuildPinnedFactsBlock(mem.Store.List(), 0); block != "" {
-			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
+		res := memory.BuildPinnedFacts(mem.Store.List(), 0)
+		if res.Block != "" {
+			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + res.Block
 		}
+		// 固化块发射面留给召回侧去重（众神殿 2026-11-28 论证 action-2/4）：
+		// 去重依据跟「实际注入的前缀」走——本 Set 即 controller 持有的实例，
+		// 会话中途重载换 Set 时由 finishMemoryReload 携带本状态。
+		mem.SetPinnedFactsState(memory.PinnedFactsState{
+			Emitted:   res.Emitted,
+			Truncated: res.Truncated,
+			Omitted:   res.Omitted,
+		})
 	}
 	// 常用资料（已固定）：工作区 .gaea/pinned.json 清单自动带入新会话，
 	// 文本类附正文摘要、办公文档列名按需读取（装配而非灌输）。

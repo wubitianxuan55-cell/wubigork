@@ -162,3 +162,72 @@ func TestProfileBlockBudget(t *testing.T) {
 		t.Fatalf("画像注入超出预算: %d", utf8.RuneCountInString(block))
 	}
 }
+
+// ─── 召回 ×固化块 emitted 级去重（众神殿 2026-11-28 论证 action-4）──────────
+// 已完整进入前缀固化块（Emitted 且未截断）的 pinned 不再逐轮召回；被挤出
+// （Omitted）、正文截断（Truncated）、正文空的 pinned 仍走召回——不能按
+// m.Pinned 全量跳过，否则固化块溢出时两处皆失。
+
+func newPinnedDedupTestSet(t *testing.T) *Set {
+	t.Helper()
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	t.Cleanup(func() { db.CloseDatabase(dir) })
+	s := SQLiteStoreFor(gdb, dir, "/Users/me/proj")
+	fix := []Memory{
+		{Name: "aaa-emit", Title: "已入块", Kind: KindSemantic, Type: TypeProject,
+			Description: "已完整入块固化", Body: "固化正文 alpha-kw 已随前缀在场"},
+		{Name: "bbb-trunc", Title: "被截断", Kind: KindSemantic, Type: TypeProject,
+			Description: "正文截断固化", Body: "beta-kw " + strings.Repeat("长", pinnedFactsBodyCap)},
+		{Name: "ccc-omit", Title: "被挤出", Kind: KindSemantic, Type: TypeProject,
+			Description: "块预算溢出固化", Body: strings.Repeat("gamma-kw 固化正文。", 60)},
+		{Name: "delta-empty", Title: "空正文固化", Kind: KindSemantic, Type: TypeProject,
+			Description: "正文空的固化条 delta-kw", Body: "   "},
+	}
+	for _, m := range fix {
+		if _, err := s.Save(m); err != nil {
+			t.Fatalf("save %s: %v", m.Name, err)
+		}
+		// 固化态是独立操作（Save 不落 pinned 列，与面板「固化」动作同口径）
+		if err := s.Pin(m.Name); err != nil {
+			t.Fatalf("pin %s: %v", m.Name, err)
+		}
+	}
+	// 预算 700：aaa-emit 与 bbb-trunc（400 rune 截断）入块；ccc-omit 整行放
+	// 不下出局；delta-empty 本就不进块（无正文可装配）。
+	set := &Set{Store: s}
+	res := BuildPinnedFacts(s.List(), 700)
+	if !equalStrings(res.Emitted, []string{"aaa-emit", "bbb-trunc"}) ||
+		!equalStrings(res.Truncated, []string{"bbb-trunc"}) ||
+		!equalStrings(res.Omitted, []string{"ccc-omit"}) {
+		t.Fatalf("fixture 发射面不符预期: %+v", res)
+	}
+	set.SetPinnedFactsState(PinnedFactsState{
+		Emitted: res.Emitted, Truncated: res.Truncated, Omitted: res.Omitted,
+	})
+	return set
+}
+
+func TestRecallBlockPinnedDedupByEmitted(t *testing.T) {
+	set := newPinnedDedupTestSet(t)
+	block := set.RecallBlock("alpha-kw beta-kw gamma-kw delta-kw", 0)
+	if block == "" {
+		t.Fatal("应有召回块")
+	}
+	if strings.Contains(block, "[MEM:aaa-emit]") {
+		t.Fatalf("已完整入块的 pinned 不应重复召回: %s", block)
+	}
+	for _, want := range []string{"[MEM:bbb-trunc]", "[MEM:ccc-omit]", "[MEM:delta-empty]"} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("截断/挤出/空正文 pinned 仍应召回，缺 %s: %s", want, block)
+		}
+	}
+	// 零状态 Set（boot 未装配/直接 Load）：不排任何 pinned——去重只认发射面。
+	fresh := &Set{Store: set.Store}
+	if block := fresh.RecallBlock("alpha-kw beta-kw gamma-kw", 0); !strings.Contains(block, "[MEM:aaa-emit]") {
+		t.Fatalf("零状态 Set 不应去重: %s", block)
+	}
+}

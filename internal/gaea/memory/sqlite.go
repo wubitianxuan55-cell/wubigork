@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -23,13 +24,28 @@ func (b *sqliteBackend) Index() string {
 
 // renderIndex 把事实列表渲染成注入用索引文本（sqliteBackend.Index 与
 // spaceView.Index 共用，S1.2 B 空间收窄视图复用同一渲染，保证形状一致）。
+//
+// 确定性准入（众神殿 2026-11-28 论证 action-3）：重要但未固化（procedural 且
+// 非 pinned）的条目排前——索引此前按 name 序渲染、capMemoryIndex 按字节尾部
+// 盲切，关键方法论条目可被字典序挤掉。准入集合只取显式稳定字段（Kind/
+// Pinned/Name），touch/评分不得参与，否则重蹈「touch 翻动前缀」；组内 Name
+// 升序与 SQL ORDER BY 同形，同输入逐字节稳定。
 func renderIndex(mems []Memory) string {
 	if len(mems) == 0 {
 		return ""
 	}
+	sorted := make([]Memory, len(mems))
+	copy(sorted, mems)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		pi, pj := indexAdmissionRank(sorted[i]), indexAdmissionRank(sorted[j])
+		if pi != pj {
+			return pi < pj
+		}
+		return sorted[i].Name < sorted[j].Name
+	})
 	var buf strings.Builder
 	buf.WriteString("# Memory\n\n")
-	for _, m := range mems {
+	for _, m := range sorted {
 		kindTag := ""
 		switch NormalizeKind(string(m.Kind)) {
 		case KindEpisodic:
@@ -40,6 +56,18 @@ func renderIndex(mems []Memory) string {
 		fmt.Fprintf(&buf, "- %s[%s](%s.md) — %s\n", kindTag, displayTitle(m.Title, m.Name), m.Name, oneLine(m.Description))
 	}
 	return strings.TrimSpace(buf.String())
+}
+
+// indexAdmissionRank 返回索引准入组号：0=重要但未固化（procedural 且非
+// pinned——固化条已有正文块兜底，它们只靠索引行触达）；1=其余。
+func indexAdmissionRank(m Memory) int {
+	if m.Pinned {
+		return 1
+	}
+	if NormalizeKind(string(m.Kind)) == KindProcedural {
+		return 0
+	}
+	return 1
 }
 
 // Path returns a logical reference to the fact. Model-facing tools that need

@@ -280,6 +280,14 @@ func (c *Controller) beginMemoryReloadLocked() (memory.Options, uint64) {
 // 调用方不得持有 c.mu。
 func (c *Controller) finishMemoryReload(opts memory.Options, gen uint64) {
 	next := memory.Load(opts)
+	// 固化块发射面跟前缀快照走（众神殿 2026-11-28 论证 action-4）：中途重载
+	// 只换读端快照（索引/检索/召回的 List），缓存前缀仍是 boot 装配的那一块，
+	// 去重依据不得按新 List 重算——否则会话中途新固化的条目会被误判为「已在
+	// 前缀」而失去召回正文。锁内取快照（c.mem 可能被并发换入）。
+	c.mu.Lock()
+	snap := c.mem.PinnedFactsSnapshot()
+	c.mu.Unlock()
+	next.SetPinnedFactsState(snap)
 	c.mu.Lock()
 	if gen >= c.memLoadedGen {
 		c.mem = next

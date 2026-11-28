@@ -24,6 +24,10 @@ type Set struct {
 	UserDir string       // user config root (may be "")
 	DB      *sql.DB      // Hephaestus.db 连接（SQLite 后端时非 nil，refresh 复用）
 	Mode    string       // 会话运行模式（""=模式维度未启用；重载沿用，见 mode.go）
+
+	// pinnedFacts 是装配点测得的固化块发射面（boot 写入，见 activation.go）：
+	// 召回去重的依据跟「实际注入的前缀」走，中途重载换 Set 时须携带而非重算。
+	pinnedFacts PinnedFactsState
 }
 
 // Options configures discovery. CWD defaults to "." and UserDir is the user

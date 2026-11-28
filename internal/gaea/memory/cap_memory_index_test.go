@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -243,4 +244,51 @@ func hasUnclosedLink(s string) bool {
 		i = close + 1
 	}
 	return false
+}
+
+// ─── 索引确定性准入（众神殿 2026-11-28 论证 action-3）────────────────────────
+// 重要但未固化（procedural 且非 pinned）排前：name 序渲染 + 字节尾部盲切下
+// 它们可被字典序挤掉；准入只取显式稳定字段，touch 不得翻动渲染。
+func TestRenderIndexAdmissionKeepsLateProcedural(t *testing.T) {
+	mems := make([]Memory, 0, 31)
+	for i := 0; i < 30; i++ {
+		mems = append(mems, Memory{
+			Name:        fmt.Sprintf("aaa-%03d", i),
+			Title:       fmt.Sprintf("条目 %03d", i),
+			Description: strings.Repeat("摘", 150),
+			Kind:        KindSemantic,
+		})
+	}
+	mems = append(mems, Memory{
+		Name: "zzz-late-rule", Title: "关键规则",
+		Description: "排字典序尾部的关键方法论", Kind: KindProcedural,
+	})
+	idx := capMemoryIndex(renderIndex(mems))
+	if !strings.Contains(idx, "(zzz-late-rule.md)") {
+		t.Fatal("procedural 非 pinned 条目被字典序挤出注入预算")
+	}
+	if len(idx) > memoryIndexBudgetBytes {
+		t.Fatalf("注入索引超预算: %d bytes", len(idx))
+	}
+	// touch/LastUsedAt 变化不翻动渲染（前缀稳定的硬前提）。
+	before := renderIndex(mems)
+	for i := range mems {
+		mems[i].LastUsedAt = mems[i].LastUsedAt.Add(time.Duration(i+1) * time.Hour)
+	}
+	if after := renderIndex(mems); after != before {
+		t.Fatal("touch 翻动了索引渲染（准入不得依赖时间/使用面）")
+	}
+}
+
+// 准入组序：procedural 非 pinned 优先于 pinned（固化条已有正文块兜底，
+// 未固化方法论条目只靠索引行触达）；组内仍 Name 升序。
+func TestRenderIndexAdmissionGroupOrder(t *testing.T) {
+	mems := []Memory{
+		{Name: "aaa-pinned", Kind: KindSemantic, Pinned: true, Description: "固化条"},
+		{Name: "zzz-late-rule", Kind: KindProcedural, Description: "未固化方法论"},
+	}
+	idx := renderIndex(mems)
+	if iRule, iPinned := strings.Index(idx, "(zzz-late-rule.md)"), strings.Index(idx, "(aaa-pinned.md)"); iRule > iPinned {
+		t.Fatalf("未固化方法论条目应排在固化条之前: %s", idx)
+	}
 }

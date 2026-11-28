@@ -121,3 +121,18 @@ func TestRecallBlockFusedDegradation(t *testing.T) {
 		t.Fatalf("降级后词法注入丢失：%s", block)
 	}
 }
+
+// 2026-11-28 论证：fused 原按 m.Pinned 全量跳过带正文的置顶条——被 1200 rune
+// 固化块挤出的置顶条会两处皆失；改为 emitted 级去重后仍可入选。
+func TestRecallBlockFusedPinnedDedupByEmitted(t *testing.T) {
+	set := newPinnedDedupTestSet(t)
+	block := set.RecallBlockFused("alpha-kw beta-kw gamma-kw", 0)
+	if strings.Contains(block, "[MEM:aaa-emit]") {
+		t.Fatalf("已完整入块的 pinned 不应重复召回: %s", block)
+	}
+	for _, want := range []string{"[MEM:bbb-trunc]", "[MEM:ccc-omit]", "[MEM:delta-empty]"} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("截断/挤出/空正文 pinned 仍应入选，缺 %s: %s", want, block)
+		}
+	}
+}

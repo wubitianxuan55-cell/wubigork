@@ -91,6 +91,11 @@ func rankMemories(text string, ms []Memory, now time.Time) []Memory {
 // budget（默认 800 rune，对标轻量压缩注入）。无记忆或全部不相关时返回 ""。
 // 每行带稳定引用键 [MEM:<name>]（citations.go）：模型采纳时在句末标注同名
 // 引用，回合结束解析回传并 Touch——引用可追溯闭环的注入侧。
+//
+// 前缀固化块已完整携带正文（Emitted 且未截断）的 pinned 条目不再逐轮召回
+// （正文已稳定在场，重复注入=白烧预算）；被块预算挤出（Omitted）或正文截断
+// （Truncated）的仍走召回——不能按 m.Pinned 全量跳过，否则与固化块溢出叠加
+// 成两处皆失（众神殿 2026-11-28 论证 action-4）。
 func (s *Set) RecallBlock(text string, budget int) string {
 	if s == nil {
 		return ""
@@ -104,6 +109,7 @@ func (s *Set) RecallBlock(text string, budget int) string {
 	}
 	now := time.Now()
 	ranked := rankMemories(text, ms, now)
+	excluded := s.pinnedRecallExcluded()
 
 	var b strings.Builder
 	b.WriteString(recallHeader + "\n")
@@ -112,6 +118,10 @@ func (s *Set) RecallBlock(text string, budget int) string {
 		// 失效条目不注入（阶段九 9.3）：invalid_at 非空=已被新事实推翻——注入
 		// 面永远排除（失效的语义就是不注入），原文仍可面板搜索/恢复（裁决入口）。
 		if !m.InvalidAt.IsZero() {
+			continue
+		}
+		// 已完整进入前缀固化块的 pinned 不再逐轮注入（正文已稳定在场）
+		if excluded[m.Name] {
 			continue
 		}
 		// 非 procedural 且无关键词命中的事实不逐轮注入（靠系统前缀索引兜底）
@@ -160,6 +170,7 @@ func (s *Set) RecallBlockFused(text string, budget int) string {
 	}
 
 	// 词法臂：recallScore 归一（同一打分公式，办公席不变）
+	excluded := s.pinnedRecallExcluded()
 	scored := make([]rankedMemory, 0, len(ms))
 	base := make(map[string]bool, len(ms))
 	maxLex := 0.0
@@ -167,10 +178,10 @@ func (s *Set) RecallBlockFused(text string, budget int) string {
 		if !m.InvalidAt.IsZero() {
 			continue
 		}
-		// 带正文的置顶条已由缓存前缀的【固化记忆】块全量携带（boot
-		// BuildPinnedFactsBlock，两空间都注入）——逐轮再带=白烧预算；正文空的
-		// 置顶条前缀块跳过（索引行已覆盖的口径），这里仍保留。
-		if m.Pinned && strings.TrimSpace(m.Body) != "" {
+		// 已完整进入前缀固化块（boot BuildPinnedFacts，两空间都注入）的 pinned
+		// 不再进候选——逐轮再带=白烧预算；被块预算挤出或正文截断的仍可入选
+		// （按 m.Pinned 全量跳过会在固化块溢出时两处皆失，2026-11-28 论证）。
+		if excluded[m.Name] {
 			continue
 		}
 		if m.Kind != KindProcedural && !episodicTriggered(text, m) && !keywordHit(text, m) {
@@ -227,8 +238,8 @@ func (s *Set) RecallBlockFused(text string, budget int) string {
 		if !ok || !m.InvalidAt.IsZero() {
 			continue
 		}
-		if m.Pinned && strings.TrimSpace(m.Body) != "" {
-			continue // 同上：前缀已携带，发现面不再重复
+		if excluded[name] {
+			continue // 同上：前缀已完整携带，发现面不再重复
 		}
 		inputs = append(inputs, RecallFuseInput{
 			Name:    name,
