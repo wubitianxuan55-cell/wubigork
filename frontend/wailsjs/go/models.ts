@@ -498,6 +498,7 @@ export namespace app {
 	    count: number;
 	    updatedAt: string;
 	    lastError?: string;
+	    searchError?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CostIndexKindView(source);
@@ -511,6 +512,7 @@ export namespace app {
 	        this.count = source["count"];
 	        this.updatedAt = source["updatedAt"];
 	        this.lastError = source["lastError"];
+	        this.searchError = source["searchError"];
 	    }
 	}
 	export class CostIndexStatusView {
@@ -9938,6 +9940,36 @@ export namespace workcost {
 		}
 	}
 	
+	export class DictItem {
+	    id: number;
+	    kind: string;
+	    name: string;
+	    code: string;
+	    parent: string;
+	    level: number;
+	    sort: number;
+	    note: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DictItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.name = source["name"];
+	        this.code = source["code"];
+	        this.parent = source["parent"];
+	        this.level = source["level"];
+	        this.sort = source["sort"];
+	        this.note = source["note"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class DuplicateGroup {
 	    kind: string;
 	    title: string;
@@ -10156,6 +10188,28 @@ export namespace workcost {
 		}
 	}
 	
+	export class QuotaRegionFix {
+	    code: string;
+	    title: string;
+	    region?: string;
+	    links: number;
+	    reason?: string;
+	    applied: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new QuotaRegionFix(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.title = source["title"];
+	        this.region = source["region"];
+	        this.links = source["links"];
+	        this.reason = source["reason"];
+	        this.applied = source["applied"];
+	    }
+	}
 	export class RateSet {
 	    managementRate: number;
 	    regulatoryRate: number;

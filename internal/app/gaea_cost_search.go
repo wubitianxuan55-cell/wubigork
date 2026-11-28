@@ -15,7 +15,10 @@ package app
 
 import (
 	"context"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
@@ -114,7 +117,79 @@ func (a *App) costSearcher() *workcost.Searcher {
 	if a == nil {
 		return nil
 	}
-	return workcost.NewSearcher(a.hubWorkcostStore(), a.costIndexStore(), a.costIndexEmbedder, a.costIndexReranker)
+	h := workcost.NewSearcher(a.hubWorkcostStore(), a.costIndexStore(), a.costIndexEmbedder, a.costIndexReranker)
+	// 检索器每次现建，向量路的结果记在应用侧：界面搜完读一次状态就知道语义检索是不是坏的。
+	h.VecNote = a.noteCostVec
+	return h
+}
+
+// costVecState 造价库某类目检索时向量路最近一次的结果。
+type costVecState struct {
+	Code string
+	Err  string
+	At   time.Time
+}
+
+// noteCostVec 记下某类目检索时向量路的结果：成功就清掉之前的失败，失败留原因。
+// 索引器那边的错误只在它有文档要嵌时才出现；搜索时模型坏没坏，以搜索自己的结果为准。
+func (a *App) noteCostVec(kind, code string, err error) {
+	if a == nil || a.officeState == nil {
+		return
+	}
+	st := costVecState{Code: code, At: time.Now()}
+	if err != nil {
+		st.Err = shortErrText(err)
+	}
+	a.officeState.costVecMu.Lock()
+	if a.officeState.costVecLast == nil {
+		a.officeState.costVecLast = map[string]costVecState{}
+	}
+	a.officeState.costVecLast[kind] = st
+	a.officeState.costVecMu.Unlock()
+}
+
+// costVecProblem 某类目向量路不可用的原因（人话；空 = 正常，或只是索引本来就没建）。
+func (a *App) costVecProblem(kind string) string {
+	if a == nil || a.officeState == nil {
+		return ""
+	}
+	a.officeState.costVecMu.Lock()
+	st := a.officeState.costVecLast[kind]
+	a.officeState.costVecMu.Unlock()
+	switch st.Code {
+	case workcost.VecNoModel:
+		return "本地向量模型不可用：检索模型没有配置，或本地引擎没连上"
+	case workcost.VecFailEmbed:
+		return "本地向量模型请求失败：" + st.Err
+	case workcost.VecFailSearch:
+		return "向量检索失败：" + st.Err
+	}
+	return ""
+}
+
+// jsonMessageRe 从 HTTP 错误体里取 error.message（本地引擎的 500 响应体是 JSON）。
+var jsonMessageRe = regexp.MustCompile(`"message"\s*:\s*"((?:[^"\\]|\\.)*)"`)
+
+// shortErrText 错误的人话短句：错误体是 JSON 就只留状态码那段与 message，再限长。
+// 例：`embedding HTTP 500: {"error":{"code":500,"message":"decode() failed: …"}}`
+// → `embedding HTTP 500: decode() failed: …`。
+func shortErrText(err error) string {
+	s := strings.TrimSpace(err.Error())
+	if m := jsonMessageRe.FindStringSubmatch(s); m != nil {
+		msg, e := strconv.Unquote("\"" + m[1] + "\"")
+		if e != nil {
+			msg = m[1]
+		}
+		if i := strings.Index(s, "{"); i > 0 && i < len(s) {
+			s = strings.TrimSpace(s[:i]) + " " + msg
+		} else {
+			s = msg
+		}
+	}
+	if r := []rune(s); len(r) > 200 {
+		s = string(r[:200]) + "…"
+	}
+	return s
 }
 
 // costSearchEnabled 界面检索是否走混合路：给了关键词，且该类目的向量索引已建。

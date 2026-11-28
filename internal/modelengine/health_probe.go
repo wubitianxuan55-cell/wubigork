@@ -1,9 +1,11 @@
 package modelengine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -16,7 +18,13 @@ import (
 //
 // 健康巡检：周期性轻量探测云端引擎连通性，只探 enabled 且非本地
 // （EngineType.IsLocal()==false）的引擎（xai/deepseek/glm/opencode-*/custom-*）；
-// 本地引擎（herdsman/llama 等）由保活机制（keep-warm）管理，巡检跳过。
+// 本地引擎（llama/Strata 等）由保活机制（keep-warm）管理，巡检跳过。
+//
+// 例外是 Herdsman：它是本地的检索模型网关（向量 / 精排），「连通」只说明网关在——
+// 2026-11-27 它的向量模型进程显卡设备丢失后，/models 照常列 running、进程不退，
+// 语义检索静默失效了 20 小时。所以巡检与「测试连接」在连通之后，会对在运行的向量
+// 模型与精排模型各发一次真实小请求；坏了的写进 Status.Error 报警示（连通性仍是 true：
+// 聊天不受影响，不该触发故障转移）。
 //
 // 探测口径：GET {BaseURL}/models（与 fetchModels 的 /models 端点同源拼法），
 // 带按引擎的鉴权头（与 fetchModels/BuildChatURL 同一取 Key 链；custom 无 Key
@@ -40,6 +48,9 @@ const (
 	// healthProbeFailThreshold 连续失败达到该次数才在 Status.Error 标注
 	// 「连续 N 次探测失败」严重度前缀。
 	healthProbeFailThreshold = 3
+	// localProbeTimeout 本地检索模型一次真实小请求的超时。模型若刚被卸载，Herdsman 会
+	// 按需重拉，本机实测冷启动 4~6 秒；与 HTTP 客户端自身的超时一致。
+	localProbeTimeout = 15 * time.Second
 )
 
 // SetHealthNotifyFunc 注入健康状态变化回调（app Startup 接线 → a.emit，
@@ -101,14 +112,18 @@ func (m *Manager) StopHealthProbe() {
 	}
 }
 
-// probeRound 执行一轮巡检：快照本轮目标引擎（enabled 且非本地）后逐个探测
-// （探测在锁外进行，不阻塞其他引擎操作）。
+// probeRound 执行一轮巡检：快照本轮目标引擎（enabled 的云端引擎 + Herdsman）后逐个
+// 探测（探测在锁外进行，不阻塞其他引擎操作）。
 func (m *Manager) probeRound(ctx context.Context) {
 	m.mu.RLock()
 	targets := make([]EngineConfig, 0, len(m.engines))
 	for _, id := range m.order {
 		e, ok := m.engines[id]
-		if !ok || !e.Enabled || e.Type.IsLocal() {
+		if !ok || !e.Enabled {
+			continue
+		}
+		// 本地引擎只有 Herdsman 进巡检（见文件头：它承载检索模型，连通不等于可用）。
+		if e.Type.IsLocal() && e.Type != EngineHerdsman {
 			continue
 		}
 		targets = append(targets, *e)
@@ -126,19 +141,31 @@ func (m *Manager) probeRound(ctx context.Context) {
 }
 
 // probeOne 探测单个引擎并落 Status：2xx=Connected；失败计连续次数并在
-// 达到阈值时加严重度前缀；状态相对上次变化时经回调通知 app 层。
+// 达到阈值时加严重度前缀；Herdsman 连通后再对在运行的向量 / 精排模型各发一次真实
+// 小请求，坏了的写进 Error（连通性不变）。状态相对上次变化时经回调通知 app 层。
 func (m *Manager) probeOne(ctx context.Context, e EngineConfig) {
-	pctx, cancel := context.WithTimeout(ctx, healthProbeTimeout)
+	budget := healthProbeTimeout
+	if e.Type == EngineHerdsman {
+		budget += 2 * localProbeTimeout // 连通之外还要发两次真实小请求（可能撞上模型冷启动）
+	}
+	pctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
 	key := m.probeAuthKey(&e)
 	start := time.Now()
 	connected, modelCount, probeErr := m.probeEndpoint(pctx, &e)
-	latency := time.Since(start).Milliseconds()
+	latency := time.Since(start).Milliseconds() // 只算连通那次，真实小请求的耗时不混进来
 
 	errMsg := ""
 	if probeErr != nil {
 		errMsg = sanitizeProbeError(key, probeErr.Error())
+	} else if e.Type == EngineHerdsman {
+		// 模型清单现取，不拿缓存里的旧状态——照旧清单去探，会把已经卸载的模型强行拉起来。
+		if models, ferr := m.fetchModels(pctx, &e); ferr == nil {
+			if problems := m.probeLocalRetrieval(ctx, &e, models); len(problems) > 0 {
+				errMsg = strings.Join(problems, "；")
+			}
+		}
 	}
 
 	m.mu.Lock()
@@ -158,6 +185,9 @@ func (m *Manager) probeOne(ctx context.Context, e EngineConfig) {
 	}
 	if connected {
 		delete(m.probeFails, e.ID) // 成功即清零
+		// 连通但检索模型坏了：连通性照常为 true（聊天不受影响、不该触发故障转移），
+		// 问题写进 Error 给界面报警示。
+		status.Error = errMsg
 	} else {
 		if m.probeFails == nil {
 			m.probeFails = make(map[string]int)
@@ -174,9 +204,123 @@ func (m *Manager) probeOne(ctx context.Context, e EngineConfig) {
 	m.mu.Unlock()
 
 	m.saveState()
-	if changed && notify != nil {
+	if !changed {
+		return
+	}
+	// 检索模型的坏与好只在变化时记一行（巡检每 10 分钟一轮，不刷屏）。
+	if connected && e.Type == EngineHerdsman {
+		if status.Error != "" {
+			slog.Warn("本地检索模型不可用", "engine", e.ID, "problems", status.Error)
+		} else if prev.Error != "" {
+			slog.Info("本地检索模型已恢复", "engine", e.ID)
+		}
+	}
+	if notify != nil {
 		notify(e.ID, status.Connected)
 	}
+}
+
+// retrievalKinds 要发真实小请求的检索模型类别（固定顺序；问题清单按它排）。
+var retrievalKinds = []struct{ Kind, Label string }{
+	{"embedding", "向量"},
+	{"rerank", "精排"},
+}
+
+// probeLocalRetrieval 本地检索模型的真实探测：对清单里「在运行」的向量模型与精排
+// 模型各发一次小请求，各取清单里第一个在运行的。/models 说 running 只代表进程在；
+// 设备丢失后进程照样活着，只有真发一次请求才知道。没在运行的模型不探——用到时
+// 会按需拉起，探它反而会把没在用的模型强行载入。返回问题清单（空 = 都正常）。
+func (m *Manager) probeLocalRetrieval(ctx context.Context, e *EngineConfig, models []ModelInfo) []string {
+	var problems []string
+	for _, k := range retrievalKinds {
+		id := firstRunningOfKind(models, k.Kind)
+		if id == "" {
+			continue
+		}
+		if err := m.probeLocalModel(ctx, e, k.Kind, id); err != nil {
+			problems = append(problems, fmt.Sprintf("%s模型 %s 不可用：%v", k.Label, id, err))
+		}
+	}
+	return problems
+}
+
+// firstRunningOfKind 清单里第一个在运行的某类模型（没有 = 空串）。
+func firstRunningOfKind(models []ModelInfo, kind string) string {
+	for _, mo := range models {
+		if mo.Kind == kind && strings.EqualFold(strings.TrimSpace(mo.Status), "running") {
+			return mo.ID
+		}
+	}
+	return ""
+}
+
+// probeLocalModel 对一个检索模型发一次最小请求：向量 = 两个字的文本，要求回来非空
+// 向量；精排 = 两个短句，要求 2xx。
+func (m *Manager) probeLocalModel(ctx context.Context, e *EngineConfig, kind, id string) error {
+	pctx, cancel := context.WithTimeout(ctx, localProbeTimeout)
+	defer cancel()
+
+	var path string
+	var payload any
+	switch kind {
+	case "embedding":
+		path, payload = "/embeddings", map[string]any{"model": id, "input": "造价"}
+	default:
+		path, payload = "/rerank", map[string]any{"model": id, "query": "造价", "documents": []string{"清单定额", "天气预报"}}
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(e.BaseURL), "/")
+	req, err := http.NewRequestWithContext(pctx, http.MethodPost, baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("创建请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("请求失败: %w", err)
+	}
+	defer netclient.DrainAndClose(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorBodyText(resp.Body))
+	}
+	if kind == "embedding" {
+		var out struct {
+			Data []struct {
+				Embedding []float64 `json:"embedding"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || len(out.Data) == 0 || len(out.Data[0].Embedding) == 0 {
+			return fmt.Errorf("响应里没有向量")
+		}
+	}
+	return nil
+}
+
+// errorBodyText 把 HTTP 错误体压成一句：是 JSON 就取 message（本地引擎的 500 体例：
+// {"error":{"code":500,"message":"decode() failed: …"}}），否则原文；都限长。
+func errorBodyText(r io.Reader) string {
+	raw, _ := io.ReadAll(io.LimitReader(r, 2048))
+	s := strings.TrimSpace(string(raw))
+	var body struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(raw, &body) == nil {
+		if body.Error != nil && body.Error.Message != "" {
+			s = body.Error.Message
+		} else if body.Message != "" {
+			s = body.Message
+		}
+	}
+	if rs := []rune(s); len(rs) > 200 {
+		s = string(rs[:200]) + "…"
+	}
+	return s
 }
 
 // probeEndpoint 轻量探测：GET {BaseURL}/models（GLM 走 glmPing），返回

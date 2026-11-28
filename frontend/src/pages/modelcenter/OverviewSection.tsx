@@ -68,10 +68,14 @@ export function OverviewSection({ showActions = true }: { showActions?: boolean 
       <div className="mc-grid">
         {enabled.map(engine => {
           const status = engineStatuses[engine.id]
-          const ok = status?.connected
+          const ok = !!status?.connected
+          // 连通但本地检索模型坏了（Herdsman：巡检 / 测试连接对向量、精排各发过一次真实小请求）：
+          // 聊天不受影响，按 warn 呈现并点名——2026-11-27 它这样静默失效了 20 小时。
+          const degraded = ok && !!status?.error
           // C 刀巡检 v0：连续 ≥3 次探测失败时后端 error 带「连续 N 次探测失败」前缀，
           // 卡片按 danger + 错误原文呈现；last_checked 存在时以 title 提示巡检时间（克制）。
           const checkedTitle = checkedAtTitle(status?.last_checked)
+          const count = status?.model_count ?? 0
           return (
             <ModelCard
               key={engine.id}
@@ -80,10 +84,14 @@ export function OverviewSection({ showActions = true }: { showActions?: boolean 
               active={activeEngine === engine.id}
               kindChip={<StatusChip>{engine.id}</StatusChip>}
               status={{
-                tone: ok ? 'ok' : 'danger',
+                tone: !ok ? 'danger' : degraded ? 'warn' : 'ok',
                 text: (
-                  <span title={checkedTitle}>
-                    {ok ? `连接正常 · ${status!.model_count} 个模型` : status?.error || '尚未测试'}
+                  <span title={degraded ? [checkedTitle, status?.error].filter(Boolean).join('\n') : checkedTitle}>
+                    {!ok
+                      ? (status?.error || '尚未测试')
+                      : degraded
+                        ? `连接正常 · ${count} 个模型 · 检索模型不可用`
+                        : `连接正常 · ${count} 个模型`}
                   </span>
                 ),
               }}

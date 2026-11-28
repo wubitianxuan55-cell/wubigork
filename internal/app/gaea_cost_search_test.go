@@ -6,8 +6,10 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/vecindex"
@@ -162,5 +164,97 @@ func TestCostSearchBindings_UseIndexOnlyWhenReady(t *testing.T) {
 	}
 	if got := a.GaeaWorkcostQuotaList("", "挖掘机"); len(got) != 1 {
 		t.Fatalf("索引没建时关键词路照常: %+v", got)
+	}
+}
+
+// costDeadEmbedder 模型坏了的向量化：回本地引擎设备丢失时的那个错误体。
+type costDeadEmbedder struct{}
+
+func (costDeadEmbedder) Embed(context.Context, []string) ([][]float32, error) {
+	return nil, errors.New(`embedding HTTP 500: {"error":{"code":500,"message":"decode() failed: vk::Queue::submit: ErrorDeviceLost","type":"server_error"}}`)
+}
+
+func costSearchProblem(t *testing.T, a *App, kind string) string {
+	t.Helper()
+	for _, k := range a.GaeaCostIndexStatus().Kinds {
+		if k.Kind == kind {
+			return k.SearchError
+		}
+	}
+	t.Fatalf("状态里没有类目 %s", kind)
+	return ""
+}
+
+// 向量模型坏了：检索照常退回关键词路，但原因记进索引状态（searchError）——界面据此
+// 在搜索框旁明示，不再静默降级（2026-11-27 本地向量模型设备丢失、语义检索静默失效
+// 20 小时无人知晓）。模型恢复后的下一次检索清掉它；没检索过的类目不出原因。
+func TestCostSearch_ReportsVectorFailure(t *testing.T) {
+	a, _, _, cleanup := costSearchApp(t)
+	defer cleanup()
+	a.officeState = &officeState{core: &core{}} // 结果记在办公域状态里
+	vs := a.costIndexStore()
+	var broken atomic.Bool
+	toggle := func() workcost.SearchEmbedder {
+		if broken.Load() {
+			return costDeadEmbedder{}
+		}
+		return costBagEmbedder{}
+	}
+	SetCostIndexForTest(vs, toggle, nil)
+
+	if got := a.GaeaWorkcostQuotaList("", "挖机"); len(got) != 1 {
+		t.Fatalf("模型正常时应经向量路召回: %+v", got)
+	}
+	if p := costSearchProblem(t, a, workcost.IndexKindQuota); p != "" {
+		t.Fatalf("模型正常时不该有原因: %q", p)
+	}
+
+	broken.Store(true)
+	if got := a.GaeaWorkcostQuotaList("", "挖掘机"); len(got) != 1 {
+		t.Fatalf("向量路失败时关键词路应照常: %+v", got)
+	}
+	p := costSearchProblem(t, a, workcost.IndexKindQuota)
+	if !strings.Contains(p, "本地向量模型请求失败") || !strings.Contains(p, "embedding HTTP 500") ||
+		!strings.Contains(p, "ErrorDeviceLost") || strings.Contains(p, `{"error"`) {
+		t.Fatalf("原因应是人话短句（留状态码与 message，不留整段 JSON）: %q", p)
+	}
+	if p := costSearchProblem(t, a, workcost.IndexKindBill); p != "" {
+		t.Fatalf("没检索过的类目不该有原因: %q", p)
+	}
+	// 界面的清单检索（跨项目）同一条向量路
+	if got := a.GaeaWorkcostBillSearch("砼", "", 0); len(got) != 0 {
+		t.Fatalf("向量路失败时「砼」对不上关键词，应为空: %+v", got)
+	}
+	if p := costSearchProblem(t, a, workcost.IndexKindBill); !strings.Contains(p, "本地向量模型请求失败") {
+		t.Fatalf("清单检索也应记下原因: %q", p)
+	}
+
+	// 模型客户端取不到（检索模型没配置 / 引擎没连上）：另一种说法
+	SetCostIndexForTest(vs, func() workcost.SearchEmbedder { return nil }, nil)
+	a.GaeaWorkcostQuotaList("", "挖掘机")
+	if p := costSearchProblem(t, a, workcost.IndexKindQuota); !strings.Contains(p, "本地向量模型不可用") {
+		t.Fatalf("客户端不可用应记原因: %q", p)
+	}
+	SetCostIndexForTest(vs, toggle, nil)
+
+	// 恢复：下一次检索清掉原因
+	broken.Store(false)
+	a.GaeaWorkcostQuotaList("", "挖机")
+	if p := costSearchProblem(t, a, workcost.IndexKindQuota); p != "" {
+		t.Fatalf("模型恢复后应清除原因: %q", p)
+	}
+}
+
+func TestShortErrText(t *testing.T) {
+	got := shortErrText(errors.New(`embedding HTTP 500: {"error":{"code":500,"message":"decode() failed: vk::Queue::submit: ErrorDeviceLost","type":"server_error"}}`))
+	if got != "embedding HTTP 500: decode() failed: vk::Queue::submit: ErrorDeviceLost" {
+		t.Fatalf("JSON 错误体应压成状态码 + message: %q", got)
+	}
+	if got := shortErrText(errors.New("  connection refused  ")); got != "connection refused" {
+		t.Fatalf("普通错误原样（去首尾空白）: %q", got)
+	}
+	long := strings.Repeat("长", 260)
+	if got := shortErrText(errors.New(long)); len([]rune(got)) != 201 || !strings.HasSuffix(got, "…") {
+		t.Fatalf("超长应截到 200 字加省略号: %d 字", len([]rune(got)))
 	}
 }

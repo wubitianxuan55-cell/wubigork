@@ -9,6 +9,8 @@ export type IndexTone = "ok" | "warn" | "partial" | "empty";
 /** 状态钮的文案：tone 决定配色，text 是钮上的字，title 是悬停明细。 */
 export function indexSummary(st: CostIndexStatusView): { tone: IndexTone; text: string; title: string; total: number } {
   const failing = st.kinds.filter((k) => !!k.lastError);
+  // 检索时发现向量模型不可用（搜索框旁另有明示）：索引可能明明是齐的，语义检索却是坏的。
+  const unreachable = st.kinds.filter((k) => !!k.searchError);
   // 「总数」取对账看到的条数与已建向量数的较大者：刚重启、这一轮还没对完时对账数可能落后。
   const count = st.kinds.reduce((n, k) => n + k.count, 0);
   const total = st.kinds.reduce((n, k) => n + Math.max(k.total, k.count), 0);
@@ -16,8 +18,10 @@ export function indexSummary(st: CostIndexStatusView): { tone: IndexTone; text: 
   const lines = [`向量模型 ${st.model}`, detail];
   if (!st.running) lines.push("后台索引器未运行");
   for (const k of failing) lines.push(`${k.label}：${k.lastError}`);
+  for (const k of unreachable) lines.push(`${k.label}：${k.searchError}`);
   lines.push("点击立即补齐（缺的补、正文变了的重嵌）");
   const title = lines.join("\n");
+  if (unreachable.length > 0) return { tone: "warn", text: "语义模型 不可用", title, total };
   if (failing.length > 0) return { tone: "warn", text: "语义索引 待补齐", title, total };
   if (count === 0) return { tone: "empty", text: "语义索引 未建", title, total };
   if (count < total) return { tone: "partial", text: `语义索引 ${count}/${total}`, title, total };

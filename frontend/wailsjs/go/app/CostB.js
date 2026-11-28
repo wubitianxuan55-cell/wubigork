@@ -62,6 +62,14 @@ export function GaeaWorkcostBillSearch(arg1, arg2, arg3) {
   return window['go']['app']['CostB']['GaeaWorkcostBillSearch'](arg1, arg2, arg3);
 }
 
+export function GaeaWorkcostDictList(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostDictList'](arg1);
+}
+
+export function GaeaWorkcostDictSet(arg1, arg2) {
+  return window['go']['app']['CostB']['GaeaWorkcostDictSet'](arg1, arg2);
+}
+
 export function GaeaWorkcostQuotaCompose(arg1, arg2) {
   return window['go']['app']['CostB']['GaeaWorkcostQuotaCompose'](arg1, arg2);
 }
@@ -74,12 +82,20 @@ export function GaeaWorkcostQuotaDelete(arg1) {
   return window['go']['app']['CostB']['GaeaWorkcostQuotaDelete'](arg1);
 }
 
+export function GaeaWorkcostQuotaDetachEverywhere(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostQuotaDetachEverywhere'](arg1);
+}
+
 export function GaeaWorkcostQuotaGet(arg1) {
   return window['go']['app']['CostB']['GaeaWorkcostQuotaGet'](arg1);
 }
 
 export function GaeaWorkcostQuotaList(arg1, arg2) {
   return window['go']['app']['CostB']['GaeaWorkcostQuotaList'](arg1, arg2);
+}
+
+export function GaeaWorkcostQuotaRegionBackfill(arg1) {
+  return window['go']['app']['CostB']['GaeaWorkcostQuotaRegionBackfill'](arg1);
 }
 
 export function GaeaWorkcostQuotaSave(arg1) {

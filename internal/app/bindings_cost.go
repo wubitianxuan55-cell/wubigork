@@ -25,11 +25,15 @@ func (b *CostB) GaeaWorkcostBillQuotaAttach(billItemID int64, quotaCode string, 
 func (b *CostB) GaeaWorkcostBillQuotaDetach(billItemID int64, linkID int64) error { return b.a.GaeaWorkcostBillQuotaDetach(billItemID, linkID) }
 func (b *CostB) GaeaWorkcostBillQuotaLinks(billItemID int64) ([]workcost.BillQuotaLink, error) { return b.a.GaeaWorkcostBillQuotaLinks(billItemID) }
 func (b *CostB) GaeaWorkcostBillSearch(keyword string, specialty string, projectID int64) []workcost.BillItem { return b.a.GaeaWorkcostBillSearch(keyword, specialty, projectID) }
+func (b *CostB) GaeaWorkcostDictList(kind string) []workcost.DictItem { return b.a.GaeaWorkcostDictList(kind) }
+func (b *CostB) GaeaWorkcostDictSet(item workcost.DictItem, remove bool) error { return b.a.GaeaWorkcostDictSet(item, remove) }
 func (b *CostB) GaeaWorkcostQuotaCompose(code string, overrides map[string]workcost.ComposeOverride) (*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaCompose(code, overrides) }
 func (b *CostB) GaeaWorkcostQuotaComposeMany(codes []string) (map[string]*workcost.Compose, error) { return b.a.GaeaWorkcostQuotaComposeMany(codes) }
 func (b *CostB) GaeaWorkcostQuotaDelete(code string) error { return b.a.GaeaWorkcostQuotaDelete(code) }
+func (b *CostB) GaeaWorkcostQuotaDetachEverywhere(code string) (int, error) { return b.a.GaeaWorkcostQuotaDetachEverywhere(code) }
 func (b *CostB) GaeaWorkcostQuotaGet(code string) *workcost.Quota { return b.a.GaeaWorkcostQuotaGet(code) }
 func (b *CostB) GaeaWorkcostQuotaList(specialty string, keyword string) []workcost.Quota { return b.a.GaeaWorkcostQuotaList(specialty, keyword) }
+func (b *CostB) GaeaWorkcostQuotaRegionBackfill(dryRun bool) ([]workcost.QuotaRegionFix, error) { return b.a.GaeaWorkcostQuotaRegionBackfill(dryRun) }
 func (b *CostB) GaeaWorkcostQuotaSave(q workcost.Quota) (*workcost.Quota, error) { return b.a.GaeaWorkcostQuotaSave(q) }
 func (b *CostB) GaeaWorkcostResourceDelete(id int64, force bool) error { return b.a.GaeaWorkcostResourceDelete(id, force) }
 func (b *CostB) GaeaWorkcostResourceGet(id int64) *workcost.Resource { return b.a.GaeaWorkcostResourceGet(id) }

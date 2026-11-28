@@ -33,15 +33,23 @@ export function GaeaWorkcostBillQuotaLinks(arg1:number):Promise<Array<workcost.B
 
 export function GaeaWorkcostBillSearch(arg1:string,arg2:string,arg3:number):Promise<Array<workcost.BillItem>>;
 
+export function GaeaWorkcostDictList(arg1:string):Promise<Array<workcost.DictItem>>;
+
+export function GaeaWorkcostDictSet(arg1:workcost.DictItem,arg2:boolean):Promise<void>;
+
 export function GaeaWorkcostQuotaCompose(arg1:string,arg2:Record<string, workcost.ComposeOverride>):Promise<workcost.Compose>;
 
 export function GaeaWorkcostQuotaComposeMany(arg1:Array<string>):Promise<Record<string, workcost.Compose>>;
 
 export function GaeaWorkcostQuotaDelete(arg1:string):Promise<void>;
 
+export function GaeaWorkcostQuotaDetachEverywhere(arg1:string):Promise<number>;
+
 export function GaeaWorkcostQuotaGet(arg1:string):Promise<workcost.Quota>;
 
 export function GaeaWorkcostQuotaList(arg1:string,arg2:string):Promise<Array<workcost.Quota>>;
+
+export function GaeaWorkcostQuotaRegionBackfill(arg1:boolean):Promise<Array<workcost.QuotaRegionFix>>;
 
 export function GaeaWorkcostQuotaSave(arg1:workcost.Quota):Promise<workcost.Quota>;
 

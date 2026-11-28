@@ -258,6 +258,9 @@ export interface CostIndexKindView {
   updatedAt?: string;
   /** 最近一轮对账的错误（空 = 正常）。 */
   lastError?: string;
+  /** 最近一次检索时向量路不可用的原因（空 = 正常）。索引器的错误只在有文档要嵌时才出现；
+   *  搜索那一刻模型坏没坏，以搜索自己的结果为准。 */
+  searchError?: string;
 }
 
 /** 造价库语义索引的状态（Go app.CostIndexStatusView）。 */
@@ -267,4 +270,35 @@ export interface CostIndexStatusView {
   model: string;
   /** 后台索引器在跑。 */
   running: boolean;
+}
+
+/** 造价库字典的一条（Go workcost.DictItem）。kind = specialty（专业）/ region（地区）/
+ *  category（工料机分类，name = 完整分类路径）/ alias（检索别名）。 */
+export interface WorkcostDictItem {
+  id: number;
+  kind: string;
+  name: string;
+  /** 外部标准代码（如国标专业代码），机检用；空 = 无。 */
+  code?: string;
+  /** 上级字典项（空 = 顶级）；检索别名（kind=alias）用它存对应的标准说法。 */
+  parent?: string;
+  level?: number;
+  sort?: number;
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** 定额地区回填方案里的一行（Go workcost.QuotaRegionFix）。 */
+export interface WorkcostQuotaRegionFix {
+  code: string;
+  title: string;
+  /** 要写入的省名（不回填时为空）。 */
+  region?: string;
+  /** 引用它的清单行数。 */
+  links: number;
+  /** 不回填的原因。 */
+  reason?: string;
+  /** 本次已写入（预览时恒 false）。 */
+  applied: boolean;
 }

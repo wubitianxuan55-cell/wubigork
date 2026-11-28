@@ -140,18 +140,23 @@ export function TierRail(props: {
   // 清单级：专业 → 项目。
   /** 当前专业下有清单行的项目（专业变了项目列表跟着变）。 */
   projects: WorkcostBillProject[];
+  /** 每个项目在当前搜索 / 状态下各剩多少行（2026-11-28 分面联动；没给时退回项目自带的清单数）。 */
+  projectCounts?: Map<number, number>;
   billSpecialties: Facet[];
   billFilters: BillFilters;
   onBillSpecialty: (specialty: string) => void;
   onProject: (id: number) => void;
   onDeleteProject: (project: WorkcostBillProject) => void;
-  // 定额级：专业 → 分部。
+  // 定额级：专业 → 分部 → 地区。
   specialties: Facet[];
   /** 当前专业下的分部分布；没选专业时为空（分部只在专业内有意义）。 */
   chapters: Facet[];
+  /** 定额地区分布（与上游清单项目挂钩；没标的单列一桶）。 */
+  quotaRegions?: Facet[];
   quotaFilters: QuotaFilters;
   onSpecialty: (specialty: string) => void;
   onChapter: (chapter: string) => void;
+  onQuotaRegion?: (region: string) => void;
   // 工料机级：类别 → 分类。
   kinds: { kind: string; count: number }[];
   /** 当前类别下的分类树与未细分条数。 */
@@ -161,14 +166,17 @@ export function TierRail(props: {
   onCategory: (category: string) => void;
 }) {
   const { tier, counts, projects, billFilters, specialties, chapters, quotaFilters, kinds, categories, resourceFilters } = props;
+  // 「全部」的计数 = 各取值之和：搜索 / 状态筛选时它跟着变（分面联动）。
+  const sum = (fs: { count: number }[]) => fs.reduce((n, c) => n + c.count, 0);
+  const allProjects = props.projectCounts ? [...props.projectCounts.values()].reduce((n, c) => n + c, 0) : counts.bill;
   return (
     <nav className="cl-rail" aria-label="造价库导航">
       <TierSwitch tier={tier} counts={counts} onTier={props.onTier} />
       <div className="cl-rail-context">
         {tier === "bill" && (
           <>
-            <RailSection label="专业" listId="cl-cap-bill-specialty" hint="清单按专业分；专业是库里的规范值">
-              <FacetList listId="cl-cap-bill-specialty" allLabel="全部专业" allCount={counts.bill}
+            <RailSection label="专业" listId="cl-cap-bill-specialty" hint="清单按专业分；专业是库里的规范值；搜索时计数跟着搜索词走">
+              <FacetList listId="cl-cap-bill-specialty" allLabel="全部专业" allCount={sum(props.billSpecialties)}
                 facets={props.billSpecialties} value={billFilters.specialty} onPick={props.onBillSpecialty}
                 emptyLabel="未标注专业" testid="cost-rail-bill-specialties" />
             </RailSection>
@@ -177,14 +185,14 @@ export function TierRail(props: {
                 <li>
                   <RailItem active={billFilters.projectId === 0} onClick={() => props.onProject(0)} title="全部项目">
                     <span className="cl-rail-item-title">全部项目</span>
-                    <RailCount n={counts.bill} />
+                    <RailCount n={allProjects} />
                   </RailItem>
                 </li>
                 {projects.map((p) => (
                   <li key={p.id} className="cl-rail-row">
                     <RailItem active={billFilters.projectId === p.id} onClick={() => props.onProject(p.id)} title={p.name}>
                       <span className="cl-rail-item-title">{p.name}</span>
-                      <RailCount n={p.itemCount} />
+                      <RailCount n={props.projectCounts?.get(p.id) ?? p.itemCount} />
                     </RailItem>
                     <button
                       type="button"
@@ -203,16 +211,24 @@ export function TierRail(props: {
         )}
         {tier === "quota" && (
           <>
-            <RailSection label="专业" listId="cl-cap-quota-specialty" hint="定额专业固定：一条定额只属于一个专业">
-              <FacetList listId="cl-cap-quota-specialty" allLabel="全部专业" allCount={counts.quota}
+            <RailSection label="专业" listId="cl-cap-quota-specialty" hint="定额专业固定：一条定额只属于一个专业；搜索时计数跟着搜索词走">
+              <FacetList listId="cl-cap-quota-specialty" allLabel="全部专业" allCount={sum(specialties)}
                 facets={specialties} value={quotaFilters.specialty} onPick={props.onSpecialty}
                 emptyLabel="未标注专业" testid="cost-rail-quota-specialties" />
             </RailSection>
             {quotaFilters.specialty && (
               <RailSection label="分部" listId="cl-cap-quota-chapter" hint="分部在专业内划分">
-                <FacetList listId="cl-cap-quota-chapter" allLabel="全部分部" allCount={chapters.reduce((n, c) => n + c.count, 0)}
+                <FacetList listId="cl-cap-quota-chapter" allLabel="全部分部" allCount={sum(chapters)}
                   facets={chapters} value={quotaFilters.chapter} onPick={props.onChapter}
                   emptyLabel="未归分部" testid="cost-rail-quota-chapters" />
+              </RailSection>
+            )}
+            {/* 定额地区（2026-11-28）：与上游清单项目挂钩；没标的单列一桶，等着回填或手标。 */}
+            {props.quotaRegions && props.onQuotaRegion && (
+              <RailSection label="地区" listId="cl-cap-quota-region" hint="定额地区与上游清单项目挂钩；没标的单列一桶">
+                <FacetList listId="cl-cap-quota-region" allLabel="全部地区" allCount={sum(props.quotaRegions)}
+                  facets={props.quotaRegions} value={quotaFilters.region ?? ""} onPick={props.onQuotaRegion}
+                  emptyLabel="未标地区" testid="cost-rail-quota-regions" />
               </RailSection>
             )}
           </>
@@ -224,7 +240,7 @@ export function TierRail(props: {
                 <li>
                   <RailItem active={!resourceFilters.kind} onClick={() => props.onKind("")} title="全部类别">
                     <span className="cl-rail-item-title">全部类别</span>
-                    <RailCount n={counts.resource} />
+                    <RailCount n={sum(kinds)} />
                   </RailItem>
                 </li>
                 {kinds.map((k) => (

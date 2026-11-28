@@ -557,6 +557,11 @@ export const GAEA_METHOD_FACETS = {
   WorkcostBillQuotaDetach: "work",
   WorkcostBillProjectRatesSave: "work",
   WorkcostBillProjectProfileSave: "work",
+  // 库维护（2026-11-28）：字典读写、定额解除全部挂接、定额地区回填，工位动作。
+  WorkcostDictList: "work",
+  WorkcostDictSet: "work",
+  WorkcostQuotaDetachEverywhere: "work",
+  WorkcostQuotaRegionBackfill: "work",
   RetrievalEvalRun: "work",
   MemoryDuplicates: "work",
   MemoryRecall: "work",

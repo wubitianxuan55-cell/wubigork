@@ -239,10 +239,19 @@ export function EngineCard({ engine, editingCustom, savedPrice, onToggleEdit, on
       ) : engineStatuses[engine.id] && (
         <div className="mc-engine-status">
           {engineStatuses[engine.id].connected ? (
-            <span style={{ color: 'var(--mc-ok)' }}>
-              连接正常 · {engineStatuses[engine.id].model_count} 个模型
-              {engineStatuses[engine.id].latency_ms ? ` · ${engineStatuses[engine.id].latency_ms}ms` : ''}
-            </span>
+            engineStatuses[engine.id].error ? (
+              // 连通，但本地检索模型（向量 / 精排）的真实小请求失败了：聊天不受影响，
+              // 报警示不报错，并把是哪个模型、为什么写出来（重载那个模型进程即可恢复）。
+              <span style={{ color: 'var(--mc-warn)' }}>
+                连接正常 · {engineStatuses[engine.id].model_count} 个模型 · 检索模型不可用
+                <span style={{ marginLeft: 8 }}>{engineStatuses[engine.id].error}</span>
+              </span>
+            ) : (
+              <span style={{ color: 'var(--mc-ok)' }}>
+                连接正常 · {engineStatuses[engine.id].model_count} 个模型
+                {engineStatuses[engine.id].latency_ms ? ` · ${engineStatuses[engine.id].latency_ms}ms` : ''}
+              </span>
+            )
           ) : (
             <span style={{ color: 'var(--mc-danger)' }}>
               连接失败 · {engineStatuses[engine.id].error}

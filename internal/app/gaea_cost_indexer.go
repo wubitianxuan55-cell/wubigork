@@ -40,6 +40,9 @@ type CostIndexKindView struct {
 	UpdatedAt string `json:"updatedAt"`
 	// LastError 最近一轮对账的错误（空 = 正常）。
 	LastError string `json:"lastError,omitempty"`
+	// SearchError 最近一次检索时向量路不可用的原因（空 = 正常）。索引器的 LastError 只在
+	// 有文档要嵌时才出现；搜索那一刻模型坏没坏，以搜索自己的结果为准。
+	SearchError string `json:"searchError,omitempty"`
 }
 
 // CostIndexStatusView 造价库语义索引的状态。
@@ -117,6 +120,7 @@ func (a *App) GaeaCostIndexStatus() CostIndexStatusView {
 				kv.LastError = err.Error()
 			}
 		}
+		kv.SearchError = a.costVecProblem(kind)
 		v.Kinds = append(v.Kinds, kv)
 	}
 	return v

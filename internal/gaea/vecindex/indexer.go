@@ -41,6 +41,14 @@ type Indexer struct {
 	wake    chan struct{}
 	last    map[string]Stats
 	lastErr map[string]error // 最近一轮对账的错误；成功后清除。索引状态面读它，不用再去探测模型
+	// fails 各类目连续对账失败的次数（成功清零）：日志去重与恢复提示靠它。
+	fails map[string]int
+	// coolUntil 退避截止时刻。对账出错后、到点之前，新的脏标记只记待办、不唤醒：
+	// 否则「失败 → 放回待办并唤醒 → 合并窗口后再试」会把 RetryAfter 架空
+	// （2026-11-27 实测：本地向量模型设备丢失后每 3 秒重试一次，20 小时 6.7 万次）。
+	coolUntil time.Time
+	// log 日志器；nil = slog.Default()。
+	log *slog.Logger
 }
 
 var (
@@ -62,6 +70,7 @@ func NewIndexer(st *Store, model string, embed func() Embedder, sources map[stri
 		wake:           make(chan struct{}, 1),
 		last:           map[string]Stats{},
 		lastErr:        map[string]error{},
+		fails:          map[string]int{},
 	}
 }
 
@@ -99,10 +108,46 @@ func (ix *Indexer) Mark(kinds ...string) {
 			ix.pending[k] = true
 		}
 	}
+	cooling := time.Now().Before(ix.coolUntil)
 	ix.mu.Unlock()
+	if cooling {
+		return // 退避期内：待办已记下，到点由重试定时器处理，不立刻再试
+	}
 	select {
 	case ix.wake <- struct{}{}:
 	default: // 已经有一次唤醒在排队
+	}
+}
+
+// failureLogEvery 连续失败期间隔多少次再提醒一行（1 分钟重试一次 ≈ 每半小时一行）。
+const failureLogEvery = 30
+
+// logger 本索引器用的日志器（没注入就用进程默认的）。
+func (ix *Indexer) logger() *slog.Logger {
+	if ix != nil && ix.log != nil {
+		return ix.log
+	}
+	return slog.Default()
+}
+
+// requeue 把对账失败的类目放回待办并进入退避：到点之前新的脏标记不再触发即时重试。
+func (ix *Indexer) requeue(kind string) {
+	ix.mu.Lock()
+	ix.pending[kind] = true
+	ix.coolUntil = time.Now().Add(ix.RetryAfter)
+	ix.mu.Unlock()
+}
+
+// logFailure 对账失败的日志：第一次 WARN，之后降到 DEBUG，每隔 failureLogEvery 次
+// 提醒一行——模型一坏就是几小时，每分钟一行也是刷屏。
+func (ix *Indexer) logFailure(kind string, fails int, err error) {
+	switch {
+	case fails == 1:
+		ix.logger().Warn("vecindex: 对账失败，稍后重试", "kind", kind, "error", err)
+	case fails%failureLogEvery == 0:
+		ix.logger().Warn("vecindex: 对账持续失败，退避重试中", "kind", kind, "fails", fails, "error", err)
+	default:
+		ix.logger().Debug("vecindex: 对账仍失败，退避重试中", "kind", kind, "fails", fails, "error", err)
 	}
 }
 
@@ -139,16 +184,21 @@ func (ix *Indexer) Kinds() []string {
 	return append([]string(nil), ix.kinds...)
 }
 
-// record 记下一轮对账的结果：成功清错误，失败留错误。
-func (ix *Indexer) record(kind string, st Stats, err error) {
+// record 记下一轮对账的结果：失败累加连续次数、留错误；成功清错误与连续次数，
+// 并返回「之前是否处在连续失败中」（恢复提示用）。
+func (ix *Indexer) record(kind string, st Stats, err error) (fails int, recovered bool) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	if err != nil {
+		ix.fails[kind]++
 		ix.lastErr[kind] = err
-		return
+		return ix.fails[kind], false
 	}
+	n := ix.fails[kind]
+	delete(ix.fails, kind)
 	delete(ix.lastErr, kind)
 	ix.last[kind] = st
+	return 0, n > 0
 }
 
 // ApplyNow 立刻对一个类目对账（不等合并窗口；显式补齐与测试用）。模型不可用时报错。
@@ -170,7 +220,8 @@ func (ix *Indexer) ApplyNow(ctx context.Context, kind string) (Stats, error) {
 
 // Run 阻塞运行到 ctx 结束。启动先对一轮（立即做，不等合并窗口——开机那一刻没有需要
 // 合并的写入，索引越早可用越好）；之后被脏标记唤醒（过合并窗口再动手），另按
-// ReconcileEvery 兜底全量对账。
+// ReconcileEvery 兜底全量对账。对账出错后进入退避：RetryAfter 到点再试，期间新的
+// 脏标记只记待办、不唤醒。
 func (ix *Indexer) Run(ctx context.Context) {
 	ix.Mark()
 	if ctx.Err() != nil {
@@ -240,7 +291,7 @@ func (ix *Indexer) runPending(ctx context.Context) bool {
 	emb := ix.embed()
 	if emb == nil {
 		ix.mu.Unlock()
-		slog.Debug("vecindex: embedding 模型不可用，索引待办保留", "kinds", todo)
+		ix.logger().Debug("vecindex: embedding 模型不可用，索引待办保留", "kinds", todo)
 		for _, k := range todo {
 			ix.record(k, Stats{}, errEmbedUnavailable)
 		}
@@ -264,17 +315,21 @@ func (ix *Indexer) runPending(ctx context.Context) bool {
 		}
 		st, err := ix.st.Apply(ctx, k, ix.model, src, emb, EmbedBatch)
 		if err != nil {
-			slog.Warn("vecindex: 对账失败，稍后重试", "kind", k, "error", err)
-			ix.record(k, st, err)
-			ix.Mark(k)
+			// 失败的类目留在待办里，但不唤醒：到点由重试定时器再来（requeue 进入退避）。
+			fails, _ := ix.record(k, st, err)
+			ix.requeue(k)
+			ix.logFailure(k, fails, err)
 			ok = false
 			continue
 		}
 		if st.Embedded > 0 || st.Removed > 0 {
-			slog.Info("vecindex: 索引已更新", "kind", k, "total", st.Total, "embedded", st.Embedded,
+			ix.logger().Info("vecindex: 索引已更新", "kind", k, "total", st.Total, "embedded", st.Embedded,
 				"removed", st.Removed, "count", st.Count, "dur", st.Dur.Round(time.Millisecond))
 		}
-		ix.record(k, st, nil)
+		if _, recovered := ix.record(k, st, nil); recovered {
+			ix.logger().Info("vecindex: 索引恢复", "kind", k, "total", st.Total, "embedded", st.Embedded,
+				"removed", st.Removed, "count", st.Count, "dur", st.Dur.Round(time.Millisecond))
+		}
 	}
 	return ok
 }

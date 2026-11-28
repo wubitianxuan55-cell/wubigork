@@ -51,6 +51,14 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 
 	status.Connected = true
 	status.ModelCount = len(models)
+	if engine.Type == EngineHerdsman {
+		// 与巡检同源（health_probe.go）：连通之外，对在运行的向量 / 精排模型各发一次
+		// 真实小请求——/models 列 running 只代表进程在，不代表模型还能算。
+		if problems := m.probeLocalRetrieval(ctx, engine, models); len(problems) > 0 {
+			status.Error = strings.Join(problems, "；")
+			slog.Warn("本地检索模型不可用", "engine", engineID, "problems", status.Error)
+		}
+	}
 
 	// 更新引擎的模型列表
 	m.mu.Lock()

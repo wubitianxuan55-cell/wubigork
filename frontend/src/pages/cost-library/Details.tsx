@@ -4,7 +4,7 @@
 // 2026-11-27 起带头部「编辑」钮：进编辑面直接修正录入数据（Edit.tsx），修完回
 // 只读视图并整页静默重读。onSaved 没传（旧调用方/测试）就不出编辑钮。
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertCircle, Loader2, Pencil } from "../../gaea/icons";
+import { AlertCircle, Copy, Loader2, Pencil } from "../../gaea/icons";
 import { app } from "../../gaea/lib/bridge";
 import type {
   WorkcostCompose, WorkcostQuota, WorkcostQuotaItem, WorkcostResource,
@@ -14,7 +14,7 @@ import {
   alignItems, consumptionOf, dimLabel, effectivePrice, fmtMoney, fmtPeriod, fmtQty, fmtRate, isCrossSpecialty,
   linkedQuotas, periodKey, quotaFactor, unitPriceOf, type BillRow,
 } from "./logic";
-import { BillEdit, QuotaEdit, ResourceEdit } from "./Edit";
+import { BillEdit, QuotaEdit, ResourceEdit, type EditDicts } from "./Edit";
 import { KindBadge } from "./Tables";
 
 type Phase = "idle" | "loading" | "ready" | "failed";
@@ -28,6 +28,15 @@ function EditButton({ onClick, testid }: { onClick: () => void; testid: string }
   return (
     <button type="button" className="cl-btn cl-detail-edit" data-testid={testid} onClick={onClick}>
       <Pencil size={12} aria-hidden />编辑
+    </button>
+  );
+}
+
+/** 详情头部的「复制另存」钮（2026-11-28）：以这一条为底新建一条——定额换专业、工料机换地区常用。 */
+function DuplicateButton({ onClick, testid, label }: { onClick: () => void; testid: string; label: string }) {
+  return (
+    <button type="button" className="cl-btn cl-detail-edit" data-testid={testid} title={label} onClick={onClick}>
+      <Copy size={12} aria-hidden />复制另存
     </button>
   );
 }
@@ -127,7 +136,7 @@ interface QuotaBlock {
   error: string;
 }
 
-export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource, specialtyOptions, onSaved }: {
+export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource, specialtyOptions, onSaved, dicts, onDirty }: {
   item: BillRow;
   refPrices: Record<string, number>;
   onOpenQuota: (code: string) => void;
@@ -135,6 +144,9 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource, speci
   /** 编辑面：库里已有的专业取值；保存后的回执交给页面（提示 + 静默重读）。 */
   specialtyOptions?: string[];
   onSaved?: (msg: string) => void;
+  /** 规范值字典（下拉读字典、就地新增）与未保存改动回报（2026-11-28）。 */
+  dicts?: EditDicts;
+  onDirty?: (dirty: boolean) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [blocks, setBlocks] = useState<QuotaBlock[]>([]);
@@ -191,7 +203,7 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource, speci
         </dl>
       </header>
       {editing && onSaved ? (
-        <BillEdit item={item} specialtyOptions={specialtyOptions ?? []}
+        <BillEdit item={item} specialtyOptions={specialtyOptions ?? []} dicts={dicts} onDirty={onDirty}
           onSaved={onSaved} onCancel={() => setEditing(false)} />
       ) : (
         <>
@@ -241,7 +253,7 @@ export function BillDetail({ item, refPrices, onOpenQuota, onOpenResource, speci
 
 // ── 定额 ─────────────────────────────────────────────────────────────
 
-export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialtyOptions, chapterOptionsOf, resources, regionOptions, onSaved }: {
+export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialtyOptions, chapterOptionsOf, resources, regionOptions, onSaved, dicts, onDirty, onDuplicate }: {
   quota: WorkcostQuota;
   /** 引用它的清单行（页面按全量清单算好的引用索引）。 */
   usage: BillRow[];
@@ -253,6 +265,10 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialt
   resources?: WorkcostResource[];
   regionOptions?: string[];
   onSaved?: (msg: string) => void;
+  dicts?: EditDicts;
+  onDirty?: (dirty: boolean) => void;
+  /** 「复制另存」（2026-11-28）：以这条定额为底新建一条（换专业 / 换编码）。 */
+  onDuplicate?: (quota: WorkcostQuota) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [full, setFull] = useState<WorkcostQuota | null>(null);
@@ -290,6 +306,7 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialt
       <header className="cl-detail-head">
         <div className="cl-kicker">定额 · {dimLabel(quota.specialty)}专业</div>
         {onSaved && !editing && <EditButton testid="cost-quota-edit-open" onClick={() => setEditing(true)} />}
+        {onDuplicate && !editing && <DuplicateButton testid="cost-quota-duplicate" label="以这条定额为底另存一条（新编码，含量行照带）" onClick={() => onDuplicate(full ?? quota)} />}
         <h2 className="cl-detail-title">{quota.title}</h2>
         <div className="cl-meta">
           <span className="cl-code">{quota.code}</span>
@@ -313,7 +330,8 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialt
       </header>
       {editing && onSaved && full ? (
         <QuotaEdit quota={full} specialtyOptions={specialtyOptions ?? []} chapterOptionsOf={chapterOptionsOf ?? (() => [])}
-          resources={resources ?? []} regionOptions={regionOptions ?? []} onSaved={onSaved} onCancel={() => setEditing(false)} />
+          resources={resources ?? []} regionOptions={regionOptions ?? []} dicts={dicts} onDirty={onDirty}
+          onSaved={onSaved} onCancel={() => setEditing(false)} />
       ) : (
         <>
           <DetailState phase={phase} error={error}>
@@ -354,7 +372,7 @@ export function QuotaDetail({ quota, usage, onOpenBill, onOpenResource, specialt
 
 // ── 工料机 ───────────────────────────────────────────────────────────
 
-export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOptions, categoryOptions, onSaved }: {
+export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOptions, categoryOptions, onSaved, dicts, onDirty, onDuplicate }: {
   resource: WorkcostResource;
   onOpenQuota: (code: string) => void;
   /** 编辑面：库里已有的地区 / 期数取值与该类别下的分类路径。 */
@@ -362,6 +380,10 @@ export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOpt
   periodOptions?: string[];
   categoryOptions?: string[];
   onSaved?: (msg: string) => void;
+  dicts?: EditDicts;
+  onDirty?: (dirty: boolean) => void;
+  /** 「复制另存」（2026-11-28）：以这条工料机为底新建一条（换地区、换规格常用）。 */
+  onDuplicate?: (resource: WorkcostResource) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState("");
@@ -418,13 +440,14 @@ export function ResourceDetail({ resource, onOpenQuota, regionOptions, periodOpt
           {resource.priceDate ? ` · ${fmtPeriod(resource.priceDate)}` : ""}
         </div>
         {onSaved && !editing && <EditButton testid="cost-resource-edit-open" onClick={() => setEditing(true)} />}
+        {onDuplicate && !editing && <DuplicateButton testid="cost-resource-duplicate" label="以这条工料机为底新建一条（同身份换地区，或改规格）" onClick={() => onDuplicate(resource)} />}
         <h2 className="cl-detail-title">{resource.title}</h2>
         <div className="cl-meta"><KindBadge kind={resource.kind} /><span className="cl-code">{resource.code}</span>
           {resource.gcode && <span className="cl-tag" data-testid="cost-resource-gcode" title="库内自有码（R+类别+分类+流水；与来源码一一对应）">G {resource.gcode}</span>}</div>
       </header>
       {editing && onSaved ? (
         <ResourceEdit resource={resource} regionOptions={regionOptions ?? []} periodOptions={periodOptions ?? []}
-          categoryOptions={categoryOptions ?? []} onSaved={onSaved} onCancel={() => setEditing(false)} />
+          categoryOptions={categoryOptions ?? []} dicts={dicts} onDirty={onDirty} onSaved={onSaved} onCancel={() => setEditing(false)} />
       ) : (
         <>
           <section className="cl-block cl-resource-price-block">

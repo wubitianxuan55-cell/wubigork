@@ -106,9 +106,13 @@
 - **库页约定**（方案库 2026-11-23 拍板、造价数据库 2026-11-25 推倒重建；**2026-11-27 用户令加编辑按钮，只读约定已被推翻**）：
   库类一级板块管看（浏览 / 检索 / 下钻 / 删除 / 导出）+ 直接修正入库错误（详情「编辑」钮：清单行字段与定额挂接、
   定额含含量行、工料机主数据与按期调价、项目口径与费率、方案元数据与小节标题正文；走 `Workcost*Save`/`SetPrice`/
-  `Attach`/`Detach`/`GaeaProposalUpdate*` 既有保存入口，语义索引打脏随写自动生效）。规范值（专业/地区/期数/分类）
-  编辑面只给库里已有取值；**批量导入、解析、新取值归类仍归办公板块对应运行模式**（`cost_library` /
-  `cost_project_apply` / `proposal_save`）。造价库=三级数据（清单 → 定额 → 工料机）。旧成本库（价格源 / 询价 /
+  `Attach`/`Detach`/`GaeaProposalUpdate*` 既有保存入口，语义索引打脏随写自动生效）。**2026-11-28 用户令「优化完善索引和编辑功能」**：
+  造价库编辑面的规范值改读字典（`GaeaWorkcostDictList`）并可就地新增字典值（`GaeaWorkcostDictSet`），期数可手填；
+  板块还能新建 / 复制另存、勾选批量改 专业/分部/地区/分类/期数（逐行走 `Workcost*Save`，逐行回报成败）、
+  定额地区回填（`GaeaWorkcostQuotaRegionBackfill` 先预览后落库）、解除挂接后删除
+  （`GaeaWorkcostQuotaDetachEverywhere`）、检索别名（字典 `kind=alias`，`workcost.Searcher` 查询词双向展开）。
+  **批量导入、解析、模型读表归类仍归办公「造价」运行模式**（`cost_library` / `cost_project_apply` / `proposal_save`）；
+  方案库的规范值编辑面仍只给库里已有取值。造价库=三级数据（清单 → 定额 → 工料机）。旧成本库（价格源 / 询价 /
   资料条目 / 组价 / 五算对比）2026-11-26 全量退役：后端包、工具、绑定、前端登记均已删除，库表与分类节点保留不删
   （要清表须用户另说）；查历史单价一律走造价库 `cost_project`。
 - **造价库语义索引**（2026-11-26）：清单 / 定额 / 工料机三类进本地向量索引（`internal/gaea/vecindex`，bge-m3，

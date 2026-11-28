@@ -67,7 +67,22 @@ type Searcher struct {
 	vec    *vecindex.Store
 	embed  func() SearchEmbedder
 	rerank func() SearchReranker
+	// VecNote 向量路每一次的结果回调（nil = 不报）。向量路失败时结果照常返回（关键词路
+	// 兜住），但「为什么没有语义命中」不能只有调试日志知道——界面据此明示模型不可用。
+	// code 见 VecOK 一组；err 是原始错误（可能为 nil）。
+	VecNote func(kind, code string, err error)
 }
+
+// 向量路的结果码（Searcher.VecNote 的 code）。前三个是「本来就没有」——不算故障，
+// 不该提示用户；后三个是「该有却没有」——模型或检索坏了。
+const (
+	VecOK         = ""        // 正常（正常地返回零条也算正常）
+	VecNoStore    = "nostore" // 向量索引存储不可用
+	VecNoIndex    = "noindex" // 该类目还没建向量
+	VecNoModel    = "nomodel" // 向量模型客户端不可用（检索模型没配置 / 引擎没连上）
+	VecFailEmbed  = "embed"   // 查询词向量化失败（模型报错、连不上、超时）
+	VecFailSearch = "search"  // 向量检索失败（维度对不上等）
+)
 
 // NewSearcher 构造检索器。vs / embed / rerank 都可以为 nil（对应那一路不启用）；
 // embed / rerank 是取值函数：每次检索取一次，返回 nil 表示模型当前不可用。
@@ -280,8 +295,15 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 		return out, nil
 	}
 
-	// ── 关键词路 ──
-	ids, err := spec.keywordIDs(h.store, kw, q)
+	// ── 关键词路 ── 查询词本身 + 检索别名的展开词各查一遍，命中取并集。仅字面匹配
+	// （q.Exact）不展开——那条路要的是「含这个词的全列出来」。
+	terms := []string{kw}
+	if !q.Exact {
+		if aliases, _ := h.store.SearchAliases(); len(aliases) > 0 {
+			terms = append(terms, expandAliases(kw, aliases)...)
+		}
+	}
+	ids, err := keywordIDsFor(h.store, spec, terms, q)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +319,12 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 	var exact []Hit[T]
 	for _, r := range rows {
 		k := spec.key(r)
-		ex, title, field := spec.flags(r, kw)
+		ex, title, field := spec.flags(r, kw) // 编码精确只认查询词本身
+		for _, t := range terms[1:] {
+			_, ti, fi := spec.flags(r, t)
+			title = title || ti
+			field = field || fi
+		}
 		if ex {
 			exact = append(exact, Hit[T]{Item: r, Score: 1, Via: ViaCode})
 			continue
@@ -325,9 +352,18 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 	}
 
 	// ── 向量路 ──
+	vecText := kw
+	if len(terms) > 1 {
+		// 带上展开词：行话缩写（「砼」「铲车」）向量模型认不出，认得出标准说法。
+		vecText = kw + " " + strings.Join(terms[1:], " ")
+	}
+	vecHits, vecCode, vecErr := h.vecHits(ctx, spec.indexKind, vecText, limit)
+	if h.VecNote != nil {
+		h.VecNote(spec.indexKind, vecCode, vecErr)
+	}
 	vecScore := map[string]float64{}
 	var missing []string
-	for _, hit := range h.vecHits(ctx, spec.indexKind, kw, limit) {
+	for _, hit := range vecHits {
 		if c, ok := cands[hit.ID]; ok {
 			// 关键词路已经在候选里：把向量分并进去（两路都中，融合分最高）
 			c.Vec = hit.Score
@@ -373,7 +409,7 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 			for i, c := range head {
 				docs[i] = spec.text(byKey[c.ID])
 			}
-			if rank, err := r.Rerank(ctx, kw, docs, len(docs)); err == nil {
+			if rank, err := r.Rerank(ctx, vecText, docs, len(docs)); err == nil {
 				ordered = append(applyRank(head, rank), ordered[len(head):]...)
 			} else {
 				slog.Debug("workcost: 精排失败，按融合分返回", "kind", spec.indexKind, "error", err)
@@ -397,23 +433,32 @@ func runSearch[T any](ctx context.Context, h *Searcher, spec kindSpec[T], q Sear
 }
 
 // vecHits 向量路：查询词向量化一次，在类目里取相似度最高的若干条。任何一步不可用都
-// 返回 nil（静默让路，关键词路照常）。
-func (h *Searcher) vecHits(ctx context.Context, kind, kw string, limit int) []vecindex.Hit {
-	if h.vec == nil || !h.vec.Available() || h.embed == nil {
-		return nil
+// 返回 nil（静默让路，关键词路照常），同时给出结果码与原始错误——调用方据此决定
+// 要不要告诉用户「语义检索此刻不可用」。
+func (h *Searcher) vecHits(ctx context.Context, kind, kw string, limit int) ([]vecindex.Hit, string, error) {
+	if h.vec == nil || !h.vec.Available() {
+		return nil, VecNoStore, nil
+	}
+	meta, err := h.vec.Meta(kind)
+	if err != nil {
+		slog.Debug("workcost: 读索引元信息失败，向量路让路", "kind", kind, "error", err)
+		return nil, VecFailSearch, err
 	}
 	// 类目里还没有向量（索引没建 / 模型从没开过）：直接让路，省掉一次查询词向量化。
-	if meta, err := h.vec.Meta(kind); err != nil || meta.Count == 0 {
-		return nil
+	if meta.Count == 0 {
+		return nil, VecNoIndex, nil
+	}
+	if h.embed == nil {
+		return nil, VecNoModel, nil
 	}
 	emb := h.embed()
 	if emb == nil {
-		return nil
+		return nil, VecNoModel, nil
 	}
 	qvec, err := vecindex.Query(ctx, emb, kw)
 	if err != nil || qvec == nil {
 		slog.Debug("workcost: 查询词向量化失败，向量路让路", "kind", kind, "error", err)
-		return nil
+		return nil, VecFailEmbed, err
 	}
 	topN := limit * 4
 	if topN < 30 {
@@ -425,9 +470,9 @@ func (h *Searcher) vecHits(ctx context.Context, kind, kw string, limit int) []ve
 	hits, err := h.vec.SearchVec(kind, qvec, topN, nil)
 	if err != nil {
 		slog.Debug("workcost: 向量检索不可用，向量路让路", "kind", kind, "error", err)
-		return nil
+		return nil, VecFailSearch, err
 	}
-	return hits
+	return hits, VecOK, nil
 }
 
 // applyRank 按精排给出的下标顺序重排；精排没点到的留在后面（保持原序）。
@@ -455,6 +500,60 @@ func sortByKey[T any](hits []Hit[T], key func(T) string) {
 			hits[j], hits[j-1] = hits[j-1], hits[j]
 		}
 	}
+}
+
+// keywordIDsFor 若干查询词各跑一遍关键词路，命中按键去重取并集（保持首次出现的顺序）。
+func keywordIDsFor[T any](s *Store, spec kindSpec[T], terms []string, q SearchQuery) ([]string, error) {
+	if len(terms) == 1 {
+		return spec.keywordIDs(s, terms[0], q)
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, t := range terms {
+		part, err := spec.keywordIDs(s, t, q)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range part {
+			if !seen[id] {
+				seen[id] = true
+				out = append(out, id)
+			}
+		}
+	}
+	return out, nil
+}
+
+// expandAliases 查询词的别名展开（双向）：查询词里出现别名 → 把它换成标准说法；出现
+// 标准说法 → 换成别名——「砼」对「混凝土」两头都能搜到。aliases 的键是小写的别名。
+// 返回去重后的展开词（不含原词）；返回的是小写写法（关键词路与向量路都不区分大小写）。
+func expandAliases(kw string, aliases map[string]string) []string {
+	if len(aliases) == 0 || kw == "" {
+		return nil
+	}
+	lk := strings.ToLower(kw)
+	seen := map[string]bool{lk: true}
+	out := make([]string, 0, 2)
+	add := func(s string) {
+		if s = strings.TrimSpace(s); s != "" && !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	for alias, canon := range aliases {
+		alias = strings.ToLower(strings.TrimSpace(alias))
+		if alias == "" {
+			continue
+		}
+		if strings.Contains(lk, alias) {
+			add(strings.Replace(lk, alias, strings.ToLower(canon), 1))
+		}
+		if cl := strings.ToLower(canon); cl != "" && strings.Contains(lk, cl) {
+			add(strings.Replace(lk, cl, alias, 1))
+		}
+	}
+	sort.Strings(out) // map 遍历无序：排一下，同样的输入得到同样的结果
+	return out
 }
 
 // filterValue 过滤值的规整：空或「全部」= 不过滤。

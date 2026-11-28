@@ -17,8 +17,10 @@ import type {
   WorkcostBillQuotaLink,
   WorkcostCompose,
   WorkcostComposeOverride,
+  WorkcostDictItem,
   WorkcostLibraryFilter,
   WorkcostQuota,
+  WorkcostQuotaRegionFix,
   WorkcostRateSet,
   WorkcostResource,
   WorkcostResourcePrice,
@@ -114,6 +116,17 @@ export interface CostBindings {
   // WorkcostBillProjectProfileSave 保存项目口径（专业/地区/计价期；空=保持原值，
   // 规范值须在字典里、期数归一 YYYY-MM）。
   WorkcostBillProjectProfileSave(id: number, specialty: string, region: string, pricePeriod: string): Promise<void>;
+
+  // ── 库维护（2026-11-28 索引与编辑优化批：勾选批量改、新建、规范值读字典）──
+  // WorkcostDictList 读造价库字典：kind = specialty / region / category / alias（检索别名），空 = 全部。
+  WorkcostDictList(kind: string): Promise<WorkcostDictItem[]>;
+  // WorkcostDictSet 写一条字典项：remove=false 新增（已存在 = 幂等），remove=true 删除（仍被
+  // 数据引用的拒删）。检索别名：name = 别名，parent = 对应的标准说法。
+  WorkcostDictSet(item: WorkcostDictItem, remove: boolean): Promise<void>;
+  // WorkcostQuotaDetachEverywhere 解除一条定额在全部清单项上的挂接，返回受影响的清单项数。
+  WorkcostQuotaDetachEverywhere(code: string): Promise<number>;
+  // WorkcostQuotaRegionBackfill 按上游清单项目回填定额地区；dryRun=true 只出方案不写库。
+  WorkcostQuotaRegionBackfill(dryRun: boolean): Promise<WorkcostQuotaRegionFix[]>;
 
   // ── 语义索引（2026-11-26 造价库接入本地模型索引）──
   // CostIndexStatus 造价库语义索引的状态（三类各自：条数 / 已建向量数 / 模型 / 最近错误）。

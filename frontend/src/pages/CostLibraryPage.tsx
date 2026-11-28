@@ -14,27 +14,33 @@
 // 中栏列表（筛选、当前位置、批量删除、下钻入口）→ 右栏详情（综合单价分析与
 // 消耗量、含量行分析表、价格卡与各期价格），三级之间可以来回下钻。
 // 四态分明：加载 / 空库（三步引导）/ 无匹配 / 读取失败。
+// 搜索：本地子串过滤在前；该级向量索引已建时，后台混合检索把「意思相近」的条目补在
+// 后面。本地语义模型不可用时在搜索框旁明示（2026-11-28），不再静默只剩关键词。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Popover } from "antd";
 import {
-  AlertCircle, Coins, Copy, FolderOpen, Inbox, Loader2, Pencil, RefreshCw, Search, Shield, Trash2, X,
+  AlertCircle, ClipboardList, Coins, Copy, FolderOpen, Globe, Inbox, Loader2, Pencil, Plus, RefreshCw, Search, Shield, Trash2, Wand2, X,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import { copyToClipboard } from "../gaea/lib/clipboard";
 import { useBoardActive } from "../lib/boardActive";
-import type { CostIndexStatusView, WorkcostBillProject, WorkcostLibraryFilter, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
+import type { CostIndexStatusView, WorkcostBillProject, WorkcostDictItem, WorkcostLibraryFilter, WorkcostQuota, WorkcostResource } from "../gaea/lib/types";
 import { BillDetail, DetailState, QuotaDetail, ResourceDetail } from "./cost-library/Details";
-import { ProjectEdit } from "./cost-library/Edit";
+import { BillEdit, ProjectEdit, QuotaEdit, ResourceEdit, type EditDicts } from "./cost-library/Edit";
 import { HealthDrawer, type HealthJump } from "./cost-library/HealthDrawer";
 import { DeleteDialog, ExportMenu, type DeleteRequest, type ExportItem } from "./cost-library/Overlays";
+import { BatchEditDialog } from "./cost-library/BatchEdit";
+import { AliasDialog, RegionBackfillDialog } from "./cost-library/Maintain";
 import { BillTable, QuotaTable, ResourceTable } from "./cost-library/Tables";
 import { TierBar, TierRail, type TierCounts } from "./cost-library/TierRail";
 import { IndexStatus } from "./cost-library/IndexStatus";
 import {
-  NONE, OUTSIDE, PENDING_PROMPT, SAMPLE_PROMPTS, TIERS, capRows, categoryTreeOf, chaptersOf, billSpecialties, dimLabel,
+  NONE, OUTSIDE, PENDING_ITEMS, PENDING_PROMPT, SAMPLE_PROMPTS, STATE_LABELS, TIERS, capRows, categoryTreeOf, chaptersOf, billSpecialties, dimLabel,
   emptyBillFilters, emptyQuotaFilters, emptyResourceFilters, divisionsOf, facetMatch, filterBill, filterQuotas, filterResources,
-  fmtPeriod, fmtRate, kindLabel, kindsOf, linkedQuotas, parseSelKey, pendingOf, pendingSummary, periodsOf, quotaUsageIndex, regionsOf,
-  selKey, specialtiesOf,
-  type BillFilters, type BillRow, type CategoryNode, type Facet, type QuotaFilters, type ResourceFilters, type SelKey, type Tier,
+  fmtPeriod, fmtRate, kindLabel, kindsOf, keywordTerms, linkedQuotas, parseSelKey, pendingFilter, pendingOf, pendingSummary, periodsOf, projectCounts, quotaUsageIndex,
+  quotaRegionsOf, regionsOf, selKey, specialtiesOf,
+  type BillFilters, type BillRow, type CategoryNode, type Facet, type FilterContext, type PendingCounts, type QuotaFilters,
+  type ResourceFilters, type RowState, type SelKey, type Tier,
 } from "./cost-library/logic";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
@@ -190,7 +196,7 @@ function EmptyLibrary({ copyState, onCopy }: { copyState: "idle" | "done" | "fai
 }
 
 /** 选中项目时的封面卡：封面信息 + 口径（专业 / 地区 / 计价期）+ 四费率 + 编辑 + 整体删除。 */
-function ProjectCard({ project, onDeleted, specialtyOptions, regionOptions, periodOptions, onSaved }: {
+function ProjectCard({ project, onDeleted, specialtyOptions, regionOptions, periodOptions, onSaved, dicts, onDirty }: {
   project: WorkcostBillProject;
   onDeleted: (p: WorkcostBillProject) => void;
   /** 编辑面：口径与费率的可选值（库里已有的规范值）与保存回执。 */
@@ -198,6 +204,8 @@ function ProjectCard({ project, onDeleted, specialtyOptions, regionOptions, peri
   regionOptions: string[];
   periodOptions: string[];
   onSaved: (msg: string) => void;
+  dicts?: EditDicts;
+  onDirty?: (dirty: boolean) => void;
 }) {
   const [editing, setEditing] = useState(false);
   // 换项目就退出编辑态——不让上一个项目的草稿挂在新项目上。
@@ -226,7 +234,7 @@ function ProjectCard({ project, onDeleted, specialtyOptions, regionOptions, peri
       </header>
       {editing ? (
         <ProjectEdit project={project} specialtyOptions={specialtyOptions} regionOptions={regionOptions}
-          periodOptions={periodOptions} onSaved={onSaved} onCancel={() => setEditing(false)} />
+          periodOptions={periodOptions} dicts={dicts} onDirty={onDirty} onSaved={onSaved} onCancel={() => setEditing(false)} />
       ) : (
         <section className="cl-block">
           <div className="cl-block-head"><span className="cl-block-label">取费（录入数据，0=不计取）</span></div>
@@ -270,6 +278,12 @@ function CostLibraryPage() {
 
   const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
   const [healthOpen, setHealthOpen] = useState(false);
+  // 「待整理」浮层（逐项点开即筛出对应的行）。
+  const [pendingOpen, setPendingOpen] = useState(false);
+  // 勾选批量改维度 / 定额地区回填 / 检索别名管理（2026-11-28）。
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [aliasOpen, setAliasOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportNote, setExportNote] = useState<{ text: string; isError: boolean } | null>(null);
   const [notice, setNotice] = useState("");
@@ -278,6 +292,12 @@ function CostLibraryPage() {
   const [indexStatus, setIndexStatus] = useState<CostIndexStatusView | null>(null);
   const [semRows, setSemRows] = useState<LibraryRow[]>([]);
   const semSeq = useRef(0);
+  // 本地语义模型不可用的原因（非空 = 向量路坏了，搜索只按关键词匹配）：搜完读一次索引
+  // 状态得到，明示在搜索框旁，不再静默降级；semNonce 是「重试」计数，点一下重新检索。
+  const [semDown, setSemDown] = useState("");
+  const [semNonce, setSemNonce] = useState(0);
+  // 混合检索给出的相关度名次（行键 → 名次）：搜索时主列表按它排，不在检索结果里的保持原序跟在后面。
+  const [rankOf, setRankOf] = useState<Map<string, number>>(() => new Map());
   const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
 
   // 窄窗（三栏放不下）改单栏：三级切换横排，列表与详情用页签切换。按容器宽度判定。
@@ -352,15 +372,34 @@ function CostLibraryPage() {
   useEffect(() => { void load(); }, [load]);
 
   // 索引状态读不到（老版本后端 / 绑定不可用）按「没有语义索引」处理，不影响本地过滤。
-  const loadIndexStatus = useCallback(async () => {
-    if (typeof app.CostIndexStatus !== "function") return;
+  const readIndexStatus = useCallback(async (): Promise<CostIndexStatusView | null> => {
+    if (typeof app.CostIndexStatus !== "function") return null;
     try {
-      setIndexStatus(await app.CostIndexStatus());
+      return await app.CostIndexStatus();
     } catch {
-      setIndexStatus(null);
+      return null;
     }
   }, []);
+  const loadIndexStatus = useCallback(async () => {
+    setIndexStatus(await readIndexStatus());
+  }, [readIndexStatus]);
   useEffect(() => { void loadIndexStatus(); }, [loadIndexStatus]);
+
+  // 规范值字典（2026-11-28）：编辑面的专业 / 地区 / 分类下拉读它——字典里规划了、还没有行
+  // 在用的值也列得出来（定额专业此前只列得出「土壤修复」）。读不到（老版本后端 / 失败）时
+  // 各处退回「库里已有取值」，也不出「新增」。
+  const [dicts, setDicts] = useState<WorkcostDictItem[]>([]);
+  const [dictsOk, setDictsOk] = useState(false);
+  const loadDicts = useCallback(async () => {
+    if (typeof app.WorkcostDictList !== "function") return;
+    try {
+      setDicts((await app.WorkcostDictList("")) ?? []);
+      setDictsOk(true);
+    } catch {
+      setDictsOk(false);
+    }
+  }, []);
+  useEffect(() => { void loadDicts(); }, [loadDicts]);
 
   // 本板块 keepAlive 常驻：去造价模式录完数据再切回来，组件不会重挂，挂载时
   // 那一次读取就成了旧快照。板块由隐藏转回可见时静默重读（方案库同款修法）。
@@ -375,36 +414,109 @@ function CostLibraryPage() {
     awayRef.current = false;
     void load(true);
     void loadIndexStatus();
-  }, [boardActive, load, loadIndexStatus]);
+    void loadDicts();
+  }, [boardActive, load, loadIndexStatus, loadDicts]);
 
   // ── 派生：引用索引、筛选项、当前级的可见行 ──
   const usageIndex = useMemo(() => quotaUsageIndex(snap.rows), [snap.rows]);
   const usageCount = useMemo(() => new Map<string, number>([...usageIndex].map(([code, list]) => [code, list.length])), [usageIndex]);
-  const divisions = useMemo(() => divisionsOf(filterBill(snap.rows, { ...billF, division: "", keyword: "", grouped: false })), [snap.rows, billF]);
+  // 状态筛选要用的引用关系（被定额含量行引用的工料机编码要另取一次定额含量行：列表不带它，
+  // 用到才取、取到即缓存，每次重读后作废）。
+  const [usedResourceCodes, setUsedResourceCodes] = useState<Set<string> | null>(null);
+  const usedCodesSeq = useRef(0);
+  const needUsedCodes = tier === "resource" && resourceF.state === "unused";
+  useEffect(() => {
+    if (!needUsedCodes || usedResourceCodes) return;
+    const seq = ++usedCodesSeq.current;
+    void Promise.all(snap.quotas.map(async (q) => ((await app.WorkcostQuotaGet(q.code))?.items ?? [])))
+      .then((lists) => {
+        if (seq === usedCodesSeq.current) setUsedResourceCodes(new Set(lists.flat().map((it) => it.resourceCode).filter(Boolean)));
+      })
+      .catch(() => { if (seq === usedCodesSeq.current) setUsedResourceCodes(new Set()); });
+  }, [needUsedCodes, usedResourceCodes, snap.quotas]);
+  useEffect(() => { setUsedResourceCodes(null); }, [snap]);
+  const filterCtx = useMemo<FilterContext>(() => ({
+    quotaSpecialty: new Map(snap.quotas.map((q) => [q.code, (q.specialty ?? "").trim()])),
+    quotaUsage: usageCount,
+    usedResourceCodes: usedResourceCodes ?? undefined,
+  }), [snap.quotas, usageCount, usedResourceCodes]);
+  // 分面（2026-11-28 分面联动）：各级的计数随搜索词与状态走——搜「混凝土」时左栏只数
+  // 命中的行；每一维自己的筛选值不套进自己的计数，否则选了一个值就只剩它一个可选项。
+  const divisions = useMemo(
+    () => divisionsOf(snap.rows, { projectId: billF.projectId, division: billF.division, keyword: billF.keyword, state: billF.state }, filterCtx),
+    [snap.rows, billF.projectId, billF.division, billF.keyword, billF.state, filterCtx],
+  );
   // 维度（库定规矩）：规范值只认库里的取值，空值归「未标注」一桶。
-  const specialties = useMemo(() => specialtiesOf(snap.quotas), [snap.quotas]);
-  const billSpecFacets = useMemo(() => billSpecialties(snap.rows, { projectId: 0, division: billF.division }), [snap.rows, billF.division]);
+  const specialties = useMemo(
+    () => specialtiesOf(snap.quotas, { keyword: quotaF.keyword, state: quotaF.state }, filterCtx),
+    [snap.quotas, quotaF.keyword, quotaF.state, filterCtx],
+  );
+  const quotaRegions = useMemo(
+    () => quotaRegionsOf(snap.quotas, { keyword: quotaF.keyword, state: quotaF.state }, filterCtx),
+    [snap.quotas, quotaF.keyword, quotaF.state, filterCtx],
+  );
+  const billSpecFacets = useMemo(
+    () => billSpecialties(snap.rows, { division: billF.division, keyword: billF.keyword, state: billF.state }, filterCtx),
+    [snap.rows, billF.division, billF.keyword, billF.state, filterCtx],
+  );
+  // 每个项目在搜索下各剩多少行——左栏项目列表的计数随之变，没有命中行的项目不出。
+  const projectMatch = useMemo(
+    () => projectCounts(snap.rows, { division: billF.division, keyword: billF.keyword, state: billF.state }, filterCtx),
+    [snap.rows, billF.division, billF.keyword, billF.state, filterCtx],
+  );
   // 当前专业下有清单行的项目——左栏的项目列表随专业变。
   const specProjects = useMemo(() => {
-    if (!billF.specialty) return snap.projects;
-    const ids = new Set(snap.rows.filter((it) => facetMatch(billF.specialty, it.specialty)).map((it) => it.projectId));
-    return snap.projects.filter((p) => ids.has(p.id));
-  }, [snap.projects, snap.rows, billF.specialty]);
+    let list = snap.projects;
+    if (billF.specialty) {
+      const ids = new Set(snap.rows.filter((it) => facetMatch(billF.specialty, it.specialty)).map((it) => it.projectId));
+      list = list.filter((p) => ids.has(p.id));
+    }
+    if (billF.keyword.trim() || billF.state) list = list.filter((p) => (projectMatch.get(p.id) ?? 0) > 0);
+    return list;
+  }, [snap.projects, snap.rows, billF.specialty, billF.keyword, billF.state, projectMatch]);
   // 分部只在专业内有意义：没选专业时不出分部这一级。
-  const chapters = useMemo(() => (quotaF.specialty ? chaptersOf(snap.quotas, quotaF.specialty) : []), [snap.quotas, quotaF.specialty]);
+  const chapters = useMemo(
+    () => (quotaF.specialty ? chaptersOf(snap.quotas, quotaF.specialty, quotaF.keyword) : []),
+    [snap.quotas, quotaF.specialty, quotaF.keyword],
+  );
   // 四类里有行的按固定顺序；四类外有行时末尾加一桶「类别待整理」（存量里类别不合规矩的行）。
-  const kinds = useMemo(() => kindsOf(snap.resources), [snap.resources]);
-  const resourceCategories = useMemo(() => categoryTreeOf(snap.resources, resourceF.kind), [snap.resources, resourceF.kind]);
-  const resourceRegions = useMemo(() => regionsOf(snap.resources), [snap.resources]);
-  const resourcePeriods = useMemo(() => periodsOf(snap.resources), [snap.resources]);
+  const kinds = useMemo(
+    () => kindsOf(snap.resources, { keyword: resourceF.keyword, state: resourceF.state }, filterCtx),
+    [snap.resources, resourceF.keyword, resourceF.state, filterCtx],
+  );
+  const resourceCategories = useMemo(
+    () => categoryTreeOf(snap.resources, resourceF.kind, { keyword: resourceF.keyword, state: resourceF.state }, filterCtx),
+    [snap.resources, resourceF.kind, resourceF.keyword, resourceF.state, filterCtx],
+  );
+  const resourceRegions = useMemo(
+    () => regionsOf(snap.resources, { keyword: resourceF.keyword, state: resourceF.state }, filterCtx),
+    [snap.resources, resourceF.keyword, resourceF.state, filterCtx],
+  );
+  const resourcePeriods = useMemo(
+    () => periodsOf(snap.resources, { keyword: resourceF.keyword, state: resourceF.state }, filterCtx),
+    [snap.resources, resourceF.keyword, resourceF.state, filterCtx],
+  );
   const pending = useMemo(() => pendingOf(snap.rows, snap.quotas, snap.resources), [snap.rows, snap.quotas, snap.resources]);
 
-  const billRows = useMemo(() => filterBill(snap.rows, billF), [snap.rows, billF]);
-  const quotaRows = useMemo(() => filterQuotas(snap.quotas, quotaF), [snap.quotas, quotaF]);
-  const resourceRows = useMemo(() => filterResources(snap.resources, resourceF), [snap.resources, resourceF]);
+  // 状态筛选「没有被定额引用」在引用关系取到之前先不给行（给了也是错的）。
+  const usedCodesLoading = needUsedCodes && !usedResourceCodes;
+  const billRows = useMemo(() => filterBill(snap.rows, billF, filterCtx), [snap.rows, billF, filterCtx]);
+  const quotaRows = useMemo(() => filterQuotas(snap.quotas, quotaF, filterCtx), [snap.quotas, quotaF, filterCtx]);
+  const resourceRows = useMemo(
+    () => (usedCodesLoading ? [] : filterResources(snap.resources, resourceF, filterCtx)),
+    [snap.resources, resourceF, filterCtx, usedCodesLoading],
+  );
   const matched: LibraryRow[] = tier === "bill" ? billRows : tier === "quota" ? quotaRows : resourceRows;
   const totalOfTier = tier === "bill" ? snap.rows.length : tier === "quota" ? snap.quotas.length : snap.resources.length;
-  const view = useMemo(() => capRows(matched, cap), [matched, cap]);
+  // 搜索时主列表按混合检索的相关度排（2026-11-28）：本地命中的行里，检索结果靠前的靠前，
+  // 不在检索结果里的保持原序跟在后面——「名称含关键词」与「意思相近」共用一套相关度序。
+  const searching = !!(tier === "bill" ? billF.keyword : tier === "quota" ? quotaF.keyword : resourceF.keyword).trim();
+  const ordered = useMemo(() => {
+    if (!searching || rankOf.size === 0) return matched;
+    const rank = (row: LibraryRow) => rankOf.get(rowKeyOf(tier, row)) ?? Number.MAX_SAFE_INTEGER;
+    return [...matched].sort((a, b) => rank(a) - rank(b));
+  }, [matched, rankOf, searching, tier]);
+  const view = useMemo(() => capRows(ordered, cap), [ordered, cap]);
 
   // 切级或改筛选回到首批行数；切级清空勾选（勾选只在当前级内有意义）。
   useEffect(() => { setCap(ROW_CAP); setChecked(new Set()); }, [tier]);
@@ -420,40 +532,54 @@ function CostLibraryPage() {
   // 搜索框照旧做本地子串过滤；关键词非空且该级向量索引已建时，另调一次后台混合检索，把「名称不含
   // 关键词、意思相近」的条目（如「挖机」对「挖掘机」）放进补充段。索引没建 / 绑定不可用 / 请求失败：
   // 没有补充段，本地过滤照常。其它筛选（专业 / 分部 / 类别…）对补充段同样生效。
+  // 向量路要是坏了（本地模型不可用），搜完读一次索引状态拿到原因，明示在搜索框旁——不能让
+  // 「没有意思相近的条目」和「模型坏了」看起来一样。
   useEffect(() => {
     const kw = keyword.trim();
     const kind = tier === "bill" ? "wc_bill" : tier === "quota" ? "wc_quota" : "wc_res";
     const ready = (indexStatus?.kinds.find((k) => k.kind === kind)?.count ?? 0) > 0;
     if (!kw || !ready) {
       setSemRows([]);
+      setRankOf(new Map());
+      setSemDown("");
       return;
     }
     const seq = ++semSeq.current;
     const timer = window.setTimeout(async () => {
       let extra: LibraryRow[] = [];
+      // 后台混合检索回来的是相关度序：记下每行的名次，主列表按它排（名次相同的保持原序）。
+      const rank = new Map<string, number>();
       try {
         if (tier === "quota") {
           const local = new Set(quotaRows.map((q) => q.code));
-          extra = ((await app.WorkcostQuotaList(quotaF.specialty, kw)) ?? [])
-            .filter((q) => !local.has(q.code) && filterQuotas([q], { ...quotaF, keyword: "" }).length > 0);
+          const found = (await app.WorkcostQuotaList(quotaF.specialty, kw)) ?? [];
+          found.forEach((q, i) => rank.set(q.code, i));
+          extra = found.filter((q) => !local.has(q.code) && filterQuotas([q], { ...quotaF, keyword: "" }, filterCtx).length > 0);
         } else if (tier === "resource") {
           const local = new Set(resourceRows.map((r) => r.code));
-          extra = ((await app.WorkcostResourceList(resourceF.kind, kw)) ?? [])
-            .filter((r) => !local.has(r.code) && filterResources([r], { ...resourceF, keyword: "" }).length > 0);
+          const found = (await app.WorkcostResourceList(resourceF.kind, kw)) ?? [];
+          found.forEach((r, i) => rank.set(r.code, i));
+          extra = found.filter((r) => !local.has(r.code) && filterResources([r], { ...resourceF, keyword: "" }, filterCtx).length > 0);
         } else if (typeof app.WorkcostBillSearch === "function") {
           const local = new Set(billRows.map((r) => String(r.id)));
-          extra = ((await app.WorkcostBillSearch(kw, billF.specialty, billF.projectId)) ?? [])
-            .filter((it) => !local.has(String(it.id)))
-            .map((it) => ({ ...it, projectName: snap.projects.find((p) => p.id === it.projectId)?.name ?? "" }))
-            .filter((row) => filterBill([row], { ...billF, keyword: "" }).length > 0);
+          const found = ((await app.WorkcostBillSearch(kw, billF.specialty, billF.projectId)) ?? [])
+            .map((it) => ({ ...it, projectName: snap.projects.find((p) => p.id === it.projectId)?.name ?? "" }));
+          found.forEach((r, i) => rank.set(String(r.id), i));
+          extra = found.filter((row) => !local.has(String(row.id)) && filterBill([row], { ...billF, keyword: "" }, filterCtx).length > 0);
         }
       } catch {
         extra = [];
       }
-      if (seq === semSeq.current) setSemRows(extra);
+      if (seq !== semSeq.current) return;
+      // 向量路坏没坏，以这次检索自己的结果为准（索引器那边要有文档要嵌才会报错）。
+      const st = await readIndexStatus();
+      if (seq !== semSeq.current) return;
+      setSemRows(extra);
+      setRankOf(rank);
+      setSemDown(st?.kinds.find((k) => k.kind === kind)?.searchError ?? "");
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [tier, keyword, indexStatus, quotaRows, resourceRows, billRows, quotaF, resourceF, billF, snap.projects]);
+  }, [tier, keyword, indexStatus, quotaRows, resourceRows, billRows, quotaF, resourceF, billF, snap.projects, snap.rows, filterCtx, readIndexStatus, semNonce]);
 
   // 选择键对应的行还在不在（重读后别处被删，就不能让它继续挂在界面上）。
   const keyAlive = useCallback((key: SelKey): boolean => {
@@ -479,7 +605,13 @@ function CostLibraryPage() {
   }, [selected, tier, pane, narrow, view.hidden]);
 
   // ── 三级下钻 ──
+  // 编辑面有未保存改动时（Edit 组件经 onDirty 回报），换行 / 换级 / 换筛选前先问一句。
+  const dirtyEdit = useRef(false);
+  const guardDirty = (): boolean =>
+    !dirtyEdit.current || window.confirm("当前编辑框里有未保存的改动，切走后会被丢弃。仍要切走吗？");
   const changeTier = (next: Tier) => {
+    if (next !== tier && !guardDirty()) return;
+    setCreating(null);
     setTier(next);
     const parsed = selected ? parseSelKey(selected) : null;
     if (parsed && parsed.tier !== next) setSelected(null);
@@ -490,16 +622,18 @@ function CostLibraryPage() {
   // 跨级下钻、体检跳转都是这种情况）；它本来就在列表里时保留筛选——同级点一行看详情，
   // 人刚筛到这儿，不能把上下文冲掉。
   const jump = (next: Tier, key: SelKey) => {
+    if (!guardDirty()) return;
+    setCreating(null);
     const id = parseSelKey(key)?.id;
     if (next === "bill") {
       const row = snap.rows.find((r) => String(r.id) === id);
-      if (!row || filterBill([row], billF).length === 0) setBillF(emptyBillFilters);
+      if (!row || filterBill([row], billF, filterCtx).length === 0) setBillF(emptyBillFilters);
     } else if (next === "quota") {
       const quota = snap.quotas.find((q) => q.code === id);
-      if (!quota || filterQuotas([quota], quotaF).length === 0) setQuotaF(emptyQuotaFilters);
+      if (!quota || filterQuotas([quota], quotaF, filterCtx).length === 0) setQuotaF(emptyQuotaFilters);
     } else {
       const resource = snap.resources.find((r) => r.code === id);
-      if (!resource || filterResources([resource], resourceF).length === 0) setResourceF(emptyResourceFilters);
+      if (!resource || filterResources([resource], resourceF, filterCtx).length === 0) setResourceF(emptyResourceFilters);
     }
     setTier(next);
     setSelected(key);
@@ -511,6 +645,18 @@ function CostLibraryPage() {
   const onHealthJump = (j: HealthJump) => {
     setHealthOpen(false);
     jump(j.tier, selKey(j.tier, j.code));
+  };
+  // 「待整理」逐项点开（2026-11-28）：落到对应那一级，只留这一项的筛选，就地改或勾选批量改。
+  const applyPending = (key: keyof PendingCounts) => {
+    if (!guardDirty()) return;
+    setCreating(null);
+    const target = pendingFilter(key);
+    setBillF(target.tier === "bill" ? { ...(target.filters as BillFilters), grouped: billF.grouped } : emptyBillFilters);
+    setQuotaF(target.tier === "quota" ? (target.filters as QuotaFilters) : emptyQuotaFilters);
+    setResourceF(target.tier === "resource" ? (target.filters as ResourceFilters) : emptyResourceFilters);
+    setSelected(null);
+    setTier(target.tier);
+    setPane("list");
   };
 
   // ── 勾选与删除 ──
@@ -534,6 +680,8 @@ function CostLibraryPage() {
   const checkedBills = snap.rows.filter((r) => checkedIds.has(String(r.id)));
   const checkedQuotas = snap.quotas.filter((q) => checkedIds.has(q.code));
   const checkedResources = snap.resources.filter((r) => checkedIds.has(r.code));
+  // 当前级勾选的行（批量修改用）。
+  const checkedRows: LibraryRow[] = tier === "bill" ? checkedBills : tier === "quota" ? checkedQuotas : checkedResources;
 
   const deleteBillRows = (rows: BillRow[]) => setDeleteRequest({
     title: "删除清单项",
@@ -544,15 +692,34 @@ function CostLibraryPage() {
     confirmLabel: `删除 ${rows.length} 条`,
     run: () => runDeletes(rows.map((r) => ({ label: `${r.code} ${r.title}`, run: () => app.WorkcostBillItemDelete(r.id) }))),
   });
-  const deleteQuotaRows = (rows: WorkcostQuota[]) => setDeleteRequest({
-    title: "删除定额",
-    lines: [
-      `将删除 ${rows.length} 条消耗定额：${rows.slice(0, 3).map((q) => `「${q.title}」`).join("、")}${rows.length > 3 ? " 等" : ""}（含全部含量行）。`,
-      "仍被清单项引用的定额会被拒绝，不留悬空引用；要删先在造价模式解除挂接。不可恢复。",
-    ],
-    confirmLabel: `删除 ${rows.length} 条`,
-    run: () => runDeletes(rows.map((q) => ({ label: `${q.code} ${q.title}`, run: () => app.WorkcostQuotaDelete(q.code) }))),
-  });
+  const quotaUsed = (q: WorkcostQuota) => usageCount.get(q.code) ?? 0;
+  const deleteQuotaRows = (rows: WorkcostQuota[]) => {
+    const used = rows.filter((q) => quotaUsed(q) > 0);
+    const links = rows.reduce((n, q) => n + quotaUsed(q), 0);
+    return setDeleteRequest({
+      title: "删除定额",
+      lines: [
+        `将删除 ${rows.length} 条消耗定额：${rows.slice(0, 3).map((q) => `「${q.title}」`).join("、")}${rows.length > 3 ? " 等" : ""}（含全部含量行）。`,
+        "仍被清单项引用的定额会被拒绝，不留悬空引用。不可恢复。",
+        ...(used.length > 0
+          ? [`其中 ${used.length} 条仍被清单项引用（共 ${links} 条挂接）：要删它们，用「解除挂接后删除」——先把这些定额从清单项上摘掉，那些清单项随之变成手填项。`]
+          : []),
+      ],
+      confirmLabel: `删除 ${rows.length} 条`,
+      run: () => runDeletes(rows.map((q) => ({ label: `${q.code} ${q.title}`, run: () => app.WorkcostQuotaDelete(q.code) }))),
+      force: used.length > 0 ? {
+        label: "解除挂接后删除",
+        hint: "先解除这些定额在全部清单项上的挂接（清单项变成手填项），再删除定额",
+        run: () => runDeletes(rows.map((q) => ({
+          label: `${q.code} ${q.title}`,
+          run: async () => {
+            if (quotaUsed(q) > 0) await app.WorkcostQuotaDetachEverywhere(q.code);
+            await app.WorkcostQuotaDelete(q.code);
+          },
+        }))),
+      } : undefined,
+    });
+  };
   const deleteResourceRows = (rows: WorkcostResource[]) => setDeleteRequest({
     title: "删除工料机",
     lines: [
@@ -561,6 +728,11 @@ function CostLibraryPage() {
     ],
     confirmLabel: `删除 ${rows.length} 条`,
     run: () => runDeletes(rows.map((r) => ({ label: `${r.code} ${r.title}`, run: () => app.WorkcostResourceDelete(r.id, false) }))),
+    force: {
+      label: "连同解除引用删除",
+      hint: "仍被定额含量行引用的工料机：连带解除那些含量行对它的引用后删除（对应定额里的含量行会消失，综合单价随之变化）",
+      run: () => runDeletes(rows.map((r) => ({ label: `${r.code} ${r.title}`, run: () => app.WorkcostResourceDelete(r.id, true) }))),
+    },
   });
   const deleteProject = (p: WorkcostBillProject) => setDeleteRequest({
     title: "删除项目",
@@ -594,25 +766,87 @@ function CostLibraryPage() {
     showNotice(msg);
     void load(true);
     void loadIndexStatus();
-  }, [load, loadIndexStatus]);
-  // 规范值可选面：库里已有的取值（不含「未标注」哨兵）；清单专业取清单行的，定额专业取定额的。
-  const billSpecNames = useMemo(() => billSpecFacets.filter((f) => f.name !== NONE).map((f) => f.name), [billSpecFacets]);
-  const quotaSpecNames = useMemo(() => specialties.filter((f) => f.name !== NONE).map((f) => f.name), [specialties]);
+    void loadDicts(); // 编辑面里可能就地新增了字典值
+  }, [load, loadIndexStatus, loadDicts]);
+  // 规范值可选面（2026-11-28 改读字典）：字典值在前，库里已有取值兜底（不含「未标注」哨兵）。
+  const unionNames = (a: string[], b: string[]): string[] => [...new Set([...a, ...b])];
+  const dictSpecialty = useMemo(() => dicts.filter((d) => d.kind === "specialty").map((d) => d.name), [dicts]);
+  const dictRegion = useMemo(() => dicts.filter((d) => d.kind === "region").map((d) => d.name), [dicts]);
+  const billSpecNames = useMemo(
+    () => unionNames(dictSpecialty, billSpecFacets.filter((f) => f.name !== NONE).map((f) => f.name)), [dictSpecialty, billSpecFacets],
+  );
+  const quotaSpecNames = useMemo(
+    () => unionNames(dictSpecialty, specialties.filter((f) => f.name !== NONE).map((f) => f.name)), [dictSpecialty, specialties],
+  );
   const chaptersOfSpec = useCallback((spec: string) => chaptersOf(snap.quotas, spec).map((f) => f.name), [snap.quotas]);
-  const resourceRegionNames = useMemo(() => resourceRegions.filter((f) => f.name !== NONE).map((f) => f.name), [resourceRegions]);
+  const resourceRegionNames = useMemo(
+    () => unionNames(dictRegion, resourceRegions.filter((f) => f.name !== NONE).map((f) => f.name)), [dictRegion, resourceRegions],
+  );
   const resourcePeriodNames = useMemo(() => resourcePeriods.filter((f) => f.name !== NONE).map((f) => f.name), [resourcePeriods]);
   const categoriesOfKind = useCallback((kind: string) => {
     const flat = (nodes: CategoryNode[], depth = 0): string[] =>
       nodes.flatMap((n) => (depth === 0 ? [n.path, ...flat(n.children, 1)] : flat(n.children, depth + 1)));
-    return flat(categoryTreeOf(snap.resources, kind).tree);
-  }, [snap.resources]);
+    return unionNames(
+      dicts.filter((d) => d.kind === "category" && (d.name === kind || d.name.startsWith(`${kind}/`))).map((d) => d.name),
+      flat(categoryTreeOf(snap.resources, kind).tree),
+    );
+  }, [snap.resources, dicts]);
   // 项目口径可选面：资源与项目两侧已有的取值并集。
   const projectRegionNames = useMemo(() =>
-    [...new Set([...resourceRegionNames, ...snap.projects.map((p) => p.region).filter(Boolean)])], [resourceRegionNames, snap.projects]);
+    unionNames(resourceRegionNames, snap.projects.map((p) => p.region).filter(Boolean) as string[]), [resourceRegionNames, snap.projects]);
   const projectPeriodNames = useMemo(() =>
     [...new Set([...resourcePeriodNames, ...snap.projects.map((p) => p.pricePeriod).filter(Boolean)])], [resourcePeriodNames, snap.projects]);
   const projectSpecNames = useMemo(() =>
-    [...new Set([...billSpecNames, ...snap.projects.map((p) => p.specialty).filter(Boolean)])], [billSpecNames, snap.projects]);
+    unionNames(billSpecNames, snap.projects.map((p) => p.specialty).filter(Boolean) as string[]), [billSpecNames, snap.projects]);
+  // 编辑面的字典接入：就地新增走字典写入；地区会被归一成省级全称，所以加完回读、取库里最终的写法。
+  const addDict = useCallback(async (kind: "specialty" | "region" | "category", name: string, parent = ""): Promise<string> => {
+    await app.WorkcostDictSet({ id: 0, kind, name, parent }, false);
+    const items = (await app.WorkcostDictList(kind)) ?? [];
+    await loadDicts();
+    const typed = name.trim();
+    const newest = items.reduce<WorkcostDictItem | undefined>((m, d) => (!m || d.id > m.id ? d : m), undefined);
+    return items.find((d) => d.name === typed)?.name ?? newest?.name ?? typed;
+  }, [loadDicts]);
+  const editDicts = useMemo<EditDicts>(
+    () => (dictsOk ? { specialty: dictSpecialty, region: dictRegion, categoryOf: categoriesOfKind, add: addDict } : {}),
+    [dictsOk, dictSpecialty, dictRegion, categoriesOfKind, addDict],
+  );
+  // 新建 / 复制另存（2026-11-28）：右栏换成新建表单；base 给了 = 以它为底复制。
+  const [creating, setCreating] = useState<{ tier: Tier; base?: LibraryRow } | null>(null);
+  const blankBill = (): BillRow => ({
+    id: 0, projectId: billF.projectId, projectName: "", code: "", gcode: "", title: "", unit: "", division: "", quantity: 0,
+    quantityExpr: "", quotaCode: "", feature: "", priceOverride: 0, listPrice: 0, sort: 0, quotaCodes: [], specialty: "",
+  });
+  const blankQuota = (): WorkcostQuota => ({
+    id: 0, code: "", gcode: "", origCode: "", title: "", specialty: quotaF.specialty === NONE ? "" : quotaF.specialty,
+    chapter: quotaF.chapter === NONE ? "" : quotaF.chapter, unit: "", categoryPath: "", baseLabor: 0, baseMaterial: 0,
+    baseMachine: 0, source: "", region: quotaF.region === NONE ? "" : (quotaF.region ?? ""), priceDate: "", note: "",
+    status: "现行", items: [],
+  });
+  const blankResource = (): WorkcostResource => ({
+    id: 0, code: "", gcode: "", kind: resourceF.kind && resourceF.kind !== OUTSIDE ? resourceF.kind : "材料", title: "", spec: "",
+    unit: "", basePrice: 0, currentPrice: 0, categoryPath: resourceF.category === NONE ? "" : resourceF.category, source: "",
+    supplier: "", region: resourceF.region === NONE ? "" : resourceF.region, priceDate: "", priceType: "", validUntil: "",
+    lossRate: 0, note: "", tags: [], status: "现行",
+  });
+
+  const startCreate = (next: Tier, base?: LibraryRow) => {
+    if (!guardDirty()) return;
+    setCreating({ tier: next, base });
+    setSelected(null);
+    setTier(next);
+    setPane("detail");
+  };
+  // 新建成功：静默重读后定位到新那一行（详情仍是它，方便接着改）。
+  const onCreated = async (key: SelKey) => {
+    const created = creating?.tier;
+    setCreating(null);
+    await load(true);
+    if (created) {
+      setSelected(key);
+      setPane("detail");
+    }
+  };
 
   // 语义索引显式补齐（状态栏的钮）：模型不可用时绑定会 reject，原因留在提示里。
   const backfillIndex = async () => {
@@ -654,8 +888,15 @@ function CostLibraryPage() {
             ? { ...none, keyword: resourceF.keyword, kind: resourceF.kind, category: resourceF.category, region: resourceF.region, period: resourceF.period }
             : none;
       const written = await app.CostLibraryExport(kind, filter, out);
+      // 状态筛选与定额地区筛选是板块里的视图口径，导出的筛选结构体不承载——回执里说清楚，
+      // 免得导出的行数与列表对不上时以为是丢了数据。
+      const notExported = [
+        (kind === "bill" ? billF.state : kind === "quota" ? quotaF.state : kind === "resource" ? resourceF.state : "") && "状态",
+        kind === "quota" && quotaF.region && "定额地区",
+      ].filter(Boolean);
+      const suffix = notExported.length > 0 ? `（${notExported.join("、")}筛选不参与导出）` : "";
       // 测算模版旁边绑着一份使用说明书（后端一并落盘）：提示里带上它，别让人以为只出来一个表。
-      setExportNote({ text: kind === "template" ? `已导出：${written}（使用说明书：同目录同名 -使用说明.md）` : `已导出：${written}`, isError: false });
+      setExportNote({ text: (kind === "template" ? `已导出：${written}（使用说明书：同目录同名 -使用说明.md）` : `已导出：${written}`) + suffix, isError: false });
     } catch (e) {
       setExportNote({ text: `导出失败：${message(e)}`, isError: true });
     } finally {
@@ -679,11 +920,18 @@ function CostLibraryPage() {
     else if (tier === "quota") setQuotaF(emptyQuotaFilters);
     else setResourceF(emptyResourceFilters);
   };
+  const setFilterState = (state: RowState) => {
+    if (tier === "bill") setBillF({ ...billF, state });
+    else if (tier === "quota") setQuotaF({ ...quotaF, state });
+    else setResourceF({ ...resourceF, state });
+  };
+  const stateOf = tier === "bill" ? billF.state : tier === "quota" ? quotaF.state : resourceF.state;
+  const stateLabel = (state?: RowState) => (STATE_LABELS[tier].find((s) => s.value === state && state)?.label ?? "");
   const hasFilter = tier === "bill"
-    ? billF.projectId !== 0 || !!billF.division || !!billF.specialty || !!billF.keyword
+    ? billF.projectId !== 0 || !!billF.division || !!billF.specialty || !!billF.keyword || !!billF.state
     : tier === "quota"
-      ? !!quotaF.specialty || !!quotaF.chapter || !!quotaF.keyword
-      : !!resourceF.kind || !!resourceF.category || !!resourceF.region || !!resourceF.period || !!resourceF.keyword;
+      ? !!quotaF.specialty || !!quotaF.chapter || !!quotaF.region || !!quotaF.keyword || !!quotaF.state
+      : !!resourceF.kind || !!resourceF.category || !!resourceF.region || !!resourceF.period || !!resourceF.keyword || !!resourceF.state;
 
   // 当前位置：下钻到三层以上时让人知道自己在哪（专业 › 项目 › 分部）。
   // 分类路径已含类别名（材料/混凝土/泵送），前一级已显示类别，这里只列类别以下的各段。
@@ -694,21 +942,26 @@ function CostLibraryPage() {
     if (c === resourceF.kind || c.startsWith(`${resourceF.kind}/`)) return c.slice(resourceF.kind.length).split("/").filter(Boolean);
     return [c];
   })();
-  const crumbs = tier === "bill"
-    ? [billF.specialty ? dimLabel(billF.specialty) : "", currentProject?.name ?? "", billF.division].filter(Boolean)
+  const crumbs = (tier === "bill"
+    ? [billF.specialty ? dimLabel(billF.specialty) : "", currentProject?.name ?? "", billF.division]
     : tier === "quota"
-      ? [quotaF.specialty ? dimLabel(quotaF.specialty) : "", quotaF.chapter ? dimLabel(quotaF.chapter, "未归分部") : ""].filter(Boolean)
+      ? [
+        quotaF.specialty ? dimLabel(quotaF.specialty) : "", quotaF.chapter ? dimLabel(quotaF.chapter, "未归分部") : "",
+        quotaF.region ? dimLabel(quotaF.region, "未标地区") : "",
+      ]
       : [
         resourceF.kind === OUTSIDE ? kindLabel(OUTSIDE) : resourceF.kind, ...categoryCrumbs,
         resourceF.region ? dimLabel(resourceF.region) : "",
         resourceF.period ? (resourceF.period === NONE ? "无期" : fmtPeriod(resourceF.period)) : "",
-      ].filter(Boolean);
+      ]).filter(Boolean).concat(stateLabel(stateOf) || []);
 
-  // 「待整理」：文件不一定带专业 / 地区 / 分类，由造价模式的模型归类。点一下复制提示词。
+  // 「待整理」：文件不一定带专业 / 地区 / 分类。2026-11-28 起逐项点开即筛出对应的行，
+  // 在板块里直接改或勾选批量改；仍可以把整理提示词复制给造价模式的模型。
   const copyPending = async () => {
     setCopyState(await copyToClipboard(PENDING_PROMPT) ? "done" : "failed");
     window.setTimeout(() => setCopyState("idle"), 1600);
   };
+  const pendingItems = PENDING_ITEMS.filter((it) => pending[it.key] > 0).map((it) => ({ ...it, count: pending[it.key] }));
   // 选专业 = 换一个专业看：回到全部项目（原项目在这个专业下可能没有行）。
   const setBillSpecialty = (specialty: string) => setBillF({ ...billF, specialty, projectId: 0, division: "" });
 
@@ -719,14 +972,17 @@ function CostLibraryPage() {
   const selectedResource = parsedSel?.tier === "resource" ? (snap.resources.find((r) => r.code === parsedSel.id) ?? null) : null;
   const activeKey = selected && parsedSel?.tier === tier ? selected : null;
   // 宽窗下右栏按需展开：选中了行，或清单级正看着某个项目的封面卡。
-  const detailActive = !!selected || (tier === "bill" && !!currentProject);
+  const detailActive = !!selected || !!creating || (tier === "bill" && !!currentProject);
 
-  // 一批行按当前级渲染成表（主列表与语义补充段共用同一套表组件）。
-  const renderTables = (rows: LibraryRow[]) => (
+  // 一批行按当前级渲染成表（主列表与语义补充段共用同一套表组件）。semantic = 这张表是
+  // 「意思相近」补充段（行上标来源）；搜索时命中的词条高亮。
+  const searchTerms = searching ? keywordTerms(keyword) : undefined;
+  const renderTables = (rows: LibraryRow[], semantic = false) => (
     <>
             {tier === "bill" && (
               <BillTable rows={rows as BillRow[]} grouped={billF.grouped} showProject={billF.projectId === 0}
                 refPrices={snap.refPrices} checked={checked} active={activeKey} expanded={expandedGroups}
+                highlight={searchTerms} semantic={semantic}
                 onToggleGroup={(key) => setExpandedGroups((prev) => {
                   const n = new Set(prev);
                   if (n.has(key)) n.delete(key);
@@ -738,12 +994,12 @@ function CostLibraryPage() {
             )}
             {tier === "quota" && (
               <QuotaTable rows={rows as WorkcostQuota[]} usage={usageCount}
-                refPrices={snap.refPrices} checked={checked} active={activeKey}
+                refPrices={snap.refPrices} checked={checked} active={activeKey} highlight={searchTerms} semantic={semantic}
                 onToggle={toggle} onToggleAll={toggleAll} onOpen={(q) => jump("quota", selKey("quota", q.code))}
                 onDelete={(q) => deleteQuotaRows([q])} />
             )}
             {tier === "resource" && (
-              <ResourceTable rows={rows as WorkcostResource[]} checked={checked} active={activeKey}
+              <ResourceTable rows={rows as WorkcostResource[]} checked={checked} active={activeKey} highlight={searchTerms} semantic={semantic}
                 onToggle={toggle} onToggleAll={toggleAll} onOpen={(r) => jump("resource", selKey("resource", r.code))}
                 onDelete={(r) => deleteResourceRows([r])} />
             )}
@@ -766,6 +1022,11 @@ function CostLibraryPage() {
         {narrow && <span className="cl-spacer" />}
       </div>
       <div className="cl-list-tools">
+        {/* 新建（2026-11-28）：在板块里直接新建一条，不用绕回造价模式；复制另存在详情头部。 */}
+        <button type="button" className="cl-btn" data-testid="cost-create-btn"
+          title="在板块里直接新建一条（不用绕回造价模式）" onClick={() => startCreate(tier)}>
+          <Plus size={12} aria-hidden />新建{tierMeta.label}
+        </button>
         {tier === "bill" && (
           <>
             <div className="cl-seg" role="group" aria-label="清单视图">
@@ -790,15 +1051,46 @@ function CostLibraryPage() {
               testid="cost-select-period" onChange={(v) => setResourceF({ ...resourceF, period: v })} />
           </>
         )}
+        {tier === "quota" && (
+          <FacetSelect label="筛选定额地区" allLabel="全部地区" value={quotaF.region ?? ""} facets={quotaRegions} emptyLabel="未标地区"
+            testid="cost-select-quota-region" onChange={(v) => setQuotaF({ ...quotaF, region: v })} />
+        )}
+        {/* 状态筛选（2026-11-28）：把「该处理的那一类行」一键筛出来，就地改或勾选批量改。 */}
+        <select className="cl-select" aria-label="筛选状态" data-testid="cost-select-state" value={stateOf ?? ""}
+          onChange={(e) => setFilterState((e.target.value || "") as RowState)}>
+          <option value="">全部状态</option>
+          {STATE_LABELS[tier].map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        {/* 定额地区回填（2026-11-28）：没标地区的定额按上游清单项目所在的省补上，先预览后落库。 */}
+        {tier === "quota" && typeof app.WorkcostQuotaRegionBackfill === "function" && (
+          <button type="button" className="cl-btn" data-testid="cost-region-open"
+            title="没标地区的定额，按引用它的清单项目所在的省补上（只被一个省引用的才补；先预览，确认后才写）"
+            onClick={() => setRegionOpen(true)}>
+            <Globe size={12} aria-hidden />回填地区
+          </button>
+        )}
         <span className="cl-spacer" />
         {checkedKeys.length > 0 && (
-          <button type="button" className="cl-btn cl-btn-danger-ghost" data-testid="cost-delete-checked" onClick={deleteChecked}>
-            <Trash2 size={12} aria-hidden />删除所选 {checkedKeys.length}
-          </button>
+          <>
+            {/* 勾选批量改维度（2026-11-28）：专业 / 分部 / 地区 / 分类 / 期数，逐行回报成败。 */}
+            <button type="button" className="cl-btn" data-testid="cost-batch-open"
+              title="把勾选的行批量改成同一个专业 / 分部 / 地区 / 分类 / 期数"
+              onClick={() => setBatchOpen(true)}>
+              <ClipboardList size={12} aria-hidden />批量修改 {checkedKeys.length}
+            </button>
+            <button type="button" className="cl-btn cl-btn-danger-ghost" data-testid="cost-delete-checked" onClick={deleteChecked}>
+              <Trash2 size={12} aria-hidden />删除所选 {checkedKeys.length}
+            </button>
+          </>
         )}
       </div>
       <div className="cl-list">
-        {matched.length === 0 && semRows.length === 0 ? (
+        {usedCodesLoading ? (
+          <div className="cl-state" role="status" data-testid="cost-list-wait">
+            <Loader2 size={16} className="cl-spin" aria-hidden />
+            <span className="cl-state-title">正在核对哪些工料机被定额引用…</span>
+          </div>
+        ) : matched.length === 0 && semRows.length === 0 ? (
           <div className="cl-state" data-testid="cost-tier-empty">
             <Inbox size={18} aria-hidden />
             <span className="cl-state-title">{totalOfTier === 0 ? `${tierMeta.label}库还是空的` : "没有匹配的行"}</span>
@@ -835,7 +1127,7 @@ function CostLibraryPage() {
                   名称不含「{keyword}」、意思相近
                   <span>语义检索 {semRows.length} 条{semRows.length > SEM_CAP ? `，显示前 ${SEM_CAP} 条` : ""}</span>
                 </div>
-                {renderTables(semRows.slice(0, SEM_CAP))}
+                {renderTables(semRows.slice(0, SEM_CAP), true)}
               </section>
             )}
           </>
@@ -844,6 +1136,8 @@ function CostLibraryPage() {
     </>
   );
 
+  const reportDirty = (d: boolean) => { dirtyEdit.current = d; };
+  const cancelCreate = () => setCreating(null);
   const detailPane = (
     <>
       <div className="cl-col-head">
@@ -853,18 +1147,50 @@ function CostLibraryPage() {
         )}
       </div>
       <div className="cl-detail-scroll">
-        {selectedBill ? (
+        {creating ? (
+          // 新建 / 复制另存（2026-11-28）：右栏换成新建表单；新建成功后重读并定位到新那一行。
+          <article className="cl-detail" data-testid="cost-create">
+            <header className="cl-detail-head">
+              <div className="cl-kicker">{TIER_LABEL[creating.tier]} · {creating.base ? "复制另存" : "新建"}</div>
+              <h2 className="cl-detail-title">
+                {creating.base ? `以「${creating.base.title}」为底新建一条` : `新建一条${TIER_LABEL[creating.tier]}`}
+              </h2>
+            </header>
+            {creating.tier === "bill" && (
+              <BillEdit mode="create" item={blankBill()} projects={snap.projects} specialtyOptions={billSpecNames} dicts={editDicts}
+                onDirty={reportDirty} onSaved={onEditSaved}
+                onCreated={(s) => void onCreated(selKey("bill", s.id))} onCancel={cancelCreate} />
+            )}
+            {creating.tier === "quota" && (
+              <QuotaEdit mode={creating.base ? "duplicate" : "create"} quota={(creating.base as WorkcostQuota | undefined) ?? blankQuota()}
+                specialtyOptions={quotaSpecNames} chapterOptionsOf={chaptersOfSpec} resources={snap.resources} regionOptions={projectRegionNames}
+                dicts={editDicts} onDirty={reportDirty} onSaved={onEditSaved}
+                onCreated={(s) => void onCreated(selKey("quota", s.code))} onCancel={cancelCreate} />
+            )}
+            {creating.tier === "resource" && (
+              <ResourceEdit mode={creating.base ? "duplicate" : "create"}
+                resource={(creating.base as WorkcostResource | undefined) ?? blankResource()}
+                regionOptions={resourceRegionNames} periodOptions={resourcePeriodNames}
+                categoryOptions={creating.base ? categoriesOfKind((creating.base as WorkcostResource).kind) : []}
+                dicts={editDicts} onDirty={reportDirty} onSaved={onEditSaved}
+                onCreated={(s) => void onCreated(selKey("resource", s.code))} onCancel={cancelCreate} />
+            )}
+          </article>
+        ) : selectedBill ? (
           <BillDetail item={selectedBill} refPrices={snap.refPrices} onOpenQuota={openQuota} onOpenResource={openResource}
-            specialtyOptions={billSpecNames} onSaved={onEditSaved} />
+            specialtyOptions={billSpecNames} dicts={editDicts} onDirty={reportDirty} onSaved={onEditSaved} />
         ) : selectedQuota ? (
           <QuotaDetail quota={selectedQuota} usage={usageIndex.get(selectedQuota.code) ?? []} onOpenBill={openBill} onOpenResource={openResource}
-            specialtyOptions={quotaSpecNames} chapterOptionsOf={chaptersOfSpec} resources={snap.resources} regionOptions={projectRegionNames} onSaved={onEditSaved} />
+            specialtyOptions={quotaSpecNames} chapterOptionsOf={chaptersOfSpec} resources={snap.resources} regionOptions={projectRegionNames}
+            dicts={editDicts} onDirty={reportDirty} onSaved={onEditSaved} onDuplicate={(q) => startCreate("quota", q)} />
         ) : selectedResource ? (
           <ResourceDetail resource={selectedResource} onOpenQuota={openQuota}
-            regionOptions={resourceRegionNames} periodOptions={resourcePeriodNames} categoryOptions={categoriesOfKind(selectedResource.kind)} onSaved={onEditSaved} />
+            regionOptions={resourceRegionNames} periodOptions={resourcePeriodNames} categoryOptions={categoriesOfKind(selectedResource.kind)}
+            dicts={editDicts} onDirty={reportDirty} onSaved={onEditSaved} onDuplicate={(r) => startCreate("resource", r)} />
         ) : tier === "bill" && currentProject ? (
           <ProjectCard project={currentProject} onDeleted={deleteProject}
-            specialtyOptions={projectSpecNames} regionOptions={projectRegionNames} periodOptions={projectPeriodNames} onSaved={onEditSaved} />
+            specialtyOptions={projectSpecNames} regionOptions={projectRegionNames} periodOptions={projectPeriodNames}
+            dicts={editDicts} onDirty={reportDirty} onSaved={onEditSaved} />
         ) : (
           <DetailState phase="idle" />
         )}
@@ -893,7 +1219,9 @@ function CostLibraryPage() {
   const firstChosen = tier === "quota" ? quotaF.specialty : resourceF.kind;
   const secondChosen = tier === "bill" || (!!firstChosen && firstChosen !== OUTSIDE);
   const secondOptions = tier === "bill"
-    ? [{ value: "0", label: "全部项目" }, ...specProjects.map((p) => ({ value: String(p.id), label: `${p.name}（${p.itemCount}）` }))]
+    ? [{
+      value: "0", label: "全部项目",
+    }, ...specProjects.map((p) => ({ value: String(p.id), label: `${p.name}（${projectMatch.get(p.id) ?? p.itemCount}）` }))]
     : tier === "quota"
       ? [{ value: "", label: "全部分部" }, ...facetOptions(chapters, "未归分部")]
       : [
@@ -937,6 +1265,30 @@ function CostLibraryPage() {
                 </button>
               )}
             </div>
+            {dictsOk && (
+              // 检索别名（2026-11-28）：行话 / 缩写 ↔ 标准说法，搜索时自动双向展开。
+              <button type="button" className="cl-btn" aria-label="检索别名" data-testid="cost-alias-open"
+                title="行话 ↔ 标准说法（如 砼 → 混凝土），搜索时自动双向展开" onClick={() => setAliasOpen(true)}>
+                <Wand2 size={12} aria-hidden />别名
+              </button>
+            )}
+            {semDown && (
+              // 本地语义模型不可用：这次搜索只有关键词匹配。原因放悬停明细；「重试」给模型
+              // 重载之后用（重新检索一次，好了提示自己消失）。
+              <span className="cl-search-warn" role="status" data-testid="cost-semantic-down" title={semDown}>
+                <AlertCircle size={13} aria-hidden />
+                <span>本地语义模型不可用，只按关键词匹配</span>
+                <button
+                  type="button"
+                  className="cl-icon-btn"
+                  aria-label="重试语义检索"
+                  title="重新检索一次（模型重载后点这里，好了提示会消失）"
+                  onClick={() => setSemNonce((n) => n + 1)}
+                >
+                  <RefreshCw size={12} aria-hidden />
+                </button>
+              </span>
+            )}
           </div>
         )}
         <div className="cl-actions">
@@ -970,15 +1322,46 @@ function CostLibraryPage() {
             <span>定额 <strong>{snap.quotas.length}</strong></span>
             <span>工料机 <strong>{snap.resources.length}</strong></span>
             {pending.total > 0 && (
-              <button
-                type="button"
-                className="cl-pending"
-                data-testid="cost-pending"
-                title={`${pendingSummary(pending)}。点击复制整理提示词——到办公板块的「造价」运行模式粘贴发送，由模型归类、你确认后落库`}
-                onClick={() => void copyPending()}
+              // 2026-11-28：逐项点开即筛出对应的行（在板块里改或批量改）；整理提示词仍可复制给造价模式。
+              <Popover
+                trigger="click"
+                placement="bottomLeft"
+                open={pendingOpen}
+                onOpenChange={setPendingOpen}
+                destroyOnHidden
+                content={(
+                  <div className="cl-pending-pop" data-testid="cost-pending-pop">
+                    <p className="cl-note">点一项直接筛出对应的行，就地改或勾选批量改：</p>
+                    <ul>
+                      {pendingItems.map((it) => (
+                        <li key={it.key}>
+                          <button
+                            type="button"
+                            className="cl-pending-item"
+                            data-testid={`cost-pending-${it.key}`}
+                            onClick={() => { setPendingOpen(false); applyPending(it.key); }}
+                          >
+                            <span>{it.label}</span><b>{it.count}</b>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      className="cl-btn cl-btn-ghost"
+                      data-testid="cost-pending-copy"
+                      onClick={() => void copyPending()}
+                    >
+                      <Copy size={12} aria-hidden />
+                      {copyState === "done" ? "已复制提示词" : copyState === "failed" ? "复制失败" : "复制整理提示词（交给造价模式）"}
+                    </button>
+                  </div>
+                )}
               >
-                {copyState === "done" ? "已复制提示词" : copyState === "failed" ? "复制失败" : `待整理 ${pending.total}`}
-              </button>
+                <button type="button" className="cl-pending" data-testid="cost-pending" title={pendingSummary(pending)}>
+                  待整理 {pending.total}
+                </button>
+              </Popover>
             )}
             <IndexStatus status={indexStatus} onBackfill={backfillIndex} />
             {snap.failedSources.length > 0 && (
@@ -1023,13 +1406,14 @@ function CostLibraryPage() {
             <nav className="cl-col cl-rail-col">
               <TierRail
                 tier={tier} counts={counts} onTier={changeTier}
-                projects={specProjects} billFilters={billF}
+                projects={specProjects} projectCounts={projectMatch} billFilters={billF}
                 billSpecialties={billSpecFacets} onBillSpecialty={setBillSpecialty}
                 onProject={(id) => setBillF({ ...billF, projectId: id, division: "" })}
                 onDeleteProject={deleteProject}
-                specialties={specialties} chapters={chapters} quotaFilters={quotaF}
+                specialties={specialties} chapters={chapters} quotaRegions={quotaRegions} quotaFilters={quotaF}
                 onSpecialty={(specialty) => setQuotaF({ ...quotaF, specialty, chapter: "" })}
                 onChapter={(chapter) => setQuotaF({ ...quotaF, chapter })}
+                onQuotaRegion={(region) => setQuotaF({ ...quotaF, region })}
                 kinds={kinds} categories={resourceCategories} resourceFilters={resourceF}
                 onKind={(kind) => setResourceF({ ...resourceF, kind, category: "" })}
                 onCategory={(category) => setResourceF({ ...resourceF, category })}
@@ -1047,6 +1431,17 @@ function CostLibraryPage() {
         onClose={() => setDeleteRequest(null)}
         onDone={(summary) => { showNotice(summary); void load(true); }}
       />
+      {batchOpen && (
+        <BatchEditDialog tier={tier} rows={checkedRows} open dicts={editDicts} chaptersOf={chaptersOfSpec} divisions={divisions}
+          onClose={() => setBatchOpen(false)} onDone={(summary) => { showNotice(summary); void load(true); }} />
+      )}
+      {regionOpen && (
+        <RegionBackfillDialog open onClose={() => setRegionOpen(false)}
+          onDone={(summary) => { showNotice(summary); void load(true); }} />
+      )}
+      {aliasOpen && (
+        <AliasDialog open aliases={dicts.filter((d) => d.kind === "alias")} onClose={() => setAliasOpen(false)} onChanged={loadDicts} />
+      )}
     </div>
   );
 }

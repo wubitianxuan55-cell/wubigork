@@ -27,11 +27,11 @@ const clSchemaCoreA = `{
   "action":{"type":"string","enum":["import_open","import_add","import_status","import_check","import_commit","import_discard","import_project","save_quota","delete_quota","save_resource","delete_resource","set_price","bulk_price","delete_items","delete_project","flywheel","dedupe","health","classify","borrow_quota","dims","dict","dict_add","dict_update","dict_delete","template","help"],"description":"动作名。录入资料 import_open → import_add → import_check → import_commit（import_status 回读暂存区）；综合单价表是三级树表的测算簿走 import_project。import_add 的行字段契约随 import_open 回执发放，classify 的随 dims 回执发放（或 action=help）。template 把测算样表复制到工作区；health/dims 只读；字典查看 dict，增改删 dict_add/dict_update/dict_delete"},
   "dry_run":{"type":"boolean","description":"演练：校验、匹配、统计照做，但不写库、不弹确认"},
   "path":{"type":"string","description":"测算工作簿路径（import_project 必填，.xlsx，综合单价表须是三级树表、其余表参考；template 可选=模版落盘路径，工作区相对，缺省落 .gaea/exports）"},
-  "kind":{"type":"string","enum":["specialty","region","category"],"description":"字典类别（dict_add/dict_update/dict_delete 用）：specialty=专业 / region=地区 / category=工料机分类"},
+  "kind":{"type":"string","enum":["specialty","region","category","alias"],"description":"字典类别（dict_add/dict_update/dict_delete 用）：specialty=专业 / region=地区 / category=工料机分类 / alias=检索别名（name=行话别名、parent=标准说法，搜索时双向展开）"},
   "name":{"type":"string","description":"字典项名称（dict_add/dict_update/dict_delete 用；分类=完整路径，如 材料/土建材料/钢材，新增分类要先有上级路径）"},
   "rename":{"type":"string","description":"dict_update：改成什么名字"},
   "code":{"type":"string","description":"专业的标准代码（dict_add/dict_update 可选，如国标清单专业代码 04=市政），机检清单编码专业段用"},
-  "parent":{"type":"string","description":"上级字典项（dict_add/dict_update 可选；仅分类有层级；地区是平铺的省级行政区，无上级）"},
+  "parent":{"type":"string","description":"上级字典项（dict_add/dict_update 可选；仅分类有层级；地区是平铺的省级行政区，无上级；检索别名（kind=alias）必填=对应的标准说法）"},
   "level":{"type":"integer","description":"层级（dict_add 可选，1=顶级）"},
   "sort":{"type":"integer","description":"排序（dict_update 可选）"},
   "quota":{"type":"object","description":"定额（save_quota 必填）","properties":{

@@ -5,9 +5,26 @@ import { memo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Trash2 } from "../../gaea/icons";
 import type { WorkcostQuota, WorkcostResource } from "../../gaea/lib/types";
 import {
-  dimLabel, effectivePrice, fmtMoney, fmtPeriod, fmtQty, groupBill, linkedQuotas, selKey, unitPriceOf,
+  dimLabel, effectivePrice, fmtMoney, fmtPeriod, fmtQty, groupBill, linkedQuotas, selKey, splitByKeyword, unitPriceOf,
   type BillRow,
 } from "./logic";
+
+/** 搜索命中的词条高亮（2026-11-28）：文本按命中片段切开，命中的包一层底色。 */
+function Highlight({ text, terms }: { text: string | undefined; terms?: string[] }) {
+  if (!terms || terms.length === 0 || !text) return <>{text}</>;
+  return (
+    <>
+      {splitByKeyword(terms.join(" "), text).map((p, i) => (
+        p.hit ? <mark key={i} className="cl-hit">{p.text}</mark> : <span key={i}>{p.text}</span>
+      ))}
+    </>
+  );
+}
+
+/** 「语义」来源标：名称不含搜索词、靠意思相近召回的行。 */
+function SemanticTag({ on }: { on?: boolean }) {
+  return on ? <span className="cl-tag is-semantic" title="名称不含搜索词，按意思相近召回">语义</span> : null;
+}
 
 const toneOf = (kind: string): string => {
   switch (kind) {
@@ -128,6 +145,10 @@ export interface BillTableProps {
   onOpen: (row: BillRow) => void;
   onOpenQuota: (code: string) => void;
   onDelete: (row: BillRow) => void;
+  /** 要高亮的搜索词条（名称 / 编码 / 特征里命中的片段）。 */
+  highlight?: string[];
+  /** 这张表是「意思相近」补充段：行上标「语义」来源。 */
+  semantic?: boolean;
 }
 
 export const BillTable = memo(function BillTable(props: BillTableProps) {
@@ -167,7 +188,7 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
         <td className={`cl-pri-1${it.specialty ? "" : " cl-dim"}`} title={it.specialty ? "专业" : "还没标注专业（待整理）"}>
           {dimLabel(it.specialty, "未标注")}
         </td>
-        <td className="cl-cell-code">{it.code}</td>
+        <td className="cl-cell-code"><Highlight text={it.code} terms={props.highlight} /></td>
         <td className="cl-cell-title">
           <button
             type="button"
@@ -175,11 +196,14 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
             aria-label={`查看「${it.title}」的综合单价分析`}
             onClick={(e) => { e.stopPropagation(); props.onOpen(it); }}
           >
-            {it.title}
+            <Highlight text={it.title} terms={props.highlight} />
           </button>
+          <SemanticTag on={props.semantic} />
         </td>
         <td className="cl-cell-feature cl-pri-1" title={it.quantityExpr ? `${it.feature}｜计算式：${it.quantityExpr}` : it.feature}>
-          {it.feature || it.quantityExpr || <span className="cl-dim">—</span>}
+          {it.feature || it.quantityExpr
+            ? <Highlight text={it.feature || it.quantityExpr} terms={props.highlight} />
+            : <span className="cl-dim">—</span>}
         </td>
         <td className="cl-pri-1">{it.unit || "—"}</td>
         <td className="cl-num cl-pri-2" title={it.quantityExpr ? `计算式：${it.quantityExpr}` : "工程量"}>{fmtQty(it.quantity)}</td>
@@ -224,7 +248,7 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
                 />
                 <button type="button" className="cl-group-toggle" aria-expanded={open} onClick={() => props.onToggleGroup(g.key)}>
                   {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  <span className="cl-group-title">{g.title}</span>
+                  <span className="cl-group-title"><Highlight text={g.title} terms={props.highlight} /></span>
                   {g.feature && <span className="cl-group-feature">{g.feature}</span>}
                 </button>
                 <span className="cl-meta">
@@ -243,7 +267,7 @@ export const BillTable = memo(function BillTable(props: BillTableProps) {
                         <CheckCell checked={checked.has(selKey("bill", it.id))} label={`选择 ${it.projectName} 的 ${it.title}`} onChange={(next) => props.onToggle(selKey("bill", it.id), next)} />
                         <td className="cl-cell-project cl-pri-2" title={it.projectName}>{it.projectName}</td>
                         <td className="cl-cell-code">{it.code}</td>
-                        <td className="cl-cell-title">{it.title}</td>
+                        <td className="cl-cell-title"><Highlight text={it.title} terms={props.highlight} /><SemanticTag on={props.semantic} /></td>
                         <td className="cl-pri-1">{it.unit || "—"}</td>
                         <td className="cl-num cl-pri-2">{fmtQty(it.quantity)}</td>
                         <td className="cl-cell-quotas">
@@ -302,6 +326,8 @@ export interface QuotaTableProps {
   onToggleAll: (next: boolean) => void;
   onOpen: (quota: WorkcostQuota) => void;
   onDelete: (quota: WorkcostQuota) => void;
+  highlight?: string[];
+  semantic?: boolean;
 }
 
 export const QuotaTable = memo(function QuotaTable(props: QuotaTableProps) {
@@ -346,10 +372,11 @@ export const QuotaTable = memo(function QuotaTable(props: QuotaTableProps) {
             <tr key={key} data-row-key={key} className={`cl-tr${active === key ? " is-active" : ""}`}
               onClick={() => props.onOpen(q)} title="点击查看含量行分析表">
               <CheckCell checked={checked.has(key)} label={`选择定额 ${q.title}`} onChange={(next) => props.onToggle(key, next)} />
-              <td className="cl-cell-code">{q.code}</td>
+              <td className="cl-cell-code"><Highlight text={q.code} terms={props.highlight} /></td>
               <td className="cl-cell-title">
                 <button type="button" className="cl-cell-link" aria-label={`查看定额「${q.title}」`}
-                  onClick={(e) => { e.stopPropagation(); props.onOpen(q); }}>{q.title}</button>
+                  onClick={(e) => { e.stopPropagation(); props.onOpen(q); }}><Highlight text={q.title} terms={props.highlight} /></button>
+                <SemanticTag on={props.semantic} />
                 {q.origCode && q.origCode !== q.code && <span className="cl-tag" title="工作簿原始编码">原码 {q.origCode}</span>}
                 {q.derivedFrom && <span className="cl-tag is-derived" title="借鉴生成的溯源：本专业没有可用定额，以外专业定额为底生成">{q.derivedFrom}</span>}
               </td>
@@ -383,6 +410,8 @@ export interface ResourceTableProps {
   onToggleAll: (next: boolean) => void;
   onOpen: (resource: WorkcostResource) => void;
   onDelete: (resource: WorkcostResource) => void;
+  highlight?: string[];
+  semantic?: boolean;
 }
 
 export const ResourceTable = memo(function ResourceTable(props: ResourceTableProps) {
@@ -431,13 +460,16 @@ export const ResourceTable = memo(function ResourceTable(props: ResourceTablePro
             <tr key={key} data-row-key={key} className={`cl-tr${active === key ? " is-active" : ""}`}
               onClick={() => props.onOpen(r)} title="点击查看价格卡与调价历史">
               <CheckCell checked={checked.has(key)} label={`选择工料机 ${r.title}`} onChange={(next) => props.onToggle(key, next)} />
-              <td className="cl-cell-code">{r.code}</td>
+              <td className="cl-cell-code"><Highlight text={r.code} terms={props.highlight} /></td>
               <td><KindBadge kind={r.kind} /></td>
               <td className="cl-cell-title">
                 <button type="button" className="cl-cell-link" aria-label={`查看工料机「${r.title}」`}
-                  onClick={(e) => { e.stopPropagation(); props.onOpen(r); }}>{r.title}</button>
+                  onClick={(e) => { e.stopPropagation(); props.onOpen(r); }}><Highlight text={r.title} terms={props.highlight} /></button>
+                <SemanticTag on={props.semantic} />
               </td>
-              <td className="cl-cell-feature cl-pri-1" title={r.spec}>{r.spec || <span className="cl-dim">—</span>}</td>
+              <td className="cl-cell-feature cl-pri-1" title={r.spec}>
+                {r.spec ? <Highlight text={r.spec} terms={props.highlight} /> : <span className="cl-dim">—</span>}
+              </td>
               <td className="cl-pri-1">{r.unit || "—"}</td>
               {/* 工料机按地区分行：同一种材料每个地区一行；期是现行价所属的期。 */}
               <td className={`cl-pri-1${r.region ? "" : " cl-dim"}`} title={r.region ? `地区 ${r.region}` : "还没标注地区（待整理）"}>

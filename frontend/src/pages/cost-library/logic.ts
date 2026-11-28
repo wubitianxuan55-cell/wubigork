@@ -44,6 +44,19 @@ export function dimLabel(value: string | undefined, empty = "未标注"): string
   return v === NONE ? empty : v || empty;
 }
 
+/**
+ * 状态筛选（2026-11-28）：把「该处理的那一类行」一键筛出来，就地修。
+ * 清单：manual=未套定额、cross=挂了外专业定额；定额：unused=没有被清单引用；
+ * 工料机：unused=没有被定额含量行引用、noprice=缺价（现行价与基准价都是 0）。
+ */
+export type RowState = "" | "manual" | "cross" | "unused" | "noprice";
+
+export const STATE_LABELS: Record<Tier, { value: RowState; label: string }[]> = {
+  bill: [{ value: "manual", label: "未套定额（手填）" }, { value: "cross", label: "挂了外专业定额" }],
+  quota: [{ value: "unused", label: "没有被清单引用" }],
+  resource: [{ value: "unused", label: "没有被定额引用" }, { value: "noprice", label: "缺价" }],
+};
+
 export interface BillFilters {
   projectId: number;
   division: string;
@@ -52,12 +65,18 @@ export interface BillFilters {
   keyword: string;
   /** false=按明细逐条陈列；true=同名+同特征+同单位归并成库项。 */
   grouped: boolean;
+  /** 状态筛选；缺省 / "" = 不限。 */
+  state?: RowState;
 }
 export interface QuotaFilters {
   specialty: string;
   /** 分部（专业内，字段沿用 chapter）；"" = 全部；NONE = 未归分部。 */
   chapter: string;
+  /** 地区（省级）；缺省 / "" = 全部；NONE = 未标地区。 */
+  region?: string;
   keyword: string;
+  /** 状态筛选；缺省 / "" = 不限。 */
+  state?: RowState;
 }
 export interface ResourceFilters {
   kind: string;
@@ -68,11 +87,13 @@ export interface ResourceFilters {
   /** 期数（现行价所属期，YYYY-MM）；"" = 全部；NONE = 无期。 */
   period: string;
   keyword: string;
+  /** 状态筛选；缺省 / "" = 不限。 */
+  state?: RowState;
 }
 
-export const emptyBillFilters: BillFilters = { projectId: 0, division: "", specialty: "", keyword: "", grouped: false };
-export const emptyQuotaFilters: QuotaFilters = { specialty: "", chapter: "", keyword: "" };
-export const emptyResourceFilters: ResourceFilters = { kind: "", category: "", region: "", period: "", keyword: "" };
+export const emptyBillFilters: BillFilters = { projectId: 0, division: "", specialty: "", keyword: "", grouped: false, state: "" };
+export const emptyQuotaFilters: QuotaFilters = { specialty: "", chapter: "", region: "", keyword: "", state: "" };
+export const emptyResourceFilters: ResourceFilters = { kind: "", category: "", region: "", period: "", keyword: "", state: "" };
 
 /** 带项目名的清单行（累计视图的行模型）。 */
 export interface BillRow extends WorkcostBillItem {
@@ -98,11 +119,45 @@ export interface Facet {
 
 // ── 关键词 ───────────────────────────────────────────────────────────
 
-/** 关键词包含匹配（忽略大小写）；空关键词恒命中。 */
+/** 把搜索框的内容拆成词条（去首尾空白、忽略大小写、去重、保序）。 */
+export function keywordTerms(kw: string): string[] {
+  return [...new Set(kw.trim().toLowerCase().split(/\s+/).filter(Boolean))];
+}
+
+/**
+ * 关键词包含匹配（忽略大小写）；空关键词恒命中。多个词用空白分开时要求每个词都命中
+ * （「C25 混凝土」= 名称里既有 C25 又有混凝土），一个词落在任一字段里算命中。
+ */
 export function matchKeyword(kw: string, ...fields: (string | undefined)[]): boolean {
-  const k = kw.trim().toLowerCase();
-  if (!k) return true;
-  return fields.some((f) => (f ?? "").toLowerCase().includes(k));
+  const terms = keywordTerms(kw);
+  if (terms.length === 0) return true;
+  return terms.every((t) => fields.some((f) => (f ?? "").toLowerCase().includes(t)));
+}
+
+/** 关键词在一段文本里命中的片段（高亮用）：返回 [原文片段, 是否命中…] 交替的数组；没命中返回单元素数组。 */
+export function splitByKeyword(kw: string, text: string | undefined): { text: string; hit: boolean }[] {
+  const s = text ?? "";
+  const terms = keywordTerms(kw);
+  if (terms.length === 0 || s === "") return [{ text: s, hit: false }];
+  // 各词条在文本里的命中区间（忽略大小写），合并重叠后按顺序切分。
+  const lower = s.toLowerCase();
+  const spans: [number, number][] = [];
+  for (const t of terms) {
+    for (let at = lower.indexOf(t); at >= 0; at = lower.indexOf(t, at + t.length)) spans.push([at, at + t.length]);
+  }
+  if (spans.length === 0) return [{ text: s, hit: false }];
+  spans.sort((a, b) => a[0] - b[0]);
+  const out: { text: string; hit: boolean }[] = [];
+  let pos = 0;
+  for (const [from, to] of spans) {
+    if (to <= pos) continue;
+    if (from > pos) out.push({ text: s.slice(pos, from), hit: false });
+    pos = Math.max(pos, from);
+    out.push({ text: s.slice(pos, to), hit: true });
+    pos = to;
+  }
+  if (pos < s.length) out.push({ text: s.slice(pos), hit: false });
+  return out;
 }
 
 /** 把挂接定额码归一成集合（引用表聚合优先；旧数据只有单值列时兜底）。 */
@@ -112,9 +167,9 @@ export function linkedQuotas(item: Pick<WorkcostBillItem, "quotaCode" | "quotaCo
   return item.quotaCode ? [item.quotaCode] : [];
 }
 
-/** 规范值筛选命中：筛选为空=不过滤；NONE=只要空值；否则精确相等。 */
-export function facetMatch(filter: string, value: string | undefined): boolean {
-  const f = filter.trim();
+/** 规范值筛选命中：筛选为空（或缺省）=不过滤；NONE=只要空值；否则精确相等。 */
+export function facetMatch(filter: string | undefined, value: string | undefined): boolean {
+  const f = (filter ?? "").trim();
   if (!f) return true;
   const v = (value ?? "").trim();
   return f === NONE ? v === "" : v === f;
@@ -122,13 +177,37 @@ export function facetMatch(filter: string, value: string | undefined): boolean {
 
 // ── 清单 ─────────────────────────────────────────────────────────────
 
-export function filterBill(rows: BillRow[], f: BillFilters): BillRow[] {
+/** 各级「关键词落在哪些字段」——筛选与分面共用同一口径，计数才跟得上搜索。 */
+const billKeywordFields = (it: BillRow): (string | undefined)[] => [it.title, it.code, it.feature, it.quotaCode, ...(it.quotaCodes ?? [])];
+const quotaKeywordFields = (q: WorkcostQuota): (string | undefined)[] => [q.title, q.code, q.origCode, q.chapter];
+const resourceKeywordFields = (r: WorkcostResource): (string | undefined)[] => [r.title, r.code, r.spec, r.categoryPath];
+
+/** 筛选时页面顺带给出的引用关系（状态筛选要用）：定额的专业、定额被清单引用的次数、被含量行引用的工料机编码。 */
+export interface FilterContext {
+  quotaSpecialty?: Map<string, string>;
+  quotaUsage?: Map<string, number>;
+  usedResourceCodes?: Set<string>;
+}
+
+function stateBill(it: BillRow, state: RowState, ctx?: FilterContext): boolean {
+  switch (state) {
+    case "manual":
+      return linkedQuotas(it).length === 0;
+    case "cross":
+      return linkedQuotas(it).some((c) => isCrossSpecialty(it.specialty ?? "", ctx?.quotaSpecialty?.get(c)));
+    default:
+      return true;
+  }
+}
+
+export function filterBill(rows: BillRow[], f: BillFilters, ctx?: FilterContext): BillRow[] {
   return rows.filter(
     (it) =>
       (f.projectId === 0 || it.projectId === f.projectId) &&
       (!f.division || it.division === f.division) &&
       facetMatch(f.specialty, it.specialty) &&
-      matchKeyword(f.keyword, it.title, it.code, it.feature, it.quotaCode, ...(it.quotaCodes ?? [])),
+      stateBill(it, f.state ?? "", ctx) &&
+      matchKeyword(f.keyword, ...billKeywordFields(it)),
   );
 }
 
@@ -137,22 +216,47 @@ export function billSpecialty(it: Pick<WorkcostBillItem, "specialty">): string {
   return (it.specialty ?? "").trim();
 }
 
-/** 某个筛选下的专业分布（按条数降序）；「未标注」单列一桶，排在最后。 */
-export function billSpecialties(rows: BillRow[], f: Pick<BillFilters, "projectId" | "division">): Facet[] {
+type BillFacetScope = Partial<Pick<BillFilters, "projectId" | "division" | "keyword" | "state">>;
+
+/** 一个清单行在「项目 / 分部 / 关键词 / 状态」下算不算进分面计数（没给的维度不限）。 */
+function inBillScope(it: BillRow, f: BillFacetScope, ctx?: FilterContext): boolean {
+  if ((f.projectId ?? 0) !== 0 && it.projectId !== f.projectId) return false;
+  if (f.division && it.division !== f.division) return false;
+  return matchKeyword(f.keyword ?? "", ...billKeywordFields(it)) && stateBill(it, f.state ?? "", ctx);
+}
+
+/**
+ * 某个筛选下的专业分布（按条数降序；「未标注」单列一桶，排在最后）。只套项目 / 分部 /
+ * 关键词 / 状态——这一维自己的筛选不套，否则选了一个专业就只剩它一个可选项。搜索时
+ * 计数跟着关键词走（分面联动）。
+ */
+export function billSpecialties(rows: BillRow[], f: BillFacetScope = {}, ctx?: FilterContext): Facet[] {
   const counts = new Map<string, number>();
   for (const it of rows) {
-    if (f.projectId !== 0 && it.projectId !== f.projectId) continue;
-    if (f.division && it.division !== f.division) continue;
+    if (!inBillScope(it, f, ctx)) continue;
     const s = billSpecialty(it) || NONE;
     counts.set(s, (counts.get(s) ?? 0) + 1);
   }
   return sortFacets(counts);
 }
 
-export function divisionsOf(rows: BillRow[]): string[] {
+export function divisionsOf(rows: BillRow[], f: BillFacetScope = {}, ctx?: FilterContext): string[] {
   const set = new Set<string>();
-  for (const it of rows) if (it.division) set.add(it.division);
+  for (const it of rows) {
+    if (!inBillScope(it, f, ctx)) continue;
+    if (it.division) set.add(it.division);
+  }
   return [...set].sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+/** 每个项目的清单行数在某组条件下各剩多少（左栏项目列表随搜索联动；没有符合条件行的项目不出）。 */
+export function projectCounts(rows: BillRow[], f: BillFacetScope = {}, ctx?: FilterContext): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const it of rows) {
+    if (!inBillScope(it, { ...f, projectId: 0 }, ctx)) continue;
+    counts.set(it.projectId, (counts.get(it.projectId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export function groupBill(rows: BillRow[]): BillGroup[] {
@@ -262,28 +366,56 @@ export function isCrossSpecialty(billSpecialty: string, quotaSpecialty: string |
 
 // ── 定额 ─────────────────────────────────────────────────────────────
 
-export function filterQuotas(quotas: WorkcostQuota[], f: QuotaFilters): WorkcostQuota[] {
+export function filterQuotas(quotas: WorkcostQuota[], f: QuotaFilters, ctx?: FilterContext): WorkcostQuota[] {
   return quotas.filter(
-    (q) => facetMatch(f.specialty, q.specialty) && facetMatch(f.chapter, q.chapter) && matchKeyword(f.keyword, q.title, q.code, q.origCode, q.chapter),
+    (q) =>
+      facetMatch(f.specialty, q.specialty) && facetMatch(f.chapter, q.chapter) && facetMatch(f.region ?? "", q.region) &&
+      (f.state !== "unused" || (ctx?.quotaUsage?.get(q.code) ?? 0) === 0) &&
+      matchKeyword(f.keyword, ...quotaKeywordFields(q)),
   );
 }
 
-export function specialtiesOf(quotas: WorkcostQuota[]): Facet[] {
+type QuotaFacetScope = Partial<Pick<QuotaFilters, "keyword" | "state">>;
+
+/** 一个定额在「关键词 + 状态」下算不算进分面计数（没给的维度不限）。 */
+function inQuotaScope(q: WorkcostQuota, f: QuotaFacetScope, ctx?: FilterContext): boolean {
+  if (!matchKeyword(f.keyword ?? "", ...quotaKeywordFields(q))) return false;
+  return f.state !== "unused" || (ctx?.quotaUsage?.get(q.code) ?? 0) === 0;
+}
+
+/** 定额的专业分布（随关键词与状态联动；专业这一维自己的筛选不套）。 */
+export function specialtiesOf(quotas: WorkcostQuota[], f: QuotaFacetScope = {}, ctx?: FilterContext): Facet[] {
   const counts = new Map<string, number>();
   for (const q of quotas) {
+    if (!inQuotaScope(q, f, ctx)) continue;
     const s = q.specialty?.trim() || NONE;
     counts.set(s, (counts.get(s) ?? 0) + 1);
   }
   return sortFacets(counts);
 }
 
-/** 某个专业内的分部分布（按条数降序）；specialty 为空时按全部专业算。 */
-export function chaptersOf(quotas: WorkcostQuota[], specialty: string): Facet[] {
+/**
+ * 某个专业内的分部分布（按条数降序）；specialty 为空时按全部专业算。
+ * kw 给了就只数命中关键词的定额（分部这一维自己的筛选不套）。
+ */
+export function chaptersOf(quotas: WorkcostQuota[], specialty = "", kw = ""): Facet[] {
   const counts = new Map<string, number>();
   for (const q of quotas) {
     if (!facetMatch(specialty, q.specialty)) continue;
+    if (kw && !matchKeyword(kw, ...quotaKeywordFields(q))) continue;
     const c = q.chapter?.trim() || NONE;
     counts.set(c, (counts.get(c) ?? 0) + 1);
+  }
+  return sortFacets(counts);
+}
+
+/** 定额的地区分布（地区与上游清单项目挂钩；没标的单列一桶）。 */
+export function quotaRegionsOf(quotas: WorkcostQuota[], f: QuotaFacetScope = {}, ctx?: FilterContext): Facet[] {
+  const counts = new Map<string, number>();
+  for (const q of quotas) {
+    if (!inQuotaScope(q, f, ctx)) continue;
+    const r = q.region?.trim() || NONE;
+    counts.set(r, (counts.get(r) ?? 0) + 1);
   }
   return sortFacets(counts);
 }
@@ -313,11 +445,12 @@ export function kindCounts(resources: WorkcostResource[]): Record<string, number
   return counts;
 }
 
-/** 左栏的类别列表：四类里有行的按固定顺序；四类外有行时末尾加一桶「类别待整理」。 */
-export function kindsOf(resources: WorkcostResource[]): { kind: string; count: number }[] {
-  const counts = kindCounts(resources);
+/** 左栏的类别列表：四类里有行的按固定顺序；四类外有行时末尾加一桶「类别待整理」。f 给了就只数命中关键词 / 状态的行。 */
+export function kindsOf(resources: WorkcostResource[], f: ResourceFacetScope = {}, ctx?: FilterContext): { kind: string; count: number }[] {
+  const scoped = resources.filter((r) => inResourceScope(r, f, ctx));
+  const counts = kindCounts(scoped);
   const list = RESOURCE_KINDS.filter((k) => (counts[k] ?? 0) > 0).map((k) => ({ kind: k, count: counts[k] ?? 0 }));
-  const outside = resources.filter((r) => !isKnownKind(r.kind)).length;
+  const outside = scoped.filter((r) => !isKnownKind(r.kind)).length;
   return outside > 0 ? [...list, { kind: OUTSIDE, count: outside }] : list;
 }
 
@@ -327,14 +460,33 @@ function matchKind(filter: string, kind: string | undefined): boolean {
   return (kind ?? "").trim() === filter;
 }
 
-export function filterResources(resources: WorkcostResource[], f: ResourceFilters): WorkcostResource[] {
+export type ResourceFacetScope = Partial<Pick<ResourceFilters, "keyword" | "state">>;
+
+function stateResource(r: WorkcostResource, state: RowState, ctx?: FilterContext): boolean {
+  switch (state) {
+    case "unused":
+      return !ctx?.usedResourceCodes?.has(r.code);
+    case "noprice":
+      return effectivePrice(r) <= 0;
+    default:
+      return true;
+  }
+}
+
+/** 一个工料机在「关键词 + 状态」下算不算进分面计数（没给的维度不限）。 */
+function inResourceScope(r: WorkcostResource, f: ResourceFacetScope, ctx?: FilterContext): boolean {
+  return matchKeyword(f.keyword ?? "", ...resourceKeywordFields(r)) && stateResource(r, f.state ?? "", ctx);
+}
+
+export function filterResources(resources: WorkcostResource[], f: ResourceFilters, ctx?: FilterContext): WorkcostResource[] {
   return resources.filter(
     (r) =>
       matchKind(f.kind, r.kind) &&
       pickCategory(f.category, r.categoryPath) &&
       facetMatch(f.region, r.region) &&
       facetMatch(f.period, r.priceDate) &&
-      matchKeyword(f.keyword, r.title, r.code, r.spec, r.categoryPath),
+      stateResource(r, f.state ?? "", ctx) &&
+      matchKeyword(f.keyword, ...resourceKeywordFields(r)),
   );
 }
 
@@ -357,13 +509,14 @@ export interface CategoryNode {
 
 /**
  * 某个类别下的分类树：按分类路径聚合（路径的每一段是一级），条数含下级。
- * 没有分类路径的行不计入（由未细分计数表达）。
+ * 没有分类路径的行不计入（由未细分计数表达）。f 给了就只数命中关键词 / 状态的行
+ * （分类这一维自己的筛选不套）。
  */
-export function categoryTreeOf(resources: WorkcostResource[], kind: string): { tree: CategoryNode[]; uncategorized: number } {
+export function categoryTreeOf(resources: WorkcostResource[], kind: string, f: ResourceFacetScope = {}, ctx?: FilterContext): { tree: CategoryNode[]; uncategorized: number } {
   const counts = new Map<string, number>();
   let uncategorized = 0;
   for (const r of resources) {
-    if (!matchKind(kind, r.kind)) continue;
+    if (!matchKind(kind, r.kind) || !inResourceScope(r, f, ctx)) continue;
     const path = (r.categoryPath ?? "").trim();
     if (!path) {
       uncategorized++;
@@ -396,9 +549,10 @@ export function categoryTreeOf(resources: WorkcostResource[], kind: string): { t
   return { tree, uncategorized };
 }
 
-export function regionsOf(resources: WorkcostResource[]): Facet[] {
+export function regionsOf(resources: WorkcostResource[], f: ResourceFacetScope = {}, ctx?: FilterContext): Facet[] {
   const counts = new Map<string, number>();
   for (const r of resources) {
+    if (!inResourceScope(r, f, ctx)) continue;
     const key = r.region?.trim() || NONE;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
@@ -413,9 +567,10 @@ export function periodKey(period: string | undefined): number {
 }
 
 /** 期数分布：新→旧；无期的排最后。 */
-export function periodsOf(resources: WorkcostResource[]): Facet[] {
+export function periodsOf(resources: WorkcostResource[], f: ResourceFacetScope = {}, ctx?: FilterContext): Facet[] {
   const counts = new Map<string, number>();
   for (const r of resources) {
+    if (!inResourceScope(r, f, ctx)) continue;
     const p = r.priceDate?.trim() || NONE;
     counts.set(p, (counts.get(p) ?? 0) + 1);
   }
@@ -483,6 +638,37 @@ export function pendingSummary(p: PendingCounts): string {
     ["工料机未标地区", p.resourceRegion], ["工料机未细分", p.resourceCategory], ["工料机无期数", p.resourcePeriod],
   ];
   return parts.filter(([, n]) => n > 0).map(([label, n]) => `${label} ${n}`).join(" · ");
+}
+
+/** 「待整理」入口的逐项（2026-11-28）：点一项就筛出对应的那批行，在板块里直接修或批量改。 */
+export const PENDING_ITEMS: { key: keyof PendingCounts; tier: Tier; label: string }[] = [
+  { key: "billSpecialty", tier: "bill", label: "清单无专业" },
+  { key: "quotaSpecialty", tier: "quota", label: "定额无专业" },
+  { key: "quotaChapter", tier: "quota", label: "定额未归分部" },
+  { key: "resourceKind", tier: "resource", label: "工料机类别待整理" },
+  { key: "resourceRegion", tier: "resource", label: "工料机未标地区" },
+  { key: "resourceCategory", tier: "resource", label: "工料机未细分" },
+  { key: "resourcePeriod", tier: "resource", label: "工料机无期数" },
+];
+
+/** 「待整理」某一项点开后的落点：切到对应那一级，只留这一项的筛选（别的筛选清空）。 */
+export function pendingFilter(key: keyof PendingCounts): { tier: Tier; filters: BillFilters | QuotaFilters | ResourceFilters } {
+  switch (key) {
+    case "billSpecialty":
+      return { tier: "bill", filters: { ...emptyBillFilters, specialty: NONE } };
+    case "quotaSpecialty":
+      return { tier: "quota", filters: { ...emptyQuotaFilters, specialty: NONE } };
+    case "quotaChapter":
+      return { tier: "quota", filters: { ...emptyQuotaFilters, chapter: NONE } };
+    case "resourceKind":
+      return { tier: "resource", filters: { ...emptyResourceFilters, kind: OUTSIDE } };
+    case "resourceRegion":
+      return { tier: "resource", filters: { ...emptyResourceFilters, region: NONE } };
+    case "resourceCategory":
+      return { tier: "resource", filters: { ...emptyResourceFilters, category: NONE } };
+    default:
+      return { tier: "resource", filters: { ...emptyResourceFilters, period: NONE } };
+  }
 }
 
 // ── 展示 ─────────────────────────────────────────────────────────────

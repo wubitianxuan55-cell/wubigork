@@ -1,5 +1,7 @@
 // Overlays — 删除确认与导出菜单。删除是不可恢复动作：确认卡写明对象、规模与
 // 后果；后端拒绝（如仍被引用）时把原因留在卡上，不假装成功。
+// 2026-11-28：对象仍被引用时，确认卡上多一个「解除引用后删除」的路径——定额先解除它在
+// 全部清单项上的挂接，工料机连带解除含量行引用；后果写在按钮的悬停说明里，默认仍是不强删。
 import { useState } from "react";
 import { Dropdown, Modal } from "antd";
 import { ChevronDown, Download } from "../../gaea/icons";
@@ -13,6 +15,8 @@ export interface DeleteRequest {
   confirmLabel: string;
   /** 执行删除；返回失败明细（空=全部成功），由调用方刷新。 */
   run: () => Promise<{ ok: number; failed: string[] }>;
+  /** 强删路径：对象仍被引用时后端默认拒删；给了这项，卡上多一个按钮，按它 = 先解除引用再删。 */
+  force?: { label: string; hint: string; run: () => Promise<{ ok: number; failed: string[] }> };
 }
 
 export function DeleteDialog({ request, onClose, onDone }: {
@@ -23,12 +27,12 @@ export function DeleteDialog({ request, onClose, onDone }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const confirm = async () => {
-    if (!request) return;
+  const confirm = async (forced: boolean) => {
+    if (!request || (forced && !request.force)) return;
     setBusy(true);
     setError("");
     try {
-      const res = await request.run();
+      const res = await (forced ? request.force!.run() : request.run());
       if (res.failed.length > 0) {
         setError(`已删除 ${res.ok} 条，${res.failed.length} 条未删除：${res.failed[0]}`);
         onDone(`已删除 ${res.ok} 条，${res.failed.length} 条失败`);
@@ -48,11 +52,22 @@ export function DeleteDialog({ request, onClose, onDone }: {
       title={request?.title ?? ""}
       open={!!request}
       onCancel={() => { if (!busy) { setError(""); onClose(); } }}
-      onOk={() => void confirm()}
-      okText={request?.confirmLabel ?? "删除"}
-      cancelText="取消"
-      confirmLoading={busy}
-      okButtonProps={{ danger: true }}
+      footer={[
+        <button key="cancel" type="button" className="cl-btn" disabled={busy}
+          onClick={() => { setError(""); onClose(); }}>取消</button>,
+        !!request?.force && (
+          <button key="force" type="button" className="cl-btn cl-btn-danger-ghost" disabled={busy} data-testid="cost-delete-force"
+            title={request!.force!.hint} onClick={() => void confirm(true)}>
+            {request!.force!.label}
+          </button>
+        ),
+        <button key="ok" type="button" className="cl-btn cl-btn-primary" disabled={busy} data-testid="cost-delete-ok"
+          onClick={() => void confirm(false)}>
+          {busy ? "删除中…" : request?.confirmLabel ?? "删除"}
+        </button>,
+      ]}
+      closable={!busy}
+      maskClosable={!busy}
       destroyOnHidden
       transitionName=""
       maskTransitionName=""

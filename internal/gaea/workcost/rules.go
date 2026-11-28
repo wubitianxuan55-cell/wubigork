@@ -26,6 +26,10 @@ const (
 	DictSpecialty = "specialty" // 专业（清单与定额共用一套）
 	DictRegion    = "region"    // 地区
 	DictCategory  = "category"  // 工料机分类（name=完整分类路径）
+	// DictAlias 检索别名：name=别名（行话、缩写，如「砼」），parent=对应的标准说法（如「混凝土」）。
+	// 检索时查询词按它双向展开。内核只管展开机制，别名内容不预设——由用户在造价数据库
+	// 板块或模型经 dict add 维护（领域口径不进内核）。
+	DictAlias = "alias"
 )
 
 // DictKindLabel 字典种类的中文名（报错与回执用）。
@@ -33,6 +37,7 @@ var DictKindLabel = map[string]string{
 	DictSpecialty: "专业",
 	DictRegion:    "地区",
 	DictCategory:  "工料机分类",
+	DictAlias:     "检索别名",
 }
 
 // DictItem 一条字典项。
@@ -41,7 +46,7 @@ type DictItem struct {
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	Code      string `json:"code"`   // 外部标准代码（如国标专业代码），机检用；空=无
-	Parent    string `json:"parent"` // 上级字典项（地区层级用；空=顶级）
+	Parent    string `json:"parent"` // 上级字典项（地区层级用；空=顶级）；检索别名 = 对应的标准说法
 	Level     int    `json:"level"`
 	Sort      int    `json:"sort"`
 	Note      string `json:"note"`
@@ -261,7 +266,7 @@ func (s *Store) DictAdd(item DictItem) error {
 	item.Kind = strings.TrimSpace(item.Kind)
 	item.Name = strings.TrimSpace(item.Name)
 	if !ValidDictKind(item.Kind) {
-		return fmt.Errorf("字典种类须为 specialty（专业）/ region（地区）/ category（工料机分类），收到 %q", item.Kind)
+		return fmt.Errorf("字典种类须为 specialty（专业）/ region（地区）/ category（工料机分类）/ alias（检索别名），收到 %q", item.Kind)
 	}
 	if item.Name == "" {
 		return fmt.Errorf("新增%s需要名称", DictKindLabel[item.Kind])
@@ -272,6 +277,15 @@ func (s *Store) DictAdd(item DictItem) error {
 			return fmt.Errorf("地区只到省、不能下分：「%s」不是省级行政区——请写省名（如 四川省、内蒙古自治区）", item.Name)
 		}
 		item.Name = p
+	}
+	if item.Kind == DictAlias {
+		item.Parent = strings.TrimSpace(item.Parent)
+		if item.Parent == "" {
+			return fmt.Errorf("新增检索别名需要写明它对应的标准说法（如「砼」→「混凝土」）")
+		}
+		if item.Parent == item.Name {
+			return fmt.Errorf("检索别名「%s」和它对应的标准说法不能是同一个词", item.Name)
+		}
 	}
 	if item.Level <= 0 {
 		item.Level = 1
@@ -477,6 +491,28 @@ func (s *Store) DictDelete(kind, name string) error {
 	return err
 }
 
+// SearchAliases 检索别名表：别名（小写）→ 标准说法（gf_dicts 里 kind=alias 的条目）。
+// 构造即非 nil。
+func (s *Store) SearchAliases() (map[string]string, error) {
+	out := map[string]string{}
+	if err := s.requireDB(); err != nil {
+		return out, nil
+	}
+	rows, err := s.db.Query(`SELECT name, COALESCE(parent,'') FROM gf_dicts WHERE kind=? AND COALESCE(parent,'')<>''`, DictAlias)
+	if err != nil {
+		return out, nil
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var name, to string
+		if e := rows.Scan(&name, &to); e != nil {
+			continue
+		}
+		out[strings.ToLower(strings.TrimSpace(name))] = strings.TrimSpace(to)
+	}
+	return out, rows.Err()
+}
+
 // DictUsage 某个字典值被多少条数据引用。
 func (s *Store) DictUsage(kind, name string) (int, error) {
 	if err := s.requireDB(); err != nil {
@@ -515,6 +551,8 @@ func (s *Store) DictUsage(kind, name string) (int, error) {
 		return a + b + c, err
 	case DictCategory:
 		return count(`SELECT COUNT(*) FROM gf_resources WHERE category_path=?`)
+	case DictAlias:
+		return 0, nil // 检索别名不被数据引用，随时可删
 	}
 	return 0, fmt.Errorf("未知字典种类 %q", kind)
 }

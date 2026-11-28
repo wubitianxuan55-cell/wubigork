@@ -66,4 +66,23 @@ describe('OverviewSection · 引擎卡巡检状态（C 刀）', () => {
     const el = container.querySelector('.mc-model-card .mc-status.is-ok span')
     expect(el?.getAttribute('title') ?? '').toBe('')
   })
+
+  it('连通但检索模型不可用（Herdsman：向量 / 精排真实小请求失败）→ warn tone、点名「检索模型不可用」，title 给原因', () => {
+    // 2026-11-27：向量模型进程显卡设备丢失后 /models 照常 running，卡片一直显示「连接正常」
+    const { container } = renderOverview({
+      glm: st({
+        connected: true,
+        model_count: 12,
+        error: '向量模型 bge-m3 不可用：HTTP 500: decode() failed: vk::Queue::submit: ErrorDeviceLost',
+        last_checked: '2026-09-02T10:30:00',
+      }),
+    })
+    expect(container.querySelector('.mc-model-card .mc-status.is-danger')).toBeNull()
+    const el = container.querySelector('.mc-model-card .mc-status.is-warn')
+    expect(el).toBeTruthy()
+    expect(el!.textContent).toContain('连接正常 · 12 个模型 · 检索模型不可用')
+    const title = el!.querySelector('span')?.getAttribute('title') ?? ''
+    expect(title).toContain('巡检 10:30')
+    expect(title).toContain('向量模型 bge-m3 不可用')
+  })
 })

@@ -140,6 +140,28 @@
   color: var(--fg-faint);
 }
 
+/* 搜索框旁的「本地语义模型不可用」提示：这次搜索只有关键词匹配；原因在悬停明细里 */
+.cl-search-warn {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 36%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--warn);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.cl-search-warn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cl-actions {
   display: flex;
   flex: 0 0 auto;
@@ -329,6 +351,153 @@
 
 .cl-pending:hover {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+/* 「待整理」浮层（2026-11-28）：逐项点开即筛出对应的行，在板块里改或批量改 */
+.cl-pending-pop {
+  display: flex;
+  min-width: 230px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cl-pending-pop ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cl-pending-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cl-pending-item:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.cl-pending-item b {
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 搜索命中的词条（名称 / 编码 / 特征里） */
+.cl-hit {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: inherit;
+}
+
+/* 列表里的「语义」来源标：名称不含搜索词、靠意思相近召回的行 */
+.cl-tag.is-semantic {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+
+/* 规范值下拉的外壳（就地新增时换成一行输入） */
+.cl-dict {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 搜出来再选的挑选器（挂接定额 / 含量行加工料机）：候选浮在输入框下面 */
+.cl-picker {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.cl-picker-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--cl-line-strong);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--fg) 18%, transparent);
+  list-style: none;
+}
+
+.cl-picker-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cl-picker-item:hover,
+.cl-picker-item:focus-visible {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.cl-picker-empty {
+  padding: 6px 8px;
+  color: var(--fg-faint);
+  font-size: 12px;
+}
+
+/* 批量修改的失败清单 / 回填预览清单 / 别名清单 */
+.cl-batch-failures,
+.cl-alias-list {
+  display: flex;
+  max-height: 280px;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.cl-batch-failures li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--cl-line);
+  font-size: 12px;
+}
+
+.cl-alias-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--cl-line);
+  font-size: 12.5px;
+}
+
+.cl-dialog details summary {
+  color: var(--fg-dim);
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .cl-state-panel {

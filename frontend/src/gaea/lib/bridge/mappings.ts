@@ -286,6 +286,11 @@ export const gaeaToGaea = {
   WorkcostBillQuotaDetach: "GaeaWorkcostBillQuotaDetach",
   WorkcostBillProjectRatesSave: "GaeaWorkcostBillProjectRatesSave",
   WorkcostBillProjectProfileSave: "GaeaWorkcostBillProjectProfileSave",
+  // 库维护（2026-11-28）：字典读写、定额解除全部挂接、定额地区回填。
+  WorkcostDictList: "GaeaWorkcostDictList",
+  WorkcostDictSet: "GaeaWorkcostDictSet",
+  WorkcostQuotaDetachEverywhere: "GaeaWorkcostQuotaDetachEverywhere",
+  WorkcostQuotaRegionBackfill: "GaeaWorkcostQuotaRegionBackfill",
   UnifiedSearch: "GaeaUnifiedSearch",
   RouteIntent: "GaeaRouteIntent",
   Qwen35EngineStart: "Qwen35EngineStart",

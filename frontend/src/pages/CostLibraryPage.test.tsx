@@ -39,6 +39,11 @@ const mocks = vi.hoisted(() => ({
   WorkcostBillQuotaDetach: vi.fn(),
   WorkcostBillProjectRatesSave: vi.fn(),
   WorkcostBillProjectProfileSave: vi.fn(),
+  // 库维护（2026-11-28）：字典读写、定额解除全部挂接、定额地区回填。
+  WorkcostDictList: vi.fn(),
+  WorkcostDictSet: vi.fn(),
+  WorkcostQuotaDetachEverywhere: vi.fn(),
+  WorkcostQuotaRegionBackfill: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 vi.mock('../gaea/lib/clipboard', () => ({ copyToClipboard: vi.fn().mockResolvedValue('plain') }))
@@ -157,6 +162,11 @@ beforeEach(() => {
   mocks.WorkcostBillQuotaDetach.mockResolvedValue(undefined)
   mocks.WorkcostBillProjectRatesSave.mockResolvedValue(undefined)
   mocks.WorkcostBillProjectProfileSave.mockResolvedValue(undefined)
+  // 库维护默认：字典读得到但是空的、回填没有待办、解除挂接影响 0 条（各用例按需覆盖）。
+  mocks.WorkcostDictList.mockResolvedValue([])
+  mocks.WorkcostDictSet.mockResolvedValue(undefined)
+  mocks.WorkcostQuotaDetachEverywhere.mockResolvedValue(0)
+  mocks.WorkcostQuotaRegionBackfill.mockResolvedValue([])
 })
 
 describe('造价数据库 · 三级浏览面', () => {
@@ -636,14 +646,78 @@ describe('造价数据库 · 维度（专业 / 分部 / 分类 / 地区 / 期）
     expect(mocks.CostLibraryExport.mock.calls[0]!.slice(0, 2)).toEqual(['resource', { ...EMPTY_FILTER, kind: '__outside__', period: '2026-06' }])
   })
 
-  it('待整理：状态行给出未归类的条数与分项，点一下复制整理提示词', async () => {
+  it('待整理：状态行给出未归类的条数；点开逐项列出，点一项直接筛出对应的行；整理提示词仍可复制', async () => {
     await renderReady()
     const pending = screen.getByTestId('cost-pending')
     expectText(pending, '待整理 3') // 三条清单行都还没标专业
     expect(pending.getAttribute('title')).toContain('清单无专业 3')
     fireEvent.click(pending)
+    const item = await screen.findByTestId('cost-pending-billSpecialty')
+    expectText(item, '清单无专业')
+    expectText(item, '3')
+    // 点一项 = 落到清单级、只留「未标注专业」这一项的筛选；三条都在
+    fireEvent.click(item)
+    await waitFor(() => expect(screen.queryByTestId('cost-pending-pop')).toBeNull())
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(4) // 表头 + 3 条
+    // 整理提示词仍可复制给造价模式
+    fireEvent.click(screen.getByTestId('cost-pending'))
+    const copy = await screen.findByTestId('cost-pending-copy')
+    fireEvent.click(copy)
     await waitFor(() => expect(copyToClipboard).toHaveBeenCalledWith(PENDING_PROMPT))
-    expectText(pending, '已复制提示词')
+    expectText(await screen.findByTestId('cost-pending-copy'), '已复制提示词')
+  })
+
+  it('索引优化（2026-11-28）· 多词搜索：空白分开的词要求每个都命中', async () => {
+    await renderReady()
+    const search = screen.getByRole('textbox', { name: '搜索清单' })
+    fireEvent.change(search, { target: { value: '便道 泥结' } })
+    // 「施工便道」两条（项目特征都含「泥结碎石」）；「外委检测」没有「便道」
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(3)
+    fireEvent.change(search, { target: { value: '便道 外委' } })
+    await screen.findByTestId('cost-tier-empty')
+    expectText(screen.getByTestId('cost-tier-empty'), '没有匹配的行')
+  })
+
+  it('索引优化（2026-11-28）· 分面联动：搜索时左栏计数只数命中的行，项目列表给每个项目剩多少', async () => {
+    await renderReady()
+    expectText(screen.getByTestId('cost-rail-bill-specialties'), '未标注专业')
+    expect(screen.getByTestId('cost-rail-bill-specialties').textContent).toContain('3')
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索清单' }), { target: { value: '便道' } })
+    await waitFor(() => expect(screen.getByTestId('cost-rail-bill-specialties').textContent).toContain('2'))
+    // 两个项目各剩一条；「外委检测」所在的旺平项目也只剩一条
+    const projects = screen.getByTestId('cost-rail-projects').textContent ?? ''
+    expect(projects).toContain('1')
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(3)
+  })
+
+  it('索引优化（2026-11-28）· 状态筛选：清单选「未套定额」只剩手填行；当前位置点明', async () => {
+    await renderReady()
+    const state = screen.getByTestId('cost-select-state')
+    fireEvent.change(state, { target: { value: 'manual' } })
+    const rows = within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')
+    expect(rows).toHaveLength(2) // 表头 + 外委检测
+    expectText(screen.getByTestId('cost-bill-rows'), '外委检测')
+    expectText(screen.getByTestId('cost-crumb'), '未套定额（手填）')
+    // 清除筛选回到全部
+    fireEvent.change(state, { target: { value: '' } })
+    expect(within(screen.getByTestId('cost-bill-rows')).getAllByRole('row')).toHaveLength(4)
+  })
+
+  it('索引优化（2026-11-28）· 定额级地区筛选：左栏与工具条都能按地区筛，没标的单列一桶', async () => {
+    mocks.WorkcostQuotaList.mockResolvedValue([
+      { ...quotaWP01, region: '四川省', items: undefined, usageCount: 2 },
+      { ...quotaFree, region: '', items: undefined, usageCount: 0 },
+    ])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    const rail = screen.getByTestId('cost-rail-quota-regions')
+    expectText(rail, '四川省')
+    expectText(rail, '未标地区')
+    fireEvent.change(screen.getByTestId('cost-select-quota-region'), { target: { value: '__none__' } })
+    const rows = within(screen.getByTestId('cost-quota-rows')).getAllByRole('row')
+    expect(rows).toHaveLength(2) // 表头 + 企业定额（未引用）
+    expectText(screen.getByTestId('cost-quota-rows'), '企业定额（未引用）')
   })
 
   it('清单详情：标注专业；每条定额的消耗量 = 该定额工程量 × 含量；挂了外专业定额要点名', async () => {
@@ -824,6 +898,74 @@ describe('造价数据库 · 语义索引（2026-11-26 造价库接入本地模�
     expect(screen.queryByTestId('cost-tier-empty')).toBeNull()
     expect(within(sem).getAllByRole('row')).toHaveLength(2) // 表头 + 场地平整
   })
+
+  it('索引优化（2026-11-28）· 搜索呈现：主列表按相关度排、命中词条高亮；补充段的行标「语义」', async () => {
+    mocks.CostIndexStatus.mockResolvedValue(readyStatus())
+    // 两条名称含「便道」+ 一条意思相近的；后台混合检索给的相关度序：人工便道最靠前
+    const manual: WorkcostQuota = { ...quotaWP01, id: 3, code: 'Q-A', gcode: 'D0100003', origCode: '', title: '施工便道（人工）', items: undefined, usageCount: 0 }
+    const machine: WorkcostQuota = { ...quotaWP01, id: 4, code: 'Q-B', gcode: 'D0100004', origCode: '', title: '施工便道（机械）', items: undefined, usageCount: 0 }
+    const similar: WorkcostQuota = { ...quotaWP01, id: 5, code: 'Q-C', gcode: 'D0100005', origCode: '', title: '场地平整', items: undefined, usageCount: 0 }
+    mocks.WorkcostQuotaList.mockResolvedValue([manual, similar, machine])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '便道' } })
+    await screen.findByTestId('cost-semantic')
+    const tables = screen.getAllByTestId('cost-quota-rows')
+    const main = tables[0].querySelectorAll('tbody tr')
+    expect(main).toHaveLength(2)
+    expectText(main[0] as HTMLElement, '施工便道（人工）') // 相关度靠前的排在前面
+    expectText(main[1] as HTMLElement, '施工便道（机械）')
+    // 命中的词条高亮
+    const marks = tables[0].querySelectorAll('mark.cl-hit')
+    expect(marks.length).toBeGreaterThan(0)
+    expect(marks[0]?.textContent).toBe('便道')
+    // 补充段的行标「语义」来源；主列表不标
+    expect(within(screen.getByTestId('cost-semantic')).getAllByText('语义').length).toBeGreaterThan(0)
+    expect(tables[0].textContent).not.toContain('语义')
+  })
+
+  it('本地语义模型不可用：搜索后搜索框旁明示、原因在悬停明细；状态钮转警示', async () => {
+    // 2026-11-27 的故障：向量模型进程的显卡设备丢了，语义检索静默只剩关键词、20 小时无人知道
+    const st = readyStatus()
+    const reason = '本地向量模型请求失败：embedding HTTP 500: decode() failed: vk::Queue::submit: ErrorDeviceLost'
+    st.kinds[0] = { ...st.kinds[0], searchError: reason }
+    mocks.CostIndexStatus.mockResolvedValue(st)
+    mocks.WorkcostQuotaList.mockResolvedValue([{ ...quotaWP01, items: undefined, usageCount: 2 }])
+    await renderReady()
+    expectText(screen.getByTestId('cost-index-status'), '语义模型 不可用')
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    expect(screen.queryByTestId('cost-semantic-down')).toBeNull() // 还没搜：不出提示
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '便道' } })
+    const warn = await screen.findByTestId('cost-semantic-down')
+    expectText(warn, '本地语义模型不可用，只按关键词匹配')
+    expect(warn.getAttribute('title')).toBe(reason)
+    // 关键词命中照常在，只是没有「意思相近」
+    expect(screen.getAllByTestId('cost-quota-rows')[0].textContent).toContain('施工便道')
+    expect(screen.queryByTestId('cost-semantic')).toBeNull()
+    // 清空关键词：提示随之消失
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '' } })
+    await waitFor(() => expect(screen.queryByTestId('cost-semantic-down')).toBeNull())
+  })
+
+  it('模型恢复后点「重试」：重新检索一次，提示消失', async () => {
+    const st = readyStatus()
+    st.kinds[0] = { ...st.kinds[0], searchError: '本地向量模型请求失败：embedding HTTP 500' }
+    mocks.CostIndexStatus.mockResolvedValue(st)
+    mocks.WorkcostQuotaList.mockResolvedValue([{ ...quotaWP01, items: undefined, usageCount: 2 }])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索定额' }), { target: { value: '便道' } })
+    await screen.findByTestId('cost-semantic-down')
+    // 模型重载好了（后端下一次检索的结果恢复正常）
+    mocks.CostIndexStatus.mockResolvedValue(readyStatus())
+    const before = mocks.WorkcostQuotaList.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: '重试语义检索' }))
+    await waitFor(() => expect(screen.queryByTestId('cost-semantic-down')).toBeNull())
+    expect(mocks.WorkcostQuotaList.mock.calls.length).toBeGreaterThan(before)
+  })
 })
 
 describe('造价数据库 · 库页编辑面（2026-11-27）', () => {
@@ -946,5 +1088,235 @@ describe('造价数据库 · 库页编辑面（2026-11-27）', () => {
     expectText(err, '清单项需要归属项目')
     // 编辑态还在，可改完再存
     expect(screen.getByTestId('cost-bill-edit')).toBeTruthy()
+  })
+})
+
+describe('造价数据库 · 索引与编辑优化（2026-11-28）', () => {
+  // 进到定额 WP01 的详情（等含量行现算出来 = 完整定额已读到）
+  const openQuotaDetail = async (): Promise<HTMLElement> => {
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByRole('button', { name: '下钻到定额 WP01' }))
+    const quota = await screen.findByTestId('cost-detail-quota')
+    await within(quota).findByTestId('cost-quota-analysis')
+    return quota
+  }
+  const optionTexts = (select: HTMLElement): (string | null)[] => Array.from(select.querySelectorAll('option')).map((o) => o.textContent)
+  /** 字典 mock：可增删，读得到最新（默认 give 的那几条）。 */
+  const useDict = (initial: { id: number; kind: string; name: string; parent?: string }[]) => {
+    const dict = [...initial]
+    mocks.WorkcostDictList.mockImplementation(async (kind: string) => dict.filter((d) => kind === '' || d.kind === kind).map((d) => ({ ...d })))
+    mocks.WorkcostDictSet.mockImplementation(async (item: { kind: string; name: string; remove?: boolean }, remove?: boolean) => {
+      if (remove) {
+        const at = dict.findIndex((d) => d.kind === item.kind && d.name === item.name)
+        if (at >= 0) dict.splice(at, 1)
+        return
+      }
+      if (!dict.some((d) => d.kind === item.kind && d.name === item.name)) dict.push({ ...item, id: dict.length + 10 })
+    })
+    return dict
+  }
+
+  it('规范值读字典：规划了但还没行在用的专业也列得出；没有合适的就地新增并选中', async () => {
+    useDict([
+      { id: 1, kind: 'specialty', name: '土壤修复' }, { id: 2, kind: 'specialty', name: '市政工程' }, { id: 3, kind: 'region', name: '四川省' },
+    ])
+    await renderReady()
+    const quota = await openQuotaDetail()
+    fireEvent.click(within(quota).getByTestId('cost-quota-edit-open'))
+    const edit = await screen.findByTestId('cost-quota-edit')
+    const select = within(edit).getByTestId('cost-edit-quota-specialty') as HTMLSelectElement
+    // 库里的定额全是「土壤修复」，字典里另有「市政工程」——此前下拉只列得出前者（字典值在前，按字典顺序）
+    expect(optionTexts(select)).toEqual(['未标注', '土壤修复', '市政工程', '＋ 新增…'])
+    expect(select.value).toBe('土壤修复')
+    fireEvent.change(select, { target: { value: '__add__' } })
+    fireEvent.change(await within(edit).findByLabelText('新增定额专业'), { target: { value: '水利水电工程' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-quota-specialty-confirm'))
+    await waitFor(() => expect(mocks.WorkcostDictSet).toHaveBeenCalledWith({ id: 0, kind: 'specialty', name: '水利水电工程', parent: '' }, false))
+    await waitFor(() => expect((within(edit).getByTestId('cost-edit-quota-specialty') as HTMLSelectElement).value).toBe('水利水电工程'))
+  })
+
+  it('期数可以手填新月份：工料机的价格期数是输入框（已有期给候选），保存带上去', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByRole('button', { name: '下钻到定额 WP01' }))
+    const quota = await screen.findByTestId('cost-detail-quota')
+    fireEvent.click(await within(quota).findByRole('button', { name: '下钻到工料机 C20商品混凝土' }))
+    const res = await screen.findByTestId('cost-detail-resource')
+    fireEvent.click(within(res).getByTestId('cost-resource-edit-open'))
+    const edit = await screen.findByTestId('cost-resource-edit')
+    const period = within(edit).getByTestId('cost-edit-res-period') as HTMLInputElement
+    expect(period.tagName).toBe('INPUT')
+    expect(period.getAttribute('list')).toBeTruthy() // 候选
+    fireEvent.change(period, { target: { value: '2027-01' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    await waitFor(() => expect(mocks.WorkcostResourceSave).toHaveBeenCalledTimes(1))
+    expect((mocks.WorkcostResourceSave.mock.calls[0][0] as WorkcostResource).priceDate).toBe('2027-01')
+  })
+
+  it('未保存守卫与快捷键：改了没存就切走要先问；Ctrl+S 保存、Esc 取消', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「外委检测」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByTestId('cost-bill-edit-open'))
+    let edit = await screen.findByTestId('cost-bill-edit')
+    fireEvent.change(within(edit).getByTestId('cost-edit-bill-title'), { target: { value: '外委检测（改）' } })
+    // 没保存就点另一行：先问；答「否」就留在编辑态、选中不变
+    fireEvent.click(screen.getAllByRole('button', { name: /「施工便道（铺筑压实）」的综合单价分析/ })[1]!)
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('cost-bill-edit')).toBeTruthy()
+    expect((within(edit).getByTestId('cost-edit-bill-title') as HTMLInputElement).value).toBe('外委检测（改）')
+    // 有未保存改动时按 Esc 也要问
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' })
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('cost-bill-edit')).toBeTruthy()
+    // Ctrl+S 保存（带着改动）
+    fireEvent.keyDown(window, { key: 's', code: 'KeyS', ctrlKey: true })
+    await waitFor(() => expect(mocks.WorkcostBillItemSave).toHaveBeenCalledTimes(1))
+    expect((mocks.WorkcostBillItemSave.mock.calls[0][0] as WorkcostBillItem).title).toBe('外委检测（改）')
+    await waitFor(() => expect(screen.queryByTestId('cost-bill-edit')).toBeNull())
+    // 没有改动时按 Esc 直接退出，不问
+    fireEvent.click(within(bill).getByTestId('cost-bill-edit-open'))
+    edit = await screen.findByTestId('cost-bill-edit')
+    expect(edit).toBeTruthy()
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(screen.queryByTestId('cost-bill-edit')).toBeNull())
+    expect(confirm).toHaveBeenCalledTimes(2)
+    confirm.mockRestore()
+  })
+
+  it('新建定额：板块里直接建（新编码、含量行从零），保存后重读并提示', async () => {
+    mocks.WorkcostQuotaSave.mockImplementation(async (q: WorkcostQuota) => ({ ...q, id: 99 }))
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.click(screen.getByTestId('cost-create-btn'))
+    const pane = await screen.findByTestId('cost-create')
+    expectText(pane, '新建一条定额')
+    const edit = within(pane).getByTestId('cost-quota-edit')
+    // 没给编码不许存
+    fireEvent.change(within(edit).getByTestId('cost-edit-quota-title'), { target: { value: '新定额' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    expectText(await within(edit).findByTestId('cost-edit-error'), '新定额需要编码')
+    fireEvent.change(within(edit).getByTestId('cost-edit-quota-code'), { target: { value: 'NEW-1' } })
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    await waitFor(() => expect(mocks.WorkcostQuotaSave).toHaveBeenCalledTimes(1))
+    const saved = mocks.WorkcostQuotaSave.mock.calls[0][0] as WorkcostQuota
+    expect(saved.id).toBe(0)
+    expect(saved.code).toBe('NEW-1')
+    expect(saved.title).toBe('新定额')
+    expect(saved.source).toBe('造价库界面新建')
+    expect(saved.items).toEqual([])
+    await waitFor(() => expect(screen.queryByTestId('cost-create')).toBeNull())
+    expectText(screen.getByTestId('cost-notice'), '已新建定额「新定额」')
+  })
+
+  it('复制定额另存：以原定额为底（含量行照带、含量行挂到新编码），编码默认顺延', async () => {
+    await renderReady()
+    const quota = await openQuotaDetail()
+    fireEvent.click(within(quota).getByTestId('cost-quota-duplicate'))
+    const pane = await screen.findByTestId('cost-create')
+    expectText(pane, '以「施工便道」为底新建一条')
+    const edit = within(pane).getByTestId('cost-quota-edit')
+    expect((within(edit).getByTestId('cost-edit-quota-code') as HTMLInputElement).value).toBe('WP01-2')
+    fireEvent.click(within(edit).getByTestId('cost-edit-save'))
+    await waitFor(() => expect(mocks.WorkcostQuotaSave).toHaveBeenCalledTimes(1))
+    const saved = mocks.WorkcostQuotaSave.mock.calls[0][0] as WorkcostQuota
+    expect(saved.id).toBe(0)
+    expect(saved.code).toBe('WP01-2')
+    expect(saved.source).toBe('造价库界面复制自 WP01')
+    expect(saved.items?.map((it) => it.resourceCode)).toEqual(['C20', 'L01'])
+    expect(saved.items?.every((it) => it.quotaCode === 'WP01-2')).toBe(true)
+  })
+
+  it('勾选批量修改：选维度给值，逐行保存并回报；一行失败不影响其余', async () => {
+    mocks.WorkcostQuotaSave.mockImplementation(async (q: WorkcostQuota) => {
+      if (q.code === 'ENT-01') throw new Error('身份冲突')
+      return q
+    })
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择定额 施工便道' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择定额 企业定额（未引用）' }))
+    fireEvent.click(screen.getByTestId('cost-batch-open'))
+    const dialog = await screen.findByTestId('cost-batch-dialog')
+    fireEvent.change(within(dialog).getByTestId('cost-batch-field'), { target: { value: 'chapter' } })
+    fireEvent.change(within(dialog).getByTestId('cost-batch-value'), { target: { value: 'A基础' } })
+    fireEvent.click(screen.getByRole('button', { name: '把这 2 条改掉' }))
+    await waitFor(() => expect(mocks.WorkcostQuotaSave).toHaveBeenCalledTimes(2))
+    // 定额先取完整（含量行）再整组保存：含量行原样带回
+    expect(mocks.WorkcostQuotaGet).toHaveBeenCalledWith('WP01')
+    const saved = mocks.WorkcostQuotaSave.mock.calls[0][0] as WorkcostQuota
+    expect(saved.code).toBe('WP01')
+    expect(saved.chapter).toBe('A基础')
+    expect(saved.items).toHaveLength(2)
+    expectText(await screen.findByTestId('cost-batch-failures'), '身份冲突')
+    expectText(screen.getByTestId('cost-notice'), '成功 1 条，失败 1 条')
+  })
+
+  it('删除定额：仍被清单引用的，卡上多一条「解除挂接后删除」，先摘挂接再删', async () => {
+    mocks.WorkcostQuotaDetachEverywhere.mockResolvedValue(2)
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.click(screen.getByRole('button', { name: '删除定额「施工便道」' }))
+    const dialog = await screen.findByRole('dialog')
+    expectText(dialog, '其中 1 条仍被清单项引用（共 2 条挂接）')
+    fireEvent.click(within(dialog).getByTestId('cost-delete-force'))
+    await waitFor(() => expect(mocks.WorkcostQuotaDelete).toHaveBeenCalledWith('WP01'))
+    expect(mocks.WorkcostQuotaDetachEverywhere).toHaveBeenCalledWith('WP01')
+    expect(mocks.WorkcostQuotaDetachEverywhere.mock.invocationCallOrder[0]!).toBeLessThan(mocks.WorkcostQuotaDelete.mock.invocationCallOrder[0]!)
+  })
+
+  it('定额地区回填：先预览（只被一个省引用的可回填），确认后才写', async () => {
+    mocks.WorkcostQuotaRegionBackfill.mockImplementation(async (dryRun: boolean) => [
+      { code: 'WP01', title: '施工便道', region: '四川省', links: 2, applied: !dryRun },
+      { code: 'ENT-01', title: '企业定额', links: 0, reason: '没有被清单引用，没有上游项目可依据', applied: false },
+    ])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-tier-quota'))
+    await screen.findByTestId('cost-quota-rows')
+    fireEvent.click(screen.getByTestId('cost-region-open'))
+    const dialog = await screen.findByTestId('cost-region-dialog')
+    expectText(dialog, '可以回填')
+    expectText(dialog, '四川省 1 条')
+    expectText(dialog, '没有被清单引用，没有上游项目可依据（1 条）')
+    expect(mocks.WorkcostQuotaRegionBackfill).toHaveBeenCalledTimes(1) // 只预览，没写
+    expect(mocks.WorkcostQuotaRegionBackfill).toHaveBeenLastCalledWith(true)
+    fireEvent.click(screen.getByTestId('cost-region-apply'))
+    await waitFor(() => expect(mocks.WorkcostQuotaRegionBackfill).toHaveBeenLastCalledWith(false))
+    expectText(screen.getByTestId('cost-notice'), '已回填 1 条定额的地区')
+  })
+
+  it('检索别名：搜索框旁管理（砼 ↔ 混凝土），增删走字典', async () => {
+    useDict([{ id: 1, kind: 'specialty', name: '土壤修复' }])
+    await renderReady()
+    fireEvent.click(screen.getByTestId('cost-alias-open'))
+    const dialog = await screen.findByTestId('cost-alias-dialog')
+    fireEvent.change(within(dialog).getByLabelText('别名'), { target: { value: '砼' } })
+    fireEvent.change(within(dialog).getByLabelText('标准说法'), { target: { value: '混凝土' } })
+    fireEvent.click(within(dialog).getByTestId('cost-alias-add'))
+    await waitFor(() => expect(mocks.WorkcostDictSet).toHaveBeenCalledWith({ id: 0, kind: 'alias', name: '砼', parent: '混凝土' }, false))
+    await waitFor(() => expectText(screen.getByTestId('cost-alias-list'), '砼'))
+    fireEvent.click(screen.getByRole('button', { name: '删除别名 砼' }))
+    await waitFor(() => expect(mocks.WorkcostDictSet).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'alias', name: '砼' }), true))
+    await waitFor(() => expect(screen.queryByTestId('cost-alias-list')).toBeNull())
+  })
+
+  it('挂接定额可以搜出来再选：输入即出候选，点候选即填入编码', async () => {
+    await renderReady()
+    fireEvent.click(screen.getAllByRole('button', { name: '查看「施工便道（铺筑压实）」的综合单价分析' })[0]!)
+    const bill = await screen.findByTestId('cost-detail-bill')
+    fireEvent.click(within(bill).getByTestId('cost-bill-edit-open'))
+    await screen.findByTestId('cost-bill-edit')
+    fireEvent.change(screen.getByLabelText('挂接定额编码'), { target: { value: '企业' } })
+    const candidate = await screen.findByRole('option', { name: /企业定额/ })
+    fireEvent.click(within(candidate).getByRole('button'))
+    expect((screen.getByLabelText('挂接定额编码') as HTMLInputElement).value).toBe('ENT-01')
+    fireEvent.click(screen.getByTestId('cost-edit-link-attach'))
+    await waitFor(() => expect(mocks.WorkcostBillQuotaAttach).toHaveBeenCalledWith(11, 'ENT-01', 0))
   })
 })

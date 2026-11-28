@@ -240,6 +240,10 @@ type officeState struct {
 	costIndexStop     context.CancelFunc
 	costIndexStopOnce sync.Once
 
+	// 造价库检索时向量路最近一次的结果（按类目）：模型不可用时界面要明示（noteCostVec）。
+	costVecMu   sync.Mutex
+	costVecLast map[string]costVecState
+
 	// 文件语义索引自动维护：每 10 分钟增量重建（Ensure 内容感知）。
 	fileIndexStop     chan struct{}
 	fileIndexOnce     sync.Once

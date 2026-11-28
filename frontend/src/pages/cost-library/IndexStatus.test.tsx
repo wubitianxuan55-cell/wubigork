@@ -6,7 +6,7 @@ import type { CostIndexStatusView } from '../../gaea/lib/types'
 
 const KINDS = ['wc_quota', 'wc_res', 'wc_bill'] as const
 
-function st(kinds: Array<{ label: string; total: number; count: number; lastError?: string }>, running = true): CostIndexStatusView {
+function st(kinds: Array<{ label: string; total: number; count: number; lastError?: string; searchError?: string }>, running = true): CostIndexStatusView {
   return {
     model: 'bge-m3',
     running,
@@ -35,6 +35,13 @@ describe('indexSummary · 状态钮的文案分档', () => {
     expect(s.tone).toBe('warn')
     expect(s.text).toBe('语义索引 待补齐')
     expect(s.title).toContain('定额：embedding 模型不可用')
+  })
+
+  it('检索时发现向量模型不可用（索引是齐的）= 语义模型不可用（转警示色），明细带原因', () => {
+    const s = indexSummary(st([{ label: '定额', total: 2, count: 2, searchError: '本地向量模型请求失败：embedding HTTP 500' }, { label: '工料机', total: 3, count: 3 }]))
+    expect(s.tone).toBe('warn')
+    expect(s.text).toBe('语义模型 不可用')
+    expect(s.title).toContain('定额：本地向量模型请求失败：embedding HTTP 500')
   })
 
   it('一条向量都没有 = 未建', () => {

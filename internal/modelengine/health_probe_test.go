@@ -2,6 +2,7 @@ package modelengine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -177,8 +178,8 @@ func TestHealthProbe_NotifyOnlyOnChange(t *testing.T) {
 	}
 }
 
-// TestHealthProbe_SkipsLocalAndDisabled 本地引擎（herdsman，保活机制管理）与
-// 停用引擎不探测。
+// TestHealthProbe_SkipsLocalAndDisabled 本地引擎（llama，保活机制管理；Herdsman 是
+// 例外，见 TestHealthProbe_HerdsmanProbesRetrieval）与停用引擎不探测。
 func TestHealthProbe_SkipsLocalAndDisabled(t *testing.T) {
 	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -188,8 +189,8 @@ func TestHealthProbe_SkipsLocalAndDisabled(t *testing.T) {
 	defer srv.Close()
 
 	m := newProbeTestManager(t, srv.URL)
-	// herdsman 本地 + 启用 → 跳过；deepseek 云端 + 停用 → 跳过
-	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL, Enabled: true}); err != nil {
+	// llama 本地 + 启用 → 跳过；deepseek 云端 + 停用 → 跳过
+	if err := m.SaveEngine(EngineConfig{ID: "llama", BaseURL: srv.URL, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.SaveEngine(EngineConfig{ID: "deepseek", BaseURL: srv.URL, Enabled: false}); err != nil {
@@ -217,6 +218,118 @@ func TestHealthProbe_BadJSONStillConnected(t *testing.T) {
 	}
 	if st.ModelCount != 0 {
 		t.Errorf("坏 JSON ModelCount = %d, want 0", st.ModelCount)
+	}
+}
+
+// TestHealthProbe_HerdsmanProbesRetrieval Herdsman 进巡检，且连通之后对「在运行」的
+// 向量模型与精排模型各发一次真实小请求（2026-11-27 设备丢失那种故障：/models 照常
+// 列 running、请求回 500）——模型坏了 → Connected 仍是 true（聊天不受影响）、问题写进
+// Error 并回调一次，同一状态不再回调；停着的模型不探；恢复后 Error 清空并再回调。
+// 「测试连接」同源。
+func TestHealthProbe_HerdsmanProbesRetrieval(t *testing.T) {
+	var mu sync.Mutex
+	probed := map[string]int{} // 各模型被真实小请求探了几次
+	dead := &atomic.Bool{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/models") {
+			_, _ = w.Write([]byte(`{"data":[
+				{"id":"chat-35b","status":"running"},
+				{"id":"bge-m3","status":"running"},
+				{"id":"qwen3-embedding-4b","status":"stopped"},
+				{"id":"bge-reranker-v2-m3","status":"running"}]}`))
+			return
+		}
+		var req struct {
+			Model string `json:"model"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		mu.Lock()
+		probed[req.Model]++
+		mu.Unlock()
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/embeddings"):
+			if dead.Load() {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"error":{"code":500,"message":"decode() failed: vk::Queue::submit: ErrorDeviceLost","type":"server_error"}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":[{"embedding":[0.1,0.2]}]}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/rerank"):
+			_, _ = w.Write([]byte(`{"results":[]}`))
+		default:
+			t.Errorf("意外请求 %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	m := newProbeTestManager(t, srv.URL)
+	// 只看 herdsman：云端 deepseek 在这个测试里也指向假服务，会带来不相干的回调
+	if err := m.SaveEngine(EngineConfig{ID: "deepseek", Enabled: false}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveEngine(EngineConfig{ID: "herdsman", BaseURL: srv.URL + "/v1", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	var events []string
+	m.SetHealthNotifyFunc(func(id string, connected bool) {
+		mu.Lock()
+		events = append(events, fmt.Sprintf("%s=%v", id, connected))
+		mu.Unlock()
+	})
+
+	m.probeRound(context.Background())
+	if st := statusOf(t, m, "herdsman"); !st.Connected || st.Error != "" || st.ModelCount != 4 {
+		t.Fatalf("都正常时应连通且无问题: %+v", st)
+	}
+	mu.Lock()
+	if probed["bge-m3"] != 1 || probed["bge-reranker-v2-m3"] != 1 || probed["qwen3-embedding-4b"] != 0 {
+		mu.Unlock()
+		t.Fatalf("应各探一次在运行的向量 / 精排模型，停着的不探: %v", probed)
+	}
+	events = nil // 首轮「未检查 → 连通」的回调不算，下面只看检索模型坏 / 好引起的变化
+	mu.Unlock()
+
+	// 向量模型坏了
+	dead.Store(true)
+	m.probeRound(context.Background())
+	st := statusOf(t, m, "herdsman")
+	if !st.Connected {
+		t.Fatalf("聊天不受影响，连通性应保持 true: %+v", st)
+	}
+	if !strings.Contains(st.Error, "向量模型 bge-m3 不可用") || !strings.Contains(st.Error, "HTTP 500") ||
+		!strings.Contains(st.Error, "ErrorDeviceLost") || strings.Contains(st.Error, `{"error"`) || strings.Contains(st.Error, "精排") {
+		t.Fatalf("问题应点名向量模型并压成人话（精排是好的，不该点名）: %q", st.Error)
+	}
+	mu.Lock()
+	if len(events) != 1 || events[0] != "herdsman=true" {
+		mu.Unlock()
+		t.Fatalf("状态变化应回调一次（connected 仍为 true）: %v", events)
+	}
+	mu.Unlock()
+	m.probeRound(context.Background()) // 同一状态：不再回调
+	mu.Lock()
+	if len(events) != 1 {
+		mu.Unlock()
+		t.Fatalf("同一状态不该重复回调: %v", events)
+	}
+	mu.Unlock()
+
+	// 「测试连接」同源
+	ts, err := m.TestConnection(context.Background(), "herdsman")
+	if err != nil || ts == nil || !ts.Connected || !strings.Contains(ts.Error, "向量模型 bge-m3 不可用") {
+		t.Fatalf("测试连接应连通并点名问题: %+v %v", ts, err)
+	}
+
+	// 恢复
+	dead.Store(false)
+	m.probeRound(context.Background())
+	if st := statusOf(t, m, "herdsman"); !st.Connected || st.Error != "" {
+		t.Fatalf("恢复后应清除问题: %+v", st)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(events) != 2 || events[1] != "herdsman=true" {
+		t.Fatalf("恢复应再回调一次: %v", events)
 	}
 }
 

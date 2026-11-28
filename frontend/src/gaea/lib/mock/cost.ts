@@ -17,10 +17,12 @@ import type {
   WorkcostCompose,
   WorkcostComposeLineView,
   WorkcostComposeOverride,
+  WorkcostDictItem,
   WorkcostKind,
   WorkcostLibraryFilter,
   WorkcostQuota,
   WorkcostQuotaItem,
+  WorkcostQuotaRegionFix,
   WorkcostRateSet,
   WorkcostResource,
   WorkcostResourcePrice,
@@ -38,6 +40,8 @@ type CostMethods = Pick<
   | "WorkcostBillItemSave" | "WorkcostBillQuotaLinks" | "WorkcostBillQuotaAttach" | "WorkcostBillQuotaDetach"
   | "WorkcostBillProjectRatesSave" | "WorkcostBillProjectProfileSave"
   | "WorkcostBillSearch"
+  // 库维护（2026-11-28）：字典读写、定额解除全部挂接、定额地区回填。
+  | "WorkcostDictList" | "WorkcostDictSet" | "WorkcostQuotaDetachEverywhere" | "WorkcostQuotaRegionBackfill"
 >;
 
 // ── 工料法 mock 状态（工料机资源库 + 消耗定额库 + 清单，浏览器内存态）──
@@ -51,6 +55,26 @@ let mockBillSeq = 1;
 // 清单↔定额挂接（编辑面用；由种子清单行的 quotaCodes 播种，Attach/Detach 同步维护）。
 let mockBillLinks: WorkcostBillQuotaLink[] = [];
 let mockLinkSeq = 1;
+// 字典（规范值）与检索别名的演示态：首次访问时从已有数据机械收一遍（真实库升级时的做法）。
+const mockDictItems: WorkcostDictItem[] = [];
+let mockDictSeq = 1;
+function ensureDictSeed(): void {
+  if (mockDictItems.length > 0) return;
+  const push = (kind: string, name: string, parent = ""): void => {
+    if (name && !mockDictItems.some((d) => d.kind === kind && d.name === name)) {
+      mockDictItems.push({ id: mockDictSeq++, kind, name, parent });
+    }
+  };
+  for (const p of mockBillProjects) {
+    push("specialty", p.specialty);
+    push("region", p.region);
+  }
+  for (const q of mockQuotas) push("specialty", q.specialty);
+  for (const r of mockResources) {
+    push("region", r.region);
+    push("category", r.categoryPath);
+  }
+}
 
 // ensureWorkcostSeed 首次访问时播种演示数据（幂等）。
 function ensureWorkcostSeed(): void {
@@ -345,6 +369,60 @@ export function buildCost(_s: MakeMockState): CostMethods {
       return mockBillItems.filter((b) =>
         (projectId === 0 || b.projectId === projectId)
         && (kw === "" || b.title.includes(kw) || b.code.includes(kw) || (b.feature ?? "").includes(kw)));
+    },
+    // ── 库维护（2026-11-28）：字典 / 解除全部挂接 / 定额地区回填 ──
+    async WorkcostDictList(kind: string): Promise<WorkcostDictItem[]> {
+      ensureWorkcostSeed();
+      ensureDictSeed();
+      return mockDictItems.filter((d) => kind === "" || d.kind === kind);
+    },
+    async WorkcostDictSet(item: WorkcostDictItem, remove: boolean): Promise<void> {
+      ensureWorkcostSeed();
+      ensureDictSeed();
+      const name = item.name.trim();
+      const at = mockDictItems.findIndex((d) => d.kind === item.kind && d.name === name);
+      if (remove) {
+        if (at < 0) throw new Error(`字典里没有「${name}」`);
+        mockDictItems.splice(at, 1);
+        return;
+      }
+      if (!name) throw new Error("新增字典项需要名称");
+      if (item.kind === "alias" && !item.parent?.trim()) throw new Error("新增检索别名需要写明它对应的标准说法");
+      if (at < 0) mockDictItems.push({ id: mockDictSeq++, kind: item.kind, name, parent: item.parent ?? "", note: item.note ?? "" });
+    },
+    async WorkcostQuotaDetachEverywhere(code: string): Promise<number> {
+      ensureWorkcostSeed();
+      let n = 0;
+      for (const b of mockBillItems) {
+        if (b.quotaCode !== code && !(b.quotaCodes ?? []).includes(code)) continue;
+        n++;
+        b.quotaCode = "";
+        b.quotaCodes = (b.quotaCodes ?? []).filter((c) => c !== code);
+      }
+      mockBillLinks = mockBillLinks.filter((l) => l.quotaCode !== code);
+      return n;
+    },
+    async WorkcostQuotaRegionBackfill(dryRun: boolean): Promise<WorkcostQuotaRegionFix[]> {
+      ensureWorkcostSeed();
+      const out: WorkcostQuotaRegionFix[] = [];
+      for (const q of mockQuotas) {
+        if (q.region) continue;
+        const used = mockBillItems.filter((b) => b.quotaCode === q.code || (b.quotaCodes ?? []).includes(q.code));
+        const regions = [...new Set(used.map((b) => mockBillProjects.find((p) => p.id === b.projectId)?.region ?? "").filter(Boolean))];
+        const fix: WorkcostQuotaRegionFix = { code: q.code, title: q.title, links: used.length, applied: false };
+        if (used.length === 0) fix.reason = "没有被清单引用，没有上游项目可依据";
+        else if (regions.length === 0) fix.reason = "引用它的清单项目没标地区";
+        else if (regions.length > 1) fix.reason = `被 ${regions.length} 个省的项目引用（${regions.join("、")}），不猜`;
+        else {
+          fix.region = regions[0];
+          if (!dryRun) {
+            q.region = regions[0];
+            fix.applied = true;
+          }
+        }
+        out.push(fix);
+      }
+      return out;
     },
     async WorkcostBillItems(projectId: number): Promise<WorkcostBillItem[]> {
       ensureWorkcostSeed();

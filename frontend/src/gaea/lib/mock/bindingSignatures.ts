@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 680 名（原生变参 18 名已收窄标注）。
+// 共 684 名（原生变参 18 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -381,11 +381,15 @@ export const bindingSignatures = {
   GaeaWorkcostBillQuotaDetach: { argc: 2, variadic: false, params: "billItemID int64, linkID int64" },
   GaeaWorkcostBillQuotaLinks: { argc: 1, variadic: false, params: "billItemID int64" },
   GaeaWorkcostBillSearch: { argc: 3, variadic: false, params: "keyword string, specialty string, projectID int64" },
+  GaeaWorkcostDictList: { argc: 1, variadic: false, params: "kind string" },
+  GaeaWorkcostDictSet: { argc: 2, variadic: false, params: "item workcost.DictItem, remove bool" },
   GaeaWorkcostQuotaCompose: { argc: 2, variadic: false, params: "code string, overrides map[string]workcost.ComposeOverride" },
   GaeaWorkcostQuotaComposeMany: { argc: 1, variadic: false, params: "codes []string" },
   GaeaWorkcostQuotaDelete: { argc: 1, variadic: false, params: "code string" },
+  GaeaWorkcostQuotaDetachEverywhere: { argc: 1, variadic: false, params: "code string" },
   GaeaWorkcostQuotaGet: { argc: 1, variadic: false, params: "code string" },
   GaeaWorkcostQuotaList: { argc: 2, variadic: false, params: "specialty string, keyword string" },
+  GaeaWorkcostQuotaRegionBackfill: { argc: 1, variadic: false, params: "dryRun bool" },
   GaeaWorkcostQuotaSave: { argc: 1, variadic: false, params: "q workcost.Quota" },
   GaeaWorkcostResourceDelete: { argc: 2, variadic: false, params: "id int64, force bool" },
   GaeaWorkcostResourceGet: { argc: 1, variadic: false, params: "id int64" },
@@ -701,5 +705,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 680。
-export const bindingSignatureCount = 680;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 684。
+export const bindingSignatureCount = 684;

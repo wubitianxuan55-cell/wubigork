@@ -1,10 +1,12 @@
 package vecindex
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand"
 	"runtime"
@@ -696,6 +698,100 @@ func TestIndexer_RecordsLastError(t *testing.T) {
 	if nilIx.Model() != "" || nilIx.Kinds() != nil {
 		t.Fatal("nil 索引器的取值应为零值")
 	}
+}
+
+// 对账出错后的退避：失败只留待办、不唤醒，RetryAfter 到点再试；退避期间连打脏标记
+// 也不会立刻重试（2026-11-27 实测的「每 3 秒一次、20 小时 6.7 万次」回归钉）；模型
+// 恢复后不需要新的写入也会自动补上。
+func TestIndexer_ErrorBackoff(t *testing.T) {
+	h := testDB(t)
+	var fail atomic.Bool
+	fail.Store(true)
+	emb := &charEmbedder{dim: 8, failOn: func([]string) error {
+		if fail.Load() {
+			return errors.New("embedding HTTP 500: ErrorDeviceLost")
+		}
+		return nil
+	}}
+	ix := NewIndexer(h.st, "bge-m3", func() Embedder { return emb },
+		map[string]Source{"k": staticSource(Doc{"a", "内容"})}, "k")
+	ix.Debounce, ix.RetryAfter, ix.ReconcileEvery = 10*time.Millisecond, 120*time.Millisecond, 0
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); ix.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	// 一个半退避周期内连打几十次脏标记：旧实现每个合并窗口后都会再试（十几次），
+	// 现在只有启动那一次和到点的那一次。
+	deadline := time.Now().Add(180 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		MarkDirty("k")
+		time.Sleep(4 * time.Millisecond)
+	}
+	if n := emb.count(); n > 3 {
+		t.Fatalf("退避期内不应随脏标记立刻重试：一个半周期内向量化请求 %d 次", n)
+	}
+	if err, ok := ix.LastError("k"); !ok || err == nil {
+		t.Fatal("失败应记在案")
+	}
+	// 模型恢复：之后不再打脏标记，靠重试定时器补上。
+	fail.Store(false)
+	waitFor(t, 3*time.Second, func() bool { meta, _ := h.st.Meta("k"); return meta.Count == 1 })
+	if _, ok := ix.LastError("k"); ok {
+		t.Fatal("恢复后应清除错误记录")
+	}
+}
+
+// lockedWriter 给日志缓冲加锁（索引器在别的 goroutine 写）。
+type lockedWriter struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (w *lockedWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.Write(p)
+}
+
+func (w *lockedWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.String()
+}
+
+// 日志去重：连续失败只在第一次打 WARN，其余降 DEBUG（每隔 30 次再提醒一行）；恢复时
+// 打一行 INFO。模型一坏就是几小时，不能每分钟刷一行。
+func TestIndexer_FailureLogDeduped(t *testing.T) {
+	h := testDB(t)
+	var fail atomic.Bool
+	fail.Store(true)
+	emb := &charEmbedder{dim: 8, failOn: func([]string) error {
+		if fail.Load() {
+			return errors.New("embedding HTTP 500: ErrorDeviceLost")
+		}
+		return nil
+	}}
+	ix := NewIndexer(h.st, "bge-m3", func() Embedder { return emb },
+		map[string]Source{"k": staticSource(Doc{"a", "内容"})}, "k")
+	w := &lockedWriter{}
+	ix.log = slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ix.Debounce, ix.RetryAfter, ix.ReconcileEvery = 5*time.Millisecond, 15*time.Millisecond, 0
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); ix.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	waitFor(t, 3*time.Second, func() bool { return strings.Count(w.String(), "对账仍失败") >= 4 })
+	got := w.String()
+	if n := strings.Count(got, "level=WARN"); n != 1 {
+		t.Fatalf("连续失败只应有一行 WARN，得到 %d：\n%s", n, got)
+	}
+	if !strings.Contains(got, "对账失败，稍后重试") || strings.Contains(got, "索引恢复") {
+		t.Fatalf("第一行应是「对账失败」，且此时不该有「索引恢复」：\n%s", got)
+	}
+	fail.Store(false)
+	waitFor(t, 3*time.Second, func() bool { return strings.Count(w.String(), "索引恢复") == 1 })
 }
 
 func waitFor(t *testing.T, d time.Duration, cond func() bool) {
