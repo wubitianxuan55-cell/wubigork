@@ -6,6 +6,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,6 +73,34 @@ func TestRevisionCASWriteFile(t *testing.T) {
 		t.Fatalf("非法长度应报错: %v", err)
 	}
 	_ = ws
+}
+
+// TestRevisionCASAcceptsTrailerForms read_file 尾标写法原样照抄也认（2026-11-28
+// 黄甲反馈：尾标打印的就是「[revision sha256:<hex>]」，照抄带前缀的串被判非法）。
+func TestRevisionCASAcceptsTrailerForms(t *testing.T) {
+	ws, w, _ := casWorkspace(t)
+	if _, err := w.Execute(context.Background(), casArgs(t, map[string]any{
+		"path": "a.txt", "content": "v1", "expected_revision": "absent",
+	})); err != nil {
+		t.Fatalf("absent+新文件应成功: %v", err)
+	}
+	for i, form := range []string{"sha256:%s", "[revision sha256:%s]", " revision sha256:%s ", "[%s]"} {
+		rev, err := RevisionSHA256(filepath.Join(ws, "a.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Execute(context.Background(), casArgs(t, map[string]any{
+			"path": "a.txt", "content": fmt.Sprintf("v%d", i+2), "expected_revision": fmt.Sprintf(form, rev),
+		})); err != nil {
+			t.Fatalf("尾标写法 %q 应被接受: %v", form, err)
+		}
+	}
+	// 归一后仍须是 64 位 hex：前缀对、内容不对照样非法。
+	if _, err := w.Execute(context.Background(), casArgs(t, map[string]any{
+		"path": "a.txt", "content": "x", "expected_revision": "sha256:abc",
+	})); err == nil || !strings.Contains(err.Error(), "expected_revision 非法") {
+		t.Fatalf("sha256: 前缀 + 非法内容应报错: %v", err)
+	}
 }
 
 // TestFailureAsValueB2 钉「失败即值」结构：冲突=conflict 码+effect none+

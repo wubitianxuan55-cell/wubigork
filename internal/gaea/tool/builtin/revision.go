@@ -17,6 +17,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -60,6 +61,11 @@ func checkExpectedRevision(path string, current []byte, exists bool, expected st
 		}
 		return nil
 	}
+	// read_file 尾标打印的是「[revision sha256:<hex>]」，模型照抄带前缀的串（乃至
+	// 整个尾标）是最自然的用法，此前一律判非法（2026-11-28 黄甲反馈，实测撞过
+	// 一次）。归一到裸 hex 再校验。
+	expected = strings.TrimPrefix(strings.TrimSpace(strings.Trim(strings.TrimSpace(expected), "[]")), "revision ")
+	expected = strings.TrimSpace(strings.TrimPrefix(expected, "sha256:"))
 	if len(expected) != 64 {
 		return &tool.Failure{
 			Code:        tool.CodeValidationError,
