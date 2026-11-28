@@ -1687,7 +1687,7 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 			sub.SteerParent(m)
 		}
 	}
-	_, runErr := sub.Run(runCtx, prompt)
+	runRes, runErr := sub.Run(runCtx, prompt)
 	// Populate subUsage from the sub-agent's last usage so SubUsage() reflects
 	// real token counts for cost tracking.
 	if subUsage != nil {
@@ -1697,6 +1697,12 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 	}
 	// V10.5: even on error, extract partial result from last assistant message
 	lastMsg := extractLastAssistantMessage(sess.Messages)
+	// 没跑完时带上它已经动过的文件（2026-11-28 黄甲反馈：四路子代理断流后，主控
+	// 只能手工比对章节文件字节数确认有没有半成品）。
+	filesNote := ""
+	if runErr != nil {
+		filesNote = subagentFilesNote(runRes)
+	}
 	if runErr != nil {
 		// 结算语义（P1-C，dsh SubagentStopReason 蒸馏）：父模型必须能分辨
 		// 「被打断」与「真失败」——前者重派有意义（换口径/放大预算），后者
@@ -1707,20 +1713,59 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 			// aborted 而非 failed——用户主动停不再冒充「出错」（编队卡整批
 			// 红脸的根因）。文案不变（P1-C 断言依赖）。
 			if lastMsg != "" {
-				return lastMsg, fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop); partial result kept below\n%s: %w", lastMsg, context.Canceled)
+				return lastMsg, fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop); partial result kept below\n%s%s: %w", lastMsg, filesNote, context.Canceled)
 			}
-			return "", fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop): %w", context.Canceled)
+			return "", fmt.Errorf("sub-agent interrupted before finishing (via interrupt_agent or turn stop)%s: %w", filesNote, context.Canceled)
 		}
 		diag := sanitizeSubagentDiagnostic(runErr.Error())
 		if lastMsg != "" {
-			return lastMsg, fmt.Errorf("sub-agent error before finishing; partial result kept below\n%s\n[diagnostic] %s", lastMsg, diag)
+			return lastMsg, fmt.Errorf("sub-agent error before finishing; partial result kept below\n%s\n[diagnostic] %s%s", lastMsg, diag, filesNote)
 		}
-		return "", fmt.Errorf("sub-agent error before finishing: %s", diag)
+		return "", fmt.Errorf("sub-agent error before finishing: %s%s", diag, filesNote)
 	}
 	if lastMsg != "" {
 		return lastMsg, nil
 	}
 	return "", fmt.Errorf("sub-agent finished without producing a final answer")
+}
+
+// subagentFilesNote 子代理没跑完时，把它这一轮经工具动过的文件列成一段，接在
+// 失败/中断回执后面（2026-11-28 黄甲反馈：四路子代理断流后，主控只能手工比对
+// 章节文件字节数确认有没有半成品写入）。只认经工具动过的（write/edit/move 等有
+// 写路径声明的）；bash 脚本内部写出的文件认不出来。没动过文件返回空串。
+func subagentFilesNote(res *TurnResult) string {
+	if res == nil {
+		return ""
+	}
+	created := uniqFiles(res.FilesCreated)
+	createdSet := make(map[string]bool, len(created))
+	for _, f := range created {
+		createdSet[f] = true
+	}
+	var touched []string
+	for _, f := range uniqFiles(res.FilesModified) {
+		if !createdSet[f] {
+			touched = append(touched, f)
+		}
+	}
+	if len(created) == 0 && len(touched) == 0 {
+		return ""
+	}
+	const show = 12
+	var lines []string
+	list := func(verb string, files []string) {
+		for i, f := range files {
+			if i == show {
+				lines = append(lines, fmt.Sprintf("  …等共 %d 件", len(files)))
+				break
+			}
+			lines = append(lines, "  "+verb+" "+f)
+		}
+	}
+	list("新建", created)
+	list("改写/移动/删除", touched)
+	return "\n[已动过的文件] 中断前经工具动过以下文件（半成品可能在内，续派或重派前先核对）：\n" +
+		strings.Join(lines, "\n")
 }
 
 // ── 结算语义（P1-C，dsh SubagentStopReason 蒸馏）────────────────────

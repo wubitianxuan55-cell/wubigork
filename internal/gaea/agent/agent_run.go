@@ -407,15 +407,19 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		// only dedup ReadOnly tools — bash/git_commit etc. may produce
 		// different results on repeated calls (state changed between calls).
 		for i, call := range calls {
-			// track writer tool paths for TurnResult
-			switch call.Name {
-			case "write_file":
-				if p := extractFilePath(call.Name, call.Arguments); p != "" {
-					turnFilesCreated = append(turnFilesCreated, p)
-				}
-			case "edit_file", "move_file":
-				if p := extractFilePath(call.Name, call.Arguments); p != "" {
-					turnFilesModified = append(turnFilesModified, p)
+			// track writer tool paths for TurnResult（失败或被拦的调用不计：没动成文件
+			// 就不是「动过的文件」——子代理失败回执的文件清单据此而立，报了一个其实
+			// 没写成的文件会误导主控，2026-11-28 黄甲反馈）
+			if !hasToolErrorPrefix(results[i]) {
+				switch call.Name {
+				case "write_file":
+					if p := extractFilePath(call.Name, call.Arguments); p != "" {
+						turnFilesCreated = append(turnFilesCreated, p)
+					}
+				case "edit_file", "move_file":
+					if p := extractFilePath(call.Name, call.Arguments); p != "" {
+						turnFilesModified = append(turnFilesModified, p)
+					}
 				}
 			}
 			// collect tool errors, blocks, and suppressions for TurnResult (max 5):
