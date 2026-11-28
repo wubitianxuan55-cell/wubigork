@@ -188,6 +188,59 @@ d.save(r"` + docx + `")
 	}
 }
 
+// TestFormatConvertOutputWithoutPreserveStripsDataImages 落盘但不保图时产物只含
+// 文字（2026-11-28 黄甲反馈）：此前 base64 原样内嵌进落盘的 md——50MB 的方案转出
+// 53MB，后续 read_file 单行超 1MB、summarize_file 切出 1055 块。
+func TestFormatConvertOutputWithoutPreserveStripsDataImages(t *testing.T) {
+	const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII="
+	dir := t.TempDir()
+	imagePath := filepath.Join(dir, "figure.png")
+	raw, err := base64.StdEncoding.DecodeString(png)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(imagePath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	docx := filepath.Join(dir, "with-image.docx")
+	script := `
+from docx import Document
+from docx.shared import Inches
+d = Document()
+d.add_heading("第一章 工艺", level=1)
+d.add_paragraph("工艺流程图如下：")
+d.add_picture(r"` + imagePath + `", width=Inches(0.25))
+d.save(r"` + docx + `")
+`
+	if out, err := exec.Command("python", "-c", script).CombinedOutput(); err != nil {
+		t.Skipf("python-docx 不可用，跳过: %v %s", err, out)
+	}
+	out := filepath.Join(dir, "converted.md")
+	args, err := json.Marshal(map[string]any{"path": docx, "output": out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := (formatConvert{}).Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("output file not generated: %v", err)
+	}
+	if strings.Contains(string(data), "data:image/") {
+		t.Fatalf("不保图落盘时产物不得带 base64 图片: %.600s", data)
+	}
+	if !strings.Contains(string(data), "工艺流程图如下") {
+		t.Fatalf("正文应保留: %.600s", data)
+	}
+	for _, want := range []string{"内嵌图片 1 张未导出", "preserve_images=true"} {
+		if !strings.Contains(res, want) {
+			t.Fatalf("回执应说明图片去向（含 %q）: %.600s", want, res)
+		}
+	}
+}
+
 // 用户按停止：转换还没完也要立即返回（ctx.Err），让本轮收尾——否则 executeBatch 死等
 // 这个工具，下一条消息一直「排队中」（2026-11-26 实弹：174 页扫描件 OCR 堵到重启）。
 // 取消后不落盘；后台那次转换跑完即弃。

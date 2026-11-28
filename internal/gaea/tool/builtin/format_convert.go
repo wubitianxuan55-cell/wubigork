@@ -35,7 +35,7 @@ func (formatConvert) Schema() json.RawMessage {
   "output":{"type":"string","description":"输出文件路径：转 Markdown 时可省略（不指定则返回文本）；to=xlsx 时必填（.xlsx）；to=docx 时必填（.docx）"},
   "pages":{"type":"string","description":"PDF 页码区间（如 1-500、501-676 或 1,3,5）：任意区间都行，单次最多 500 页；超限报错并给出分段写法（或改用 all_pages）。仅 PDF 有效；to=xlsx/to=docx 时只收一段连续页"},
   "all_pages":{"type":"boolean","description":"PDF 转 Markdown 时，超过单次上限（500 页）自动分段转完并拼接（须给 output，与 pages 互斥）；回执汇总总页数与各段页码"},
-  "preserve_images":{"type":"boolean","description":"保留 DOCX/PPTX 内嵌图片：要求同时给 output，图片写入同名 -assets 目录，Markdown 改相对引用。录方案库时建议开启"},
+  "preserve_images":{"type":"boolean","description":"保留 DOCX/PPTX 内嵌图片：要求同时给 output，图片写入同名 -assets 目录，Markdown 改相对引用。录方案库时建议开启；不设则产物只含文字（图片不导出）"},
   "to":{"type":"string","enum":["md","xlsx","docx"],"description":"md（默认）=转 Markdown；xlsx=PDF/图片转 Excel 表格（走本机 WPS，需登录会员）；docx=PDF 转 Word 文档（走本机 WPS pdf2word，需登录会员）——录方案库的 PDF 源必须先走它"},
   "scanned":{"type":"string","enum":["auto","true","false"],"description":"仅 to=xlsx/to=docx 且输入是 PDF：auto=自动判断（默认）；true=按扫描件走 WPS 在线识别；false=按文字型走本地引擎"},
   "ai_fix":{"type":"boolean","description":"仅 to=xlsx 的在线识别路线：AI 修复，默认开（数字零丢改，约 14 秒/页）；false 快 8 倍但约 5% 数字格会丢改"},
@@ -274,6 +274,13 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 				return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "保存文档图片失败: %v", err)
 			}
 			images = externalized
+		} else if strings.Contains(md, "](data:image/") {
+			// 落盘但不保图：产物只留文字（2026-11-28 黄甲反馈）。此前 base64 原样内嵌
+			// 进落盘的 md——50MB 的方案转出 53MB，后续 read_file 单行超 1MB、
+			// summarize_file 切出 1055 块，模型只能自己写脚本剥图。不落盘返回那条路
+			// 一直在剥（见下），这里补齐；要图片走上面的 preserve_images=true。
+			images = strings.Count(md, "](data:image/")
+			md = docmd.StripDataImages(md)
 		}
 		if err := os.WriteFile(p.Output, []byte(md), 0o644); err != nil {
 			return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "写入输出文件失败: %v", err)
@@ -290,7 +297,7 @@ func (f formatConvert) Execute(ctx context.Context, args json.RawMessage) (strin
 		case images > 0 && p.PreserveImages:
 			detail += fmt.Sprintf("（保留图片 %d 张到 %s）", images, assetDir)
 		case images > 0:
-			detail += "（图片以 data URI 内嵌在 Markdown 里；要落成图片文件请设 preserve_images=true）"
+			detail += fmt.Sprintf("（内嵌图片 %d 张未导出，产物只含文字；需要图片请设 preserve_images=true 重转）", images)
 		case p.PreserveImages && strings.EqualFold(filepath.Ext(p.Path), ".pdf"):
 			detail += "（未抽取到图片：该 PDF 没有内嵌图，或本机没有 WPS、只做了纯文本提取）"
 		}
