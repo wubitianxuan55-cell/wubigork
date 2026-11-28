@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 
+	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -31,8 +32,8 @@ func (a *AgentRunner) precheckToolFor(t tool.Tool, name string, args json.RawMes
 }
 
 // precheckEditFile verifies that old_string exists in the target file before
-// letting edit_file run. Uses the toolCache when available; falls back to a
-// direct read. This catches the single most common agent failure pattern:
+// letting edit_file run, against the on-disk text (see readFileForPrecheck).
+// This catches the single most common agent failure pattern:
 // the model sends an old_string that doesn't match the current file content.
 //
 // 判定口径与 edit_file 工具一致（anchorPresent）：只是空白漂了的锚点工具自己能
@@ -60,31 +61,25 @@ func (a *AgentRunner) precheckEditFile(tl tool.Tool, raw json.RawMessage) string
 	return "precheck blocked: old_string not found in " + p.Path + ".\n" + editMissHint(content, p.OldString)
 }
 
-// readFileForPrecheck returns file content for precheck purposes. Uses the
-// toolCache when available (faster, no disk IO); falls back to a direct read.
+// readFileForPrecheck returns the on-disk text for precheck purposes.
+//
+// 只读磁盘，不走 toolCache（2026-11-28 黄甲反馈）：缓存槽 (path, 0, 0) 里存的是
+// read_file 的**渲染输出**（行号槽「 1→」+ 尾标），不是文件原文。此前预检拿它
+// 比对，模型做过一次不带 offset/limit 的整读之后，多行 old_string 必然 not found
+// ——子代理改 ch04，锚点确在原文偏移 37 处，连拦 3 次；单行锚点能在带行号的
+// 一行里子串命中，所以只在多行锚点上现形。也不再往那个槽里回写原文（会顶掉
+// 渲染结果）。解码口径与 edit_file 一致（fileenc.Detect→Decode）：此前按原始
+// 字节比，GBK 文件里的中文锚点同样会被误拦。
 func (a *AgentRunner) readFileForPrecheck(path string) (string, bool) {
 	if a.access != nil {
 		if err := a.access.CheckPreview(context.Background(), path); err != nil {
 			return "", false
 		}
 	}
-	// Try the tool cache first (cached read_file results from this turn).
-	if a.tc != nil {
-		if content, hit := a.tc.Get(path, 0, 0); hit {
-			return content, true
-		}
-	}
-	// Fall back to a direct read.
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", false
 	}
-	content := string(b)
-	// Populate the tool cache so the subsequent Execute() call (edit_file, etc.)
-	// reuses this read instead of hitting the disk again.
-	// V10.13: 消除 precheck→execute 的重复文件 I/O，对大文件效果显著。
-	if a.tc != nil {
-		a.tc.Set(path, 0, 0, content)
-	}
-	return content, true
+	enc, _ := fileenc.Detect(b)
+	return string(fileenc.Decode(b, enc)), true
 }
