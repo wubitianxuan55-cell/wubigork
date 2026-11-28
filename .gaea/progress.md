@@ -8160,3 +8160,15 @@ App.palette 锚测试改判（openToolTab 签名放宽，语义锚不变）；�
   Go 侧无等价库（pdfcpu 不做文本/绘图提取）；引新依赖是拍板项，挂池不硬做。
 - 门禁：builtin/docmd 全包绿、toolface 三档过、app 全量绿（前批）。余：提交/
   打包装机挂令。
+
+## 2026-11-28 记忆注入三刀：众神殿论证收口落地（提交 5cdf8229，包 gaea-memory-inject-20261128-5cdf8229 冒烟 200 装机 PID 26212）
+
+- 论证真源：`%APPDATA%/gaea/pantheon/results/pan_1795821263932_6dec471393fe.md`（四席三轮：保 A 4096 整块+预算不动，纯文档化/B 拆块出局，落三项实证修复）。
+- **刀1 固化块发射面+溢出提示**：`BuildPinnedFacts` 返回 Block+Emitted/Truncated/Omitted；溢出点名提示计入块预算（先降级点名、挪已发射行是最后手段，纯提示块兜底）；boot 写发射面入 Set，`finishMemoryReload` 中途换 Set 携带快照（去重依据跟前缀走不重算）。
+- **刀2 召回 emitted 级去重**：RecallBlock 与 RecallBlockFused 统一只排「已发射且未截断」的 pinned——修掉办公路径 pinned 双份注入与聊天席全量跳过的「两处皆失」洞。
+- **刀3 索引确定性准入**：renderIndex 两段准入（procedural 非 pinned 优先，组内 Name 升序；touch/评分不参与）；file 后端不动。
+- **基线实测（副本库只读探针，一次性已删）**：最大项目 55 条、索引原始 5556B→注入 4160B **截断真实发生**；修复后 procedural 非 pinned 准入缺口=0；全库 pinned=0（固化块/去重路径暂无实弹负载，单测已钉）。P95/相邻轮 SystemHash 仍欠真机会话观察。
+- **③画像↔固化交集核验**：user+semantic+pinned 条目会画像 desc 行+固化 body 行两处出现——量级小（画像 600 rune 预算内一行），挂拍板池不私自动刀。
+- 挂拍板池：③交集处置、DocBlock 接线或废弃（零调用点）、B 拆块+目录、固化块预算扩容、面板溢出计数。
+- **缓存命中率实弹（11-28 上午补测，探针读 gaea-log.jsonl 的 request_header.prefixStable + usage 缓存拆分）**：四场真机会话 252 请求、251 个相邻对 prefixStable=true 全绿、L1/工具面漂移告警 0 次——论证台账「相邻轮 SystemHash 实弹」关账。命中率（provider 实报）：沿江包1 97.8%（67 轮/523 万 prompt tok）、南岸 94.6%、太化 88.0%、铜陵 98.6%（121 轮/1400 万 tok）；全史聚合 model_stats.json：deepseek-flash 98.8% / glm-5.3-flash 98.7% / grok-4.7 93.7%，本地 herdsman 25-27% 为 llama KV 口径。miss=每轮新增尾部 tokens（召回在尾部属既定设计）。装机后（PID 26212）尚无实弹轮，下次聊天后可复跑对比。
+- 余：真机走查（记忆面板固化/溢出提示、召回去重观感）+ push 待令。
