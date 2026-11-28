@@ -27,6 +27,10 @@ const (
 	MergeThresholdRunes = 20000
 	// MaxExtractBytes guards against reading absurdly large raw text files.
 	MaxExtractBytes = 100 << 20 // 100MB
+	// MaxChunksPerSummary 单次摘要的块数上限：每块一次模型调用（十几到几十秒），
+	// 超过这个数不是「等久一点」能解决的，直接报错并给出缩小范围的办法
+	// （2026-11-28 黄甲反馈：实测第 4/1055 块超时后整单作废，事前没有任何量级提示）。
+	MaxChunksPerSummary = 60
 	// summarizeChunkTimeout bounds each provider call.
 	summarizeChunkTimeout = 90 * time.Second
 )
@@ -38,6 +42,9 @@ type Options struct {
 	// Focus narrows what the summary should emphasize
 	// (e.g. "关键数据与表格清单" or "结论与建议").
 	Focus string
+	// MaxChunks is the per-run chunk ceiling; <=0 falls back to
+	// MaxChunksPerSummary.
+	MaxChunks int
 }
 
 // Result is the outcome of SummarizeFile.
@@ -60,6 +67,9 @@ type MultiResult struct {
 // ExtractText pulls a file's text for summarization: office documents go
 // through docmd (PDF capped at maxPDFPages, 0 = no cap); everything else is
 // read as plain text with a 100MB guard.
+//
+// 进分块前一律去掉内嵌图片的 base64（2026-11-28 黄甲反馈）：摘要只吃文字，
+// base64 进来只会撑大块数——实测一份带图的 53MB 素材 md 切出 1055 块。
 func ExtractText(path string, maxPDFPages int) (string, int, error) {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".docx", ".doc", ".xls", ".xlsx", ".pdf":
@@ -67,7 +77,7 @@ func ExtractText(path string, maxPDFPages int) (string, int, error) {
 		if err != nil {
 			return "", 0, err
 		}
-		return md, total, nil
+		return stripDataImages(md), total, nil
 	default:
 		info, err := os.Stat(path)
 		if err != nil {
@@ -80,8 +90,15 @@ func ExtractText(path string, maxPDFPages int) (string, int, error) {
 		if err != nil {
 			return "", 0, err
 		}
-		return string(b), 0, nil
+		return stripDataImages(string(b)), 0, nil
 	}
+}
+
+func stripDataImages(text string) string {
+	if !strings.Contains(text, "data:image/") {
+		return text
+	}
+	return docmd.StripDataImages(text)
 }
 
 // ChunkText splits text into paragraph-aware chunks of at most chunkRunes
@@ -150,9 +167,22 @@ func Summarize(ctx context.Context, prov provider.Provider, text string, opts Op
 	if prov == nil {
 		return "", 0, fmt.Errorf("没有可用的模型服务")
 	}
+	// 量级闸：块数超上限直接报错，不让模型等几十分钟后才拿到一句超时。
+	maxChunks := opts.MaxChunks
+	if maxChunks <= 0 {
+		maxChunks = MaxChunksPerSummary
+	}
+	if len(chunks) > maxChunks {
+		chunkRunes := opts.ChunkRunes
+		if chunkRunes <= 0 {
+			chunkRunes = DefaultChunkRunes
+		}
+		return "", 0, fmt.Errorf("共 %d 块，超过单次摘要上限 %d 块（每块约 %d 字）：文件太大——先用 format_convert 落盘，再按章节分段读取；只摘要其中一部分就先拆出那部分",
+			len(chunks), maxChunks, chunkRunes)
+	}
 	summaries := make([]string, 0, len(chunks))
 	for i, c := range chunks {
-		s, serr := summarizeChunk(ctx, prov, c, i+1, len(chunks), opts.Focus)
+		s, serr := summarizeChunkRetry(ctx, prov, c, i+1, len(chunks), opts.Focus)
 		if serr != nil {
 			return "", 0, fmt.Errorf("第 %d/%d 块摘要失败: %w", i+1, len(chunks), serr)
 		}
@@ -160,13 +190,24 @@ func Summarize(ctx context.Context, prov provider.Provider, text string, opts Op
 	}
 	merged := strings.Join(summaries, "\n\n")
 	if len(chunks) > 1 && runeLen(merged) > MergeThresholdRunes {
-		final, ferr := summarizeChunk(ctx, prov, merged, 1, 1, opts.Focus+"（合并总览）")
+		final, ferr := summarizeChunkRetry(ctx, prov, merged, 1, 1, opts.Focus+"（合并总览）")
 		if ferr != nil {
 			return "", 0, fmt.Errorf("合并摘要失败: %w", ferr)
 		}
 		return final, len(chunks), nil
 	}
 	return merged, len(chunks), nil
+}
+
+// summarizeChunkRetry 单块瞬时失败（超时、断流）重试一次（2026-11-28 黄甲反馈：
+// 此前一块慢就整单作废——实测第 4/1055 块 90 秒超时后直接报错）。调用方已取消时
+// 不重试。
+func summarizeChunkRetry(ctx context.Context, prov provider.Provider, text string, index, total int, focus string) (string, error) {
+	s, err := summarizeChunk(ctx, prov, text, index, total, focus)
+	if err == nil || ctx.Err() != nil {
+		return s, err
+	}
+	return summarizeChunk(ctx, prov, text, index, total, focus)
 }
 
 // SummarizeFile extracts and summarizes a file in one call.
@@ -214,7 +255,7 @@ func SummarizeFiles(ctx context.Context, prov provider.Provider, paths []string,
 		perFile = append(perFile, fmt.Sprintf("## %s%s\n%s", filepath.Base(p), suffix, res.Summary))
 	}
 	merged := strings.Join(perFile, "\n\n")
-	final, err := summarizeChunk(ctx, prov, merged, 1, 1, opts.Focus+"（多文件合并总览）")
+	final, err := summarizeChunkRetry(ctx, prov, merged, 1, 1, opts.Focus+"（多文件合并总览）")
 	if err != nil {
 		return nil, fmt.Errorf("多文件合并摘要失败: %w", err)
 	}

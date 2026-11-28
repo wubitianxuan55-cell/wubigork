@@ -3,6 +3,7 @@ package largefile
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,19 +14,28 @@ import (
 )
 
 // mockProv is a canned provider: each Stream call returns the next reply.
+// fails 为第几次调用（1 起）返回错误——重试逻辑的回归钉用。
 type mockProv struct {
 	calls   int
 	replies []string
+	fails   map[int]error
 }
 
 func (m *mockProv) Name() string { return "mock" }
 
 func (m *mockProv) Stream(_ context.Context, _ provider.Request) (<-chan provider.Chunk, error) {
-	reply := "摘要块"
-	if m.calls < len(m.replies) {
-		reply = m.replies[m.calls]
-	}
+	call := m.calls + 1
 	m.calls++
+	if err, bad := m.fails[call]; bad {
+		ch := make(chan provider.Chunk, 1)
+		ch <- provider.Chunk{Type: provider.ChunkError, Err: err}
+		close(ch)
+		return ch, nil
+	}
+	reply := "摘要块"
+	if call-1 < len(m.replies) {
+		reply = m.replies[call-1]
+	}
 	ch := make(chan provider.Chunk, 1)
 	ch <- provider.Chunk{Type: provider.ChunkText, Text: reply}
 	close(ch)
@@ -201,5 +211,68 @@ func TestSummarizeFiles_MultiMerge(t *testing.T) {
 func TestSummarize_NilProvider(t *testing.T) {
 	if _, _, err := Summarize(context.Background(), nil, "内容", Options{}); err == nil {
 		t.Error("nil provider should error")
+	}
+}
+
+// 2026-11-28 黄甲反馈：带 base64 图片的素材 md 不该按图片体积切块——实测一份
+// 53MB 的素材切出 1055 块、第 4 块超时后整单作废。
+func TestExtractText_StripsDataImages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "source.md")
+	body := "# 方案\n\n正文第一段。\n\n![工艺图](data:image/png;base64," + strings.Repeat("QUJD", 200000) + ")\n\n正文第二段。\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text, _, err := ExtractText(path, 0)
+	if err != nil {
+		t.Fatalf("ExtractText: %v", err)
+	}
+	if strings.Contains(text, "data:image/") || len(text) > 200 {
+		t.Fatalf("内嵌图片的 base64 应在分块前去掉：len=%d head=%.120q", len(text), text)
+	}
+	if !strings.Contains(text, "正文第一段") || !strings.Contains(text, "正文第二段") {
+		t.Fatalf("正文应保留：%q", text)
+	}
+}
+
+// 量级闸：块数超上限直接报错，一次模型调用都不发起。
+func TestSummarize_ChunkCapFailsFast(t *testing.T) {
+	text := strings.Repeat("段落内容。\n\n", 12)
+	prov := &mockProv{}
+	_, _, err := Summarize(context.Background(), prov, text, Options{ChunkRunes: 20, MaxChunks: 3})
+	if err == nil || !strings.Contains(err.Error(), "超过单次摘要上限 3 块") || !strings.Contains(err.Error(), "format_convert") {
+		t.Fatalf("超限应报错并给出路：%v", err)
+	}
+	if prov.calls != 0 {
+		t.Fatalf("超限不该发起模型调用，got %d", prov.calls)
+	}
+}
+
+// 单块瞬时失败重试一次：失败一次整单照成；连败两次才作废；调用方已取消不重试。
+func TestSummarize_RetriesChunkOnce(t *testing.T) {
+	text := "第一段。\n\n第二段。\n\n第三段。\n\n第四段。"
+	transient := errors.New("context deadline exceeded")
+
+	prov := &mockProv{fails: map[int]error{2: transient}}
+	if _, chunks, err := Summarize(context.Background(), prov, text, Options{ChunkRunes: 6}); err != nil || chunks != 4 {
+		t.Fatalf("失败一次应重试后成功：chunks=%d err=%v", chunks, err)
+	}
+	if prov.calls != 5 {
+		t.Fatalf("应为 4 块 + 1 次重试，got %d", prov.calls)
+	}
+
+	prov = &mockProv{fails: map[int]error{2: transient, 3: transient}}
+	_, _, err := Summarize(context.Background(), prov, text, Options{ChunkRunes: 6})
+	if err == nil || !strings.Contains(err.Error(), "第 2/4 块摘要失败") {
+		t.Fatalf("连败两次应作废并点名块号：%v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	prov = &mockProv{fails: map[int]error{1: ctx.Err()}}
+	if _, _, err := Summarize(ctx, prov, text, Options{ChunkRunes: 6}); err == nil {
+		t.Fatal("已取消应报错")
+	}
+	if prov.calls != 1 {
+		t.Fatalf("已取消不该重试，got %d", prov.calls)
 	}
 }
