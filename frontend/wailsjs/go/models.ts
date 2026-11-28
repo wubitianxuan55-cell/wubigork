@@ -2945,11 +2945,11 @@ export namespace app {
 	    chars: number;
 	    images: number;
 	    missing: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ProposalExportView(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -3082,11 +3082,11 @@ export namespace app {
 	    removed: number;
 	    removedChars: number;
 	    missingAssets: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ProposalStructureView(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.op = source["op"];
@@ -8343,70 +8343,16 @@ export namespace proposal {
 	    key: string;
 	    label: string;
 	    count: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Facet(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.key = source["key"];
 	        this.label = source["label"];
 	        this.count = source["count"];
-	    }
-	}
-	export class IndexStatus {
-	    vecDone: number;
-	    vecTotal: number;
-	    orphanFts: number;
-	    missingFts: number;
-	    staleFts: number;
-	    missingChunks: number;
-	    staleChunks: number;
-	    model: string;
-
-	    static createFrom(source: any = {}) {
-	        return new IndexStatus(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.vecDone = source["vecDone"];
-	        this.vecTotal = source["vecTotal"];
-	        this.orphanFts = source["orphanFts"];
-	        this.missingFts = source["missingFts"];
-	        this.staleFts = source["staleFts"];
-	        this.missingChunks = source["missingChunks"];
-	        this.staleChunks = source["staleChunks"];
-	        this.model = source["model"];
-	    }
-	}
-	export class Twin {
-	    proposalName: string;
-	    proposalTitle: string;
-	    projectType: string;
-	    year: string;
-	    sectionId: number;
-	    level: number;
-	    title: string;
-	    titlePath: string;
-	    chars: number;
-
-	    static createFrom(source: any = {}) {
-	        return new Twin(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.proposalName = source["proposalName"];
-	        this.proposalTitle = source["proposalTitle"];
-	        this.projectType = source["projectType"];
-	        this.year = source["year"];
-	        this.sectionId = source["sectionId"];
-	        this.level = source["level"];
-	        this.title = source["title"];
-	        this.titlePath = source["titlePath"];
-	        this.chars = source["chars"];
 	    }
 	}
 	export class Hit {
@@ -8423,9 +8369,9 @@ export namespace proposal {
 	    childCount: number;
 	    snippet: string;
 	    matched: string[];
+	    source?: string;
 	    keywordScore?: number;
 	    semanticScore?: number;
-	    source?: string;
 	    rerankScore?: number;
 	    children?: Child[];
 	
@@ -8448,9 +8394,9 @@ export namespace proposal {
 	        this.childCount = source["childCount"];
 	        this.snippet = source["snippet"];
 	        this.matched = source["matched"];
+	        this.source = source["source"];
 	        this.keywordScore = source["keywordScore"];
 	        this.semanticScore = source["semanticScore"];
-	        this.source = source["source"];
 	        this.rerankScore = source["rerankScore"];
 	        this.children = this.convertValues(source["children"], Child);
 	    }
@@ -8472,6 +8418,60 @@ export namespace proposal {
 		    }
 		    return a;
 		}
+	}
+	export class IndexStatus {
+	    vecDone: number;
+	    vecTotal: number;
+	    orphanFts: number;
+	    missingFts: number;
+	    staleFts: number;
+	    missingChunks: number;
+	    staleChunks: number;
+	    model: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IndexStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vecDone = source["vecDone"];
+	        this.vecTotal = source["vecTotal"];
+	        this.orphanFts = source["orphanFts"];
+	        this.missingFts = source["missingFts"];
+	        this.staleFts = source["staleFts"];
+	        this.missingChunks = source["missingChunks"];
+	        this.staleChunks = source["staleChunks"];
+	        this.model = source["model"];
+	    }
+	}
+	export class Twin {
+	    proposalName: string;
+	    proposalTitle: string;
+	    projectType: string;
+	    year: string;
+	    sectionId: number;
+	    level: number;
+	    title: string;
+	    titlePath: string;
+	    chars: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Twin(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.proposalName = source["proposalName"];
+	        this.proposalTitle = source["proposalTitle"];
+	        this.projectType = source["projectType"];
+	        this.year = source["year"];
+	        this.sectionId = source["sectionId"];
+	        this.level = source["level"];
+	        this.title = source["title"];
+	        this.titlePath = source["titlePath"];
+	        this.chars = source["chars"];
+	    }
 	}
 
 }
