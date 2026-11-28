@@ -1,3 +1,12 @@
+## 2026-11-28 傍晚 造价库索引与编辑优化批：单笔提交 + 包 gaea-cost-idxedit-20261128-6b3e5373 装机 PID 27272（ZCode；随本批 push）
+
+- 来源：用户令「优化完善造价数据库、成本库的索引和编辑功能」。只读盘底（活库 9 项目 / 275 清单 / 340 定额 / 283 工料机；330 条定额未归分部、340 条定额地区全空、字典 10 专业而行上只有「土壤修复」在用）后交三批方案，三个拍板点用户未另行表态、按我建议走：①批量改维度 / 新增字典值放进板块 ②撤销不做 ③后端分页不做。期间查出 11-27 傍晚起的检索故障（Herdsman bge-m3 等 llama-server 进程 Vulkan `ErrorDeviceLost`，`/v1/models` 照常 running，语义检索静默失效 20 小时；用户在 Herdsman 重开模型进程即恢复），善后三刀并入本批先做。中途用户令「构建桌面端」（主树整树构建装机 PID 13840），随后「git打包推送」。
+- **单笔提交 `6b3e5373`**（53 文件 +4091/−380，两批纠缠拆不绿）：善后三刀（索引器失败退避 + 日志去重，原实现失败路径 `ix.Mark(k)` 立即唤醒把 RetryAfter 架空——每 3 秒 3 个失败请求、20 小时 6.7 万次；检索向量路失败经 `VecNote` 上报、`searchError` 进索引状态、搜索框旁明示 + 重试钮；Herdsman 巡检对在运行向量 / 精排各发一次真实小请求、测试连接同源、坏了 `Connected` 仍 true 不触发故障转移）｜索引优化（空白分词多词全含、分面计数随搜索联动〔自己这维的筛选不套进自己的计数〕、状态筛选、定额地区筛选、待整理浮层逐项直点、主列表按相关度序 + 词条高亮 + 「语义」来源标、检索别名 `kind=alias` 查询词双向展开〔exact=true 不展开〕）｜编辑扩展（规范值下拉改读字典 + 就地新增、期数手填、未保存守卫 + Ctrl+S/Esc、改现行价自动登记调价历史、新建清单项 / 定额 / 工料机、定额与工料机复制另存、勾选批量改维度逐行回报成败〔不做整体回滚〕、挑选器输入即搜、删除卡「解除挂接后删除」与工料机「连同解除引用删除」、定额地区回填先预览后落库〔只被一个省引用的才写〕）｜提示词与 `.gaea/AGENTS.md` 库页约定同步改口：板块可批量改维度 / 加字典值，批量导入、解析、模型读表归类、Excel 批量调价仍归造价模式。
+- **绑定面 680→684**（+4 `GaeaWorkcostDictList/DictSet/QuotaDetachEverywhere/QuotaRegionBackfill`），生成物四份再生 + 前端六处登记 + wailsjs 手同步（构建再生逐字一致）。
+- **门禁**：gofmt / build / vet 净；`golangci --new-from-rev HEAD` 0；workcost / vecindex / modelengine 全绿（后两个 `-race`）；**app 1401 例四分片全绿**；tsc 0 错、eslint 0 错；前端全量 vitest 999 文件 9560 例全绿（分片墙钟 159s）；`check-bindings-drift` OK（684）、`check-docs` OK（AGENTS.md 25,238 B，32KB 注入预算内）。
+- **包**：`releases/gaea-cost-idxedit-20261128-6b3e5373/`——干净树 `.worktrees/pkg-6b3e5373`（junction node_modules）vite 26s + wails 57s（bindings 未跳过），忽略行尾绑定零实质漂移；payload 冒烟 `/api/health` 200；INSTALL OK 新壳 **PID 27272**（17:19:36 > 构建时刻）`18123/healthz` 200；包版四件回写 `build/bin` 三处哈希一致；worktree 已回收（junction 先摘，主树 node_modules 500 完好）。SHA256：exe `82949133…`，zip `2F0496AB…`（34.3MB），src.zip `A33EF9F6…`（831.7MB）。
+- **余**：真机走查（多词 / 分面联动 / 状态筛选 / 批量改 / 新建复制 / 回填 / 别名实弹）；检索别名内容为空待添加；后端分页与撤销按用户默认不做（过万条再立项）；`.worktrees/` 里还留着 7 个更早批次的 pkg-* 干净树（pkg-25a68941 等）未回收，待令清理。
+
 ## 2026-11-28 下午 黄甲 AI 反馈批：十一刀十三笔提交 + 包 gaea-huangjia-fb-20261128-58b8e9b6 装机 PID 30388（ZCode；未 push）
 
 - 来源：黄甲竣工报告会话里 gaea 自生成的《软件使用问题与建议报告》（台账 6 条 `fb17958…`）。先对码分诊，用户说「会话刚刚完成」后按会话事件日志取证（日志在**工作区** `.gaea/sessions/work/*.gaea-log.jsonl`，不在 %APPDATA%）：源会话 09:32–12:40 整场跑在 ead1952a 包上，报告每条都成立；用户令「按照你的推荐开始」。包说明见 `releases/gaea-huangjia-fb-20261128-58b8e9b6/PACKAGE-INFO.md`。
