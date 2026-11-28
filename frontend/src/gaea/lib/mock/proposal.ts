@@ -1,12 +1,18 @@
 // mock/proposal.ts — 方案库域（浏览器开发模式的内存实现，无 Go 内核）。
-// demo 场景给一份可交互的示例技术标（1~4 级标题树）；fresh 场景为空库。
-// 检索只做关键词包含匹配（dev 态没有本地 embedding / reranker），回执标注 keyword。
+// demo 场景给两份可交互的示例方案（1~4 级标题树）；fresh 场景为空库。
+// 检索只做关键词包含匹配（dev 态没有本地 embedding / reranker），回执标注 keyword；
+// 结构修正 / 同题对照 / 索引体检照真机的回执形态做；导出要文件系统，dev 态不支持。
 import type { AppBindings } from "../bridge";
 import type {
+  ProposalExportResult,
+  ProposalFacet,
   ProposalHit,
+  ProposalIndexStatus,
   ProposalSearchResult,
   ProposalSectionNode,
+  ProposalStructureResult,
   ProposalSummary,
+  ProposalTwin,
 } from "../types/proposal";
 import type { MakeMockState } from "./state";
 
@@ -14,7 +20,8 @@ type ProposalMethods = Pick<
   AppBindings,
   "GaeaProposalList" | "GaeaProposalOutline" | "GaeaProposalRead" | "GaeaProposalSearch" | "GaeaProposalDelete" |
   "GaeaProposalUpdateMeta" | "GaeaProposalUpdateSection" |
-  "GaeaProposalAssetDataURL"
+  "GaeaProposalAssetDataURL" | "GaeaProposalSectionOp" | "GaeaProposalTwins" |
+  "GaeaProposalIndexStatus" | "GaeaProposalReindex" | "GaeaProposalExport"
 >;
 
 interface MockSection {
@@ -108,6 +115,45 @@ const childrenOf = (p: MockProposal, idx: number) =>
     .filter(({ s }) => s.parentId === p.sectionsData[idx].id)
     .map(({ s }) => ({ id: s.id, level: s.level, title: s.title, chars: s.body.length }));
 
+// ── 标题树结构（与 Go 侧 structure.go 同一套规则） ──
+
+/** nodes[i] 的子树结束下标（不含）。 */
+const subtreeEnd = (nodes: MockSection[], i: number): number => {
+  for (let j = i + 1; j < nodes.length; j++) if (nodes[j].level <= nodes[i].level) return j;
+  return nodes.length;
+};
+
+/** nodes[i] 上一个同级小节的下标；已是本层第一个时为 -1。 */
+const prevSibling = (nodes: MockSection[], i: number): number => {
+  for (let k = i - 1; k >= 0; k--) {
+    if (nodes[k].level === nodes[i].level) return k;
+    if (nodes[k].level < nodes[i].level) break;
+  }
+  return -1;
+};
+
+/** 结构改动后重连父节点（父=前面最近的更高级标题）。 */
+const relink = (p: MockProposal): void => {
+  const stack: number[] = [];
+  for (const s of p.sectionsData) {
+    while (stack.length >= s.level) stack.pop();
+    s.parentId = stack.length ? stack[stack.length - 1] : 0;
+    stack.push(s.id);
+  }
+};
+
+/** 同题键：标题路径各段去掉开头编号（首段的纯数字章号也算编号）。 */
+const twinKey = (path: string): string =>
+  path.split(" › ").map((seg, i) => {
+    let core = seg.trim()
+      .replace(/^第[一二三四五六七八九十百千零〇两\d]+(章|篇|部分|部|卷|编|册)[\s\u3000:：、.．]*/, "")
+      .replace(/^\d{1,4}(?:\.\d{1,4})+[\s\u3000:：]*/, "")
+      .replace(/^[一二三四五六七八九十]{1,3}[\s\u3000]*[、.．][\s\u3000]*/, "")
+      .replace(/^[（(][\s\u3000]*[一二三四五六七八九十]{1,3}[\s\u3000]*[）)][\s\u3000]*/, "");
+    if (i === 0) core = core.replace(/^\d{1,3}[\s\u3000]+(\D.+)$/, "$1");
+    return core.replace(/\s+/g, " ");
+  }).join(" › ");
+
 function mark(text: string, terms: string[]): string {
   let out = text;
   for (const t of terms) out = out.split(t).join(`【${t}】`);
@@ -127,6 +173,12 @@ export function buildProposal(state: MakeMockState): ProposalMethods {
 
   const find = (name: string) => proposals.find((p) => p.name === name || p.title === name);
   const summaryOf = ({ sectionsData: _s, ...rest }: MockProposal): ProposalSummary => rest;
+  const indexStatus = (): ProposalIndexStatus => ({
+    vecDone: proposals.reduce((n, p) => n + p.indexDone, 0),
+    vecTotal: proposals.reduce((n, p) => n + p.indexTotal, 0),
+    orphanFts: 0, missingFts: 0, staleFts: 0, missingChunks: 0, staleChunks: 0,
+    model: "mock-embed",
+  });
 
   return {
     async GaeaProposalList() {
@@ -135,6 +187,7 @@ export function buildProposal(state: MakeMockState): ProposalMethods {
     async GaeaProposalOutline(name: string) {
       const p = find(name);
       if (!p) throw new Error(`方案库里没有《${name}》`);
+      relink(p);
       return p.sectionsData.map((_, i) => nodeOf(p, i));
     },
     async GaeaProposalRead(sectionId: number) {
@@ -153,37 +206,97 @@ export function buildProposal(state: MakeMockState): ProposalMethods {
         children: childrenOf(p, idx),
       };
     },
-    async GaeaProposalSearch(query: string, scope: string, level: number, projectType: string, year: string, proposal: string, limit: number) {
+    async GaeaProposalSearch(query, scope, level, projectType, year, proposal, under, offset, sort, limit) {
       const terms = query.split(/[\s,，、。；;：/|()（）]+/).filter(Boolean);
-      if (terms.length === 0) return { hits: [], mode: "keyword", note: "" };
+      if (terms.length === 0) return { hits: [], total: 0, offset, byProposal: [], byChapter: [], mode: "keyword", note: "" };
       const titleOnly = scope === "title";
-      const hits: ProposalHit[] = [];
-      for (const p of proposals) {
-        if (projectType && p.projectType !== projectType) continue;
-        if (year && p.year !== year) continue;
-        if (proposal && p.name !== proposal && p.title !== proposal) continue;
-        p.sectionsData.forEach((s, i) => {
-          const node = nodeOf(p, i);
-          const hay = titleOnly ? node.titlePath : `${node.titlePath}\n${s.body}`;
-          const matched = terms.filter((t) => hay.includes(t));
-          if (matched.length !== terms.length) return;
-          if (level && s.level !== level) return;
-          hits.push({
-            proposalName: p.name, proposalTitle: p.title, projectType: p.projectType, year: p.year, status: p.status,
-            sectionId: s.id, level: s.level, title: s.title, titlePath: node.titlePath, chars: s.body.length,
-            childCount: childrenOf(p, i).length,
-            snippet: titleOnly ? mark(node.titlePath, matched) : snippetOf(hay, matched),
-            matched,
-          });
-        });
-      }
       const top = limit > 0 ? limit : 10;
-      return { hits: hits.slice(0, top), mode: titleOnly ? "title" : "keyword", note: "浏览器开发模式无本地模型，仅按关键词匹配" } satisfies ProposalSearchResult;
+      // under：限定在某个标题之下（含它自己）→ 所在方案及其下标区间
+      let scoped: MockProposal | undefined;
+      let lo = -1;
+      let hi = -1;
+      if (under > 0) {
+        for (const p of proposals) {
+          const i = p.sectionsData.findIndex((s) => s.id === under);
+          if (i >= 0) {
+            scoped = p;
+            lo = i;
+            hi = subtreeEnd(p.sectionsData, i);
+            break;
+          }
+        }
+      }
+      const collect = (needAll: boolean, opts: { scope: boolean; range: boolean }): ProposalHit[] => {
+        const out: ProposalHit[] = [];
+        for (const p of proposals) {
+          if (opts.scope) {
+            if (projectType && p.projectType !== projectType) continue;
+            if (year && p.year !== year) continue;
+            if (scoped ? p !== scoped : proposal && p.name !== proposal && p.title !== proposal) continue;
+          }
+          p.sectionsData.forEach((s, i) => {
+            if (opts.scope && opts.range && scoped && (i < lo || i >= hi)) return;
+            const node = nodeOf(p, i);
+            const hay = titleOnly ? node.titlePath : `${node.titlePath}\n${s.body}`;
+            const matched = terms.filter((t) => hay.includes(t));
+            if (matched.length < (needAll ? terms.length : 1)) return;
+            if (opts.scope && level && s.level !== level) return;
+            out.push({
+              proposalName: p.name, proposalTitle: p.title, projectType: p.projectType, year: p.year, status: p.status,
+              sectionId: s.id, level: s.level, title: s.title, titlePath: node.titlePath, chars: s.body.length,
+              childCount: childrenOf(p, i).length,
+              snippet: titleOnly ? mark(node.titlePath, matched) : snippetOf(hay, matched),
+              matched, source: "keyword",
+            });
+          });
+        }
+        return out;
+      };
+      // 多词全含一个都没有：放宽为任一词
+      let relaxed = false;
+      let hits = collect(true, { scope: true, range: true });
+      if (hits.length === 0 && terms.length > 1) {
+        hits = collect(false, { scope: true, range: true });
+        relaxed = hits.length > 0;
+      }
+      // sort="doc" 与相关度在 dev 态都是文档顺序（没有排序模型）
+      void sort;
+      const byProposal: ProposalFacet[] = [];
+      for (const h of collect(!relaxed, { scope: false, range: false })) {
+        const f = byProposal.find((x) => x.key === h.proposalName);
+        if (f) f.count += 1;
+        else byProposal.push({ key: h.proposalName, label: h.proposalTitle, count: 1 });
+      }
+      const byChapter: ProposalFacet[] = [];
+      const one = scoped ?? (proposal ? find(proposal) : undefined);
+      if (one && !titleOnly) {
+        for (const h of collect(!relaxed, { scope: true, range: false })) {
+          if (h.proposalName !== one.name) continue;
+          const at = one.sectionsData.findIndex((s) => s.id === h.sectionId);
+          let chapterId = 0;
+          let chapterTitle = "";
+          for (let i = at; i >= 0; i--) {
+            if (one.sectionsData[i].level === 1) {
+              chapterId = one.sectionsData[i].id;
+              chapterTitle = one.sectionsData[i].title;
+              break;
+            }
+          }
+          if (!chapterId) continue;
+          const key = String(chapterId);
+          const f = byChapter.find((x) => x.key === key);
+          if (f) f.count += 1;
+          else byChapter.push({ key, label: chapterTitle, count: 1 });
+        }
+      }
+      return {
+        hits: hits.slice(offset, offset + top), total: hits.length, offset, byProposal, byChapter, relaxed,
+        mode: titleOnly ? "title" : "keyword", note: "浏览器开发模式无本地模型，仅按关键词匹配",
+      } satisfies ProposalSearchResult;
     },
     async GaeaProposalDelete(name: string) {
       if (!find(name)) throw new Error(`方案 ${name} 不存在`);
       proposals = proposals.filter((p) => !(p.name === name || p.title === name));
-      void nextId++;
     },
     async GaeaProposalUpdateMeta(name, title, projectType, year, summary) {
       const p = find(name);
@@ -214,6 +327,142 @@ export function buildProposal(state: MakeMockState): ProposalMethods {
     async GaeaProposalAssetDataURL(ref: string) {
       if (!ref.startsWith("gaea-asset://")) throw new Error("方案图片引用无效");
       return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl9sAAAAASUVORK5CYII=";
+    },
+    async GaeaProposalSectionOp(sectionId, op, offset, title): Promise<ProposalStructureResult> {
+      const p = proposals.find((x) => x.sectionsData.some((s) => s.id === sectionId));
+      const idx = p ? p.sectionsData.findIndex((s) => s.id === sectionId) : -1;
+      if (!p || idx < 0) throw new Error(`小节 ${sectionId} 不存在（方案可能已被覆盖重录）`);
+      const secs = p.sectionsData;
+      const cur = secs[idx];
+      const lv = cur.level;
+      const end = subtreeEnd(secs, idx);
+      const prev = prevSibling(secs, idx);
+      const next = end < secs.length && secs[end].level === lv ? end : -1;
+      const t = title.replace(/\s+/g, " ").trim();
+      const needTitle = () => { if (!t) throw new Error("新小节的标题不能为空"); };
+      const absorb = (into: MockSection, from: MockSection) => {
+        const a = into.body.trim();
+        const b = from.body.trim();
+        into.body = !a ? b : !b ? a : `${a}\n\n${b}`;
+      };
+      let focus = cur.id;
+      let created = 0;
+      let removed = 0;
+      let removedChars = 0;
+      switch (op) {
+        case "promote": {
+          if (lv <= 1) throw new Error("它已是 1 级标题，不能再用「升级」");
+          const sub = secs.splice(idx, end - idx);
+          sub.forEach((s) => { s.level -= 1; });
+          let at = idx; // 落点：原父节的子树末尾
+          for (; at < secs.length; at++) if (secs[at].level <= lv - 1) break;
+          secs.splice(at, 0, ...sub);
+          break;
+        }
+        case "demote": {
+          if (lv >= 4) throw new Error("它已是 4 级标题，不能再降级");
+          if (prev < 0) throw new Error("它前面没有同级小节，降级后没有可挂靠的上一节；先把它上移 / 下移到合适的位置再降级");
+          for (let k = idx; k < end; k++) secs[k].level += 1;
+          break;
+        }
+        case "moveUp": {
+          if (prev < 0) throw new Error("它已经是上一级标题下的第一个小节，不能再上移");
+          const block = secs.splice(idx, end - idx);
+          const mid = secs.splice(prev, idx - prev);
+          secs.splice(prev, 0, ...block, ...mid);
+          break;
+        }
+        case "moveDown": {
+          if (next < 0) throw new Error("它已经是上一级标题下的最后一个小节，不能再下移");
+          const nextEnd = subtreeEnd(secs, next);
+          const mid = secs.splice(next, nextEnd - next);
+          const block = secs.splice(idx, end - idx);
+          secs.splice(idx, 0, ...mid, ...block);
+          break;
+        }
+        case "split": {
+          if (lv >= 4) throw new Error("它已是 4 级标题，下面不能再拆出子节；可以先给它升级");
+          needTitle();
+          let cut = Math.max(0, Math.min(offset, cur.body.length));
+          while (cut > 0 && cur.body[cut - 1] !== "\n") cut -= 1;
+          if (cut <= 0) throw new Error("光标在本节第一行，拆分后本节会没有正文；把光标移到要拆出去的那一段再拆");
+          const tail = cur.body.slice(cut).replace(/^\n+/, "");
+          if (!tail.trim()) throw new Error("光标之后没有正文可拆出去");
+          cur.body = cur.body.slice(0, cut).replace(/[\n \t\r]+$/, "");
+          const n: MockSection = { id: nextId++, parentId: cur.id, level: lv + 1, title: t, chars: 0, body: tail };
+          secs.splice(idx + 1, 0, n);
+          focus = n.id;
+          created = 1;
+          break;
+        }
+        case "mergeParent": {
+          if (lv <= 1) throw new Error("它是 1 级标题，上面没有父节可并入");
+          if (prev >= 0) throw new Error("它不是父节下的第一个小节，并入后正文会排到前面几节之前；要保住阅读顺序请用「并入上一同级小节」");
+          absorb(secs[idx - 1], cur);
+          for (let k = idx + 1; k < end; k++) secs[k].level -= 1;
+          secs.splice(idx, 1);
+          focus = secs[idx - 1].id;
+          removed = 1;
+          break;
+        }
+        case "mergePrev": {
+          if (prev < 0) throw new Error("它前面没有同级小节可并入");
+          absorb(secs[prev], cur);
+          secs.splice(idx, 1);
+          focus = secs[prev].id;
+          removed = 1;
+          break;
+        }
+        case "remove": {
+          removed = end - idx;
+          removedChars = secs.slice(idx, end).reduce((n, s) => n + s.body.length, 0);
+          focus = prev >= 0 ? secs[prev].id : idx > 0 ? secs[idx - 1].id : end < secs.length ? secs[end].id : 0;
+          secs.splice(idx, end - idx);
+          break;
+        }
+        case "addChild":
+        case "addSibling": {
+          if (op === "addChild" && lv >= 4) throw new Error("它已是 4 级标题，下面不能再加子节；可以改用「新增同级小节」");
+          needTitle();
+          const n: MockSection = { id: nextId++, parentId: 0, level: op === "addChild" ? lv + 1 : lv, title: t, chars: 0, body: "" };
+          secs.splice(end, 0, n);
+          focus = n.id;
+          created = 1;
+          break;
+        }
+        default:
+          throw new Error(`未知的结构操作 "${op}"`);
+      }
+      relink(p);
+      return { op, focusId: focus, affected: secs.length, created, removed, removedChars, missingAssets: [] };
+    },
+    async GaeaProposalTwins(sectionId: number): Promise<ProposalTwin[]> {
+      const owner = proposals.find((x) => x.sectionsData.some((s) => s.id === sectionId));
+      const idx = owner ? owner.sectionsData.findIndex((s) => s.id === sectionId) : -1;
+      if (!owner || idx < 0) throw new Error(`小节 ${sectionId} 不存在（方案可能已被覆盖重录）`);
+      const key = twinKey(titlePathOf(owner, idx));
+      const out: ProposalTwin[] = [];
+      for (const p of proposals) {
+        if (p === owner) continue;
+        p.sectionsData.forEach((s, i) => {
+          const node = nodeOf(p, i);
+          if (twinKey(node.titlePath) !== key) return;
+          out.push({
+            proposalName: p.name, proposalTitle: p.title, projectType: p.projectType, year: p.year,
+            sectionId: s.id, level: s.level, title: s.title, titlePath: node.titlePath, chars: s.body.length,
+          });
+        });
+      }
+      return out;
+    },
+    async GaeaProposalIndexStatus() {
+      return indexStatus();
+    },
+    async GaeaProposalReindex() {
+      return indexStatus();
+    },
+    async GaeaProposalExport(_name: string, _outputPath: string): Promise<ProposalExportResult> {
+      throw new Error("浏览器开发模式没有文件系统，导出请用桌面端");
     },
   };
 }

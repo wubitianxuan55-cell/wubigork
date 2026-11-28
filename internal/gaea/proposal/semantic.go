@@ -519,24 +519,38 @@ func (s *Store) SemanticRecall(ctx context.Context, e Embedder, model, query str
 // HybridSearch 混合检索：全文路（精确词）与语义路（段落向量）各出候选，按小节
 // 用名次融合，再用本地 reranker 对候选小节精排。语义或精排不可用时逐级降级
 // （全文路照常），不因本地模型状态让检索失败。
+//
+// 翻页（2026-11-28）：候选池（全文路前 kwPool 条 + 语义召回）的精排 / 融合序排在
+// 最前，其后接没进候选池的其余全文命中（按全文路排序）；偏移超过候选池容量时
+// 直接走纯全文路，不再调本地模型。语义路失败时退成纯全文检索并在回执里
+// SearchError 注明原因。
 func (s *Store) HybridSearch(ctx context.Context, in SearchInput, sem *Semantic) (*SearchResult, error) {
 	if err := s.available(); err != nil {
 		return nil, err
 	}
-	if sem == nil || sem.Embed == nil || strings.TrimSpace(in.Query) == "" || in.Scope == ScopeTitle {
+	in.normalize()
+	if sem == nil || sem.Embed == nil || strings.TrimSpace(in.Query) == "" || in.Scope == ScopeTitle ||
+		in.Sort == SortDoc || in.Offset >= rerankPool {
 		return s.Search(in)
 	}
-	in.normalize()
+	if ok, err := s.resolve(&in); err != nil || !ok {
+		return &SearchResult{Offset: in.Offset}, err
+	}
+	terms := SplitTerms(in.Query)
 	pool := in
-	pool.TopN = kwPool
-	kw, err := s.Search(pool)
+	pool.TopN, pool.Offset, pool.Facets = kwPool, 0, false
+	limit := kwPool*3 + 20
+	if in.Offset > 0 || in.Facets {
+		limit = matchCap // 要翻页或算分面：取全
+	}
+	kw, err := s.keywordMatch(pool, terms, kwPool*3+20, limit)
 	if err != nil {
 		return nil, err
 	}
-	if pool.pid == 0 && strings.TrimSpace(in.Proposal) != "" {
-		return kw, nil // 指定了不存在的方案：Search 已返回空
+	kwHead, err := s.kwHits(kw, pool, terms, 0, kwPool)
+	if err != nil {
+		return nil, err
 	}
-	res := &SearchResult{Mode: "hybrid"}
 
 	// 语义路：先小预算补齐未向量化的块（模型一致才补），再召回。
 	var vecHits []ChunkHit
@@ -544,27 +558,31 @@ func (s *Store) HybridSearch(ctx context.Context, in SearchInput, sem *Semantic)
 		_, _, _ = s.EmbedPending(ctx, sem.Embed, sem.Model, pool.pid, SearchIndexBudget)
 	}
 	if vecHits, err = s.SemanticRecall(ctx, sem.Embed, sem.Model, in.Query, pool.pid, vecTopK); err != nil {
-		if errors.Is(err, ErrEmbedModelMismatch) {
-			res.Note = "语义索引的 embedding 模型已变更，旧向量不可用，本次只按全文路检索；重新录入或重建索引后恢复语义检索"
-		} else {
-			res.Note = "本地 embedding 不可用，本次只按全文路检索"
+		kwRes, sErr := s.Search(in)
+		if sErr != nil {
+			return nil, sErr
 		}
-		res.Hits = kw.Hits[:min(len(kw.Hits), in.TopN)]
-		res.Mode = "keyword"
-		return res, nil
+		kwRes.SearchError = err.Error()
+		if errors.Is(err, ErrEmbedModelMismatch) {
+			kwRes.Note = "语义索引的 embedding 模型已变更，旧向量不可用，本次只按全文路检索；重建索引后恢复语义检索"
+		} else {
+			kwRes.Note = "本地 embedding 不可用，本次只按全文路检索"
+		}
+		return kwRes, nil
 	}
+	res := &SearchResult{Mode: "hybrid", Offset: in.Offset, Total: kw.total, Relaxed: kw.relaxed}
 
 	byID := map[int64]*cand{}
 	var order []*cand
-	for i, h := range kw.Hits {
+	for i, h := range kwHead {
 		c := &cand{hit: h}
 		c.fused += 1 / (rrfK + float64(i+1))
 		byID[h.SectionID], order = c, append(order, c)
 	}
 
 	// 语义路独有命中的小节先取元数据并过一遍检索过滤。全文路的候选已在 SQL 里过滤过；
-	// 语义召回只按方案收窄，层级/类型/年度必须在这里补上——否则这些过滤条件会被
-	// 语义路绕过（真实程序实测：限定 2 级却混进 4 级命中）。
+	// 语义召回只按方案收窄，层级/类型/年度/标题范围必须在这里补上——否则这些过滤条件
+	// 会被语义路绕过（真实程序实测：限定 2 级却混进 4 级命中）。
 	uniq := make([]ChunkHit, 0, len(vecHits))
 	seen := map[int64]bool{}
 	for _, vh := range vecHits {
@@ -592,7 +610,7 @@ func (s *Store) HybridSearch(ctx context.Context, in SearchInput, sem *Semantic)
 				vecBody[r.id] = r.body
 			}
 		}
-		hs, err := s.enrich(kept, nil, false)
+		hs, err := s.enrich(kept, nil, false, true)
 		if err != nil {
 			return nil, err
 		}
@@ -600,16 +618,19 @@ func (s *Store) HybridSearch(ctx context.Context, in SearchInput, sem *Semantic)
 			vecHit[h.SectionID] = h
 		}
 	}
+	semOnly := 0
 	rank := 0
 	for _, vh := range uniq {
 		c, ok := byID[vh.SectionID]
 		if !ok {
 			h, allowed := vecHit[vh.SectionID]
 			if !allowed {
-				continue // 被层级/类型/年度过滤掉
+				continue // 被层级/类型/年度/标题范围过滤掉
 			}
+			h.Source = "semantic"
 			c = &cand{hit: h}
 			byID[vh.SectionID], order = c, append(order, c)
+			semOnly++
 			// 没有全文命中段落：摘要取语义路最相关的那一块原文。
 			if rs := []rune(vecBody[vh.SectionID]); vh.Start <= len(rs) {
 				end := min(vh.Start+vh.Len, len(rs))
@@ -620,24 +641,30 @@ func (s *Store) HybridSearch(ctx context.Context, in SearchInput, sem *Semantic)
 		rank++
 		v := vh
 		c.vec, c.hit.SemanticScore = &v, vh.Score
+		if c.hit.Source == "keyword" {
+			c.hit.Source = "both"
+		}
 		c.fused += 1 / (rrfK + float64(rank))
 	}
 	sort.SliceStable(order, func(i, j int) bool { return order[i].fused > order[j].fused })
 	if len(order) > rerankPool {
 		order = order[:rerankPool]
 	}
-	res.Hits = make([]Hit, 0, len(order))
+	var ranked []Hit
+	reranked := false
 	if sem.Rerank != nil {
-		if ranked, ok := rerankCands(ctx, sem.Rerank, in.Query, order); ok {
-			for _, c := range ranked {
-				res.Hits = append(res.Hits, c.hit)
+		if list, ok := rerankCands(ctx, sem.Rerank, in.Query, order); ok {
+			reranked = true
+			for _, c := range list {
+				ranked = append(ranked, c.hit)
 			}
-			res.Note = "已本地精排"
 		}
 	}
-	if len(res.Hits) == 0 {
+	if reranked {
+		res.Note = "已本地精排"
+	} else {
 		for _, c := range order {
-			res.Hits = append(res.Hits, c.hit)
+			ranked = append(ranked, c.hit)
 		}
 		if len(vecHits) > 0 {
 			res.Note = "本地精排不可用，按全文与语义名次融合排序"
@@ -645,8 +672,27 @@ func (s *Store) HybridSearch(ctx context.Context, in SearchInput, sem *Semantic)
 			res.Note = "语义路无命中，按全文路排序"
 		}
 	}
-	if len(res.Hits) > in.TopN {
-		res.Hits = res.Hits[:in.TopN]
+	res.Total = kw.total + semOnly
+
+	// 本页：候选池里从 Offset 起的一段，不够再从候选池之后的全文命中里接。
+	off := in.Offset
+	var page []Hit
+	if off < len(ranked) {
+		page = append(page, ranked[off:min(len(ranked), off+in.TopN)]...)
+	}
+	if len(page) < in.TopN {
+		from := len(kwHead) + max(0, off-len(ranked))
+		more, err := s.kwHits(kw, pool, terms, from, from+in.TopN-len(page))
+		if err != nil {
+			return nil, err
+		}
+		page = append(page, more...)
+	}
+	res.Hits = page
+	if in.Facets {
+		if res.ByProposal, res.ByChapter, err = s.facets(in, terms, kw.relaxed); err != nil {
+			return nil, err
+		}
 	}
 	return res, nil
 }
@@ -700,7 +746,8 @@ func rerankCands(ctx context.Context, r Reranker, query string, cands []*cand) (
 	return out, true
 }
 
-// rowMatches 判别一个小节是否满足检索过滤（层级/类型/年度；限定方案已在召回时收窄）。
+// rowMatches 判别一个小节是否满足检索过滤（层级/类型/年度/标题范围；限定方案已在
+// 召回时收窄）。
 func rowMatches(r candRow, in SearchInput) bool {
 	if in.Level > 0 && r.level != in.Level {
 		return false
@@ -709,6 +756,9 @@ func rowMatches(r candRow, in SearchInput) bool {
 		return false
 	}
 	if in.Year != "" && r.pyear != in.Year {
+		return false
+	}
+	if in.Under > 0 && (r.seq < in.seqLo || r.seq >= in.seqHi) {
 		return false
 	}
 	return true

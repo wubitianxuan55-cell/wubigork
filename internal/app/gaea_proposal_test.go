@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/base64"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -147,8 +148,8 @@ func TestProposalBindingsListOutlineReadSearchDelete(t *testing.T) {
 		t.Fatal("不存在的小节应报错")
 	}
 
-	res, err := a.GaeaProposalSearch("边坡 失稳", "", 0, "", "", "", 10)
-	if err != nil || res == nil || len(res.Hits) != 1 {
+	res, err := a.GaeaProposalSearch("边坡 失稳", "", 0, "", "", "", 0, 0, "", 10)
+	if err != nil || res == nil || len(res.Hits) != 1 || res.Total != 1 || len(res.ByProposal) != 1 {
 		t.Fatalf("Search: %v %+v", err, res)
 	}
 	// 两个相邻的命中词连成一个【】标记段
@@ -160,14 +161,14 @@ func TestProposalBindingsListOutlineReadSearchDelete(t *testing.T) {
 		t.Fatalf("降级说明缺失: mode=%q note=%q", res.Mode, res.Note)
 	}
 	// 过滤：层级 / 限定方案 / 标题树范围
-	if res, _ = a.GaeaProposalSearch("沉降", "", 2, "", "", "", 10); res == nil || len(res.Hits) != 1 || res.Hits[0].Level != 2 {
+	if res, _ = a.GaeaProposalSearch("沉降", "", 2, "", "", "", 0, 0, "", 10); res == nil || len(res.Hits) != 1 || res.Hits[0].Level != 2 {
 		t.Fatalf("层级过滤: %+v", res)
 	}
-	if res, _ = a.GaeaProposalSearch("沉降", "", 0, "", "", "别的方案", 10); res == nil || len(res.Hits) != 0 {
+	if res, _ = a.GaeaProposalSearch("沉降", "", 0, "", "", "别的方案", 0, 0, "", 10); res == nil || len(res.Hits) != 0 {
 		t.Fatalf("限定不存在的方案应为空: %+v", res)
 	}
 	// 标题树范围：标题或标题路径含词即命中（子节的路径里带父节标题），标题本身命中者排前
-	if res, _ = a.GaeaProposalSearch("降水", "title", 0, "", "", "", 10); res == nil || res.Mode != "title" || len(res.Hits) != 2 ||
+	if res, _ = a.GaeaProposalSearch("降水", "title", 0, "", "", "", 0, 0, "", 10); res == nil || res.Mode != "title" || len(res.Hits) != 2 ||
 		res.Hits[0].SectionID != tree[0].ID || res.Hits[1].SectionID != tree[1].ID ||
 		!strings.Contains(res.Hits[0].Snippet, "【降水】") {
 		t.Fatalf("标题树范围: %+v", res)
@@ -250,5 +251,145 @@ func TestProposalBindingsUpdateMetaSection(t *testing.T) {
 	// 空标题拒绝。
 	if _, err := a.GaeaProposalUpdateMeta("另一份", "  ", "", "", ""); err == nil {
 		t.Fatal("空标题应拒绝")
+	}
+}
+
+// TestProposalBindingsStructureTwinsIndexExport 索引与编辑优化批（2026-11-28）的
+// 绑定端到端：结构修正（拆分 / 升降级 / 删除，回执带落点）→ 同题对照 → 索引体检
+// （造一条孤儿全文索引行，重建后清零）→ 导出（相对路径拒绝，绝对路径落盘）→
+// 分面与翻页、限定在某标题之下。
+func TestProposalBindingsStructureTwinsIndexExport(t *testing.T) {
+	a := proposalBindingEnv(t)
+	st, err := a.hubProposalStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, title := range []string{"甲标", "乙标"} {
+		secs := []proposal.Section{
+			{Level: 1, Title: "第一章 施工降水", Body: "降水正文。\n\n第二段讲监测。\n第三段讲回灌。"},
+			{Level: 2, Title: "1.1 沉降控制", Body: "超限即回灌。"},
+		}
+		for i := 1; i <= 3; i++ {
+			secs = append(secs, proposal.Section{Level: 2, Title: fmt.Sprintf("1.%d 监测点", i+1), Body: "监测点布置。"})
+		}
+		if _, err := st.Save(proposal.SaveInput{Meta: proposal.Proposal{Title: title, ProjectType: "技术标"}, Sections: secs}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tree, err := a.GaeaProposalOutline("甲标")
+	if err != nil || len(tree) != 5 {
+		t.Fatalf("Outline: %v %+v", err, tree)
+	}
+	ch1 := tree[0]
+
+	// 拆分：光标在第二段 → 之后的内容切成新子节，排在第一章之后。
+	body, _ := a.GaeaProposalRead(ch1.ID)
+	op, err := a.GaeaProposalSectionOp(ch1.ID, "split", len([]rune(body.Body[:strings.Index(body.Body, "第二段")])), "监测要求")
+	if err != nil || op.Created != 1 || op.Removed != 0 || op.FocusID == ch1.ID || op.Op != "split" {
+		t.Fatalf("拆分回执: %v %+v", err, op)
+	}
+	split, err := a.GaeaProposalOutline("甲标")
+	if err != nil || len(split) != 6 || split[1].ID != op.FocusID || split[1].Level != 2 || split[1].TitlePath != "第一章 施工降水 › 监测要求" {
+		t.Fatalf("拆分后标题树: %v %+v", err, split)
+	}
+	// 降级再升级：位置与层级回到原样。
+	sub := split[2].ID // 1.1 沉降控制
+	if op, err = a.GaeaProposalSectionOp(sub, "demote", 0, ""); err != nil || op.FocusID != sub {
+		t.Fatalf("降级回执: %v %+v", err, op)
+	}
+	if op, err = a.GaeaProposalSectionOp(sub, "promote", 0, ""); err != nil || op.FocusID != sub {
+		t.Fatalf("升级回执: %v %+v", err, op)
+	}
+	if back, _ := a.GaeaProposalOutline("甲标"); back[2].Level != 2 || back[2].TitlePath != "第一章 施工降水 › 1.1 沉降控制" {
+		t.Fatalf("升降级往返后: %+v", back[2])
+	}
+	// 调用错误如实拒绝。
+	if _, err := a.GaeaProposalSectionOp(ch1.ID, "bogus", 0, ""); err == nil || !strings.Contains(err.Error(), "未知的结构操作") {
+		t.Fatalf("未知操作应报错: %v", err)
+	}
+	if _, err := a.GaeaProposalSectionOp(99999, "remove", 0, ""); err == nil || !strings.Contains(err.Error(), "不存在") {
+		t.Fatalf("小节不存在应报错: %v", err)
+	}
+	// 删除末尾的「1.4 监测点」：落到上一个同级小节。
+	if op, err = a.GaeaProposalSectionOp(split[5].ID, "remove", 0, ""); err != nil || op.Removed != 1 || op.FocusID != split[4].ID {
+		t.Fatalf("删除回执: %v %+v", err, op)
+	}
+
+	// 同题对照：乙标的「第一章 施工降水」与甲标同题。
+	twins, err := a.GaeaProposalTwins(ch1.ID)
+	if err != nil || len(twins) != 1 || twins[0].ProposalTitle != "乙标" || twins[0].TitlePath != "第一章 施工降水" || twins[0].Level != 1 {
+		t.Fatalf("同题对照: %v %+v", err, twins)
+	}
+	if _, err := a.GaeaProposalTwins(99999); err == nil {
+		t.Fatal("小节不存在应报错")
+	}
+
+	// 索引体检与重建：造一条孤儿全文索引行，体检报出来，重建后清零。
+	status, err := a.GaeaProposalIndexStatus()
+	if err != nil || status == nil || status.Broken() {
+		t.Fatalf("体检: %v %+v", err, status)
+	}
+	gdb := db.GetDatabase(config.MemoryUserDir())
+	if _, err := gdb.Exec(`INSERT INTO proposal_fts(rowid, title, body, proposal_id, section_id) VALUES(9999, '旧', '旧正文。', 9999, 9999)`); err != nil {
+		t.Fatal(err)
+	}
+	if status, err = a.GaeaProposalIndexStatus(); err != nil || status.OrphanFts != 1 || !status.Broken() {
+		t.Fatalf("造出孤儿行后的体检: %v %+v", err, status)
+	}
+	_, _ = a.GaeaProposalReindex() // 本地模型不可达：结构类修复照做，向量化中断只体现在 error 里
+	if status, err = a.GaeaProposalIndexStatus(); err != nil || status.Broken() || status.OrphanFts != 0 {
+		t.Fatalf("重建后的体检: %v %+v", err, status)
+	}
+
+	// 导出：相对路径拒绝；绝对路径落盘。
+	if _, err := a.GaeaProposalExport("甲标", "相对路径/甲标.md"); err == nil || !strings.Contains(err.Error(), "绝对路径") {
+		t.Fatalf("相对路径应拒绝: %v", err)
+	}
+	out := filepath.Join(t.TempDir(), "甲标.md")
+	exp, err := a.GaeaProposalExport("甲标", out)
+	if err != nil || exp.Path != out || exp.Images != 0 || exp.AssetsDir != "" {
+		t.Fatalf("导出回执: %v %+v", err, exp)
+	}
+	raw, err := os.ReadFile(out)
+	if err != nil || !strings.HasPrefix(string(raw), "> 方案库导出：甲标") || !strings.Contains(string(raw), "## 1.1 沉降控制") {
+		t.Fatalf("导出文件: %v %s", err, raw)
+	}
+	final, _ := a.GaeaProposalOutline("甲标")
+	if exp.Sections != len(final) {
+		t.Fatalf("导出节数 %d, 标题树 %d", exp.Sections, len(final))
+	}
+
+	// 分面与翻页：「监测」在甲标 3 个小节里出现（拆出的「监测要求」+ 两个监测点），
+	// 一页 2 条：首页 2 条、第二页 1 条；方案分面连乙标一起报，章分面只报所在章。
+	res, err := a.GaeaProposalSearch("监测", "", 0, "", "", "甲标", 0, 0, "", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 3 || len(res.Hits) != 2 || res.Offset != 0 || len(res.ByProposal) != 2 || len(res.ByChapter) != 1 || res.ByChapter[0].Count != 3 {
+		t.Fatalf("分面翻页首页: total=%d hits=%+v 方案=%+v 章=%+v", res.Total, res.Hits, res.ByProposal, res.ByChapter)
+	}
+	seen := map[int64]bool{}
+	for _, h := range res.Hits {
+		seen[h.SectionID] = true
+	}
+	res2, err := a.GaeaProposalSearch("监测", "", 0, "", "", "甲标", 0, 2, "", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res2.Hits) != 1 || res2.Offset != 2 || res2.Total != 3 || seen[res2.Hits[0].SectionID] {
+		t.Fatalf("分面翻页第二页: %+v", res2)
+	}
+	// 限定在「1.1 沉降控制」之下（它自己不含「监测」）：零命中；限定在第一章之下：
+	// 3 处都在这一章里。
+	if res, err = a.GaeaProposalSearch("监测", "", 0, "", "", "", sub, 0, "", 10); err != nil || res.Total != 0 || len(res.Hits) != 0 {
+		t.Fatalf("限定标题之下: %v %+v", err, res)
+	}
+	if res, err = a.GaeaProposalSearch("监测", "", 0, "", "", "", ch1.ID, 0, "", 10); err != nil || res.Total != 3 || len(res.Hits) != 3 {
+		t.Fatalf("限定章之下: %v %+v", err, res)
+	}
+	for _, h := range res.Hits {
+		if !strings.HasPrefix(h.TitlePath, "第一章 施工降水 › ") {
+			t.Fatalf("限定章之下混进别处命中：%s", h.TitlePath)
+		}
 	}
 }

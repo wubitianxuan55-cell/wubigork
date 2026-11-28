@@ -2,15 +2,24 @@
 
 package app
 
+import (
+	"github.com/gaea/gaea/internal/gaea/proposal"
+)
+
 // ProposalB 方案库绑定门面（S2-3「App 绑定面拆分」）：仅暴露方案库的方法，
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ProposalB struct{ a *App }
 
 func (b *ProposalB) GaeaProposalAssetDataURL(ref string) (string, error) { return b.a.GaeaProposalAssetDataURL(ref) }
 func (b *ProposalB) GaeaProposalDelete(name string) error { return b.a.GaeaProposalDelete(name) }
+func (b *ProposalB) GaeaProposalExport(name string, outputPath string) (*ProposalExportView, error) { return b.a.GaeaProposalExport(name, outputPath) }
+func (b *ProposalB) GaeaProposalIndexStatus() (*proposal.IndexStatus, error) { return b.a.GaeaProposalIndexStatus() }
 func (b *ProposalB) GaeaProposalList() ([]ProposalSummaryView, error) { return b.a.GaeaProposalList() }
 func (b *ProposalB) GaeaProposalOutline(name string) ([]ProposalSectionView, error) { return b.a.GaeaProposalOutline(name) }
 func (b *ProposalB) GaeaProposalRead(sectionID int64) (*ProposalSectionBodyView, error) { return b.a.GaeaProposalRead(sectionID) }
-func (b *ProposalB) GaeaProposalSearch(query string, scope string, level int, projectType string, year string, within string, limit int) (*ProposalSearchResultView, error) { return b.a.GaeaProposalSearch(query, scope, level, projectType, year, within, limit) }
+func (b *ProposalB) GaeaProposalReindex() (*proposal.IndexStatus, error) { return b.a.GaeaProposalReindex() }
+func (b *ProposalB) GaeaProposalSearch(query string, scope string, level int, projectType string, year string, within string, under int64, offset int, sort string, limit int) (*ProposalSearchResultView, error) { return b.a.GaeaProposalSearch(query, scope, level, projectType, year, within, under, offset, sort, limit) }
+func (b *ProposalB) GaeaProposalSectionOp(sectionID int64, op string, offset int, title string) (*ProposalStructureView, error) { return b.a.GaeaProposalSectionOp(sectionID, op, offset, title) }
+func (b *ProposalB) GaeaProposalTwins(sectionID int64) ([]proposal.Twin, error) { return b.a.GaeaProposalTwins(sectionID) }
 func (b *ProposalB) GaeaProposalUpdateMeta(name string, title string, projectType string, year string, summary string) (string, error) { return b.a.GaeaProposalUpdateMeta(name, title, projectType, year, summary) }
 func (b *ProposalB) GaeaProposalUpdateSection(sectionID int64, title string, updateTitle bool, body string, updateBody bool) error { return b.a.GaeaProposalUpdateSection(sectionID, title, updateTitle, body, updateBody) }

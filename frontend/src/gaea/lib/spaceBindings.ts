@@ -515,7 +515,8 @@ export const GAEA_METHOD_FACETS = {
   MemoryMorningBrief: "work",
   // 方案库板块（一级板块，与造价库并列）：清单/标题树/阅读/检索/删除，2026-11-27
   // 补元数据与小节的编辑面。工位资产；删除经界面二次确认。
-  // 录入只在办公方案模式里由模型完成，不走绑定面。
+  // 录入（整册重录、从文件导入）只在办公方案模式里由模型完成，不走绑定面；
+  // 2026-11-28 加结构修正、同题对照、索引体检 / 重建与导出。
   GaeaProposalList: "work",
   GaeaProposalOutline: "work",
   GaeaProposalRead: "work",
@@ -524,6 +525,11 @@ export const GAEA_METHOD_FACETS = {
   GaeaProposalUpdateMeta: "work",
   GaeaProposalUpdateSection: "work",
   GaeaProposalAssetDataURL: "work",
+  GaeaProposalSectionOp: "work",
+  GaeaProposalTwins: "work",
+  GaeaProposalIndexStatus: "work",
+  GaeaProposalReindex: "work",
+  GaeaProposalExport: "work",
   SemanticSearch: "work",
   // ── 造价数据库（2026-11-25 推倒重建为三级浏览面：清单 / 定额 / 工料机）：全归工位 ──
   // 体检只读扫描；此前挂在 play 段是旧板块的分段遗留，造价库是 work 板块。

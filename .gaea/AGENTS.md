@@ -111,8 +111,13 @@
   板块还能新建 / 复制另存、勾选批量改 专业/分部/地区/分类/期数（逐行走 `Workcost*Save`，逐行回报成败）、
   定额地区回填（`GaeaWorkcostQuotaRegionBackfill` 先预览后落库）、解除挂接后删除
   （`GaeaWorkcostQuotaDetachEverywhere`）、检索别名（字典 `kind=alias`，`workcost.Searcher` 查询词双向展开）。
-  **批量导入、解析、模型读表归类仍归办公「造价」运行模式**（`cost_library` / `cost_project_apply` / `proposal_save`）；
-  方案库的规范值编辑面仍只给库里已有取值。造价库=三级数据（清单 → 定额 → 工料机）。旧成本库（价格源 / 询价 /
+  方案库板块同样能修结构（`GaeaProposalSectionOp`，单事务）：小节升降级 / 上下移 / 拆分 / 并入父节或上一同级小节 /
+  增删小节，**标题里的编号不改**、与新层级不符时界面提示；类型 / 年度下拉给已有取值也可手填、勾选批量改、整册导出、
+  按方案 / 按章分面收窄与翻页检索、同题对照、索引体检与重建（`GaeaProposalReindex`）。
+  **批量导入、解析、模型读表归类仍归办公「造价」运行模式**（`cost_library` / `cost_project_apply`）；方案库的
+  **整册重录、从文件导入仍只在办公「方案」运行模式**（`proposal_save`）——方案模式的工具面没有结构调整，
+  遇到层级 / 顺序 / 拆分合并的修正，指引到方案库板块的「调整结构」，不要为改结构整册重录。
+  造价库=三级数据（清单 → 定额 → 工料机）。旧成本库（价格源 / 询价 /
   资料条目 / 组价 / 五算对比）2026-11-26 全量退役：后端包、工具、绑定、前端登记均已删除，库表与分类节点保留不删
   （要清表须用户另说）；查历史单价一律走造价库 `cost_project`。
 - **造价库语义索引**（2026-11-26）：清单 / 定额 / 工料机三类进本地向量索引（`internal/gaea/vecindex`，bge-m3，
@@ -144,7 +149,7 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - **绑定面（v2.17.0 起）**：App 不再直接绑定 Wails；导出方法拆 12 个板块门面
   （internal/app/bindings_*.go：CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/ImageB/CharlibB/PantheonB/WenxueB/ProposalB，
   纯委托零逻辑改动）。改绑定面方法后用 `go run ./scripts/gen_bindings` 重新生成 +
-  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 680（2026-11-27 库页编辑面解禁 10 + 方案库编辑 2），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
+  `TestBindingsCompleteness` 兜底；摘除或预留绑定走生成器的排除清单；绑定面现值 689（2026-11-27 库页编辑面解禁 10 + 方案库编辑 2；2026-11-28 造价库 4、方案库 5），漂移守卫的 bindingNames 须同批再生；前端调用经 gaea/lib/bridge.ts（按方法名路由门面）或
   api/bridge.ts 的 window.go.app.App 兼容代理；旧 wailsjs 导入走 src/wailsjsCompat 重导出；
   wails build 会重生成 wailsjs/go/app/<门面>.js
 - 单模型架构：一个 executor 完成规划与执行，无独立规划器；任务/技能子代理走 `task` / `run_skill`

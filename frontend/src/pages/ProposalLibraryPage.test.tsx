@@ -2,10 +2,14 @@
 // 覆盖：①清单加载后自动选中首份方案、标题树首屏只展开到节、阅读窗落在首个节点
 // ②点击节点读取该节、展开折叠节点 ③检索调用绑定并高亮命中词、点击命中跳转
 // ④无命中/检索失败 ⑤空库三步引导与去办公板块 ⑥清单读取失败不伪装成空库
-// ⑦删除需确认 ⑧窄窗页签切换 ⑨板块常驻保活下切回即静默重读清单、手动刷新、所选方案消失后的改选。桥接只 mock 页面消费的五个 GaeaProposal* 方法。
+// ⑦删除需确认 ⑧窄窗页签切换 ⑨板块常驻保活下切回即静默重读清单、手动刷新、所选方案消失后的改选。
+// 桥接只 mock 页面消费的 GaeaProposal* 方法（2026-11-28 索引与编辑优化批新增的面另见
+// ProposalLibraryPage.indexedit.test.tsx）。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ProposalHit, ProposalSearchResult, ProposalSectionBody, ProposalSectionNode, ProposalSummary } from '../gaea/lib/types/proposal'
+
+const healthyIndex = { vecDone: 5, vecTotal: 5, orphanFts: 0, missingFts: 0, staleFts: 0, missingChunks: 0, staleChunks: 0, model: 'test-embed' }
 
 const mocks = vi.hoisted(() => ({
   GaeaProposalList: vi.fn(),
@@ -15,6 +19,12 @@ const mocks = vi.hoisted(() => ({
   GaeaProposalDelete: vi.fn(),
   GaeaProposalUpdateMeta: vi.fn(),
   GaeaProposalUpdateSection: vi.fn(),
+  GaeaProposalSectionOp: vi.fn(),
+  GaeaProposalTwins: vi.fn(),
+  GaeaProposalIndexStatus: vi.fn(),
+  GaeaProposalReindex: vi.fn(),
+  GaeaProposalExport: vi.fn(),
+  SaveFileAs: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
@@ -81,6 +91,9 @@ beforeEach(() => {
   mocks.GaeaProposalDelete.mockResolvedValue(undefined)
   mocks.GaeaProposalUpdateMeta.mockResolvedValue('n1')
   mocks.GaeaProposalUpdateSection.mockResolvedValue(undefined)
+  mocks.GaeaProposalTwins.mockResolvedValue([])
+  mocks.GaeaProposalIndexStatus.mockResolvedValue(healthyIndex)
+  mocks.GaeaProposalReindex.mockResolvedValue(healthyIndex)
 })
 
 describe('ProposalLibraryPage 清单 / 标题树 / 阅读窗', () => {
@@ -150,7 +163,7 @@ describe('ProposalLibraryPage 检索', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '检索方案库' }), { target: { value: '边坡 失稳' } })
     fireEvent.click(screen.getByRole('button', { name: '搜索' }))
     await screen.findByTestId('proposal-hits')
-    expect(mocks.GaeaProposalSearch).toHaveBeenCalledWith('边坡 失稳', '', 0, '', '', '', 30)
+    expect(mocks.GaeaProposalSearch).toHaveBeenCalledWith('边坡 失稳', '', 0, '', '', '', 0, 0, '', 30)
     const hits = screen.getByTestId('proposal-hits')
     expect(within(hits).getAllByText('边坡失稳').filter((el) => el.tagName === 'MARK')).toHaveLength(1)
     expect(screen.getByTestId('proposal-search-status').textContent).toContain('全文 + 语义 · 已本地精排')
@@ -172,7 +185,7 @@ describe('ProposalLibraryPage 检索', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '检索方案库' }), { target: { value: '沉降' } })
     fireEvent.keyDown(screen.getByRole('textbox', { name: '检索方案库' }), { key: 'Enter' })
     await screen.findByTestId('proposal-hits')
-    expect(mocks.GaeaProposalSearch).toHaveBeenCalledWith('沉降', 'title', 2, '调查报告', '', '', 30)
+    expect(mocks.GaeaProposalSearch).toHaveBeenCalledWith('沉降', 'title', 2, '调查报告', '', '', 0, 0, '', 30)
   })
 
   it('无命中给出明确提示', async () => {
@@ -181,7 +194,7 @@ describe('ProposalLibraryPage 检索', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '检索方案库' }), { target: { value: '查不到' } })
     fireEvent.click(screen.getByRole('button', { name: '搜索' }))
     expect(await screen.findByText('没有命中')).toBeTruthy()
-    expect(screen.getByTestId('proposal-search-status').textContent).toContain('命中 0 条')
+    expect(screen.getByTestId('proposal-search-status').textContent).toContain('共 0 处命中')
   })
 
   it('检索失败如实报错并可重试', async () => {

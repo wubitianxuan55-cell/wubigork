@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/proposal"
@@ -243,8 +241,6 @@ func (proposalDeleteTool) Execute(_ context.Context, args json.RawMessage) (stri
 
 type proposalExportTool struct{ workDir string }
 
-var proposalAssetRefRe = regexp.MustCompile(regexp.QuoteMeta(proposal.AssetURIPrefix) + `([0-9a-fA-F]{64})`)
-
 func (proposalExportTool) Name() string { return "proposal_export" }
 func (proposalExportTool) Description() string {
 	return "把方案库里的一份方案导回 Markdown 文件：按标题层级写成 # ~ ####，正文原样；正文里的托管图片落成文件，存到输出文件同名的 -assets 目录并改为相对引用。output 为 .md 文件路径。"
@@ -297,66 +293,16 @@ func (t proposalExportTool) Execute(_ context.Context, args json.RawMessage) (st
 	if err != nil {
 		return "", err
 	}
-	target, err := proposalResolve(st, p.Proposal)
+	res, err := st.Export(p.Proposal, out)
 	if err != nil {
 		return "", err
 	}
-	prop, secs, err := st.FullText(target.Name)
-	if err != nil {
-		return "", fmt.Errorf("%s: %v", proposal.ErrStoreUnreadable, err)
+	detail := fmt.Sprintf("已导出《%s》到 %s：%d 个标题节点、%s", res.Title, res.Path, res.Sections, fmtChars(res.Chars))
+	if res.Images > 0 {
+		detail += fmt.Sprintf("；图片 %d 张存到 %s", res.Images, res.AssetsDir)
 	}
-
-	// 图片：托管目录 → 输出文件同名的 -assets 目录；文件缺失或写不出来的引用保留原样并计数。
-	stem := strings.TrimSuffix(filepath.Base(out), filepath.Ext(out))
-	assetDir := filepath.Join(filepath.Dir(out), stem+"-assets")
-	relDir := stem + "-assets"
-	images, missing := 0, 0
-	var b strings.Builder
-	fmt.Fprintf(&b, "> 方案库导出：%s（%s / %s）\n\n", prop.Title, orDash(prop.ProjectType), orDash(prop.Year))
-	for _, s := range secs {
-		fmt.Fprintf(&b, "%s %s\n\n", strings.Repeat("#", s.Level), s.Title)
-		body := proposalAssetRefRe.ReplaceAllStringFunc(s.Body, func(ref string) string {
-			src, err := st.AssetPath(ref)
-			if err != nil {
-				missing++
-				return ref
-			}
-			raw, err := os.ReadFile(src)
-			if err == nil {
-				err = os.MkdirAll(assetDir, 0o755)
-			}
-			if err == nil {
-				err = os.WriteFile(filepath.Join(assetDir, filepath.Base(src)), raw, 0o644)
-			}
-			if err != nil {
-				missing++
-				return ref
-			}
-			images++
-			return relDir + "/" + filepath.Base(src)
-		})
-		if strings.TrimSpace(body) != "" {
-			b.WriteString(strings.TrimRight(body, "\n") + "\n\n")
-		}
-	}
-	if dir := filepath.Dir(out); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", fmt.Errorf("创建输出目录失败: %w", err)
-		}
-	}
-	if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
-		return "", fmt.Errorf("写入导出文件失败: %w", err)
-	}
-	total := 0
-	for _, s := range secs {
-		total += s.Chars
-	}
-	detail := fmt.Sprintf("已导出《%s》到 %s：%d 个标题节点、%s", prop.Title, out, len(secs), fmtChars(total))
-	if images > 0 {
-		detail += fmt.Sprintf("；图片 %d 张存到 %s", images, assetDir)
-	}
-	if missing > 0 {
-		detail += fmt.Sprintf("；%d 处图片引用的托管文件缺失（保留了原引用）", missing)
+	if res.Missing > 0 {
+		detail += fmt.Sprintf("；%d 处图片引用的托管文件缺失（保留了原引用）", res.Missing)
 	}
 	return tool.WrapText(detail), nil
 }

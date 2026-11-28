@@ -6,25 +6,56 @@ export function GaeaProposalAssetDataURL(arg1) {
   return window['go']['app']['ProposalB']['GaeaProposalAssetDataURL'](arg1);
 }
 
+
 export function GaeaProposalDelete(arg1) {
   return window['go']['app']['ProposalB']['GaeaProposalDelete'](arg1);
 }
+
+
+export function GaeaProposalExport(arg1, arg2) {
+  return window['go']['app']['ProposalB']['GaeaProposalExport'](arg1, arg2);
+}
+
+
+export function GaeaProposalIndexStatus() {
+  return window['go']['app']['ProposalB']['GaeaProposalIndexStatus']();
+}
+
 
 export function GaeaProposalList() {
   return window['go']['app']['ProposalB']['GaeaProposalList']();
 }
 
+
 export function GaeaProposalOutline(arg1) {
   return window['go']['app']['ProposalB']['GaeaProposalOutline'](arg1);
 }
+
 
 export function GaeaProposalRead(arg1) {
   return window['go']['app']['ProposalB']['GaeaProposalRead'](arg1);
 }
 
-export function GaeaProposalSearch(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['app']['ProposalB']['GaeaProposalSearch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+
+export function GaeaProposalReindex() {
+  return window['go']['app']['ProposalB']['GaeaProposalReindex']();
 }
+
+
+export function GaeaProposalSearch(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {
+  return window['go']['app']['ProposalB']['GaeaProposalSearch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
+}
+
+
+export function GaeaProposalSectionOp(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['ProposalB']['GaeaProposalSectionOp'](arg1, arg2, arg3, arg4);
+}
+
+
+export function GaeaProposalTwins(arg1) {
+  return window['go']['app']['ProposalB']['GaeaProposalTwins'](arg1);
+}
+
 
 export function GaeaProposalUpdateMeta(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['ProposalB']['GaeaProposalUpdateMeta'](arg1, arg2, arg3, arg4, arg5);

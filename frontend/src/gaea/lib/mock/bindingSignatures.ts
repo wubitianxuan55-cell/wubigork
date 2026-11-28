@@ -16,7 +16,7 @@
 //（v4.285），argc 按收窄后的门面形参计；variadic=true 的名字契约测试按
 // 「至少 argc-1 个」放宽。
 //
-// 共 684 名（原生变参 18 名已收窄标注）。
+// 共 689 名（原生变参 18 名已收窄标注）。
 
 export const bindingSignatures = {
   AddCustomEngine: { argc: 3, variadic: false, params: "name string, baseURL string, apiKey string" },
@@ -240,10 +240,15 @@ export const bindingSignatures = {
   GaeaPromoteSubagent: { argc: 2, variadic: false, params: "sessionPath string, ref string" },
   GaeaProposalAssetDataURL: { argc: 1, variadic: false, params: "ref string" },
   GaeaProposalDelete: { argc: 1, variadic: false, params: "name string" },
+  GaeaProposalExport: { argc: 2, variadic: false, params: "name string, outputPath string" },
+  GaeaProposalIndexStatus: { argc: 0, variadic: false, params: "" },
   GaeaProposalList: { argc: 0, variadic: false, params: "" },
   GaeaProposalOutline: { argc: 1, variadic: false, params: "name string" },
   GaeaProposalRead: { argc: 1, variadic: false, params: "sectionID int64" },
-  GaeaProposalSearch: { argc: 7, variadic: false, params: "query string, scope string, level int, projectType string, year string, within string, limit int" },
+  GaeaProposalReindex: { argc: 0, variadic: false, params: "" },
+  GaeaProposalSearch: { argc: 10, variadic: false, params: "query string, scope string, level int, projectType string, year string, within string, under int64, offset int, sort string, limit int" },
+  GaeaProposalSectionOp: { argc: 4, variadic: false, params: "sectionID int64, op string, offset int, title string" },
+  GaeaProposalTwins: { argc: 1, variadic: false, params: "sectionID int64" },
   GaeaProposalUpdateMeta: { argc: 5, variadic: false, params: "name string, title string, projectType string, year string, summary string" },
   GaeaProposalUpdateSection: { argc: 5, variadic: false, params: "sectionID int64, title string, updateTitle bool, body string, updateBody bool" },
   GaeaReadFile: { argc: 1, variadic: false, params: "rel string" },
@@ -705,5 +710,5 @@ export const bindingSignatures = {
   WhisperWeixinStatus: { argc: 0, variadic: false, params: "" },
 } as const;
 
-// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 684。
-export const bindingSignatureCount = 684;
+// 防御自洽计数：契约测试校验它与键数一致（防手改漏改）。当前 689。
+export const bindingSignatureCount = 689;
