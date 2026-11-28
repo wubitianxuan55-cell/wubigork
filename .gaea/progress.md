@@ -1,3 +1,12 @@
+## 2026-11-28 下午 黄甲 AI 反馈批：十一刀十三笔提交 + 包 gaea-huangjia-fb-20261128-58b8e9b6 装机 PID 30388（ZCode；未 push）
+
+- 来源：黄甲竣工报告会话里 gaea 自生成的《软件使用问题与建议报告》（台账 6 条 `fb17958…`）。先对码分诊，用户说「会话刚刚完成」后按会话事件日志取证（日志在**工作区** `.gaea/sessions/work/*.gaea-log.jsonl`，不在 %APPDATA%）：源会话 09:32–12:40 整场跑在 ead1952a 包上，报告每条都成立；用户令「按照你的推荐开始」。包说明见 `releases/gaea-huangjia-fb-20261128-58b8e9b6/PACKAGE-INFO.md`。
+- **十三笔**：`5ba372d5` edit 预检改比对磁盘原文（预检此前拿 read_file 渲染缓存当文件内容，整读后多行锚点必 not found——首轮分诊我误判「不动」，日志实证后纠正）｜`0e476bf2` 发布边界认随迁（工作区内 mv 目录不再整体隔离，实测 7 批 120 次 move_file）｜`9f81972e` 断流恢复接线（恢复分支一直在，适配层没接；task 报错补「都不传走默认」）｜`36093a06`/`a9b8cd59`/`137b07ca` 内嵌图片 base64 一线三处（format_convert 不保图落盘只留文字 / summarize_file 剥除+块数上限+单块重试 / read_file 超长行不整次报错）｜`ca6f88d3` expected_revision 认尾标写法｜`514ae51d` write_file 相邻相同行≥4 硬拦+回执体检行（全会话 35 次写入交叉验证只拦污染件）｜`6182e2e2` md_validate 国标语境/复合词不判孤立引用、paths 可单独用｜`a28bb9f6` edit_file 行尾无关匹配｜`40fae0f0` create_docx.py 能力探测（办公+文学；黄甲工作区没播种技能、回落到 ~/.codex/skills 的 2026-08 旧镜像）｜`29d6c9dc` diagram_gen 回边｜`58b8e9b6` 子代理失败回执带已动文件、回合记账只认成功调用。
+- **门禁**：gofmt / `go build ./...` / vet 净；`golangci-lint --new-from-rev 09d38fdf` 0 issues；agent/builtin/tool/bridge/largefile/docmd/ai 全量绿；app 包全量 155s 绿；前端零改动。
+- **包**：干净树构建（vite 25s + wails 58s，cgo 非空壳，绑定无漂移），冒烟 `/api/health` 200，INSTALL OK 新壳 **PID 30388**，包版四件回写 `build/bin` 三处哈希一致。exe `cf65198a0ac41bd4`、zip `f19f682f2484d434`、src.zip `6cd0e65167ae0056`。工作树已回收。
+- **余**：push 待令；真机走查（随迁放行、断流恢复、整读后多行 edit、write_file 拦截、旧版 create_docx 的降级回执、回边流程图、子代理失败回执文件清单）；挂池=move_file 目录支持；挂拍板=3.1 文档结构对照 / 3.2 文档级数据巡检；两件待点头=给黄甲工作区播种 docx 技能、报告 §五 两条过时纪律回写办公板块记忆。
+- **顺带发现（未动）**：造价向量索引对账自 11-25 起持续失败（embedding 引擎 Vulkan `ErrorDeviceLost` HTTP 500，每 10 秒重试，11-28 刷 5.2 万行日志）；`registry_map_doc -check` 本机行尾假红。
+
 ## 2026-11-28 上午 AI 反馈批余量七条收口：五笔提交 + 包 gaea-ai-feedback-20261128-f35fb3f4 装机 PID 35548（ZCode；未 push）
 
 - 用户令「继续」，按原指令「修复这些问题」接做没动的七条；#14 中途用户拍板「不自动注入，模型自己判断是否读取」。逐条做法与已知盲区见接续单 §10（进度计划/gaea-ai-feedback-20261127-batch.md）。
