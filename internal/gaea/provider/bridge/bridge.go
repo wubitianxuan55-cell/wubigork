@@ -109,7 +109,17 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		}
 		for c := range raw {
 			if c.Error != "" {
-				if !send(provider.Chunk{Type: provider.ChunkError, Err: errors.New(c.Error)}) {
+				err := errors.New(c.Error)
+				// 传输层瞬时中断标成可恢复中断（2026-11-28 黄甲反馈）：四路并行
+				// 子代理同一秒被代理侧重置（wsarecv: forcibly closed），全部以终态
+				// 错误收场。agent 的流恢复分支（存部分输出 + 恢复提示续跑，上限
+				// 3 次）一直在，但只认 StreamInterruptedError——此前全仓只有测试在
+				// 构造它，这里发的是普通错误，恢复分支走不到。主对话与子代理走
+				// 同一条 runDirect，一并受益。取消、鉴权、限流、空闲超时照旧终态。
+				if ai.IsStreamTransportError(c.Error) {
+					err = &provider.StreamInterruptedError{Err: err}
+				}
+				if !send(provider.Chunk{Type: provider.ChunkError, Err: err}) {
 					return
 				}
 				return

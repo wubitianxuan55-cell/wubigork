@@ -321,7 +321,7 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 				}
 				return
 			}
-			errMsg := fmt.Sprintf("流读取错误: %v", err)
+			errMsg := fmt.Sprintf(StreamErrReadPrefix+": %v", err)
 			if !send(SSEChunk{Error: errMsg}) {
 				return
 			}

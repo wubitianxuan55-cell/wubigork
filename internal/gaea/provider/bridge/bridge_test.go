@@ -210,6 +210,45 @@ func TestBridge_Stream_Error(t *testing.T) {
 	}
 }
 
+// TestBridge_Stream_TransportErrorIsRecoverable 2026-11-28 黄甲反馈：流在 200 之后
+// 被传输层打断（wsarecv: forcibly closed）必须标成可恢复中断——agent 的流恢复分支
+// 只认 StreamInterruptedError；取消、空闲超时、普通错误照旧终态。
+func TestBridge_Stream_TransportErrorIsRecoverable(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  string
+		want bool
+	}{
+		{"传输读错误", "流读取错误: read tcp 172.19.0.1:64659->198.18.0.89:443: wsarecv: An existing connection was forcibly closed by the remote host.", true},
+		{"取消", "请求已取消", false},
+		{"空闲超时", "流空闲超时：超过 120s 无数据", false},
+		{"其他", "boom", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mc := &mockClient{chunks: []ai.SSEChunk{{Content: "部分输出"}, {Error: tc.msg}}}
+			p := &Provider{name: "gaea", model: "m", client: mc}
+			ch, err := p.Stream(context.Background(), provider.Request{})
+			if err != nil {
+				t.Fatalf("Stream: %v", err)
+			}
+			var got []provider.Chunk
+			for c := range ch {
+				got = append(got, c)
+			}
+			if len(got) != 2 || got[0].Type != provider.ChunkText || got[1].Type != provider.ChunkError {
+				t.Fatalf("应先透传已收到的文本再发错误块：%+v", got)
+			}
+			if isint := provider.IsStreamInterrupted(got[1].Err); isint != tc.want {
+				t.Fatalf("IsStreamInterrupted = %v, want %v（err=%v）", isint, tc.want, got[1].Err)
+			}
+			if got[1].Err.Error() != tc.msg {
+				t.Fatalf("错误文案应原样保留：%q", got[1].Err.Error())
+			}
+		})
+	}
+}
+
 // TestBridge_Factory 验证注册与工厂（未注入 client 时报错）。
 
 // TestBridge_Factory 验证注册与工厂（未注入 client 时报错）。

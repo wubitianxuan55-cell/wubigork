@@ -78,6 +78,17 @@ var (
 // errStreamIdleTimeout 流空闲超时哨兵错误（由 idleTimeoutBody 产生）。
 var errStreamIdleTimeout = errors.New("stream idle timeout")
 
+// StreamErrReadPrefix 流在 200 之后、读完之前发生的传输层读错误文案前缀
+// （parseStreamEvents 写进 SSEChunk.Error 的开头）。bridge 据此把这类错误标成
+// 可恢复中断——只认前缀，改文案两处同改。
+const StreamErrReadPrefix = "流读取错误"
+
+// IsStreamTransportError 报告 SSEChunk.Error 是否为传输层读错误（瞬时网络故障：
+// 连接被重置、对端强制关闭、unexpected EOF…），区别于取消、鉴权、限流、空闲超时。
+func IsStreamTransportError(msg string) bool {
+	return strings.HasPrefix(msg, StreamErrReadPrefix)
+}
+
 // defaultStreamRetryBackoff 连接错误与 5xx 的指数退避：1s / 2s 共 2 次重试。
 var defaultStreamRetryBackoff = []time.Duration{time.Second, 2 * time.Second}
 

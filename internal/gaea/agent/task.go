@@ -464,8 +464,8 @@ func (t *TaskTool) Schema() json.RawMessage {
   "prompt":{"type":"string","description":"The complete, self-contained task for the subagent. It does not share this conversation's context, so include everything it needs."},
   "description":{"type":"string","description":"A short (3-7 word) description of the delegated task, for display."},
   "run_in_background":{"type":"boolean","description":"Run the subagent asynchronously: returns a reference immediately and keeps working across turns; you'll be notified when it finishes. Use for long, independent sub-tasks you don't need to block on right now."},
-  "engine":{"type":"string","description":"Provider id for per-call model routing (e.g. 'xai'). Must be supplied together with model; both must match an authorized route verbatim or the call is rejected with the available routes listed."},
-  "model":{"type":"string","description":"Model id for per-call model routing. Must be supplied together with engine; unauthorized routes are rejected fail-loud (no silent fallback to the parent route)."}
+  "engine":{"type":"string","description":"Provider id for per-call model routing (e.g. 'xai'). Supply together with model, or omit both for the default route; must match an authorized route verbatim or the call is rejected with the routes listed."},
+  "model":{"type":"string","description":"Model id for per-call model routing. Supply together with engine (or omit both); unauthorized routes are rejected fail-loud (no silent fallback to the parent route)."}
 },
 "required":["prompt"]
 }`)
@@ -549,7 +549,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 	var routeProv provider.LLMProvider
 	if p.Engine != "" || p.Model != "" {
 		if p.Engine == "" || p.Model == "" {
-			return "", fmt.Errorf("engine and model must be supplied together for sub-agent routing")
+			return "", fmt.Errorf("engine and model must be supplied together for sub-agent routing — omit both to use the default route")
 		}
 		route := p.Engine + "/" + p.Model
 		if err := AuthorizeSubagentRoute(route); err != nil {
