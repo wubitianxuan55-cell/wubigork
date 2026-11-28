@@ -10120,6 +10120,7 @@ export namespace workcost {
 	        this.title = source["title"];
 	        this.specialty = source["specialty"];
 	        this.chapter = source["chapter"];
+	        this.region = source["region"];
 	        this.derivedFrom = source["derivedFrom"];
 	        this.unit = source["unit"];
 	        this.categoryPath = source["categoryPath"];
@@ -10127,7 +10128,6 @@ export namespace workcost {
 	        this.baseMaterial = source["baseMaterial"];
 	        this.baseMachine = source["baseMachine"];
 	        this.source = source["source"];
-	        this.region = source["region"];
 	        this.priceDate = source["priceDate"];
 	        this.note = source["note"];
 	        this.status = source["status"];
