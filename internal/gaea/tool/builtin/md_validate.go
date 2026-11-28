@@ -43,14 +43,14 @@ func (mdValidate) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "path":{"type":"string","description":"文档路径（相对工作区或绝对）：.md 或 .docx"},
-  "paths":{"type":"array","items":{"type":"string"},"description":"多文件全册模式（覆盖 path）：各章 md/docx 一起对账，跨章引用闭合即通过、撞号跨文件检出"},
+  "path":{"type":"string","description":"文档路径（相对工作区或绝对）：.md 或 .docx；与 paths 至少给一个"},
+  "paths":{"type":"array","items":{"type":"string"},"description":"多文件全册模式（可单独给）：各章 md/docx 一起对账，跨章引用闭合即通过、撞号跨文件检出"},
   "checks":{"type":"array","items":{"type":"string","enum":["numbering","orphans","table_columns","content"]},"description":"可选，默认全跑（content 需 source_pdf，没给则跳过）"},
   "source":{"type":"string","description":"基准件路径（content 内容保真对账必填）：PDF 直读文字层；文字层乱码/扫描的原件先备一份基准 md/txt 再传。对派生 md 做逐表/逐段 12 字滑窗 n-gram 命中率对账，表格 <98%、段落缺失 >5% 列硬伤并附缺失片段——错字/丢字单看任一版本发现不了"},
   "hints":{"type":"boolean","description":"false=只报硬伤（撞号/跳号/孤立引用/列数/内容对账）；提示类（未引用题注/跨章待核）只报总数。默认 true 全报"},
   "baseline":{"type":"string","description":"基线文档路径（旧版 md/docx）：给出后按内容主键做差集，只报相对基线新增的缺陷——直接回答「这批问题是原有的还是本次引入的」"}
 },
-"required":["path"]
+"required":[]
 }`)
 }
 
@@ -59,14 +59,39 @@ func (mdValidate) ReadOnly() bool { return true }
 // SpaceTag 自声明办公域（与静态表同口径；自声明优先进生效标签）。
 func (mdValidate) SpaceTag() string { return spaces.SpaceWork }
 
-func (v mdValidate) ReadTarget(args json.RawMessage) (string, bool) {
+// mdvReadTargets 解析本次调用要读的全部本地路径：path、paths、source、baseline
+// （相对路径按工作区）。paths 可单独给——此前 ReadTarget 只认 path，只传 paths
+// 时在路径权限闸就被判「cannot resolve read target」（2026-11-28 黄甲反馈：主线程
+// 实测被拦 4 次，而参数说明写的是「paths 覆盖 path」）。
+func (v mdValidate) mdvReadTargets(args json.RawMessage) ([]string, error) {
 	var p struct {
-		Path string `json:"path"`
+		Path     string   `json:"path"`
+		Paths    []string `json:"paths"`
+		Source   string   `json:"source"`
+		Baseline string   `json:"baseline"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil || strings.TrimSpace(p.Path) == "" {
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, s := range append(append([]string(nil), p.Path, p.Source, p.Baseline), p.Paths...) {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, resolveIn(v.workDir, s))
+		}
+	}
+	return out, nil
+}
+
+func (v mdValidate) ReadPaths(_ context.Context, args json.RawMessage) ([]string, error) {
+	return v.mdvReadTargets(args)
+}
+
+func (v mdValidate) ReadTarget(args json.RawMessage) (string, bool) {
+	paths, err := v.mdvReadTargets(args)
+	if err != nil || len(paths) == 0 {
 		return "", false
 	}
-	return resolveIn(v.workDir, p.Path), true
+	return paths[0], true
 }
 
 func (mdValidate) CompactDescription() string {
@@ -86,12 +111,33 @@ var reMDVRef = regexp.MustCompile(`(表|图|Table|Figure)\s*([0-9]+(?:[-–—][
 // mdvCompoundPrefixes 复合词前缀（复盘 B6：「附图8」被读作内部引用「图8」、
 // 一次报 13 项假阳性——这些是附录/外部编号体系，不参与本文档题注对账，引用
 // 扫描前先行中性化）。题注行按行首锚定不受影响（「附图8 …」不以 图/表 起头）。
-var mdvCompoundPrefixes = []string{"附图", "附表", "插图", "图幅"}
+// 2026-11-28 黄甲反馈补两批：正文复合词（「代表 12 家单位」「施工总平面布置图 2 张」
+// 这类被读成图表引用）与标准条文里的表图号（见 reMDVStdRef）。
+var mdvCompoundPrefixes = []string{
+	"附图", "附表", "插图", "图幅",
+	"示意图", "流程图", "布置图", "路线图", "剖面图", "立面图", "断面图", "平面图",
+	"管网图", "透视图", "效果图", "鸟瞰图", "框图", "意图", "企图", "宏图", "蓝图",
+	"地图", "视图", "制图", "绘图", "试图", "版图",
+	"代表", "列表", "报表", "表达", "表明", "表现", "表示", "表述", "表征", "表面",
+	"表率", "表白", "表单", "填表", "发表", "秒表", "手表", "钟表", "电表",
+}
+
+// reMDVStdRef 标准条文里的表/图号前缀：「GB 36600-2018 表 1」「HJ 25.1 表 2」
+// 「DB51/2362 表 4.2」引的是外部标准的表图，不参与本文档题注对账（实测两条被判
+// 孤立引用硬伤）。前缀须含数字，「附录A 表 3」这类不受影响。
+var reMDVStdRef = regexp.MustCompile(`[A-Z]{1,8}[0-9]*(?:/[A-Z0-9]{1,8})?(?:[. ]?[0-9]+)*(?:[-–—][0-9]+)*\s*(表|图)`)
 
 func mdvNeutralizeCompounds(ln string) string {
 	for _, w := range mdvCompoundPrefixes {
 		ln = strings.ReplaceAll(ln, w, "▢▢")
 	}
+	ln = reMDVStdRef.ReplaceAllStringFunc(ln, func(m string) string {
+		r := []rune(m)
+		if !strings.ContainsAny(string(r[:len(r)-1]), "0123456789") {
+			return m
+		}
+		return string(r[:len(r)-1]) + "▢"
+	})
 	return ln
 }
 
@@ -262,7 +308,7 @@ func (v mdValidate) Execute(ctx context.Context, args json.RawMessage) (string, 
 		return "", fmt.Errorf("md_validate 参数解析失败: %w", err)
 	}
 	if strings.TrimSpace(p.Path) == "" && len(p.Paths) == 0 {
-		return "", fmt.Errorf("path is required")
+		return "", fmt.Errorf("path 与 paths 至少给一个")
 	}
 	// 多文件模式（paths 覆盖 path）；去重保序。
 	files := p.Paths

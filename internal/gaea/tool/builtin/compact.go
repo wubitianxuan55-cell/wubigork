@@ -59,7 +59,7 @@ var compactSchema = map[string]json.RawMessage{
 	"ai_feedback": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"},"category":{"type":"string","enum":["tool-friction","bug","missing-capability","workflow","other"]},"severity":{"type":"string","enum":["low","medium","high"]},"board":{"type":"string","enum":["chat","office","wenxue"]}},"required":["title","detail"]}`),
 	"md_validate": json.RawMessage(
-		`{"type":"object","properties":{"path":{"type":"string"},"paths":{"type":"array","items":{"type":"string"},"description":"多文件全册模式(覆盖 path):跨章引用闭合即过,撞号跨文件检出"},"checks":{"type":"array","items":{"type":"string","enum":["numbering","orphans","table_columns"]}}},"required":["path"]}`),
+		`{"type":"object","properties":{"path":{"type":"string"},"paths":{"type":"array","items":{"type":"string"},"description":"多文件全册模式(可单独给):跨章引用闭合即过,撞号跨文件检出"},"checks":{"type":"array","items":{"type":"string","enum":["numbering","orphans","table_columns"]}}},"required":[]}`),
 	"read_file": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"offset":{"type":"integer","description":"向前分页用非负 offset；负值表示从 EOF 倒数，如 -30 读末尾 30 行窗口"},"limit":{"type":"integer"},"line_numbers":{"type":"boolean"},"section":{"type":"string","description":"md 标题选择子（编号或文本子串，如 3.2/风险评估）：整节返回，offset 非负时在节内翻页"},"byte_offset":{"type":"integer","description":"字节窗口起点(单行超长内容按字节分页;与offset互斥)"},"max_bytes":{"type":"integer","description":"字节窗口长度(默认16K)"}},"required":["path"]}`),
 	"write_file": json.RawMessage(
