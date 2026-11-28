@@ -32,7 +32,7 @@ func (writeFile) Description() string {
 }
 
 func (writeFile) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"Full content to write"},"expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from read_file trailer, or \"absent\" to require the file does not exist (create-only). Mismatch = REVISION_CONFLICT."},"overwrite":{"type":"boolean","description":"Declare intent to rewrite a file modified earlier this turn: skips the same-turn stale guard. Still fails on external cross-turn modifications."}},"required":["path","content"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"Full content to write"},"expected_revision":{"type":"string","description":"Optional CAS guard: sha256 from read_file trailer, or \"absent\" to require the file does not exist (create-only). Mismatch = REVISION_CONFLICT."},"overwrite":{"type":"boolean","description":"Declare intent to rewrite a file modified earlier this turn: skips the same-turn stale guard. Still fails on external cross-turn modifications."},"allow_repeats":{"type":"boolean","description":"内容确有相邻重复行（歌词/台词复沓等）时声明：跳过退化内容硬拦"}},"required":["path","content"]}`)
 }
 
 func (writeFile) ReadOnly() bool { return false }
@@ -58,6 +58,7 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 		Path             string `json:"path"`
 		Content          string `json:"content"`
 		ExpectedRevision string `json:"expected_revision,omitempty"`
+		AllowRepeats     bool   `json:"allow_repeats,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("write_file 参数解析失败: %w", err)
@@ -68,6 +69,12 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 	p.Path = resolveIn(w.workDir, p.Path)
 	if err := confine(w.roots, p.Path); err != nil {
 		return "", err
+	}
+	// 内容体检（2026-11-28 黄甲反馈）：相邻相同行达到阈值即生成层退化的硬指纹，
+	// 落盘前拦下——此前 52KB 垃圾照常写盘、回执 ok=true。确属有意重复须显式声明。
+	health := inspectContent(p.Content)
+	if health.degenerate() && !p.AllowRepeats {
+		return "", health.blockError()
 	}
 	// D4 写锁（dsh-ops bind-before-publish 蒸馏）+A3 CAS：锁包「CAS→编码保真→写」
 	// 整段；**半写债收口**——原 writeFileEncoded 是原地 os.WriteFile（失败可半写，
@@ -126,8 +133,8 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 	//（StageBaseline 上面 :104），但回执只报 wrote N bytes，用户以为「文件
 	// 没有快照」。回执显式报快照路径，需要回看/恢复时可直接取。
 	if baseline != "" {
-		return fmt.Sprintf("wrote %d bytes to %s\nbaseline: %s（写前快照；rollback 目录内同前缀保留最近 %d 份）",
-			len(p.Content), p.Path, baseline, evidence.BaselineKeepPerTarget), nil
+		return fmt.Sprintf("wrote %d bytes to %s\nbaseline: %s（写前快照；rollback 目录内同前缀保留最近 %d 份）%s",
+			len(p.Content), p.Path, baseline, evidence.BaselineKeepPerTarget, health.receiptLine()), nil
 	}
-	return fmt.Sprintf("wrote %d bytes to %s", len(p.Content), p.Path), nil
+	return fmt.Sprintf("wrote %d bytes to %s%s", len(p.Content), p.Path, health.receiptLine()), nil
 }
