@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -372,6 +373,7 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	startLine := p.Offset + 1
 	hasMore := false
 	sectionMode := false
+	longLineAt := 0 // 普通分页时读不动的超长行号（0=没遇到）
 	if p.Section != "" {
 		// section 模式（实测反馈③）：长文档混合采样对「精确核对数字」的任务
 		// 危险（采样片段会被误读为连续原文），此前用户被迫 awk/sed 分段精读
@@ -387,7 +389,7 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 			lines = append(lines, scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
-			return "", fmt.Errorf("read %s: %w", p.Path, err)
+			return "", readScanErr(p.Path, err)
 		}
 		span, ok := findMDSection(lines, p.Section)
 		if !ok {
@@ -417,7 +419,7 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 			total++
 		}
 		if err := scanner.Err(); err != nil {
-			return "", fmt.Errorf("read %s: %w", p.Path, err)
+			return "", readScanErr(p.Path, err)
 		}
 		if total == 0 {
 			return "(empty file)", nil
@@ -450,9 +452,23 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 				break
 			}
 		}
-		hasMore = scanner.Scan()
-		if err := scanner.Err(); err != nil {
-			return "", fmt.Errorf("read %s: %w", p.Path, err)
+		scanErr := scanner.Err()
+		if scanErr == nil {
+			hasMore = scanner.Scan()
+			scanErr = scanner.Err()
+		}
+		if scanErr != nil {
+			if !errors.Is(scanErr, bufio.ErrTooLong) {
+				return "", readScanErr(p.Path, scanErr)
+			}
+			// 单行超 1MB（2026-11-28 黄甲反馈）：多半是转换产物里内嵌的 base64 图片。
+			// 窗口里已经读到的行照常返回——此前窗口之后那一行超长也会让整次读取
+			// 报错，模型对着这份文件一行都读不了（同一份素材 md 连撞 4 次）。
+			if len(collected) == 0 {
+				return "", readScanErr(p.Path, scanErr)
+			}
+			hasMore = true
+			longLineAt = lineNo + 1
 		}
 		if lineNo == 0 && !hasMore {
 			return "(empty file)", nil
@@ -491,6 +507,9 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 				startLine-1+len(collected))
 		}
 	}
+	if longLineAt > 0 {
+		fmt.Fprintf(&b, "\n[第 %d 行单行超过 1MB 未读取（多半是内嵌的 base64 图片）；要看该行用 byte_offset/max_bytes 字节窗口，或重新 format_convert（默认已不带图片）]\n", longLineAt)
+	}
 	// A3 revision 尾标（dsh-ops 蒸馏）：模型经此取 expected_revision 做 CAS 写。
 	// marker 恒最后追加（hasMore 提示行之前的内容在两种截断形态下都可存活）；
 	// 取不到哈希（竞态删除）静默省略——模型不传 expected_revision 即旧行为。
@@ -498,6 +517,16 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		fmt.Fprintf(&b, "\n[revision sha256:%s]\n", rev)
 	}
 	return b.String(), nil
+}
+
+// readScanErr 行读取错误换成能照着做的指引。单行超过 1MB 上限（实测是转换产物里
+// 内嵌的 base64 图片，2026-11-28 黄甲反馈：同一份素材 md 连撞 4 次）此前只回一句
+// token too long，模型只能自己写脚本剥图。
+func readScanErr(path string, err error) error {
+	if errors.Is(err, bufio.ErrTooLong) {
+		return fmt.Errorf("read %s: 有单行超过 1MB 读取上限（多半是内嵌的 base64 图片）——按字节窗口读（byte_offset + max_bytes），或重新 format_convert（默认已不带图片；需要图片用 preserve_images=true）: %w", path, err)
+	}
+	return fmt.Errorf("read %s: %w", path, err)
 }
 
 // V5.9: markitdown 集成 —— 将二进制文档自动转为 Markdown
