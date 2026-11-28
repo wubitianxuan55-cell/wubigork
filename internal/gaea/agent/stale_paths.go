@@ -58,13 +58,22 @@ func logicalLines(s string) []string {
 	return parts
 }
 
-// anchorPresent 报告 old 在 content 里是否还找得到：精确命中，或只是空白漂了
+// anchorPresent 报告 old 在 content 里是否还找得到：精确命中、行尾换算后精确命中
+// （与 edit_file 的行尾无关匹配同口径，2026-11-28 黄甲反馈），或只是空白漂了
 // （edit_file 工具自己的三档行匹配能命中）——判定口径与工具一致，闸不比工具更严。
 func anchorPresent(content, old string) bool {
 	if old == "" || content == "" {
 		return false
 	}
 	if strings.Contains(content, old) {
+		return true
+	}
+	if strings.Contains(content, "\r\n") && !strings.Contains(old, "\r\n") &&
+		strings.Contains(content, strings.ReplaceAll(old, "\n", "\r\n")) {
+		return true
+	}
+	if strings.Contains(old, "\r\n") && !strings.Contains(content, "\r\n") &&
+		strings.Contains(content, strings.ReplaceAll(old, "\r\n", "\n")) {
 		return true
 	}
 	pat := logicalLines(old)

@@ -153,29 +153,51 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 // and more than one is an error telling the model to widen the context or opt
 // into replace_all. edit_file and multi_edit both route through here so the
 // two tools cannot drift apart on match semantics.
+//
+// 行尾无关（2026-11-28 黄甲反馈）：精确零命中、而文件与 old_string 行尾风格不同
+// （CRLF 文件对裸 \n 锚点，或反过来），按文件行尾换算后再精确匹配；替换块沿用
+// 文件行尾，未触及区域原字节不动，不混行尾。此前这种情形一律报错、让模型「照抄
+// 行尾或改用 edit_lines」——read_file 的输出不显示 \r，模型做不到；实测两次失败
+// 后改走 python。办公工作区的 CRLF 多半来自 python 脚本在 Windows 上的文本模式写。
 func replaceInContent(content, old, new string, replaceAll bool) (string, int, string, error) {
-	n := strings.Count(content, old)
-	if n > 1 && !replaceAll {
-		return "", 0, "", fmt.Errorf(
-			"old_string matches %d locations; include more surrounding context to make it unique, "+
-				"or pass replace_all:true to replace all %d occurrences", n, n)
+	if out, n, err := replaceExact(content, old, new, replaceAll); n > 0 {
+		return out, n, "", err
 	}
-	if n >= 1 {
-		if replaceAll {
-			return strings.ReplaceAll(content, old, new), n, "", nil
+	if strings.Contains(content, "\r\n") && !strings.Contains(old, "\r\n") {
+		if out, n, err := replaceExact(content, eolTo(old, "\r\n"), eolTo(new, "\r\n"), replaceAll); n > 0 {
+			return out, n, "（文件是 CRLF 行尾：old_string 的换行已按 CRLF 匹配，替换块沿用 CRLF）", err
 		}
-		return strings.Replace(content, old, new, 1), 1, "", nil
 	}
-	// 精确零命中：CRLF 病因优先诊断（既有行为，三档兜底不抢——裸 \n 对 CRLF
-	// 文件仍报错，指引模型抄对行尾或改用 edit_lines；静默改写 CRLF 文件会混行尾）。
-	if strings.Contains(content, strings.ReplaceAll(old, "\n", "\r\n")) {
-		return "", 0, "", fmt.Errorf(
-			"old_string not found: the file uses CRLF (Windows) line endings — " +
-				"your old_string has bare \\n. Re-read the file and copy the text exactly, " +
-				"or edit line-wise with edit_lines")
+	if strings.Contains(old, "\r\n") && !strings.Contains(content, "\r\n") {
+		if out, n, err := replaceExact(content, eolTo(old, "\n"), eolTo(new, "\n"), replaceAll); n > 0 {
+			return out, n, "（文件是 LF 行尾：old_string 的 CRLF 已按 LF 匹配，替换块沿用 LF）", err
+		}
 	}
 	// 三档行匹配兜底（codex 蒸馏 T1）：文件被无关改动后按上下文仍能定位。
 	return seekReplace(content, old, new, replaceAll)
+}
+
+// replaceExact 纯子串替换：n 是 old 在 content 里的出现次数（多于一次且未开
+// replace_all 时带着次数报错，让模型加宽上下文或改用 replace_all）。
+func replaceExact(content, old, new string, replaceAll bool) (string, int, error) {
+	n := strings.Count(content, old)
+	if n > 1 && !replaceAll {
+		return "", n, fmt.Errorf(
+			"old_string matches %d locations; include more surrounding context to make it unique, "+
+				"or pass replace_all:true to replace all %d occurrences", n, n)
+	}
+	if n == 0 {
+		return "", 0, nil
+	}
+	if replaceAll {
+		return strings.ReplaceAll(content, old, new), n, nil
+	}
+	return strings.Replace(content, old, new, 1), 1, nil
+}
+
+// eolTo 把 s 的行尾统一成 eol（CRLF 先归 LF，再换成目标行尾）。
+func eolTo(s, eol string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", eol)
 }
 
 // seekReplace 三档行匹配兜底：把 old/new 拆成逻辑行，tool.FindSequence 逐档

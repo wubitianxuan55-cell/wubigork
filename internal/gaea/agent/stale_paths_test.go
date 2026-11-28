@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,74 @@ func TestAnchorPresentToleratesWhitespaceDrift(t *testing.T) {
 	}
 	if anchorPresent("", "x") {
 		t.Error("空内容恒 false")
+	}
+}
+
+// 行尾换算后精确命中的锚点也算在（2026-11-28 黄甲反馈）：CRLF 文件对裸 \n 的多行
+// 锚点、LF 文件对 CRLF 锚点——edit_file 放行的，预检不得拦。锚点末行是行内片段
+// （整行比对对不上）时，只有这条精确路径能命中。
+func TestAnchorPresentEOLAgnostic(t *testing.T) {
+	crlf := "### 4.1.1 环境管理组织\r\n\r\n项目部建立以项目负责人为第一责任人的环境保护管理组织：负责人审批。\r\n"
+	if !anchorPresent(crlf, "### 4.1.1 环境管理组织\n\n项目部建立以项目负责人为第一责任人的环境保护管理组织") {
+		t.Error("CRLF 文件对裸 \\n 的多行锚点应视为仍在")
+	}
+	lf := "### 4.1.1 环境管理组织\n\n项目部建立以项目负责人为第一责任人的环境保护管理组织：负责人审批。\n"
+	if !anchorPresent(lf, "### 4.1.1 环境管理组织\r\n\r\n项目部建立以项目负责人为第一责任人的环境保护管理组织") {
+		t.Error("LF 文件对 CRLF 锚点应视为仍在")
+	}
+	if anchorPresent(lf, "### 4.1.9 不存在的节\n\n正文") {
+		t.Error("真不在的锚点不应视为仍在")
+	}
+}
+
+// TestPrecheckDefaultReadThenMultiLineEdit 正式环境形态（2026-11-28 黄甲反馈）：
+// 整读（不带 offset/limit）之后紧跟多行 edit_file。预检比对的是磁盘原文，不得拿
+// read_file 的渲染缓存当文件内容——旧实现在这里必拦（ch04 连拦 3 次，锚点确在
+// 原文偏移 37 处）。CRLF 文件（python 脚本在 Windows 文本模式写出来的形态）同样放行
+// 且不混行尾。
+func TestPrecheckDefaultReadThenMultiLineEdit(t *testing.T) {
+	ws := t.TempDir()
+	reg := tool.NewRegistry()
+	wsTools := builtin.Workspace{Dir: ws}
+	for _, tl := range wsTools.Tools("read_file", "write_file", "edit_file") {
+		reg.Add(tl)
+	}
+	a := &AgentRunner{tools: reg, sink: event.Discard, session: NewSession("sys"), tc: cache.New(0)}
+	t.Chdir(t.TempDir())
+	call := func(id, name, args string) toolOutcome {
+		return a.executeOne(context.Background(), provider.ToolCall{ID: id, Name: name, Arguments: args})
+	}
+
+	head := "### 4.1.1 环境管理组织"
+	tail := "项目部建立以项目负责人为第一责任人的环境保护管理组织"
+	for _, tc := range []struct {
+		name, rel, eol string
+	}{
+		{"LF 文件", "ch04.md", "\n"},
+		{"CRLF 文件", "ch06.md", "\r\n"},
+	} {
+		body := head + tc.eol + tc.eol + tail + "：负责人审批。" + tc.eol
+		args := func(m map[string]string) string {
+			b, _ := json.Marshal(m)
+			return string(b)
+		}
+		if out := call("w-"+tc.rel, "write_file", args(map[string]string{"path": tc.rel, "content": body})); out.blocked || out.errMsg != "" {
+			t.Fatalf("%s：write_file 应成功：%+v", tc.name, out)
+		}
+		if out := call("r-"+tc.rel, "read_file", args(map[string]string{"path": tc.rel})); out.blocked || out.errMsg != "" {
+			t.Fatalf("%s：read_file 应成功：%+v", tc.name, out)
+		}
+		out := call("e-"+tc.rel, "edit_file", args(map[string]string{
+			"path": tc.rel, "old_string": head + "\n\n" + tail, "new_string": "### 4.1.1 环境管理组织体系\n\n" + tail + "体系",
+		}))
+		if out.blocked || out.errMsg != "" {
+			t.Fatalf("%s：整读之后的多行 edit_file 不该被拦：%+v", tc.name, out)
+		}
+		raw, _ := os.ReadFile(filepath.Join(ws, tc.rel))
+		want := "### 4.1.1 环境管理组织体系" + tc.eol + tc.eol + tail + "体系：负责人审批。" + tc.eol
+		if string(raw) != want {
+			t.Fatalf("%s：替换块应沿用文件行尾\n got %q\nwant %q", tc.name, raw, want)
+		}
 	}
 }
 

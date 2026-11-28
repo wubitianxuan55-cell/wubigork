@@ -133,14 +133,17 @@ func TestEditFileSeekMissWithCandidates(t *testing.T) {
 	}
 }
 
-// CRLF 病因不被兜底吞掉：裸 \n 对 CRLF 文件仍报 CRLF 诊断（既有红线）。
-func TestEditFileSeekDoesNotEatCRLFHint(t *testing.T) {
+// 行尾无关（2026-11-28 黄甲反馈，取代此前「裸 \n 对 CRLF 文件仍报错」的口径）：
+// 裸 \n 的多行锚点对 CRLF 文件照常命中，替换块沿用 CRLF。
+func TestEditFileBareLFAnchorOnCRLFFileSucceeds(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "crlf.txt", "line one\r\nline two\r\n")
-	_, err := editFile{}.Execute(bg(), mustArgs(t, map[string]any{
+	if _, err := (editFile{}).Execute(bg(), mustArgs(t, map[string]any{
 		"path": path, "old_string": "line one\nline two", "new_string": "x",
-	}))
-	if err == nil || !strings.Contains(err.Error(), "CRLF") {
-		t.Fatalf("CRLF 诊断必须保留: %v", err)
+	})); err != nil {
+		t.Fatalf("裸 \\n 锚点对 CRLF 文件应命中: %v", err)
+	}
+	if content, _, _ := readFileEncoded(path); content != "x\r\n" {
+		t.Fatalf("替换块应沿用 CRLF: %q", content)
 	}
 }

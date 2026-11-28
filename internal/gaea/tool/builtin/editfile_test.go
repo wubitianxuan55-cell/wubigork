@@ -158,26 +158,50 @@ func TestEditFileDeleteViaEmptyNewString(t *testing.T) {
 	}
 }
 
-func TestEditFileCRLFHint(t *testing.T) {
+// 2026-11-28 黄甲反馈：裸 \n 的 old_string 对 CRLF 文件照常命中，替换块沿用 CRLF
+// （此前报错让模型「照抄行尾」——read_file 的输出不显示 \r，模型做不到，实测两次
+// 失败后改走 python）。
+func TestEditFileCRLFAgnostic(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "crlf.txt", "line one\r\nline two\r\n")
 
-	_, err := editFile{workDir: dir}.Execute(context.Background(), mustArgs(t, map[string]any{
-		"path": "crlf.txt", "old_string": "line one\nline two", "new_string": "x",
-	}))
-	if err == nil {
-		t.Fatal("bare-\\n old_string must not match a CRLF file")
+	res := execTool(t, editFile{workDir: dir}, map[string]any{
+		"path": "crlf.txt", "old_string": "line one\nline two", "new_string": "x\ny",
+	})
+	if !strings.Contains(res, "CRLF") {
+		t.Errorf("回执应说明按 CRLF 行尾匹配: %s", res)
 	}
-	if !strings.Contains(err.Error(), "CRLF") {
-		t.Errorf("error should carry the CRLF diagnostic: %v", err)
+	if content, _, _ := readFileEncoded(filepath.Join(dir, "crlf.txt")); content != "x\r\ny\r\n" {
+		t.Errorf("替换块应沿用 CRLF、不混行尾: %q", content)
 	}
 
-	// With the CRLF copied exactly the edit succeeds.
+	// With the CRLF copied exactly the edit succeeds too.
+	writeTemp(t, dir, "crlf2.txt", "line one\r\nline two\r\n")
 	execTool(t, editFile{workDir: dir}, map[string]any{
-		"path": "crlf.txt", "old_string": "line one\r\nline two", "new_string": "done",
+		"path": "crlf2.txt", "old_string": "line one\r\nline two", "new_string": "done",
 	})
-	if content, _, _ := readFileEncoded(filepath.Join(dir, "crlf.txt")); content != "done\r\n" {
+	if content, _, _ := readFileEncoded(filepath.Join(dir, "crlf2.txt")); content != "done\r\n" {
 		t.Errorf("content = %q", content)
+	}
+}
+
+// 行尾无关内核：CRLF 文件对裸 \n 锚点、LF 文件对 CRLF 锚点都精确命中，替换块
+// 跟文件行尾走；多命中仍报错；换算后仍对不上的落三档兜底。
+func TestReplaceInContentEOLAgnostic(t *testing.T) {
+	got, n, note, err := replaceInContent("a\r\nb\r\nc\r\n", "a\nb", "x\ny", false)
+	if err != nil || n != 1 || got != "x\r\ny\r\nc\r\n" || !strings.Contains(note, "CRLF") {
+		t.Errorf("CRLF 文件对裸 \\n 锚点: got=%q n=%d note=%q err=%v", got, n, note, err)
+	}
+	got, n, note, err = replaceInContent("a\nb\nc\n", "a\r\nb", "x\r\ny", false)
+	if err != nil || n != 1 || got != "x\ny\nc\n" || !strings.Contains(note, "LF") {
+		t.Errorf("LF 文件对 CRLF 锚点: got=%q n=%d note=%q err=%v", got, n, note, err)
+	}
+	if _, _, _, err := replaceInContent("k\r\nk\r\n", "k", "z", false); err == nil {
+		t.Error("多命中且未开 replace_all 应报错")
+	}
+	got, n, _, err = replaceInContent("  a\r\n  b\r\n", "a\nb", "x\ny", false)
+	if err != nil || n != 1 || got != "x\r\ny\r\n" {
+		t.Errorf("换算后仍对不上应落三档兜底并沿用 CRLF: got=%q n=%d err=%v", got, n, err)
 	}
 }
 
