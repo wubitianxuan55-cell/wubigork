@@ -92,6 +92,11 @@ build/*-payload/
 releases/*-preview.zip
 releases/*/*-preview.zip
 releases/archive/*.exe
+# 发布包本体留本机不入库（2026-11-28 约定收口：包目录含 zip 与 PACKAGE-INFO 均为本地产物，
+# git status 不再列 60+ 条 ??；archive/ 已入库的历史件不受影响——gitignore 只作用于未跟踪文件）
+releases/*.zip
+releases/*/
+outputs/
 nul
 $null
 .tmp/
