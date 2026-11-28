@@ -636,20 +636,28 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 	// 并在回执如实标注回落原因，不静默降级。
 	tocNote := ""
 	if p.TOC && format == "docx" {
-		if entries := longdocTocEntries(sb.String()); len(entries) > 0 {
-			in.TocEntries = entries
-			measured, merr := t.a.longdocMeasureTocPages(in)
-			switch {
-			case merr != nil:
-				in.TocEntries = nil
-				tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
-			default:
-				in.TocEntries = measured
-				tocNote = fmt.Sprintf("；目录=TOC 域+实测缓存（%d 条渲染实测回填；打开即准确页码，WPS/Word 里 F9 或打印预览全联动重排；LibreOffice 口径 Word 打印可能 ±1~2 页）", len(measured))
+		switch {
+		case !docxScriptSupports(officeCreateDocxScript(), "--toc-spec"):
+			// 本机 create_docx.py 是旧版、不吃 --toc-spec：回填写不进文档，量了
+			// 也白量（还会谎报「实测回填」）。直接留 TOC 域并如实标注
+			// （2026-11-28 黄甲反馈）。
+			tocNote = "；目录=TOC 域（本机 create_docx.py 是旧版，不支持页码回填；打开后 Ctrl+A→F9 刷新页码）"
+		default:
+			if entries := longdocTocEntries(sb.String()); len(entries) > 0 {
+				in.TocEntries = entries
+				measured, merr := t.a.longdocMeasureTocPages(in)
+				switch {
+				case merr != nil:
+					in.TocEntries = nil
+					tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
+				default:
+					in.TocEntries = measured
+					tocNote = fmt.Sprintf("；目录=TOC 域+实测缓存（%d 条渲染实测回填；打开即准确页码，WPS/Word 里 F9 或打印预览全联动重排；LibreOffice 口径 Word 打印可能 ±1~2 页）", len(measured))
+				}
 			}
 		}
 	}
-	res, err := t.a.GaeaExportDeliverable(in)
+	res, degrade, err := t.a.gaeaExportDeliverable(in)
 	if err != nil {
 		return "", err
 	}
@@ -686,10 +694,15 @@ func (t longdocBuildTool) Execute(_ context.Context, args json.RawMessage) (stri
 			imgNote = fmt.Sprintf("；图引 %d 处（%s 渲染核图走 doc_render）", imgRefs, format)
 		}
 	}
-	if hash == "" {
-		return fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes；sha256 未读回）。机检 0 硬伤%s%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, imgNote, tocNote), nil
+	// 降级备注放回执最前面（本机 create_docx.py 是旧版时哪些能力没生效）。
+	degradeHead := ""
+	if degrade != "" {
+		degradeHead = "⚠ " + degrade + "\n"
 	}
-	return fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes，sha256=%s）。机检 0 硬伤%s%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, shortHash(hash), imgNote, tocNote), nil
+	if hash == "" {
+		return degradeHead + fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes；sha256 未读回）。机检 0 硬伤%s%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, imgNote, tocNote), nil
+	}
+	return degradeHead + fmt.Sprintf("整册已组装导出：%s（%d 章，%d bytes，sha256=%s）。机检 0 硬伤%s%s；页数用 doc_render 渲染取，交付面板可复核。", res.Path, len(chapters), res.Size, shortHash(hash), imgNote, tocNote), nil
 }
 
 // longdocTocHeadingRe 组装文本的 H1/H2 标题行（目录条目源）。

@@ -738,20 +738,28 @@ func (a *App) WenxueDeleteWorkspacePaths(paths []string) error {
 // WenxueExportDeliverable 统一交付出口：事实底座/对话成果的受控 Markdown →
 // docx / pptx / xlsx / md / pdf，一稿多用、多形态一致。
 func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) {
+	res, _, err := a.wenxueExportDeliverable(in)
+	return res, err
+}
+
+// wenxueExportDeliverable 是 WenxueExportDeliverable 的内核，另返回降级备注
+// （本机 create_docx.py 是旧版时哪些能力没生效；空串=没降级）。绑定面契约不变，
+// 备注由 wenxue_book_build 写进回执醒目位。
+func (a *App) wenxueExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, string, error) {
 	if strings.TrimSpace(in.Markdown) == "" {
-		return ExportDeliverableResult{}, fmt.Errorf("交付内容为空")
+		return ExportDeliverableResult{}, "", fmt.Errorf("交付内容为空")
 	}
 	format := strings.ToLower(strings.TrimPrefix(in.Format, "."))
 	switch format {
 	case "docx", "pptx", "xlsx", "md", "pdf":
 	default:
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的交付格式 %q（docx/pptx/xlsx/md/pdf）", in.Format)
+		return ExportDeliverableResult{}, "", fmt.Errorf("不支持的交付格式 %q（docx/pptx/xlsx/md/pdf）", in.Format)
 	}
 	if in.Template == "" {
 		in.Template = "通用"
 	}
 	if !docxTemplateAllowed(in.Template) {
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的模板 %q（内置：通用/公文/报告/合同/标书；或已登记格式模板名——工作区 .gaea/templates/docx/<名>.json）", in.Template)
+		return ExportDeliverableResult{}, "", fmt.Errorf("不支持的模板 %q（内置：通用/公文/报告/合同/标书；或已登记格式模板名——工作区 .gaea/templates/docx/<名>.json）", in.Template)
 	}
 
 	title := strings.TrimSpace(in.Title)
@@ -774,52 +782,55 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 		// 声明写路径宽容解析（P2-11）：工作区内绝对路径自动转相对；相对口径不变。
 		p, perr := wspath.RelIfWithin(wenxueWorkspace(), in.OutputPath)
 		if perr != nil {
-			return ExportDeliverableResult{}, fmt.Errorf("非法 output_path（工作区相对或工作区内绝对路径）: %s", in.OutputPath)
+			return ExportDeliverableResult{}, "", fmt.Errorf("非法 output_path（工作区相对或工作区内绝对路径）: %s", in.OutputPath)
 		}
 		if ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(p), ".")); ext != format {
-			return ExportDeliverableResult{}, fmt.Errorf("output_path 扩展名 %q 与 format %q 不一致", ext, format)
+			return ExportDeliverableResult{}, "", fmt.Errorf("output_path 扩展名 %q 与 format %q 不一致", ext, format)
 		}
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			return ExportDeliverableResult{}, err
+			return ExportDeliverableResult{}, "", err
 		}
 		outPath = p
 	} else {
 		exportsDir := spaces.ExportsDir(wenxueWorkspace(), gaeaEffectiveSpace())
 		if err := os.MkdirAll(exportsDir, 0o755); err != nil {
-			return ExportDeliverableResult{}, err
+			return ExportDeliverableResult{}, "", err
 		}
 		stamp := time.Now().Format("20060102-150405")
 		base := safeDeliverableName(title)
 		outPath = filepath.Join(exportsDir, base+"-"+stamp+"."+format)
 	}
 
+	degrade := ""
 	switch format {
 	case "md":
 		if err := os.WriteFile(outPath, []byte(in.Markdown), 0o644); err != nil {
-			return ExportDeliverableResult{}, err
+			return ExportDeliverableResult{}, "", err
 		}
 	case "docx":
-		if err := wenxueExportDocx(in, title, outPath); err != nil {
-			return ExportDeliverableResult{}, err
+		note, err := wenxueExportDocxNotes(in, title, outPath)
+		if err != nil {
+			return ExportDeliverableResult{}, "", err
 		}
+		degrade = note
 	case "pptx":
 		if err := wenxueExportPptx(in, title, outPath); err != nil {
-			return ExportDeliverableResult{}, err
+			return ExportDeliverableResult{}, "", err
 		}
 	case "xlsx":
 		if err := exportXlsx(in, outPath); err != nil {
-			return ExportDeliverableResult{}, err
+			return ExportDeliverableResult{}, "", err
 		}
 	case "pdf":
 		// Markdown → docx（临时，复用交付模板链路）→ LibreOffice PDF
 		if err := wenxueMarkdownToPdf(in, title, outPath); err != nil {
-			return ExportDeliverableResult{}, err
+			return ExportDeliverableResult{}, "", err
 		}
 	}
 
 	info, err := os.Stat(outPath)
 	if err != nil {
-		return ExportDeliverableResult{}, err
+		return ExportDeliverableResult{}, "", err
 	}
 	rel, _ := filepath.Rel(wenxueWorkspace(), outPath)
 	return ExportDeliverableResult{
@@ -827,7 +838,7 @@ func (a *App) WenxueExportDeliverable(in ExportDeliverableInput) (ExportDelivera
 		Name:   filepath.Base(outPath),
 		Format: format,
 		Size:   info.Size(),
-	}, nil
+	}, degrade, nil
 }
 
 // WenxueFileSearch 工作区文件名搜索（跨目录定位资料）：按名称子串匹配、
@@ -1817,9 +1828,21 @@ func (a *App) WenxueZipDeliverables(paths []string) (ZipDeliverableResult, error
 
 // wenxueExportDocx 经 create_docx.py（python-docx）从 Markdown 排版 Word。
 func wenxueExportDocx(in ExportDeliverableInput, title, outPath string) error {
-	script := wenxueFindSkillScript("docx", "scripts", "create_docx.py")
+	_, err := wenxueExportDocxNotes(in, title, outPath)
+	return err
+}
+
+// wenxueCreateDocxScript 本工作区实际会用到的 create_docx.py（空=没找到）。
+func wenxueCreateDocxScript() string {
+	return wenxueFindSkillScript("docx", "scripts", "create_docx.py")
+}
+
+// wenxueExportDocxNotes 同 wenxueExportDocx，并返回降级备注（办公 exportDocxNotes
+// 同款同步）：本机脚本不支持的扩展参数不发，缺了什么写进备注。
+func wenxueExportDocxNotes(in ExportDeliverableInput, title, outPath string) (string, error) {
+	script := wenxueCreateDocxScript()
 	if script == "" {
-		return fmt.Errorf("未找到 create_docx.py（.gaea/skills/docx/scripts）")
+		return "", fmt.Errorf("未找到 create_docx.py（.gaea/skills/docx/scripts）")
 	}
 	// 中间 md 用随机临时名（与 office exportDocx 同款同步，2026-11-21 沿江反馈
 	// 批对账发现：本副本仍落 <输出stem>.md 再删——office 批6 A1/A2 已根修的
@@ -1827,17 +1850,17 @@ func wenxueExportDocx(in ExportDeliverableInput, title, outPath string) error {
 	// 输出同目录：相对图片路径仍按输出目录解析，行为不变。
 	tmp, err := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-md-*.md")
 	if err != nil {
-		return err
+		return "", err
 	}
 	mdPath := tmp.Name()
 	if _, err := tmp.Write([]byte(in.Markdown)); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(mdPath)
-		return err
+		return "", err
 	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(mdPath)
-		return err
+		return "", err
 	}
 	defer func() { _ = os.Remove(mdPath) }()
 
@@ -1854,41 +1877,50 @@ func wenxueExportDocx(in ExportDeliverableInput, title, outPath string) error {
 	if in.Footer != "" {
 		args = append(args, "--footer", in.Footer)
 	}
-	if in.Subtitle != "" {
+	// 扩展参数按脚本能力发（见 docx_script_caps.go）；没发的记进降级备注。
+	var skipped []string
+	want := func(flag string) bool {
+		if docxScriptSupports(script, flag) {
+			return true
+		}
+		skipped = append(skipped, flag)
+		return false
+	}
+	if in.Subtitle != "" && want("--subtitle") {
 		args = append(args, "--subtitle", in.Subtitle)
 	}
-	if in.Author != "" {
+	if in.Author != "" && want("--author") {
 		args = append(args, "--author", in.Author)
 	}
 	// 静态目录两遍法透传（office 同款同步）：TocEntries 非空→--toc-spec 临时
 	// JSON，图文长篇成册同样可达「渲染实测页码目录，不留 F9 域」。
-	if len(in.TocEntries) > 0 {
+	if len(in.TocEntries) > 0 && want("--toc-spec") {
 		spec, serr := json.Marshal(in.TocEntries)
 		if serr != nil {
-			return serr
+			return "", serr
 		}
 		tocTmp, terr := os.CreateTemp(filepath.Dir(outPath), ".gaea-tmp-toc-*.json")
 		if terr != nil {
-			return terr
+			return "", terr
 		}
 		tocPath := tocTmp.Name()
 		if _, werr := tocTmp.Write(spec); werr != nil {
 			_ = tocTmp.Close()
 			_ = os.Remove(tocPath)
-			return werr
+			return "", werr
 		}
 		if cerr := tocTmp.Close(); cerr != nil {
 			_ = os.Remove(tocPath)
-			return cerr
+			return "", cerr
 		}
 		defer func() { _ = os.Remove(tocPath) }()
 		args = append(args, "--toc-spec", tocPath)
 	}
 	args = append(args, "--template", in.Template)
 	if err := runPython(args, 120); err != nil {
-		return fmt.Errorf("Word 导出失败: %w", err)
+		return "", fmt.Errorf("Word 导出失败: %w", err)
 	}
-	return nil
+	return docxScriptDegradeNote(script, skipped), nil
 }
 
 // wenxueExportPptx 把 Markdown 转成简单 slides spec，经 create_pptx.py 出 16:9 演示文稿。

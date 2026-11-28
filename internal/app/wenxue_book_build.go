@@ -211,22 +211,29 @@ func wenxueBookBuildTool(a *App) *wenxueTool {
 			in.HeadingNumbering = "off"
 			tocNote := ""
 			if p.TOC && format == "docx" {
-				entries := make([]ExportTocEntry, 0, len(chapters))
-				for _, c := range chapters {
-					entries = append(entries, ExportTocEntry{Text: fmt.Sprintf("第%d章 %s", c.Number, c.Title), Level: 1, Page: "—"})
-				}
-				in.TocEntries = entries
-				measured, merr := measureTocEntries(in, a.WenxueExportDeliverable, wenxueResolveBookPath)
 				switch {
-				case merr != nil:
-					in.TocEntries = nil
-					tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
+				case !docxScriptSupports(wenxueCreateDocxScript(), "--toc-spec"):
+					// 本机 create_docx.py 是旧版、不吃 --toc-spec：回填写不进文档，量了
+					// 也白量。直接留 TOC 域并如实标注（办公 longdoc_build 同款）。
+					tocNote = "；目录=TOC 域（本机 create_docx.py 是旧版，不支持页码回填；打开后 Ctrl+A→F9 刷新页码）"
 				default:
-					in.TocEntries = measured
-					tocNote = fmt.Sprintf("；目录=TOC 域+实测缓存（%d 章渲染实测回填；打开即准确页码，WPS/Word 里 F9 或打印预览全联动重排；LibreOffice 口径 Word 打印可能 ±1~2 页）", len(measured))
+					entries := make([]ExportTocEntry, 0, len(chapters))
+					for _, c := range chapters {
+						entries = append(entries, ExportTocEntry{Text: fmt.Sprintf("第%d章 %s", c.Number, c.Title), Level: 1, Page: "—"})
+					}
+					in.TocEntries = entries
+					measured, merr := measureTocEntries(in, a.WenxueExportDeliverable, wenxueResolveBookPath)
+					switch {
+					case merr != nil:
+						in.TocEntries = nil
+						tocNote = fmt.Sprintf("；目录=TOC 域回落（静态页码不可用：%v；打开后 Ctrl+A→F9 刷新页码）", merr)
+					default:
+						in.TocEntries = measured
+						tocNote = fmt.Sprintf("；目录=TOC 域+实测缓存（%d 章渲染实测回填；打开即准确页码，WPS/Word 里 F9 或打印预览全联动重排；LibreOffice 口径 Word 打印可能 ±1~2 页）", len(measured))
+					}
 				}
 			}
-			res, err := a.WenxueExportDeliverable(in)
+			res, degrade, err := a.wenxueExportDeliverable(in)
 			if err != nil {
 				return "", err
 			}
@@ -243,10 +250,15 @@ func wenxueBookBuildTool(a *App) *wenxueTool {
 			if len(warns) > 0 {
 				warnNote = fmt.Sprintf("；warn %d 项（不拦发布）：%s", len(warns), strings.Join(warns, "；"))
 			}
-			out := fmt.Sprintf("整本已组装导出：%s（%d 章，%d 字%s%s%s）。\n每章字数 JSON：%s",
+			// 降级备注放回执最前面（本机 create_docx.py 是旧版时哪些能力没生效）。
+			degradeHead := ""
+			if degrade != "" {
+				degradeHead = "⚠ " + degrade + "\n"
+			}
+			out := degradeHead + fmt.Sprintf("整本已组装导出：%s（%d 章，%d 字%s%s%s）。\n每章字数 JSON：%s",
 				res.Path, len(chapters), total, quotaNote, tocNote, warnNote, rowsJSON)
 			if hash != "" {
-				out = fmt.Sprintf("整本已组装导出：%s（%d 章，%d 字，sha256=%s%s%s%s）。\n每章字数 JSON：%s",
+				out = degradeHead + fmt.Sprintf("整本已组装导出：%s（%d 章，%d 字，sha256=%s%s%s%s）。\n每章字数 JSON：%s",
 					res.Path, len(chapters), total, shortHash(hash), quotaNote, tocNote, warnNote, rowsJSON)
 			}
 			return out, nil
