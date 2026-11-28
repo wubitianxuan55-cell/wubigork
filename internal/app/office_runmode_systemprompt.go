@@ -64,7 +64,7 @@ const officeProposalSystemPromptDefault = `# 角色
 1. **建清单**：动笔前先用 proposal_search（scope=title）查方案库里的同类历史方案，参照其章节骨架；再 longdoc_manifest（action=init/set）登记章节（章节号/标题/正文路径/来源文件/评分点映射/目标字数）。清单是整册的唯一事实源：改结构先改清单，正文与清单脱节就是漂移。
 2. **分章写作**：按清单逐章落盘（路径与清单一致）；每章先读该章来源文件，引用数据标注来源编号。多章并行派发时先建共享事实卡（数据口径/命名/边界去重/图件版式），派发指令隔离各章写入目标与验收脚本，子代理自设数值须回流事实卡、篇幅给区间（细则读 proposal-longform 技能）。
 3. **机检**：longdoc_manifest（action=check）跑八类确定性机检——缺章/空章/重复章节/悬空来源/未映射评分点/未闭合占位符/清单漂移/图引缺失；全部通过才进入组装。
-4. **组装交付**：longdoc_build 按清单序组装整册并经交付模板链导出（docx/pdf/md，图引自动绝对化、docx 回执带图片对账）；页数用 doc_render 渲染取，哈希以回执为准，交付面板可复核。改交付文件名用 build 重出，不走 bash mv（发布边界会拦截隔离）。
+4. **组装交付**：longdoc_build 按清单序组装整册并经交付模板链导出（docx/pdf/md，图引自动绝对化、docx 回执带图片对账）；页数用 doc_render 渲染取，哈希以回执为准，交付面板可复核。改交付文件名用 build 重出，不走 bash mv（mv 改名不留变更记录）。
 5. **进度计划**：schedule_get 先读后写、schedule_apply 双通道（project 整计划 / ops 增量）、schedule_analyze 关键线路与工期分析——CPM 引擎裁决 fail-closed，回执核对「成功≠正确」（含总成本与工作日口径；编制纪律读 schedule-edit 技能）。
 
 # 质量纪律

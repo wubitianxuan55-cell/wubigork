@@ -6,7 +6,8 @@ package tool
 // 字符串扫描可被重定向/脚本/改名绕过（裁决风险条），因此硬禁落在「工作区发布边界」：
 // Begin 对工作区根做 size+mtime 快照 → 工具执行 → Scan 比对出 durable 档
 // （v1=docx/xlsx/pptx 三格式，D1 口径）的新增/修改 → Quarantine 移出正式工作区，
-// 调用方 fail-loud 回显期望路径集（备忘 :23 fail-loud 继承）。
+// 调用方 fail-loud 回显期望路径集（备忘 :23 fail-loud 继承）。既有正式件在工作区
+// 内移动（size+mtime 不变、原位已不在）不算新增，随迁放行（见 pairRelocations）。
 //
 // 三分档口径（备忘 :21 继承）：durable 硬禁（本文件）；derived（渲染 PDF/PNG 挂父
 // 哈希）与 ephemeral（结束查残留）属 P2/后续档，本文件不冒充全量治理。
@@ -41,6 +42,12 @@ type PublishViolation struct {
 	Size    int64
 }
 
+// PublishRelocation 一件被认作「工作区内移动」的既有正式件（随迁件）。
+type PublishRelocation struct {
+	From string // 移动前的工作区相对路径（ToSlash）
+	To   string // 移动后的工作区相对路径（ToSlash）
+}
+
 // PublishGuard 工作区 durable 写发布边界。单次生命周期：Begin →（执行）→ Scan →
 // Quarantine。非并发安全：同一线程内顺序调用；后台路径可在 job 完成回调线程
 // 复用同一实例（Begin 在启动时做过快照即可）。
@@ -57,6 +64,8 @@ type PublishGuard struct {
 	// lastTouched 最近一次 Scan 见到的全部 durable 新增/修改（含豁免的过程件）——
 	// 调用方拿它做事后体检（脚本写出的 xlsx 有没有缓存值），与隔离判定无关。
 	lastTouched []PublishViolation
+	// lastRelocations 最近一次 Scan 认出的随迁件（既有正式件在工作区内换了位置）。
+	lastRelocations []PublishRelocation
 }
 
 // WithSource 标注账本来源与命令预览（D6：归属证据——谁在何时因何命令隔离）。
@@ -134,12 +143,12 @@ func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 			return nil, err
 		}
 	}
-	var out, touched []PublishViolation
+	var out, touched, created []PublishViolation
 	for path, st := range cur {
 		before, existed := g.base[path]
 		if !existed {
 			if v := g.violationFor(path, st, "created"); !v.exempt() {
-				out = append(out, v)
+				created = append(created, v)
 			}
 			touched = append(touched, g.violationFor(path, st, "created"))
 			continue
@@ -151,9 +160,81 @@ func (g *PublishGuard) Scan() ([]PublishViolation, error) {
 			touched = append(touched, g.violationFor(path, st, "modified"))
 		}
 	}
+	// 随迁配对：新建越界件里凡是既有正式件在工作区内换了位置的，摘出去（见
+	// pairRelocations）。随迁件不是写出来的，不进事后体检面。
+	relocs, created := g.pairRelocations(cur, created)
+	g.lastRelocations = relocs
+	if len(relocs) > 0 {
+		moved := make(map[string]bool, len(relocs))
+		for _, r := range relocs {
+			moved[r.To] = true
+		}
+		kept := touched[:0:0]
+		for _, v := range touched {
+			if !moved[v.RelPath] {
+				kept = append(kept, v)
+			}
+		}
+		touched = kept
+	}
+	out = append(out, created...)
 	sort.Slice(touched, func(i, j int) bool { return touched[i].Path < touched[j].Path })
 	g.lastTouched = touched
 	return out, nil
+}
+
+// pairRelocations 从「新建」越界件里认出随迁件（2026-11-28 黄甲反馈）：执行前就在
+// 正式面、执行后原位已不在的一件，与新出现的这件大小、修改时间都相同（mv/改名
+// 不改这两样），即工作区内移动——不是发布，不隔离。黄甲会话两次整理工作区，
+// bash mv 目录后 7 批拦截，主控逐件 move_file 取回 120 次（占全会话工具调用
+// 28%），而 move_file 不支持目录，没有别的走法。
+//
+//   - 一对一配对（一件源头只认一件去向），去向按路径排序保证判定确定；
+//   - 源头在豁免面（.gaea/work/、_draft/ 等）的不配：那是过程件经 bash 落进
+//     正式名，仍属越界发布，出口不变（move_file）；
+//   - 只处理 created：mv 覆盖同名正式件是 modified，原内容已被盖掉，照旧拦截；
+//   - 复制（cp，源头还在）配不上，照旧拦截——新路径上多出一份正式件就是发布。
+//
+// 返回认出的随迁件与剩下的越界新建件。
+func (g *PublishGuard) pairRelocations(cur map[string]publishFileState, created []PublishViolation) ([]PublishRelocation, []PublishViolation) {
+	if len(created) == 0 {
+		return nil, nil
+	}
+	type sig struct {
+		size  int64
+		mtime time.Time
+	}
+	gone := map[sig][]PublishViolation{}
+	for path, st := range g.base {
+		if _, still := cur[path]; still {
+			continue
+		}
+		v := g.violationFor(path, st, "created")
+		if v.exempt() {
+			continue
+		}
+		s := sig{st.size, st.mtime}
+		gone[s] = append(gone[s], v)
+	}
+	sorted := append([]PublishViolation(nil), created...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Path < sorted[j].Path })
+	var rels []PublishRelocation
+	var rest []PublishViolation
+	for _, v := range sorted {
+		s := sig{v.Size, cur[v.Path].mtime}
+		if srcs := gone[s]; len(srcs) > 0 {
+			rels = append(rels, PublishRelocation{From: srcs[0].RelPath, To: v.RelPath})
+			gone[s] = srcs[1:]
+			continue
+		}
+		rest = append(rest, v)
+	}
+	return rels, rest
+}
+
+// Relocations 最近一次 Scan 认出的随迁件（既有正式件在工作区内换了位置，未隔离）。
+func (g *PublishGuard) Relocations() []PublishRelocation {
+	return append([]PublishRelocation(nil), g.lastRelocations...)
 }
 
 // Touched 最近一次 Scan 见到的全部 durable 新增/修改（含 .gaea/work/ 等豁免面）。

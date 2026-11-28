@@ -260,6 +260,47 @@ func xlsxCacheNotes(pub *tool.PublishGuard, settled bool) string {
 	return strings.Join(lines, "\n")
 }
 
+// relocationNote 随迁件说明（2026-11-28 黄甲反馈）：工作区内 mv 目录/改名时，目录
+// 里的既有 Office 件跟着搬了家——不是发布，发布边界认出来后不隔离；回执里说一声，
+// 模型知道边界看见了这些件、不必再逐件 move_file。
+func relocationNote(pub *tool.PublishGuard) string {
+	if pub == nil {
+		return ""
+	}
+	rels := pub.Relocations()
+	if len(rels) == 0 {
+		return ""
+	}
+	const show = 5
+	var b strings.Builder
+	fmt.Fprintf(&b, "发布边界：%d 件既有 Office 件随工作区内移动换了位置（未拦截，不是新建交付）：", len(rels))
+	for i, r := range rels {
+		if i == show {
+			fmt.Fprintf(&b, " 等共 %d 件", len(rels))
+			break
+		}
+		if i > 0 {
+			b.WriteString("；")
+		}
+		b.WriteString(r.From + " → " + r.To)
+	}
+	b.WriteString("。脚本现写的 Office 交付件仍须走结构化入口或 move_file。")
+	return b.String()
+}
+
+// publishNotes 发布边界的事后备注：xlsx 缓存值体检 + 随迁件说明。
+func publishNotes(pub *tool.PublishGuard, settled bool) string {
+	x := xlsxCacheNotes(pub, settled)
+	r := relocationNote(pub)
+	switch {
+	case x == "":
+		return r
+	case r == "":
+		return x
+	}
+	return x + "\n" + r
+}
+
 // noteAfter 把体检备注接在一段回执后面；空备注原样返回。
 func noteAfter(base, note string) string {
 	if note == "" {
@@ -499,7 +540,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			if pub != nil {
 				perr := b.publishCheck(pub)
 				// 备注进 job 缓冲：bash_output / wait 读的是它，不占 result 位。
-				if note := xlsxCacheNotes(pub, true); note != "" {
+				if note := publishNotes(pub, true); note != "" {
 					_, _ = fmt.Fprintln(out, note)
 					perr = errWithNote(perr, note)
 				}
@@ -629,7 +670,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 						if perr := b.publishCheck(pub); perr != nil {
 							result["publish_blocked"] = perr.Error()
 						}
-						if note := xlsxCacheNotes(pub, false); note != "" {
+						if note := publishNotes(pub, false); note != "" {
 							result["xlsx_notes"] = note
 						}
 					}
@@ -645,7 +686,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 					if perr := b.publishCheck(pub); perr != nil {
 						out += "\n" + perr.Error()
 					}
-					out = noteAfter(out, xlsxCacheNotes(pub, false))
+					out = noteAfter(out, publishNotes(pub, false))
 				}
 				return out + "\n[进程仍在后台运行]", nil
 			}
@@ -712,7 +753,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// P1b 前台发布边界：执行结束扫描（命中即隔离 + fail-loud，裁决 :23）。
 		if pub != nil {
 			perr := b.publishCheck(pub)
-			note := xlsxCacheNotes(pub, true)
+			note := publishNotes(pub, true)
 			if note != "" {
 				result["xlsx_notes"] = note
 			}
@@ -763,7 +804,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	// P1b 前台发布边界（plain 终段：命中即隔离 + fail-loud）。
 	if pub != nil {
 		perr := b.publishCheck(pub)
-		note := xlsxCacheNotes(pub, true)
+		note := publishNotes(pub, true)
 		if perr != nil {
 			// 越界：result 仍是隔离全文（传输契约，见 publishCheck），备注接在其后。
 			return noteAfter(perr.Error(), note), errWithNote(perr, note)
