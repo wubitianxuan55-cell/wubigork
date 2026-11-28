@@ -114,31 +114,63 @@ func TestDiagramGenValidation(t *testing.T) {
 	}
 }
 
-// TestDiagramGenFlowValidation flow 模式参数校验：环检测、layout 取值。
+// TestDiagramGenFlowValidation flow 模式参数校验：layout 取值。（环不再是参数
+// 错误——回边画成虚线弧，见 TestDiagramGenFlowBackEdgesRender。）
 func TestDiagramGenFlowValidation(t *testing.T) {
-	// 循环依赖 → 参数错误
-	_, err := (diagramGen{}).Execute(context.Background(), json.RawMessage(
-		`{"kind":"flow","nodes":[{"id":"a","label":"甲"},{"id":"b","label":"乙"},{"id":"c","label":"丙"}],`+
-			`"edges":[{"from":"a","to":"b"},{"from":"b","to":"c"},{"from":"c","to":"a"}]}`))
-	if err == nil {
-		t.Fatal("expected cycle error")
-	}
-	if !strings.Contains(err.Error(), "循环依赖") {
-		t.Fatalf("错误信息应含 循环依赖，实际: %v", err)
-	}
-	// 自环也是环
-	if _, err := (diagramGen{}).Execute(context.Background(), json.RawMessage(
-		`{"kind":"flow","nodes":[{"id":"a","label":"甲"}],"edges":[{"from":"a","to":"a"}]}`)); err == nil {
-		t.Fatal("expected self-loop cycle error")
-	} else if !strings.Contains(err.Error(), "循环依赖") {
-		t.Fatalf("错误信息应含 循环依赖，实际: %v", err)
-	}
 	// 非法 layout
 	if _, err := (diagramGen{}).Execute(context.Background(), json.RawMessage(
 		`{"kind":"flow","nodes":[{"id":"a","label":"甲"}],"layout":"diagonal"}`)); err == nil {
 		t.Fatal("expected bad-layout error")
 	} else if !strings.Contains(err.Error(), "layout") {
 		t.Fatalf("错误信息应含 layout，实际: %v", err)
+	}
+}
+
+// TestComputeFlowLayoutBackEdges 回边识别（2026-11-28 黄甲反馈：复检不合格→再次
+// 扩挖这类闭环流程图此前报「循环依赖」直接拒画）。回边=指向搜索栈上节点的边，
+// 摘出后分层照常。
+func TestComputeFlowLayoutBackEdges(t *testing.T) {
+	// 环 a→b→c→a：回边是 c→a（下标 2）
+	levels, back, err := computeFlowLayout([]string{"a", "b", "c"}, [][2]string{{"a", "b"}, {"b", "c"}, {"c", "a"}})
+	if err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+	if levels["a"] != 0 || levels["b"] != 1 || levels["c"] != 2 || len(back) != 1 || !back[2] {
+		t.Fatalf("环：回边应是 c→a，分层照常：levels=%v back=%v", levels, back)
+	}
+	// 自环
+	if _, back, err := computeFlowLayout([]string{"a", "b"}, [][2]string{{"a", "a"}}); err != nil || len(back) != 1 || !back[0] {
+		t.Fatalf("自环应是回边：back=%v err=%v", back, err)
+	}
+	// 互相引用 a↔b：后出发的那条是回边
+	if levels, back, err := computeFlowLayout([]string{"a", "b"}, [][2]string{{"a", "b"}, {"b", "a"}}); err != nil ||
+		levels["b"] != 1 || len(back) != 1 || !back[1] {
+		t.Fatalf("a↔b：back=%v levels=%v err=%v", back, levels, err)
+	}
+	// 实测形态：扩挖→筛分→自检→复检，复检不合格回到扩挖、合格外运
+	edges := [][2]string{{"n1", "n2"}, {"n2", "n3"}, {"n3", "n4"}, {"n4", "n1"}, {"n4", "n5"}}
+	levels, back, err = computeFlowLayout([]string{"n1", "n2", "n3", "n4", "n5"}, edges)
+	if err != nil {
+		t.Fatalf("rework loop: %v", err)
+	}
+	want := map[string]int{"n1": 0, "n2": 1, "n3": 2, "n4": 3, "n5": 4}
+	for k, v := range want {
+		if levels[k] != v {
+			t.Fatalf("节点 %s level=%d want %d（%v）", k, levels[k], v, levels)
+		}
+	}
+	if len(back) != 1 || !back[3] {
+		t.Fatalf("回边应是 复检→扩挖（下标 3）：back=%v", back)
+	}
+	// 无环：没有回边，分层与旧口径一致
+	if levels, back, err := computeFlowLayout([]string{"a", "b", "c", "d"},
+		[][2]string{{"a", "b"}, {"a", "c"}, {"b", "d"}, {"c", "d"}}); err != nil ||
+		len(back) != 0 || levels["d"] != 2 || levels["b"] != 1 || levels["c"] != 1 {
+		t.Fatalf("无环图不该有回边：levels=%v back=%v err=%v", levels, back, err)
+	}
+	// 引用未知节点的边不当回边
+	if _, back, err := computeFlowLayout([]string{"a"}, [][2]string{{"a", "ghost"}, {"ghost", "a"}}); err != nil || len(back) != 0 {
+		t.Fatalf("未知节点的边应忽略：back=%v err=%v", back, err)
 	}
 }
 
@@ -200,18 +232,18 @@ func TestComputeFlowLevels(t *testing.T) {
 	}
 	assertLevels(t, levels, map[string]int{"a": 0})
 
-	// 环：a→b→c→a
-	if _, err = computeFlowLevels([]string{"a", "b", "c"},
-		[][2]string{{"a", "b"}, {"b", "c"}, {"c", "a"}}); err == nil {
-		t.Fatal("expected cycle error")
-	} else if !strings.Contains(err.Error(), "循环依赖") {
-		t.Fatalf("错误信息应含 循环依赖，实际: %v", err)
+	// 环与自环不再报错：回边摘出后分层照常（详见 TestComputeFlowLayoutBackEdges）
+	levels, err = computeFlowLevels([]string{"a", "b", "c"},
+		[][2]string{{"a", "b"}, {"b", "c"}, {"c", "a"}})
+	if err != nil {
+		t.Fatalf("cycle: %v", err)
 	}
+	assertLevels(t, levels, map[string]int{"a": 0, "b": 1, "c": 2})
 
-	// 自环
-	if _, err = computeFlowLevels([]string{"a", "b"}, [][2]string{{"a", "a"}}); err == nil {
-		t.Fatal("expected self-loop cycle error")
+	if levels, err = computeFlowLevels([]string{"a", "b"}, [][2]string{{"a", "a"}}); err != nil {
+		t.Fatalf("self-loop: %v", err)
 	}
+	assertLevels(t, levels, map[string]int{"a": 0, "b": 0})
 
 	// 多连通分量（各自独立成层）
 	levels, err = computeFlowLevels([]string{"a", "b", "x", "y"},
@@ -310,6 +342,65 @@ func TestDiagramGenFlowBranchLayouts(t *testing.T) {
 			}
 			if info.Size() < 5000 || info.Size() != r.SizeBytes {
 				t.Fatalf("output size abnormal: file=%d reported=%d", info.Size(), r.SizeBytes)
+			}
+		})
+	}
+}
+
+// TestDiagramGenFlowBackEdgesRender 冒烟：闭环流程（复检不合格→回到扩挖）在
+// vertical / horizontal 两种布局下各渲染一张，回边走侧向虚线弧，不再报循环依赖
+// （2026-11-28 黄甲反馈）。GAEA_DIAGRAM_DUMP 指向目录时把图另存一份供目检。
+func TestDiagramGenFlowBackEdgesRender(t *testing.T) {
+	if _, err := lookPathFirst([]string{"python", "python3"}); err != nil {
+		t.Skip("python 不可用，跳过渲染冒烟")
+	}
+	for _, layout := range []string{"vertical", "horizontal"} {
+		t.Run(layout, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "flow_back_"+layout+".png")
+			args := map[string]interface{}{
+				"title":  "复检闭环流程（" + layout + "）",
+				"kind":   "flow",
+				"layout": layout,
+				"nodes": []map[string]interface{}{
+					{"id": "n1", "label": "污染土壤扩挖"},
+					{"id": "n2", "label": "筛分冲洗"},
+					{"id": "n3", "label": "自检采样送检"},
+					{"id": "n4", "label": "复检"},
+					{"id": "n5", "label": "验收合格外运"},
+				},
+				"edges": []map[string]interface{}{
+					{"from": "n1", "to": "n2"},
+					{"from": "n2", "to": "n3"},
+					{"from": "n3", "to": "n4"},
+					{"from": "n4", "to": "n1", "label": "不合格"},
+					{"from": "n4", "to": "n5", "label": "合格"},
+				},
+				"output": out,
+			}
+			raw, _ := json.Marshal(args)
+			res, err := (diagramGen{}).Execute(context.Background(), raw)
+			diagramRenderSkip(t, err)
+			if err != nil {
+				t.Fatalf("Execute(%s): %v", layout, err)
+			}
+			var r struct {
+				OK        bool   `json:"ok"`
+				Path      string `json:"output"`
+				SizeBytes int64  `json:"size_bytes"`
+			}
+			if err := json.Unmarshal([]byte(res), &r); err != nil {
+				t.Fatalf("parse result: %v", err)
+			}
+			if !r.OK {
+				t.Fatalf("result not ok: %s", res)
+			}
+			png, err := os.ReadFile(r.Path)
+			if err != nil || int64(len(png)) != r.SizeBytes || len(png) < 5000 {
+				t.Fatalf("output abnormal: err=%v len=%d reported=%d", err, len(png), r.SizeBytes)
+			}
+			if d := os.Getenv("GAEA_DIAGRAM_DUMP"); d != "" {
+				_ = os.MkdirAll(d, 0o755)
+				_ = os.WriteFile(filepath.Join(d, "flow_back_"+layout+".png"), png, 0o644)
 			}
 		})
 	}

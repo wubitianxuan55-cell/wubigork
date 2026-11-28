@@ -24,7 +24,7 @@ type diagramGen struct{ workDir string }
 func (diagramGen) Name() string { return "diagram_gen" }
 
 func (diagramGen) Description() string {
-	return "生成框架图/流程图（matplotlib，中文清晰）：架构图、层级框架图、业务流程/流程图。flow 模式按 edges 拓扑自动分层，支持分支/汇合（layout=vertical 自上而下分层，默认；horizontal 从左到右按列展开），检测到循环依赖时报参数错误；节点文字过长自动折行。输入节点与连线，输出 PNG。文字密集的结构图请用本工具，不要用文生图（Flux/Z-Image-Turbo 会把中文画成乱码）。"
+	return "生成框架图/流程图（matplotlib，中文清晰）：架构图、层级框架图、业务流程/流程图。flow 模式按 edges 拓扑自动分层，支持分支/汇合（layout=vertical 自上而下分层，默认；horizontal 从左到右按列展开）与回边（复检不合格→返工这类循环画成侧向绕行的虚线弧）；节点文字过长自动折行。输入节点与连线，输出 PNG。文字密集的结构图请用本工具，不要用文生图（Flux/Z-Image-Turbo 会把中文画成乱码）。"
 }
 
 func (diagramGen) Schema() json.RawMessage {
@@ -32,7 +32,7 @@ func (diagramGen) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "title":{"type":"string","description":"图表标题（中文可正常渲染）"},
-  "kind":{"type":"string","enum":["framework","flow"],"description":"framework=分层框架图（按 level 分组横向排布）；flow=流程图（按 edges 拓扑分层，入度 0 的节点在最上层，支持分支/汇合，存在循环依赖时报错）","default":"framework"},
+  "kind":{"type":"string","enum":["framework","flow"],"description":"framework=分层框架图（按 level 分组横向排布）；flow=流程图（按 edges 拓扑分层，入度 0 的节点在最上层，支持分支/汇合，支持分支/汇合与回边（循环画成虚线弧）","default":"framework"},
   "layout":{"type":"string","enum":["vertical","horizontal"],"description":"flow 模式布局方向：vertical=自上而下分层（默认）；horizontal=从左到右按列展开","default":"vertical"},
   "nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"label":{"type":"string","description":"节点文字（过长自动折行）"},"level":{"type":"integer","description":"framework 模式的分层号，0 为顶层"},"group":{"type":"string","description":"framework 模式的层名（同 level 节点建议同一 group）"}},"required":["id","label"]},"description":"节点列表"},
   "edges":{"type":"array","items":{"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}},"required":["from","to"]},"description":"连线（flow 模式决定拓扑分层，支持分支/汇合；framework 模式可选，层间自动画箭头）"},
@@ -82,8 +82,19 @@ func wrapLabel(label string, maxChars int) string {
 
 // computeFlowLevels 计算 flow 模式的拓扑分层（纯函数，便于单测）：
 // 入度 0 的节点 level=0，其余节点 level = 所有前驱 level 的最大值 + 1；
-// 引用未知节点的边忽略；检测到环（含自环）时返回参数错误。
+// 引用未知节点的边忽略。回边（环里指回搜索栈上节点的边）不参与分层，见
+// computeFlowLayout。
 func computeFlowLevels(ids []string, edges [][2]string) (map[string]int, error) {
+	levels, _, err := computeFlowLayout(ids, edges)
+	return levels, err
+}
+
+// computeFlowLayout 拓扑分层并认出回边（2026-11-28 黄甲反馈：复检不合格→再次
+// 扩挖这类闭环流程图是施工方案的常态，此前报「循环依赖」直接拒画）。回边摘出
+// 后对剩下的无环图做最长路径分层；回边按边下标标出，交给脚本画成侧向绕行的
+// 虚线弧。
+func computeFlowLayout(ids []string, edges [][2]string) (map[string]int, map[int]bool, error) {
+	back := splitBackEdges(ids, edges)
 	known := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		known[id] = struct{}{}
@@ -93,7 +104,10 @@ func computeFlowLevels(ids []string, edges [][2]string) (map[string]int, error) 
 	for _, id := range ids {
 		indeg[id] = 0
 	}
-	for _, e := range edges {
+	for i, e := range edges {
+		if back[i] {
+			continue
+		}
 		if _, ok := known[e[0]]; !ok {
 			continue
 		}
@@ -130,15 +144,60 @@ func computeFlowLevels(ids []string, edges [][2]string) (map[string]int, error) 
 		}
 	}
 	if len(done) < len(known) {
+		// 摘净回边后理论上必是无环图；走到这里说明回边识别有漏，如实报错。
 		stuck := make([]string, 0, len(ids)-len(done))
 		for _, id := range ids {
 			if !done[id] {
 				stuck = append(stuck, id)
 			}
 		}
-		return nil, fmt.Errorf("flow 节点存在循环依赖: %s", strings.Join(stuck, ", "))
+		return nil, nil, fmt.Errorf("flow 节点存在循环依赖: %s", strings.Join(stuck, ", "))
 	}
-	return levels, nil
+	return levels, back, nil
+}
+
+// splitBackEdges 用深度优先搜索认出有向图里的回边：指向搜索栈上节点的边（含
+// 自环）。任一有向环至少含一条回边，摘掉全部回边后剩下的必是无环图。节点按
+// ids 顺序、邻接按边顺序访问，结果确定。返回的 map 以边下标为键。
+func splitBackEdges(ids []string, edges [][2]string) map[int]bool {
+	known := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		known[id] = struct{}{}
+	}
+	adj := make(map[string][]int, len(ids))
+	for i, e := range edges {
+		if _, ok := known[e[0]]; ok {
+			if _, ok := known[e[1]]; ok {
+				adj[e[0]] = append(adj[e[0]], i)
+			}
+		}
+	}
+	const (
+		unvisited = iota
+		onStack
+		done
+	)
+	state := make(map[string]int, len(ids))
+	back := map[int]bool{}
+	var visit func(u string)
+	visit = func(u string) {
+		state[u] = onStack
+		for _, ei := range adj[u] {
+			switch state[edges[ei][1]] {
+			case onStack:
+				back[ei] = true
+			case unvisited:
+				visit(edges[ei][1])
+			}
+		}
+		state[u] = done
+	}
+	for _, id := range ids {
+		if state[id] == unvisited {
+			visit(id)
+		}
+	}
+	return back
 }
 
 var diagramScript = `
@@ -226,6 +285,25 @@ def draw_arrow(ax, x1, y1, x2, y2, label=""):
         mx, my = (x1+x2)/2, (y1+y2)/2
         ax.text(mx, my, label, fontsize=9, ha="center", va="center",
                 color="#7f7f7f", bbox=dict(facecolor="white", edgecolor="none", pad=0.8))
+
+def draw_back_arrow(ax, x1, y1, x2, y2, rad, dip, label="", side_right=True):
+    # 回边（复检不合格→返工这类循环）：走节点侧面绕行的虚线弧，不压在层间直线上。
+    # 弧的鼓出深度固定为 dip（rad 按弦长反算）：弦越长越浅弯，不会沉出画布。
+    ax.add_patch(FancyArrowPatch((x1, y1), (x2, y2), arrowstyle="-|>",
+                                 mutation_scale=16, color="#B04A3A", linewidth=1.3,
+                                 linestyle=(0, (4, 3)),
+                                 connectionstyle="arc3,rad=%s" % rad))
+    if label:
+        if side_right:
+            mx = max(x1, x2) + dip + 0.5
+            my = (y1 + y2) / 2
+            ax.text(mx, my, label, fontsize=9, ha="left", va="center",
+                    color="#B04A3A", bbox=dict(facecolor="white", edgecolor="none", pad=0.8))
+        else:
+            mx = (x1 + x2) / 2
+            my = min(y1, y2) - dip - 0.2
+            ax.text(mx, my, label, fontsize=9, ha="center", va="top",
+                    color="#B04A3A", bbox=dict(facecolor="white", edgecolor="none", pad=0.8))
 
 layout_boxes = []
 
@@ -322,17 +400,28 @@ elif kind == "flow":
         fig_h = max(5.0, cross_total + 1.6)
     else:
         fig_h = max(4.0, depth_total + 1.6)
+    # 回边走节点侧面绕行，给弧线留外侧余量（vertical 在右侧、horizontal 在下方）；
+    # 余量=弧的固定鼓出深度+标签位
+    has_back = any(e.get('back') for e in edges)
+    BACK_DIP = 1.7
+    BACK_PAD = (BACK_DIP + 1.6) if has_back else 0.0
+    if has_back:
+        if horiz:
+            fig_h += BACK_PAD
+        else:
+            fig_w += BACK_PAD
 
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.set_xlim(0, fig_w)
     ax.set_ylim(0, fig_h)
     ax.axis('off')
 
-    # 层内 cross 居中、层间 depth 推进，映射回 (x, y)
+    # 层内 cross 居中、层间 depth 推进，映射回 (x, y)。回边余量不参与居中：vertical
+    # 的余量全留在右侧；horizontal 的余量全留在下方（节点离画布上沿的距离不变）
     place = {}
     d0 = 0.0
-    x_off = (fig_w - cross_total) / 2.0
-    y_off = (fig_h + cross_total) / 2.0
+    x_off = (fig_w - (0.0 if horiz else BACK_PAD) - cross_total) / 2.0
+    y_off = (fig_h + (BACK_PAD if horiz else 0.0) + cross_total) / 2.0
     for li, l in enumerate(layers):
         color = theme(li)
         c_cur = (cross_total - extent(l['cs'], CROSS_GAP)) / 2.0
@@ -359,6 +448,25 @@ elif kind == "flow":
         b = place.get(str(e.get('to')))
         if not a or not b or a is b:
             continue
+        if e.get('back'):
+            # 回边：从起点侧缘出发、绕到终点侧缘的虚线弧（vertical 右侧 / horizontal
+            # 下方）。arc3 的 rad>0 朝行进方向右侧鼓，两种朝向各取让它朝外的符号；
+            # 弯曲量按弦长反算成固定深度。
+            if horiz:
+                sx, sy = a[0], a[1] - a[3]/2 - 0.06
+                ex, ey = b[0], b[1] - b[3]/2 - 0.06
+                sign = -1.0
+                side_right = False
+            else:
+                sx, sy = a[0] + a[2]/2 + 0.06, a[1]
+                ex, ey = b[0] + b[2]/2 + 0.06, b[1]
+                sign = 1.0
+                side_right = True
+            chord = ((ex - sx) ** 2 + (ey - sy) ** 2) ** 0.5
+            rad = sign * min(0.9, 2.0 * BACK_DIP / max(chord, 0.01))
+            draw_back_arrow(ax, sx, sy, ex, ey, rad, BACK_DIP, e.get('label', ''),
+                            side_right=side_right)
+            continue
         if horiz:
             x1, y1 = a[0] + a[2]/2 + 0.06, a[1]
             x2, y2 = b[0] - b[2]/2 - 0.06, b[1]
@@ -371,7 +479,13 @@ else:
     sys.exit(1)
 
 if title:
-    ax.set_title(title, fontsize=15, fontweight="bold", color=NAVY)
+    if kind == "flow" and has_back:
+        # 回边余量让画布偏向一侧：标题对齐节点区中心，而不是整幅画布
+        cx = (fig_w / 2.0) if horiz else (x_off + cross_total / 2.0)
+        ax.text(cx, fig_h - 0.3, title, fontsize=15, fontweight="bold", color=NAVY,
+                ha="center", va="top")
+    else:
+        ax.set_title(title, fontsize=15, fontweight="bold", color=NAVY)
 plt.tight_layout()
 layout_report = check_figure_layout(fig, layout_boxes)
 plt.savefig(output, dpi=150, bbox_inches="tight")
@@ -398,6 +512,7 @@ func (d diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, 
 			From  string `json:"from"`
 			To    string `json:"to"`
 			Label string `json:"label,omitempty"`
+			Back  bool   `json:"back,omitempty"`
 		} `json:"edges,omitempty"`
 		Levels map[string]int `json:"levels,omitempty"`
 		Output string         `json:"output,omitempty"`
@@ -438,9 +553,12 @@ func (d diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, 
 		for i := range p.Edges {
 			pairs[i] = [2]string{p.Edges[i].From, p.Edges[i].To}
 		}
-		levels, err := computeFlowLevels(ids, pairs)
+		levels, back, err := computeFlowLayout(ids, pairs)
 		if err != nil {
 			return "", err
+		}
+		for i := range p.Edges {
+			p.Edges[i].Back = back[i]
 		}
 		p.Levels = levels
 	}
